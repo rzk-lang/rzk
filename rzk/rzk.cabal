@@ -4,18 +4,17 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d646ce63ebedb2ff8f54f78f5325acc02834ed26a4af9a64a7c610dbd75476a
+-- hash: 646ef0fdb25284fc3c508ecb250d1d9ae66bc9bb239ee31e64be4203b5a849b7
 
 name:           rzk
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/rzk#readme>
-homepage:       https://github.com/githubuser/rzk#readme
-bug-reports:    https://github.com/githubuser/rzk/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2020 Author name here
+description:    Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
+homepage:       https://github.com/fizruk/rzk#readme
+bug-reports:    https://github.com/fizruk/rzk/issues
+author:         Nikolai Kudasov
+maintainer:     nickolay.kudasov@gmail.com
+copyright:      2020 Nikolai Kudasov
 license:        BSD3
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
@@ -23,29 +22,44 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/rzk
+  location: https://github.com/fizruk/rzk
 
 library
   exposed-modules:
-      Lib
+      Rzk
+      Rzk.Evaluator
+      Rzk.Parser.Text
+      Rzk.Pretty.Text
+      Rzk.Syntax.Decl
+      Rzk.Syntax.Module
+      Rzk.Syntax.Term
+      Rzk.Syntax.Var
+      Rzk.TypeChecker
   other-modules:
       Paths_rzk
   hs-source-dirs:
       src
+  ghc-options: -Wall -fno-warn-type-defaults -O2
   build-depends:
-      base >=4.7 && <5
+      attoparsec
+    , base >=4.7 && <5
+    , mtl
+    , text
   default-language: Haskell2010
 
-executable rzk-exe
+executable rzk
   main-is: Main.hs
   other-modules:
       Paths_rzk
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      attoparsec
+    , base >=4.7 && <5
+    , mtl
     , rzk
+    , text
   default-language: Haskell2010
 
 test-suite rzk-test
@@ -55,8 +69,11 @@ test-suite rzk-test
       Paths_rzk
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      attoparsec
+    , base >=4.7 && <5
+    , mtl
     , rzk
+    , text
   default-language: Haskell2010

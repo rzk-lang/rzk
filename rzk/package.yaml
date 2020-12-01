@@ -19,8 +19,14 @@ extra-source-files:
 # common to point users to the README.md file.
 description:         Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
 
+ghc-options:
+- -Wall -fno-warn-type-defaults -O2
+
 dependencies:
 - base >= 4.7 && < 5
+- attoparsec
+- mtl
+- text
 
 library:
   source-dirs: src
