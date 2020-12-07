@@ -31,14 +31,14 @@ data Term var
   | IdType (Term var) (Term var) (Term var)
   -- ^ Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
   | Refl (Term var) (Term var)
-  -- ^ Trivial inhabitant of \(x =_A x) for any type \(A\) and \(x : A\).
+  -- ^ Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
   -- @Refl a x@ corresponds to \(x =_a x\).
   | IdJ (Term var) (Term var) (Term var) (Term var) (Term var) (Term var)
   -- ^ Path induction (for identity types).
   -- For any type \(A\) and \(a : A\), type family
   -- \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\)
-  -- and \(d : C a \mathsf{refl}_a\)
+  -- and \(d : C(a,\mathsf{refl}_a)\)
   -- and \(x : A\)
   -- and \(p : a =_A x\)
-  -- we have \(\mathcal{J}(A, a, C, d, x, p) : C x p\).
+  -- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\).
   deriving (Eq, Functor, Foldable)
