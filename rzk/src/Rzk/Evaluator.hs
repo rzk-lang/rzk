@@ -89,6 +89,9 @@ freeVars = \case
   IdJ tA a tC d x p -> concatMap freeVars [tA, a, tC, d, x, p]
 
 -- | Evaluate an open term (some variables might occur freely).
+--
+-- >>> evalOpen @Var "(λ(x : A) → x =_{A} (λ(y : B) → y)) y"
+-- Right y =_{A} (λ(y₁ : B) → y₁)
 evalOpen :: (Eq var, Enum var) => Term var -> Either (EvalError var) (Term var)
 evalOpen t = go t
   where
@@ -96,6 +99,11 @@ evalOpen t = go t
     context = emptyContext { contextFreeVariables = freeVars t }
 
 -- | Evaluate a term.
+--
+-- * \((\lambda x. M) N \mapsto M[N/x]\)
+-- * \(\pi_1 (x, y) \mapsto x\)
+-- * \(\pi_2 (x, y) \mapsto y\)
+-- * \(\mathcal{J}(A,a,C,d,a,\mathsf{refl}_a) \mapsto d\)
 eval :: (Eq var, Enum var) => Term var -> Eval var (Term var)
 eval = \case
   Variable x -> fromMaybe (Variable x) <$> lookupVar x
