@@ -84,6 +84,9 @@ freeVars = \case
   Pair t1 t2 -> freeVars t1 <> freeVars t2
   First t -> freeVars t
   Second t -> freeVars t
+  IdType a x y -> freeVars a <> freeVars x <> freeVars y
+  Refl a x -> freeVars a <> freeVars x
+  IdJ tA a tC d x p -> concatMap freeVars [tA, a, tC, d, x, p]
 
 -- | Evaluate an open term (some variables might occur freely).
 evalOpen :: (Eq var, Enum var) => Term var -> Either (EvalError var) (Term var)
@@ -114,6 +117,11 @@ eval = \case
   Second t -> eval t >>= pure . \case
     Pair _ s -> s
     t'       -> Second t'
+  IdType a x y -> IdType <$> eval a <*> eval x <*> eval y
+  Refl a x -> Refl <$> eval a <*> eval x
+  IdJ tA a tC d x p -> eval p >>= \case
+    Refl _ _ -> eval d
+    p' -> IdJ <$> eval tA <*> eval a <*> eval tC <*> eval d <*> eval x <*> pure p'
 
 -- | Evaluate application of one (evaluated) term to another.
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
@@ -142,3 +150,6 @@ renameVar x x' = go
       Pair f s -> Pair (go f) (go s)
       First t' -> First (go t')
       Second t' -> Second (go t')
+      IdType a z y -> IdType (go a) (go z) (go y)
+      Refl a z -> Refl (go a) (go z)
+      IdJ tA a tC d z p -> IdJ (go tA) (go a) (go tC) (go d) (go z) (go p)

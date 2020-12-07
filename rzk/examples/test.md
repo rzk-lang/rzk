@@ -58,6 +58,22 @@ ex6 : ex4
   := ({B : U} -> {x : B} -> B, (id, id))
 ```
 
+Identity types:
+
+```rzk
+iscontr : {A : U} -> U
+  := \(A : U) -> ∑ (x : A), {y : A} -> x =_{A} y
+
+isaprop : {A : U} -> U
+  := \(A : U) -> {x : A} -> {y : A} -> x =_{A} y
+
+invpath : {A : U} -> {x : A} -> {y : A} -> {p : x =_{A} y} -> y =_{A} x
+  := \(A : U) -> \(x : A) -> \(y : A) -> \(p : x =_{A} y) -> idJ A x (\(z : A) -> \(_ : x =_{A} z) -> z =_{A} x) refl_{x : A} y p
+
+ex7 : {A : U} -> {x : A} -> refl_{x : A} =_{x =_{A} x} ((((invpath A) x) x) refl_{x : A})
+  := \(A : U) -> \(x : A) -> refl_{refl_{x : A} : x =_{A} x}
+```
+
 ### Typechecking Markdown files
 
 You can typecheck this file directly:

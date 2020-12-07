@@ -54,6 +54,11 @@ ppTerm = \case
   Pair t1 t2 -> "(" <> ppTerm t1 <> ", " <> ppTerm t2 <> ")"
   First t -> "π₁ " <> ppTermParen t
   Second t -> "π₂ " <> ppTermParen t
+
+  IdType a x y -> ppTermParen x <> " =_{" <> ppTerm a <> "} " <> ppTermParen y
+  Refl a x -> "refl_{" <> ppTerm x <> " : " <> ppTerm a <> "}"
+  IdJ tA a tC d x p -> ppTerm (foldl1 App [(Variable "idJ"), tA, a, tC, d, x, p])
+
   where
     ppTermParen t@(Variable _) = ppTerm t
     ppTermParen t@(Hole     _) = ppTerm t

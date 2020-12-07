@@ -82,7 +82,10 @@ termParens useParens
 
 termParens' :: Bool -> Parser (Term Var)
 termParens' useParens
-  = parens' firstP <|> parens' secondP
+  = parens' idType
+  <|> parens' firstP <|> parens' secondP
+  <|> parens' idJ
+  <|> refl
   <|> parens' piApp
   <|> universe <|> hole <|> (Variable <$> var) <|> piType <|> sigmaType
   <|> pair   <|> parens' piLambda
@@ -178,6 +181,44 @@ secondP = do
   "second" <|> "π₂"
   skipSpace
   Second <$> termParens True
+
+idType :: Parser (Term Var)
+idType = do
+  x <- termParens True
+  skipSpace
+  "=_{"
+  skipSpace
+  a <- termParens False
+  skipSpace
+  "}"
+  skipSpace
+  y <- termParens True
+  return (IdType a x y)
+
+refl :: Parser (Term Var)
+refl = do
+  "refl_{"
+  skipSpace
+  x <- term
+  skipSpace
+  ":"
+  skipSpace
+  a <- term
+  skipSpace
+  "}"
+  return (Refl a x)
+
+idJ :: Parser (Term Var)
+idJ = do
+  "idJ"
+  skipSpace
+  tA <- termParens True <* skipSpace
+  a  <- termParens True <* skipSpace
+  tC <- termParens True <* skipSpace
+  d  <- termParens True <* skipSpace
+  x  <- termParens True <* skipSpace
+  p  <- termParens True <* skipSpace
+  return (IdJ tA a tC d x p)
 
 universe :: Parser (Term Var)
 universe = do

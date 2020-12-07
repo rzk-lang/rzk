@@ -186,6 +186,12 @@ issueTypeError err = do
     , typeErrorContext = context
     }
 
+genFreshVar :: TypeCheck var var
+genFreshVar = do
+  ctx@TypingContext{ freshTypeVariables = t:ts, .. } <- get
+  put ctx { freshTypeVariables = ts }
+  return t
+
 genFreshHole :: TypeCheck var var
 genFreshHole = do
   ctx@TypingContext{ freshTypeVariables = t:ts, .. } <- get
@@ -231,6 +237,25 @@ infer = \case
         return (App f (First t))
       _ -> issueTypeError (TypeErrorNotAPair t ty (Second t))
 
+  IdType a x y -> do
+    typecheck a Universe
+    typecheck x a
+    typecheck y a
+    return Universe
+  Refl a x -> do
+    typecheck a Universe
+    typecheck x a
+    return (IdType a x x)
+  IdJ tA a tC d x p -> do
+    typecheck tA Universe
+    typecheck a tA
+    x' <- genFreshVar
+    p' <- genFreshVar
+    typecheck tC (Pi (Lambda x' tA (Pi (Lambda p' (IdType tA a (Variable x')) Universe))))
+    typecheck d (App (App tC a) (Refl tA a))
+    typecheck x tA
+    typecheck p (IdType tA a x)
+    return (App (App tC x) p)
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
@@ -369,6 +394,10 @@ checkInfiniteType tt x = go
     go (First t) = First <$> go t
     go (Second t) = Second <$> go t
 
+    go (IdType a x' y') = IdType <$> go a <*> go x' <*> go y'
+    go (Refl a x') = Refl <$> go a <*> go x'
+    go (IdJ tA a tC d x' p) = IdJ <$> go tA <*> go a <*> go tC <*> go d <*> go x' <*> go p
+
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = do
   TypingContext{..} <- get
@@ -396,5 +425,27 @@ unify term t1 t2 = do
     unify' (App u1 u2) (App v1 v2) = do
       unify' u1 v1
       unify' u2 v2
+
+    unify' (Sigma t) (Sigma t') = unify' t t'
+    unify' (Pair f s) (Pair f' s') = do
+      unify' f f'
+      unify' s s'
+    unify' (First t) (First t') = unify' t t'
+    unify' (Second t) (Second t') = unify' t t'
+
+    unify' (IdType a x y) (IdType a' x' y') = do
+      unify' a a'
+      unify' x x'
+      unify' y y'
+    unify' (Refl a x) (Refl a' x') = do
+      unify' a a'
+      unify' x x'
+    unify' (IdJ tA a tC d x p) (IdJ tA' a' tC' d' x' p') = do
+      unify' tA tA'
+      unify' a a'
+      unify' tC tC'
+      unify' d d'
+      unify' x x'
+      unify' p p'
     unify' tt1 tt2 = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
