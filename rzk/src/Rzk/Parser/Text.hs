@@ -82,9 +82,10 @@ termParens useParens
 
 termParens' :: Bool -> Parser (Term Var)
 termParens' useParens
-  = parens' piApp
-  <|> universe <|> hole <|> (Variable <$> var) <|> piType
-  <|> parens' piLambda
+  = parens' firstP <|> parens' secondP
+  <|> parens' piApp
+  <|> universe <|> hole <|> (Variable <$> var) <|> piType <|> sigmaType
+  <|> pair   <|> parens' piLambda
     where
       parens' = if useParens then parens else id
 
@@ -133,6 +134,50 @@ piApp = do
   skipSpace
   t2 <- termParens True
   return (App t1 t2)
+
+sigmaType :: Parser (Term Var)
+sigmaType = do
+  "Sigma" <|> "∑"
+  skipSpace
+  "("
+  skipSpace
+  x <- var <?> "variable identifier"
+  skipSpace
+  ":"
+  skipSpace
+  a <- term <?> "type"
+  skipSpace
+  ")"
+  skipSpace
+  ","
+  skipSpace
+  b <- term <?> "type"
+  return (Sigma (Lambda x a b))
+
+pair :: Parser (Term Var)
+pair = do
+  "("
+  skipSpace
+  f <- term
+  skipSpace
+  ","
+  skipSpace
+  s <- term
+  skipSpace
+  ")"
+  return (Pair f s)
+
+firstP :: Parser (Term Var)
+firstP = do
+  "first" <|> "π₁"
+  skipSpace
+  First <$> termParens True
+
+secondP :: Parser (Term Var)
+secondP = do
+  "second" <|> "π₂"
+  skipSpace
+  Second <$> termParens True
 
 universe :: Parser (Term Var)
 universe = do

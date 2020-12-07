@@ -24,26 +24,38 @@ import           Rzk.Syntax.Var
 
 data TypeError var
   = TypeErrorInfinite var (Term var)
-  | TypeErrorUnexpected (Term var) (Term var) (Term var)
+  | TypeErrorUnexpected (Term var) (Term var) (Term var) (Term var) (Term var)
   | TypeErrorEval (Term var) (EvalError var)
   | TypeErrorOther Text
-  | TypeErrorCannotInferLambda
+  | TypeErrorCannotInferLambda (Term var)
+  | TypeErrorCannotInferPair (Term var)
   | TypeErrorNotAFunction (Term var) (Term var) (Term var)
+  | TypeErrorNotAPair (Term var) (Term var) (Term var)
   | TypeErrorExpectedFunctionType (Term var) (Term var)
   | TypeErrorInvalidTypeFamily
 
 instance Show (TypeError Var) where
   show = Text.unpack . ppTypeError
 
+data TypeErrorWithContext var = TypeErrorWithContext
+  { typeError              :: TypeError var
+  , typeErrorTypingContext :: TypingContext var
+  , typeErrorContext       :: Context var
+  }
+
 ppTypeError :: TypeError Var -> Text
 ppTypeError = \case
   TypeErrorInfinite x t -> Text.intercalate "\n"
     [ "Can't construct infinite type " <> ppVar x <> " ~ " <> ppTerm t ]
-  TypeErrorUnexpected term inferred expected -> Text.intercalate "\n"
+  TypeErrorUnexpected term inferredFull expectedFull inferred expected -> Text.intercalate "\n"
     [ "Expected type"
     , "  " <> ppTerm expected
     , "but inferred"
     , "  " <> ppTerm inferred
+    , "when trying to unify expected type"
+    , "  " <> ppTerm expectedFull
+    , "with inferred type"
+    , "  " <> ppTerm inferredFull
     , "for the term"
     , "  " <> ppTerm term
     ]
@@ -53,8 +65,14 @@ ppTypeError = \case
     , Text.pack (show err) -- FIXME: pretty print
     ]
   TypeErrorOther msg -> "Error occurred in the typechecker: " <> msg
-  TypeErrorCannotInferLambda ->
-    "Error while attempting to infer the type for a lambda abstraction"
+  TypeErrorCannotInferLambda t -> Text.intercalate "\n"
+    [ "Error while attempting to infer the type for a lambda abstraction"
+    , "  " <> ppTerm t
+    ]
+  TypeErrorCannotInferPair t -> Text.intercalate "\n"
+    [ "Error while attempting to infer the type for a dependent tuple"
+    , "  " <> ppTerm t
+    ]
   TypeErrorNotAFunction f t e -> Text.intercalate "\n"
     [ "Expected a function type but got"
     , "  " <> ppTerm t
@@ -62,6 +80,14 @@ ppTypeError = \case
     , "  " <> ppTerm f
     , "in expression"
     , "  " <> ppTerm (App f e)
+    ]
+  TypeErrorNotAPair f t e -> Text.intercalate "\n"
+    [ "Expected a dependent pair (sum) type but got"
+    , "  " <> ppTerm t
+    , "for the term"
+    , "  " <> ppTerm f
+    , "in expression"
+    , "  " <> ppTerm e
     ]
   TypeErrorExpectedFunctionType term expected -> Text.intercalate "\n"
     [ "Expected type is not a function type"
@@ -122,11 +148,11 @@ localTyping (x, t) m = do
   return result
 
 newtype TypeCheck var a =  TypeCheck
-  { runTypeCheck :: ReaderT (Context var) (ExceptT (TypeError var) (State (TypingContext var))) a
-  } deriving (Functor, Applicative, Monad, MonadState (TypingContext var), MonadError (TypeError var), MonadReader (Context var))
+  { runTypeCheck :: ReaderT (Context var) (ExceptT (TypeErrorWithContext var) (State (TypingContext var))) a
+  } deriving (Functor, Applicative, Monad, MonadState (TypingContext var), MonadError (TypeErrorWithContext var), MonadReader (Context var))
 
 instance MonadFail (TypeCheck var) where
-  fail = throwError . TypeErrorOther . Text.pack
+  fail = issueTypeError . TypeErrorOther . Text.pack
 
 lookupHole :: Eq var => var -> TypeCheck var (Maybe (Term var))
 lookupHole x = gets (lookup x . contextKnownHoles)
@@ -147,8 +173,18 @@ evalInTypeCheck :: Term var -> Eval var a -> TypeCheck var a
 evalInTypeCheck t e = do
   context <- ask
   case runExcept (runReaderT (runEval e) context) of
-    Left err -> throwError (TypeErrorEval t err)
+    Left err -> issueTypeError (TypeErrorEval t err)
     Right a  -> return a
+
+issueTypeError :: TypeError var -> TypeCheck var a
+issueTypeError err = do
+  tyContext <- get
+  context <- evalInTypeCheck undefined ask
+  throwError TypeErrorWithContext
+    { typeError = err
+    , typeErrorTypingContext = tyContext
+    , typeErrorContext = context
+    }
 
 genFreshHole :: TypeCheck var var
 genFreshHole = do
@@ -173,14 +209,28 @@ infer = \case
   Hole x        -> infer (Variable x)
   Universe      -> pure Universe
   Pi t          -> inferTypeFamily t
-  Lambda _ _ _  -> throwError TypeErrorCannotInferLambda
+  t@(Lambda _ _ _) -> issueTypeError (TypeErrorCannotInferLambda t)
   App t1 t2 -> do
     ty <- infer t1
     case ty of
       Pi f@(Lambda _ a _) -> do
         typecheck t2 a
         evalType (App f t2)
-      _ -> throwError (TypeErrorNotAFunction t1 ty t2)
+      _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
+  Sigma t -> inferTypeFamily t
+  t@(Pair _ _) -> issueTypeError (TypeErrorCannotInferPair t)
+  First t -> do
+    ty <- infer t
+    case ty of
+      Sigma (Lambda _ a _) -> return a
+      _                    -> issueTypeError (TypeErrorNotAPair t ty (First t))
+  Second t -> do
+    ty <- infer t
+    case ty of
+      Sigma f -> do
+        return (App f (First t))
+      _ -> issueTypeError (TypeErrorNotAPair t ty (Second t))
+
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
@@ -188,10 +238,10 @@ inferTypeFamily = \case
     typecheck a Universe
     localTyping (x, a) $ typecheck m Universe
     pure Universe
-  _ -> throwError TypeErrorInvalidTypeFamily
+  _ -> issueTypeError TypeErrorInvalidTypeFamily
 
 data TypeCheckResult var = TypeCheckResult
-  { typecheckResultErrors  :: Maybe (TypeError var)
+  { typecheckResultErrors  :: Maybe (TypeErrorWithContext var)
   , typecheckResultContext :: TypingContext var
   }
 
@@ -204,10 +254,30 @@ ppTypeCheckResult TypeCheckResult{..} = Text.intercalate "\n"
       Nothing -> "Everything is ok!"
       Just err -> Text.intercalate "\n"
         [ "Type error:"
-        , ppTypeError err]
-  , ""
+        , ppTypeErrorWithContext err
+        , ""
+        , "-----------------------------------------------------"
+        , ""
+        ]
   , ppTypingContext typecheckResultContext
   ]
+
+ppTypeErrorWithContext :: TypeErrorWithContext Var -> Text
+ppTypeErrorWithContext TypeErrorWithContext{..} = Text.intercalate "\n"
+  [ ppTypeError typeError
+  , ""
+  , ppTypingContext typeErrorTypingContext
+  , ""
+  , ppContext typeErrorContext
+  ]
+
+ppContext :: Context Var -> Text
+ppContext Context{..} = Text.intercalate "\n"
+  [ "Defined variables:"
+  , Text.intercalate "\n" (map ppDef contextDefinedVariables)
+  ]
+    where
+      ppDef (x, t) = ppVar x <> " := " <> ppTerm t
 
 getTypeCheckResult :: Context var -> TypingContext var -> TypeCheck var () -> TypeCheckResult var
 getTypeCheckResult initialEvalContext initialTypingContext
@@ -244,6 +314,9 @@ typecheckClosed vars term
   = getTypeCheckResult emptyContext (emptyTypingContext vars)
   . typecheck term
 
+runTypeCheckClosed :: (Eq var, Enum var) => [var] -> TypeCheck var () -> TypeCheckResult var
+runTypeCheckClosed vars = getTypeCheckResult emptyContext (emptyTypingContext vars)
+
 typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 typecheck term expectedType =
   case (term, expectedType) of
@@ -254,7 +327,11 @@ typecheck term expectedType =
         bodyType <- evalType (App f (Variable y))
         typecheck m bodyType
     (Lambda _ _ _, _) -> do
-      throwError (TypeErrorExpectedFunctionType term expectedType)
+      issueTypeError (TypeErrorExpectedFunctionType term expectedType)
+    (Pair f s, Sigma g@(Lambda _ a _)) -> do
+      typecheck f a
+      secondType <- evalType (App g f)
+      typecheck s secondType
     _ -> do
       inferredType <- infer term
       unify term inferredType expectedType
@@ -267,7 +344,7 @@ checkInfiniteType tt x = go
     go t@(Variable _) = pure t
     go t@(Hole y)
       | x == y && tt == t = return t
-      | x == y    = throwError (TypeErrorInfinite x tt)
+      | x == y    = issueTypeError (TypeErrorInfinite x tt)
       | otherwise = do
           yt <- lookupHole y
           case yt of
@@ -276,7 +353,7 @@ checkInfiniteType tt x = go
               -- instantiateHole (y, t') in tt?
               go t'
 
-    go (Pi t) = Pi <$> checkInfiniteType tt x t
+    go (Pi t) = Pi <$> go t
 
     go (Lambda y a b)
       | x == y = Lambda y <$> go a <*> pure b
@@ -286,6 +363,11 @@ checkInfiniteType tt x = go
           Lambda y' <$> go a <*> localVar (y', Variable y') (go (renameVar y y' b))
 
     go (App t1 t2) = App <$> go t1 <*> go t2
+
+    go (Sigma t) = Pi <$> go t
+    go (Pair f s) = Pair <$> go f <*> go s
+    go (First t) = First <$> go t
+    go (Second t) = Second <$> go t
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = do
@@ -314,5 +396,5 @@ unify term t1 t2 = do
     unify' (App u1 u2) (App v1 v2) = do
       unify' u1 v1
       unify' u2 v2
-    unify' tt1 tt2 = throwError (TypeErrorUnexpected term tt1 tt2)
+    unify' tt1 tt2 = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 

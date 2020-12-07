@@ -80,6 +80,10 @@ freeVars = \case
   Pi t -> freeVars t
   Lambda x a m -> freeVars a <> (freeVars m \\ [x])
   App t1 t2 -> freeVars t1 <> freeVars t2
+  Sigma t -> freeVars t
+  Pair t1 t2 -> freeVars t1 <> freeVars t2
+  First t -> freeVars t
+  Second t -> freeVars t
 
 -- | Evaluate an open term (some variables might occur freely).
 evalOpen :: (Eq var, Enum var) => Term var -> Either (EvalError var) (Term var)
@@ -102,6 +106,14 @@ eval = \case
       then Lambda x' <$> eval a <*> localVar (x', Variable x') (eval (renameVar x x' m))
       else Lambda x  <$> eval a <*> localVar (x , Variable x ) (eval m)
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
+  Sigma t -> Sigma <$> eval t
+  Pair t1 t2 -> Pair <$> eval t1 <*> eval t2
+  First t -> eval t >>= pure . \case
+    Pair f _ -> f
+    t'       -> First t'
+  Second t -> eval t >>= pure . \case
+    Pair _ s -> s
+    t'       -> Second t'
 
 -- | Evaluate application of one (evaluated) term to another.
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
@@ -124,5 +136,9 @@ renameVar x x' = go
       Pi t' -> Pi (go t')
       Lambda z a m
         | z == x  -> t
-        | otherwise -> Lambda z a (go m)
+        | otherwise -> Lambda z (go a) (go m)
       App t1 t2 -> App (go t1) (go t2)
+      Sigma t' -> Sigma (go t')
+      Pair f s -> Pair (go f) (go s)
+      First t' -> First (go t')
+      Second t' -> Second (go t')

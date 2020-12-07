@@ -48,6 +48,12 @@ ppTerm = \case
   Pi t -> "Pi " <> ppTermParen t
   Lambda x a m -> "λ(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
   App t1 t2 -> ppTermParen t1 <> " " <> ppTermParen t2
+
+  Sigma (Lambda x a m) -> "∑ (" <> ppVar x <> " : " <> ppTerm a <> "), " <> ppTerm m
+  Sigma t -> "∑" <> ppTermParen t
+  Pair t1 t2 -> "(" <> ppTerm t1 <> ", " <> ppTerm t2 <> ")"
+  First t -> "π₁ " <> ppTermParen t
+  Second t -> "π₂ " <> ppTermParen t
   where
     ppTermParen t@(Variable _) = ppTerm t
     ppTermParen t@(Hole     _) = ppTerm t
