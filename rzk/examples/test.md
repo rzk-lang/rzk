@@ -24,7 +24,7 @@ Church-encoded booleans with `id` used to make type look more complicated:
 
 ```rzk
 false : (id ?UN) ({A : U} -> {_x : A} -> {_y : A} -> A)
-  := \(F : ?U1) -> \(x : F) -> \(_ : F) -> x
+  := \(F : U) -> \(x : F) -> \(_ : F) -> x
 
 true : {A : U} -> {_ : A} -> {_ : A} -> A
   := \(C : U) -> \(_ : C) -> \(y : C) -> y
@@ -68,10 +68,39 @@ isaprop : {A : U} -> U
   := \(A : U) -> {x : A} -> {y : A} -> x =_{A} y
 
 invpath : {A : U} -> {x : A} -> {y : A} -> {p : x =_{A} y} -> y =_{A} x
-  := \(A : U) -> \(x : A) -> \(y : A) -> \(p : x =_{A} y) -> idJ A x (\(z : A) -> \(_ : x =_{A} z) -> z =_{A} x) refl_{x : A} y p
+  := \(A : U) -> \(x : A) -> \(y : A) -> \(p : x =_{A} y) -> idJ(A, x, \(z : A) -> \(_ : x =_{A} z) -> z =_{A} x, refl_{x : A}, y, p)
 
 ex7 : {A : U} -> {x : A} -> refl_{x : A} =_{x =_{A} x} ((((invpath A) x) x) refl_{x : A})
   := \(A : U) -> \(x : A) -> refl_{refl_{x : A} : x =_{A} x}
+```
+
+Equivalence:
+
+```rzk
+isweq : {A : U} -> {B : U} -> {f : {_ : A} -> B} -> U
+  := \(A : U) -> \(B : U) -> \(f : {_ : A} -> B) -> ∑ (g : {_ : B} -> A), (prod ({x : A} -> (g (f x)) =_{A} x)) ({y : B} -> (f (g y)) =_{B} y)
+
+weq : {A : U} -> {B : U} -> U
+  := \(A : U) -> \(B : U) -> ∑ (f : {_ : A} -> B), ((isweq A) B) f
+
+idweq : {A : U} -> (weq A) A
+  := \(A : U) -> ( id A , ( id A, ( \(x : A) -> refl_{x : A}, \(x : A) -> refl_{x : A} ) ) )
+```
+
+Cubes and topes:
+
+```rzk
+ex8 : CUBE
+  := 1
+
+ex9 : CUBE
+  := 1 * 1
+
+ex10 : {I : CUBE} -> {t : I * I} -> I * I
+  := \(I : CUBE) -> \(t : I * I) -> (second t, first t)
+
+ex11 : {t : 1 * 1} -> TOPE
+  := \(t : 1 * 1) -> (second t) === (first t)
 ```
 
 ### Typechecking Markdown files

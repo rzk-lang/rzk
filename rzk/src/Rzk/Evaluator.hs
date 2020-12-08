@@ -23,6 +23,7 @@ data Context var = Context
     -- ^ Defined variables (variables that have terms assigned to them).
   , contextFreeVariables    :: [var]
     -- ^ Known free variables, used to avoid name clashes during substitution.
+  , contextTopes            :: [Term var]
   }
 
 -- | Empty evaluation context.
@@ -30,6 +31,7 @@ emptyContext :: Context var
 emptyContext = Context
   { contextDefinedVariables = []
   , contextFreeVariables = []
+  , contextTopes = []
   }
 
 -- | Reassign term value to a variable.
@@ -75,6 +77,7 @@ evalClosed = runExcept . flip runReaderT emptyContext . runEval . eval
 freeVars :: Eq var => Term var -> [var]
 freeVars = \case
   Variable x -> [x]
+  TypedTerm term ty -> freeVars term <> freeVars ty
   Hole _ -> []
   Universe -> []
   Pi t -> freeVars t
@@ -87,6 +90,20 @@ freeVars = \case
   IdType a x y -> freeVars a <> freeVars x <> freeVars y
   Refl a x -> freeVars a <> freeVars x
   IdJ tA a tC d x p -> concatMap freeVars [tA, a, tC, d, x, p]
+
+  Cube -> []
+  CubeUnit -> []
+  CubeUnitStar -> []
+  CubeProd i j -> freeVars i <> freeVars j
+
+  Tope -> []
+  TopeTop -> []
+  TopeBottom -> []
+  TopeOr psi phi -> freeVars psi <> freeVars phi
+  TopeAnd psi phi -> freeVars psi <> freeVars phi
+  TopeEQ t s -> freeVars t <> freeVars s
+  RecBottom -> []
+  RecOr psi phi a b -> concatMap freeVars [psi, phi, a, b]
 
 -- | Evaluate an open term (some variables might occur freely).
 --
@@ -107,6 +124,7 @@ evalOpen t = go t
 eval :: (Eq var, Enum var) => Term var -> Eval var (Term var)
 eval = \case
   Variable x -> fromMaybe (Variable x) <$> lookupVar x
+  TypedTerm term ty -> TypedTerm <$> eval term <*> eval ty -- FIXME: maybe first eval type?
   Hole x -> pure (Hole x)
   Universe -> pure Universe
   Pi t -> Pi <$> eval t
@@ -131,10 +149,51 @@ eval = \case
     Refl _ _ -> eval d
     p' -> IdJ <$> eval tA <*> eval a <*> eval tC <*> eval d <*> eval x <*> pure p'
 
+  Cube -> pure Cube
+  CubeUnit -> pure CubeUnit
+  CubeUnitStar -> pure CubeUnitStar
+  CubeProd i j -> CubeProd <$> eval i <*> eval j
+
+  Tope -> pure Tope
+  TopeTop -> pure TopeTop
+  TopeBottom -> pure TopeBottom
+
+  TopeOr psi phi -> TopeOr <$> eval psi <*> eval phi
+  TopeAnd psi phi -> TopeAnd <$> eval psi <*> eval phi
+  TopeEQ x y -> pure (TopeEQ x y)
+
+  RecBottom -> pure RecBottom
+  RecOr psi phi a b -> do
+    Context{..} <- ask
+    psi' <- eval psi
+    if (contextTopes `subtopesOf` psi') then eval a else do
+      phi' <- eval phi
+      if (contextTopes `subtopesOf` phi') then eval b else do
+        a' <- eval a
+        b' <- eval b
+        pure $ if a == b
+                  then a
+                  else RecOr psi' phi' a' b'
+
+subtopesOf :: Eq var => [Term var] -> Term var -> Bool
+subtopesOf topes tope = any (`subtopeOf` tope) topes
+
+-- | FIXME: this is not real constraint solving.
+subtopeOf :: Eq var => Term var -> Term var -> Bool
+subtopeOf TopeBottom _anyTope   = True
+subtopeOf _anyTope TopeTop      = True
+subtopeOf chi (TopeOr psi phi)  = any (chi `subtopeOf`) [psi, phi]
+subtopeOf (TopeAnd psi phi) chi = any (`subtopeOf` chi) [psi, phi]
+subtopeOf psi phi               = psi == phi
+
 -- | Evaluate application of one (evaluated) term to another.
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
-app (Lambda x _ m) n = localVar (x, n) (eval m)
-app m n              = pure (App m n)
+app t1 n =
+  case t1 of
+    Lambda x _ m                                 -> localVar (x, n) (eval m)
+    TypedTerm (Lambda x _ m) (Pi (Lambda y _ b)) -> do
+      TypedTerm <$> localVar (x, n) (eval m) <*> localVar (y, n) (eval b)
+    _                                            -> pure (App t1 n)
 
 -- | Rename a (free) variable in a term.
 --
@@ -147,6 +206,7 @@ renameVar x x' = go
       Variable z
         | z == x    -> Variable x'
         | otherwise -> t
+      TypedTerm term ty -> TypedTerm (go term) (go ty)
       Hole z -> Hole z
       Universe -> Universe
       Pi t' -> Pi (go t')
@@ -161,3 +221,17 @@ renameVar x x' = go
       IdType a z y -> IdType (go a) (go z) (go y)
       Refl a z -> Refl (go a) (go z)
       IdJ tA a tC d z p -> IdJ (go tA) (go a) (go tC) (go d) (go z) (go p)
+
+      Cube -> Cube
+      CubeUnit -> CubeUnit
+      CubeUnitStar -> CubeUnitStar
+      CubeProd i j -> CubeProd (go i) (go j)
+
+      Tope -> Tope
+      TopeTop -> TopeTop
+      TopeBottom -> TopeBottom
+      TopeOr psi phi -> TopeOr (go psi) (go phi)
+      TopeAnd psi phi -> TopeAnd (go psi) (go phi)
+      TopeEQ t' s -> TopeEQ (go t') (go s)
+      RecBottom -> RecBottom
+      RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)

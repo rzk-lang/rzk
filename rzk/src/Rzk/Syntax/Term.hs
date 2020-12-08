@@ -4,9 +4,18 @@ module Rzk.Syntax.Term where
 
 -- | This is a (probably unevaluated) term out of context.
 data Term var
-  = Variable var                  -- ^ Term variable \(x_i\) or type variable \(A_i\) or cube variable \(t_i\).
-  | Hole var                      -- ^ Term or type hole (to be filled by the typechecker).
-  | Universe  -- ^ Universe \(\mathcal{U}\).
+  = Variable var
+  -- ^ Term variable \(x_i\) or type variable \(A_i\) or cube variable \(t_i\).
+
+  | TypedTerm (Term var) (Term var)
+  -- ^ Explicitly typed term \(M : A\).
+
+  | Hole var
+  -- ^ Term or type hole (to be filled by the typechecker).
+
+  | Universe
+  -- ^ Universe type \(\mathcal{U}\).
+  -- Saying \(A \mathbf{type}\) is equivalent to saying \(A : \mathcal{U}\).
 
   | Pi (Term var)
   -- ^ Dependent product type former \(\prod_{x : A} B(x)\).
@@ -41,4 +50,35 @@ data Term var
   -- and \(x : A\)
   -- and \(p : a =_A x\)
   -- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\).
+
+  | Cube
+  -- ^ Cube "universe". Technically, it is not a type, but it is treated as such syntactically.
+
+  | CubeUnit
+  -- ^ Unit cube: \(\mathbf{1}\;\mathsf{cube}\).
+  | CubeUnitStar
+  -- ^ The only point in the unit cube: \(\star : \mathbf{1}\).
+
+  | CubeProd (Term var) (Term var)
+  -- ^ Product of cubes: \(I \times J\).
+
+  | Tope
+  -- ^ Tope "universe". Like cubes, this is not a type.
+  | TopeTop
+  -- ^ Top tope (no constraints on cube): \(\top\;\mathsf{tope}\)
+  | TopeBottom
+  -- ^ Bottom tope (cube contrained to empty space): \(\bot\;\mathsf{tope}\)
+  | TopeOr (Term var) (Term var)
+  -- ^ Tope disjuction (union of shapes): \(\psi \lor \phi\;\mathsf{tope}\)
+  | TopeAnd (Term var) (Term var)
+  -- ^ Tope conjunction (intersection of shapes): \(\psi \land \phi\;\mathsf{tope}\)
+  | TopeEQ (Term var) (Term var)
+  -- ^ Equality tope (diagonals): \(t \equiv s \;\mathsf{tope}\).
+  -- Note that it can involve projections as well, e.g. \(\pi_1 t \equiv \pi_2 t\).
+
+  | RecBottom
+  -- ^ Bottom tope eliminator: \(\mathsf{rec}_\bot : A\).
+  | RecOr (Term var) (Term var) (Term var) (Term var)
+  -- ^ Tope disjunction eliminator: \(\mathsf{rec}^{\psi,\phi}_\lor(a_\psi, a_\phi)\).
   deriving (Eq, Functor, Foldable)
+

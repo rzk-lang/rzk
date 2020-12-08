@@ -37,10 +37,14 @@ ppVar = identToUnicode . getVar
 ppHole :: Var -> Text
 ppHole = ("?" <>) . identToUnicode . getVar
 
+ppElimWithArgs :: Text -> [Term Var] -> Text
+ppElimWithArgs name args = name <> "(" <> Text.intercalate ", " (map ppTerm args) <> ")"
+
 -- | Pretty-print a 'Term' with default type of variables.
 ppTerm :: Term Var -> Text
 ppTerm = \case
   Variable x -> ppVar x
+  TypedTerm term ty -> ppTermParen term <> " : " <> ppTerm ty
   Hole x -> ppHole x
   Universe   -> "𝒰"
   Pi (Lambda x a m) ->
@@ -57,12 +61,34 @@ ppTerm = \case
 
   IdType a x y -> ppTermParen x <> " =_{" <> ppTerm a <> "} " <> ppTermParen y
   Refl a x -> "refl_{" <> ppTerm x <> " : " <> ppTerm a <> "}"
-  IdJ tA a tC d x p -> ppTerm (foldl1 App [(Variable "idJ"), tA, a, tC, d, x, p])
+  IdJ tA a tC d x p -> ppElimWithArgs "idJ" [tA, a, tC, d, x, p]
+
+  Cube -> "CUBE"
+  CubeUnit -> "1"
+  CubeUnitStar -> "⋆"
+  CubeProd i j -> ppTermParen i <> " × " <> ppTermParen j
+
+  Tope -> "TOPE"
+  TopeTop -> "⊤"
+  TopeBottom -> "⊥"
+  TopeOr psi phi -> ppTermParen psi <> " ∨ " <> ppTermParen phi
+  TopeAnd psi phi -> ppTermParen psi <> " ∧ " <> ppTermParen phi
+  TopeEQ x y -> ppTermParen x <> " ≡ " <> ppTermParen y
+
+  RecBottom -> "rec⊥"
+  RecOr psi phi a_psi a_phi -> ppElimWithArgs "rec∨" [psi, phi, a_psi, a_phi]
 
   where
     ppTermParen t@(Variable _) = ppTerm t
     ppTermParen t@(Hole     _) = ppTerm t
     ppTermParen t@Universe     = ppTerm t
+    ppTermParen t@Cube         = ppTerm t
+    ppTermParen t@CubeUnit     = ppTerm t
+    ppTermParen t@CubeUnitStar = ppTerm t
+    ppTermParen t@Tope         = ppTerm t
+    ppTermParen t@TopeTop      = ppTerm t
+    ppTermParen t@TopeBottom   = ppTerm t
+    ppTermParen t@RecBottom    = ppTerm t
     ppTermParen t              = "(" <> ppTerm t <> ")"
 
 ppDecl :: Decl Var -> Text

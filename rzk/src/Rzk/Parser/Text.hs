@@ -82,15 +82,93 @@ termParens useParens
 
 termParens' :: Bool -> Parser (Term Var)
 termParens' useParens
-  = parens' idType
+    = parens' idType
   <|> parens' firstP <|> parens' secondP
   <|> parens' idJ
+  <|> parens' recOr
+  <|> parens' cubeProd
   <|> refl
+  <|> recBottom
+  <|> cubeU <|> topeU <|> universe
+  <|> topeTop <|> topeBottom
+  <|> cubeUnit <|> cubeUnitStar
   <|> parens' piApp
-  <|> universe <|> hole <|> (Variable <$> var) <|> piType <|> sigmaType
-  <|> pair   <|> parens' piLambda
+  <|> piType <|> sigmaType
+  <|> pair
+  <|> parens' piLambda
+  <|> parens' topeOr        -- FIXME: slow
+  <|> parens' topeAnd       -- FIXME: slow
+  <|> parens' topeEQ        -- FIXME: slow
+  <|> hole <|> (Variable <$> var)
     where
       parens' = if useParens then parens else id
+
+parseTuple :: Parser [Term Var]
+parseTuple
+  = "(" *> skipSpace *> Atto.sepBy1 term (skipSpace *> "," <* skipSpace) <* skipSpace <* ")"
+
+cubeU :: Parser (Term var)
+cubeU = Cube <$ "CUBE"
+
+topeU :: Parser (Term var)
+topeU = Tope <$ "TOPE"
+
+cubeUnit :: Parser (Term var)
+cubeUnit = CubeUnit <$ "1"
+
+cubeUnitStar :: Parser (Term var)
+cubeUnitStar = CubeUnit <$ ("*_1" <|> "⋆")
+
+cubeProd :: Parser (Term Var)
+cubeProd = do
+  i <- termParens True
+  skipSpace
+  "×" <|> "*"
+  skipSpace
+  j <- termParens True
+  return (CubeProd i j)
+
+topeTop :: Parser (Term var)
+topeTop = TopeTop <$ ("TOP" <|> "⊤")
+
+topeBottom :: Parser (Term var)
+topeBottom = TopeBottom <$ ("BOT" <|> "⊥")
+
+topeOr :: Parser (Term Var)
+topeOr = do
+  phi <- termParens True
+  skipSpace
+  "\\/" <|> "∨"
+  skipSpace
+  psi <- termParens True
+  return (TopeOr phi psi)
+
+topeAnd :: Parser (Term Var)
+topeAnd = do
+  phi <- termParens True
+  skipSpace
+  "/\\" <|> "∧"
+  skipSpace
+  psi <- termParens True
+  return (TopeAnd phi psi)
+
+topeEQ :: Parser (Term Var)
+topeEQ = do
+  t <- termParens True
+  skipSpace
+  "===" <|> "≡"
+  skipSpace
+  s <- termParens True
+  return (TopeEQ t s)
+
+recBottom :: Parser (Term Var)
+recBottom = RecBottom <$ ("recBOT" <|> "rec⊥")
+
+recOr :: Parser (Term Var)
+recOr = do
+  "recOR" <|> "rec∨"
+  [psi, phi, a, b] <- parseTuple
+  return (RecOr psi phi a b)
 
 parens :: Parser a -> Parser a
 parens p = "(" *> skipSpace *> p <* skipSpace <* ")"
@@ -211,13 +289,7 @@ refl = do
 idJ :: Parser (Term Var)
 idJ = do
   "idJ"
-  skipSpace
-  tA <- termParens True <* skipSpace
-  a  <- termParens True <* skipSpace
-  tC <- termParens True <* skipSpace
-  d  <- termParens True <* skipSpace
-  x  <- termParens True <* skipSpace
-  p  <- termParens True <* skipSpace
+  [tA, a, tC, d, x, p] <- parseTuple
   return (IdJ tA a tC d x p)
 
 universe :: Parser (Term Var)

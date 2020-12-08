@@ -22,9 +22,12 @@ import           Rzk.Syntax.Module
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
+import           Rzk.Debug.Trace
+
 data TypeError var
   = TypeErrorInfinite var (Term var)
   | TypeErrorUnexpected (Term var) (Term var) (Term var) (Term var) (Term var)
+  | TypeErrorUnexpectedLayer (Term var) (Term var) TypingLayer
   | TypeErrorEval (Term var) (EvalError var)
   | TypeErrorOther Text
   | TypeErrorCannotInferLambda (Term var)
@@ -58,6 +61,14 @@ ppTypeError = \case
     , "  " <> ppTerm inferredFull
     , "for the term"
     , "  " <> ppTerm term
+    ]
+  TypeErrorUnexpectedLayer t ty layer -> Text.intercalate "\n"
+    [ "Wrong typing layer! Expected"
+    , "  " <> Text.intercalate " or " (map ppTerm (layerExpected layer))
+    , "but inferred"
+    , "  " <> ppTerm ty
+    , "for the term"
+    , "  " <> ppTerm t
     ]
   TypeErrorEval t err -> Text.intercalate "\n"
     [ "Error occured while evaluating type"
@@ -106,7 +117,11 @@ data TypingContext var = TypingContext
   -- ^ Type variables and holes ever defined.
   , freshTypeVariables :: [var]
   -- ^ An infinite stream of fresh type variable names.
+  , contextLayer       :: TypingLayer
   }
+
+data TypingLayer = CubeLayer | TopeLayer | TypeLayer
+  deriving (Eq, Ord, Show)
 
 ppTypingContext :: TypingContext Var -> Text
 ppTypingContext TypingContext{..} = Text.intercalate "\n"
@@ -128,23 +143,32 @@ ppKnownHoles = Text.unlines . map ppHoleType
 
 instance Show (TypingContext Var) where show = Text.unpack . ppTypingContext
 
-emptyTypingContext :: [var] -> TypingContext var
+emptyTypingContext :: Enum var => [var] -> TypingContext var
 emptyTypingContext vars = TypingContext
   { contextKnownTypes   = []
   , contextKnownHoles   = []
   , contextHoles        = []
-  , freshTypeVariables  = vars
+  , freshTypeVariables  = concat (drop 1 (iterate (map succ) vars))
+  , contextLayer        = CubeLayer
   }
 
 lookupTypeOf :: Eq var => var -> TypeCheck var (Maybe (Term var))
 lookupTypeOf x = gets (lookup x . contextKnownTypes)
 
+setTypeOf :: Eq var => var -> Term var -> TypeCheck var ()
+setTypeOf x ty = modify $ \context -> context
+  { contextKnownTypes = (x, ty) : contextKnownTypes context }
+
+unsetTypeOf :: Eq var => var -> TypeCheck var ()
+unsetTypeOf x = modify $ \context -> context
+  { contextKnownTypes = filter ((/= x) . fst) (contextKnownTypes context) }
+
 localTyping :: Eq var => (var, Term var) -> TypeCheck var a -> TypeCheck var a
 localTyping (x, t) m = do
-  modify (\context -> context { contextKnownTypes = (x, t) : contextKnownTypes context })
+  setTypeOf x t
   oldContext <- get
   result <- localFreeVar x (local (\context -> context { contextDefinedVariables = contextKnownHoles oldContext <> contextDefinedVariables context }) m)
-  modify (\context -> context { contextKnownTypes = filter ((/= x) . fst) (contextKnownTypes context) })
+  unsetTypeOf x
   return result
 
 newtype TypeCheck var a =  TypeCheck
@@ -212,11 +236,15 @@ infer = \case
     case mty of
       Nothing -> addTypeHoleFor x
       Just ty -> return ty
-  Hole x        -> infer (Variable x)
+  TypedTerm term ty -> do
+    typecheck term ty
+    return ty
+  Hole _        -> issueTypeError (TypeErrorOther "attemting to infer type of a hole!")
   Universe      -> pure Universe
   Pi t          -> inferTypeFamily t
   t@(Lambda _ _ _) -> issueTypeError (TypeErrorCannotInferLambda t)
   App t1 t2 -> do
+
     ty <- infer t1
     case ty of
       Pi f@(Lambda _ a _) -> do
@@ -224,17 +252,28 @@ infer = \case
         evalType (App f t2)
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
-  t@(Pair _ _) -> issueTypeError (TypeErrorCannotInferPair t)
+  t@(Pair f s) -> do
+    i <- infer f
+    typeOf_i <- infer i
+    case typeOf_i of
+      Cube -> do
+        j <- infer s
+        typecheck j Cube
+        return (CubeProd i j)
+      _ -> issueTypeError (TypeErrorCannotInferPair t)
   First t -> do
     ty <- infer t
     case ty of
       Sigma (Lambda _ a _) -> return a
-      _                    -> issueTypeError (TypeErrorNotAPair t ty (First t))
+      CubeProd i _j -> return i
+      _ -> issueTypeError (TypeErrorNotAPair t ty (First t))
   Second t -> do
     ty <- infer t
     case ty of
-      Sigma f -> do
-        return (App f (First t))
+      Sigma f@(Lambda _ a _) -> do
+        x <- genFreshVar
+        evalType (App (TypedTerm f (Pi (Lambda x a Universe))) (First t))
+      CubeProd _i j -> return j
       _ -> issueTypeError (TypeErrorNotAPair t ty (Second t))
 
   IdType a x y -> do
@@ -255,12 +294,54 @@ infer = \case
     typecheck d (App (App tC a) (Refl tA a))
     typecheck x tA
     typecheck p (IdType tA a x)
-    return (App (App tC x) p)
+    evalType (App (App tC x) p)
+
+  Cube -> pure Universe -- FIXME: issueTypeError (TypeErrorOther "attempting to infer a type for CUBE")
+  CubeUnit -> pure Cube
+  CubeUnitStar -> pure CubeUnit
+  CubeProd i j -> do
+    typecheck i Cube
+    typecheck j Cube
+    return Cube
+
+  Tope -> pure Universe -- FIXME: issueTypeError (TypeErrorOther "attempting to infer a type for TOPE")
+
+  TopeTop -> pure Tope
+  TopeBottom -> pure Tope
+  TopeOr psi phi -> do
+    typecheck psi Tope
+    typecheck phi Tope
+    return Tope
+  TopeAnd psi phi -> do
+    typecheck psi Tope
+    typecheck phi Tope
+    return Tope
+  TopeEQ t s -> do
+    typeOf_t <- infer t
+    typecheck typeOf_t Cube
+    typecheck s typeOf_t
+    return Tope
+
+  RecBottom -> do
+    ensureTopeContext TopeBottom
+    Hole <$> genFreshHole
+  RecOr psi phi a b -> do
+    ensureTopeContext (TopeOr psi phi)
+    typeOf_a <- infer a
+    typecheck b typeOf_a
+    return typeOf_a
+
+ensureTopeContext :: Eq var => Term var -> TypeCheck var ()
+ensureTopeContext phi = do
+  Context{..} <- ask
+  unless (contextTopes `subtopesOf` phi) $ do
+    issueTypeError (TypeErrorOther "tope context is not satisfied!")
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
   Lambda x a m -> do
-    typecheck a Universe
+    typeOf_a <- infer a
+    typecheck typeOf_a Universe
     localTyping (x, a) $ typecheck m Universe
     pure Universe
   _ -> issueTypeError TypeErrorInvalidTypeFamily
@@ -326,12 +407,14 @@ typecheckModule freshVars Module{..} = do
     initialEvalContext = Context
       { contextDefinedVariables = map (\Decl{..} -> (declName, declBody)) moduleDecls
       , contextFreeVariables = map declName moduleDecls
+      , contextTopes = []
       }
     initialTypingContext = TypingContext
       { contextKnownTypes = []
       , contextKnownHoles = []
       , contextHoles = []
       , freshTypeVariables = concat (drop 1 (iterate (map succ) freshVars))
+      , contextLayer = CubeLayer
       }
 
 typecheckClosed :: (Eq var, Enum var) => [var] -> Term var -> Term var -> TypeCheckResult var
@@ -344,9 +427,10 @@ runTypeCheckClosed vars = getTypeCheckResult emptyContext (emptyTypingContext va
 
 typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 typecheck term expectedType =
+  unsafeTraceTyping term expectedType $
   case (term, expectedType) of
     (Lambda y c m, Pi f@(Lambda _ a _)) -> do
-      typecheck c Universe
+      _ <- infer c
       unify (Variable y) c a
       localTyping (y, a) $ do
         bodyType <- evalType (App f (Variable y))
@@ -354,9 +438,20 @@ typecheck term expectedType =
     (Lambda _ _ _, _) -> do
       issueTypeError (TypeErrorExpectedFunctionType term expectedType)
     (Pair f s, Sigma g@(Lambda _ a _)) -> do
+      setLayer TypeLayer
       typecheck f a
       secondType <- evalType (App g f)
       typecheck s secondType
+    (Variable x, ty) -> do
+      mty <- lookupTypeOf x
+      case mty of
+        Nothing  -> setTypeOf x ty
+        Just xty -> unify (Variable x) xty ty
+    (Hole x, ty) -> do
+      mty <- lookupTypeOf x
+      case mty of
+        Nothing  -> setTypeOf x ty
+        Just xty -> unify (Variable x) xty ty
     _ -> do
       inferredType <- infer term
       unify term inferredType expectedType
@@ -367,6 +462,7 @@ checkInfiniteType tt x = go
     go :: Term var -> TypeCheck var (Term var)
     go Universe = pure Universe
     go t@(Variable _) = pure t
+    go (TypedTerm term ty) = TypedTerm <$> go term <*> go ty
     go t@(Hole y)
       | x == y && tt == t = return t
       | x == y    = issueTypeError (TypeErrorInfinite x tt)
@@ -398,6 +494,21 @@ checkInfiniteType tt x = go
     go (Refl a x') = Refl <$> go a <*> go x'
     go (IdJ tA a tC d x' p) = IdJ <$> go tA <*> go a <*> go tC <*> go d <*> go x' <*> go p
 
+    go Cube = pure Cube
+    go CubeUnit = pure CubeUnit
+    go CubeUnitStar = pure CubeUnitStar
+    go (CubeProd i j) = CubeProd <$> go i <*> go j
+
+    go Tope = pure Tope
+    go TopeTop = pure TopeTop
+    go TopeBottom = pure TopeBottom
+    go (TopeOr psi phi) = TopeOr <$> go psi <*> go phi
+    go (TopeAnd psi phi) = TopeAnd <$> go psi <*> go phi
+    go (TopeEQ t s) = TopeEQ <$> go t <*> go s
+
+    go RecBottom = pure RecBottom
+    go (RecOr psi phi a b) = RecOr <$> go psi <*> go phi <*> go a <*> go b
+
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = do
   TypingContext{..} <- get
@@ -417,6 +528,11 @@ unify term t1 t2 = do
     unify' t (Hole x) = unify' (Variable x) t
 
     unify' (Variable x) (Variable y) | x == y = pure ()
+    unify' (TypedTerm t ty) (TypedTerm t' ty') = do
+      unify' ty ty'
+      unify' t t'
+    unify' (TypedTerm t _ty) t'  = unify' t t'
+    unify' t (TypedTerm t' _ty') = unify' t t'
     unify' Universe Universe = pure ()
     unify' (Pi t) (Pi t') = unify' t t'
     unify' (Lambda x a b) (Lambda y c d) = do
@@ -447,5 +563,60 @@ unify term t1 t2 = do
       unify' d d'
       unify' x x'
       unify' p p'
+
+    unify' Cube Cube = return ()
+    unify' CubeUnit CubeUnit = return ()
+    unify' CubeUnitStar CubeUnitStar = return ()
+    unify' (CubeProd i j) (CubeProd i' j') = do
+      unify' i i'
+      unify' j j'
+
+    unify' Tope Tope = return ()
+    unify' TopeTop TopeTop = return ()
+    unify' TopeBottom TopeBottom = return ()
+    unify' (TopeOr phi psi) (TopeOr phi' psi') = do
+      unify' phi phi'
+      unify' psi psi'
+    unify' (TopeAnd phi psi) (TopeAnd phi' psi') = do
+      unify' phi phi'
+      unify' psi psi'
+    unify' (TopeEQ t s) (TopeEQ t' s') = do
+      unify' t t'
+      unify' s s'
+
+    unify' RecBottom RecBottom = return ()
+    unify' (RecOr psi phi a b) (RecOr psi' phi' a' b') = do
+      unify' psi psi'
+      unify' phi phi'
+      unify' a a'
+      unify' b b'
+
     unify' tt1 tt2 = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
+layerOf :: (Eq var, Enum var) => Term var -> TypeCheck var TypingLayer
+layerOf = \case
+  Cube -> pure CubeLayer
+  Tope -> pure TopeLayer
+  Universe -> pure TypeLayer
+  t -> unsafeTraceTerm t $ infer t >>= layerOf
+
+layerExpected :: TypingLayer -> [Term var]
+layerExpected = \case
+  CubeLayer -> [Cube, Tope, Universe]
+  TopeLayer -> [Tope, Universe]
+  TypeLayer -> [Universe]
+
+-- | FIXME: controlling layers should probably happen in evaluator?
+inferWithLayer :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
+inferWithLayer t = do
+  typeOf_t <- infer t
+  layer <- gets contextLayer
+  layerOf_t <- layerOf typeOf_t
+  unless (layerOf_t >= layer) $ do
+    issueTypeError (TypeErrorUnexpectedLayer t typeOf_t layer)
+  when (layerOf_t > layer) $ do
+    setLayer layerOf_t
+  return typeOf_t
+
+setLayer :: TypingLayer -> TypeCheck var ()
+setLayer newLayer = modify (\context -> context { contextLayer = newLayer })
