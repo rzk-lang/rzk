@@ -80,5 +80,9 @@ data Term var
   -- ^ Bottom tope eliminator: \(\mathsf{rec}_\bot : A\).
   | RecOr (Term var) (Term var) (Term var) (Term var)
   -- ^ Tope disjunction eliminator: \(\mathsf{rec}^{\psi,\phi}_\lor(a_\psi, a_\phi)\).
+
+  | ConstrainedType (Term var) (Term var)
+  -- ^ A type constrained to a tope: \(\Ksi | \Phi, \phi | \Gamma \vdash A\)
+  -- (corresponding to a term @ConstrainedType phi a@).
   deriving (Eq, Functor, Foldable)
 

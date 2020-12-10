@@ -78,6 +78,8 @@ ppTerm = \case
   RecBottom -> "rec⊥"
   RecOr psi phi a_psi a_phi -> ppElimWithArgs "rec∨" [psi, phi, a_psi, a_phi]
 
+  ConstrainedType phi a -> ppTermParen phi <> " => " <> ppTerm a
+
   where
     ppTermParen t@(Variable _) = ppTerm t
     ppTermParen t@(Hole     _) = ppTerm t

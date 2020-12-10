@@ -87,6 +87,7 @@ termParens' useParens
   <|> parens' idJ
   <|> parens' recOr
   <|> parens' cubeProd
+  <|> parens' constrainedType
   <|> refl
   <|> recBottom
   <|> cubeU <|> topeU <|> universe
@@ -169,6 +170,15 @@ recOr = do
   "recOR" <|> "rec∨"
   [psi, phi, a, b] <- parseTuple
   return (RecOr psi phi a b)
+
+constrainedType :: Parser (Term Var)
+constrainedType = do
+  phi <- termParens True
+  skipSpace
+  "=>"
+  skipSpace
+  a <- term
+  return (ConstrainedType phi a)
 
 parens :: Parser a -> Parser a
 parens p = "(" *> skipSpace *> p <* skipSpace <* ")"

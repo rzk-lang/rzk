@@ -1,16 +1,5 @@
 # Examples
 
-```
--- [RS17, Theorem 4.5]
-f :
-     (I : Cube)
-  -> (phi : I -> Tope)
-  -> (psi : I -> Tope)
-  -> (X : {t : I | phi t \/ psi t} -> U)
-  -> (a : {t : I | phi t \/ psi t} -> X t)
-  -> ({t : I | phi t \/ psi t} -> X(t) [psi t -> a t])
-```
-
 Here are some super basic examples of declarations embedded in Markdown file.
 
 Identity function:
@@ -101,6 +90,19 @@ ex10 : {I : CUBE} -> {t : I * I} -> I * I
 
 ex11 : {t : 1 * 1} -> TOPE
   := \(t : 1 * 1) -> (second t) === (first t)
+```
+
+Constraints:
+
+```rzk
+ex12 : BOT => U
+  := recBOT
+
+ex13 : {A : U} -> (BOT => A)
+  := \(A : U) -> recBOT
+
+ex14 : {I : CUBE} -> {phi : {t : I} -> TOPE} -> {psi : {t : I} -> TOPE} -> {A : U} -> {a : (phi \/ psi) => A} -> ((psi \/ phi) => A)
+  := \(I : CUBE) -> \(phi : {t : I} -> TOPE) -> \(psi : {t : I} -> TOPE) -> \(A : U) -> \(a : (phi \/ psi) => A) -> a
 ```
 
 ### Typechecking Markdown files

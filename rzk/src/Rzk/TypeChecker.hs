@@ -36,6 +36,7 @@ data TypeError var
   | TypeErrorNotAPair (Term var) (Term var) (Term var)
   | TypeErrorExpectedFunctionType (Term var) (Term var)
   | TypeErrorInvalidTypeFamily
+  | TypeErrorTopeContextNotSatisfied (Term var) (Term var) [Term var]
 
 instance Show (TypeError Var) where
   show = Text.unpack . ppTypeError
@@ -107,6 +108,14 @@ ppTypeError = \case
     , "   " <> ppTerm term
     ]
   TypeErrorInvalidTypeFamily -> "Expected a type family, but got something else" -- FIXME
+  TypeErrorTopeContextNotSatisfied term phi topes -> Text.intercalate "\n"
+    [ "Term is expecting the following in the tope context"
+    , "  " <> ppTerm phi
+    , "but local tope context is"
+    , Text.intercalate "\n" (map (("  " <>) . ppTerm) topes)
+    , "when typechecking term"
+    , "  " <> ppTerm term
+    ]
 
 data TypingContext var = TypingContext
   { contextKnownTypes  :: [(var, Term var)]
@@ -322,20 +331,24 @@ infer = \case
     typecheck s typeOf_t
     return Tope
 
-  RecBottom -> do
-    ensureTopeContext TopeBottom
+  t@RecBottom -> do
+    ensureTopeContext t TopeBottom
     Hole <$> genFreshHole
-  RecOr psi phi a b -> do
-    ensureTopeContext (TopeOr psi phi)
+  t@(RecOr psi phi a b) -> do
+    ensureTopeContext t (TopeOr psi phi)
     typeOf_a <- infer a
     typecheck b typeOf_a
     return typeOf_a
 
-ensureTopeContext :: Eq var => Term var -> TypeCheck var ()
-ensureTopeContext phi = do
+  ConstrainedType phi a -> do
+    typecheck phi Tope
+    ConstrainedType phi <$> localConstraint phi (infer a)
+
+ensureTopeContext :: Eq var => Term var -> Term var -> TypeCheck var ()
+ensureTopeContext term phi = do
   Context{..} <- ask
   unless (contextTopes `subtopesOf` phi) $ do
-    issueTypeError (TypeErrorOther "tope context is not satisfied!")
+    issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
@@ -429,6 +442,9 @@ typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 typecheck term expectedType =
   unsafeTraceTyping term expectedType $
   case (term, expectedType) of
+    (_, ConstrainedType phi ty) -> do
+      localConstraint phi (typecheck term ty)
+
     (Lambda y c m, Pi f@(Lambda _ a _)) -> do
       _ <- infer c
       unify (Variable y) c a
@@ -508,6 +524,8 @@ checkInfiniteType tt x = go
 
     go RecBottom = pure RecBottom
     go (RecOr psi phi a b) = RecOr <$> go psi <*> go phi <*> go a <*> go b
+
+    go (ConstrainedType phi a) = ConstrainedType <$> go phi <*> go a
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = do

@@ -65,6 +65,10 @@ lookupVar x = do
 localVar :: MonadReader (Context var) m => (var, Term var) -> m a -> m a
 localVar (x, t) = local (updateVar x t)
 
+-- | Add tope constraint locally during evaluation.
+localConstraint :: MonadReader (Context var) m => Term var -> m a -> m a
+localConstraint phi = local (\context -> context { contextTopes = phi : contextTopes context })
+
 -- | Add a free variable locally during evaluation.
 localFreeVar :: MonadReader (Context var) m => var -> m a -> m a
 localFreeVar x = local (addVar x)
@@ -104,6 +108,8 @@ freeVars = \case
   TopeEQ t s -> freeVars t <> freeVars s
   RecBottom -> []
   RecOr psi phi a b -> concatMap freeVars [psi, phi, a, b]
+
+  ConstrainedType phi a -> freeVars phi <> freeVars a
 
 -- | Evaluate an open term (some variables might occur freely).
 --
@@ -175,6 +181,10 @@ eval = \case
                   then a
                   else RecOr psi' phi' a' b'
 
+  ConstrainedType phi a -> do
+    phi' <- eval phi
+    ConstrainedType phi' <$> (localConstraint phi' (eval a))
+
 subtopesOf :: Eq var => [Term var] -> Term var -> Bool
 subtopesOf topes tope = any (`subtopeOf` tope) topes
 
@@ -235,3 +245,5 @@ renameVar x x' = go
       TopeEQ t' s -> TopeEQ (go t') (go s)
       RecBottom -> RecBottom
       RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)
+
+      ConstrainedType phi a -> ConstrainedType (go phi) (go a)
