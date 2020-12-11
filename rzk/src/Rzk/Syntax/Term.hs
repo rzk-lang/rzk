@@ -81,8 +81,7 @@ data Term var
   | RecOr (Term var) (Term var) (Term var) (Term var)
   -- ^ Tope disjunction eliminator: \(\mathsf{rec}^{\psi,\phi}_\lor(a_\psi, a_\phi)\).
 
-  | ConstrainedType (Term var) (Term var)
-  -- ^ A type constrained to a tope: \(\Ksi | \Phi, \phi | \Gamma \vdash A\)
-  -- (corresponding to a term @ConstrainedType phi a@).
+  | ExtensionType var (Term var) (Term var) (Term var) (Term var) (Term var)
+  -- ^ Extension type \( \left\langle \prod_{t : I | psi} A(t) \rvert^{\phi}_{a(t)} \right\rangle \) corresponding to @ExtensionType t cI psi tA phi a@.
   deriving (Eq, Functor, Foldable)
 

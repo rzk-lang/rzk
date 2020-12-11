@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8e310ce73a6f38b211c8cdc2958dafcc150b74c5b2521c471f7eb5f568cdfc48
+-- hash: e5b82d171456abec731539fae4b956d6f7d286b34a3a174a4efbe8b9e0106499
 
 name:           rzk
 version:        0.1.0.0
@@ -45,7 +45,11 @@ library
       attoparsec
     , base >=4.7 && <5
     , mtl
+    , parsers
+    , prettyprinter-ansi-terminal
     , text
+    , trifecta
+    , unordered-containers
   default-language: Haskell2010
 
 executable rzk
@@ -59,8 +63,12 @@ executable rzk
       attoparsec
     , base >=4.7 && <5
     , mtl
+    , parsers
+    , prettyprinter-ansi-terminal
     , rzk
     , text
+    , trifecta
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite rzk-test
@@ -75,6 +83,10 @@ test-suite rzk-test
       attoparsec
     , base >=4.7 && <5
     , mtl
+    , parsers
+    , prettyprinter-ansi-terminal
     , rzk
     , text
+    , trifecta
+    , unordered-containers
   default-language: Haskell2010

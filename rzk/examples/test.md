@@ -5,36 +5,36 @@ Here are some super basic examples of declarations embedded in Markdown file.
 Identity function:
 
 ```rzk
-id : {A : U} -> ({_ : A} -> A)
+id : (A : U) -> (_ : A) -> A
   := \(B : U) -> \(x : B) -> x
 ```
 
 Church-encoded booleans with `id` used to make type look more complicated:
 
 ```rzk
-false : (id ?UN) ({A : U} -> {_x : A} -> {_y : A} -> A)
+false : (id U) ((A : U) -> (_x : A) -> (_y : A) -> A)
   := \(F : U) -> \(x : F) -> \(_ : F) -> x
 
-true : {A : U} -> {_ : A} -> {_ : A} -> A
+true : (A : U) -> (_ : A) -> (_ : A) -> A
   := \(C : U) -> \(_ : C) -> \(y : C) -> y
 ```
 
 Dependent sums:
 
 ```rzk
-prod : {A : U} -> {B : U} -> U
+prod : (A : U) -> (B : U) -> U
   := \(A : U) -> \(B : U) -> ∑ (x : A), B
 
-pair : {A : U} -> U
+pair : (A : U) -> U
   := \(A : U) -> (prod A) A
 
-ex1 : pair ({A : U} -> U)
-  := ( id U, (id ({B : U} -> U)) (id U) )
+ex1 : pair ((A : U) -> U)
+  := ( id U, (id ((B : U) -> U)) (id U) )
 
-ex2 : {A : U} -> U
+ex2 : (A : U) -> U
   := first ex1
 
-ex3 : {A : U} -> U
+ex3 : (A : U) -> U
   := second ex1
 
 ex4 : U
@@ -44,35 +44,35 @@ ex5 : ex4
   := (U, (U, U))
 
 ex6 : ex4
-  := ({B : U} -> {x : B} -> B, (id, id))
+  := ((B : U) -> (x : B) -> B, (id, id))
 ```
 
 Identity types:
 
 ```rzk
-iscontr : {A : U} -> U
-  := \(A : U) -> ∑ (x : A), {y : A} -> x =_{A} y
+iscontr : (A : U) -> U
+  := \(A : U) -> ∑ (x : A), (y : A) -> x =_{A} y
 
-isaprop : {A : U} -> U
-  := \(A : U) -> {x : A} -> {y : A} -> x =_{A} y
+isaprop : (A : U) -> U
+  := \(A : U) -> (x : A) -> (y : A) -> x =_{A} y
 
-invpath : {A : U} -> {x : A} -> {y : A} -> {p : x =_{A} y} -> y =_{A} x
+invpath : (A : U) -> (x : A) -> (y : A) -> (p : x =_{A} y) -> y =_{A} x
   := \(A : U) -> \(x : A) -> \(y : A) -> \(p : x =_{A} y) -> idJ(A, x, \(z : A) -> \(_ : x =_{A} z) -> z =_{A} x, refl_{x : A}, y, p)
 
-ex7 : {A : U} -> {x : A} -> refl_{x : A} =_{x =_{A} x} ((((invpath A) x) x) refl_{x : A})
+ex7 : (A : U) -> (x : A) -> refl_{x : A} =_{x =_{A} x} ((((invpath A) x) x) refl_{x : A})
   := \(A : U) -> \(x : A) -> refl_{refl_{x : A} : x =_{A} x}
 ```
 
 Equivalence:
 
 ```rzk
-isweq : {A : U} -> {B : U} -> {f : {_ : A} -> B} -> U
-  := \(A : U) -> \(B : U) -> \(f : {_ : A} -> B) -> ∑ (g : {_ : B} -> A), (prod ({x : A} -> (g (f x)) =_{A} x)) ({y : B} -> (f (g y)) =_{B} y)
+isweq : (A : U) -> (B : U) -> (f : (_ : A) -> B) -> U
+  := \(A : U) -> \(B : U) -> \(f : (_ : A) -> B) -> ∑ (g : (_ : B) -> A), (prod ((x : A) -> (g (f x)) =_{A} x)) ((y : B) -> (f (g y)) =_{B} y)
 
-weq : {A : U} -> {B : U} -> U
-  := \(A : U) -> \(B : U) -> ∑ (f : {_ : A} -> B), ((isweq A) B) f
+weq : (A : U) -> (B : U) -> U
+  := \(A : U) -> \(B : U) -> ∑ (f : (_ : A) -> B), ((isweq A) B) f
 
-idweq : {A : U} -> (weq A) A
+idweq : (A : U) -> (weq A) A
   := \(A : U) -> ( id A , ( id A, ( \(x : A) -> refl_{x : A}, \(x : A) -> refl_{x : A} ) ) )
 ```
 
@@ -85,24 +85,24 @@ ex8 : CUBE
 ex9 : CUBE
   := 1 * 1
 
-ex10 : {I : CUBE} -> {t : I * I} -> I * I
+ex10 : (I : CUBE) -> (t : I * I) -> I * I
   := \(I : CUBE) -> \(t : I * I) -> (second t, first t)
 
-ex11 : {t : 1 * 1} -> TOPE
+ex11 : (t : 1 * 1) -> TOPE
   := \(t : 1 * 1) -> (second t) === (first t)
 ```
 
 Constraints:
 
 ```rzk
-ex12 : BOT => U
-  := recBOT
+ex12 : (I : CUBE) -> <(t : I | BOT) -> U[BOT |-> recBOT]>
+  := \(I : CUBE) -> \(t : I) -> recBOT
 
-ex13 : {A : U} -> (BOT => A)
-  := \(A : U) -> recBOT
+ex13 : (I : CUBE) -> (A : U) -> <(t : I | BOT) -> A[BOT |-> recBOT]>
+  := \(I : CUBE) -> \(A : U) -> \(t : I) -> recBOT
 
-ex14 : {I : CUBE} -> {phi : {t : I} -> TOPE} -> {psi : {t : I} -> TOPE} -> {A : U} -> {a : (phi \/ psi) => A} -> ((psi \/ phi) => A)
-  := \(I : CUBE) -> \(phi : {t : I} -> TOPE) -> \(psi : {t : I} -> TOPE) -> \(A : U) -> \(a : (phi \/ psi) => A) -> a
+ex14 : (I : CUBE) -> (phi : (t : I) -> TOPE) -> (psi : (t : I) -> TOPE) -> (A : U) -> (a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> <(t : I | psi t \/ phi t) -> A[BOT |-> recBOT]>
+  := \(I : CUBE) -> \(phi : (t : I) -> TOPE) -> \(psi : (t : I) -> TOPE) -> \(A : U) -> \(a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> \(t : I) -> a t
 ```
 
 ### Typechecking Markdown files
@@ -120,14 +120,14 @@ The result should look something like this
 Everything is ok!
 
 Free variables and their known types:
-  true : { A : 𝒰 } → { _ : A } → { _₁ : A } → A
-  false : { A : 𝒰 } → { _x : A } → { _y : A } → A
-  id : { A : 𝒰 } → { _ : A } → A
+  true : ( A : 𝒰 ) → ( _ : A ) → ( _₁ : A ) → A
+  false : ( A : 𝒰 ) → ( _x : A ) → ( _y : A ) → A
+  id : ( A : 𝒰 ) → ( _ : A ) → A
 Type holes and their instantiations:
   ?A₂ := _
-  ?{H}₃ := 𝒰
+  ?(H)₃ := 𝒰
   ?A₁ := _
-  ?{H}₂ := 𝒰
+  ?(H)₂ := 𝒰
   ?U₁ := 𝒰
-  ?{H}₁ := 𝒰
+  ?(H)₁ := 𝒰
 ```

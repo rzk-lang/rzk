@@ -252,13 +252,18 @@ infer = \case
   Universe      -> pure Universe
   Pi t          -> inferTypeFamily t
   t@(Lambda _ _ _) -> issueTypeError (TypeErrorCannotInferLambda t)
-  App t1 t2 -> do
+  term@(App t1 t2) -> do
 
     ty <- infer t1
     case ty of
       Pi f@(Lambda _ a _) -> do
         typecheck t2 a
         evalType (App f t2)
+      ExtensionType t cI psi tA phi a -> do
+        typecheck t2 cI
+        localVar (t, t2) $ do
+          ensureTopeContext term psi
+          evalType tA
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
   t@(Pair f s) -> do
@@ -335,14 +340,24 @@ infer = \case
     ensureTopeContext t TopeBottom
     Hole <$> genFreshHole
   t@(RecOr psi phi a b) -> do
+    typecheck psi Tope
+    typecheck phi Tope
     ensureTopeContext t (TopeOr psi phi)
     typeOf_a <- infer a
     typecheck b typeOf_a
     return typeOf_a
 
-  ConstrainedType phi a -> do
-    typecheck phi Tope
-    ConstrainedType phi <$> localConstraint phi (infer a)
+  ExtensionType t cI psi tA phi a -> do
+    typecheck cI Cube
+    localTyping (t, cI) $ do
+      typecheck psi Tope
+      localConstraint psi $ do
+        typecheck tA Universe
+        typecheck phi Tope
+        ensureTopeContext a phi
+        localConstraint phi $ do
+          typecheck a tA
+          return Universe
 
 ensureTopeContext :: Eq var => Term var -> Term var -> TypeCheck var ()
 ensureTopeContext term phi = do
@@ -442,11 +457,17 @@ typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 typecheck term expectedType =
   unsafeTraceTyping term expectedType $
   case (term, expectedType) of
-    (_, ConstrainedType phi ty) -> do
-      localConstraint phi (typecheck term ty)
+    (Lambda y c m, ExtensionType t cI psi tA phi a) -> do
+      typecheck c Cube
+      unify (Variable y) c cI
+      localTyping (y, cI) $ do
+        localConstraint (renameVar t y psi) $ do
+          typecheck m (renameVar t y tA)
+          localConstraint (renameVar t y phi) $ do
+            m' <- evalType m
+            unify (error "there is no term?") m' a
 
     (Lambda y c m, Pi f@(Lambda _ a _)) -> do
-      _ <- infer c
       unify (Variable y) c a
       localTyping (y, a) $ do
         bodyType <- evalType (App f (Variable y))
@@ -525,7 +546,9 @@ checkInfiniteType tt x = go
     go RecBottom = pure RecBottom
     go (RecOr psi phi a b) = RecOr <$> go psi <*> go phi <*> go a <*> go b
 
-    go (ConstrainedType phi a) = ConstrainedType <$> go phi <*> go a
+    go (ExtensionType t cI psi tA phi a)
+      | x == t = ExtensionType t <$> go cI <*> pure psi <*> pure tA <*> pure phi <*> pure a
+      | otherwise = ExtensionType t <$> go cI <*> go psi <*> go tA <*> go phi <*> go a
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = do
@@ -608,6 +631,13 @@ unify term t1 t2 = do
       unify' phi phi'
       unify' a a'
       unify' b b'
+
+    unify' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
+      unify' cI cI'
+      unify' (renameVar t t' psi) psi'
+      unify' (renameVar t t' tA)  tA'
+      unify' (renameVar t t' phi) phi'
+      unify' (renameVar t t' a)   a'
 
     unify' tt1 tt2 = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 

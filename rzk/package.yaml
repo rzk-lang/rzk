@@ -27,6 +27,10 @@ dependencies:
 - attoparsec
 - mtl
 - text
+- parsers
+- trifecta
+- unordered-containers
+- prettyprinter-ansi-terminal
 
 library:
   source-dirs: src

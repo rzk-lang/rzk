@@ -109,7 +109,7 @@ freeVars = \case
   RecBottom -> []
   RecOr psi phi a b -> concatMap freeVars [psi, phi, a, b]
 
-  ConstrainedType phi a -> freeVars phi <> freeVars a
+  ExtensionType t cI psi tA phi a -> concatMap freeVars [cI, psi, tA, phi, a]
 
 -- | Evaluate an open term (some variables might occur freely).
 --
@@ -181,20 +181,24 @@ eval = \case
                   then a
                   else RecOr psi' phi' a' b'
 
-  ConstrainedType phi a -> do
-    phi' <- eval phi
-    ConstrainedType phi' <$> (localConstraint phi' (eval a))
+  ExtensionType t cI psi tA phi a -> do
+    vars <- asks contextKnownVars
+    let doRename = t `elem` vars
+    let t' = if doRename then refreshVar vars t else t
+    let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
+    ExtensionType t' <$> eval cI <*> ev psi <*> ev tA <*> ev phi <*> ev a
 
 subtopesOf :: Eq var => [Term var] -> Term var -> Bool
 subtopesOf topes tope = any (`subtopeOf` tope) topes
 
 -- | FIXME: this is not real constraint solving.
 subtopeOf :: Eq var => Term var -> Term var -> Bool
+subtopeOf psi phi               | psi == phi = True
 subtopeOf TopeBottom _anyTope   = True
 subtopeOf _anyTope TopeTop      = True
 subtopeOf chi (TopeOr psi phi)  = any (chi `subtopeOf`) [psi, phi]
 subtopeOf (TopeAnd psi phi) chi = any (`subtopeOf` chi) [psi, phi]
-subtopeOf psi phi               = psi == phi
+subtopeOf _ _                   = False
 
 -- | Evaluate application of one (evaluated) term to another.
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
@@ -221,7 +225,7 @@ renameVar x x' = go
       Universe -> Universe
       Pi t' -> Pi (go t')
       Lambda z a m
-        | z == x  -> t
+        | z == x  -> Lambda z (go a) m
         | otherwise -> Lambda z (go a) (go m)
       App t1 t2 -> App (go t1) (go t2)
       Sigma t' -> Sigma (go t')
@@ -246,4 +250,6 @@ renameVar x x' = go
       RecBottom -> RecBottom
       RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)
 
-      ConstrainedType phi a -> ConstrainedType (go phi) (go a)
+      ExtensionType t cI psi tA phi a
+        | t == x    -> ExtensionType t (go cI) psi tA phi a
+        | otherwise -> ExtensionType t (go cI) (go psi) (go tA) (go phi) (go a)
