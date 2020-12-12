@@ -20,9 +20,10 @@ data Term var
   | Pi (Term var)
   -- ^ Dependent product type former \(\prod_{x : A} B(x)\).
   -- The term argument represents type family \(B : A \to \mathcal{U}\).
-  | Lambda var (Term var) (Term var)
+  | Lambda var (Term var) (Maybe (Term var)) (Term var)
   -- ^ \(\lambda\)-abstraction ("lambda abstraction").
-  -- @Lambda x a m@ represents a term of the form \(\lambda (x : A). M\).
+  -- @Lambda x a Nothing m@ represents a term of the form \(\lambda (x : A). M\)
+  -- while @Lambda t i (Just phi) m@ represents \(\lambda \{t : I | \phi\}. M\)
   | App (Term var) (Term var)
   -- ^ Application of one term to another \((M N)\).
 
@@ -62,6 +63,9 @@ data Term var
   | CubeProd (Term var) (Term var)
   -- ^ Product of cubes: \(I \times J\).
 
+  | PiShape var (Term var) (Term var) (Term var)
+  -- ^ Dependent function type from shape (a cube with a tope in it) $\{ t : I | psi \} -> A(t)$ (correponding to @PiShape t i psi a@).
+
   | Tope
   -- ^ Tope "universe". Like cubes, this is not a type.
   | TopeTop
@@ -83,5 +87,6 @@ data Term var
 
   | ExtensionType var (Term var) (Term var) (Term var) (Term var) (Term var)
   -- ^ Extension type \( \left\langle \prod_{t : I | psi} A(t) \rvert^{\phi}_{a(t)} \right\rangle \) corresponding to @ExtensionType t cI psi tA phi a@.
+
   deriving (Eq, Functor, Foldable)
 

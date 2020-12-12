@@ -7,18 +7,18 @@ import           Rzk.Pretty.Text ()
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
-traceShow' :: Show a => a -> b -> b
-traceShow' x = trace ("[debug] " <> show x)
+traceShow' :: Show a => String -> a -> b -> b
+traceShow' tag x = trace ("[" <> tag <> "] " <> show x)
 
-traceTerm :: Term Var -> a -> a
+traceTerm :: String -> Term Var -> a -> a
 traceTerm = traceShow'
 
-unsafeTraceTerm :: Term var -> a -> a
-unsafeTraceTerm = traceTerm . unsafeCoerce
+unsafeTraceTerm :: String -> Term var -> a -> a
+unsafeTraceTerm tag = traceTerm tag . unsafeCoerce
 
-traceTyping :: Term Var -> Term Var -> a -> a
-traceTyping term ty = traceTerm (TypedTerm term ty)
+traceTyping :: String -> Term Var -> Term Var -> a -> a
+traceTyping tag term ty = traceTerm tag (TypedTerm term ty)
 
-unsafeTraceTyping :: Term var -> Term var -> a -> a
-unsafeTraceTyping term ty
-  = traceTyping (unsafeCoerce term) (unsafeCoerce ty)
+unsafeTraceTyping :: String -> Term var -> Term var -> a -> a
+unsafeTraceTyping tag term ty
+  = traceTyping tag (unsafeCoerce term) (unsafeCoerce ty)

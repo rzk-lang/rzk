@@ -58,5 +58,5 @@ incIndexText s = name <> newIndex
     digitFromSub c = chr ((ord c - ord '₀') + ord '0')
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
     (name, index) = Text.break isDigitSub s
-    oldIndexN = read ('0' : map digitFromSub (Text.unpack index))
+    oldIndexN = read ('0' : map digitFromSub (Text.unpack index)) -- FIXME: read
     newIndex = Text.pack (map digitToSub (show (oldIndexN + 1)))

@@ -96,13 +96,22 @@ Constraints:
 
 ```rzk
 ex12 : (I : CUBE) -> <(t : I | BOT) -> U[BOT |-> recBOT]>
-  := \(I : CUBE) -> \(t : I) -> recBOT
+  := \(I : CUBE) -> \{t : I | BOT} -> recBOT
 
 ex13 : (I : CUBE) -> (A : U) -> <(t : I | BOT) -> A[BOT |-> recBOT]>
-  := \(I : CUBE) -> \(A : U) -> \(t : I) -> recBOT
+  := \(I : CUBE) -> \(A : U) -> \{t : I | BOT} -> recBOT
 
 ex14 : (I : CUBE) -> (phi : (t : I) -> TOPE) -> (psi : (t : I) -> TOPE) -> (A : U) -> (a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> <(t : I | psi t \/ phi t) -> A[BOT |-> recBOT]>
-  := \(I : CUBE) -> \(phi : (t : I) -> TOPE) -> \(psi : (t : I) -> TOPE) -> \(A : U) -> \(a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> \(t : I) -> a t
+  := \(I : CUBE) -> \(phi : (t : I) -> TOPE) -> \(psi : (t : I) -> TOPE) -> \(A : U) -> \(a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> \{t : I | phi t \/ psi t} -> a t
+```
+
+### RS17, Section 4
+
+Theorem 4.1
+
+```rzk
+RS17:Thm:4_1 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {t : I | psi t} -> TOPE) -> (X : U) -> (Y : <(t : I | psi t) -> (x : X) -> U [BOT |-> recBOT]>) -> (f : <(t : I | phi t) -> (x : X) -> Y t x [BOT |-> recBOT]>) -> weq (<(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) ((x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>)
+  := \(I : CUBE) -> \(psi : (t : I) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(X : U) -> \(Y : <(t : I | psi t) -> (x : X) -> U [BOT |-> recBOT]>) -> \(f : <(t : I | phi t) -> (x : X) -> Y t x [BOT |-> recBOT]>) -> (\(g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) -> \(x : X) -> \{t : I | psi t} -> g t x, (\(g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>) -> \{t : I | psi t} -> \(x : X) -> g x t, (\(g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) -> refl_{g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>}, \(g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>) -> refl_{g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>})))
 ```
 
 ### Typechecking Markdown files

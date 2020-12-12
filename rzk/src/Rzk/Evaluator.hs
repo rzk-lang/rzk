@@ -6,11 +6,14 @@ module Rzk.Evaluator where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Data.List            ((\\))
-import           Data.Maybe           (fromMaybe, isNothing)
+import           Data.Functor.Identity
+import           Data.List             (nub, (\\))
+import           Data.Maybe            (fromMaybe, isNothing)
 
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
+
+import           Rzk.Debug.Trace
 
 -- | Evaluation errors.
 data EvalError var
@@ -24,6 +27,9 @@ data Context var = Context
   , contextFreeVariables    :: [var]
     -- ^ Known free variables, used to avoid name clashes during substitution.
   , contextTopes            :: [Term var]
+    -- ^ Topes in the context.
+  , contextTopeInclusions   :: [(Term var, Term var)]
+    -- ^ Known tope inclusions \( \phi \vdash \psi \).
   }
 
 -- | Empty evaluation context.
@@ -32,6 +38,7 @@ emptyContext = Context
   { contextDefinedVariables = []
   , contextFreeVariables = []
   , contextTopes = []
+  , contextTopeInclusions = []
   }
 
 -- | Reassign term value to a variable.
@@ -69,6 +76,10 @@ localVar (x, t) = local (updateVar x t)
 localConstraint :: MonadReader (Context var) m => Term var -> m a -> m a
 localConstraint phi = local (\context -> context { contextTopes = phi : contextTopes context })
 
+-- | Add tope inclusion information locally during evaluation.
+localTopeInclusion :: MonadReader (Context var) m => Term var -> Term var -> m a -> m a
+localTopeInclusion psi phi = local (\context -> context { contextTopeInclusions = (psi, phi) : contextTopeInclusions context })
+
 -- | Add a free variable locally during evaluation.
 localFreeVar :: MonadReader (Context var) m => var -> m a -> m a
 localFreeVar x = local (addVar x)
@@ -85,7 +96,7 @@ freeVars = \case
   Hole _ -> []
   Universe -> []
   Pi t -> freeVars t
-  Lambda x a m -> freeVars a <> (freeVars m \\ [x])
+  Lambda x a phi m -> freeVars a <> ((foldMap freeVars phi <> freeVars m) \\ [x])
   App t1 t2 -> freeVars t1 <> freeVars t2
   Sigma t -> freeVars t
   Pair t1 t2 -> freeVars t1 <> freeVars t2
@@ -109,7 +120,11 @@ freeVars = \case
   RecBottom -> []
   RecOr psi phi a b -> concatMap freeVars [psi, phi, a, b]
 
-  ExtensionType t cI psi tA phi a -> concatMap freeVars [cI, psi, tA, phi, a]
+  ExtensionType t cI psi tA phi a ->
+    freeVars cI <> (concatMap freeVars [psi, tA, phi, a] \\ [t])
+
+  PiShape t i phi a ->
+    freeVars i <> (concatMap freeVars [phi, a] \\ [t])
 
 -- | Evaluate an open term (some variables might occur freely).
 --
@@ -134,12 +149,12 @@ eval = \case
   Hole x -> pure (Hole x)
   Universe -> pure Universe
   Pi t -> Pi <$> eval t
-  Lambda x a m -> do
+  Lambda x a phi m -> do
     vars <- asks contextKnownVars
-    let x' = refreshVar vars x
-    if x `elem` vars
-      then Lambda x' <$> eval a <*> localVar (x', Variable x') (eval (renameVar x x' m))
-      else Lambda x  <$> eval a <*> localVar (x , Variable x ) (eval m)
+    let doRename = x `elem` vars
+    let x' = if doRename then refreshVar (vars <> freeVars m <> foldMap freeVars phi) x else x
+    let ev = localVar (x', Variable x') . eval . if doRename then renameVar x x' else id
+    Lambda x' <$> eval a <*> traverse ev phi <*> ev m
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> Pair <$> eval t1 <*> eval t2
@@ -172,9 +187,9 @@ eval = \case
   RecOr psi phi a b -> do
     Context{..} <- ask
     psi' <- eval psi
-    if (contextTopes `subtopesOf` psi') then eval a else do
+    if (contextTopes `entailTope` psi') then eval a else do
       phi' <- eval phi
-      if (contextTopes `subtopesOf` phi') then eval b else do
+      if (contextTopes `entailTope` phi') then eval b else do
         a' <- eval a
         b' <- eval b
         pure $ if a == b
@@ -184,30 +199,86 @@ eval = \case
   ExtensionType t cI psi tA phi a -> do
     vars <- asks contextKnownVars
     let doRename = t `elem` vars
-    let t' = if doRename then refreshVar vars t else t
+    let t' = if doRename then refreshVar (vars <> concatMap freeVars [psi, tA, phi, a]) t else t
     let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
     ExtensionType t' <$> eval cI <*> ev psi <*> ev tA <*> ev phi <*> ev a
 
-subtopesOf :: Eq var => [Term var] -> Term var -> Bool
-subtopesOf topes tope = any (`subtopeOf` tope) topes
+  PiShape t i psi a -> do
+    vars <- asks contextKnownVars
+    let doRename = t `elem` vars
+    let t' = if doRename then refreshVar (vars <> concatMap freeVars [psi, a]) t else t
+    let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
+    PiShape t' <$> eval i <*> ev psi <*> ev a
 
--- | FIXME: this is not real constraint solving.
-subtopeOf :: Eq var => Term var -> Term var -> Bool
-subtopeOf psi phi               | psi == phi = True
-subtopeOf TopeBottom _anyTope   = True
-subtopeOf _anyTope TopeTop      = True
-subtopeOf chi (TopeOr psi phi)  = any (chi `subtopeOf`) [psi, phi]
-subtopeOf (TopeAnd psi phi) chi = any (`subtopeOf` chi) [psi, phi]
-subtopeOf _ _                   = False
+unfoldTopes :: Eq var => [Term var] -> [[Term var]]
+unfoldTopes [] = [[]]
+unfoldTopes (tope:topes) = nub $
+  case tope of
+    TopeBottom      -> [[TopeBottom]]
+    TopeTop         -> topes'
+    TopeOr phi psi  -> topes' >>= \ts -> unfoldTopes (phi:ts) <> unfoldTopes (psi:ts)
+    TopeAnd phi psi -> ([phi, psi] ++) <$> topes'
+    t@(TopeEQ x y)  -> (\ts -> [t, TopeEQ y x] ++ ts {- apply substition? -}) <$> topes'
+    t               -> (t:) <$> topes'
+  where
+    topes' = unfoldTopes topes
+
+entailTope :: Eq var => [Term var] -> Term var -> Bool
+entailTope topes = runIdentity . entailTopeM (\x y -> pure (x == y)) topes
+
+entailTopeM
+  :: (Monad m, Eq var)
+  => (Term var -> Term var -> m Bool) -> [Term var] -> Term var -> m Bool
+entailTopeM isIncludedIn topes tope = and <$>
+  traverse (\topes' -> entailTopeM' isIncludedIn topes' tope) (unfoldTopes topes)
+
+entailTopeM'
+  :: (Monad m, Eq var)
+  => (Term var -> Term var -> m Bool) -> [Term var] -> Term var -> m Bool
+entailTopeM' isIncludedIn topes = go
+  where
+    go = \case
+      _ | TopeBottom `elem` topes -> pure True
+      TopeTop -> pure True
+      TopeAnd phi psi -> and <$> sequenceA [ go phi , go psi ]
+      TopeOr phi psi -> go phi >>= \case
+        True -> pure True
+        False -> go psi
+      TopeEQ (First  (Pair x _y)) s -> go (TopeEQ x s)
+      TopeEQ (Second (Pair _x y)) s -> go (TopeEQ y s)
+      TopeEQ t s -> pure $ or
+        [ t == CubeUnitStar
+        , s == CubeUnitStar
+        , t == s
+        , TopeEQ s t `elem` topes
+        ]
+      tope -> anyM (`isIncludedIn` tope) topes
+
+    anyM _ [] = pure False
+    anyM p (x:xs) = p x >>= \case
+      True -> pure True
+      False -> anyM p xs
 
 -- | Evaluate application of one (evaluated) term to another.
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
 app t1 n =
   case t1 of
-    Lambda x _ m                                 -> localVar (x, n) (eval m)
-    TypedTerm (Lambda x _ m) (Pi (Lambda y _ b)) -> do
-      TypedTerm <$> localVar (x, n) (eval m) <*> localVar (y, n) (eval b)
-    _                                            -> pure (App t1 n)
+    Lambda x (ExtensionType _ _ _ _ phi a) Nothing m -> do
+      Context{..} <- ask
+      if contextTopes `entailTope` phi
+         then do
+           a' <- eval a
+           unsafeTraceTerm "app" a' <$> return a'
+         else localVar (x, n) (eval m)
+    Lambda x _ Nothing m -> localVar (x, n) (eval m)
+    Lambda x _ (Just phi) m -> do
+      localVar (x, n) $ do
+        phi' <- eval phi
+        localConstraint phi' $ do
+          eval m
+    TypedTerm t (Pi f) -> do
+      TypedTerm <$> app t n <*> app f n
+    _ -> pure (App t1 n)
 
 -- | Rename a (free) variable in a term.
 --
@@ -224,9 +295,9 @@ renameVar x x' = go
       Hole z -> Hole z
       Universe -> Universe
       Pi t' -> Pi (go t')
-      Lambda z a m
-        | z == x  -> Lambda z (go a) m
-        | otherwise -> Lambda z (go a) (go m)
+      Lambda z a phi m
+        | z == x  -> Lambda z (go a) phi m
+        | otherwise -> Lambda z (go a) (go <$> phi) (go m)
       App t1 t2 -> App (go t1) (go t2)
       Sigma t' -> Sigma (go t')
       Pair f s -> Pair (go f) (go s)
@@ -250,6 +321,9 @@ renameVar x x' = go
       RecBottom -> RecBottom
       RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)
 
-      ExtensionType t cI psi tA phi a
-        | t == x    -> ExtensionType t (go cI) psi tA phi a
-        | otherwise -> ExtensionType t (go cI) (go psi) (go tA) (go phi) (go a)
+      ExtensionType s cI psi tA phi a
+        | s == x    -> ExtensionType s (go cI) psi tA phi a
+        | otherwise -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
+      PiShape s i psi a
+        | s == x    -> PiShape s (go i) psi a
+        | otherwise -> PiShape s (go i) (go psi) (go a)

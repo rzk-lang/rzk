@@ -10,6 +10,7 @@ import           Data.Monoid       (Endo (..))
 import           Data.Text         (Text)
 import qualified Data.Text         as Text
 import qualified Data.Text.IO      as Text
+import           Text.Read         (readMaybe)
 
 import           Rzk.Syntax.Decl
 import           Rzk.Syntax.Module
@@ -47,13 +48,16 @@ ppTerm = \case
   TypedTerm term ty -> ppTermParen term <> " : " <> ppTerm ty
   Hole x -> ppHole x
   Universe   -> "𝒰"
-  Pi (Lambda x a m) ->
-    "{ " <> ppVar x <> " : " <> ppTerm a <> " } → " <> ppTerm m
+  Pi (Lambda x a Nothing m) ->
+    "(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
+  Pi (Lambda x a (Just phi) m) ->
+    "(" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> ") → " <> ppTerm m
   Pi t -> "Pi " <> ppTermParen t
-  Lambda x a m -> "λ(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
+  Lambda x a Nothing m -> "λ(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
+  Lambda x a (Just phi) m -> "λ{" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> "} → " <> ppTerm m
   App t1 t2 -> ppTermParen t1 <> " " <> ppTermParen t2
 
-  Sigma (Lambda x a m) -> "∑ (" <> ppVar x <> " : " <> ppTerm a <> "), " <> ppTerm m
+  Sigma (Lambda x a Nothing m) -> "∑ (" <> ppVar x <> " : " <> ppTerm a <> "), " <> ppTerm m
   Sigma t -> "∑" <> ppTermParen t
   Pair t1 t2 -> "(" <> ppTerm t1 <> ", " <> ppTerm t2 <> ")"
   First t -> "π₁ " <> ppTermParen t
@@ -74,6 +78,9 @@ ppTerm = \case
   TopeOr psi phi -> ppTermParen psi <> " ∨ " <> ppTermParen phi
   TopeAnd psi phi -> ppTermParen psi <> " ∧ " <> ppTermParen phi
   TopeEQ x y -> ppTermParen x <> " ≡ " <> ppTermParen y
+
+  PiShape t i psi a
+    -> "{" <> ppVar t <> " : " <> ppTerm i <> "|" <> ppTerm psi <> "} → " <> ppTerm a
 
   RecBottom -> "rec⊥"
   RecOr psi phi a_psi a_phi -> ppElimWithArgs "rec∨" [psi, phi, a_psi, a_phi]
@@ -121,7 +128,10 @@ ppTermASCII = unicodeToAscii . ppTerm
 -- >>> Var (identToUnicode "x3")
 -- x₃
 identToUnicode :: Text -> Text
-identToUnicode s = prefix <> newIndex
+identToUnicode s =
+  case readMaybe oldIndex of
+    Nothing        -> s
+    Just oldIndexN -> prefix <> newIndex (oldIndexN :: Integer)
   where
     (prefix, index) = Text.break isDigitOrDigitSub s
 
@@ -135,8 +145,8 @@ identToUnicode s = prefix <> newIndex
       | otherwise    = c
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
 
-    oldIndexN = read ('0' : map digitFromSub (Text.unpack index)) :: Integer
-    newIndex
+    oldIndex  = '0' : map digitFromSub (Text.unpack index)
+    newIndex oldIndexN
       | Text.null index = ""
       | otherwise       = Text.pack (digitToSub <$> show oldIndexN)
 

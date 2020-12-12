@@ -9,9 +9,7 @@ module Rzk.Parser.Text where
 
 import           Control.Applicative
 import           Data.Char                                 (isPrint, isSpace)
-import           Data.Functor                              (void)
 import qualified Data.HashSet                              as HashSet
-import           Data.List                                 (intercalate)
 import           Data.String                               (IsString (..))
 import           Data.Text                                 (Text)
 import qualified Data.Text                                 as Text
@@ -74,16 +72,18 @@ rzkTerm = "term" <??>
 rzkTerm' :: RzkParser (Term Var)
 rzkTerm' = "simple term" <??>
       try rzkTermPiType
+  <|> rzkTermPiShape
   <|> try rzkTermPair
   <|> parens rzkTerm
   <|> try rzkTermLambda
+  <|> try rzkTermLambdaShape
   <|> rzkTermSigmaType
   <|> rzkTermRefl
   <|> rzkTermIdJ
   <|> rzkTermRecOr
   <|> rzkTermFirst
   <|> rzkTermSecond
-  <|> rzkExtensionType
+  <|> rzkTermExtensionType
   -- constants
   <|> Universe <$ (symbol "U" <|> symbol "𝒰")
   <|> Cube <$ symbol "CUBE"
@@ -118,15 +118,42 @@ rzkTermPiType = "dependent function type" <??> do
   (x, a) <- parens rzkVarColonType
   symbol "->" <|> symbol "→"
   t <- rzkTerm
-  return (Pi (Lambda x a t))
+  return (Pi (Lambda x a Nothing t))
+
+rzkTermPiShape :: RzkParser (Term Var)
+rzkTermPiShape = "dependent function type (from a shape)" <??> do
+  symbol "{"
+  t <- Var <$> rzkIdent
+  symbol ":"
+  i <- rzkTerm
+  symbol "|"
+  phi <- rzkTerm
+  symbol "}"
+  symbol "->" <|> symbol "→"
+  a <- rzkTerm
+  return (Pi (Lambda t i (Just phi) a))
 
 rzkTermLambda :: RzkParser (Term Var)
-rzkTermLambda = "lambda abstraction (anonymous function)" <??> do
+rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   symbol "λ" <|> symbol "\\"
   (x, a) <- parens rzkVarColonType
   symbol "->" <|> symbol "→"
   t <- rzkTerm
-  return (Lambda x a t)
+  return (Lambda x a Nothing t)
+
+rzkTermLambdaShape :: RzkParser (Term Var)
+rzkTermLambdaShape = "lambda abstraction (anonymous function from a shape)" <??> do
+  symbol "λ" <|> symbol "\\"
+  symbol "{"
+  t <- Var <$> rzkIdent
+  symbol ":"
+  i <- rzkTerm
+  symbol "|"
+  phi <- rzkTerm
+  symbol "}"
+  symbol "->" <|> symbol "→"
+  a <- rzkTerm
+  return (Lambda t i (Just phi) a)
 
 rzkTermSigmaType :: RzkParser (Term Var)
 rzkTermSigmaType = "dependent sum type" <??> do
@@ -134,7 +161,7 @@ rzkTermSigmaType = "dependent sum type" <??> do
   (x, a) <- parens rzkVarColonType
   symbol ","
   t <- rzkTerm
-  return (Sigma (Lambda x a t))
+  return (Sigma (Lambda x a Nothing t))
 
 rzkTermRefl :: RzkParser (Term Var)
 rzkTermRefl = do
@@ -178,8 +205,8 @@ rzkTermSecond = do
   (symbol "second" <|> symbol "π₂") <?> "π₂"
   Second <$> rzkTerm
 
-rzkExtensionType :: RzkParser (Term Var)
-rzkExtensionType = between (symbol "<") (symbol ">") $ do
+rzkTermExtensionType :: RzkParser (Term Var)
+rzkTermExtensionType = between (symbol "<") (symbol ">") $ do
   symbol "("
   t <- Var <$> rzkIdent
   symbol ":"
