@@ -114,6 +114,24 @@ RS17:Thm:4_1 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {t : I | psi t} -
   := \(I : CUBE) -> \(psi : (t : I) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(X : U) -> \(Y : <(t : I | psi t) -> (x : X) -> U [BOT |-> recBOT]>) -> \(f : <(t : I | phi t) -> (x : X) -> Y t x [BOT |-> recBOT]>) -> (\(g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) -> \(x : X) -> \{t : I | psi t} -> g t x, (\(g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>) -> \{t : I | psi t} -> \(x : X) -> g x t, (\(g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) -> refl_{g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>}, \(g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>) -> refl_{g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>})))
 ```
 
+Here's a version that's a bit nicer to read, but is not supported at the moment:
+
+```
+RS17:Thm:4_1
+  :  (I : CUBE)
+  -> (psi : I -> TOPE)
+  -> (phi : {t : I | psi t} -> TOPE)
+  -> (Y : <{t : I | psi t} -> (x : X) -> U>)
+  -> (f : <{t : I | phi t} -> (x : X) -> Y t x>)
+  -> weq (<{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]>)
+         ((x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>)
+  := \ I psi phi Y f -> 
+    (g, (h, (\_ -> refl, \_ -> refl)))
+  where
+    g = \k x t -> k t x
+    h = \k t x -> k x t
+```
+
 ### Typechecking Markdown files
 
 You can typecheck this file directly:
