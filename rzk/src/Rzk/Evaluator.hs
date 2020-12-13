@@ -123,9 +123,6 @@ freeVars = \case
   ExtensionType t cI psi tA phi a ->
     freeVars cI <> (concatMap freeVars [psi, tA, phi, a] \\ [t])
 
-  PiShape t i phi a ->
-    freeVars i <> (concatMap freeVars [phi, a] \\ [t])
-
 -- | Evaluate an open term (some variables might occur freely).
 --
 -- >>> evalOpen @Var "(λ(x : A) → x =_{A} (λ(y : B) → y)) y"
@@ -145,7 +142,7 @@ evalOpen t = go t
 eval :: (Eq var, Enum var) => Term var -> Eval var (Term var)
 eval = \case
   Variable x -> fromMaybe (Variable x) <$> lookupVar x
-  TypedTerm term ty -> TypedTerm <$> eval term <*> eval ty -- FIXME: maybe first eval type?
+  TypedTerm term ty -> TypedTerm <$> eval term <*> eval ty -- FIXME: maybe type first?
   Hole x -> pure (Hole x)
   Universe -> pure Universe
   Pi t -> Pi <$> eval t
@@ -202,13 +199,6 @@ eval = \case
     let t' = if doRename then refreshVar (vars <> concatMap freeVars [psi, tA, phi, a]) t else t
     let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
     ExtensionType t' <$> eval cI <*> ev psi <*> ev tA <*> ev phi <*> ev a
-
-  PiShape t i psi a -> do
-    vars <- asks contextKnownVars
-    let doRename = t `elem` vars
-    let t' = if doRename then refreshVar (vars <> concatMap freeVars [psi, a]) t else t
-    let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
-    PiShape t' <$> eval i <*> ev psi <*> ev a
 
 unfoldTopes :: Eq var => [Term var] -> [[Term var]]
 unfoldTopes [] = [[]]
@@ -270,12 +260,10 @@ pair f s =
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
 app t1 n =
   case t1 of
-    Lambda x (ExtensionType _ _ _ _ phi a) Nothing m -> do
+    Lambda x (ExtensionType _ _ _ _ phi a) Nothing m -> do  -- FIXME: double check
       Context{..} <- ask
       if contextTopes `entailTope` phi
-         then do
-           a' <- eval a
-           unsafeTraceTerm "app" a' <$> return a'
+         then eval a
          else localVar (x, n) (eval m)
     Lambda x _ Nothing m -> localVar (x, n) (eval m)
     Lambda x _ (Just phi) m -> do
@@ -283,8 +271,14 @@ app t1 n =
         phi' <- eval phi
         localConstraint phi' $ do
           eval m
+    TypedTerm _ (ExtensionType _ _ _ _ phi a) -> do
+      Context{..} <- ask
+      if contextTopes `entailTope` phi
+         then do eval a
+         else pure (App t1 n)
     TypedTerm t (Pi f) -> do
       TypedTerm <$> app t n <*> app f n
+    TypedTerm _ _ -> pure (App t1 n)
     _ -> pure (App t1 n)
 
 -- | Rename a (free) variable in a term.
@@ -331,6 +325,3 @@ renameVar x x' = go
       ExtensionType s cI psi tA phi a
         | s == x    -> ExtensionType s (go cI) psi tA phi a
         | otherwise -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
-      PiShape s i psi a
-        | s == x    -> PiShape s (go i) psi a
-        | otherwise -> PiShape s (go i) (go psi) (go a)

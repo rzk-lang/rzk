@@ -63,9 +63,6 @@ data Term var
   | CubeProd (Term var) (Term var)
   -- ^ Product of cubes: \(I \times J\).
 
-  | PiShape var (Term var) (Term var) (Term var)
-  -- ^ Dependent function type from shape (a cube with a tope in it) $\{ t : I | psi \} -> A(t)$ (correponding to @PiShape t i psi a@).
-
   | Tope
   -- ^ Tope "universe". Like cubes, this is not a type.
   | TopeTop

@@ -28,7 +28,6 @@ import           Rzk.Debug.Trace
 data TypeError var
   = TypeErrorInfinite var (Term var)
   | TypeErrorUnexpected (Term var) (Term var) (Term var) (Term var) (Term var)
-  | TypeErrorUnexpectedLayer (Term var) (Term var) TypingLayer
   | TypeErrorEval (Term var) (EvalError var)
   | TypeErrorOther Text
   | TypeErrorCannotInferLambda (Term var)
@@ -64,14 +63,6 @@ ppTypeError = \case
     , "for the term"
     , "  " <> ppTerm term
     ]
-  TypeErrorUnexpectedLayer t ty layer -> Text.intercalate "\n"
-    [ "Wrong typing layer! Expected"
-    , "  " <> Text.intercalate " or " (map ppTerm (layerExpected layer))
-    , "but inferred"
-    , "  " <> ppTerm ty
-    , "for the term"
-    , "  " <> ppTerm t
-    ]
   TypeErrorEval t err -> Text.intercalate "\n"
     [ "Error occured while evaluating type"
     , "    " <> ppTerm t
@@ -95,7 +86,7 @@ ppTypeError = \case
     , "  " <> ppTerm (App f e)
     ]
   TypeErrorNotAPair f t e -> Text.intercalate "\n"
-    [ "Expected a dependent pair (sum) type but got"
+    [ "Expected a dependent pair (sum) type or a cube product but got"
     , "  " <> ppTerm t
     , "for the term"
     , "  " <> ppTerm f
@@ -126,12 +117,7 @@ data TypingContext var = TypingContext
   , contextHoles       :: [var]
   -- ^ Type variables and holes ever defined.
   , freshTypeVariables :: [var]
-  -- ^ An infinite stream of fresh type variable names.
-  , contextLayer       :: TypingLayer
   }
-
-data TypingLayer = CubeLayer | TopeLayer | TypeLayer
-  deriving (Eq, Ord, Show)
 
 ppTypingContext :: TypingContext Var -> Text
 ppTypingContext TypingContext{..} = Text.intercalate "\n"
@@ -159,7 +145,6 @@ emptyTypingContext vars = TypingContext
   , contextKnownHoles   = []
   , contextHoles        = []
   , freshTypeVariables  = concat (drop 1 (iterate (map succ) vars))
-  , contextLayer        = CubeLayer
   }
 
 lookupTypeOf :: Eq var => var -> TypeCheck var (Maybe (Term var))
@@ -200,8 +185,83 @@ instantiateHole (a, t) = do
     return $ (hole, ty')
   put context { contextKnownHoles = (a, t) : newHoles }
 
+evalExtensionApps :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
+evalExtensionApps = go
+  where
+    go = \case
+      App t1 t2 -> do
+        case t1 of
+          Lambda _ _ _ _ -> App <$> go t1 <*> go t2
+          _ -> do
+            (stripExplicitTypeAnnotations <$> infer t1) >>= \ty -> unsafeTraceTyping "xxx" t1 ty $ case ty of
+              ty@(ExtensionType s _ _ _ phi a) -> do
+                Context{..} <- ask
+                localVar (s, t2) $ do
+                  phi' <- evalType phi
+                  contextTopes' <- concat <$> traverse unfoldTopeWithInclusions contextTopes
+                  if contextTopes' `entailTope` phi'
+                    then unsafeTraceTerm "YES" (App t1 t2) $ evalType a >>= go
+                    else unsafeTraceTerm "NOO" (App t1 t2) $ App <$> go t1 <*> go t2   -- FIXME: bring outside localVar?
+              _ -> App <$> go t1 <*> go t2
+
+      TypedTerm t a -> TypedTerm <$> go t <*> pure a
+      Pi t -> Pi <$> go t
+      Sigma t -> Sigma <$> go t
+
+      Lambda x a Nothing m -> do
+        a' <- go a
+        localTyping (x, a) $ do
+          m' <- go m
+          return (Lambda x a' Nothing m')
+      Lambda x a (Just phi) m -> do
+        a' <- go a
+        localTyping (x, a) $ do
+          phi' <- go phi
+          localConstraint phi' $ do
+            m' <- go m
+            return (Lambda x a' (Just phi') m')
+
+      Pair f s -> Pair <$> go f <*> go s
+      First t -> First <$> go t
+      Second t -> Second <$> go t
+
+      IdType a x y -> IdType <$> go a <*> go x <*> go y
+      Refl a x -> Refl <$> go a <*> go x
+      IdJ tA a tC d x p -> IdJ <$> go tA <*> go a <*> go tC <*> go d <*> go x <*> go p
+
+      CubeProd x y -> CubeProd <$> go x <*> go y
+      TopeOr x y -> TopeOr <$> go x <*> go y
+      TopeAnd x y -> TopeAnd <$> go x <*> go y
+      TopeEQ x y -> TopeEQ <$> go x <*> go y
+
+      RecOr psi phi a b -> RecOr <$> go psi <*> go phi <*> go a <*> go b
+      ExtensionType t i psi tA phi a -> do
+        i' <- go i
+        localTyping (t, i) $ do
+          psi' <- go psi
+          localConstraint psi' $ do
+            tA' <- go tA
+            phi' <- go phi
+            localConstraint phi' $ do
+              a' <- go a
+              return (ExtensionType t i' psi' tA' phi' a')
+
+      t@(Variable _) -> pure t
+      t@(Hole _) -> pure t
+      t@Cube -> pure t
+      t@CubeUnit -> pure t
+      t@CubeUnitStar -> pure t
+      t@Tope -> pure t
+      t@TopeTop -> pure t
+      t@TopeBottom -> pure t
+      t@Universe -> pure t
+      t@RecBottom -> pure t
+
 evalType :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
-evalType t = evalInTypeCheck t (eval t)
+evalType t = do
+  t' <- evalInTypeCheck t (eval t)
+  t'' <- evalExtensionApps t'
+  unsafeTraceTyping "ooo" t t'' $ evalInTypeCheck t (eval t'')
 
 evalInTypeCheck :: Term var -> Eval var a -> TypeCheck var a
 evalInTypeCheck t e = do
@@ -210,10 +270,17 @@ evalInTypeCheck t e = do
     Left err -> issueTypeError (TypeErrorEval t err)
     Right a  -> return a
 
+typecheckInEval :: TypingContext var -> TypeCheck var a -> Eval var (Maybe a)
+typecheckInEval tyContext m = do
+  context <- ask
+  case evalState (runExceptT (runReaderT (runTypeCheck m) context)) tyContext of
+    Left _err -> return Nothing
+    Right x   -> return (Just x)
+
 issueTypeError :: TypeError var -> TypeCheck var a
 issueTypeError err = do
   tyContext <- get
-  context <- evalInTypeCheck undefined ask
+  context <- ask
   throwError TypeErrorWithContext
     { typeError = err
     , typeErrorTypingContext = tyContext
@@ -256,9 +323,8 @@ unfoldTopeWithInclusions = go
         typeOf_f <- infer f
         case typeOf_f of
           Pi (Lambda t _i (Just phi) _a) -> do
-          -- PiShape t _i phi _a -> do
             phi' <- localVar (t, x) $ evalType phi
-            phi'' <- unsafeTraceTerm "unfoldTopeWithInclusions" phi' $ go phi'
+            phi'' <- go phi'
             return (psi : phi'' <> f')
           _ -> return (psi : f')
       phi -> return [phi]
@@ -272,21 +338,17 @@ infer = \case
       Just ty -> return ty
   TypedTerm term ty -> do
     typecheck term ty
-    return ty
+    evalType ty
   Hole _        -> issueTypeError (TypeErrorOther "attemting to infer type of a hole!")
   Universe      -> pure Universe
   Pi t          -> inferTypeFamily t
---  PiShape t i phi a -> do
---    typecheck i Cube
---    localTyping (t, i) $ do
---      typecheck phi Tope
---      typecheck a Universe
---      return Universe
   t@(Lambda _ _ _ _) -> issueTypeError (TypeErrorCannotInferLambda t)
   term@(App t1 t2) -> do
 
     ty <- infer t1
     case ty of
+      TypedTerm ty _ -> do
+        infer (App (TypedTerm t1 ty) t2)
       Pi f@(Lambda _ a Nothing _) -> do
         typecheck t2 a
         evalType (App f t2)
@@ -300,13 +362,8 @@ infer = \case
         typecheck t2 cI
         localVar (t, t2) $ do
           psi' <- evalType psi
-          unsafeTraceTerm "infer App ExtensionType" term $ ensureTopeContext term psi'
+          ensureTopeContext term psi'
           evalType tA
---      PiShape t i psi a -> do
---        typecheck t2 i
---        localVar (t, t2) $ do
---          ensureTopeContext term psi
---          evalType a
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
   t@(Pair f s) -> do
@@ -402,34 +459,31 @@ infer = \case
         typecheck tA' Universe
         phi' <- evalType phi
         typecheck phi' Tope
-        unsafeTraceTerm "infer ExtensionType" phi' $ ensureSubTope a psi' phi'
-        a' <- evalType a
+        ensureSubTope a psi' phi'
         localConstraint phi' $ do
+          a' <- evalType a
           typecheck a' tA'
           return Universe
 
 ensureTopeContext :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureTopeContext term phi = unsafeTraceTerm "ensureTopeContext" phi <$> do
+ensureTopeContext term phi = do
   Context{..} <- ask
   contextTopes' <- concat <$> traverse unfoldTopeWithInclusions contextTopes
   unless (contextTopes' `entailTope` phi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
-ensureSubTope term psi phi = unsafeTraceTyping "ensureSubTope" psi phi $ do
+ensureSubTope term psi phi = do
   Context{..} <- ask
   phi' <- concat <$> traverse unfoldTopeWithInclusions [phi]
   unless (phi' `entailTope` psi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
 
 ensureEqTope :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureEqTope psi phi = unsafeTraceTyping "ensureEqTope" psi phi $ do
+ensureEqTope psi phi = do
   Context{..} <- ask
   phi' <- concat <$> traverse unfoldTopeWithInclusions [phi]
   psi' <- concat <$> traverse unfoldTopeWithInclusions [psi]
-  unsafeTraceTerm "phi'" (foldl1 TopeAnd phi') $
-    unsafeTraceTerm "psi'" (foldl1 TopeAnd phi') $
-      return ()
   unless (phi' `entailTope` psi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
   unless (psi' `entailTope` phi) $ do
@@ -478,10 +532,19 @@ ppTypeErrorWithContext :: TypeErrorWithContext Var -> Text
 ppTypeErrorWithContext TypeErrorWithContext{..} = Text.intercalate "\n"
   [ ppTypeError typeError
   , ""
+  , ppContextTopes (contextTopes typeErrorContext)
+  , ""
   , ppTypingContext typeErrorTypingContext
   , ""
   , ppContext typeErrorContext
   ]
+
+ppContextTopes :: [Term Var] -> Text
+ppContextTopes topes = Text.intercalate "\n"
+  [ "Local tope context:"
+  , Text.intercalate "\n" (map (("  " <>) . ppTerm) topes)
+  ]
+
 
 ppContext :: Context Var -> Text
 ppContext Context{..} = Text.intercalate "\n"
@@ -521,7 +584,6 @@ typecheckModule freshVars Module{..} = do
       , contextKnownHoles = []
       , contextHoles = []
       , freshTypeVariables = concat (drop 1 (iterate (map succ) freshVars))
-      , contextLayer = CubeLayer
       }
 
 typecheckClosed :: (Eq var, Enum var) => [var] -> Term var -> Term var -> TypeCheckResult var
@@ -545,24 +607,18 @@ typecheck term expectedType =
         ensureEqTope psi'_e psi_e
         localConstraint psi_e $ do
           typecheck m (renameVar t y tA)
-          localConstraint (renameVar t y phi) $ do
+          phi_e <- evalType (renameVar t y phi)
+          localConstraint phi_e $ do
             m' <- evalType m
             a' <- evalType (renameVar t y a)
-            unify term m' a'
+            unsafeTraceTyping "alala" m' a' $ unify term m' a'
 
---    (Lambda y c  m, PiShape t i phi a) -> do
---      typecheck c Cube
---      unify (Variable y) c i
---      localTyping (y, i) $
---        localConstraint (renameVar t y phi) $
---          typecheck m (renameVar t y a)
---
     (Lambda y c Nothing m, Pi f@(Lambda _ a Nothing _)) -> do
       unify (Variable y) c a
       localTyping (y, a) $ do
         bodyType <- evalType (App f (Variable y))
         typecheck m bodyType
-    (Lambda y c (Just phi) m, Pi f@(Lambda t a (Just psi) m')) -> do
+    (Lambda y c (Just phi) m, Pi (Lambda t a (Just psi) m')) -> do
       unify (Variable y) c a
       localTyping (y, a) $ do
         phi' <- evalType phi
@@ -574,9 +630,8 @@ typecheck term expectedType =
     (Lambda _ _ _ _, _) -> do
       issueTypeError (TypeErrorExpectedFunctionType term expectedType)
     (Pair f s, Sigma g@(Lambda _ a Nothing _)) -> do
-      setLayer TypeLayer
       typecheck f a
-      secondType <- unsafeTraceTerm "second" (App g f) $ evalType (App g f)
+      secondType <- evalType (App g f)
       typecheck s secondType
     (Variable x, ty) -> do
       evalInTypeCheck (Variable x) $ lookupVar x  -- FIXME: improve error message
@@ -612,9 +667,6 @@ checkInfiniteType tt x = go
               go t'
 
     go (Pi t) = Pi <$> go t
---    go (PiShape t i phi a)
---      | x == t    = PiShape t <$> go i <*> pure phi <*> pure a
---      | otherwise = PiShape t <$> go i <*> go phi <*> go a
 
     go (Lambda y a phi b)
       | x == y = Lambda y <$> go a <*> pure phi <*> pure b
@@ -652,25 +704,15 @@ checkInfiniteType tt x = go
 
 appExt :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var (Maybe (Term var))
 appExt f x = do
-  typeOf_f <- unsafeTraceTerm "appExt" (App f x) (infer f)
+  typeOf_f <- infer f
   case typeOf_f of
     ExtensionType t _I _psi _tA phi a ->
       localVar (t, x) $ do
         Context{..} <- ask
         phi' <- evalType phi
         if contextTopes `entailTope` phi'
-           then unsafeTraceTyping "appExt replacing" (App f x) a $
-             Just <$> evalType a
-           else unsafeTraceTyping "appExt NOT replacing" (App f x) a $
-            unsafeTraceTerm "appExt contextTopes" (foldl1 TopeAnd contextTopes) $
-              unsafeTraceTerm "appExt phi" phi' $ pure Nothing
---    PiShape t i psi Tope ->
---      unsafeTraceTerm "ololo" (App f x) $
---      localVar (t, x) $ do
---        Context{..} <- ask
---        if contextTopes `entailTope` psi
---           then pure (Just TopeTop) -- FIXME: is it ok to always return Top?
---           else pure Nothing
+           then Just <$> evalType a
+           else pure Nothing
     _ -> pure Nothing
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
@@ -710,7 +752,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
         ensureEqTope phi' psi'
         localConstraint phi' $ do
           unify' b (renameVar y x d)
-    unify' tt1@(App u1 u2) tt2@(App v1 v2) = unsafeTraceTyping "unify' App App" tt1 tt2 $ do
+    unify' tt1@(App u1 u2) tt2@(App v1 v2) = do
       appExt u1 u2 >>= \case
         Nothing -> appExt v1 v2 >>= \case
           Nothing -> do
@@ -722,7 +764,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
     unify' (Sigma t) (Sigma t') = unify' t t'
     unify' (Pair f s) (Pair f' s') = do
       unify' f f'
-      unify' s s'
+      unify' s s' -- FIXME: double check (do we need to adjust types?)
     unify' (First t) (First t') = unify' t t'
     unify' (Second t) (Second t') = unify' t t'
 
@@ -772,23 +814,15 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
       unify' a a'
       unify' b b'
 
-    unify' tt1@(ExtensionType t cI psi tA phi a) tt2@(ExtensionType t' cI' psi' tA' phi' a') =
-      unsafeTraceTyping "unify' ExtensionType ExtensionType" tt1 tt2 $ do
-        unify' cI cI'
-        localTyping (t', cI') $ do
-          unify' (renameVar t t' psi) psi'
-          localConstraint psi' $ do
-            unify' (renameVar t t' tA)  tA'
-            unify' (renameVar t t' phi) phi'
-            localConstraint phi' $ do
-              unify' (renameVar t t' a)   a'
-
-    unify' (PiShape t i psi a) (PiShape t' i' psi' a') = do
-      unify' i i'
-      localTyping (t', i') $ do
+    unify' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
+      unify' cI cI'
+      localTyping (t', cI') $ do
         unify' (renameVar t t' psi) psi'
-        localConstraint psi' $
-          unify' (renameVar t t' a) a'
+        localConstraint psi' $ do
+          unify' (renameVar t t' tA)  tA'
+          unify' (renameVar t t' phi) phi'
+          localConstraint phi' $ do
+            unify' (renameVar t t' a)   a'
 
     -- unification by eta-expansion!
     unify' (Lambda x _a Nothing m) tt2 = do
@@ -809,7 +843,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
         phi' <- evalType (renameVar x x' phi)
         localConstraint phi' $ do
           unify' (renameVar x x' m) (App tt2 (Variable x'))
-    unify' tt1 (Lambda x a (Just phi) m) = do
+    unify' tt1 (Lambda x _a (Just phi) m) = do
       vars <- asks contextFreeVariables
       let x' = refreshVar (vars <> freeVars m <> freeVars tt1) x
       localVar (x', Variable x') $ do
@@ -817,32 +851,28 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
         localConstraint phi' $ do
           unify' (renameVar x x' m) (App tt1 (Variable x'))
 
-    unify' tt1 tt2 = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+    -- unification by eta-expansion for pairs
+    unify' (Pair f s) tt2 = do
+      unify' f (First  tt2)
+      unify' s (Second tt2)
+    unify' tt1 (Pair f s) = do
+      unify' (First  tt1) f
+      unify' (Second tt1) s
 
-layerOf :: (Eq var, Enum var) => Term var -> TypeCheck var TypingLayer
-layerOf = \case
-  Cube -> pure CubeLayer
-  Tope -> pure TopeLayer
-  Universe -> pure TypeLayer
-  t -> unsafeTraceTerm "layerOf" t $ infer t >>= layerOf
+    unify' tt1 tt2 = do
+      typeOf_tt1 <- stripExplicitTypeAnnotations <$> infer tt1
+      unsafeTraceTyping "unify'" tt1 typeOf_tt1 $ do
+        case typeOf_tt1 of
+          ExtensionType s i psi tA phi a -> do
+            vars <- asks contextFreeVariables
+            let s' = refreshVar (vars <> freeVars i) s
+            localTyping (s', i) $
+              unsafeTraceTyping "ololo "(App tt1 (Variable s')) (App tt2 (Variable s')) $ do
+                issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
+                unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
+          _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
-layerExpected :: TypingLayer -> [Term var]
-layerExpected = \case
-  CubeLayer -> [Cube, Tope, Universe]
-  TopeLayer -> [Tope, Universe]
-  TypeLayer -> [Universe]
-
--- | FIXME: controlling layers should probably happen in evaluator?
-inferWithLayer :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
-inferWithLayer t = do
-  typeOf_t <- infer t
-  layer <- gets contextLayer
-  layerOf_t <- layerOf typeOf_t
-  unless (layerOf_t >= layer) $ do
-    issueTypeError (TypeErrorUnexpectedLayer t typeOf_t layer)
-  when (layerOf_t > layer) $ do
-    setLayer layerOf_t
-  return typeOf_t
-
-setLayer :: TypingLayer -> TypeCheck var ()
-setLayer newLayer = modify (\context -> context { contextLayer = newLayer })
+stripExplicitTypeAnnotations :: Term var -> Term var
+stripExplicitTypeAnnotations = \case
+  TypedTerm t _ -> stripExplicitTypeAnnotations t
+  t -> t

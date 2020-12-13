@@ -79,9 +79,6 @@ ppTerm = \case
   TopeAnd psi phi -> ppTermParen psi <> " ∧ " <> ppTermParen phi
   TopeEQ x y -> ppTermParen x <> " ≡ " <> ppTermParen y
 
-  PiShape t i psi a
-    -> "{" <> ppVar t <> " : " <> ppTerm i <> "|" <> ppTerm psi <> "} → " <> ppTerm a
-
   RecBottom -> "rec⊥"
   RecOr psi phi a_psi a_phi -> ppElimWithArgs "rec∨" [psi, phi, a_psi, a_phi]
 
