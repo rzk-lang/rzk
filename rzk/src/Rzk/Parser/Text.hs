@@ -207,13 +207,13 @@ rzkTermSecond = do
 
 rzkTermExtensionType :: RzkParser (Term Var)
 rzkTermExtensionType = between (symbol "<") (symbol ">") $ do
-  symbol "("
+  symbol "{"
   t <- Var <$> rzkIdent
   symbol ":"
   cI <- rzkTerm
   symbol "|"
   psi <- rzkTerm
-  symbol ")"
+  symbol "}"
   symbol "->" <|> symbol "→"
   tA <- rzkTerm
   symbol "["

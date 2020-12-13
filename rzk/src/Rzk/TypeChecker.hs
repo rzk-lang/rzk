@@ -12,6 +12,7 @@ module Rzk.TypeChecker where
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.State
+import           Data.List            (nub)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
@@ -109,9 +110,9 @@ ppTypeError = \case
     ]
   TypeErrorInvalidTypeFamily -> "Expected a type family, but got something else" -- FIXME
   TypeErrorTopeContextNotSatisfied term phi topes -> Text.intercalate "\n"
-    [ "Term is expecting the following in the tope context"
+    [ "Cannot satisfy the tope constraint:"
     , "  " <> ppTerm phi
-    , "but local tope context is"
+    , "in local tope context"
     , Text.intercalate "\n" (map (("  " <>) . ppTerm) topes)
     , "when typechecking term"
     , "  " <> ppTerm term
@@ -241,7 +242,7 @@ addTypeHoleFor x = do
 unfoldTopeWithInclusions :: (Eq var, Enum var) => Term var -> TypeCheck var [Term var]
 unfoldTopeWithInclusions = go
   where
-    go = \case
+    go = fmap nub . \case
       TopeOr phi psi -> do
         xs <- go phi
         ys <- go psi
@@ -249,15 +250,15 @@ unfoldTopeWithInclusions = go
       TopeAnd phi psi -> do
         xs <- go phi
         ys <- go psi
-        return (TopeOr <$> xs <*> ys)
+        return (TopeAnd <$> xs <*> ys)
       psi@(App f x) -> do
-        f' <- unfoldTopeWithInclusions f
+        f' <- map (`App` x) <$> go f
         typeOf_f <- infer f
         case typeOf_f of
           Pi (Lambda t _i (Just phi) _a) -> do
           -- PiShape t _i phi _a -> do
             phi' <- localVar (t, x) $ evalType phi
-            phi'' <- unfoldTopeWithInclusions phi'
+            phi'' <- unsafeTraceTerm "unfoldTopeWithInclusions" phi' $ go phi'
             return (psi : phi'' <> f')
           _ -> return (psi : f')
       phi -> return [phi]
@@ -292,7 +293,8 @@ infer = \case
       Pi (Lambda t i (Just phi) a) -> do
         typecheck t2 i
         localVar (t, t2) $ do
-          ensureTopeContext term phi
+          phi' <- evalType phi
+          ensureTopeContext term phi'
           evalType a
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
         typecheck t2 cI
@@ -393,34 +395,41 @@ infer = \case
   ExtensionType t cI psi tA phi a -> do
     typecheck cI Cube
     localTyping (t, cI) $ do
-      typecheck psi Tope
-      localConstraint psi $ do
-        typecheck tA Universe
-        typecheck phi Tope
-        unsafeTraceTerm "infer ExtensionType" phi $ ensureSubTope a psi phi
-        localConstraint phi $ do
-          typecheck a tA
+      psi' <- evalType psi
+      typecheck psi' Tope
+      localConstraint psi' $ do
+        tA' <- evalType tA
+        typecheck tA' Universe
+        phi' <- evalType phi
+        typecheck phi' Tope
+        unsafeTraceTerm "infer ExtensionType" phi' $ ensureSubTope a psi' phi'
+        a' <- evalType a
+        localConstraint phi' $ do
+          typecheck a' tA'
           return Universe
 
 ensureTopeContext :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureTopeContext term phi = do
+ensureTopeContext term phi = unsafeTraceTerm "ensureTopeContext" phi <$> do
   Context{..} <- ask
   contextTopes' <- concat <$> traverse unfoldTopeWithInclusions contextTopes
   unless (contextTopes' `entailTope` phi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
-ensureSubTope term psi phi = do
+ensureSubTope term psi phi = unsafeTraceTyping "ensureSubTope" psi phi $ do
   Context{..} <- ask
   phi' <- concat <$> traverse unfoldTopeWithInclusions [phi]
   unless (phi' `entailTope` psi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
 
 ensureEqTope :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureEqTope psi phi = do
+ensureEqTope psi phi = unsafeTraceTyping "ensureEqTope" psi phi $ do
   Context{..} <- ask
   phi' <- concat <$> traverse unfoldTopeWithInclusions [phi]
   psi' <- concat <$> traverse unfoldTopeWithInclusions [psi]
+  unsafeTraceTerm "phi'" (foldl1 TopeAnd phi') $
+    unsafeTraceTerm "psi'" (foldl1 TopeAnd phi') $
+      return ()
   unless (phi' `entailTope` psi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
   unless (psi' `entailTope` phi) $ do

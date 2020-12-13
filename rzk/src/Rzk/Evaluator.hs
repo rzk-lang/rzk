@@ -157,7 +157,7 @@ eval = \case
     Lambda x' <$> eval a <*> traverse ev phi <*> ev m
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
-  Pair t1 t2 -> Pair <$> eval t1 <*> eval t2
+  Pair t1 t2 -> pair <$> eval t1 <*> eval t2
   First t -> eval t >>= pure . \case
     Pair f _ -> f
     t'       -> First t'
@@ -229,7 +229,7 @@ entailTope topes = runIdentity . entailTopeM (\x y -> pure (x == y)) topes
 entailTopeM
   :: (Monad m, Eq var)
   => (Term var -> Term var -> m Bool) -> [Term var] -> Term var -> m Bool
-entailTopeM isIncludedIn topes tope = and <$>
+entailTopeM isIncludedIn topes tope = or <$>
   traverse (\topes' -> entailTopeM' isIncludedIn topes' tope) (unfoldTopes topes)
 
 entailTopeM'
@@ -258,6 +258,13 @@ entailTopeM' isIncludedIn topes = go
     anyM p (x:xs) = p x >>= \case
       True -> pure True
       False -> anyM p xs
+
+pair :: (Eq var, Enum var) => Term var -> Term var -> Term var
+pair f s =
+  case (f, s) of
+    (First x, Second y)
+      | x == y -> x
+    _ -> Pair f s
 
 -- | Evaluate application of one (evaluated) term to another.
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)

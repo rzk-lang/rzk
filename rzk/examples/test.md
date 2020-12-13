@@ -95,23 +95,23 @@ ex11 : (t : 1 * 1) -> TOPE
 Constraints:
 
 ```rzk
-ex12 : (I : CUBE) -> <(t : I | BOT) -> U[BOT |-> recBOT]>
+ex12 : (I : CUBE) -> <{t : I | BOT} -> U[BOT |-> recBOT]>
   := \(I : CUBE) -> \{t : I | BOT} -> recBOT
 
-ex13 : (I : CUBE) -> (A : U) -> <(t : I | BOT) -> A[BOT |-> recBOT]>
+ex13 : (I : CUBE) -> (A : U) -> <{t : I | BOT} -> A[BOT |-> recBOT]>
   := \(I : CUBE) -> \(A : U) -> \{t : I | BOT} -> recBOT
 
-ex14 : (I : CUBE) -> (phi : (t : I) -> TOPE) -> (psi : (t : I) -> TOPE) -> (A : U) -> (a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> <(t : I | psi t \/ phi t) -> A[BOT |-> recBOT]>
-  := \(I : CUBE) -> \(phi : (t : I) -> TOPE) -> \(psi : (t : I) -> TOPE) -> \(A : U) -> \(a : <(t : I | phi t \/ psi t) -> A[BOT |-> recBOT]>) -> \{t : I | phi t \/ psi t} -> a t
+ex14 : (I : CUBE) -> (phi : (t : I) -> TOPE) -> (psi : (t : I) -> TOPE) -> (A : U) -> (a : <{t : I | phi t \/ psi t} -> A[BOT |-> recBOT]>) -> <{t : I | psi t \/ phi t} -> A[BOT |-> recBOT]>
+  := \(I : CUBE) -> \(phi : (t : I) -> TOPE) -> \(psi : (t : I) -> TOPE) -> \(A : U) -> \(a : <{t : I | phi t \/ psi t} -> A[BOT |-> recBOT]>) -> \{t : I | phi t \/ psi t} -> a t
 ```
 
 ### RS17, Section 4
 
-Theorem 4.1
+#### Theorem 4.1
 
 ```rzk
-RS17:Thm:4_1 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {t : I | psi t} -> TOPE) -> (X : U) -> (Y : <(t : I | psi t) -> (x : X) -> U [BOT |-> recBOT]>) -> (f : <(t : I | phi t) -> (x : X) -> Y t x [BOT |-> recBOT]>) -> weq (<(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) ((x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>)
-  := \(I : CUBE) -> \(psi : (t : I) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(X : U) -> \(Y : <(t : I | psi t) -> (x : X) -> U [BOT |-> recBOT]>) -> \(f : <(t : I | phi t) -> (x : X) -> Y t x [BOT |-> recBOT]>) -> (\(g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) -> \(x : X) -> \{t : I | psi t} -> g t x, (\(g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>) -> \{t : I | psi t} -> \(x : X) -> g x t, (\(g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>) -> refl_{g : <(t : I | psi t) -> (x : X) -> Y t x [phi t |-> f t]>}, \(g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>) -> refl_{g : (x : X) -> <(t : I | psi t) -> Y t x [phi t |-> f t x]>})))
+RS17:Thm:4_1 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {t : I | psi t} -> TOPE) -> (X : U) -> (Y : <{t : I | psi t} -> (x : X) -> U [BOT |-> recBOT]>) -> (f : <{t : I | phi t} -> (x : X) -> Y t x [BOT |-> recBOT]>) -> weq (<{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]>) ((x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>)
+  := \(I : CUBE) -> \(psi : (t : I) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(X : U) -> \(Y : <{t : I | psi t} -> (x : X) -> U [BOT |-> recBOT]>) -> \(f : <{t : I | phi t} -> (x : X) -> Y t x [BOT |-> recBOT]>) -> (\(g : <{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]>) -> \(x : X) -> \{t : I | psi t} -> g t x, (\(g : (x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>) -> \{t : I | psi t} -> \(x : X) -> g x t, (\(g : <{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]>) -> refl_{g : <{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]>}, \(g : (x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>) -> refl_{g : (x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>})))
 ```
 
 Here's a version that's a bit nicer to read, but is not supported at the moment:
@@ -132,10 +132,16 @@ RS17:Thm:4_1
     h = \k t x -> k x t
 ```
 
+#### Theorem 4.2
+
+```rzk
+RS17:Thm:4_2a : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (zeta : (s : J) -> TOPE) -> (phi : {t : I | psi t} -> TOPE) -> (chi : {s : J | zeta s} -> TOPE) -> (X : <{t : I | psi t} -> <{s : J | zeta s} -> U[BOT |-> recBOT]> [BOT |-> recBOT]>) -> (f : <{ts : I * J | (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts))} -> X (first ts) (second ts) [BOT |-> recBOT]>) -> weq <{t : I | psi t} -> <{s : J | zeta s} -> X t s [chi s |-> f (t, s)]> [phi t |-> \{s : J | zeta s} -> f (t, s)]> <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> X (first ts) (second ts) [ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts]>
+  := \(I : CUBE) -> \(J : CUBE) -> \(psi : (t : I) -> TOPE) -> \(zeta : (s : J) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(chi : {s : J | zeta s} -> TOPE) -> \(X : <{t : I | psi t} -> <{s : J | zeta s} -> U[BOT |-> recBOT]> [BOT |-> recBOT]>) -> \(f : <{ts : I * J | (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts))} -> X (first ts) (second ts) [BOT |-> recBOT]>) -> (\(k : <{t : I | psi t} -> <{s : J | zeta s} -> (X t) s[ chi s |-> f (t, s) ]> [ phi t |-> \{s : J | zeta s} -> f (t, s) ]>) -> \{ts : I * J | psi (first ts) /\ zeta (second ts)} -> k (first ts) (second ts), (\(k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> X (first ts) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>) -> \{t : I | psi t} -> \{s : J | zeta s} -> k (t, s), (\(k : <{t : I | psi t} -> <{s : J | zeta s} -> X t s[ chi s |-> f (t, s) ]>[ phi t |-> \{s : J | zeta s} → f (t, s) ]>) -> refl_{k : <{t : I | psi t} -> <{s : J | zeta s} -> X t s[ chi s |-> f (t, s) ]>[ phi t |-> \{s : J | zeta s} → f (t, s) ]>}, \(k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> (X (first ts)) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>) -> refl_{k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> (X (first ts)) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>})))
+```
+
 ### Typechecking Markdown files
 
 You can typecheck this file directly:
-
 
 ```
 rzk typecheck examples/test.md
