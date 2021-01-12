@@ -4,16 +4,18 @@
 {-# LANGUAGE RecordWildCards            #-}
 module Rzk.Evaluator where
 
+import           System.IO.Unsafe
+import           Unsafe.Coerce
+
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Functor.Identity
 import           Data.List             (nub, (\\))
 import           Data.Maybe            (fromMaybe, isNothing)
 
+import           Rzk.Debug.Trace
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
-
-import           Rzk.Debug.Trace
 
 -- | Evaluation errors.
 data EvalError var
@@ -123,6 +125,11 @@ freeVars = \case
   ExtensionType t cI psi tA phi a ->
     freeVars cI <> (concatMap freeVars [psi, tA, phi, a] \\ [t])
 
+  Cube2 -> []
+  Cube2_0 -> []
+  Cube2_1 -> []
+  TopeLEQ t s -> freeVars t <> freeVars s
+
 -- | Evaluate an open term (some variables might occur freely).
 --
 -- >>> evalOpen @Var "(λ(x : A) → x =_{A} (λ(y : B) → y)) y"
@@ -200,6 +207,11 @@ eval = \case
     let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
     ExtensionType t' <$> eval cI <*> ev psi <*> ev tA <*> ev phi <*> ev a
 
+  Cube2 -> pure Cube2
+  Cube2_0 -> pure Cube2_0
+  Cube2_1 -> pure Cube2_1
+  TopeLEQ t s -> TopeLEQ <$> eval t <*> eval s
+
 unfoldTopes :: Eq var => [Term var] -> [[Term var]]
 unfoldTopes [] = [[]]
 unfoldTopes (tope:topes) = nub $
@@ -214,13 +226,23 @@ unfoldTopes (tope:topes) = nub $
     topes' = unfoldTopes topes
 
 entailTope :: Eq var => [Term var] -> Term var -> Bool
-entailTope topes = runIdentity . entailTopeM (\x y -> pure (x == y)) topes
+entailTope topes t = unsafeTraceTerm "entailTope" t $
+  runIdentity (entailTopeM (\x y -> pure (x == y)) topes t)
 
 entailTopeM
   :: (Monad m, Eq var)
   => (Term var -> Term var -> m Bool) -> [Term var] -> Term var -> m Bool
 entailTopeM isIncludedIn topes tope = or <$>
-  traverse (\topes' -> entailTopeM' isIncludedIn topes' tope) (unfoldTopes topes)
+  traverse (\topes' -> entailTopeM' isIncludedIn topes' tope) (unfoldTopes (topes ++ addLEQs tope))
+
+addLEQs :: Term var -> [Term var]
+addLEQs (TopeLEQ x y)     = [TopeOr (TopeLEQ x y) (TopeLEQ y x)]
+addLEQs (TopeOr phi psi)  = addLEQs phi <> addLEQs psi
+addLEQs (TopeAnd phi psi) = addLEQs phi <> addLEQs psi
+addLEQs (TopeEQ _ _)      = []
+addLEQs TopeTop           = []
+addLEQs TopeBottom        = []
+addLEQs t                 = []
 
 entailTopeM'
   :: (Monad m, Eq var)
@@ -231,6 +253,8 @@ entailTopeM' isIncludedIn topes = go
       _ | TopeBottom `elem` topes -> pure True
       TopeTop -> pure True
       TopeAnd phi psi -> and <$> sequenceA [ go phi , go psi ]
+      TopeOr (TopeLEQ x y) (TopeLEQ y' x')
+        | x == x' && y == y' -> return True
       TopeOr phi psi -> go phi >>= \case
         True -> pure True
         False -> go psi
@@ -242,6 +266,9 @@ entailTopeM' isIncludedIn topes = go
         , t == s
         , TopeEQ s t `elem` topes
         ]
+      TopeLEQ x y | x == y -> pure True
+      TopeLEQ Cube2_0 _ -> pure True
+      TopeLEQ _ Cube2_1 -> pure True
       tope -> anyM (`isIncludedIn` tope) topes
 
     anyM _ [] = pure False
@@ -325,3 +352,9 @@ renameVar x x' = go
       ExtensionType s cI psi tA phi a
         | s == x    -> ExtensionType s (go cI) psi tA phi a
         | otherwise -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
+
+      Cube2 -> Cube2
+      Cube2_0 -> Cube2_0
+      Cube2_1 -> Cube2_1
+      TopeLEQ t' s -> TopeLEQ (go t') (go s)
+

@@ -85,5 +85,15 @@ data Term var
   | ExtensionType var (Term var) (Term var) (Term var) (Term var) (Term var)
   -- ^ Extension type \( \left\langle \prod_{t : I | psi} A(t) \rvert^{\phi}_{a(t)} \right\rangle \) corresponding to @ExtensionType t cI psi tA phi a@.
 
+  | Cube2
+  -- ^ Directed interval cube: \(\mathbb{2}\).
+  | Cube2_0
+  -- ^ Start of directed interval: \(0 : \mathbb{2}\).
+  | Cube2_1
+  -- ^ End of directed interval: \(1 : \mathbb{2}\).
+
+  | TopeLEQ (Term var) (Term var)
+  -- ^ Inequality tope: \(t \leq s\).
+
   deriving (Eq, Functor, Foldable)
 

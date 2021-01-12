@@ -87,8 +87,11 @@ rzkTerm' = "simple term" <??>
   -- constants
   <|> Universe <$ (symbol "U" <|> symbol "𝒰")
   <|> Cube <$ symbol "CUBE"
-  <|> CubeUnit <$ (symbol "1" <|> symbol "𝟏")
   <|> CubeUnitStar <$ (symbol "*_1" <|> symbol "⋆")
+  <|> Cube2 <$ (symbol "2" <|> symbol "𝟚")
+  <|> Cube2_0 <$ symbol "0_2"
+  <|> Cube2_1 <$ symbol "1_2"
+  <|> CubeUnit <$ (symbol "1" <|> symbol "𝟙")
   <|> Tope <$ symbol "TOPE"
   <|> TopeTop <$ (symbol "TOP" <|> symbol "⊤")
   <|> TopeBottom <$ (symbol "BOT" <|> symbol "⊥")
@@ -187,13 +190,12 @@ rzkTermRecOr :: RzkParser (Term Var)
 rzkTermRecOr = do
   symbol "recOR" <|> symbol "rec∨"
   symbol "("
-  tA <- rzkTerm <* comma
-  a  <- rzkTerm <* comma
-  tC <- rzkTerm <* comma
-  d  <- rzkTerm <* comma
-  x  <- rzkTerm <* comma
-  p  <- rzkTerm <* comma
-  return (IdJ tA a tC d x p)
+  psi <- rzkTerm <* comma
+  phi <- rzkTerm <* comma
+  a   <- rzkTerm <* comma
+  b   <- rzkTerm
+  symbol ")"
+  return (RecOr psi phi a b)
 
 rzkTermFirst :: RzkParser (Term Var)
 rzkTermFirst = do
@@ -206,8 +208,7 @@ rzkTermSecond = do
   Second <$> rzkTerm
 
 rzkTermExtensionType :: RzkParser (Term Var)
-rzkTermExtensionType = between (symbol "<") (symbol ">") $ do
-  symbol "{"
+rzkTermExtensionType = between (symbol "<{") (symbol "]>") $ do
   t <- Var <$> rzkIdent
   symbol ":"
   cI <- rzkTerm
@@ -220,7 +221,6 @@ rzkTermExtensionType = between (symbol "<") (symbol ">") $ do
   phi <- rzkTerm
   symbol "|->"
   a <- rzkTerm
-  symbol "]"
   return (ExtensionType t cI psi tA phi a)
 
 -- firstP :: Parser (Term Var)
@@ -244,14 +244,18 @@ rzkTermApp = do
   t2 <- rzkTerm
   return (App t1 t2)
 
+rzkOperator :: RzkParser a -> RzkParser a
+rzkOperator op = op -- <* skipMany (satisfy isSpace)
+
 rzkOperatorTable :: OperatorTable RzkParser (Term Var)
 rzkOperatorTable =
-  [ [Infix (pure App) AssocLeft]
-  , [Infix (CubeProd <$ (symbol "*" <|> symbol "×")) AssocLeft]
-  , [Infix (TopeEQ   <$ (symbol "===" <|> symbol "≡")) AssocNone]
-  , [Infix (TopeAnd  <$ (symbol "/\\" <|> symbol "∧")) AssocLeft]
-  , [Infix (TopeOr   <$ (symbol "\\/" <|> symbol "∨")) AssocLeft]
-  , [Infix (do
+  [ [ Infix (pure App) AssocLeft ]
+  , [ Infix (CubeProd <$ rzkOperator (symbol "*" <|> symbol "×")) AssocLeft ]
+  , [ Infix (TopeEQ   <$ rzkOperator (symbol "===" <|> symbol "≡")) AssocNone
+    , Infix (TopeLEQ  <$ rzkOperator (symbol "<="  <|> symbol "≤")) AssocNone ]
+  , [ Infix (TopeAnd  <$ rzkOperator (symbol "/\\" <|> symbol "∧")) AssocLeft ]
+  , [ Infix (TopeOr   <$ rzkOperator (symbol "\\/" <|> symbol "∨")) AssocLeft ]
+  , [ Infix (rzkOperator $ do
       { symbol "=_{" ;
         t <- rzkTerm ;
         symbol "}" ;
@@ -277,6 +281,7 @@ rzkIdentStyle = (emptyIdents @RzkParser)
   , "*"
   , "/\\"
   , "\\/"
+  , "<="
   , "==="
   , "=>", "⇒"
   , "U"

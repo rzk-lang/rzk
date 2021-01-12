@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e5b82d171456abec731539fae4b956d6f7d286b34a3a174a4efbe8b9e0106499
+-- hash: e760f59aaadc2bd161f827d734c81167c3e8e0790d0530ac586b799327784473
 
 name:           rzk
 version:        0.1.0.0
@@ -42,7 +42,8 @@ library
       src
   ghc-options: -Wall -fno-warn-type-defaults -O2
   build-depends:
-      attoparsec
+      ansi-terminal
+    , attoparsec
     , base >=4.7 && <5
     , mtl
     , parsers
@@ -60,7 +61,8 @@ executable rzk
       app
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      attoparsec
+      ansi-terminal
+    , attoparsec
     , base >=4.7 && <5
     , mtl
     , parsers
@@ -80,7 +82,8 @@ test-suite rzk-test
       test
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      attoparsec
+      ansi-terminal
+    , attoparsec
     , base >=4.7 && <5
     , mtl
     , parsers

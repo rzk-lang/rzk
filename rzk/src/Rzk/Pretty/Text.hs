@@ -5,12 +5,13 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Rzk.Pretty.Text where
 
-import           Data.Char         (chr, ord)
-import           Data.Monoid       (Endo (..))
-import           Data.Text         (Text)
-import qualified Data.Text         as Text
-import qualified Data.Text.IO      as Text
-import           Text.Read         (readMaybe)
+import           Data.Char           (chr, ord)
+import           Data.Monoid         (Endo (..))
+import           Data.Text           (Text)
+import qualified Data.Text           as Text
+import qualified Data.Text.IO        as Text
+import           System.Console.ANSI
+import           Text.Read           (readMaybe)
 
 import           Rzk.Syntax.Decl
 import           Rzk.Syntax.Module
@@ -32,11 +33,14 @@ instance Show (Module Var) where
 
 -- | Pretty-print a variable.
 ppVar :: Var -> Text
-ppVar = identToUnicode . getVar
+ppVar = colored [SetColor Foreground Vivid Blue] . identToUnicode . getVar
 
 -- | Pretty-print a variable.
 ppHole :: Var -> Text
 ppHole = ("?" <>) . identToUnicode . getVar
+
+ppReserved :: Text -> Text
+ppReserved = colored [SetColor Foreground Vivid Yellow]
 
 ppElimWithArgs :: Text -> [Term Var] -> Text
 ppElimWithArgs name args = name <> "(" <> Text.intercalate ", " (map ppTerm args) <> ")"
@@ -47,11 +51,11 @@ ppTerm = \case
   Variable x -> ppVar x
   TypedTerm term ty -> ppTermParen term <> " : " <> ppTerm ty
   Hole x -> ppHole x
-  Universe   -> "𝒰"
+  Universe   -> ppReserved "𝒰"
   Pi (Lambda x a Nothing m) ->
     "(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
   Pi (Lambda x a (Just phi) m) ->
-    "(" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> ") → " <> ppTerm m
+    "{" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> "} → " <> ppTerm m
   Pi t -> "Pi " <> ppTermParen t
   Lambda x a Nothing m -> "λ(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
   Lambda x a (Just phi) m -> "λ{" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> "} → " <> ppTerm m
@@ -60,30 +64,35 @@ ppTerm = \case
   Sigma (Lambda x a Nothing m) -> "∑ (" <> ppVar x <> " : " <> ppTerm a <> "), " <> ppTerm m
   Sigma t -> "∑" <> ppTermParen t
   Pair t1 t2 -> "(" <> ppTerm t1 <> ", " <> ppTerm t2 <> ")"
-  First t -> "π₁ " <> ppTermParen t
-  Second t -> "π₂ " <> ppTermParen t
+  First t -> ppReserved "π₁ " <> ppTermParen t
+  Second t -> ppReserved "π₂ " <> ppTermParen t
 
   IdType a x y -> ppTermParen x <> " =_{" <> ppTerm a <> "} " <> ppTermParen y
-  Refl a x -> "refl_{" <> ppTerm x <> " : " <> ppTerm a <> "}"
-  IdJ tA a tC d x p -> ppElimWithArgs "idJ" [tA, a, tC, d, x, p]
+  Refl a x -> ppReserved "refl" <> "_{" <> ppTerm x <> " : " <> ppTerm a <> "}"
+  IdJ tA a tC d x p -> ppElimWithArgs (ppReserved "idJ") [tA, a, tC, d, x, p]
 
-  Cube -> "CUBE"
-  CubeUnit -> "1"
-  CubeUnitStar -> "⋆"
+  Cube -> ppReserved "CUBE"
+  CubeUnit -> ppReserved "𝟙"
+  CubeUnitStar -> ppReserved "⋆"
   CubeProd i j -> ppTermParen i <> " × " <> ppTermParen j
 
-  Tope -> "TOPE"
-  TopeTop -> "⊤"
-  TopeBottom -> "⊥"
+  Tope -> ppReserved "TOPE"
+  TopeTop -> ppReserved "⊤"
+  TopeBottom -> ppReserved "⊥"
   TopeOr psi phi -> ppTermParen psi <> " ∨ " <> ppTermParen phi
   TopeAnd psi phi -> ppTermParen psi <> " ∧ " <> ppTermParen phi
   TopeEQ x y -> ppTermParen x <> " ≡ " <> ppTermParen y
 
-  RecBottom -> "rec⊥"
-  RecOr psi phi a_psi a_phi -> ppElimWithArgs "rec∨" [psi, phi, a_psi, a_phi]
+  RecBottom -> ppReserved "rec⊥"
+  RecOr psi phi a_psi a_phi -> ppElimWithArgs (ppReserved "rec∨") [psi, phi, a_psi, a_phi]
 
   ExtensionType t cI psi tA phi a ->
-    "〈(" <> ppVar t <> " : " <> ppTerm cI <> " | " <> ppTerm psi <> ") → " <> ppTerm tA <> "[ " <> ppTermParen phi <> " ↦ " <> ppTerm a <> " ]〉"
+    "〈{" <> ppVar t <> " : " <> ppTerm cI <> " | " <> ppTerm psi <> "} → " <> ppTerm tA <> "[ " <> ppTermParen phi <> " ↦ " <> ppTerm a <> " ]〉"
+
+  Cube2 -> ppReserved "𝟚"
+  Cube2_0 -> ppReserved "0"
+  Cube2_1 -> ppReserved "1"
+  TopeLEQ t s -> ppTermParen t <> " " <> ppReserved "≤" <> " " <> ppTermParen s
 
   where
     ppTermParen t@(Variable _) = ppTerm t
@@ -96,6 +105,9 @@ ppTerm = \case
     ppTermParen t@TopeTop      = ppTerm t
     ppTermParen t@TopeBottom   = ppTerm t
     ppTermParen t@RecBottom    = ppTerm t
+    ppTermParen t@Cube2        = ppTerm t
+    ppTermParen t@Cube2_0      = ppTerm t
+    ppTermParen t@Cube2_1      = ppTerm t
     ppTermParen t              = "(" <> ppTerm t <> ")"
 
 ppDecl :: Decl Var -> Text
@@ -191,3 +203,11 @@ ppReplacements = mapM_ (\(from, to) -> Text.putStrLn (from <> " " <> to))
 
 indent :: [Text] -> [Text]
 indent = map ("  " <>)
+
+-- ** Colors
+
+colored :: [SGR] -> Text -> Text
+colored sgrs t = Text.pack prefix <> t <> Text.pack suffix
+  where
+    prefix = setSGRCode sgrs
+    suffix = setSGRCode [Reset]
