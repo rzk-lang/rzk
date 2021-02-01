@@ -74,7 +74,8 @@ ppTerm = \case
   Second t -> ppReserved "π₂ " <> ppTermParen t
 
   IdType a x y -> ppTermParen x <> " =_{" <> ppTerm a <> "} " <> ppTermParen y
-  Refl a x -> ppReserved "refl" <> "_{" <> ppTerm x <> " : " <> ppTerm a <> "}"
+  Refl (Just a) x -> ppReserved "refl" <> "_{" <> ppTerm x <> " : " <> ppTerm a <> "}"
+  Refl Nothing x -> ppReserved "refl" <> "_{" <> ppTerm x <> "}"
   IdJ tA a tC d x p -> ppElimWithArgs (ppReserved "idJ") [tA, a, tC, d, x, p]
 
   Cube -> ppReserved "CUBE"

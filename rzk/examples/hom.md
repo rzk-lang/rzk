@@ -48,5 +48,6 @@ shapeProd : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (chi : (s : J
 
 ```rzk
 Δ³-is-retract-of-Δ²×Δ¹ : shapeRetract (2 * 2 * 2) Δ³ Δ²×Δ¹
-  := \A -> (\k -> \{ts : 2 * 2 * 2 | Δ³ ts} -> k ((first (first ts), second ts), second (first ts)), (\k -> \{ts : 2 * 2 * 2 | Δ²×Δ¹ ts} -> recOR((second ts) <= (second (first ts)), (second (first ts)) <= (second ts) /\ (second ts) <= (first (first ts)) \/ (first (first ts)) <= second ts, k ((first (first ts), second ts), second (first ts)), recOR((second (first ts)) <= (second ts) /\ (second ts) <= (first (first ts)), (first (first ts)) <= second ts, k ((first (first ts), second ts), second (first ts)), k ((first (first ts), first (first ts)), second (first ts)))), \k -> refl_{k : <{ts : 2 * 2 * 2 | Δ²×Δ¹ ts} -> A[BOT |-> recBOT]>}))
+  := \A -> (\k -> \{ts : 2 * 2 * 2 | Δ³ ts} -> k ((first (first ts), second ts), second (first ts)), (\k -> \{ts : 2 * 2 * 2 | Δ²×Δ¹ ts} -> recOR((second ts) <= (second (first ts)), (second (first ts)) <= (second ts) /\ (second ts) <= (first (first ts)) \/ (first (first ts)) <= second ts, k ((first (first ts), second ts), second (first ts)), recOR((second (first ts)) <= (second ts) /\ (second ts) <= (first (first ts)), (first (first ts)) <= second ts, k ((first (first ts), second ts), second (first ts)), k ((first (first ts), first (first ts)), second (first ts)))), \k -> refl_{k}))
 ```
+

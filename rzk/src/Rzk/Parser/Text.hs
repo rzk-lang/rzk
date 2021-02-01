@@ -109,6 +109,12 @@ rzkTermColonType = do
   type_ <- rzkTerm
   return (term, type_)
 
+rzkTermColonType' :: RzkParser (Term Var, Maybe (Term Var))
+rzkTermColonType' = try withType <|> withoutType
+  where
+    withType = fmap Just <$> rzkTermColonType
+    withoutType = (\t -> (t, Nothing)) <$> rzkTerm
+
 rzkVarColonType' :: RzkParser (Var, Maybe (Term Var))
 rzkVarColonType' = withType <|> withoutType
   where
@@ -175,7 +181,7 @@ rzkTermSigmaType = "dependent sum type" <??> do
 rzkTermRefl :: RzkParser (Term Var)
 rzkTermRefl = do
   symbol "refl_{"
-  (x, a) <- rzkTermColonType
+  (x, a) <- rzkTermColonType'
   symbol "}"
   return (Refl a x)
 

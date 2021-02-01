@@ -40,7 +40,7 @@ data Term var
 
   | IdType (Term var) (Term var) (Term var)
   -- ^ Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
-  | Refl (Term var) (Term var)
+  | Refl (Maybe (Term var)) (Term var)
   -- ^ Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
   -- @Refl a x@ corresponds to \(x =_a x\).
   | IdJ (Term var) (Term var) (Term var) (Term var) (Term var) (Term var)

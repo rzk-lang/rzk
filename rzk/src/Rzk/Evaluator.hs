@@ -102,7 +102,7 @@ freeVars = \case
   First t -> freeVars t
   Second t -> freeVars t
   IdType a x y -> freeVars a <> freeVars x <> freeVars y
-  Refl a x -> freeVars a <> freeVars x
+  Refl a x -> foldMap freeVars a <> freeVars x
   IdJ tA a tC d x p -> concatMap freeVars [tA, a, tC, d, x, p]
 
   Cube -> []
@@ -166,7 +166,7 @@ eval = \case
     Pair _ s -> s
     t'       -> Second t'
   IdType a x y -> IdType <$> eval a <*> eval x <*> eval y
-  Refl a x -> Refl <$> eval a <*> eval x
+  Refl a x -> Refl <$> traverse eval a <*> eval x
   IdJ tA a tC d x p -> eval p >>= \case
     Refl _ _ -> eval d
     p' -> IdJ <$> eval tA <*> eval a <*> eval tC <*> eval d <*> eval x <*> pure p'
@@ -329,7 +329,7 @@ renameVar x x' = go
       First t' -> First (go t')
       Second t' -> Second (go t')
       IdType a z y -> IdType (go a) (go z) (go y)
-      Refl a z -> Refl (go a) (go z)
+      Refl a z -> Refl (fmap go a) (go z)
       IdJ tA a tC d z p -> IdJ (go tA) (go a) (go tC) (go d) (go z) (go p)
 
       Cube -> Cube

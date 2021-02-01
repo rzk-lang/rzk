@@ -229,7 +229,7 @@ evalExtensionApps = go
       Second t -> Second <$> go t
 
       IdType a x y -> IdType <$> go a <*> go x <*> go y
-      Refl a x -> Refl <$> go a <*> go x
+      Refl a x -> Refl <$> traverse go a <*> go x
       IdJ tA a tC d x p -> IdJ <$> go tA <*> go a <*> go tC <*> go d <*> go x <*> go p
 
       CubeProd x y -> CubeProd <$> go x <*> go y
@@ -453,9 +453,13 @@ infer = \case
     typecheck y a
     return Universe
   Refl a x -> do
-    typecheck a Universe
-    typecheck x a
-    return (IdType a x x)
+    typeof_x <- case a of
+      Just a' -> do
+        typecheck a' Universe
+        typecheck x a'
+        return a'
+      Nothing -> infer x
+    return (IdType typeof_x x x)
   IdJ tA a tC d x p -> do
     typecheck tA Universe
     typecheck a tA
@@ -464,7 +468,7 @@ infer = \case
     typecheck tC
       (Pi (Lambda x' (Just tA) Nothing
         (Pi (Lambda p' (Just (IdType tA a (Variable x'))) Nothing Universe))))
-    typecheck d (App (App tC a) (Refl tA a))
+    typecheck d (App (App tC a) (Refl (Just tA) a))
     typecheck x tA
     typecheck p (IdType tA a x)
     evalType (App (App tC x) p)
@@ -755,7 +759,7 @@ checkInfiniteType tt x = go
     go (Second t) = Second <$> go t
 
     go (IdType a x' y') = IdType <$> go a <*> go x' <*> go y'
-    go (Refl a x') = Refl <$> go a <*> go x'
+    go (Refl a x') = Refl <$> traverse go a <*> go x'
     go (IdJ tA a tC d x' p) = IdJ <$> go tA <*> go a <*> go tC <*> go d <*> go x' <*> go p
 
     go Cube = pure Cube
@@ -853,7 +857,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
       unsafeTraceTyping "IdType x x'" x x' $ unify' x x'
       unsafeTraceTyping "IdType y y'" y y' $ unify' y y'
     unify' (Refl a x) (Refl a' x') = do
-      unify' a a'
+      sequenceA_ (liftA2 unify' a a')
       unify' x x'
     unify' (IdJ tA a tC d x p) (IdJ tA' a' tC' d' x' p') = do
       unify' tA tA'
