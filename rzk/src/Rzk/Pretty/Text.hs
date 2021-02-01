@@ -52,16 +52,22 @@ ppTerm = \case
   TypedTerm term ty -> ppTermParen term <> " : " <> ppTerm ty
   Hole x -> ppHole x
   Universe   -> ppReserved "𝒰"
-  Pi (Lambda x a Nothing m) ->
+  Pi (Lambda x (Just a) Nothing m) ->
     "(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
-  Pi (Lambda x a (Just phi) m) ->
+  Pi (Lambda x (Just a) (Just phi) m) ->
     "{" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> "} → " <> ppTerm m
   Pi t -> "Pi " <> ppTermParen t
-  Lambda x a Nothing m -> "λ(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
-  Lambda x a (Just phi) m -> "λ{" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> "} → " <> ppTerm m
+  Lambda x (Just a) Nothing m
+    -> "λ(" <> ppVar x <> " : " <> ppTerm a <> ") → " <> ppTerm m
+  Lambda x Nothing Nothing m
+    -> "λ" <> ppVar x <> " → " <> ppTerm m
+  Lambda x (Just a) (Just phi) m
+    -> "λ{" <> ppVar x <> " : " <> ppTerm a <> " | " <> ppTerm phi <> "} → " <> ppTerm m
+  Lambda x Nothing (Just phi) m
+    -> "λ{" <> ppVar x <> " | " <> ppTerm phi <> "} → " <> ppTerm m
   App t1 t2 -> ppTermParen t1 <> " " <> ppTermParen t2
 
-  Sigma (Lambda x a Nothing m) -> "∑ (" <> ppVar x <> " : " <> ppTerm a <> "), " <> ppTerm m
+  Sigma (Lambda x (Just a) Nothing m) -> "∑ (" <> ppVar x <> " : " <> ppTerm a <> "), " <> ppTerm m
   Sigma t -> "∑" <> ppTermParen t
   Pair t1 t2 -> "(" <> ppTerm t1 <> ", " <> ppTerm t2 <> ")"
   First t -> ppReserved "π₁ " <> ppTermParen t

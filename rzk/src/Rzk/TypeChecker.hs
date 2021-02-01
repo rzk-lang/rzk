@@ -9,13 +9,14 @@
 {-# LANGUAGE UndecidableInstances       #-}
 module Rzk.TypeChecker where
 
+import           Control.Applicative  (liftA2, (<|>))
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.State
+import           Data.Foldable        (sequenceA_, traverse_)
 import           Data.List            (nub, (\\))
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
-import           Unsafe.Coerce
 
 import           Rzk.Evaluator
 import           Rzk.Pretty.Text
@@ -159,9 +160,9 @@ unsetTypeOf :: Eq var => var -> TypeCheck var ()
 unsetTypeOf x = modify $ \context -> context
   { contextKnownTypes = filter ((/= x) . fst) (contextKnownTypes context) }
 
-localTyping :: Eq var => (var, Term var) -> TypeCheck var a -> TypeCheck var a
+localTyping :: Eq var => (var, Maybe (Term var)) -> TypeCheck var a -> TypeCheck var a
 localTyping (x, t) m = do
-  setTypeOf x t
+  traverse_ (setTypeOf x) t
   oldContext <- get
   result <- localFreeVar x (local (\context -> context { contextDefinedVariables = contextKnownHoles oldContext <> contextDefinedVariables context }) m)
   unsetTypeOf x
@@ -210,17 +211,18 @@ evalExtensionApps = go
       Sigma t -> Sigma <$> go t
 
       Lambda x a Nothing m -> do
-        a' <- go a
+        a' <- traverse go a
         localTyping (x, a) $ do
           m' <- go m
           return (Lambda x a' Nothing m')
       Lambda x a (Just phi) m -> do
-        a' <- go a
+        a' <- traverse go a
         localTyping (x, a) $ do
           phi' <- go phi
           localConstraint phi' $ do
             m' <- go m
             return (Lambda x a' (Just phi') m')
+      -- FIXME: what do do with Lambda _ Nothing _ _?
 
       Pair f s -> Pair <$> go f <*> go s
       First t -> First <$> go t
@@ -238,7 +240,7 @@ evalExtensionApps = go
       RecOr psi phi a b -> RecOr <$> go psi <*> go phi <*> go a <*> go b
       ExtensionType t i psi tA phi a -> do
         i' <- go i
-        localTyping (t, i) $ do
+        localTyping (t, Just i) $ do
           psi' <- go psi
           localConstraint psi' $ do
             tA' <- go tA
@@ -404,10 +406,10 @@ infer = \case
     case ty of
       TypedTerm ty' _ -> do
         infer (App (TypedTerm t1 ty') t2)
-      Pi f@(Lambda _ a Nothing _) -> do
+      Pi f@(Lambda _ (Just a) Nothing _) -> do
         typecheck t2 a
         evalType (App f t2)
-      Pi (Lambda t i (Just phi) a) -> do
+      Pi (Lambda t (Just i) (Just phi) a) -> do
         typecheck t2 i
         localVar (t, t2) $ do
           phi' <- evalType phi
@@ -433,7 +435,7 @@ infer = \case
   First t -> do
     ty <- infer t
     case ty of
-      Sigma (Lambda _ a Nothing _) -> return a
+      Sigma (Lambda _ (Just a) Nothing _) -> return a
       CubeProd i _j -> return i
       _ -> issueTypeError (TypeErrorNotAPair t ty (First t))
   Second t -> do
@@ -460,8 +462,8 @@ infer = \case
     x' <- genFreshVar
     p' <- genFreshVar
     typecheck tC
-      (Pi (Lambda x' tA Nothing
-        (Pi (Lambda p' (IdType tA a (Variable x')) Nothing Universe))))
+      (Pi (Lambda x' (Just tA) Nothing
+        (Pi (Lambda p' (Just (IdType tA a (Variable x'))) Nothing Universe))))
     typecheck d (App (App tC a) (Refl tA a))
     typecheck x tA
     typecheck p (IdType tA a x)
@@ -508,7 +510,7 @@ infer = \case
 
   ExtensionType t cI psi tA phi a -> do
     typecheck cI Cube
-    localTyping (t, cI) $ do
+    localTyping (t, Just cI) $ do
       psi' <- evalType psi
       typecheck psi' Tope
       localConstraint psi' $ do
@@ -556,15 +558,15 @@ ensureEqTope psi phi = do
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
-  Lambda x a Nothing m -> do
+  Lambda x (Just a) Nothing m -> do
     typeOf_a <- infer a
     typecheck typeOf_a Universe
-    localTyping (x, a) $
+    localTyping (x, Just a) $
       typecheck m Universe
     pure Universe
-  Lambda t i (Just phi) m -> do
+  Lambda t (Just i) (Just phi) m -> do
     typecheck i Cube
-    localTyping (t, i) $ do
+    localTyping (t, Just i) $ do
       typecheck phi Tope
       phi' <- evalType phi
       localConstraint phi' $
@@ -665,9 +667,12 @@ typecheck term expectedType =
   unsafeTraceTyping "typecheck" term expectedType $
   case (term, expectedType) of
     (Lambda y c (Just psi') m, ExtensionType t cI psi tA phi a) -> do
-      typecheck c Cube
-      unify (Variable y) c cI
-      localTyping (y, cI) $ do
+      case c of
+        Just c' -> do
+          typecheck c' Cube
+          unify (Variable y) c' cI
+        Nothing -> return ()
+      localTyping (y, Just cI) $ do
         psi'_e <- evalType psi'
         psi_e <- evalType (renameVar t y psi)
         ensureEqTope psi'_e psi_e
@@ -679,14 +684,18 @@ typecheck term expectedType =
             a' <- evalType (renameVar t y a)
             unsafeTraceTyping "alala" m' a' $ unify term m' a'
 
-    (Lambda y c Nothing m, Pi f@(Lambda _ a Nothing _)) -> do
-      unify (Variable y) c a
-      localTyping (y, a) $ do
+    (Lambda y c Nothing m, Pi f@(Lambda _ (Just a) Nothing _)) -> do
+      case c of
+        Just c' -> unify (Variable y) c' a
+        Nothing -> return ()
+      localTyping (y, Just a) $ do
         bodyType <- evalType (App f (Variable y))
         typecheck m bodyType
-    (Lambda y c (Just phi) m, Pi (Lambda t a (Just psi) m')) -> do
-      unify (Variable y) c a
-      localTyping (y, a) $ do
+    (Lambda y c (Just phi) m, Pi (Lambda t (Just a) (Just psi) m')) -> do
+      case c of
+        Just c' -> unify (Variable y) c' a
+        Nothing -> return ()
+      localTyping (y, Just a) $ do
         phi' <- evalType phi
         psi' <- evalType (renameVar t y psi)
         ensureEqTope phi' psi'
@@ -695,7 +704,7 @@ typecheck term expectedType =
           typecheck m bodyType
     (Lambda _ _ _ _, _) -> do
       issueTypeError (TypeErrorExpectedFunctionType term expectedType)
-    (Pair f s, Sigma g@(Lambda _ a Nothing _)) -> do
+    (Pair f s, Sigma g@(Lambda _ (Just a) Nothing _)) -> do
       typecheck f a
       secondType <- evalType (App g f)
       typecheck s secondType
@@ -735,8 +744,8 @@ checkInfiniteType tt x = go
     go (Pi t) = Pi <$> go t
 
     go (Lambda y a phi b)
-      | x == y = Lambda y <$> go a <*> pure phi <*> pure b
-      | otherwise = Lambda y <$> go a <*> traverse go phi <*> go b
+      | x == y = Lambda y <$> traverse go a <*> pure phi <*> pure b
+      | otherwise = Lambda y <$> traverse go a <*> traverse go phi <*> go b
 
     go (App t1 t2) = App <$> go t1 <*> go t2
 
@@ -813,11 +822,11 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
     unify' Universe Universe = pure ()
     unify' (Pi t) (Pi t') = unify' t t'
     unify' (Lambda x a Nothing b) (Lambda y c Nothing d) = do
-      unify' a c
+      sequenceA_ (liftA2 unify' a c)
       unify' b (renameVar y x d)
     unify' (Lambda x a (Just phi) b) (Lambda y c (Just psi) d) = do
-      unify' a c
-      localTyping (x, a) $ do
+      sequenceA_ (liftA2 unify' a c)
+      localTyping (x, a <|> c) $ do
         phi' <- evalType phi
         psi' <- evalType (renameVar y x psi)
         ensureEqTope phi' psi'
@@ -894,7 +903,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
 
     unify' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
       unify' cI cI'
-      localTyping (t', cI') $ do
+      localTyping (t', Just cI') $ do
         unify' (renameVar t t' psi) psi'
         localConstraint psi' $ do
           unify' (renameVar t t' tA)  tA'
@@ -951,7 +960,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
           ExtensionType s i _psi _tA _phi _a -> do
             vars <- asks contextFreeVariables
             let s' = refreshVar (vars <> freeVars i) s
-            localTyping (s', i) $
+            localTyping (s', Just i) $
               unsafeTraceTyping "ololo "(App tt1 (Variable s')) (App tt2 (Variable s')) $ do
                 issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
                 unify' (App tt1 (Variable s')) (App tt2 (Variable s'))

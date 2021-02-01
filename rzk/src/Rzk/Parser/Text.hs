@@ -109,6 +109,12 @@ rzkTermColonType = do
   type_ <- rzkTerm
   return (term, type_)
 
+rzkVarColonType' :: RzkParser (Var, Maybe (Term Var))
+rzkVarColonType' = withType <|> withoutType
+  where
+    withType = fmap Just <$> parens rzkVarColonType
+    withoutType = (\x -> (Var x, Nothing)) <$> rzkIdent
+
 rzkVarColonType :: RzkParser (Var, Term Var)
 rzkVarColonType = do
   x <- Var <$> rzkIdent
@@ -121,7 +127,7 @@ rzkTermPiType = "dependent function type" <??> do
   (x, a) <- parens rzkVarColonType
   symbol "->" <|> symbol "→"
   t <- rzkTerm
-  return (Pi (Lambda x a Nothing t))
+  return (Pi (Lambda x (Just a) Nothing t))
 
 rzkTermPiShape :: RzkParser (Term Var)
 rzkTermPiShape = "dependent function type (from a shape)" <??> do
@@ -134,12 +140,12 @@ rzkTermPiShape = "dependent function type (from a shape)" <??> do
   symbol "}"
   symbol "->" <|> symbol "→"
   a <- rzkTerm
-  return (Pi (Lambda t i (Just phi) a))
+  return (Pi (Lambda t (Just i) (Just phi) a))
 
 rzkTermLambda :: RzkParser (Term Var)
 rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   symbol "λ" <|> symbol "\\"
-  (x, a) <- parens rzkVarColonType
+  (x, a) <- rzkVarColonType'
   symbol "->" <|> symbol "→"
   t <- rzkTerm
   return (Lambda x a Nothing t)
@@ -156,7 +162,7 @@ rzkTermLambdaShape = "lambda abstraction (anonymous function from a shape)" <??>
   symbol "}"
   symbol "->" <|> symbol "→"
   a <- rzkTerm
-  return (Lambda t i (Just phi) a)
+  return (Lambda t (Just i) (Just phi) a)
 
 rzkTermSigmaType :: RzkParser (Term Var)
 rzkTermSigmaType = "dependent sum type" <??> do
@@ -164,7 +170,7 @@ rzkTermSigmaType = "dependent sum type" <??> do
   (x, a) <- parens rzkVarColonType
   symbol ","
   t <- rzkTerm
-  return (Sigma (Lambda x a Nothing t))
+  return (Sigma (Lambda x (Just a) Nothing t))
 
 rzkTermRefl :: RzkParser (Term Var)
 rzkTermRefl = do

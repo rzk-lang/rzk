@@ -4,9 +4,6 @@
 {-# LANGUAGE RecordWildCards            #-}
 module Rzk.Evaluator where
 
-import           System.IO.Unsafe
-import           Unsafe.Coerce
-
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Functor.Identity
@@ -98,7 +95,7 @@ freeVars = \case
   Hole _ -> []
   Universe -> []
   Pi t -> freeVars t
-  Lambda x a phi m -> freeVars a <> ((foldMap freeVars phi <> freeVars m) \\ [x])
+  Lambda x a phi m -> foldMap freeVars a <> ((foldMap freeVars phi <> freeVars m) \\ [x])
   App t1 t2 -> freeVars t1 <> freeVars t2
   Sigma t -> freeVars t
   Pair t1 t2 -> freeVars t1 <> freeVars t2
@@ -158,7 +155,7 @@ eval = \case
     let doRename = x `elem` vars
     let x' = if doRename then refreshVar (vars <> freeVars m <> foldMap freeVars phi) x else x
     let ev = localVar (x', Variable x') . eval . if doRename then renameVar x x' else id
-    Lambda x' <$> eval a <*> traverse ev phi <*> ev m
+    Lambda x' <$> traverse eval a <*> traverse ev phi <*> ev m
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
@@ -242,7 +239,7 @@ addLEQs (TopeAnd phi psi) = addLEQs phi <> addLEQs psi
 addLEQs (TopeEQ _ _)      = []
 addLEQs TopeTop           = []
 addLEQs TopeBottom        = []
-addLEQs t                 = []
+addLEQs _tope             = []
 
 entailTopeM'
   :: (Monad m, Eq var)
@@ -287,7 +284,7 @@ pair f s =
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
 app t1 n =
   case t1 of
-    Lambda x (ExtensionType _ _ _ _ phi a) Nothing m -> do  -- FIXME: double check
+    Lambda x (Just (ExtensionType _ _ _ _ phi a)) Nothing m -> do  -- FIXME: double check
       Context{..} <- ask
       if contextTopes `entailTope` phi
          then eval a
@@ -324,8 +321,8 @@ renameVar x x' = go
       Universe -> Universe
       Pi t' -> Pi (go t')
       Lambda z a phi m
-        | z == x  -> Lambda z (go a) phi m
-        | otherwise -> Lambda z (go a) (go <$> phi) (go m)
+        | z == x  -> Lambda z (go <$> a) phi m
+        | otherwise -> Lambda z (go <$> a) (go <$> phi) (go m)
       App t1 t2 -> App (go t1) (go t2)
       Sigma t' -> Sigma (go t')
       Pair f s -> Pair (go f) (go s)
