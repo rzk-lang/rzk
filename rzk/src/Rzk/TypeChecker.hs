@@ -670,16 +670,18 @@ typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 typecheck term expectedType =
   unsafeTraceTyping "typecheck" term expectedType $
   case (term, expectedType) of
-    (Lambda y c (Just psi') m, ExtensionType t cI psi tA phi a) -> do
+    (Lambda y c psi' m, ExtensionType t cI psi tA phi a) -> do
       case c of
         Just c' -> do
           typecheck c' Cube
           unify (Variable y) c' cI
         Nothing -> return ()
       localTyping (y, Just cI) $ do
-        psi'_e <- evalType psi'
+        psi'_e <- traverse evalType psi'
         psi_e <- evalType (renameVar t y psi)
-        ensureEqTope psi'_e psi_e
+        case psi'_e of
+          Just psi'_e' -> ensureEqTope psi'_e' psi_e
+          Nothing      -> return ()
         localConstraint psi_e $ do
           typecheck m (renameVar t y tA)
           phi_e <- evalType (renameVar t y phi)
