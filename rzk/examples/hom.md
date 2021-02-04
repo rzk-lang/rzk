@@ -26,13 +26,13 @@ shapeRetract : (I : CUBE) -> (phi : (t : I) -> TOPE) -> (psi : (t : I) -> TOPE) 
   := \(t : 2) -> TOP
 
 Δ² : (t : 2 * 2) -> TOPE
-  := \(t : 2 * 2) -> (second t) <= (first t)
+  := \(t, s) -> s <= t
 
 Δ³ : (t : 2 * 2 * 2) -> TOPE
-  := \(t : 2 * 2 * 2) -> (second t) <= (second (first t)) /\ (second (first t)) <= (first (first t))
+  := \((t1, t2), t3) -> t3 <= t2 /\ t2 <= t1
 
 shapeProd : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (chi : (s : J) -> TOPE) -> (ts : I * J) -> TOPE
-  := \(I : CUBE) -> \(J : CUBE) -> \(psi : (t : I) -> TOPE) -> \(chi : (s : J) -> TOPE) -> \(ts : I * J) -> psi (first ts) /\ chi (second ts)
+  := \I -> \J -> \psi -> \chi -> \(t, s) -> psi t /\ chi s
 
 Δ¹×Δ¹ : (t : 2 * 2) -> TOPE
   := shapeProd 2 2 Δ¹ Δ¹
@@ -43,7 +43,7 @@ shapeProd : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (chi : (s : J
 
 ```rzk
 Δ²-is-retract-of-Δ¹×Δ¹ : shapeRetract (2 * 2) Δ² Δ¹×Δ¹
-  := \(A : U) -> (\(k : <{t : 2 * 2 | Δ¹×Δ¹ t} -> A [BOT |-> recBOT]>) -> \{ts : 2 * 2 | Δ² ts} -> k (first ts, second ts), (\(k : <{ts : 2 * 2 | Δ² ts} -> A [BOT |-> recBOT]>) -> \{ts : 2 * 2 | Δ¹×Δ¹ ts} -> recOR((first ts) <= (second ts), (second ts) <= (first ts), k (first ts, second ts), k (first ts, second ts)), \(k : <{ts : 2 * 2 | Δ² ts} -> A [BOT |-> recBOT]>) -> refl_{k : <{ts : 2 * 2 | Δ² ts} -> A [BOT |-> recBOT]>}))
+  := \A -> (\k -> \ts -> k ts, (\k -> \(t, s) -> recOR(t <= s, s <= t, k (t, s), k (t, s)), \k -> refl_{k}))
 ```
 
 ```rzk
