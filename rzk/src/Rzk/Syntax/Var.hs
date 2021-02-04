@@ -44,6 +44,12 @@ refreshVar vars x
   | x `elem` vars = refreshVar vars (succ x)
   | otherwise     = x
 
+refreshVars :: (Eq var, Enum var) => [var] -> [var] -> [(var, var)]
+refreshVars vars [] = []
+refreshVars vars (x:xs) = (x, x') : refreshVars (x' : vars) xs
+  where
+    x' = refreshVar vars x
+
 -- | Increment the subscript number at the end of the indentifier.
 --
 -- >>> Var (incIndexText "x")

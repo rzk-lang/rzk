@@ -53,6 +53,6 @@ shapeProd : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (chi : (s : J
 
 ```rzk
 V : (A : U) -> (f : <{t : 2 | TOP} -> A[BOT |-> recBOT]>) -> <{ts : 2 * 2 | TOP} -> A[BOT |-> recBOT]>
-  := \A -> \f -> \ts -> recOR((first ts) <= (second ts), (second ts) <= (first ts), f (second ts), f (first ts))
+  := \A -> \f -> \(t, s) -> recOR(t <= s, s <= t, f s, f t)
 ```
 

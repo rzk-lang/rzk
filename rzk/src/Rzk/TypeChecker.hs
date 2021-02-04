@@ -168,6 +168,24 @@ localTyping (x, t) m = do
   unsetTypeOf x
   return result
 
+localPattern' :: (Term var, Term var) -> TypeCheck var a -> TypeCheck var a
+localPattern' pt m = runExceptT (localPattern pt (lift m)) >>= \case
+  Left err -> issueTypeError (TypeErrorEval (fst pt) err)
+  Right x  -> return x
+
+localPatternTyping
+  :: Eq var => (Term var, Maybe (Term var)) -> TypeCheck var a -> TypeCheck var a
+localPatternTyping = \case
+  (Variable x, t) -> localTyping (x, t)
+  (Pair x y, Nothing) ->
+    localPatternTyping (y, Nothing) . localPatternTyping (x, Nothing)
+  (Pair x y, Just (Sigma g@(Lambda _ (Just a) Nothing _))) ->
+    localPatternTyping (y, Just (App g x)) . localPatternTyping (x, Just a)
+  (Pair x y, Just (CubeProd i j)) ->
+    localPatternTyping (y, Just j) . localPatternTyping (x, Just i)
+  -- TODO: more fine-grained errors
+  (pattern, _) -> const $ issueTypeError (TypeErrorEval pattern (EvalErrorInvalidPattern pattern))
+
 newtype TypeCheck var a =  TypeCheck
   { runTypeCheck :: ReaderT (Context var) (ExceptT (TypeErrorWithContext var) (State (TypingContext var))) a
   } deriving (Functor, Applicative, Monad, MonadState (TypingContext var), MonadError (TypeErrorWithContext var), MonadReader (Context var))
@@ -212,12 +230,12 @@ evalExtensionApps = go
 
       Lambda x a Nothing m -> do
         a' <- traverse go a
-        localTyping (x, a) $ do
+        localPatternTyping (x, a) $ do
           m' <- go m
           return (Lambda x a' Nothing m')
       Lambda x a (Just phi) m -> do
         a' <- traverse go a
-        localTyping (x, a) $ do
+        localPatternTyping (x, a) $ do
           phi' <- go phi
           localConstraint phi' $ do
             m' <- go m
@@ -375,7 +393,7 @@ unfoldTopeWithInclusions = go
         typeOf_f <- infer f
         case typeOf_f of
           Pi (Lambda t _i (Just phi) _a) -> do
-            phi' <- localVar (t, x) $ evalType phi
+            phi' <- localPattern' (t, x) $ evalType phi
             phi'' <- go phi'
             return (psi : phi'' <> f')
           _ -> return (psi : f')
@@ -411,7 +429,7 @@ infer = \case
         evalType (App f t2)
       Pi (Lambda t (Just i) (Just phi) a) -> do
         typecheck t2 i
-        localVar (t, t2) $ do
+        localPattern' (t, t2) $ do
           phi' <- evalType phi
           ensureTopeContext term phi'
           evalType a
@@ -443,7 +461,7 @@ infer = \case
     case ty of
       Sigma f@(Lambda _ a Nothing _) -> do
         x <- genFreshVar
-        evalType (App (TypedTerm f (Pi (Lambda x a Nothing Universe))) (First t))
+        evalType (App (TypedTerm f (Pi (Lambda (Variable x) a Nothing Universe))) (First t))
       CubeProd _i j -> return j
       _ -> issueTypeError (TypeErrorNotAPair t ty (Second t))
 
@@ -466,8 +484,8 @@ infer = \case
     x' <- genFreshVar
     p' <- genFreshVar
     typecheck tC
-      (Pi (Lambda x' (Just tA) Nothing
-        (Pi (Lambda p' (Just (IdType tA a (Variable x'))) Nothing Universe))))
+      (Pi (Lambda (Variable x') (Just tA) Nothing
+        (Pi (Lambda (Variable p') (Just (IdType tA a (Variable x'))) Nothing Universe))))
     typecheck d (App (App tC a) (Refl (Just tA) a))
     typecheck x tA
     typecheck p (IdType tA a x)
@@ -565,12 +583,12 @@ inferTypeFamily = \case
   Lambda x (Just a) Nothing m -> do
     typeOf_a <- infer a
     typecheck typeOf_a Universe
-    localTyping (x, Just a) $
+    localPatternTyping (x, Just a) $
       typecheck m Universe
     pure Universe
   Lambda t (Just i) (Just phi) m -> do
     typecheck i Cube
-    localTyping (t, Just i) $ do
+    localPatternTyping (t, Just i) $ do
       typecheck phi Tope
       phi' <- evalType phi
       localConstraint phi' $
@@ -674,39 +692,39 @@ typecheck term expectedType =
       case c of
         Just c' -> do
           typecheck c' Cube
-          unify (Variable y) c' cI
+          unify y c' cI
         Nothing -> return ()
-      localTyping (y, Just cI) $ do
+      localPatternTyping (y, Just cI) $ do
         psi'_e <- traverse evalType psi'
-        psi_e <- evalType (renameVar t y psi)
+        psi_e <- evalType (substitute t y psi)
         case psi'_e of
           Just psi'_e' -> ensureEqTope psi'_e' psi_e
           Nothing      -> return ()
         localConstraint psi_e $ do
-          typecheck m (renameVar t y tA)
-          phi_e <- evalType (renameVar t y phi)
+          typecheck m (substitute t y tA)
+          phi_e <- evalType (substitute t y phi)
           localConstraint phi_e $ do
             m' <- evalType m
-            a' <- evalType (renameVar t y a)
+            a' <- evalType (substitute t y a)
             unsafeTraceTyping "alala" m' a' $ unify term m' a'
 
     (Lambda y c Nothing m, Pi f@(Lambda _ (Just a) Nothing _)) -> do
       case c of
-        Just c' -> unify (Variable y) c' a
+        Just c' -> unify y c' a
         Nothing -> return ()
-      localTyping (y, Just a) $ do
-        bodyType <- evalType (App f (Variable y))
+      localPatternTyping (y, Just a) $ do
+        bodyType <- evalType (App f y)
         typecheck m bodyType
     (Lambda y c (Just phi) m, Pi (Lambda t (Just a) (Just psi) m')) -> do
       case c of
-        Just c' -> unify (Variable y) c' a
+        Just c' -> unify y c' a
         Nothing -> return ()
-      localTyping (y, Just a) $ do
+      localPatternTyping (y, Just a) $ do
         phi' <- evalType phi
-        psi' <- evalType (renameVar t y psi)
+        psi' <- localPattern' (t, y) $ evalType psi
         ensureEqTope phi' psi'
         localConstraint phi' $ do
-          bodyType <- evalType (renameVar t y m')
+          bodyType <- localPattern' (t, y) $ evalType m'
           typecheck m bodyType
     (Lambda _ _ _ _, _) -> do
       issueTypeError (TypeErrorExpectedFunctionType term expectedType)
@@ -750,7 +768,7 @@ checkInfiniteType tt x = go
     go (Pi t) = Pi <$> go t
 
     go (Lambda y a phi b)
-      | x == y = Lambda y <$> traverse go a <*> pure phi <*> pure b
+      | x `elem` freeVars y = Lambda y <$> traverse go a <*> pure phi <*> pure b
       | otherwise = Lambda y <$> traverse go a <*> traverse go phi <*> go b
 
     go (App t1 t2) = App <$> go t1 <*> go t2
@@ -829,15 +847,17 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
     unify' (Pi t) (Pi t') = unify' t t'
     unify' (Lambda x a Nothing b) (Lambda y c Nothing d) = do
       sequenceA_ (liftA2 unify' a c)
-      unify' b (renameVar y x d)
+      d' <- localPattern' (y, x) $ evalType d
+      unify' b d'
     unify' (Lambda x a (Just phi) b) (Lambda y c (Just psi) d) = do
       sequenceA_ (liftA2 unify' a c)
-      localTyping (x, a <|> c) $ do
+      localPatternTyping (x, a <|> c) $ do
         phi' <- evalType phi
-        psi' <- evalType (renameVar y x psi)
+        psi' <- localPattern' (y, x) $ evalType psi
         ensureEqTope phi' psi'
         localConstraint phi' $ do
-          unify' b (renameVar y x d)
+          d' <- localPattern' (y, x) $ evalType d
+          unify' b d'
     unify' tt1@(App u1 u2) tt2@(App v1 v2) = do
       appExt u1 u2 >>= \case
         Nothing -> appExt v1 v2 >>= \case
@@ -920,35 +940,57 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
     -- unification by eta-expansion!
     unify' (Lambda x a Nothing m) tt2 = do
       vars <- asks contextFreeVariables
-      let x' = refreshVar (vars <> freeVars m <> freeVars tt2) x
-      localTyping (x', a) $ do
-        localVar (x', Variable x') $ do
-          unify' (renameVar x x' m) (App tt2 (Variable x'))
+      let xs = freeVars x
+          doRename = any (`elem` vars) xs
+          xxs' = refreshVars (vars <> freeVars m) xs
+          rename = if doRename then renameVars xxs' else id
+          xs' = if doRename then map snd xxs' else xs
+          x' = rename x
+      localPatternTyping (x', a) $ do
+        localVars xs' $ do
+          m' <- localPattern' (x, x') $ evalType m
+          unify' m' (App tt2 x')
     unify' tt1 (Lambda x a Nothing m) = do
       vars <- asks contextFreeVariables
-      let x' = refreshVar (vars <> freeVars m <> freeVars tt1) x
-      localTyping (x', a) $ do
-        localVar (x', Variable x') $ do
-          unify' (App tt1 (Variable x')) (renameVar x x' m)
+      let xs = freeVars x
+          doRename = any (`elem` vars) xs
+          xxs' = refreshVars (vars <> freeVars m) xs
+          rename = if doRename then renameVars xxs' else id
+          xs' = if doRename then map snd xxs' else xs
+          x' = rename x
+      localPatternTyping (x', a) $ do
+        localVars xs' $ do
+          m' <- localPattern' (x, x') $ evalType m
+          unify' (App tt1 x') m'
     unify' (Lambda x a (Just phi) m) tt2 = do
       vars <- asks contextFreeVariables
-      let x' = refreshVar (vars <> freeVars m <> freeVars tt2) x
-      localTyping (x', a) $ do
-        localVar (x', Variable x') $ do
-          phi' <- evalType (renameVar x x' phi)
+      let xs = freeVars x
+          doRename = any (`elem` vars) xs
+          xxs' = refreshVars (vars <> freeVars m <> freeVars phi) xs
+          rename = if doRename then renameVars xxs' else id
+          xs' = if doRename then map snd xxs' else xs
+          x' = rename x
+      localPatternTyping (x', a) $ do
+        localVars xs' $ do
+          phi' <- localPattern' (x, x') $ evalType phi
           localConstraint phi' $ do
-            tt1' <- evalType (renameVar x x' m)
-            let tt2' = App tt2 (Variable x')
+            tt1' <- localPattern' (x, x') $ evalType m
+            let tt2' = App tt2 x'
             unify' tt1' tt2'
     unify' tt1 (Lambda x a (Just phi) m) = do
       vars <- asks contextFreeVariables
-      let x' = refreshVar (vars <> freeVars m <> freeVars tt1) x
-      localTyping (x', a) $ do
-        localVar (x', Variable x') $ do
-          phi' <- evalType (renameVar x x' phi)
+      let xs = freeVars x
+          doRename = any (`elem` vars) xs
+          xxs' = refreshVars (vars <> freeVars m <> freeVars phi) xs
+          rename = if doRename then renameVars xxs' else id
+          xs' = if doRename then map snd xxs' else xs
+          x' = rename x
+      localPatternTyping (x', a) $ do
+        localVars xs' $ do
+          phi' <- localPattern' (x, x') $ evalType phi
           localConstraint phi' $ do
-            tt1' <- evalType (renameVar x x' m)
-            let tt2' = (App tt1 (Variable x'))
+            tt1' <- localPattern' (x, x') $ evalType m
+            let tt2' = (App tt1 x')
             unify' tt1' tt2'
 
     -- unification by eta-expansion for pairs

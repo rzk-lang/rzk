@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 module Rzk.Evaluator where
 
@@ -9,15 +11,29 @@ import           Control.Monad.Reader
 import           Data.Functor.Identity
 import           Data.List             (nub, (\\))
 import           Data.Maybe            (fromMaybe, isNothing)
+import           Data.Monoid           (Endo (..))
+import           Data.Text             (Text)
+import qualified Data.Text             as Text
 
 import           Rzk.Debug.Trace
+import           Rzk.Pretty.Text       (ppTerm, ppVar)
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
 -- | Evaluation errors.
 data EvalError var
   = EvalErrorUndefinedVariable var
-  deriving (Show)
+  | EvalErrorInvalidPattern (Term var)
+
+instance Show (EvalError Var) where
+  show = Text.unpack . ppEvalError
+
+ppEvalError :: EvalError Var -> Text
+ppEvalError = \case
+  EvalErrorUndefinedVariable x -> Text.intercalate "\n"
+    [ "Undefined variable " <> ppVar x ]
+  EvalErrorInvalidPattern pattern -> Text.intercalate "\n"
+    [ "Invalid pattern " <> ppTerm pattern ]
 
 -- | Evaluation context.
 data Context var = Context
@@ -45,6 +61,11 @@ updateVar :: var -> Term var -> Context var -> Context var
 updateVar x t context@Context{..} = context
   { contextDefinedVariables = (x, t) : contextDefinedVariables }
 
+-- | Reassign term value to a variable.
+updateVars :: [(var, Term var)] -> Context var -> Context var
+updateVars xs context@Context{..} = context
+  { contextDefinedVariables = xs <> contextDefinedVariables }
+
 addVar :: var -> Context var -> Context var
 addVar x context@Context{..} = context
   { contextFreeVariables = x : contextFreeVariables }
@@ -71,6 +92,17 @@ lookupVar x = do
 localVar :: MonadReader (Context var) m => (var, Term var) -> m a -> m a
 localVar (x, t) = local (updateVar x t)
 
+localVars :: MonadReader (Context var) m => [var] -> m a -> m a
+localVars xs = local (updateVars (zip xs (Variable <$> xs)))
+
+localPattern
+  :: (MonadError (EvalError var) m, MonadReader (Context var) m)
+  => (Term var, Term var) -> m a -> m a
+localPattern = \case
+  (Variable x, t) -> localVar (x, t)
+  (Pair x y,   t) -> localPattern (x, First t) . localPattern (y, Second t)
+  (pattern, _) -> const $ throwError (EvalErrorInvalidPattern pattern)
+
 -- | Add tope constraint locally during evaluation.
 localConstraint :: MonadReader (Context var) m => Term var -> m a -> m a
 localConstraint phi = local (\context -> context { contextTopes = phi : contextTopes context })
@@ -95,7 +127,7 @@ freeVars = \case
   Hole _ -> []
   Universe -> []
   Pi t -> freeVars t
-  Lambda x a phi m -> foldMap freeVars a <> ((foldMap freeVars phi <> freeVars m) \\ [x])
+  Lambda x a phi m -> foldMap freeVars a <> ((foldMap freeVars phi <> freeVars m) \\ freeVars x)
   App t1 t2 -> freeVars t1 <> freeVars t2
   Sigma t -> freeVars t
   Pair t1 t2 -> freeVars t1 <> freeVars t2
@@ -152,10 +184,14 @@ eval = \case
   Pi t -> Pi <$> eval t
   Lambda x a phi m -> do
     vars <- asks contextKnownVars
-    let doRename = x `elem` vars
-    let x' = if doRename then refreshVar (vars <> freeVars m <> foldMap freeVars phi) x else x
-    let ev = localVar (x', Variable x') . eval . if doRename then renameVar x x' else id
-    Lambda x' <$> traverse eval a <*> traverse ev phi <*> ev m
+    let xs = freeVars x
+        doRename = any (`elem` vars) xs
+        xxs' = refreshVars (vars <> freeVars m <> foldMap freeVars phi) xs
+        rename = if doRename then renameVars xxs' else id
+        xs' = if doRename then map snd xxs' else xs
+        x' = rename x
+        ev = localVars xs' . eval . rename
+    unsafeTraceTerm "lambda" x' (Lambda x' <$> traverse eval a <*> traverse ev phi <*> ev m)
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
@@ -288,10 +324,10 @@ app t1 n =
       Context{..} <- ask
       if contextTopes `entailTope` phi
          then eval a
-         else localVar (x, n) (eval m)
-    Lambda x _ Nothing m -> localVar (x, n) (eval m)
+         else localPattern (x, n) (eval m)
+    Lambda x _ Nothing m -> localPattern (x, n) (eval m)
     Lambda x _ (Just phi) m -> do
-      localVar (x, n) $ do
+      localPattern (x, n) $ do
         phi' <- eval phi
         localConstraint phi' $ do
           eval m
@@ -304,6 +340,9 @@ app t1 n =
       TypedTerm <$> app t n <*> app f n
     TypedTerm _ _ -> pure (App t1 n)
     _ -> pure (App t1 n)
+
+renameVars :: (Eq var) => [(var, var)] -> Term var -> Term var
+renameVars = appEndo . foldMap (Endo . uncurry renameVar)
 
 -- | Rename a (free) variable in a term.
 --
@@ -321,7 +360,54 @@ renameVar x x' = go
       Universe -> Universe
       Pi t' -> Pi (go t')
       Lambda z a phi m
-        | z == x  -> Lambda z (go <$> a) phi m
+        | x `elem` freeVars z -> Lambda z (go <$> a) phi m
+        | otherwise -> Lambda z (go <$> a) (go <$> phi) (go m)
+      App t1 t2 -> App (go t1) (go t2)
+      Sigma t' -> Sigma (go t')
+      Pair f s -> Pair (go f) (go s)
+      First t' -> First (go t')
+      Second t' -> Second (go t')
+      IdType a z y -> IdType (go a) (go z) (go y)
+      Refl a z -> Refl (fmap go a) (go z)
+      IdJ tA a tC d z p -> IdJ (go tA) (go a) (go tC) (go d) (go z) (go p)
+
+      Cube -> Cube
+      CubeUnit -> CubeUnit
+      CubeUnitStar -> CubeUnitStar
+      CubeProd i j -> CubeProd (go i) (go j)
+
+      Tope -> Tope
+      TopeTop -> TopeTop
+      TopeBottom -> TopeBottom
+      TopeOr psi phi -> TopeOr (go psi) (go phi)
+      TopeAnd psi phi -> TopeAnd (go psi) (go phi)
+      TopeEQ t' s -> TopeEQ (go t') (go s)
+      RecBottom -> RecBottom
+      RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)
+
+      ExtensionType s cI psi tA phi a
+        | s == x    -> ExtensionType s (go cI) psi tA phi a
+        | otherwise -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
+
+      Cube2 -> Cube2
+      Cube2_0 -> Cube2_0
+      Cube2_1 -> Cube2_1
+      TopeLEQ t' s -> TopeLEQ (go t') (go s)
+
+-- | Substitute a (free) variable in a term.
+substitute :: (Eq var) => var -> Term var -> Term var -> Term var
+substitute x tt = go
+  where
+    go t = case t of
+      Variable z
+        | z == x    -> tt
+        | otherwise -> t
+      TypedTerm term ty -> TypedTerm (go term) (go ty)
+      Hole z -> Hole z
+      Universe -> Universe
+      Pi t' -> Pi (go t')
+      Lambda z a phi m
+        | x `elem` freeVars z -> Lambda z (go <$> a) phi m
         | otherwise -> Lambda z (go <$> a) (go <$> phi) (go m)
       App t1 t2 -> App (go t1) (go t2)
       Sigma t' -> Sigma (go t')

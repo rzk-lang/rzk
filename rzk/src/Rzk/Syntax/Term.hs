@@ -20,7 +20,7 @@ data Term var
   | Pi (Term var)
   -- ^ Dependent product type former \(\prod_{x : A} B(x)\).
   -- The term argument represents type family \(B : A \to \mathcal{U}\).
-  | Lambda var (Maybe (Term var)) (Maybe (Term var)) (Term var)
+  | Lambda (Term var) (Maybe (Term var)) (Maybe (Term var)) (Term var)
   -- ^ \(\lambda\)-abstraction ("lambda abstraction").
   -- @Lambda x a Nothing m@ represents a term of the form \(\lambda (x : A). M\)
   -- while @Lambda t i (Just phi) m@ represents \(\lambda \{t : I | \phi\}. M\)
