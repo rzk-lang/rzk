@@ -213,15 +213,15 @@ evalExtensionApps = go
         case t1 of
           Lambda _ _ _ _ -> App <$> go t1 <*> go t2
           _ -> do
-            (stripExplicitTypeAnnotations <$> infer t1) >>= \ty -> unsafeTraceTyping "xxx" t1 ty $ case ty of
+            (stripExplicitTypeAnnotations <$> infer t1) >>= \ty -> case ty of
               ExtensionType s _ _ _ phi a -> do
                 Context{..} <- ask
                 localVar (s, t2) $ do
                   phi' <- evalType phi
                   contextTopes' <- unfoldTopes' contextTopes
                   if contextTopes' `entailTope` phi'
-                    then unsafeTraceTerm "YES" (App t1 t2) $ evalType a >>= go
-                    else unsafeTraceTerm "NOO" (App t1 t2) $ App <$> go t1 <*> go t2   -- FIXME: bring outside localVar?
+                    then evalType a >>= go
+                    else App <$> go t1 <*> go t2   -- FIXME: bring outside localVar?
               _ -> App <$> go t1 <*> go t2
 
       TypedTerm t a -> TypedTerm <$> go t <*> pure a
@@ -286,7 +286,7 @@ evalType :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 evalType t = do
   t' <- evalInTypeCheck t (eval t)
   t'' <- evalExtensionApps t'
-  unsafeTraceTyping "ooo" t t'' $ evalInTypeCheck t (eval t'')
+  evalInTypeCheck t (eval t'')
 
 evalInTypeCheck :: Term var -> Eval var a -> TypeCheck var a
 evalInTypeCheck t e = do
@@ -686,7 +686,6 @@ runTypeCheckClosed vars = getTypeCheckResult emptyContext (emptyTypingContext va
 
 typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 typecheck term expectedType =
-  unsafeTraceTyping "typecheck" term expectedType $
   case (term, expectedType) of
     (Lambda y c psi' m, ExtensionType t cI psi tA phi a) -> do
       case c of
@@ -706,7 +705,7 @@ typecheck term expectedType =
           localConstraint phi_e $ do
             m' <- evalType m
             a' <- evalType (substitute t y a)
-            unsafeTraceTyping "alala" m' a' $ unify term m' a'
+            unify term m' a'
 
     (Lambda y c Nothing m, Pi f@(Lambda _ (Just a) Nothing _)) -> do
       case c of
@@ -820,7 +819,7 @@ appExt f x = do
     _ -> pure Nothing
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
-unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
+unify term t1 t2 = do
   TypingContext{..} <- get
   t1' <- evalType t1
   t2' <- evalType t2
@@ -847,7 +846,7 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
     unify' (Pi t) (Pi t') = unify' t t'
     unify' (Lambda x a Nothing b) (Lambda y c Nothing d) = do
       sequenceA_ (liftA2 unify' a c)
-      d' <- localPattern' (y, x) $ evalType d
+      d' <- localVars (freeVars x) $ localPattern' (y, x) $ evalType d
       unify' b d'
     unify' (Lambda x a (Just phi) b) (Lambda y c (Just psi) d) = do
       sequenceA_ (liftA2 unify' a c)
@@ -875,9 +874,9 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
     unify' (Second t) (Second t') = unify' t t'
 
     unify' (IdType a x y) (IdType a' x' y') = do
-      unsafeTraceTyping "IdType a a'" a a' $ unify' a a'
-      unsafeTraceTyping "IdType x x'" x x' $ unify' x x'
-      unsafeTraceTyping "IdType y y'" y y' $ unify' y y'
+      unify' a a'
+      unify' x x'
+      unify' y y'
     unify' (Refl a x) (Refl a' x') = do
       sequenceA_ (liftA2 unify' a a')
       unify' x x'
@@ -1003,16 +1002,14 @@ unify term t1 t2 = unsafeTraceTyping "unify" t1 t2 $ do
 
     unify' tt1 tt2 = do
       typeOf_tt1 <- stripExplicitTypeAnnotations <$> infer tt1
-      unsafeTraceTyping "unify'" tt1 typeOf_tt1 $ do
-        case typeOf_tt1 of
-          ExtensionType s i _psi _tA _phi _a -> do
-            vars <- asks contextFreeVariables
-            let s' = refreshVar (vars <> freeVars i) s
-            localTyping (s', Just i) $
-              unsafeTraceTyping "ololo "(App tt1 (Variable s')) (App tt2 (Variable s')) $ do
-                issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
-                unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
-          _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+      case typeOf_tt1 of
+        ExtensionType s i _psi _tA _phi _a -> do
+          vars <- asks contextFreeVariables
+          let s' = refreshVar (vars <> freeVars i) s
+          localTyping (s', Just i) $ do
+            issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
+            unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
+        _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
 stripExplicitTypeAnnotations :: Term var -> Term var
 stripExplicitTypeAnnotations = \case
