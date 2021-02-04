@@ -134,6 +134,51 @@ RS17:Thm:4_1
 
 #### Theorem 4.2
 
+```
+RS17:Thm:4_2a
+    : (I : CUBE)
+   -> (J : CUBE)
+
+   -> (psi : (t : I) -> TOPE)
+   -> (zeta : (s : J) -> TOPE)
+
+   -> (phi : {t : I | psi t} -> TOPE)
+   -> (chi : {s : J | zeta s} -> TOPE)
+
+   -> (X : <{t : I | psi t} -> <{s : J | zeta s} -> U[BOT |-> recBOT]> [BOT |-> recBOT]>)
+   -> (f : <{ts : I * J | (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts))} -> X (first ts) (second ts) [BOT |-> recBOT]>)
+   -> weq
+
+        (x : X) ->
+        {t : I | psi t} ->
+
+        phi : {t : I | psi t} -> TOPE
+        t : I | psi |- phi
+
+        <{t : I | psi t} -> A t [ phi t |-> a t ] >
+
+        <{t : 2 | TOP} -> A
+          [ t === 0 \/ t === 1 |-> recOR (t === 0) (t === 1) a b ]>
+
+        <{u : I | psi u} ->
+           <{s : J | zeta s} -> X u s [chi s |-> f (u, s)]>
+          [phi u |-> \{s : J | zeta s} -> f (u, s)]>
+
+        <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> X (first ts) (second ts) [ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts]>
+
+        (f, (g, (fg, gf)))
+
+  := \(I : CUBE) -> \(J : CUBE) -> \(psi : (t : I) -> TOPE) -> \(zeta : (s : J) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(chi : {s : J | zeta s} -> TOPE) -> \(X : <{t : I | psi t} -> <{s : J | zeta s} -> U[BOT |-> recBOT]> [BOT |-> recBOT]>) -> \(f : <{ts : I * J | (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts))} -> X (first ts) (second ts) [BOT |-> recBOT]>) ->
+
+  (
+  \(k : <{t : I | psi t} -> <{s : J | zeta s} -> (X t) s[ chi s |-> f (t, s) ]> [ phi t |-> \{s : J | zeta s} -> f (t, s) ]>) ->
+
+  \{ts : I * J | psi (first ts) /\ zeta (second ts)} ->
+    k (first ts) (second ts)
+
+  , (\(k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> X (first ts) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>) -> \{t : I | psi t} -> \{s : J | zeta s} -> k (t, s), (\(k : <{t : I | psi t} -> <{s : J | zeta s} -> X t s[ chi s |-> f (t, s) ]>[ phi t |-> \{s : J | zeta s} → f (t, s) ]>) -> refl_{k : <{t : I | psi t} -> <{s : J | zeta s} -> X t s[ chi s |-> f (t, s) ]>[ phi t |-> \{s : J | zeta s} → f (t, s) ]>}, \(k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> (X (first ts)) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>) -> refl_{k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> (X (first ts)) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>})))
+```
+
 ```rzk
 RS17:Thm:4_2a : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (zeta : (s : J) -> TOPE) -> (phi : {t : I | psi t} -> TOPE) -> (chi : {s : J | zeta s} -> TOPE) -> (X : <{t : I | psi t} -> <{s : J | zeta s} -> U[BOT |-> recBOT]> [BOT |-> recBOT]>) -> (f : <{ts : I * J | (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts))} -> X (first ts) (second ts) [BOT |-> recBOT]>) -> weq <{t : I | psi t} -> <{s : J | zeta s} -> X t s [chi s |-> f (t, s)]> [phi t |-> \{s : J | zeta s} -> f (t, s)]> <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> X (first ts) (second ts) [ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts]>
   := \(I : CUBE) -> \(J : CUBE) -> \(psi : (t : I) -> TOPE) -> \(zeta : (s : J) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(chi : {s : J | zeta s} -> TOPE) -> \(X : <{t : I | psi t} -> <{s : J | zeta s} -> U[BOT |-> recBOT]> [BOT |-> recBOT]>) -> \(f : <{ts : I * J | (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts))} -> X (first ts) (second ts) [BOT |-> recBOT]>) -> (\(k : <{t : I | psi t} -> <{s : J | zeta s} -> (X t) s[ chi s |-> f (t, s) ]> [ phi t |-> \{s : J | zeta s} -> f (t, s) ]>) -> \{ts : I * J | psi (first ts) /\ zeta (second ts)} -> k (first ts) (second ts), (\(k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> X (first ts) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>) -> \{t : I | psi t} -> \{s : J | zeta s} -> k (t, s), (\(k : <{t : I | psi t} -> <{s : J | zeta s} -> X t s[ chi s |-> f (t, s) ]>[ phi t |-> \{s : J | zeta s} → f (t, s) ]>) -> refl_{k : <{t : I | psi t} -> <{s : J | zeta s} -> X t s[ chi s |-> f (t, s) ]>[ phi t |-> \{s : J | zeta s} → f (t, s) ]>}, \(k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> (X (first ts)) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>) -> refl_{k : <{ts : I * J | psi (first ts) /\ zeta (second ts)} -> (X (first ts)) (second ts)[ (phi (first ts) /\ zeta (second ts)) \/ (psi (first ts) /\ chi (second ts)) |-> f ts ]>})))
@@ -145,6 +190,30 @@ RS17:Thm:4_2a : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (zeta : (
 RS17:Thm:4_3 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {t : I | psi t} -> TOPE) -> (X : <{t : I | psi t} -> U [BOT |-> recBOT]>) -> (Y : <{t : I | psi t} -> (x : X t) -> U [BOT |-> recBOT]>) -> (a : <{t : I | phi t} -> X t [BOT |-> recBOT]>) -> (b : <{t : I | phi t} -> Y t (a t) [BOT |-> recBOT]>) -> weq <{t : I | psi t} -> ∑ (x : X t), Y t x [phi t |-> (a t, b t)]> (∑ (f : <{t : I | psi t} -> X t [phi t |-> a t]>), <{t : I | psi t} -> Y t (f t) [phi t |-> b t]>)
   := \(I : CUBE) -> \(psi : (t : I) -> TOPE) -> \(phi : {t : I | psi t} -> TOPE) -> \(X : <{t : I | psi t} -> U [BOT |-> recBOT]>) -> \(Y : <{t : I | psi t} -> (x : X t) -> U [BOT |-> recBOT]>) -> \(a : <{t : I | phi t} -> X t [BOT |-> recBOT]>) -> \(b : <{t : I | phi t} -> Y t (a t) [BOT |-> recBOT]>) -> (\(k : <{t : I | psi t} -> ∑ (x : X t), Y t x[ phi t |-> (a t, b t) ]>) -> (\{t : I | psi t} -> first (k t), \{t : I | psi t} -> second (k t)), (\(k : ∑ (f : <{t : I | psi t} -> X t[ phi t |-> a t ]>), <{t : I | psi t} -> Y t (f t)[ phi t |-> b t ]>) -> \{t : I | psi t} -> ((first k) t, (second k) t), (\(k : <{t : I | psi t} -> ∑ (x : X t), Y t x[ phi t |-> (a t, b t) ]>) -> refl_{k : <{t : I | psi t} -> ∑ (x : X t), Y t x[ phi t |-> (a t, b t) ]>}, \(k : ∑ (f : <{t : I | psi t} -> X t[ phi t |-> a t ]>), <{t : I | psi t} -> Y t (f t)[ phi t |-> b t ]>) -> refl_{k : ∑ (f : <{t : I | psi t} -> X t[ phi t |-> a t ]>), <{t : I | psi t} -> Y t (f t)[ phi t |-> b t ]>})))
 ```
+
+#### Theorem 4.4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Typechecking Markdown files
 
