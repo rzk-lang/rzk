@@ -84,6 +84,7 @@ rzkTerm' = "simple term" <??>
   <|> rzkTermFirst
   <|> rzkTermSecond
   <|> rzkTermExtensionType
+  <|> rzkTermExtensionTypeFromCube
   -- constants
   <|> Universe <$ (symbol "U" <|> symbol "𝒰")
   <|> Cube <$ symbol "CUBE"
@@ -233,8 +234,29 @@ rzkTermSecond = do
   (symbol "second" <|> symbol "π₂") <?> "π₂"
   Second <$> rzkTerm
 
+rzkTermExtensionTypeFromCube :: RzkParser (Term Var)
+rzkTermExtensionTypeFromCube = between (symbol "<(") (symbol ">") $ do
+  t <- rzkPattern
+  symbol ":"
+  cI <- rzkTerm
+  symbol ")"
+  symbol "->" <|> symbol "→"
+  tA <- rzkTerm
+  mphi_a <- optional $ do
+    symbol "["
+    phi <- rzkTerm
+    symbol "|->"
+    a <- rzkTerm
+    symbol "]"
+    return (phi, a)
+  let (phi, a) = case mphi_a of
+                   Just x  -> x
+                   Nothing -> (TopeBottom, RecBottom)
+  return (ExtensionType t cI TopeTop tA phi a)
+
+
 rzkTermExtensionType :: RzkParser (Term Var)
-rzkTermExtensionType = between (symbol "<{") (symbol "]>") $ do
+rzkTermExtensionType = between (symbol "<{") (symbol ">") $ do
   t <- rzkPattern
   symbol ":"
   cI <- rzkTerm
@@ -243,10 +265,16 @@ rzkTermExtensionType = between (symbol "<{") (symbol "]>") $ do
   symbol "}"
   symbol "->" <|> symbol "→"
   tA <- rzkTerm
-  symbol "["
-  phi <- rzkTerm
-  symbol "|->"
-  a <- rzkTerm
+  mphi_a <- optional $ do
+    symbol "["
+    phi <- rzkTerm
+    symbol "|->"
+    a <- rzkTerm
+    symbol "]"
+    return (phi, a)
+  let (phi, a) = case mphi_a of
+                   Just x  -> x
+                   Nothing -> (TopeBottom, RecBottom)
   return (ExtensionType t cI psi tA phi a)
 
 -- firstP :: Parser (Term Var)
