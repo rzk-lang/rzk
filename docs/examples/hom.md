@@ -2,7 +2,7 @@
 
 ```rzk
 hom : (A : U) -> (x : A) -> (y : A) -> U
-  := \(A : U) -> \(x : A) -> \(y : A) -> <{t : 2 | TOP} -> A [ t === 0_2 \/ t === 1_2 |-> recOR(t === 0_2, t === 1_2, x, y) ]>
+  := \A -> \x -> \y -> <{t : 2 | TOP} -> A [ t === 0_2 \/ t === 1_2 |-> recOR(t === 0_2, t === 1_2, x, y) ]>
 ```
 
 ```rzk
@@ -50,9 +50,3 @@ shapeProd : (I : CUBE) -> (J : CUBE) -> (psi : (t : I) -> TOPE) -> (chi : (s : J
 Δ³-is-retract-of-Δ²×Δ¹ : shapeRetract (2 * 2 * 2) Δ³ Δ²×Δ¹
   := \A -> (\k -> \ts -> k ((first (first ts), second ts), second (first ts)), (\k -> \ts -> recOR((second ts) <= (second (first ts)), (second (first ts)) <= (second ts) /\ (second ts) <= (first (first ts)) \/ (first (first ts)) <= second ts, k ((first (first ts), second ts), second (first ts)), recOR((second (first ts)) <= (second ts) /\ (second ts) <= (first (first ts)), (first (first ts)) <= second ts, k ((first (first ts), second ts), second (first ts)), k ((first (first ts), first (first ts)), second (first ts)))), \k -> refl_{k}))
 ```
-
-```rzk
-V : (A : U) -> (f : <{t : 2 | TOP} -> A[BOT |-> recBOT]>) -> <{ts : 2 * 2 | TOP} -> A[BOT |-> recBOT]>
-  := \A -> \f -> \(t, s) -> recOR(t <= s, s <= t, f s, f t)
-```
-
