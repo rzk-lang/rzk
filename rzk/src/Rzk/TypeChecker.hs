@@ -27,6 +27,13 @@ import           Rzk.Syntax.Var
 
 import           Rzk.Debug.Trace
 
+data TypeCheckerAction var
+  = ActionTypeCheck (Term var) (Term var)
+  | ActionInferType (Term var)
+  | ActionUnifyTypesFor (Term var) (Term var) (Term var)
+  | ActionUnify (Term var) (Term var)
+  | ActionEval (Term var)
+
 data TypeError var
   = TypeErrorInfinite var (Term var)
   | TypeErrorUnexpected (Term var) (Term var) (Term var) (Term var) (Term var)
@@ -119,6 +126,8 @@ data TypingContext var = TypingContext
   , contextHoles       :: [var]
   -- ^ Type variables and holes ever defined.
   , freshTypeVariables :: [var]
+  -- ^ Action stack (for error messages and debugging).
+  , actionStack        :: [TypeCheckerAction var]
   }
 
 ppTypingContext :: TypingContext Var -> Text
@@ -127,7 +136,42 @@ ppTypingContext TypingContext{..} = Text.intercalate "\n"
   , ppKnownTypes contextKnownTypes
   , "Type holes and their instantiations:"
   , ppKnownHoles contextKnownHoles
+  , ppActionStack actionStack
   ]
+
+ppActionStack :: [TypeCheckerAction Var] -> Text
+ppActionStack = Text.intercalate "\n" . map ppAction . reverse
+
+ppAction :: TypeCheckerAction Var -> Text
+ppAction = \case
+  ActionTypeCheck term expectedType -> Text.intercalate "\n"
+    [ "when trying to typecheck"
+    , "  " <> ppTerm term
+    , "against type"
+    , "  " <> ppTerm expectedType
+    ]
+  ActionInferType term -> Text.intercalate "\n"
+    [ "when trying to infer the type of"
+    , "  " <> ppTerm term
+    ]
+  ActionUnifyTypesFor term type1 type2 -> Text.intercalate "\n"
+    [ "when trying to unify expected type"
+    , "  " <> ppTerm type1
+    , "with inferred type"
+    , "  " <> ppTerm type2
+    , "for the term"
+    , "  " <> ppTerm term
+    ]
+  ActionUnify term1 term2 -> Text.intercalate "\n"
+    [ "when trying to unify term"
+    , "  " <> ppTerm term1
+    , "with term"
+    , "  " <> ppTerm term2
+    ]
+  ActionEval term -> Text.intercalate "\n"
+    [ "when trying to evaluate type/term"
+    , "  " <> ppTerm term
+    ]
 
 ppKnownTypes :: [(Var, Term Var)] -> Text
 ppKnownTypes = Text.intercalate "\n" . map ppVarType
@@ -147,6 +191,7 @@ emptyTypingContext vars = TypingContext
   , contextKnownHoles   = []
   , contextHoles        = []
   , freshTypeVariables  = concat (drop 1 (iterate (map succ) vars))
+  , actionStack         = []
   }
 
 lookupTypeOf :: Eq var => var -> TypeCheck var (Maybe (Term var))
@@ -159,6 +204,13 @@ setTypeOf x ty = modify $ \context -> context
 unsetTypeOf :: Eq var => var -> TypeCheck var ()
 unsetTypeOf x = modify $ \context -> context
   { contextKnownTypes = filter ((/= x) . fst) (contextKnownTypes context) }
+
+localAction :: TypeCheckerAction var -> TypeCheck var a -> TypeCheck var a
+localAction action m = do
+  modify (\context -> context { actionStack = action : actionStack context })
+  result <- m
+  modify (\context -> context { actionStack = drop 1 (actionStack context) })
+  return result
 
 localTyping :: Eq var => (var, Maybe (Term var)) -> TypeCheck var a -> TypeCheck var a
 localTyping (x, t) m = do
@@ -213,10 +265,12 @@ evalExtensionApps = go
         case t1 of
           Lambda _ _ _ _ -> App <$> go t1 <*> go t2
           _ -> do
-            (stripExplicitTypeAnnotations <$> infer t1) >>= \ty -> case ty of
-              ExtensionType s _ _ _ phi a -> do
+            -- FIXME: instead of inferring info one more time,
+            -- we need to use already inferred information
+            (fmap stripExplicitTypeAnnotations <$> inferLenient t1) >>= \ty -> case ty of
+              Just (ExtensionType s _ _ _ phi a) -> do
                 Context{..} <- ask
-                localVar (s, t2) $ do
+                localPattern' (s, t2) $ do
                   phi' <- evalType phi
                   contextTopes' <- unfoldTopes' contextTopes
                   if contextTopes' `entailTope` phi'
@@ -240,7 +294,6 @@ evalExtensionApps = go
           localConstraint phi' $ do
             m' <- go m
             return (Lambda x a' (Just phi') m')
-      -- FIXME: what do do with Lambda _ Nothing _ _?
 
       Pair f s -> Pair <$> go f <*> go s
       First t -> First <$> go t
@@ -258,7 +311,7 @@ evalExtensionApps = go
       RecOr psi phi a b -> RecOr <$> go psi <*> go phi <*> go a <*> go b
       ExtensionType t i psi tA phi a -> do
         i' <- go i
-        localTyping (t, Just i) $ do
+        localPatternTyping (t, Just i) $ do
           psi' <- go psi
           localConstraint psi' $ do
             tA' <- go tA
@@ -283,7 +336,7 @@ evalExtensionApps = go
       t@(TopeLEQ _ _) -> pure t
 
 evalType :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
-evalType t = do
+evalType t = localAction (ActionEval t) $ do
   t' <- evalInTypeCheck t (eval t)
   t'' <- evalExtensionApps t'
   evalInTypeCheck t (eval t'')
@@ -404,21 +457,29 @@ unfoldTopes' topes = do
   topes' <- concat <$> traverse unfoldTopeWithInclusions topes
   return (unfoldTopesInCube2 topes')
 
+inferLenient :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe (Term var))
+inferLenient term = do
+  context <- get
+  result <- (Just <$> infer term) `catchError` \_ -> return Nothing
+  put context
+  return result
+
 infer :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
-infer = \case
+-- infer ttt = unsafeTraceTerm "infer" ttt $ ($ ttt) $ \case
+infer term = localAction (ActionInferType term) $ ($ term) $ \case
   Variable x    -> do
     mty <- lookupTypeOf x
     case mty of
       Nothing -> addTypeHoleFor x
       Just ty -> return ty
-  TypedTerm term ty -> do
-    typecheck term ty
+  TypedTerm term' ty -> do
+    typecheck term' ty
     evalType ty
   Hole _        -> issueTypeError (TypeErrorOther "attemting to infer type of a hole!")
   Universe      -> pure Universe
   Pi t          -> inferTypeFamily t
   t@(Lambda _ _ _ _) -> issueTypeError (TypeErrorCannotInferLambda t)
-  term@(App t1 t2) -> do
+  term'@(App t1 t2) -> do
 
     ty <- infer t1
     case ty of
@@ -431,13 +492,15 @@ infer = \case
         typecheck t2 i
         localPattern' (t, t2) $ do
           phi' <- evalType phi
-          ensureTopeContext term phi'
+          unsafeTraceTyping "infer.App.Pi" term' phi' $ do
+            ensureTopeContext term' phi'
           evalType a
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
         typecheck t2 cI
-        localVar (t, t2) $ do
+        localPattern' (t, t2) $ do
           psi' <- evalType psi
-          ensureTopeContext term psi'
+          unsafeTraceTyping "infer.App.ExtensionType" term' psi' $ do
+            ensureTopeContext term' psi'
           evalType tA
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
@@ -476,7 +539,7 @@ infer = \case
         typecheck a' Universe
         typecheck x a'
         return a'
-      Nothing -> infer x
+      Nothing -> unsafeTraceTerm "infer.Refl" x $ infer x
     return (IdType typeof_x x x)
   IdJ tA a tC d x p -> do
     typecheck tA Universe
@@ -532,7 +595,7 @@ infer = \case
 
   ExtensionType t cI psi tA phi a -> do
     typecheck cI Cube
-    localTyping (t, Just cI) $ do
+    localPatternTyping (t, Just cI) $ do
       psi' <- evalType psi
       typecheck psi' Tope
       localConstraint psi' $ do
@@ -559,14 +622,16 @@ ensureTopeContext term phi = do
   Context{..} <- ask
   contextTopes' <- unfoldTopes' contextTopes
   unless (contextTopes' `entailTope` phi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
+    unsafeTraceTerm "ensureTopeContext.error" term $ do
+      issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 ensureSubTope term psi phi = do
   Context{..} <- ask
   phi' <- unfoldTopes' [phi]
   unless (phi' `entailTope` psi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
+    unsafeTraceTerm "ensureSubTope.error" term $ do
+      issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
 
 ensureEqTope :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 ensureEqTope psi phi = do
@@ -574,14 +639,16 @@ ensureEqTope psi phi = do
   phi' <- unfoldTopes' [phi]
   psi' <- unfoldTopes' [psi]
   unless (phi' `entailTope` psi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
+    unsafeTraceTyping "ensureEqTope.error.1" psi phi $ do
+      issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
   unless (psi' `entailTope` phi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied phi phi psi')
+    unsafeTraceTyping "ensureEqTope.error.2" psi phi $ do
+      issueTypeError (TypeErrorTopeContextNotSatisfied phi phi psi')
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
   Lambda x (Just a) Nothing m -> do
-    typeOf_a <- infer a
+    typeOf_a <- unsafeTraceTerm "inferTypeFamily" TopeBottom $ infer a
     typecheck typeOf_a Universe
     localPatternTyping (x, Just a) $
       typecheck m Universe
@@ -674,6 +741,7 @@ typecheckModule freshVars Module{..} = do
       , contextKnownHoles = []
       , contextHoles = []
       , freshTypeVariables = concat (drop 1 (iterate (map succ) freshVars))
+      , actionStack = []
       }
 
 typecheckClosed :: (Eq var, Enum var) => [var] -> Term var -> Term var -> TypeCheckResult var
@@ -685,7 +753,7 @@ runTypeCheckClosed :: (Eq var, Enum var) => [var] -> TypeCheck var () -> TypeChe
 runTypeCheckClosed vars = getTypeCheckResult emptyContext (emptyTypingContext vars)
 
 typecheck :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-typecheck term expectedType =
+typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
   case (term, expectedType) of
     (Lambda y c psi' m, ExtensionType t cI psi tA phi a) -> do
       case c of
@@ -694,17 +762,20 @@ typecheck term expectedType =
           unify y c' cI
         Nothing -> return ()
       localPatternTyping (y, Just cI) $ do
-        psi'_e <- traverse evalType psi'
-        psi_e <- evalType (substitute t y psi)
-        case psi'_e of
-          Just psi'_e' -> ensureEqTope psi'_e' psi_e
-          Nothing      -> return ()
+        let psi'' = case (c, psi') of
+                      (Nothing, Nothing) -> psi       -- if no type/tope was specified in a lambda binding then assume tope from the type of lambda expression
+                      (_, Nothing)       -> TopeTop   -- if only type was specified, then tope is defaulted to TOP
+                      (_, Just psi'_)    -> psi'_     -- otherwise we use specified tope
+        psi'_e <- evalType psi''
+        psi_e <- localPattern' (t, y) $ evalType psi
+        ensureEqTope psi'_e psi_e
         localConstraint psi_e $ do
-          typecheck m (substitute t y tA)
-          phi_e <- evalType (substitute t y phi)
+          tA' <- localPattern' (t, y) $ evalType tA
+          typecheck m tA'
+          phi_e <- localPattern' (t, y) $ evalType phi
           localConstraint phi_e $ do
             m' <- evalType m
-            a' <- evalType (substitute t y a)
+            a' <- localPattern' (t, y) $ evalType a
             unify term m' a'
 
     (Lambda y c Nothing m, Pi f@(Lambda _ (Just a) Nothing _)) -> do
@@ -743,7 +814,7 @@ typecheck term expectedType =
         Nothing  -> setTypeOf x ty
         Just xty -> unify (Variable x) xty ty
     _ -> do
-      inferredType <- infer term
+      inferredType <- unsafeTraceTerm "infer" term $ infer term
       unify term inferredType expectedType
 
 checkInfiniteType :: forall var. (Eq var, Enum var) => Term var -> var -> Term var -> TypeCheck var (Term var)
@@ -797,7 +868,7 @@ checkInfiniteType tt x = go
     go (RecOr psi phi a b) = RecOr <$> go psi <*> go phi <*> go a <*> go b
 
     go (ExtensionType t cI psi tA phi a)
-      | x == t = ExtensionType t <$> go cI <*> pure psi <*> pure tA <*> pure phi <*> pure a
+      | x `elem` freeVars t = ExtensionType t <$> go cI <*> pure psi <*> pure tA <*> pure phi <*> pure a
       | otherwise = ExtensionType t <$> go cI <*> go psi <*> go tA <*> go phi <*> go a
 
     go Cube2 = pure Cube2
@@ -810,7 +881,7 @@ appExt f x = do
   typeOf_f <- infer f
   case typeOf_f of
     ExtensionType t _I _psi _tA phi a ->
-      localVar (t, x) $ do
+      localPattern' (t, x) $ do
         Context{..} <- ask
         phi' <- evalType phi
         if contextTopes `entailTope` phi'
@@ -819,36 +890,39 @@ appExt f x = do
     _ -> pure Nothing
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
-unify term t1 t2 = do
+unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
   TypingContext{..} <- get
   t1' <- evalType t1
   t2' <- evalType t2
   unify' t1' t2'
   where
-    unify' (Hole x) (Hole y)
+    unify' tt1 tt2 = localAction (ActionUnify tt1 tt2) $ unify'' tt1 tt2
+
+    unify'' (Hole x) (Hole y)
       | x == y = return ()
-    unify' (Hole x) t = do
+    unify'' (Hole x) t = do
       mty <- lookupHole x
       case mty of
         Nothing -> do
           t' <- checkInfiniteType t x t
           instantiateHole (x, t')
         Just xty -> unify' xty t
-    unify' t (Hole x) = unify' (Variable x) t
+    unify'' t (Hole x) = unify' (Variable x) t
 
-    unify' (Variable x) (Variable y) | x == y = pure ()
-    unify' (TypedTerm t ty) (TypedTerm t' ty') = do
+    unify'' (Variable x) (Variable y) | x == y = pure ()
+    unify'' (TypedTerm t ty) (TypedTerm t' ty') = do
       unify' ty ty'
       unify' t t'
-    unify' (TypedTerm t _ty) t'  = unify' t t'
-    unify' t (TypedTerm t' _ty') = unify' t t'
-    unify' Universe Universe = pure ()
-    unify' (Pi t) (Pi t') = unify' t t'
-    unify' (Lambda x a Nothing b) (Lambda y c Nothing d) = do
+    unify'' (TypedTerm t _ty) t'  = unify' t t'
+    unify'' t (TypedTerm t' _ty') = unify' t t'
+    unify'' Universe Universe = pure ()
+    unify'' (Pi t) (Pi t') = unify' t t'
+    unify'' (Lambda x a Nothing b) (Lambda y c Nothing d) = do
       sequenceA_ (liftA2 unify' a c)
       d' <- localVars (freeVars x) $ localPattern' (y, x) $ evalType d
-      unify' b d'
-    unify' (Lambda x a (Just phi) b) (Lambda y c (Just psi) d) = do
+      localPatternTyping (x, a) $ do
+        unify' b d'
+    unify'' (Lambda x a (Just phi) b) (Lambda y c (Just psi) d) = do
       sequenceA_ (liftA2 unify' a c)
       localPatternTyping (x, a <|> c) $ do
         phi' <- evalType phi
@@ -857,7 +931,7 @@ unify term t1 t2 = do
         localConstraint phi' $ do
           d' <- localPattern' (y, x) $ evalType d
           unify' b d'
-    unify' tt1@(App u1 u2) tt2@(App v1 v2) = do
+    unify'' tt1@(App u1 u2) tt2@(App v1 v2) = do
       appExt u1 u2 >>= \case
         Nothing -> appExt v1 v2 >>= \case
           Nothing -> do
@@ -866,21 +940,21 @@ unify term t1 t2 = do
           Just tt2' -> unify' tt1 tt2'
         Just tt1' -> unify' tt1' tt2
 
-    unify' (Sigma t) (Sigma t') = unify' t t'
-    unify' (Pair f s) (Pair f' s') = do
+    unify'' (Sigma t) (Sigma t') = unify' t t'
+    unify'' (Pair f s) (Pair f' s') = do
       unify' f f'
       unify' s s' -- FIXME: double check (do we need to adjust types?)
-    unify' (First t) (First t') = unify' t t'
-    unify' (Second t) (Second t') = unify' t t'
+    unify'' (First t) (First t') = unify' t t'
+    unify'' (Second t) (Second t') = unify' t t'
 
-    unify' (IdType a x y) (IdType a' x' y') = do
+    unify'' (IdType a x y) (IdType a' x' y') = do
       unify' a a'
       unify' x x'
       unify' y y'
-    unify' (Refl a x) (Refl a' x') = do
+    unify'' (Refl a x) (Refl a' x') = do
       sequenceA_ (liftA2 unify' a a')
       unify' x x'
-    unify' (IdJ tA a tC d x p) (IdJ tA' a' tC' d' x' p') = do
+    unify'' (IdJ tA a tC d x p) (IdJ tA' a' tC' d' x' p') = do
       unify' tA tA'
       unify' a a'
       unify' tC tC'
@@ -888,56 +962,62 @@ unify term t1 t2 = do
       unify' x x'
       unify' p p'
 
-    unify' Cube Cube = return ()
-    unify' CubeUnit CubeUnit = return ()
-    unify' CubeUnitStar CubeUnitStar = return ()
-    unify' (CubeProd i j) (CubeProd i' j') = do
+    unify'' Cube Cube = return ()
+    unify'' CubeUnit CubeUnit = return ()
+    unify'' CubeUnitStar CubeUnitStar = return ()
+    unify'' (CubeProd i j) (CubeProd i' j') = do
       unify' i i'
       unify' j j'
 
-    unify' Tope Tope = return ()
-    unify' TopeTop TopeTop = return ()
-    unify' TopeBottom TopeBottom = return ()
-    unify' (TopeOr phi psi) (TopeOr phi' psi') = do
+    unify'' Tope Tope = return ()
+    unify'' TopeTop TopeTop = return ()
+    unify'' TopeBottom TopeBottom = return ()
+    unify'' (TopeOr phi psi) (TopeOr phi' psi') = do
       ensureEqTope phi phi'
       ensureEqTope psi psi'
-    unify' (TopeAnd phi psi) (TopeAnd phi' psi') = do
+    unify'' (TopeAnd phi psi) (TopeAnd phi' psi') = do
       ensureEqTope phi phi'
       ensureEqTope psi psi'
-    unify' (TopeEQ t s) (TopeEQ t' s') = do
+    unify'' (TopeEQ t s) (TopeEQ t' s') = do
       unify' t t'
       unify' s s'
 
-    unify' Cube2 Cube2 = return ()
-    unify' Cube2_0 Cube2_0 = return ()
-    unify' Cube2_1 Cube2_1 = return ()
-    unify' (TopeLEQ t s) (TopeLEQ t' s') = do
+    unify'' Cube2 Cube2 = return ()
+    unify'' Cube2_0 Cube2_0 = return ()
+    unify'' Cube2_1 Cube2_1 = return ()
+    unify'' (TopeLEQ t s) (TopeLEQ t' s') = do
       unify' t t'
       unify' s s'
 
-    unify' RecBottom RecBottom = return ()
-    unify' RecBottom t = do
-      ensureTopeContext t TopeBottom
-    unify' t RecBottom = do
-      ensureTopeContext t TopeBottom
-    unify' (RecOr psi phi a b) (RecOr psi' phi' a' b') = do
+    unify'' RecBottom RecBottom = return ()
+    unify'' RecBottom t = do
+      unsafeTraceTerm "unify' RecBottom t :: ensureTopeContext" t $ do
+        ensureTopeContext t TopeBottom
+    unify'' t RecBottom = do
+      unsafeTraceTerm "unify' t RecBottom :: ensureTopeContext" t $ do
+        ensureTopeContext t TopeBottom
+    unify'' (RecOr psi phi a b) (RecOr psi' phi' a' b') = do
       ensureEqTope psi psi'
       ensureEqTope phi phi'
       unify' a a'
       unify' b b'
 
-    unify' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
+    unify'' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
       unify' cI cI'
-      localTyping (t', Just cI') $ do
-        unify' (renameVar t t' psi) psi'
+      localPatternTyping (t', Just cI') $ do
+        psi_ <- localPattern' (t, t') $ evalType psi
+        unify' psi_ psi'
         localConstraint psi' $ do
-          unify' (renameVar t t' tA)  tA'
-          unify' (renameVar t t' phi) phi'
+          tA_ <- localPattern' (t, t') $ evalType tA
+          unify' tA_ tA'
+          phi_ <- localPattern' (t, t') $ evalType phi
+          unify' phi_ phi'
           localConstraint phi' $ do
-            unify' (renameVar t t' a)   a'
+            a_ <- localPattern' (t, t') $ evalType a
+            unify' a_ a'
 
     -- unification by eta-expansion!
-    unify' (Lambda x a Nothing m) tt2 = do
+    unify'' (Lambda x a Nothing m) tt2 = do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
@@ -949,7 +1029,7 @@ unify term t1 t2 = do
         localVars xs' $ do
           m' <- localPattern' (x, x') $ evalType m
           unify' m' (App tt2 x')
-    unify' tt1 (Lambda x a Nothing m) = do
+    unify'' tt1 (Lambda x a Nothing m) = do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
@@ -961,7 +1041,7 @@ unify term t1 t2 = do
         localVars xs' $ do
           m' <- localPattern' (x, x') $ evalType m
           unify' (App tt1 x') m'
-    unify' (Lambda x a (Just phi) m) tt2 = do
+    unify'' (Lambda x a (Just phi) m) tt2 = do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
@@ -976,7 +1056,7 @@ unify term t1 t2 = do
             tt1' <- localPattern' (x, x') $ evalType m
             let tt2' = App tt2 x'
             unify' tt1' tt2'
-    unify' tt1 (Lambda x a (Just phi) m) = do
+    unify'' tt1 (Lambda x a (Just phi) m) = do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
@@ -993,22 +1073,24 @@ unify term t1 t2 = do
             unify' tt1' tt2'
 
     -- unification by eta-expansion for pairs
-    unify' (Pair f s) tt2 = do
+    unify'' (Pair f s) tt2 = do
       unify' f (First  tt2)
       unify' s (Second tt2)
-    unify' tt1 (Pair f s) = do
+    unify'' tt1 (Pair f s) = do
       unify' (First  tt1) f
       unify' (Second tt1) s
 
-    unify' tt1 tt2 = do
+    unify'' tt1 tt2 = do
       typeOf_tt1 <- stripExplicitTypeAnnotations <$> infer tt1
       case typeOf_tt1 of
-        ExtensionType s i _psi _tA _phi _a -> do
+        ExtensionType (Variable s) i psi _tA _phi _a -> do -- FIXME: make it work for patterns
           vars <- asks contextFreeVariables
           let s' = refreshVar (vars <> freeVars i) s
           localTyping (s', Just i) $ do
-            issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
-            unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
+            psi' <- localVar (s, Variable s') $ evalType psi
+            unsafeTraceTerm "" (Pair (Variable s') psi') $ localConstraint psi' $ do
+              issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
+              unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
         _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
 stripExplicitTypeAnnotations :: Term var -> Term var

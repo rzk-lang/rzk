@@ -82,7 +82,7 @@ data Term var
   | RecOr (Term var) (Term var) (Term var) (Term var)
   -- ^ Tope disjunction eliminator: \(\mathsf{rec}^{\psi,\phi}_\lor(a_\psi, a_\phi)\).
 
-  | ExtensionType var (Term var) (Term var) (Term var) (Term var) (Term var)
+  | ExtensionType (Term var) (Term var) (Term var) (Term var) (Term var) (Term var)
   -- ^ Extension type \( \left\langle \prod_{t : I | psi} A(t) \rvert^{\phi}_{a(t)} \right\rangle \) corresponding to @ExtensionType t cI psi tA phi a@.
 
   | Cube2

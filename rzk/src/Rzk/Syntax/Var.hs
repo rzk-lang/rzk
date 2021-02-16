@@ -45,7 +45,7 @@ refreshVar vars x
   | otherwise     = x
 
 refreshVars :: (Eq var, Enum var) => [var] -> [var] -> [(var, var)]
-refreshVars vars [] = []
+refreshVars _ [] = []
 refreshVars vars (x:xs) = (x, x') : refreshVars (x' : vars) xs
   where
     x' = refreshVar vars x

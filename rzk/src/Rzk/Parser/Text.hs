@@ -235,7 +235,7 @@ rzkTermSecond = do
 
 rzkTermExtensionType :: RzkParser (Term Var)
 rzkTermExtensionType = between (symbol "<{") (symbol "]>") $ do
-  t <- Var <$> rzkIdent
+  t <- rzkPattern
   symbol ":"
   cI <- rzkTerm
   symbol "|"

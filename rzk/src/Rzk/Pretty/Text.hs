@@ -95,7 +95,7 @@ ppTerm = \case
   RecOr psi phi a_psi a_phi -> ppElimWithArgs (ppReserved "rec∨") [psi, phi, a_psi, a_phi]
 
   ExtensionType t cI psi tA phi a ->
-    "〈{" <> ppVar t <> " : " <> ppTerm cI <> " | " <> ppTerm psi <> "} → " <> ppTerm tA <> "[ " <> ppTermParen phi <> " ↦ " <> ppTerm a <> " ]〉"
+    "〈{" <> ppTerm t <> " : " <> ppTerm cI <> " | " <> ppTerm psi <> "} → " <> ppTerm tA <> "[ " <> ppTermParen phi <> " ↦ " <> ppTerm a <> " ]〉"
 
   Cube2 -> ppReserved "𝟚"
   Cube2_0 -> ppReserved "0"

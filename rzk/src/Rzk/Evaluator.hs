@@ -152,7 +152,7 @@ freeVars = \case
   RecOr psi phi a b -> concatMap freeVars [psi, phi, a, b]
 
   ExtensionType t cI psi tA phi a ->
-    freeVars cI <> (concatMap freeVars [psi, tA, phi, a] \\ [t])
+    freeVars cI <> (concatMap freeVars [psi, tA, phi, a] \\ freeVars t)
 
   Cube2 -> []
   Cube2_0 -> []
@@ -191,7 +191,7 @@ eval = \case
         xs' = if doRename then map snd xxs' else xs
         x' = rename x
         ev = localVars xs' . eval . rename
-    unsafeTraceTerm "lambda" x' (Lambda x' <$> traverse eval a <*> traverse ev phi <*> ev m)
+    Lambda x' <$> traverse eval a <*> traverse ev phi <*> ev m
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
@@ -216,9 +216,9 @@ eval = \case
   TopeTop -> pure TopeTop
   TopeBottom -> pure TopeBottom
 
-  TopeOr psi phi -> TopeOr <$> eval psi <*> eval phi
+  TopeOr  psi phi -> TopeOr <$> eval psi <*> eval phi
   TopeAnd psi phi -> TopeAnd <$> eval psi <*> eval phi
-  TopeEQ x y -> pure (TopeEQ x y)
+  TopeEQ  x   y   -> pure (TopeEQ x y)
 
   RecBottom -> pure RecBottom
   RecOr psi phi a b -> do
@@ -235,9 +235,14 @@ eval = \case
 
   ExtensionType t cI psi tA phi a -> do
     vars <- asks contextKnownVars
-    let doRename = t `elem` vars
-    let t' = if doRename then refreshVar (vars <> concatMap freeVars [psi, tA, phi, a]) t else t
-    let ev = localVar (t', Variable t') . if doRename then eval . renameVar t t' else eval
+
+    let ts = freeVars t
+        doRename = any (`elem` vars) ts
+        tts' = refreshVars (vars <> concatMap freeVars [psi, tA, phi, a]) ts
+        rename = if doRename then renameVars tts' else id
+        ts' = if doRename then map snd tts' else ts
+        t' = rename t
+        ev = localVars ts' . eval . rename
     ExtensionType t' <$> eval cI <*> ev psi <*> ev tA <*> ev phi <*> ev a
 
   Cube2 -> pure Cube2
@@ -259,7 +264,7 @@ unfoldTopes (tope:topes) = nub $
     topes' = unfoldTopes topes
 
 entailTope :: Eq var => [Term var] -> Term var -> Bool
-entailTope topes t = unsafeTraceTerm "entailTope" t $
+entailTope topes t =
   runIdentity (entailTopeM (\x y -> pure (x == y)) topes t)
 
 entailTopeM
@@ -386,8 +391,8 @@ renameVar x x' = go
       RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)
 
       ExtensionType s cI psi tA phi a
-        | s == x    -> ExtensionType s (go cI) psi tA phi a
-        | otherwise -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
+        | x `elem` freeVars s -> ExtensionType s (go cI) psi tA phi a
+        | otherwise           -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
 
       Cube2 -> Cube2
       Cube2_0 -> Cube2_0
@@ -395,7 +400,7 @@ renameVar x x' = go
       TopeLEQ t' s -> TopeLEQ (go t') (go s)
 
 -- | Substitute a (free) variable in a term.
-substitute :: (Eq var) => var -> Term var -> Term var -> Term var
+substitute :: (Eq var, Enum var) => var -> Term var -> Term var -> Term var
 substitute x tt = go
   where
     go t = case t of
@@ -433,8 +438,8 @@ substitute x tt = go
       RecOr psi phi a b -> RecOr (go psi) (go phi) (go a) (go b)
 
       ExtensionType s cI psi tA phi a
-        | s == x    -> ExtensionType s (go cI) psi tA phi a
-        | otherwise -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
+        | x `elem` freeVars s -> ExtensionType s (go cI) psi tA phi a
+        | otherwise           -> ExtensionType s (go cI) (go psi) (go tA) (go phi) (go a)
 
       Cube2 -> Cube2
       Cube2_0 -> Cube2_0
