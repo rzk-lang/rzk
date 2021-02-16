@@ -10,6 +10,6 @@ while true; do
     old=$new
     clear
     stack build rzk && stack exec -- rzk typecheck "$FILE"
-    sleep 1
   fi
+  sleep 1
 done
