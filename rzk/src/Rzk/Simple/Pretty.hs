@@ -1,13 +1,19 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Rzk.Simple.Pretty where
 
 import           Bound.Scope                               (instantiate1)
+import qualified Data.Text.Lazy                            as Text
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal
 
 import           Rzk.Simple.Syntax.Term
 import           Rzk.Simple.Syntax.Var
+
+instance {-# OVERLAPPING #-} Show (Term Var Var) where
+  show = Text.unpack . renderLazy . layoutPretty defaultLayoutOptions . ppTermANSIviaShow
 
 data TypeOfTerm
   = TermVariable
@@ -59,22 +65,32 @@ highlightUsingAnsiStyle = \case
 ppTermANSI :: Show a => [Doc TypeOfTerm] -> Term var a -> Doc AnsiStyle
 ppTermANSI vars = reAnnotate highlightUsingAnsiStyle . ppTerm vars . fmap viaShow
 
+ppTermLeft :: [Doc TypeOfTerm] -> Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTermLeft vars = \case
+  t@Lambda{}  -> parens (ppTerm vars t)
+  t@Pi{}      -> parens (ppTerm vars t)
+  t@Sigma{}   -> parens (ppTerm vars t)
+  t           -> ppTerm vars t
+
 ppTermParens :: [Doc TypeOfTerm] -> Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppTermParens vars = \case
-  t@Variable{} -> ppTerm vars t
-  t@Universe -> ppTerm vars t
-  t@Refl{} -> ppTerm vars t
-  t@Cube{} -> ppTerm vars t
-  t@CubeUnit{} -> ppTerm vars t
-  t@CubeUnitStar{} -> ppTerm vars t
-  t@Tope{} -> ppTerm vars t
-  t@TopeTop{} -> ppTerm vars t
-  t@TopeBottom{} -> ppTerm vars t
-  t@RecBottom{} -> ppTerm vars t
-  t@Cube2{} -> ppTerm vars t
-  t@Cube2_0{} -> ppTerm vars t
-  t@Cube2_1{} -> ppTerm vars t
-  t -> parens (ppTerm vars t)
+  t@Lambda{}        -> ppTerm vars t
+  t@Pi{}            -> ppTerm vars t
+  t@Sigma{}         -> ppTerm vars t
+  t@Variable{}      -> ppTerm vars t
+  t@Universe        -> ppTerm vars t
+  t@Refl{}          -> ppTerm vars t
+  t@Cube{}          -> ppTerm vars t
+  t@CubeUnit{}      -> ppTerm vars t
+  t@CubeUnitStar{}  -> ppTerm vars t
+  t@Tope{}          -> ppTerm vars t
+  t@TopeTop{}       -> ppTerm vars t
+  t@TopeBottom{}    -> ppTerm vars t
+  t@RecBottom{}     -> ppTerm vars t
+  t@Cube2{}         -> ppTerm vars t
+  t@Cube2_0{}       -> ppTerm vars t
+  t@Cube2_1{}       -> ppTerm vars t
+  t                 -> parens (ppTerm vars t)
 
 ppReserved :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppReserved = annotate Reserved
@@ -126,7 +142,7 @@ ppElimWithArgs vars elim args
 ppTerm :: [Doc TypeOfTerm] -> Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppTerm vars = \case
   Variable x -> ppVar x
-  App t1 t2 -> ppTerm vars t1 <+> ppTermParens vars t2
+  App t1 t2 -> ppTermLeft vars t1 <+> ppTermParens vars t2
   First t -> ppTermElim "π₁" <+> ppTermParens vars t
   Second t -> ppTermElim "π₂" <+> ppTermParens vars t
   Universe   -> ppTypeCon "𝒰 "
@@ -180,8 +196,11 @@ ppTerm vars = \case
   where
     var:_ = vars
 
-pp :: Show a => Term var a -> IO ()
-pp t = putDoc (ppTermANSI vars t' <> "\n")
+ppTermANSIviaShow :: Show a => Term var a -> Doc AnsiStyle
+ppTermANSIviaShow t = ppTermANSI vars t'
   where
     vars = (viaShow . Var) <$> zipWith appendIndexText [0..] (repeat "x")
     t' = viaShow <$> t
+
+pp :: Show a => Term var a -> IO ()
+pp t = putDoc (ppTermANSIviaShow t <> "\n")
