@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveFoldable  #-}
-{-# LANGUAGE DeriveFunctor   #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Rzk.Simple.Syntax.Term where
 
 import           Bound
@@ -103,7 +104,7 @@ data Term ann var a
   | TopeLEQ (Term ann var a) (Term ann var a)
   -- ^ Inequality tope: \(t \leq s\).
 
-  deriving (Functor, Foldable)
+  deriving (Functor, Foldable, Traversable)
 
 instance Applicative (Term ann var) where
   pure = Variable

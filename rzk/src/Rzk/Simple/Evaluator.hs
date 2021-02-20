@@ -1,183 +1,217 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 module Rzk.Simple.Evaluator where
 
-import qualified Data.MemoTrie          as MemoTrie
-
 import           Bound
+import           Control.Applicative    (liftA2)
+import           Control.Monad.Identity
+import           Control.Monad.Reader   (ReaderT, asks, runReaderT)
+import           Control.Monad.State
 import           Control.Monad.Trans    (lift)
 import           Data.Hashable          (Hashable)
+import           Data.HashMap.Strict    (HashMap)
 import qualified Data.HashMap.Strict    as HashMap
 import           Rzk.Simple.Syntax.Term
 
-data EvalContext ann var a b = EvalContext
-  { definitionOf :: a -> Either b (Term ann var a)
-  }
+class Monad m => MonadLookup k v m where
+  lookupM :: k -> m (Maybe v)
 
-emptyEvalContext :: EvalContext ann var a a
-emptyEvalContext = EvalContext
-  { definitionOf = Left
-  }
+instance MonadLookup k v Identity where
+  lookupM = const (return Nothing)
 
-mkEvalContext
-  :: (Eq a, Hashable a)
-  => (a -> b)
-  -> [(a, Term ann var a)]
-  -> EvalContext ann var a b
-mkEvalContext convert dict = EvalContext
-  { definitionOf = \x ->
-      case HashMap.lookup x definitions of
-        Nothing -> Left (convert x)
-        Just t  -> Right t
-  }
+newtype ForgetLookupT m a = ForgetLookupT { runForgetLookupT :: m a }
+  deriving (Functor, Applicative, Monad)
+
+instance Monad m => MonadLookup k v (ForgetLookupT m) where
+  lookupM = const (return Nothing)
+
+newtype HashMapLookupT k v m a
+  = HashMapLookupT { runHashMapLookupT :: ReaderT (HashMap k v) m a }
+  deriving (Functor, Applicative, Monad)
+
+instance (Eq k, Hashable k, Monad m) => MonadLookup k v (HashMapLookupT k v m) where
+  lookupM = HashMapLookupT . asks . HashMap.lookup
+
+data Thunk a
+  = Unevaluated a
+  | Evaluating
+  | Evaluated a
+
+newtype WhnfHashMapLookupT ann var a m b
+  = WhnfHashMapLookupT { runWhnfHashMapLookupT :: StateT (HashMap a (Thunk (Term ann var a))) m b }
+  deriving (Functor, Applicative, Monad)
+
+instance (Eq a, Hashable a, Monad m) => MonadLookup a (Term ann var a) (WhnfHashMapLookupT ann var a m) where
+  lookupM x = WhnfHashMapLookupT $ do
+    gets (HashMap.lookup x) >>= \case
+      Nothing -> return Nothing
+      Just (Unevaluated t) -> do
+        modify (HashMap.insert x Evaluating)
+        t' <- runWhnfHashMapLookupT (whnfM t)
+        modify (HashMap.insert x (Evaluated t'))
+        return (Just t')
+      Just (Evaluated t) -> return (Just t)
+      Just Evaluating -> error "unable to evaluate self-referencing value"
+
+nfM
+  :: MonadLookup a (Term ann var a) m
+  => Term ann var a -> m (Term ann var a)
+nfM = nf'
   where
-    definitions = HashMap.fromList dict
-
-nfWith :: forall ann var a. EvalContext ann var a a -> Term ann var a -> Term ann var a
-nfWith context@EvalContext{..} = nf'
-  where
-    whnf' = whnfWith context
-
-    -- definitionOf'
-    --   :: Var x (Term ann var a)
-    --   -> Either (Var x (Term ann var a)) (Term ann var (Var x (Term ann var a)))
-    definitionOf' = \case
-      B b -> Left (B b)
-      F (Variable y) ->
-        case definitionOf y of
-          Left z  -> Left (F (pure z))
-          Right t -> Right (pure (F t))
-      F t -> Right (F . pure <$> t)
-
-    -- nfScoped :: Scope x (Term ann var) a -> Scope x (Term ann var) b
-    nfScoped = Scope . nfWith context' . unscope
+    nfScoped
+      :: MonadLookup a (Term ann var a) m
+      => Scope b (Term ann var) a -> m (Scope b (Term ann var) a)
+    nfScoped = fmap Scope . nfScoped' . unscope
       where
-        -- context' :: EvalContext ann var (Var x (Term ann var a)) (Var x (Term ann var b))
-        context' = context { definitionOf = definitionOf' }
+        nfScoped' f = runForgetLookupT (nfM f) >>= traverse (traverse nfM)
 
+    nf' :: MonadLookup a (Term ann var a) m => Term ann var a -> m (Term ann var a)
     nf' = \case
-      t@(Variable x) ->
-        case definitionOf x of
-          Left  y  -> Variable y
-          Right t' -> nf' t'
-      Annotated ann t -> Annotated ann (nf' t)
-      App t1 t2   ->
-        case whnf' t1 of
-          Lambda _a _phi body -> nf' (instantiate1 t2 body)
-          t1'                 -> App (nf' t1') (nf' t2)
+      t@(Variable x) -> lookupM x >>= \case
+        Nothing -> return t
+        Just t' -> nf' t'
+      Annotated ann t -> Annotated ann <$> nf' t
+      App t1 t2   -> whnfM t1 >>= \case
+        Lambda _a _phi body -> nf' (instantiate1 t2 body)
+        t1'                 -> App <$> nf' t1' <*> nf' t2
 
-      First t ->
-        case whnf' t of
-          Pair t1 _t2 -> nf' t1
-          t'          -> nf' t'
-      Second t ->
-        case whnf' t of
-          Pair _t1 t2 -> nf' t2
-          t'          -> nf' t'
+      First t -> whnfM t >>= \case
+        Pair t1 _t2 -> nf' t1
+        t'          -> nf' t'
+      Second t -> whnfM t >>= \case
+        Pair _t1 t2 -> nf' t2
+        t'          -> nf' t'
 
-      IdJ tA a tC d x p ->
-        case whnf' p of
-          Refl{} -> nf' d
-          p'     -> IdJ (nf' tA) (nf' a) (nf' tC) (nf' d) (nf' x) (nf' p')
+      IdJ tA a tC d x p -> whnfM p >>= \case
+        Refl{} -> nf' d
+        p'     -> IdJ <$> nf' tA <*> nf' a <*> nf' tC <*> nf' d <*> nf' x <*> nf' p'
 
-      e@Universe -> e
+      e@Universe -> return e
 
-      ExtensionType tC psi tA phi a ->
-        ExtensionType (nf' tC) (nfScoped psi) (nfScoped tA) (nfScoped phi) (nfScoped a)
-      Pi t'       -> Pi (nf' t')
-      Lambda a phi body
-        -> Lambda (fmap nf' a) (fmap nfScoped phi) (nfScoped body)
+      ExtensionType tC psi tA phi a -> ExtensionType
+        <$> nf' tC
+        <*> nfScoped psi
+        <*> nfScoped tA
+        <*> nfScoped phi
+        <*> nfScoped a
 
-      Sigma t'    -> Sigma (nf' t')
-      Pair t1 t2  -> Pair (nf' t1) (nf' t2)
+      Pi t'       -> Pi <$> nf' t'
+      Lambda a phi body -> Lambda
+        <$> traverse nf' a
+        <*> traverse nfScoped phi
+        <*> nfScoped body
 
-      IdType a x y -> IdType (nf' a) (nf' x) (nf' y)
-      Refl a x -> Refl (fmap nf' a) (nf' x)
+      Sigma t'    -> Sigma <$> nf' t'
+      Pair t1 t2  -> Pair <$> nf' t1 <*> nf' t2
 
-      Cube -> Cube
-      CubeUnit -> CubeUnit
-      CubeUnitStar -> CubeUnitStar
+      IdType a x y -> IdType <$> nf' a <*> nf' x <*> nf' y
+      Refl a x -> Refl <$> traverse nf' a <*> nf' x
 
-      CubeProd t1 t2 -> CubeProd (nf' t1) (nf' t2)
+      Cube -> return Cube
+      CubeUnit -> return CubeUnit
+      CubeUnitStar -> return CubeUnitStar
 
-      Tope -> Tope
-      TopeTop -> TopeTop
-      TopeBottom -> TopeBottom
-      TopeOr t1 t2 -> TopeOr (nf' t1) (nf' t2)
-      TopeAnd t1 t2 -> TopeAnd (nf' t1) (nf' t2)
-      TopeEQ t1 t2 -> TopeEQ (nf' t1) (nf' t2)
+      CubeProd t1 t2 -> CubeProd <$> nf' t1 <*> nf' t2
 
-      RecBottom -> RecBottom
-      RecOr psi phi t1 t2 -> RecOr (nf' psi) (nf' phi) (nf' t1) (nf' t2)
+      Tope -> return Tope
+      TopeTop -> return TopeTop
+      TopeBottom -> return TopeBottom
+      TopeOr  t1 t2 -> TopeOr  <$> nf' t1 <*> nf' t2
+      TopeAnd t1 t2 -> TopeAnd <$> nf' t1 <*> nf' t2
+      TopeEQ  t1 t2 -> TopeEQ  <$> nf' t1 <*> nf' t2
 
-      Cube2 -> Cube2
-      Cube2_0 -> Cube2_0
-      Cube2_1 -> Cube2_1
+      RecBottom -> return RecBottom
+      RecOr psi phi t1 t2 -> RecOr <$> nf' psi <*> nf' phi <*> nf' t1 <*> nf' t2
 
-      TopeLEQ t1 t2 -> TopeLEQ (nf' t1) (nf' t2)
+      Cube2 -> return Cube2
+      Cube2_0 -> return Cube2_0
+      Cube2_1 -> return Cube2_1
 
-whnfWith :: EvalContext ann var a a -> Term ann var a -> Term ann var a
-whnfWith EvalContext{..} = whnf'
+      TopeLEQ t1 t2 -> TopeLEQ <$> nf' t1 <*> nf' t2
+
+whnfM
+  :: MonadLookup a (Term ann var a) m
+  => Term ann var a -> m (Term ann var a)
+whnfM = whnfM
   where
-    whnf' = \case
-      t@(Variable x) ->
-        case definitionOf x of
-          Left z   -> pure z
-          Right t' -> whnf' t'
-      Annotated ann t -> Annotated ann (whnf' t)
-      App t1 t2   ->
-        case whnf' t1 of
-          Lambda _a _phi body -> whnf' (instantiate1 t2 body)
-          t1'                 -> App t1' t2
+    whnfM = \case
+      t@(Variable x) -> lookupM x >>= \case
+        Nothing -> return t
+        Just t' -> whnfM t'
+      Annotated ann t -> Annotated ann <$> whnfM t
+      App t1 t2   -> whnfM t1 >>= \case
+        Lambda _a _phi body -> whnfM (instantiate1 t2 body)
+        t1'                 -> return (App t1' t2)
 
-      First t ->
-        case whnf' t of
-          Pair t1 _t2 -> whnf' t1
-          t'          -> t'
-      Second t ->
-        case whnf' t of
-          Pair _t1 t2 -> whnf' t2
-          t'          -> t'
+      First t -> whnfM t >>= \case
+        Pair t1 _t2 -> whnfM t1
+        t'          -> return t'
+      Second t -> whnfM t >>= \case
+        Pair _t1 t2 -> whnfM t2
+        t'          -> return t'
 
-      IdJ tA a tC d x p ->
-        case whnf' p of
-          Refl{} -> whnf' d
-          p'     -> IdJ tA a tC d x p'
+      IdJ tA a tC d x p -> whnfM p >>= \case
+        Refl{} -> whnfM d
+        p'     -> return (IdJ tA a tC d x p')
 
-      t@Universe -> t
-      t@Lambda{} -> t
-      t@ExtensionType{} -> t
-      t@Pi{} -> t
-      t@Sigma{} -> t
-      t@Pair{} -> t
+      t@Universe -> return t
+      t@Lambda{} -> return t
+      t@ExtensionType{} -> return t
+      t@Pi{} -> return t
+      t@Sigma{} -> return t
+      t@Pair{} -> return t
 
-      t@IdType{} -> t
-      t@Refl{} -> t
+      t@IdType{} -> return t
+      t@Refl{} -> return t
 
-      t@Cube -> t
-      t@CubeUnit -> t
-      t@CubeUnitStar -> t
-      t@CubeProd{} -> t
+      t@Cube -> return t
+      t@CubeUnit -> return t
+      t@CubeUnitStar -> return t
+      t@CubeProd{} -> return t
 
-      t@Tope -> t
-      t@TopeTop -> t
-      t@TopeBottom -> t
+      t@Tope -> return t
+      t@TopeTop -> return t
+      t@TopeBottom -> return t
 
-      t@TopeOr{} -> t
-      t@TopeAnd{} -> t
-      t@TopeEQ{} -> t
+      t@TopeOr{} -> return t
+      t@TopeAnd{} -> return t
+      t@TopeEQ{} -> return t
 
-      t@RecBottom -> t
-      t@RecOr{} -> t
+      t@RecBottom -> return t
+      t@RecOr{} -> return t
 
-      t@Cube2 -> t
-      t@Cube2_0 -> t
-      t@Cube2_1 -> t
-      t@TopeLEQ{} -> t
+      t@Cube2 -> return t
+      t@Cube2_0 -> return t
+      t@Cube2_1 -> return t
+      t@TopeLEQ{} -> return t
 
 nf :: Term ann var a -> Term ann var a
-nf = nfWith emptyEvalContext
+nf = runIdentity . nfM
 
 whnf :: Term ann var a -> Term ann var a
-whnf = whnfWith emptyEvalContext
+whnf = runIdentity . whnfM
+
+nfWith :: (Eq a, Hashable a) => [(a, Term ann var a)] -> Term ann var a -> Term ann var a
+nfWith definitions = runIdentity . flip runReaderT defs . runHashMapLookupT . nfM
+  where
+    defs = HashMap.fromList definitions
+
+whnfWith :: (Eq a, Hashable a) => [(a, Term ann var a)] -> Term ann var a -> Term ann var a
+whnfWith definitions = runIdentity . flip runReaderT defs . runHashMapLookupT . whnfM
+  where
+    defs = HashMap.fromList definitions
+
+nfWith' :: (Eq a, Hashable a) => [(a, Term ann var a)] -> Term ann var a -> Term ann var a
+nfWith' definitions = runIdentity . flip evalStateT defs . runWhnfHashMapLookupT . nfM
+  where
+    defs = Unevaluated <$> HashMap.fromList definitions
+
+whnfWith' :: (Eq a, Hashable a) => [(a, Term ann var a)] -> Term ann var a -> Term ann var a
+whnfWith' definitions = runIdentity . flip evalStateT defs . runWhnfHashMapLookupT . whnfM
+  where
+    defs = Unevaluated <$> HashMap.fromList definitions
