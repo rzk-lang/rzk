@@ -4,7 +4,7 @@ github:              "fizruk/rzk"
 license:             BSD3
 author:              "Nikolai Kudasov"
 maintainer:          "nickolay.kudasov@gmail.com"
-copyright:           "2020 Nikolai Kudasov"
+copyright:           "2020-2021 Nikolai Kudasov"
 
 extra-source-files:
 - README.md
@@ -34,6 +34,7 @@ dependencies:
 - prettyprinter
 - prettyprinter-ansi-terminal
 - ansi-terminal
+- hashable
 
 library:
   source-dirs: src
