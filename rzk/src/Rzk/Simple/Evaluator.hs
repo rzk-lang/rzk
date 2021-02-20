@@ -81,41 +81,40 @@ whnf = \case
       Pair _t1 t2 -> nf t2
       t'          -> t'
 
-  e@Variable{} -> e
-  e@Universe -> e
+  IdJ tA a tC d x p ->
+    case whnf p of
+      Refl{} -> whnf d
+      p'     -> IdJ tA a tC d x p'
 
-  ExtensionType tC psi tA phi a ->
-    ExtensionType (nf tC) (nfScoped psi) (nfScoped tA) (nfScoped phi) (nfScoped a)
-  Pi t'       -> Pi (nf t')
-  e@Lambda{} -> e
+  t@Variable{} -> t
+  t@Universe -> t
+  t@Lambda{} -> t
+  t@ExtensionType{} -> t
+  t@Pi{} -> t
+  t@Sigma{} -> t
+  t@Pair{} -> t
 
-  Sigma t'    -> Sigma (nf t')
-  Pair t1 t2  -> Pair (nf t1) (nf t2)
+  t@IdType{} -> t
+  t@Refl{} -> t
 
-  IdType a x y -> IdType (nf a) (nf x) (nf y)
-  Refl a x -> Refl (fmap nf a) (nf x)
-  IdJ tA a tC d x p -> IdJ (nf tA) (nf a) (nf tC) (nf d) (nf x) (nf p)
+  t@Cube -> t
+  t@CubeUnit -> t
+  t@CubeUnitStar -> t
+  t@CubeProd{} -> t
 
-  Cube -> Cube
-  CubeUnit -> CubeUnit
-  CubeUnitStar -> CubeUnitStar
+  t@Tope -> t
+  t@TopeTop -> t
+  t@TopeBottom -> t
 
-  CubeProd t1 t2 -> CubeProd (nf t1) (nf t2)
+  t@TopeOr{} -> t
+  t@TopeAnd{} -> t
+  t@TopeEQ{} -> t
 
-  Tope -> Tope
-  TopeTop -> TopeTop
-  TopeBottom -> TopeBottom
-  TopeOr t1 t2 -> TopeOr (nf t1) (nf t2)
-  TopeAnd t1 t2 -> TopeAnd (nf t1) (nf t2)
-  TopeEQ t1 t2 -> TopeEQ (nf t1) (nf t2)
+  t@RecBottom -> t
+  t@RecOr{} -> t
 
-  RecBottom -> RecBottom
-  RecOr psi phi t1 t2 -> RecOr (nf psi) (nf phi) (nf t1) (nf t2)
-
-
-  Cube2 -> Cube2
-  Cube2_0 -> Cube2_0
-  Cube2_1 -> Cube2_1
-
-  TopeLEQ t1 t2 -> TopeLEQ (nf t1) (nf t2)
+  t@Cube2 -> t
+  t@Cube2_0 -> t
+  t@Cube2_1 -> t
+  t@TopeLEQ{} -> t
 
