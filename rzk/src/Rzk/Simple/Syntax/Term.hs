@@ -12,44 +12,45 @@ import           Data.Functor.Classes
 
 type Scope1 var = Scope (Name var ())
 
-type Scope1Term var a = Scope1 var (Term var) a
+type Scope1Term ann var a = Scope1 var (Term ann var) a
 
 -- | This is a (probably unevaluated) term out of context.
-data Term var a
-  = Variable a
+data Term ann var a
+  = Annotated ann (Term ann var a)
+  | Variable a
   -- ^ Term variable \(x_i\) or type variable \(A_i\) or cube variable \(t_i\) or tope variable \(\phi_i\).
 
   | Universe
   -- ^ Universe type \(\mathcal{U}\).
   -- Saying \(A \mathbf{type}\) is equivalent to saying \(A : \mathcal{U}\).
 
-  | Pi (Term var a)
+  | Pi (Term ann var a)
   -- ^ Dependent product type former \(\prod_{x : A} B(x)\).
   -- The term argument represents type family \(B : A \to \mathcal{U}\).
-  | Lambda (Maybe (Term var a)) (Maybe (Scope1Term var a)) (Scope1Term var a)
+  | Lambda (Maybe (Term ann var a)) (Maybe (Scope1Term ann var a)) (Scope1Term ann var a)
   -- ^ \(\lambda\)-abstraction ("lambda abstraction").
   -- @Lambda x a Nothing m@ represents a term of the form \(\lambda (x : A). M\)
   -- while @Lambda t i (Just phi) m@ represents \(\lambda \{t : I | \phi\}. M\)
-  | App (Term var a) (Term var a)
+  | App (Term ann var a) (Term ann var a)
   -- ^ Application of one term to another \((M N)\).
 
-  | Sigma (Term var a)
+  | Sigma (Term ann var a)
   -- ^ Dependent sum type former \(\sum_{x : A} B(x)\).
   -- The term argument represents type family \(B : A \to \mathcal{U}\).
-  | Pair (Term var a) (Term var a)
+  | Pair (Term ann var a) (Term ann var a)
   -- ^ A (dependent) pair of terms.
   -- @Pair x y@ represents a term of the form \((x, y)\).
-  | First (Term var a)
+  | First (Term ann var a)
   -- ^ Project the first element of a pair: \(\pi_1 p\).
-  | Second (Term var a)
+  | Second (Term ann var a)
   -- ^ Project the second element of a pair: \(\pi_2 p\).
 
-  | IdType (Term var a) (Term var a) (Term var a)
+  | IdType (Term ann var a) (Term ann var a) (Term ann var a)
   -- ^ Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
-  | Refl (Maybe (Term var a)) (Term var a)
+  | Refl (Maybe (Term ann var a)) (Term ann var a)
   -- ^ Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
   -- @Refl a x@ corresponds to \(x =_a x\).
-  | IdJ (Term var a) (Term var a) (Term var a) (Term var a) (Term var a) (Term var a)
+  | IdJ (Term ann var a) (Term ann var a) (Term ann var a) (Term ann var a) (Term ann var a) (Term ann var a)
   -- ^ Path induction (for identity types).
   -- For any type \(A\) and \(a : A\), type family
   -- \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\)
@@ -66,7 +67,7 @@ data Term var a
   | CubeUnitStar
   -- ^ The only point in the unit cube: \(\star : \mathbf{1}\).
 
-  | CubeProd (Term var a) (Term var a)
+  | CubeProd (Term ann var a) (Term ann var a)
   -- ^ Product of cubes: \(I \times J\).
 
   | Tope
@@ -75,21 +76,21 @@ data Term var a
   -- ^ Top tope (no constraints on cube): \(\top\;\mathsf{tope}\)
   | TopeBottom
   -- ^ Bottom tope (cube contrained to empty space): \(\bot\;\mathsf{tope}\)
-  | TopeOr (Term var a) (Term var a)
+  | TopeOr (Term ann var a) (Term ann var a)
   -- ^ Tope disjuction (union of shapes): \(\psi \lor \phi\;\mathsf{tope}\)
-  | TopeAnd (Term var a) (Term var a)
+  | TopeAnd (Term ann var a) (Term ann var a)
   -- ^ Tope conjunction (intersection of shapes): \(\psi \land \phi\;\mathsf{tope}\)
-  | TopeEQ (Term var a) (Term var a)
+  | TopeEQ (Term ann var a) (Term ann var a)
   -- ^ Equality tope (diagonals): \(t \equiv s \;\mathsf{tope}\).
   -- Note that it can involve projections as well, e.g. \(\pi_1 t \equiv \pi_2 t\).
 
   | RecBottom
   -- ^ Bottom tope eliminator: \(\mathsf{rec}_\bot : A\).
-  | RecOr (Term var a) (Term var a) (Term var a) (Term var a)
+  | RecOr (Term ann var a) (Term ann var a) (Term ann var a) (Term ann var a)
   -- ^ Tope disjunction eliminator: \(\mathsf{rec}^{\psi,\phi}_\lor(a_\psi, a_\phi)\).
 
   | ExtensionType
-      (Term var a) (Scope1Term var a) (Scope1Term var a) (Scope1Term var a) (Scope1Term var a)
+      (Term ann var a) (Scope1Term ann var a) (Scope1Term ann var a) (Scope1Term ann var a) (Scope1Term ann var a)
   -- ^ Extension type \( \left\langle \prod_{t : I | psi} A(t) \rvert^{\phi}_{a(t)} \right\rangle \) corresponding to @ExtensionType t cI psi tA phi a@.
 
   | Cube2
@@ -99,19 +100,20 @@ data Term var a
   | Cube2_1
   -- ^ End of directed interval: \(1 : \mathbb{2}\).
 
-  | TopeLEQ (Term var a) (Term var a)
+  | TopeLEQ (Term ann var a) (Term ann var a)
   -- ^ Inequality tope: \(t \leq s\).
 
   deriving (Functor, Foldable)
 
-instance Applicative (Term var) where
+instance Applicative (Term ann var) where
   pure = Variable
   (<*>) = ap
 
-instance Monad (Term var) where
+instance Monad (Term ann var) where
   return = Variable
   t >>= f =
     case t of
+      Annotated ann t' -> Annotated ann (t' >>= f)
       Variable x  -> f x
       Universe    -> Universe
 
@@ -159,7 +161,7 @@ deriveOrd1  ''Term
 deriveRead1 ''Term
 deriveShow1 ''Term
 
-instance (Eq var, Eq a) => Eq (Term var a) where (==) = eq1
-instance (Ord var, Ord a) => Ord (Term var a) where compare = compare1
-instance (Show var, Show a) => Show (Term var a) where showsPrec = showsPrec1
-instance (Read var, Read a) => Read (Term var a) where readsPrec = readsPrec1
+instance (Eq ann, Eq var, Eq a) => Eq (Term ann var a) where (==) = eq1
+instance (Ord ann, Ord var, Ord a) => Ord (Term ann var a) where compare = compare1
+instance (Show ann, Show var, Show a) => Show (Term ann var a) where showsPrec = showsPrec1
+instance (Read ann, Read var, Read a) => Read (Term ann var a) where readsPrec = readsPrec1
