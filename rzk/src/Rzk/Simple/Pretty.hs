@@ -12,7 +12,7 @@ import           Data.Text.Prettyprint.Doc.Render.Terminal
 import           Rzk.Simple.Syntax.Term
 import           Rzk.Simple.Syntax.Var
 
-instance {-# OVERLAPPING #-} Show (Term Var Var) where
+instance {-# OVERLAPPING #-} Show (Term ann Var Var) where
   show = Text.unpack . renderLazy . layoutPretty defaultLayoutOptions . ppTermANSIviaShow
 
 data TypeOfTerm
@@ -62,17 +62,17 @@ highlightUsingAnsiStyle = \case
 
   Reserved -> color Cyan
 
-ppTermANSI :: Show a => [Doc TypeOfTerm] -> Term var a -> Doc AnsiStyle
+ppTermANSI :: Show a => [Doc TypeOfTerm] -> Term ann var a -> Doc AnsiStyle
 ppTermANSI vars = reAnnotate highlightUsingAnsiStyle . ppTerm vars . fmap viaShow
 
-ppTermLeft :: [Doc TypeOfTerm] -> Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTermLeft :: [Doc TypeOfTerm] -> Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppTermLeft vars = \case
   t@Lambda{}  -> parens (ppTerm vars t)
   t@Pi{}      -> parens (ppTerm vars t)
   t@Sigma{}   -> parens (ppTerm vars t)
   t           -> ppTerm vars t
 
-ppTermParens :: [Doc TypeOfTerm] -> Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTermParens :: [Doc TypeOfTerm] -> Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppTermParens vars = \case
   t@Lambda{}        -> ppTerm vars t
   t@Pi{}            -> ppTerm vars t
@@ -119,7 +119,7 @@ ppTopeElim = annotate TopeEliminator
 ppCubeElim :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppCubeElim = annotate CubeEliminator
 
-ppScoped :: [Doc TypeOfTerm] -> Scope1Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppScoped :: [Doc TypeOfTerm] -> Scope1Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppScoped []       = error "Not enough fresh variables!"
 ppScoped (x:vars) = ppTerm vars . instantiate1 (Variable x)
 
@@ -135,12 +135,13 @@ ppTopeVar = annotate TopeVariable
 ppCubeVar :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppCubeVar = annotate CubeVariable
 
-ppElimWithArgs :: [Doc TypeOfTerm] -> Doc TypeOfTerm -> [Term var (Doc TypeOfTerm)] -> Doc TypeOfTerm
+ppElimWithArgs :: [Doc TypeOfTerm] -> Doc TypeOfTerm -> [Term ann var (Doc TypeOfTerm)] -> Doc TypeOfTerm
 ppElimWithArgs vars elim args
   = elim <> parens (hsep (punctuate comma (map (ppTerm vars) args)))
 
-ppTerm :: [Doc TypeOfTerm] -> Term var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTerm :: [Doc TypeOfTerm] -> Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppTerm vars = \case
+  Annotated _ann t -> ppTerm vars t   -- ignore annotations
   Variable x -> ppVar x
   App t1 t2 -> ppTermLeft vars t1 <+> ppTermParens vars t2
   First t -> ppTermElim "π₁" <+> ppTermParens vars t
@@ -196,11 +197,11 @@ ppTerm vars = \case
   where
     var:_ = vars
 
-ppTermANSIviaShow :: Show a => Term var a -> Doc AnsiStyle
+ppTermANSIviaShow :: Show a => Term ann var a -> Doc AnsiStyle
 ppTermANSIviaShow t = ppTermANSI vars t'
   where
     vars = (viaShow . Var) <$> zipWith appendIndexText [0..] (repeat "x")
     t' = viaShow <$> t
 
-pp :: Show a => Term var a -> IO ()
+pp :: Show a => Term ann var a -> IO ()
 pp t = putDoc (ppTermANSIviaShow t <> "\n")

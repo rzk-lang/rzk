@@ -1,15 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Rzk.Simple.Syntax.Var where
 
-import           Data.Char   (chr, ord)
-import           Data.Coerce (coerce)
-import           Data.String (IsString (..))
-import           Data.Text   (Text)
-import qualified Data.Text   as Text
+import           Data.Char     (chr, ord)
+import           Data.Coerce   (coerce)
+import           Data.Hashable (Hashable)
+import           Data.String   (IsString (..))
+import           Data.Text     (Text)
+import qualified Data.Text     as Text
 
 -- | Standard type of variables.
 newtype Var = Var { getVar :: Text }
-  deriving (Eq, IsString)
+  deriving (Eq, Ord, Hashable, IsString)
 
 instance Show Var where show = Text.unpack . getVar
 
