@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e760f59aaadc2bd161f827d734c81167c3e8e0790d0530ac586b799327784473
+-- hash: 377d77461ef09bbb3140b2714aef9a45be530905fd1e4b0dccbea665ac85bc38
 
 name:           rzk
 version:        0.1.0.0
@@ -31,6 +31,12 @@ library
       Rzk.Evaluator
       Rzk.Parser.Text
       Rzk.Pretty.Text
+      Rzk.Simple.Evaluator
+      Rzk.Simple.Parser
+      Rzk.Simple.Pretty
+      Rzk.Simple.Syntax.Term
+      Rzk.Simple.Syntax.Term.Example
+      Rzk.Simple.Syntax.Var
       Rzk.Syntax.Decl
       Rzk.Syntax.Module
       Rzk.Syntax.Term
@@ -43,10 +49,12 @@ library
   ghc-options: -Wall -fno-warn-type-defaults -O2
   build-depends:
       ansi-terminal
-    , attoparsec
     , base >=4.7 && <5
+    , bound
+    , deriving-compat
     , mtl
     , parsers
+    , prettyprinter
     , prettyprinter-ansi-terminal
     , text
     , trifecta
@@ -62,10 +70,12 @@ executable rzk
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ansi-terminal
-    , attoparsec
     , base >=4.7 && <5
+    , bound
+    , deriving-compat
     , mtl
     , parsers
+    , prettyprinter
     , prettyprinter-ansi-terminal
     , rzk
     , text
@@ -83,10 +93,12 @@ test-suite rzk-test
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ansi-terminal
-    , attoparsec
     , base >=4.7 && <5
+    , bound
+    , deriving-compat
     , mtl
     , parsers
+    , prettyprinter
     , prettyprinter-ansi-terminal
     , rzk
     , text

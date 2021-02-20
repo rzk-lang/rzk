@@ -24,12 +24,14 @@ ghc-options:
 
 dependencies:
 - base >= 4.7 && < 5
-- attoparsec
+- bound
+- deriving-compat
 - mtl
 - text
 - parsers
 - trifecta
 - unordered-containers
+- prettyprinter
 - prettyprinter-ansi-terminal
 - ansi-terminal
 
