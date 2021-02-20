@@ -7,16 +7,18 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 module Rzk.Simple.Evaluator where
 
-import           Bound
-import           Control.Applicative    (liftA2)
+import           Bound.Scope
+import           Control.Monad.Except
 import           Control.Monad.Identity
 import           Control.Monad.Reader   (ReaderT, asks, runReaderT)
 import           Control.Monad.State
-import           Control.Monad.Trans    (lift)
 import           Data.Hashable          (Hashable)
 import           Data.HashMap.Strict    (HashMap)
 import qualified Data.HashMap.Strict    as HashMap
 import           Rzk.Simple.Syntax.Term
+import           Rzk.Simple.Syntax.Var
+
+import           Text.Trifecta          (Span, Spanned (..))
 
 class Monad m => MonadLookup k v m where
   lookupM :: k -> m (Maybe v)
@@ -57,6 +59,18 @@ instance (Eq a, Hashable a, Monad m) => MonadLookup a (Term ann var a) (WhnfHash
         return (Just t')
       Just (Evaluated t) -> return (Just t)
       Just Evaluating -> error "unable to evaluate self-referencing value"
+
+data UndefinedError k = UndefinedError k
+  deriving (Show)
+
+newtype EnsureDefinedT k m a = EnsureDefinedT { runEnsureDefinedT :: ExceptT (UndefinedError k) m a }
+  deriving (Functor, Applicative, Monad)
+
+instance (MonadLookup k v m) => MonadLookup k v (EnsureDefinedT k m) where
+  lookupM x = EnsureDefinedT $ do
+    lift (lookupM x) >>= \case
+      Nothing -> throwError (UndefinedError x)
+      Just t -> return (Just t)
 
 nfM
   :: MonadLookup a (Term ann var a) m
@@ -137,58 +151,56 @@ nfM = nf'
 whnfM
   :: MonadLookup a (Term ann var a) m
   => Term ann var a -> m (Term ann var a)
-whnfM = whnfM
-  where
-    whnfM = \case
-      t@(Variable x) -> lookupM x >>= \case
-        Nothing -> return t
-        Just t' -> whnfM t'
-      Annotated ann t -> Annotated ann <$> whnfM t
-      App t1 t2   -> whnfM t1 >>= \case
-        Lambda _a _phi body -> whnfM (instantiate1 t2 body)
-        t1'                 -> return (App t1' t2)
+whnfM = \case
+  t@(Variable x) -> lookupM x >>= \case
+    Nothing -> return t
+    Just t' -> whnfM t'
+  Annotated ann t -> Annotated ann <$> whnfM t
+  App t1 t2   -> whnfM t1 >>= \case
+    Lambda _a _phi body -> whnfM (instantiate1 t2 body)
+    t1'                 -> return (App t1' t2)
 
-      First t -> whnfM t >>= \case
-        Pair t1 _t2 -> whnfM t1
-        t'          -> return t'
-      Second t -> whnfM t >>= \case
-        Pair _t1 t2 -> whnfM t2
-        t'          -> return t'
+  First t -> whnfM t >>= \case
+    Pair t1 _t2 -> whnfM t1
+    t'          -> return t'
+  Second t -> whnfM t >>= \case
+    Pair _t1 t2 -> whnfM t2
+    t'          -> return t'
 
-      IdJ tA a tC d x p -> whnfM p >>= \case
-        Refl{} -> whnfM d
-        p'     -> return (IdJ tA a tC d x p')
+  IdJ tA a tC d x p -> whnfM p >>= \case
+    Refl{} -> whnfM d
+    p'     -> return (IdJ tA a tC d x p')
 
-      t@Universe -> return t
-      t@Lambda{} -> return t
-      t@ExtensionType{} -> return t
-      t@Pi{} -> return t
-      t@Sigma{} -> return t
-      t@Pair{} -> return t
+  t@Universe -> return t
+  t@Lambda{} -> return t
+  t@ExtensionType{} -> return t
+  t@Pi{} -> return t
+  t@Sigma{} -> return t
+  t@Pair{} -> return t
 
-      t@IdType{} -> return t
-      t@Refl{} -> return t
+  t@IdType{} -> return t
+  t@Refl{} -> return t
 
-      t@Cube -> return t
-      t@CubeUnit -> return t
-      t@CubeUnitStar -> return t
-      t@CubeProd{} -> return t
+  t@Cube -> return t
+  t@CubeUnit -> return t
+  t@CubeUnitStar -> return t
+  t@CubeProd{} -> return t
 
-      t@Tope -> return t
-      t@TopeTop -> return t
-      t@TopeBottom -> return t
+  t@Tope -> return t
+  t@TopeTop -> return t
+  t@TopeBottom -> return t
 
-      t@TopeOr{} -> return t
-      t@TopeAnd{} -> return t
-      t@TopeEQ{} -> return t
+  t@TopeOr{} -> return t
+  t@TopeAnd{} -> return t
+  t@TopeEQ{} -> return t
 
-      t@RecBottom -> return t
-      t@RecOr{} -> return t
+  t@RecBottom -> return t
+  t@RecOr{} -> return t
 
-      t@Cube2 -> return t
-      t@Cube2_0 -> return t
-      t@Cube2_1 -> return t
-      t@TopeLEQ{} -> return t
+  t@Cube2 -> return t
+  t@Cube2_0 -> return t
+  t@Cube2_1 -> return t
+  t@TopeLEQ{} -> return t
 
 nf :: Term ann var a -> Term ann var a
 nf = runIdentity . nfM
@@ -211,7 +223,7 @@ nfWith' definitions = runIdentity . flip evalStateT defs . runWhnfHashMapLookupT
   where
     defs = Unevaluated <$> HashMap.fromList definitions
 
-whnfWith' :: (Eq a, Hashable a) => [(a, Term ann var a)] -> Term ann var a -> Term ann var a
-whnfWith' definitions = runIdentity . flip evalStateT defs . runWhnfHashMapLookupT . whnfM
+whnfWith' :: (Eq a, Hashable a) => [(a, Term ann var a)] -> Term ann var a -> Either (UndefinedError a) (Term ann var a)
+whnfWith' definitions = runIdentity . flip evalStateT defs . runWhnfHashMapLookupT . runExceptT . runEnsureDefinedT . whnfM
   where
     defs = Unevaluated <$> HashMap.fromList definitions
