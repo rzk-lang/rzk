@@ -3,14 +3,26 @@ module Rzk.Simple.Syntax.Var where
 
 import           Data.Char     (chr, ord)
 import           Data.Coerce   (coerce)
-import           Data.Hashable (Hashable)
+import           Data.Function (on)
+import           Data.Hashable (Hashable (..))
 import           Data.String   (IsString (..))
 import           Data.Text     (Text)
 import qualified Data.Text     as Text
+import           Text.Trifecta (Spanned (..))
 
 -- | Standard type of variables.
 newtype Var = Var { getVar :: Text }
   deriving (Eq, Ord, Hashable, IsString)
+
+newtype SpannedVar = SpannedVar { getSpannedVar :: Spanned Var }
+  deriving (Show)
+
+unSpanVar :: SpannedVar -> Var
+unSpanVar (SpannedVar (var :~ _span)) = var
+
+instance Eq SpannedVar where (==) = (==) `on` unSpanVar
+instance Ord SpannedVar where compare = compare `on` unSpanVar
+instance Hashable SpannedVar where hashWithSalt salt = hashWithSalt salt . unSpanVar
 
 instance Show Var where show = Text.unpack . getVar
 
