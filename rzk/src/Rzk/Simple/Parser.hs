@@ -29,86 +29,97 @@ type RzkParser = Parser
 
 -- ** Term
 
-parseSpanned :: RzkParser (Term Span Var Var) -> RzkParser (Term Span Var Var)
-parseSpanned parser = annotateWithSpan <$> spanned parser
+parseAnnotated :: RzkParser (Term Span SpannedVar SpannedVar) -> RzkParser (AnnotatedTerm Span SpannedVar SpannedVar)
+parseAnnotated parser = annotateWithSpan <$> spanned parser
   where
-    annotateWithSpan (t :~ span') = Annotated span' t
+    annotateWithSpan (t :~ span) = AnnotatedTerm [span] t
 
-rzkVar :: RzkParser Var
-rzkVar = Var <$> rzkIdent
+parseAnnotatedOp
+  :: RzkParser (AnnotatedTerm Span SpannedVar SpannedVar -> AnnotatedTerm Span SpannedVar SpannedVar -> Term Span SpannedVar SpannedVar)
+  -> RzkParser (AnnotatedTerm Span SpannedVar SpannedVar -> AnnotatedTerm Span SpannedVar SpannedVar -> AnnotatedTerm Span SpannedVar SpannedVar)
+parseAnnotatedOp parser = annotateWithSpan <$> spanned parser
+  where
+    annotateWithSpan (f :~ span) x y = AnnotatedTerm [span] (f x y)
 
-rzkTerm :: RzkParser (Term Span Var Var)
+rzkVar :: RzkParser SpannedVar
+rzkVar = SpannedVar <$> spanned (Var <$> rzkIdent)
+
+rzkTerm :: RzkParser (AnnotatedTerm Span SpannedVar SpannedVar)
 rzkTerm = "term" <??>
   buildExpressionParser rzkOperatorTable rzkTerm'
 
-rzkTerm' :: RzkParser (Term Span Var Var)
+rzkTerm' :: RzkParser (AnnotatedTerm Span SpannedVar SpannedVar)
 rzkTerm' = "simple term" <??>
-      try rzkTermPiType
-  <|> rzkTermPiShape
-  <|> try rzkTermPair
+      parseAnnotated (
+            try rzkTermPiType
+        <|> rzkTermPiShape
+        <|> try rzkTermPair
+      )
   <|> parens rzkTerm
-  <|> try rzkTermLambda
-  <|> try rzkTermLambdaShape
-  <|> rzkTermSigmaType
-  <|> rzkTermRefl
-  <|> rzkTermIdJ
-  <|> rzkTermRecOr
-  <|> rzkTermFirst
-  <|> rzkTermSecond
-  <|> rzkTermExtensionType
-  <|> rzkTermExtensionTypeFromCube
-  -- constants
-  <|> Universe <$ (symbol "U" <|> symbol "𝒰")
-  <|> Cube <$ symbol "CUBE"
-  <|> CubeUnitStar <$ (symbol "*_1" <|> symbol "⋆")
-  <|> Cube2 <$ (symbol "2" <|> symbol "𝟚")
-  <|> Cube2_0 <$ symbol "0_2"
-  <|> Cube2_1 <$ symbol "1_2"
-  <|> CubeUnit <$ (symbol "1" <|> symbol "𝟙")
-  <|> Tope <$ symbol "TOPE"
-  <|> TopeTop <$ (symbol "TOP" <|> symbol "⊤")
-  <|> TopeBottom <$ (symbol "BOT" <|> symbol "⊥")
-  <|> RecBottom <$ (symbol "recBOT" <|> symbol "rec⊥")
-  <|> rzkTermVar
+  <|> parseAnnotated (
+            try rzkTermLambda
+        <|> try rzkTermLambdaShape
+        <|> rzkTermSigmaType
+        <|> rzkTermRefl
+        <|> rzkTermIdJ
+        <|> rzkTermRecOr
+        <|> rzkTermFirst
+        <|> rzkTermSecond
+        <|> rzkTermExtensionType
+        <|> rzkTermExtensionTypeFromCube
+        -- constants
+        <|> Universe <$ (symbol "U" <|> symbol "𝒰")
+        <|> Cube <$ symbol "CUBE"
+        <|> CubeUnitStar <$ (symbol "*_1" <|> symbol "⋆")
+        <|> Cube2 <$ (symbol "2" <|> symbol "𝟚")
+        <|> Cube2_0 <$ symbol "0_2"
+        <|> Cube2_1 <$ symbol "1_2"
+        <|> CubeUnit <$ (symbol "1" <|> symbol "𝟙")
+        <|> Tope <$ symbol "TOPE"
+        <|> TopeTop <$ (symbol "TOP" <|> symbol "⊤")
+        <|> TopeBottom <$ (symbol "BOT" <|> symbol "⊥")
+        <|> RecBottom <$ (symbol "recBOT" <|> symbol "rec⊥")
+        <|> rzkTermVar
+     )
 
-rzkTermVar :: RzkParser (Term Span Var Var)
+rzkTermVar :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermVar = "variable" <??>
-  (Variable <$> (Var <$> rzkIdent))
+  (Variable <$> rzkVar)
 
-rzkTermColonType :: RzkParser (Term Span Var Var, Term Span Var Var)
+rzkTermColonType :: RzkParser (AnnotatedTerm Span SpannedVar SpannedVar, AnnotatedTerm Span SpannedVar SpannedVar)
 rzkTermColonType = do
   term <- rzkTerm
   colon
   type_ <- rzkTerm
   return (term, type_)
 
-rzkTermColonType' :: RzkParser (Term Span Var Var, Maybe (Term Span Var Var))
+rzkTermColonType' :: RzkParser (AnnotatedTerm Span SpannedVar SpannedVar, Maybe (AnnotatedTerm Span SpannedVar SpannedVar))
 rzkTermColonType' = try withType <|> withoutType
   where
     withType = fmap Just <$> rzkTermColonType
     withoutType = (\t -> (t, Nothing)) <$> rzkTerm
 
-rzkVarColonType' :: RzkParser (Var, Maybe (Term Span Var Var))
+rzkVarColonType' :: RzkParser (SpannedVar, Maybe (AnnotatedTerm Span SpannedVar SpannedVar))
 rzkVarColonType' = try withType <|> withoutType
   where
     withType = fmap Just <$> parens rzkVarColonType
-    withoutType = (\x -> (Var x, Nothing)) <$> rzkIdent
+    withoutType = (\x -> (x, Nothing)) <$> rzkVar
 
-rzkVarColonType :: RzkParser (Var, Term Span Var Var)
+rzkVarColonType :: RzkParser (SpannedVar, AnnotatedTerm Span SpannedVar SpannedVar)
 rzkVarColonType = do
-  x <- Var <$> rzkIdent
+  x <- rzkVar
   colon
   type_ <- rzkTerm
   return (x, type_)
 
-rzkTermPiType :: RzkParser (Term Span Var Var)
+rzkTermPiType :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermPiType = "dependent function type" <??> do
   (var, a) <- parens rzkVarColonType
   symbol "->" <|> symbol "→"
   t <- rzkTerm
-  return (Pi (Lambda (Just a) Nothing (abstract1Name var t)))
+  return (Pi (unannotated (Lambda (Just a) Nothing (abstract1Name var t))))
 
-rzkTermPiShape :: RzkParser (Term Span Var Var)
+rzkTermPiShape :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermPiShape = "dependent function type (from a shape)" <??> do
   symbol "{"
   (var, i) <- rzkVarColonType'
@@ -117,9 +128,9 @@ rzkTermPiShape = "dependent function type (from a shape)" <??> do
   symbol "}"
   symbol "->" <|> symbol "→"
   a <- rzkTerm
-  return (Pi (Lambda i (Just (abstract1Name var phi)) (abstract1Name var a)))
+  return (Pi (unannotated (Lambda i (Just (abstract1Name var phi)) (abstract1Name var a))))
 
-rzkTermLambda :: RzkParser (Term Span Var Var)
+rzkTermLambda :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   symbol "λ" <|> symbol "\\"
   (x, a) <- rzkVarColonType'
@@ -127,7 +138,7 @@ rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   t <- rzkTerm
   return (Lambda a Nothing (abstract1Name x t))
 
-rzkTermLambdaShape :: RzkParser (Term Span Var Var)
+rzkTermLambdaShape :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermLambdaShape = "lambda abstraction (anonymous function from a shape)" <??> do
   symbol "λ" <|> symbol "\\"
   symbol "{"
@@ -139,22 +150,22 @@ rzkTermLambdaShape = "lambda abstraction (anonymous function from a shape)" <??>
   a <- rzkTerm
   return (Lambda (Just i) (Just (abstract1Name t phi)) (abstract1Name t a))
 
-rzkTermSigmaType :: RzkParser (Term Span Var Var)
+rzkTermSigmaType :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermSigmaType = "dependent sum type" <??> do
   symbol "∑" <|> symbol "Sigma"
   (x, a) <- parens rzkVarColonType
   symbol ","
   t <- rzkTerm
-  return (Sigma (Lambda (Just a) Nothing (abstract1Name x t)))
+  return (Sigma (unannotated (Lambda (Just a) Nothing (abstract1Name x t))))
 
-rzkTermRefl :: RzkParser (Term Span Var Var)
+rzkTermRefl :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermRefl = do
   symbol "refl_{"
   (x, a) <- rzkTermColonType'
   symbol "}"
   return (Refl a x)
 
-rzkTermIdJ :: RzkParser (Term Span Var Var)
+rzkTermIdJ :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermIdJ = do
   symbol "idJ"
   symbol "("
@@ -167,7 +178,7 @@ rzkTermIdJ = do
   symbol ")"
   return (IdJ tA a tC d x p)
 
-rzkTermRecOr :: RzkParser (Term Span Var Var)
+rzkTermRecOr :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermRecOr = do
   symbol "recOR" <|> symbol "rec∨"
   symbol "("
@@ -178,17 +189,17 @@ rzkTermRecOr = do
   symbol ")"
   return (RecOr psi phi a b)
 
-rzkTermFirst :: RzkParser (Term Span Var Var)
+rzkTermFirst :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermFirst = do
   (symbol "first" <|> symbol "π₁") <?> "π₁"
   First <$> rzkTerm
 
-rzkTermSecond :: RzkParser (Term Span Var Var)
+rzkTermSecond :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermSecond = do
   (symbol "second" <|> symbol "π₂") <?> "π₂"
   Second <$> rzkTerm
 
-rzkTermExtensionTypeFromCube :: RzkParser (Term Span Var Var)
+rzkTermExtensionTypeFromCube :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermExtensionTypeFromCube = between (symbol "<(") (symbol ">") $ do
   t <- rzkVar
   symbol ":"
@@ -205,11 +216,11 @@ rzkTermExtensionTypeFromCube = between (symbol "<(") (symbol ">") $ do
     return (phi, a)
   let (phi, a) = case mphi_a of
                    Just x  -> x
-                   Nothing -> (TopeBottom, RecBottom)
-  return (ExtensionType cI (abstract1Name t TopeTop) (abstract1Name t tA) (abstract1Name t phi) (abstract1Name t a))
+                   Nothing -> (unannotated TopeBottom, unannotated RecBottom)
+  return (ExtensionType cI (abstract1Name t (unannotated TopeTop)) (abstract1Name t tA) (abstract1Name t phi) (abstract1Name t a))
 
 
-rzkTermExtensionType :: RzkParser (Term Span Var Var)
+rzkTermExtensionType :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermExtensionType = between (symbol "<{") (symbol ">") $ do
   t <- rzkVar
   symbol ":"
@@ -228,25 +239,25 @@ rzkTermExtensionType = between (symbol "<{") (symbol ">") $ do
     return (phi, a)
   let (phi, a) = case mphi_a of
                    Just x  -> x
-                   Nothing -> (TopeBottom, RecBottom)
+                   Nothing -> (unannotated TopeBottom, unannotated RecBottom)
   return (ExtensionType cI (abstract1Name t psi) (abstract1Name t tA) (abstract1Name t phi) (abstract1Name t a))
 
--- firstP :: Parser (Term Span Var Var)
+-- firstP :: Parser (Term Span SpannedVar SpannedVar)
 -- firstP = do
 --   "first" <|> "π₁"
 --   skipSpace
 --   First <$> termParens True
 --
--- secondP :: Parser (Term Span Var Var)
+-- secondP :: Parser (Term Span SpannedVar SpannedVar)
 -- secondP = do
 --   "second" <|> "π₂"
 --   skipSpace
 --   Second <$> termParens True
 
-rzkTermPair :: RzkParser (Term Span Var Var)
+rzkTermPair :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermPair = parens (Pair <$> rzkTerm <* comma <*> rzkTerm)
 
-rzkTermApp :: RzkParser (Term Span Var Var)
+rzkTermApp :: RzkParser (Term Span SpannedVar SpannedVar)
 rzkTermApp = do
   t1 <- rzkTerm
   t2 <- rzkTerm
@@ -255,15 +266,15 @@ rzkTermApp = do
 rzkOperator :: RzkParser a -> RzkParser a
 rzkOperator op = op -- <* skipMany (satisfy isSpace)
 
-rzkOperatorTable :: OperatorTable RzkParser (Term Span Var Var)
+rzkOperatorTable :: OperatorTable RzkParser (AnnotatedTerm Span SpannedVar SpannedVar)
 rzkOperatorTable =
-  [ [ Infix (pure App) AssocLeft ]
-  , [ Infix (CubeProd <$ rzkOperator (symbol "*" <|> symbol "×")) AssocLeft ]
-  , [ Infix (TopeEQ   <$ rzkOperator (symbol "===" <|> symbol "≡")) AssocNone
-    , Infix (TopeLEQ  <$ rzkOperator (symbol "<="  <|> symbol "≤")) AssocNone ]
-  , [ Infix (TopeAnd  <$ rzkOperator (symbol "/\\" <|> symbol "∧")) AssocLeft ]
-  , [ Infix (TopeOr   <$ rzkOperator (symbol "\\/" <|> symbol "∨")) AssocLeft ]
-  , [ Infix (rzkOperator $ do
+  [ [ Infix (parseAnnotatedOp $ pure App) AssocLeft ]
+  , [ Infix (parseAnnotatedOp $ CubeProd <$ rzkOperator (symbol "*" <|> symbol "×")) AssocLeft ]
+  , [ Infix (parseAnnotatedOp $ TopeEQ   <$ rzkOperator (symbol "===" <|> symbol "≡")) AssocNone
+    , Infix (parseAnnotatedOp $ TopeLEQ  <$ rzkOperator (symbol "<="  <|> symbol "≤")) AssocNone ]
+  , [ Infix (parseAnnotatedOp $ TopeAnd  <$ rzkOperator (symbol "/\\" <|> symbol "∧")) AssocLeft ]
+  , [ Infix (parseAnnotatedOp $ TopeOr   <$ rzkOperator (symbol "\\/" <|> symbol "∨")) AssocLeft ]
+  , [ Infix (parseAnnotatedOp $ rzkOperator $ do
       { symbol "=_{" ;
         t <- rzkTerm ;
         symbol "}" ;
@@ -315,10 +326,13 @@ isDelim c = c `elem` ("()[]{}," :: String)
 
 -- * Orphan 'IsString' instances
 
-instance IsString (Term Span Var Var) where
+instance IsString (AnnotatedTerm Span SpannedVar SpannedVar) where
   fromString = unsafeParseTerm
 
-unsafeParseTerm :: String -> Term Span Var Var
+instance IsString SpannedVar where
+  fromString = unsafeParseString rzkVar
+
+unsafeParseTerm :: String -> AnnotatedTerm Span SpannedVar SpannedVar
 unsafeParseTerm = unsafeParseString rzkTerm
 
 unsafeParseString :: RzkParser a -> String -> a

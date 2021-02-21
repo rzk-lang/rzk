@@ -12,8 +12,11 @@ import           Data.Text.Prettyprint.Doc.Render.Terminal
 import           Rzk.Simple.Syntax.Term
 import           Rzk.Simple.Syntax.Var
 
-instance {-# OVERLAPPING #-} Show (Term ann Var Var) where
+instance {-# OVERLAPPING #-} Show (AnnotatedTerm ann var Var) where
   show = Text.unpack . renderLazy . layoutPretty defaultLayoutOptions . ppTermANSIviaShow
+
+instance {-# OVERLAPPING #-} Show (AnnotatedTerm ann var SpannedVar) where
+  show = Text.unpack . renderLazy . layoutPretty defaultLayoutOptions . ppTermANSIviaShow . fmap unSpanVar
 
 data TypeOfTerm
   = TermVariable
@@ -62,35 +65,35 @@ highlightUsingAnsiStyle = \case
 
   Reserved -> color Cyan
 
-ppTermANSI :: Show a => [Doc TypeOfTerm] -> Term ann var a -> Doc AnsiStyle
+ppTermANSI :: Show a => [Doc TypeOfTerm] -> AnnotatedTerm ann var a -> Doc AnsiStyle
 ppTermANSI vars = reAnnotate highlightUsingAnsiStyle . ppTerm vars . fmap viaShow
 
-ppTermLeft :: [Doc TypeOfTerm] -> Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
-ppTermLeft vars = \case
-  t@Lambda{}  -> parens (ppTerm vars t)
-  t@Pi{}      -> parens (ppTerm vars t)
-  t@Sigma{}   -> parens (ppTerm vars t)
-  t           -> ppTerm vars t
+ppTermLeft :: [Doc TypeOfTerm] -> AnnotatedTerm ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTermLeft vars t@(AnnotatedTerm _ann tt) = case tt of
+  Lambda{} -> parens (ppTerm vars t)
+  Pi{}     -> parens (ppTerm vars t)
+  Sigma{}  -> parens (ppTerm vars t)
+  _        -> ppTerm vars t
 
-ppTermParens :: [Doc TypeOfTerm] -> Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
-ppTermParens vars = \case
-  t@Lambda{}        -> ppTerm vars t
-  t@Pi{}            -> ppTerm vars t
-  t@Sigma{}         -> ppTerm vars t
-  t@Variable{}      -> ppTerm vars t
-  t@Universe        -> ppTerm vars t
-  t@Refl{}          -> ppTerm vars t
-  t@Cube{}          -> ppTerm vars t
-  t@CubeUnit{}      -> ppTerm vars t
-  t@CubeUnitStar{}  -> ppTerm vars t
-  t@Tope{}          -> ppTerm vars t
-  t@TopeTop{}       -> ppTerm vars t
-  t@TopeBottom{}    -> ppTerm vars t
-  t@RecBottom{}     -> ppTerm vars t
-  t@Cube2{}         -> ppTerm vars t
-  t@Cube2_0{}       -> ppTerm vars t
-  t@Cube2_1{}       -> ppTerm vars t
-  t                 -> parens (ppTerm vars t)
+ppTermParens :: [Doc TypeOfTerm] -> AnnotatedTerm ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTermParens vars t@(AnnotatedTerm _ann tt) = case tt of
+  Lambda{}       -> ppTerm vars t
+  Pi{}           -> ppTerm vars t
+  Sigma{}        -> ppTerm vars t
+  Variable{}     -> ppTerm vars t
+  Universe       -> ppTerm vars t
+  Refl{}         -> ppTerm vars t
+  Cube{}         -> ppTerm vars t
+  CubeUnit{}     -> ppTerm vars t
+  CubeUnitStar{} -> ppTerm vars t
+  Tope{}         -> ppTerm vars t
+  TopeTop{}      -> ppTerm vars t
+  TopeBottom{}   -> ppTerm vars t
+  RecBottom{}    -> ppTerm vars t
+  Cube2{}        -> ppTerm vars t
+  Cube2_0{}      -> ppTerm vars t
+  Cube2_1{}      -> ppTerm vars t
+  _              -> parens (ppTerm vars t)
 
 ppReserved :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppReserved = annotate Reserved
@@ -119,9 +122,9 @@ ppTopeElim = annotate TopeEliminator
 ppCubeElim :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppCubeElim = annotate CubeEliminator
 
-ppScoped :: [Doc TypeOfTerm] -> Scope1Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppScoped :: [Doc TypeOfTerm] -> Scope1AnnotatedTerm ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
 ppScoped []       = error "Not enough fresh variables!"
-ppScoped (x:vars) = ppTerm vars . instantiate1 (Variable x)
+ppScoped (x:vars) = ppTerm vars . instantiate1 (unannotated (Variable x))
 
 ppVar :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppVar = annotate TermVariable
@@ -135,21 +138,20 @@ ppTopeVar = annotate TopeVariable
 ppCubeVar :: Doc TypeOfTerm -> Doc TypeOfTerm
 ppCubeVar = annotate CubeVariable
 
-ppElimWithArgs :: [Doc TypeOfTerm] -> Doc TypeOfTerm -> [Term ann var (Doc TypeOfTerm)] -> Doc TypeOfTerm
+ppElimWithArgs :: [Doc TypeOfTerm] -> Doc TypeOfTerm -> [AnnotatedTerm ann var (Doc TypeOfTerm)] -> Doc TypeOfTerm
 ppElimWithArgs vars elim args
   = elim <> parens (hsep (punctuate comma (map (ppTerm vars) args)))
 
-ppTerm :: [Doc TypeOfTerm] -> Term ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
-ppTerm vars = \case
-  Annotated _ann t -> ppTerm vars t   -- ignore annotations
+ppTerm :: [Doc TypeOfTerm] -> AnnotatedTerm ann var (Doc TypeOfTerm) -> Doc TypeOfTerm
+ppTerm vars (AnnotatedTerm _ann tt) = case tt of
   Variable x -> ppVar x
   App t1 t2 -> ppTermLeft vars t1 <+> ppTermParens vars t2
   First t -> ppTermElim "π₁" <+> ppTermParens vars t
   Second t -> ppTermElim "π₂" <+> ppTermParens vars t
   Universe   -> ppTypeCon "𝒰 "
-  Pi (Lambda (Just a) Nothing m) ->
+  Pi (AnnotatedTerm _ann (Lambda (Just a) Nothing m)) ->
     parens (ppTypeVar var <+> ":" <+> ppTerm vars a) <+> "→ " <+> ppScoped vars m
-  Pi (Lambda (Just a) (Just phi) m) ->
+  Pi (AnnotatedTerm _ann (Lambda (Just a) (Just phi) m)) ->
     braces (ppTypeVar var <+> ":" <+> ppTerm vars a <+> "|" <+> ppScoped vars phi) <+> "→ " <+> ppScoped vars m
   Pi t -> "Pi " <> ppTermParens vars t
   Lambda (Just a) Nothing m
@@ -161,7 +163,7 @@ ppTerm vars = \case
   Lambda Nothing (Just phi) m
     -> ppReserved "λ" <> braces (ppVar var <+> "|" <+> ppScoped vars phi) <+> "→" <+> ppScoped vars m
 
-  Sigma (Lambda (Just a) Nothing m)
+  Sigma (AnnotatedTerm _ann (Lambda (Just a) Nothing m))
     -> ppReserved "∑" <+> parens (ppTypeVar var <+> ":" <+> ppTerm vars a) <> comma <+> ppScoped vars m
   Sigma t -> ppReserved "∑" <> ppTermParens vars t
   Pair t1 t2 -> parens (ppTerm vars t1 <> comma <+> ppTerm vars t2)
@@ -197,11 +199,11 @@ ppTerm vars = \case
   where
     var:_ = vars
 
-ppTermANSIviaShow :: Show a => Term ann var a -> Doc AnsiStyle
+ppTermANSIviaShow :: Show a => AnnotatedTerm ann var a -> Doc AnsiStyle
 ppTermANSIviaShow t = ppTermANSI vars t'
   where
     vars = (viaShow . Var) <$> zipWith appendIndexText [0..] (repeat "x")
     t' = viaShow <$> t
 
-pp :: Show a => Term ann var a -> IO ()
+pp :: Show a => AnnotatedTerm ann var a -> IO ()
 pp t = putDoc (ppTermANSIviaShow t <> "\n")

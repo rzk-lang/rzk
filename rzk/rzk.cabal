@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 19633eb32342102057b2c107aed4c10bb65d863dc5e13269ee3dd4e7f9928628
+-- hash: 2ae15fb94b314d3beeb9cfdc7449e6c7550bf4ce4406e88e3910951feac7f9b5
 
 name:           rzk
 version:        0.1.0.0
@@ -13,7 +13,7 @@ homepage:       https://github.com/fizruk/rzk#readme
 bug-reports:    https://github.com/fizruk/rzk/issues
 author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
-copyright:      2020 Nikolai Kudasov
+copyright:      2020-2021 Nikolai Kudasov
 license:        BSD3
 build-type:     Simple
 extra-source-files:
@@ -48,8 +48,7 @@ library
       src
   ghc-options: -Wall -fno-warn-type-defaults -O2
   build-depends:
-      MemoTrie
-    , ansi-terminal
+      ansi-terminal
     , base >=4.7 && <5
     , bound
     , deriving-compat
@@ -71,8 +70,7 @@ executable rzk
       app
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      MemoTrie
-    , ansi-terminal
+      ansi-terminal
     , base >=4.7 && <5
     , bound
     , deriving-compat
@@ -96,8 +94,7 @@ test-suite rzk-test
       test
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      MemoTrie
-    , ansi-terminal
+      ansi-terminal
     , base >=4.7 && <5
     , bound
     , deriving-compat
