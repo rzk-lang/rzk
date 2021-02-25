@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2ae15fb94b314d3beeb9cfdc7449e6c7550bf4ce4406e88e3910951feac7f9b5
+-- hash: 2c2185c92acedbd2a2f0c0f42a8dea0210179f8f285811228b6ad651b51df31c
 
 name:           rzk
 version:        0.1.0.0
@@ -29,6 +29,8 @@ library
       Rzk
       Rzk.Debug.Trace
       Rzk.Evaluator
+      Rzk.Free.Syntax.Term
+      Rzk.Free.Syntax.Term2
       Rzk.Parser.Text
       Rzk.Pretty.Text
       Rzk.Simple.Evaluator
@@ -50,14 +52,17 @@ library
   build-depends:
       ansi-terminal
     , base >=4.7 && <5
+    , bifunctors
     , bound
     , deriving-compat
+    , free
     , hashable
     , mtl
     , parsers
     , prettyprinter
     , prettyprinter-ansi-terminal
     , text
+    , transformers
     , trifecta
     , unordered-containers
   default-language: Haskell2010
@@ -72,8 +77,10 @@ executable rzk
   build-depends:
       ansi-terminal
     , base >=4.7 && <5
+    , bifunctors
     , bound
     , deriving-compat
+    , free
     , hashable
     , mtl
     , parsers
@@ -81,6 +88,7 @@ executable rzk
     , prettyprinter-ansi-terminal
     , rzk
     , text
+    , transformers
     , trifecta
     , unordered-containers
   default-language: Haskell2010
@@ -96,8 +104,10 @@ test-suite rzk-test
   build-depends:
       ansi-terminal
     , base >=4.7 && <5
+    , bifunctors
     , bound
     , deriving-compat
+    , free
     , hashable
     , mtl
     , parsers
@@ -105,6 +115,7 @@ test-suite rzk-test
     , prettyprinter-ansi-terminal
     , rzk
     , text
+    , transformers
     , trifecta
     , unordered-containers
   default-language: Haskell2010
