@@ -35,6 +35,9 @@ dependencies:
 - prettyprinter-ansi-terminal
 - ansi-terminal
 - hashable
+- free
+- bifunctors
+- transformers
 
 library:
   source-dirs: src
