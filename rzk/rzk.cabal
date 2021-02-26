@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2c2185c92acedbd2a2f0c0f42a8dea0210179f8f285811228b6ad651b51df31c
+-- hash: d84fb54751b113980b8e0a301d0b5024cd3c9b4793ef419f306d042df069139c
 
 name:           rzk
 version:        0.1.0.0
@@ -30,15 +30,8 @@ library
       Rzk.Debug.Trace
       Rzk.Evaluator
       Rzk.Free.Syntax.Term
-      Rzk.Free.Syntax.Term2
       Rzk.Parser.Text
       Rzk.Pretty.Text
-      Rzk.Simple.Evaluator
-      Rzk.Simple.Parser
-      Rzk.Simple.Pretty
-      Rzk.Simple.Syntax.Term
-      Rzk.Simple.Syntax.Term.Example
-      Rzk.Simple.Syntax.Var
       Rzk.Syntax.Decl
       Rzk.Syntax.Module
       Rzk.Syntax.Term
