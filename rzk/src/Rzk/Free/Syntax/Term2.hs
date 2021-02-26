@@ -126,6 +126,8 @@ data TermF bound scope term
   | AppF term term
   | UniverseF
   | PiF term scope
+  | UnitTypeF
+  | UnitF
   deriving (Show, Functor, Foldable, Traversable)
 
 deriveBifunctor ''TermF
@@ -213,7 +215,13 @@ pattern Universe = FreeScoped UniverseF
 pattern Pi :: Term b a -> Scope1Term b a -> Term b a
 pattern Pi a b = FreeScoped (PiF a b)
 
-{-# COMPLETE Variable, App, Lambda, Universe, Pi #-}
+pattern Unit :: Term b a
+pattern Unit = FreeScoped UnitF
+
+pattern UnitType :: Term b a
+pattern UnitType = FreeScoped UnitTypeF
+
+{-# COMPLETE Variable, App, Lambda, Universe, Pi, Unit, UnitType #-}
 
 -- *** Patterns for typed terms
 
@@ -224,18 +232,24 @@ pattern Typed :: TypedTerm b a -> TermF b (Scope1TypedTerm b a) (TypedTerm b a) 
 pattern Typed t term = FreeScoped (TypedTermF t term)
 
 pattern AppT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern AppT t t1 t2 = FreeScoped (TypedTermF t (AppF t1 t2))
+pattern AppT t t1 t2 = Typed t (AppF t1 t2)
 
 pattern LambdaT :: TypedTerm b a -> Scope1TypedTerm b a -> TypedTerm b a
-pattern LambdaT t body = FreeScoped (TypedTermF t (LambdaF body))
+pattern LambdaT t body = Typed t (LambdaF body)
 
 pattern UniverseT :: TypedTerm b a -> TypedTerm b a
-pattern UniverseT t = FreeScoped (TypedTermF t UniverseF)
+pattern UniverseT t = Typed t UniverseF
 
 pattern PiT :: TypedTerm b a -> TypedTerm b a -> Scope1TypedTerm b a -> TypedTerm b a
-pattern PiT t a b = FreeScoped (TypedTermF t (PiF a b))
+pattern PiT t a b = Typed t (PiF a b)
 
-{-# COMPLETE VariableT, AppT, LambdaT, UniverseT, PiT #-}
+pattern UnitT :: TypedTerm b a -> TypedTerm b a
+pattern UnitT t = Typed t UnitF
+
+pattern UnitTypeT :: TypedTerm b a -> TypedTerm b a
+pattern UnitTypeT t = Typed t UnitTypeF
+
+{-# COMPLETE VariableT, AppT, LambdaT, UniverseT, PiT, UnitT, UnitTypeT #-}
 {-# COMPLETE VariableT, Typed #-}
 
 -- ** With annotations
@@ -277,6 +291,8 @@ whnf = \case
   t@Lambda{} -> t
   t@Universe{} -> t
   t@Pi{} -> t
+  t@Unit{} -> t
+  t@UnitType{} -> t
 
 nf :: Term b a -> Term b a
 nf = \case
@@ -288,32 +304,58 @@ nf = \case
   Pi a b -> Pi (nf a) (nfScope b)
   t@Variable{} -> t
   t@Universe{} -> t
+  t@Unit{} -> t
+  t@UnitType{} -> t
   where
     nfScope = toScope . nf . fromScope
 
-whnfT :: TypedTerm b a -> TypedTerm b a
-whnfT = \case
+whnfT :: (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
+whnfT typeOfFreeVar = \case
   AppT t t1 t2 ->
-    case whnfT t1 of
+    case whnfT typeOfFreeVar t1 of
       LambdaT _ body -> instantiate1 t2 body
+      Typed t1Type _ | PiT _ _ b <- whnfT typeOfFreeVar t1Type, UnitTypeT _ <- fromScope b
+        -> UnitT (UnitTypeT universeT)
+      VariableT x | PiT _ _ b <- whnfT typeOfFreeVar (typeOfFreeVar x), UnitTypeT _ <- fromScope b
+        -> UnitT (UnitTypeT universeT)
       t1'            -> AppT t t1' t2
   t@VariableT{} -> t
   t@LambdaT{} -> t
   t@UniverseT{} -> t
   t@PiT{} -> t
+  t@UnitT{} -> t
+  t@UnitTypeT{} -> t
 
-nfT :: TypedTerm b a -> TypedTerm b a
-nfT = \case
-  AppT t t1 t2 ->
-    case whnfT t1 of
-      LambdaT _ body -> nfT (instantiate1 t2 body)
-      t1'            -> AppT (nfT t) (nfT t1') (nfT t2)
-  LambdaT t body -> LambdaT (nfT t) (nfScopeT body)
-  PiT _ a b      -> PiT universeT (nfT a) (nfScopeT b)
-  t@VariableT{} -> t
-  t@UniverseT{} -> t
+whnfTClosed :: TypedTerm b a -> TypedTerm b a
+whnfTClosed = whnfT (error "a free variable in a closed term!")
+
+nfT :: (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
+nfT typeOfFreeVar = nfT'
   where
-    nfScopeT = toScope . nfT . fromScope
+    nfT' = \case
+      AppT t t1 t2 ->
+        case whnfT typeOfFreeVar t1 of
+          LambdaT _ body -> nfT' (instantiate1 t2 body)
+          Typed t1Type _ | PiT _ _ b <- whnfT typeOfFreeVar t1Type, UnitTypeT _ <- fromScope b
+            -> UnitT (UnitTypeT universeT)
+          VariableT x | PiT _ _ b <- whnfT typeOfFreeVar (typeOfFreeVar x), UnitTypeT _ <- fromScope b
+            -> UnitT (UnitTypeT universeT)
+          t1'            -> AppT (nfT' t) (nfT' t1') (nfT' t2)
+      LambdaT t@(PiT _ a _) body -> LambdaT (nfT' t) (nfScopeT a body)
+      LambdaT _ _ -> error "impossible type of Lambda"
+      PiT _ a b      -> PiT universeT (nfT' a) (nfScopeT a b)
+      t@VariableT{} -> t
+      t@UniverseT{} -> t
+      t@UnitT{} -> t
+      t@UnitTypeT{} -> t
+      where
+        nfScopeT typeOfBoundVar = toScope . nfT typeOfVar . fromScope
+          where
+            typeOfVar (B (Name _ ())) = F <$> typeOfBoundVar
+            typeOfVar (F x)           = F <$> typeOfFreeVar x
+
+nfTClosed :: TypedTerm b a -> TypedTerm b a
+nfTClosed = nfT (error "a free variable in a closed term!")
 
 -- * Pretty-printing
 
@@ -331,6 +373,8 @@ ppTerm vars = \case
   Pi a b ->
     let z:zs = vars
      in parens (z <> " : " <> ppTerm vars a) <> " -> " <> ppTerm zs (instantiate1 (Variable z) b)
+  Unit -> "unit"
+  UnitType -> "UNIT"
 
 ppTermFun :: [String] -> Term b String -> String
 ppTermFun vars = \case
@@ -360,6 +404,8 @@ ppTypedTerm vars = \case
   PiT _ a b ->
     let z:zs = vars
      in parens (z <> " : " <> ppTypedTerm vars a) <> " -> " <> ppTypedTerm zs (instantiate1 (VariableT z) b)
+  UnitT _ -> "unit"
+  UnitTypeT _ -> "UNIT"
 
 -- * Typecheck
 
@@ -421,14 +467,16 @@ infer typeOfFreeVar = \case
              in AppT (instantiate1 t2' b) t1' t2'
           _ -> error "not a function!"
       _ -> error "not a function!"
-  Lambda _body -> error "can't infer Lambda"
+  term@(Lambda _body) -> error $ "can't infer Lambda: " <> ppTerm ["x", "y", "z"] (unsafeCoerce term)
+  Unit -> UnitT (UnitTypeT universeT)
+  UnitType -> UnitTypeT universeT
   Variable x -> VariableT x
 
 typecheck :: Eq a => (a -> TypedTerm b a) -> Term b a -> TypedTerm b a -> TypedTerm b a
 typecheck typeOfFreeVar term expectedType = case (term, expectedType) of
-  (Universe, UniverseT{}) -> universeT
   (Lambda body, PiT _ a b) ->
      LambdaT expectedType (typecheckScope a typeOfFreeVar body b)
+  (Lambda _, _) -> error "lambda is expected to be a non-function type?!"
   (Variable x, _) -> VariableT x
   _ ->
     case infer typeOfFreeVar term of
@@ -447,7 +495,7 @@ unifyScoped typeOfBoundVar typeOfFreeVar l r
 unify :: Eq a => (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
 unify typeOfFreeVar = go
   where
-    go l r = go' (whnfT l) (whnfT r)
+    go l r = go' (whnfT typeOfFreeVar l) (whnfT typeOfFreeVar r)
 
     go' (UniverseT _) (UniverseT _) = universeT
     go' (PiT _ a b) (PiT _ c d)     =
@@ -482,6 +530,12 @@ natT = mkType $ (Universe --> Universe) --> (Universe --> Universe)
 
 mkType :: Eq a => Term b a -> TypedTerm b a
 mkType t = typecheckClosed t universeT
+
+ex1 :: Term String String
+ex1 = lam "f" (lam "x" (App (Variable "f") (Variable "x")))
+
+ex1Type :: TypedTerm String String
+ex1Type = mkType $ piType "f" (Universe --> UnitType) (Universe --> UnitType)
 
 idfun :: Term String String
 idfun = lam "x" (Variable "x")
