@@ -1,4 +1,4 @@
-name: Haddock documentation
+name: Documentation
 
 on:
   push:
@@ -20,6 +20,12 @@ jobs:
         with:
           enable-stack: true
 
+      - name: 🧰 Setup mdBook
+        uses: peaceiris/actions-mdbook@v1
+        with:
+          mdbook-version: '0.4.6'
+          # mdbook-version: 'latest'
+
       - name: 💾 Cache
         uses: actions/cache@v2
         with:
@@ -27,11 +33,18 @@ jobs:
             .stack
           key: ${{ runner.os }}-${{ hashFiles('stack.yaml.lock', 'rzk.cabal') }}-stack
 
-      - name: 🔨 Build Documentation
+      - name: 🔨 Build Haddock Documentation
         run: |
           stack haddock
           mkdir -p dist/haddock
           mv $(stack path --local-doc-root)/* dist/haddock
+
+      - name: 🔨 Build mdBook
+        run: |
+          mdbook build docs/
+          mkdir -p dist/
+          mv docs/out/* dist/
+
       - name: 📘 Publish Documentation
         uses: peaceiris/actions-gh-pages@v3
         with:
