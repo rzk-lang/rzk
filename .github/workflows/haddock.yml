@@ -3,7 +3,7 @@ name: Haddock documentation
 on:
   push:
     branches:
-      - "master"
+      - "main"
 
 jobs:
   docs:
