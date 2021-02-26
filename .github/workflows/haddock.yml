@@ -1,0 +1,40 @@
+name: Haddock documentation
+
+on:
+  push:
+    branches:
+      - "master"
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      STACK_ROOT: ${{ github.workspace }}/.stack
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v2
+
+      - name: 🧰 Setup Stack
+        uses: haskell/actions/setup@v1
+        with:
+          enable-stack: true
+
+      - name: 💾 Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            .stack
+          key: ${{ runner.os }}-${{ hashFiles('stack.yaml.lock', 'rzk.cabal') }}-stack
+
+      - name: 🔨 Build Documentation
+        run: |
+          stack haddock
+          mkdir -p dist/haddock
+          mv $(stack path --local-doc-root)/* dist/haddock
+      - name: 📘 Publish Documentation
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          force_orphan: true
