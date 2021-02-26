@@ -20,6 +20,8 @@ import           Data.Bifunctor
 import           Data.Bifunctor.TH
 import           Data.Bitraversable
 
+import           Unsafe.Coerce          (unsafeCoerce)
+
 -- * Free monad transformer with scoping
 
 data FreeScopedF term scope subterm a
@@ -260,6 +262,9 @@ pattern PiA ann a b = FreeScopedT (Annotated ann (FreeScopedF (PiF a b)))
 lam :: Eq a => a -> Term a a -> Term a a
 lam x body = Lambda (abstract1Name x body)
 
+piType :: Eq a => a -> Term a a -> Term a a -> Term a a
+piType x a b = Pi a (abstract1Name x b)
+
 -- * Evaluation
 
 whnf :: Term b a -> Term b a
@@ -285,6 +290,30 @@ nf = \case
   t@Universe{} -> t
   where
     nfScope = toScope . nf . fromScope
+
+whnfT :: TypedTerm b a -> TypedTerm b a
+whnfT = \case
+  AppT t t1 t2 ->
+    case whnfT t1 of
+      LambdaT _ body -> instantiate1 t2 body
+      t1'            -> AppT t t1' t2
+  t@VariableT{} -> t
+  t@LambdaT{} -> t
+  t@UniverseT{} -> t
+  t@PiT{} -> t
+
+nfT :: TypedTerm b a -> TypedTerm b a
+nfT = \case
+  AppT t t1 t2 ->
+    case whnfT t1 of
+      LambdaT _ body -> nfT (instantiate1 t2 body)
+      t1'            -> AppT (nfT t) (nfT t1') (nfT t2)
+  LambdaT t body -> LambdaT (nfT t) (nfScopeT body)
+  PiT _ a b      -> PiT universeT (nfT a) (nfScopeT b)
+  t@VariableT{} -> t
+  t@UniverseT{} -> t
+  where
+    nfScopeT = toScope . nfT . fromScope
 
 -- * Pretty-printing
 
@@ -313,18 +342,24 @@ ppTermArg vars = \case
   t@Variable{} -> ppTerm vars t
   t -> parens (ppTerm vars t)
 
+ppTypedTermWithSig :: [String] -> TypedTerm b String -> String
+ppTypedTermWithSig vars t
+  = ppTypedTerm vars t <> " : " <> ppTypedTerm vars (typeOf (error "don't know types of free vars") t)
+
 ppTypedTerm :: [String] -> TypedTerm b String -> String
 ppTypedTerm vars = \case
   VariableT x -> x
-  AppT t t1 t2 -> parens (ppTypedTerm vars t1) <> " " <> parens (ppTypedTerm vars t2) <> " : " <> ppTerm vars (untyped t)
-  LambdaT t body ->
+  AppT _ t1 t2 -> parens (ppTypedTerm vars t1) <> " " <> parens (ppTypedTerm vars t2)
+  LambdaT (PiT _ a _) body ->
     let z:zs = vars
-     in "(\\" <> z <> "." <> ppTypedTerm zs (instantiate1 (VariableT z) body) <> ") : " <> ppTerm vars (untyped t)
-  UniverseT k -> "U" <> " : " <> ppTerm vars (untyped k)
-  PiT k a b ->
+     in "\\(" <> z <> " : " <> ppTypedTerm vars a <> ")." <> ppTypedTerm zs (instantiate1 (VariableT z) body)
+  LambdaT _ body ->
     let z:zs = vars
-     in parens (z <> " : " <> ppTerm vars (untyped a)) <> " -> " <> ppTypedTerm zs (instantiate1 (VariableT z) b)
-        <> " : " <> ppTerm vars (untyped k)
+     in "\\" <> z <> "." <> ppTypedTerm zs (instantiate1 (VariableT z) body)
+  UniverseT _ -> "U"
+  PiT _ a b ->
+    let z:zs = vars
+     in parens (z <> " : " <> ppTypedTerm vars a) <> " -> " <> ppTypedTerm zs (instantiate1 (VariableT z) b)
 
 -- * Typecheck
 
@@ -334,50 +369,103 @@ universeT = UniverseT universeT
 untyped :: TypedTerm b a -> Term b a
 untyped = transFreeScopedT termF
 
-typecheckScope :: TypedTerm b a -> (a -> TypedTerm b a) -> Scope1Term b a -> Scope1Term b a -> Scope1TypedTerm b a
+typecheckScope
+  :: Eq a
+  => TypedTerm b a -> (a -> TypedTerm b a) -> Scope1Term b a -> Scope1TypedTerm b a -> Scope1TypedTerm b a
 typecheckScope typeOfBoundVar typeOfFreeVar term expectedType
   = toScope (typecheck typeOfVar (fromScope term) (fromScope expectedType))
     where
       typeOfVar (B (Name _ ())) = F <$> typeOfBoundVar
       typeOfVar (F x)           = F <$> typeOfFreeVar x
 
-infer :: (a -> TypedTerm b a) -> Term b a -> TypedTerm b a
+typeOfScoped :: Eq a => TypedTerm b a -> (a -> TypedTerm b a) -> Scope1TypedTerm b a -> Scope1TypedTerm b a
+typeOfScoped typeOfBoundVar typeOfFreeVar = toScope . typeOf typeOfVar . fromScope
+    where
+      typeOfVar (B (Name _ ())) = F <$> typeOfBoundVar
+      typeOfVar (F x)           = F <$> typeOfFreeVar x
+
+typeOf :: (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
+typeOf _ (Typed t _)               = t
+typeOf typeOfFreeVar (VariableT x) = typeOfFreeVar x
+
+inferScoped :: Eq a => TypedTerm b a -> (a -> TypedTerm b a) -> Scope1Term b a -> Scope1TypedTerm b a
+inferScoped typeOfBoundVar typeOfFreeVar = toScope . infer typeOfVar . fromScope
+    where
+      typeOfVar (B (Name _ ())) = F <$> typeOfBoundVar
+      typeOfVar (F x)           = F <$> typeOfFreeVar x
+
+infer :: Eq a => (a -> TypedTerm b a) -> Term b a -> TypedTerm b a
 infer typeOfFreeVar = \case
   Universe -> universeT
   Pi a b ->
-    let a' = typecheck typeOfFreeVar a Universe
-        b' = typecheckScope a' typeOfFreeVar b (toScope Universe)
+    let a' = typecheck typeOfFreeVar a universeT
+        b' = typecheckScope a' typeOfFreeVar b (toScope universeT)
      in PiT universeT a' b'
+  App (Lambda body) arg ->
+    case infer typeOfFreeVar arg of
+      arg' ->
+        let typeOfArg = typeOf typeOfFreeVar arg'
+            body' = inferScoped typeOfArg typeOfFreeVar body
+            typeOfBody = typeOfScoped arg' typeOfFreeVar body'
+            typeOfResult = instantiate1 arg' typeOfBody
+        in AppT typeOfResult (LambdaT (PiT universeT typeOfArg typeOfBody) body') arg'
   App t1 t2 ->
     case infer typeOfFreeVar t1 of
       t1'@(Typed (PiT _ a b) _) ->
-        let t2' = typecheck typeOfFreeVar t2 (untyped a)  -- FIXME: why make a untyped?
+        let t2' = typecheck typeOfFreeVar t2 a
          in AppT (instantiate1 t2' b) t1' t2'
       t1'@(VariableT x) ->
         case typeOfFreeVar x of
           PiT _ a b ->
-            let t2' = typecheck typeOfFreeVar t2 (untyped a)  -- FIXME: why make a untyped?
+            let t2' = typecheck typeOfFreeVar t2 a
              in AppT (instantiate1 t2' b) t1' t2'
           _ -> error "not a function!"
       _ -> error "not a function!"
   Lambda _body -> error "can't infer Lambda"
   Variable x -> VariableT x
 
-typecheck :: (a -> TypedTerm b a) -> Term b a -> Term b a -> TypedTerm b a
+typecheck :: Eq a => (a -> TypedTerm b a) -> Term b a -> TypedTerm b a -> TypedTerm b a
 typecheck typeOfFreeVar term expectedType = case (term, expectedType) of
-  (Universe, Universe) -> universeT
-  (Lambda body, Pi a b) ->
-    let a' = typecheck typeOfFreeVar a Universe
-        b' = typecheckScope a' typeOfFreeVar b (toScope Universe)
-        body' = typecheckScope a' typeOfFreeVar body b -- FIXME: why make b' untyped?
-     in LambdaT (PiT universeT a' b') body'
+  (Universe, UniverseT{}) -> universeT
+  (Lambda body, PiT _ a b) ->
+     LambdaT expectedType (typecheckScope a typeOfFreeVar body b)
   (Variable x, _) -> VariableT x
-  _ -> infer typeOfFreeVar term -- FIXME: unify inferred type with expected
+  _ ->
+    case infer typeOfFreeVar term of
+      Typed ty x          -> Typed (unify typeOfFreeVar ty expectedType) x
+      term'@(VariableT x) -> unify typeOfFreeVar (typeOfFreeVar x) expectedType `seq` term'
 
-typecheckClosed :: Term b a -> Term b a -> TypedTerm b a
+unifyScoped
+  :: Eq a
+  => TypedTerm b a -> (a -> TypedTerm b a) -> Scope1TypedTerm b a -> Scope1TypedTerm b a -> Scope1TypedTerm b a
+unifyScoped typeOfBoundVar typeOfFreeVar l r
+  = toScope (unify typeOfVar (fromScope l) (fromScope r))
+    where
+      typeOfVar (B (Name _ ())) = F <$> typeOfBoundVar
+      typeOfVar (F x)           = F <$> typeOfFreeVar x
+
+unify :: Eq a => (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+unify typeOfFreeVar = go
+  where
+    go l r = go' (whnfT l) (whnfT r)
+
+    go' (UniverseT _) (UniverseT _) = universeT
+    go' (PiT _ a b) (PiT _ c d)     =
+      let ac = go a c
+       in PiT universeT ac (unifyScoped ac typeOfFreeVar b d)
+    go' (AppT t a b) (AppT t' c d)  = AppT (go t t') (go a c) (go b d)
+    go' (LambdaT (PiT _ a b) x) (LambdaT (PiT _ c d) y) =
+      let ac = go a c
+       in LambdaT (PiT universeT ac (unifyScoped ac typeOfFreeVar b d)) (unifyScoped ac typeOfFreeVar x y)
+    go' (VariableT x) (VariableT y)
+      | x == y = VariableT x
+      | otherwise = error "can't unify different variables"
+    go' l r = error ("can't unify terms:\n" <> ppTypedTerm ["x", "y", "z"] (unsafeCoerce l) <> "\nand\n" <> ppTypedTerm ["x", "y", "z"] (unsafeCoerce r))
+
+typecheckClosed :: Eq a => Term b a -> TypedTerm b a -> TypedTerm b a
 typecheckClosed = typecheck (error "expected closed term, but free vars found!")
 
-inferClosed :: Term b a -> TypedTerm b a
+inferClosed :: Eq a => Term b a -> TypedTerm b a
 inferClosed = infer (error "expected closed term, but free vars found!")
 
 zero :: Term String String
@@ -389,8 +477,20 @@ nat n = lam "s" (lam "z" (iterate (App (Variable "s")) (Variable "z") !! n))
 (-->) :: Term b a -> Term b a -> Term b a
 a --> b = Pi a (lift b)
 
-natT :: Term b a
-natT = (Universe --> Universe) --> (Universe --> Universe)
+natT :: Eq a => TypedTerm b a
+natT = mkType $ (Universe --> Universe) --> (Universe --> Universe)
+
+mkType :: Eq a => Term b a -> TypedTerm b a
+mkType t = typecheckClosed t universeT
+
+idfun :: Term String String
+idfun = lam "x" (Variable "x")
+
+-- |
+-- >>> putStrLn $ ppTypedTermWithSig  ["x", "y", "z"] (F.typecheckClosed idfun idfunT)
+-- \(x : U).x : (x : U) -> (\(y : U).y) (U)
+idfunT :: TypedTerm String String
+idfunT = mkType $ Universe --> App idfun Universe
 
 -- newtype AType b a = AType { getAType :: Maybe (ATerm (AType b) b a) }
 --   deriving (Functor, Foldable, Traversable)
