@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e760f59aaadc2bd161f827d734c81167c3e8e0790d0530ac586b799327784473
+-- hash: d84fb54751b113980b8e0a301d0b5024cd3c9b4793ef419f306d042df069139c
 
 name:           rzk
 version:        0.1.0.0
@@ -13,7 +13,7 @@ homepage:       https://github.com/fizruk/rzk#readme
 bug-reports:    https://github.com/fizruk/rzk/issues
 author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
-copyright:      2020 Nikolai Kudasov
+copyright:      2020-2021 Nikolai Kudasov
 license:        BSD3
 build-type:     Simple
 extra-source-files:
@@ -29,6 +29,7 @@ library
       Rzk
       Rzk.Debug.Trace
       Rzk.Evaluator
+      Rzk.Free.Syntax.Term
       Rzk.Parser.Text
       Rzk.Pretty.Text
       Rzk.Syntax.Decl
@@ -43,12 +44,18 @@ library
   ghc-options: -Wall -fno-warn-type-defaults -O2
   build-depends:
       ansi-terminal
-    , attoparsec
     , base >=4.7 && <5
+    , bifunctors
+    , bound
+    , deriving-compat
+    , free
+    , hashable
     , mtl
     , parsers
+    , prettyprinter
     , prettyprinter-ansi-terminal
     , text
+    , transformers
     , trifecta
     , unordered-containers
   default-language: Haskell2010
@@ -62,13 +69,19 @@ executable rzk
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ansi-terminal
-    , attoparsec
     , base >=4.7 && <5
+    , bifunctors
+    , bound
+    , deriving-compat
+    , free
+    , hashable
     , mtl
     , parsers
+    , prettyprinter
     , prettyprinter-ansi-terminal
     , rzk
     , text
+    , transformers
     , trifecta
     , unordered-containers
   default-language: Haskell2010
@@ -83,13 +96,19 @@ test-suite rzk-test
   ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       ansi-terminal
-    , attoparsec
     , base >=4.7 && <5
+    , bifunctors
+    , bound
+    , deriving-compat
+    , free
+    , hashable
     , mtl
     , parsers
+    , prettyprinter
     , prettyprinter-ansi-terminal
     , rzk
     , text
+    , transformers
     , trifecta
     , unordered-containers
   default-language: Haskell2010
