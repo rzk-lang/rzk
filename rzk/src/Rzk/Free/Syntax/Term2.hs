@@ -134,14 +134,21 @@ deriveBifunctor ''TermF
 deriveBifoldable ''TermF
 deriveBitraversable ''TermF
 
-data TypedTermF bound scope term = TypedTermF
-  { typeF :: term
-  , termF :: TermF bound scope term
+data TypedF term scope typedTerm = TypedF
+  { typeF :: typedTerm
+  , termF :: term scope typedTerm
   } deriving (Show, Functor, Foldable, Traversable)
 
-deriveBifunctor ''TypedTermF
-deriveBifoldable ''TypedTermF
-deriveBitraversable ''TypedTermF
+instance Bifunctor term => Bifunctor (TypedF term) where
+  bimap f g (TypedF t x) = TypedF (g t) (bimap f g x)
+
+instance Bifoldable term => Bifoldable (TypedF term) where
+  bifoldMap f g (TypedF t x) = g t <> bifoldMap f g x
+
+instance Bitraversable term => Bitraversable (TypedF term) where
+  bitraverse f g (TypedF t x) = TypedF <$> g t <*> bitraverse f g x
+
+type TypedTermF bound = TypedF (TermF bound)
 
 -- * Annotations
 
@@ -229,7 +236,7 @@ pattern VariableT :: a -> TypedTerm b a
 pattern VariableT x = PureScoped x
 
 pattern Typed :: TypedTerm b a -> TermF b (Scope1TypedTerm b a) (TypedTerm b a) -> TypedTerm b a
-pattern Typed t term = FreeScoped (TypedTermF t term)
+pattern Typed t term = FreeScoped (TypedF t term)
 
 pattern AppT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
 pattern AppT t t1 t2 = Typed t (AppF t1 t2)
@@ -313,11 +320,9 @@ whnfT :: (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
 whnfT typeOfFreeVar = \case
   AppT t t1 t2 ->
     case whnfT typeOfFreeVar t1 of
+      _ | PiT _ _ b <- whnfT typeOfFreeVar (typeOf typeOfFreeVar t1), UnitTypeT _ <- fromScope b
+        -> UnitT (UnitTypeT universeT)
       LambdaT _ body -> instantiate1 t2 body
-      Typed t1Type _ | PiT _ _ b <- whnfT typeOfFreeVar t1Type, UnitTypeT _ <- fromScope b
-        -> UnitT (UnitTypeT universeT)
-      VariableT x | PiT _ _ b <- whnfT typeOfFreeVar (typeOfFreeVar x), UnitTypeT _ <- fromScope b
-        -> UnitT (UnitTypeT universeT)
       t1'            -> AppT t t1' t2
   t@VariableT{} -> t
   t@LambdaT{} -> t
@@ -335,11 +340,9 @@ nfT typeOfFreeVar = nfT'
     nfT' = \case
       AppT t t1 t2 ->
         case whnfT typeOfFreeVar t1 of
+          _ | PiT _ _ b <- whnfT typeOfFreeVar (typeOf typeOfFreeVar t1), UnitTypeT _ <- fromScope b
+            -> UnitT (UnitTypeT universeT)
           LambdaT _ body -> nfT' (instantiate1 t2 body)
-          Typed t1Type _ | PiT _ _ b <- whnfT typeOfFreeVar t1Type, UnitTypeT _ <- fromScope b
-            -> UnitT (UnitTypeT universeT)
-          VariableT x | PiT _ _ b <- whnfT typeOfFreeVar (typeOfFreeVar x), UnitTypeT _ <- fromScope b
-            -> UnitT (UnitTypeT universeT)
           t1'            -> AppT (nfT' t) (nfT' t1') (nfT' t2)
       LambdaT t@(PiT _ a _) body -> LambdaT (nfT' t) (nfScopeT a body)
       LambdaT _ _ -> error "impossible type of Lambda"
@@ -545,69 +548,3 @@ idfun = lam "x" (Variable "x")
 -- \(x : U).x : (x : U) -> (\(y : U).y) (U)
 idfunT :: TypedTerm String String
 idfunT = mkType $ Universe --> App idfun Universe
-
--- newtype AType b a = AType { getAType :: Maybe (ATerm (AType b) b a) }
---   deriving (Functor, Foldable, Traversable)
---
--- type Scope1AType b a = Scope1ATerm (AType b) b a
---
--- instance Applicative (AType b) where
---   pure = return
---   (<*>) = ap
---
--- instance Monad (AType b) where
---   return x = AType (Just (return x))
---   AType Nothing >>= _ = AType Nothing
---   AType (Just t) >>= f = AType (fmap join (traverse (getAType . f) t))
---
--- instance Alternative (AType b) where
---   empty = mzero
---   (<|>) = mplus
---
--- instance MonadPlus (AType b) where
---   mzero = AType Nothing
---   AType Nothing `mplus` t = t
---   t `mplus` _ = t
---
--- type TypedTerm b a = ATerm (AType b) b a
---
--- type TypedTermF b a = ATermF (AType b) b a
--- type TypedTermF' b a = ATermF' (AType b) b a
---
--- type Scope1TypedTerm b a = Scope1ATerm (AType b) b a
---
--- pattern (:::) :: TypedTermF b a -> AType b (TypedTermF b a) -> TypedTerm b a
--- pattern term ::: ty = ATerm ty term
---
--- typecheck :: Term b a -> AType b a -> TypeChecker (TypedTerm b a)
--- typecheck term expectedType =
---   case (term, expectedType) of
---     (Variable x, _)       -> PureScopedF x ::: expectedTypeF
---     (Universe, AType (Just (UniverseA _)))  -> FreeScopedF UniverseF ::: expectedTypeF
---     (Lambda body, AType (Just (PiA _ a b))) ->
---       case typecheckScope body (AType (Just a)) b of
---         body' -> FreeScopedF (LambdaF body') ::: expectedTypeF
---     _ -> error "can't typecheck"
---   where
---     expectedTypeF = fmap PureScopedF expectedType
---
--- typecheckScope :: Scope1Term b a -> AType b a -> Scope1AType b a -> Scope1TypedTerm b a
--- typecheckScope term argType bodyType
---   = toScope $ (fromScope term `typecheck` AType (Just (fromScope bodyType)))
---
---
---
--- pattern AppT :: AType b (TypedTermF b a) -> TypedTerm b a -> TypedTerm b a -> AType b a
--- pattern AppT kind t1 t2 = AType (Just (FreeScopedT (Annotated kind (FreeScopedF (AppF t1 t2)))))
---
--- pattern LambdaT :: c -> Scope1AType b a -> AType b a
--- pattern LambdaT kind body = AType (Just (FreeScopedT (Annotated kind (FreeScopedF (LambdaF body)))))
---
--- pattern UniverseT :: c -> AType b a
--- pattern UniverseT kind = AType (Just (FreeScopedT (Annotated kind (FreeScopedF UniverseF))))
---
--- pattern PiT :: c -> TypedTerm b a -> Scope1AType b a -> AType b a
--- pattern PiT kind a b = AType (Just (FreeScopedT (Annotated kind (FreeScopedF (PiF a b)))))
---
--- {-# COMPLETE Variable, AppA, LambdaA, UniverseA, PiA #-}
---
