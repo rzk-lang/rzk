@@ -128,6 +128,8 @@ data TermF bound scope term
   | PiF term scope
   | UnitTypeF
   | UnitF
+  | IdTypeF term term term
+  | ReflF term term
   deriving (Show, Functor, Foldable, Traversable)
 
 deriveBifunctor ''TermF
@@ -228,7 +230,13 @@ pattern Unit = FreeScoped UnitF
 pattern UnitType :: Term b a
 pattern UnitType = FreeScoped UnitTypeF
 
-{-# COMPLETE Variable, App, Lambda, Universe, Pi, Unit, UnitType #-}
+pattern IdType :: Term b a -> Term b a -> Term b a -> Term b a
+pattern IdType t x y = FreeScoped (IdTypeF t x y)
+
+pattern Refl :: Term b a -> Term b a -> Term b a
+pattern Refl t x = FreeScoped (ReflF t x)
+
+{-# COMPLETE Variable, App, Lambda, Universe, Pi, Unit, UnitType, IdType, Refl #-}
 
 -- *** Patterns for typed terms
 
@@ -256,7 +264,13 @@ pattern UnitT t = Typed t UnitF
 pattern UnitTypeT :: TypedTerm b a -> TypedTerm b a
 pattern UnitTypeT t = Typed t UnitTypeF
 
-{-# COMPLETE VariableT, AppT, LambdaT, UniverseT, PiT, UnitT, UnitTypeT #-}
+pattern IdTypeT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+pattern IdTypeT tt t x y = Typed tt (IdTypeF t x y)
+
+pattern ReflT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+pattern ReflT tt t x = Typed tt (ReflF t x)
+
+{-# COMPLETE VariableT, AppT, LambdaT, UniverseT, PiT, UnitT, UnitTypeT, IdTypeT, ReflT #-}
 {-# COMPLETE VariableT, Typed #-}
 
 -- ** With annotations
@@ -300,6 +314,8 @@ whnf = \case
   t@Pi{} -> t
   t@Unit{} -> t
   t@UnitType{} -> t
+  t@IdType{} -> t
+  t@Refl{} -> t
 
 nf :: Term b a -> Term b a
 nf = \case
@@ -309,6 +325,8 @@ nf = \case
       t1'         -> App (nf t1') (nf t2)
   Lambda body -> Lambda (nfScope body)
   Pi a b -> Pi (nf a) (nfScope b)
+  IdType t x y -> IdType (nf t) (nf x) (nf y)
+  Refl t x -> Refl (nf t) (nf x)
   t@Variable{} -> t
   t@Universe{} -> t
   t@Unit{} -> t
@@ -330,6 +348,8 @@ whnfT typeOfFreeVar = \case
   t@PiT{} -> t
   t@UnitT{} -> t
   t@UnitTypeT{} -> t
+  t@IdTypeT{} -> t
+  t@ReflT{} -> t
 
 whnfTClosed :: TypedTerm b a -> TypedTerm b a
 whnfTClosed = whnfT (error "a free variable in a closed term!")
@@ -347,6 +367,11 @@ nfT typeOfFreeVar = nfT'
       LambdaT t@(PiT _ a _) body -> LambdaT (nfT' t) (nfScopeT a body)
       LambdaT _ _ -> error "impossible type of Lambda"
       PiT _ a b      -> PiT universeT (nfT' a) (nfScopeT a b)
+      IdTypeT _ t x y -> IdTypeT universeT (nfT' t) (nfT' x) (nfT' y)
+      ReflT _ t x ->
+        let t' = nfT' t
+            x' = nfT' x
+         in ReflT (IdTypeT universeT t' x' x') t' x'
       t@VariableT{} -> t
       t@UniverseT{} -> t
       t@UnitT{} -> t
@@ -372,12 +397,14 @@ ppTerm vars = \case
   App t1 t2 -> ppTermFun vars t1 <> " " <> ppTermArg vars t2
   Lambda body ->
     let z:zs = vars
-     in "\\" <> z <> "." <> ppTerm zs (instantiate1 (Variable z) body)
+     in "λ" <> z <> "." <> ppTerm zs (instantiate1 (Variable z) body)
   Pi a b ->
     let z:zs = vars
      in parens (z <> " : " <> ppTerm vars a) <> " -> " <> ppTerm zs (instantiate1 (Variable z) b)
   Unit -> "unit"
   UnitType -> "UNIT"
+  IdType t x y -> ppTerm vars x <> " =_{" <> ppTerm vars t <> "} " <> ppTerm vars y
+  Refl t x -> "refl_{" <> ppTerm vars t <> "} " <> ppTermArg vars x
 
 ppTermFun :: [String] -> Term b String -> String
 ppTermFun vars = \case
@@ -399,16 +426,18 @@ ppTypedTerm vars = \case
   AppT _ t1 t2 -> parens (ppTypedTerm vars t1) <> " " <> parens (ppTypedTerm vars t2)
   LambdaT (PiT _ a _) body ->
     let z:zs = vars
-     in "\\(" <> z <> " : " <> ppTypedTerm vars a <> ")." <> ppTypedTerm zs (instantiate1 (VariableT z) body)
+     in "λ(" <> z <> " : " <> ppTypedTerm vars a <> ")." <> ppTypedTerm zs (instantiate1 (VariableT z) body)
   LambdaT _ body ->
     let z:zs = vars
-     in "\\" <> z <> "." <> ppTypedTerm zs (instantiate1 (VariableT z) body)
+     in "λ" <> z <> "." <> ppTypedTerm zs (instantiate1 (VariableT z) body)
   UniverseT _ -> "U"
   PiT _ a b ->
     let z:zs = vars
      in parens (z <> " : " <> ppTypedTerm vars a) <> " -> " <> ppTypedTerm zs (instantiate1 (VariableT z) b)
   UnitT _ -> "unit"
   UnitTypeT _ -> "UNIT"
+  IdTypeT _ t x y -> ppTypedTerm vars x <> " =_{" <> ppTypedTerm vars t <> "} " <> ppTypedTerm vars y
+  ReflT _ t x -> "refl_{" <> ppTypedTerm vars t <> "} " <> parens (ppTypedTerm vars x)
 
 -- * Typecheck
 
@@ -474,6 +503,15 @@ infer typeOfFreeVar = \case
   Unit -> UnitT (UnitTypeT universeT)
   UnitType -> UnitTypeT universeT
   Variable x -> VariableT x
+  Refl t x ->
+    let t' = typecheck typeOfFreeVar t universeT
+        x' = typecheck typeOfFreeVar x t'
+     in ReflT (IdTypeT universeT t' x' x') t' x'
+  IdType t x y ->
+    let t' = typecheck typeOfFreeVar t universeT
+        x' = typecheck typeOfFreeVar x t'
+        y' = typecheck typeOfFreeVar y t'
+     in IdTypeT universeT t' x' y'
 
 typecheck :: Eq a => (a -> TypedTerm b a) -> Term b a -> TypedTerm b a -> TypedTerm b a
 typecheck typeOfFreeVar term expectedType = case (term, expectedType) of
@@ -483,7 +521,7 @@ typecheck typeOfFreeVar term expectedType = case (term, expectedType) of
   (Variable x, _) -> VariableT x
   _ ->
     case infer typeOfFreeVar term of
-      Typed ty x          -> Typed (unify typeOfFreeVar ty expectedType) x
+      Typed ty x          -> (unify typeOfFreeVar ty expectedType) `seq` Typed (unify typeOfFreeVar ty expectedType) x
       term'@(VariableT x) -> unify typeOfFreeVar (typeOfFreeVar x) expectedType `seq` term'
 
 unifyScoped
@@ -511,6 +549,17 @@ unify typeOfFreeVar = go
     go' (VariableT x) (VariableT y)
       | x == y = VariableT x
       | otherwise = error "can't unify different variables"
+    go' (UnitTypeT _) (UnitTypeT _) = UnitTypeT universeT
+    go' (UnitT _) (UnitT _) = UnitT (UnitTypeT universeT)
+    go' (IdTypeT _ t1 x1 y1) (IdTypeT _ t2 x2 y2) =
+      let t = go t1 t2
+          x = go x1 x2
+          y = go y1 y2
+       in t `seq` x `seq` y `seq` IdTypeT universeT t x y   -- FIXME: instead of seq, use typechecking monad
+    go' (ReflT _ t1 x1) (ReflT _ t2 x2) =
+      let t = go t1 t2
+          x = go x1 x2
+       in ReflT (IdTypeT universeT t x x) t x
     go' l r = error ("can't unify terms:\n" <> ppTypedTerm ["x", "y", "z"] (unsafeCoerce l) <> "\nand\n" <> ppTypedTerm ["x", "y", "z"] (unsafeCoerce r))
 
 typecheckClosed :: Eq a => Term b a -> TypedTerm b a -> TypedTerm b a
@@ -540,11 +589,29 @@ ex1 = lam "f" (lam "x" (App (Variable "f") (Variable "x")))
 ex1Type :: TypedTerm String String
 ex1Type = mkType $ piType "f" (Universe --> UnitType) (Universe --> UnitType)
 
+ex2 :: Term String String
+ex2 = lam "f" (Refl UnitType Unit)
+
+-- |
+-- Type and term individually:
+--
+-- >>> putStrLn $ F.ppTerm  ["x", "y", "z"] ex2
+-- λx.refl_{UNIT} (unit)
+-- >>> putStrLn $ ppTypedTerm  ["x", "y", "z"] ex2Type
+-- (x : (x : U) -> UNIT) -> unit =_{UNIT} (x) (U)
+--
+-- Trying to typecheck:
+--
+-- >>> putStrLn $ ppTypedTermWithSig  ["x", "y", "z"] (F.typecheckClosed ex2 ex2Type)
+-- λ(x : (x : U) -> UNIT).refl_{UNIT} (unit) : (x : (x : U) -> UNIT) -> unit =_{UNIT} (x) (U)
+ex2Type :: TypedTerm String String
+ex2Type = mkType $ piType "f" (Universe --> UnitType) (IdType UnitType Unit (App (Variable "f") Universe))
+
 idfun :: Term String String
 idfun = lam "x" (Variable "x")
 
 -- |
 -- >>> putStrLn $ ppTypedTermWithSig  ["x", "y", "z"] (F.typecheckClosed idfun idfunT)
--- \(x : U).x : (x : U) -> (\(y : U).y) (U)
+-- λ(x : U).x : (x : U) -> (λ(y : U).y) (U)
 idfunT :: TypedTerm String String
 idfunT = mkType $ Universe --> App idfun Universe
