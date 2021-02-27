@@ -15,7 +15,6 @@ import           Data.Monoid           (Endo (..))
 import           Data.Text             (Text)
 import qualified Data.Text             as Text
 
-import           Rzk.Debug.Trace
 import           Rzk.Pretty.Text       (ppTerm, ppVar)
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var

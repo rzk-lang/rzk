@@ -173,7 +173,7 @@ rzkTermPiType = "dependent function type" <??> do
 rzkTermLambda :: RzkParser Term'
 rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   symbol "λ" <|> symbol "\\"
-  (x, a) <- rzkVarColonType'
+  (x, _a) <- rzkVarColonType'
   symbol "->" <|> symbol "→"
   t <- rzkTerm
   return (Lambda (abstract1Name x t))

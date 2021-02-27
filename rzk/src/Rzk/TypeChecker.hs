@@ -803,7 +803,7 @@ typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
       secondType <- evalType (App g f)
       typecheck s secondType
     (Variable x, ty) -> do
-      evalInTypeCheck (Variable x) $ lookupVar x  -- FIXME: improve error message
+      _ <- evalInTypeCheck (Variable x) $ lookupVar x  -- FIXME: improve error message
       mty <- lookupTypeOf x
       case mty of
         Nothing  -> setTypeOf x ty

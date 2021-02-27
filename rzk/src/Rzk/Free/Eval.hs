@@ -90,4 +90,3 @@ nfT typeOfFreeVar = nfT'
 
 nfTClosed :: TypedTerm b a -> TypedTerm b a
 nfTClosed = nfT (error "a free variable in a closed term!")
-

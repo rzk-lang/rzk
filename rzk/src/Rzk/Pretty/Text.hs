@@ -218,7 +218,7 @@ indent = map ("  " <>)
 -- ** Colors
 
 colored :: [SGR] -> Text -> Text
-colored sgrs t = t -- Text.pack prefix <> t <> Text.pack suffix
-  where
-    prefix = setSGRCode sgrs
-    suffix = setSGRCode [Reset]
+colored _sgrs t = t -- Text.pack prefix <> t <> Text.pack suffix
+--  where
+--    prefix = setSGRCode sgrs
+--    suffix = setSGRCode [Reset]
