@@ -19,13 +19,18 @@ extra-source-files:
 # common to point users to the README.md file.
 description:         Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
 
+custom-setup:
+  dependencies:
+    - base
+    - Cabal
+    - cabal-doctest >=1.0.2 && <1.1
+
 ghc-options:
 - -Wall -fno-warn-type-defaults -O2
 
 dependencies:
 - base >= 4.7 && < 5
 - bound
-- deriving-compat
 - mtl
 - text
 - parsers
@@ -63,3 +68,15 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - rzk
+
+  doctests:
+    source-dirs: test
+    main: doctests.hs
+    other-modules: []
+    dependencies:
+    - base
+    - doctest
+    - Glob
+    - QuickCheck
+    - template-haskell
+

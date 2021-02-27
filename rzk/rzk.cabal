@@ -1,10 +1,10 @@
-cabal-version: 1.12
+cabal-version: 1.24
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d84fb54751b113980b8e0a301d0b5024cd3c9b4793ef419f306d042df069139c
+-- hash: bc435ab9ced8a937224e295f6e0dba210706009cb5759195ad7f17082b38377f
 
 name:           rzk
 version:        0.1.0.0
@@ -15,7 +15,7 @@ author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
 copyright:      2020-2021 Nikolai Kudasov
 license:        BSD3
-build-type:     Simple
+build-type:     Custom
 extra-source-files:
     README.md
     ChangeLog.md
@@ -24,12 +24,23 @@ source-repository head
   type: git
   location: https://github.com/fizruk/rzk
 
+custom-setup
+  setup-depends:
+      Cabal
+    , base
+    , cabal-doctest >=1.0.2 && <1.1
+
 library
   exposed-modules:
       Rzk
       Rzk.Debug.Trace
       Rzk.Evaluator
+      Rzk.Free.Eval
+      Rzk.Free.Example
+      Rzk.Free.Pretty
+      Rzk.Free.Syntax.FreeScoped
       Rzk.Free.Syntax.Term
+      Rzk.Free.TypeCheck
       Rzk.Parser.Text
       Rzk.Pretty.Text
       Rzk.Syntax.Decl
@@ -47,7 +58,6 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bound
-    , deriving-compat
     , free
     , hashable
     , mtl
@@ -72,7 +82,6 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bound
-    , deriving-compat
     , free
     , hashable
     , mtl
@@ -80,6 +89,33 @@ executable rzk
     , prettyprinter
     , prettyprinter-ansi-terminal
     , rzk
+    , text
+    , transformers
+    , trifecta
+    , unordered-containers
+  default-language: Haskell2010
+
+test-suite doctests
+  type: exitcode-stdio-1.0
+  main-is: doctests.hs
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -fno-warn-type-defaults -O2
+  build-depends:
+      Glob
+    , QuickCheck
+    , ansi-terminal
+    , base
+    , bifunctors
+    , bound
+    , doctest
+    , free
+    , hashable
+    , mtl
+    , parsers
+    , prettyprinter
+    , prettyprinter-ansi-terminal
+    , template-haskell
     , text
     , transformers
     , trifecta
@@ -99,7 +135,6 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bound
-    , deriving-compat
     , free
     , hashable
     , mtl
