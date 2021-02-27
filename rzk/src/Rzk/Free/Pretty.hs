@@ -12,11 +12,17 @@ import           Data.Text.Prettyprint.Doc
 
 import           Rzk.Free.Syntax.Term
 
+instance (IsString a, Pretty a, Pretty b) => Show (Term b a) where
+  show = show . pretty
+
 instance (IsString a, Pretty a, Pretty b) => Pretty (Term b a) where
   pretty = ppTerm defaultFreshVars
 
 instance (IsString a, Pretty a, Pretty b) => Pretty (TypedTerm b a) where
   pretty = ppTypedTermWithSig defaultFreshVars
+
+instance (IsString a, Pretty a, Pretty b) => Show (TypedTerm b a) where
+  show = show . pretty
 
 -- * Untyped terms
 
@@ -75,12 +81,22 @@ ppTypedTermWithSig
   :: (Pretty a, Pretty b) => [a] -> TypedTerm b a -> Doc ann
 ppTypedTermWithSig vars = \case
   VariableT x   -> pretty x
-  x@(Typed t _) -> ppTerm vars (untyped x) <:> ppTerm vars (untyped t)
+  x@(Typed t _) -> ppTerm vars (untyped x) <> nest 4 ("" <:> ppTerm vars (untyped t))
+
+ppTypedTermWithSigs
+  :: (Pretty a, Pretty b) => [a] -> TypedTerm b a -> Doc ann
+ppTypedTermWithSigs vars = \case
+  VariableT x   -> pretty x
+  x@(Typed t@UniverseT{} _) -> ppTerm vars (untyped x) <::> ppTerm vars (untyped t)
+  x@(Typed t _) -> ppTerm vars (untyped x) <::> ppTypedTermWithSigs vars t
 
 -- * Helpers
 
 (<:>) :: Doc ann -> Doc ann -> Doc ann
 l <:> r = l <+> colon <+> r
+
+(<::>) :: Doc ann -> Doc ann -> Doc ann
+l <::> r = l <+> nest 2 (colon <+> r)
 
 defaultFreshVars :: IsString a => [a]
 defaultFreshVars = [ fromString ("x" <> toIndex i) | i <- [1..] ]

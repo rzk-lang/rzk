@@ -37,15 +37,15 @@ ex2 = lam "f" (Refl UnitType Unit)
 -- |
 -- Type and term individually:
 --
--- >>> putStrLn $ ppTerm  ["x", "y", "z"] ex2
--- λx.refl_{UNIT} (unit)
--- >>> putStrLn $ ppTypedTerm  ["x", "y", "z"] ex2Type
--- (x : (x : U) -> UNIT) -> unit =_{UNIT} (x) (U)
+-- >>> ex2
+-- λx₁ → refl_{unit : UNIT}
+-- >>> ex2Type
+-- (x₁ : (x₁ : U) → UNIT) → unit =_{UNIT} x₁ U : U
 --
 -- Trying to typecheck:
 --
--- >>> putStrLn $ ppTypedTermWithSig  ["x", "y", "z"] (typecheckClosed ex2 ex2Type)
--- λ(x : (x : U) -> UNIT).refl_{UNIT} (unit) : (x : (x : U) -> UNIT) -> unit =_{UNIT} (x) (U)
+-- >>> typecheckClosed ex2 ex2Type
+-- λx₁ → refl_{unit : UNIT} : (x₁ : (x₁ : U) → UNIT) → unit =_{UNIT} x₁ U
 ex2Type :: TypedTerm String String
 ex2Type = mkType $ piType "f" (Universe --> UnitType) (IdType UnitType Unit (App (Variable "f") Universe))
 
@@ -53,7 +53,7 @@ idfun :: Term String String
 idfun = lam "x" (Variable "x")
 
 -- |
--- >>> putStrLn $ ppTypedTermWithSig  ["x", "y", "z"] (typecheckClosed idfun idfunT)
--- λ(x : U).x : (x : U) -> (λ(y : U).y) (U)
+-- >>> typecheckClosed idfun idfunT
+-- λx₁ → x₁ : (x₁ : U) → (λx₂ → x₂) U
 idfunT :: TypedTerm String String
 idfunT = mkType $ Universe --> App idfun Universe
