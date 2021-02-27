@@ -1,16 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Rzk.Free.Pretty where
 
 import           Bound
+import           Data.Text            (Text)
 
 import           Rzk.Free.Syntax.Term
 
 -- * Pretty-printing
 
-parens :: String -> String
+parens :: Text -> Text
 parens s = "(" <> s <> ")"
 
-ppTerm :: [String] -> Term b String -> String
+ppTerm :: [Text] -> Term b Text -> Text
 ppTerm vars = \case
   Universe -> "U"
   Variable x -> x
@@ -26,21 +28,21 @@ ppTerm vars = \case
   IdType t x y -> ppTerm vars x <> " =_{" <> ppTerm vars t <> "} " <> ppTerm vars y
   Refl t x -> "refl_{" <> ppTerm vars t <> "} " <> ppTermArg vars x
 
-ppTermFun :: [String] -> Term b String -> String
+ppTermFun :: [Text] -> Term b Text -> Text
 ppTermFun vars = \case
   t@Lambda{} -> parens (ppTerm vars t)
   t -> ppTerm vars t
 
-ppTermArg :: [String] -> Term b String -> String
+ppTermArg :: [Text] -> Term b Text -> Text
 ppTermArg vars = \case
   t@Variable{} -> ppTerm vars t
   t -> parens (ppTerm vars t)
 
-ppTypedTermWithSig :: [String] -> TypedTerm b String -> String
+ppTypedTermWithSig :: [Text] -> TypedTerm b Text -> Text
 ppTypedTermWithSig vars t
   = ppTypedTerm vars t <> " : " <> ppTypedTerm vars (typeOf (error "don't know types of free vars") t)
 
-ppTypedTerm :: [String] -> TypedTerm b String -> String
+ppTypedTerm :: [Text] -> TypedTerm b Text -> Text
 ppTypedTerm vars = \case
   VariableT x -> x
   AppT _ t1 t2 -> parens (ppTypedTerm vars t1) <> " " <> parens (ppTypedTerm vars t2)
@@ -58,3 +60,4 @@ ppTypedTerm vars = \case
   UnitTypeT _ -> "UNIT"
   IdTypeT _ t x y -> ppTypedTerm vars x <> " =_{" <> ppTypedTerm vars t <> "} " <> ppTypedTerm vars y
   ReflT _ t x -> "refl_{" <> ppTypedTerm vars t <> "} " <> parens (ppTypedTerm vars x)
+
