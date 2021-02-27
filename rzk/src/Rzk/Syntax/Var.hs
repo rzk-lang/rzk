@@ -7,6 +7,9 @@ import           Data.String (IsString (..))
 import           Data.Text   (Text)
 import qualified Data.Text   as Text
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+
 -- | Standard type of variables.
 newtype Var = Var { getVar :: Text }
   deriving (Eq, IsString)

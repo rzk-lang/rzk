@@ -18,6 +18,9 @@ import           Rzk.Syntax.Module
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+
 -- Orphan 'Show' instances
 
 instance Show (Term Var) where
@@ -215,7 +218,7 @@ indent = map ("  " <>)
 -- ** Colors
 
 colored :: [SGR] -> Text -> Text
-colored sgrs t = Text.pack prefix <> t <> Text.pack suffix
+colored sgrs t = t -- Text.pack prefix <> t <> Text.pack suffix
   where
     prefix = setSGRCode sgrs
     suffix = setSGRCode [Reset]

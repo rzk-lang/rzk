@@ -20,6 +20,10 @@ import           Rzk.Pretty.Text       (ppTerm, ppVar)
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
+-- $setup
+-- >>> :set -XOverloadedStrings -XTypeApplications
+-- >>> import Rzk.Parser.Text
+
 -- | Evaluation errors.
 data EvalError var
   = EvalErrorUndefinedVariable var
