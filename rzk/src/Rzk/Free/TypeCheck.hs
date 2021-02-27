@@ -4,13 +4,9 @@ module Rzk.Free.TypeCheck where
 
 import           Bound
 import           Bound.Name
-import           Data.Text            (Text)
-import qualified Data.Text            as Text
 
 import           Rzk.Free.Eval
-import           Rzk.Free.Pretty
 import           Rzk.Free.Syntax.Term
-import           Unsafe.Coerce        (unsafeCoerce)
 
 -- * Typecheck
 
@@ -56,7 +52,7 @@ infer typeOfFreeVar = \case
              in AppT (instantiate1 t2' b) t1' t2'
           _ -> error "not a function!"
       _ -> error "not a function!"
-  term@(Lambda _body) -> errorText $ "can't infer Lambda: " <> ppTerm ["x", "y", "z"] (unsafeCoerce term)
+  Lambda _body -> error "errorDoc $ \"can't infer Lambda: \" <> ppTerm [\"x\", \"y\", \"z\"] (unsafeCoerce term)"
   Unit -> UnitT (UnitTypeT universeT)
   UnitType -> UnitTypeT universeT
   Variable x -> VariableT x
@@ -117,13 +113,10 @@ unify typeOfFreeVar = go
       let t = go t1 t2
           x = go x1 x2
        in ReflT (IdTypeT universeT t x x) t x
-    go' l r = errorText ("can't unify terms:\n" <> ppTypedTerm ["x", "y", "z"] (unsafeCoerce l) <> "\nand\n" <> ppTypedTerm ["x", "y", "z"] (unsafeCoerce r))
+    go' _l _r = error "errorDoc (\"can't unify terms:\n\" <> ppTypedTerm [\"x\", \"y\", \"z\"] (unsafeCoerce l) <> \"\nand\n\" <> ppTypedTerm [\"x\", \"y\", \"z\"] (unsafeCoerce r))"
 
 typecheckClosed :: Eq a => Term b a -> TypedTerm b a -> TypedTerm b a
 typecheckClosed = typecheck (error "expected closed term, but free vars found!")
 
 inferClosed :: Eq a => Term b a -> TypedTerm b a
 inferClosed = infer (error "expected closed term, but free vars found!")
-
-errorText :: Text -> a
-errorText = error . Text.unpack
