@@ -1,3 +1,4 @@
+docs/out/
 dist
 dist-*
 cabal-dev
