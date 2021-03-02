@@ -3,8 +3,8 @@
 module Rzk.Free.TypeCheck where
 
 import           Bound
-import           Bound.Name
 
+import           Rzk.Free.Bound.Name
 import           Rzk.Free.Eval
 import           Rzk.Free.Syntax.Term
 
@@ -66,6 +66,33 @@ infer typeOfFreeVar = \case
         y' = typecheck typeOfFreeVar y t'
      in IdTypeT universeT t' x' y'
 
+  IdJ tA a tC d x p ->
+    let tA' = typecheck typeOfFreeVar tA universeT
+        a'  = typecheck typeOfFreeVar a tA'
+        tC' = typecheck typeOfFreeVar tC
+                (piT tA' (abstract1Unnamed
+                  (piT (idTypeT (Just <$> tA') (Just <$> a') (VariableT Nothing)) (toScope universeT))))
+        tC'a' = piT (idTypeT tA' a' a') (toScope universeT)
+        d'  = typecheck typeOfFreeVar d
+                (AppT universeT (AppT tC'a' tC' a') (ReflT (idTypeT tA' a' a') tA' a'))
+        x' = typecheck typeOfFreeVar x tA'
+        p' = typecheck typeOfFreeVar p (idTypeT tA' a' x')
+        tC'x' = piT (idTypeT tA' a' x') (toScope universeT)
+     in IdJT (AppT universeT (AppT tC'x' tC' x') p')
+          tA' a' tC' d' x' p'
+--   IdJ tA a tC d x p -> do
+--     typecheck tA Universe
+--     typecheck a tA
+--     x' <- genFreshVar
+--     p' <- genFreshVar
+--     typecheck tC
+--       (Pi (Lambda (Variable x') (Just tA) Nothing
+--         (Pi (Lambda (Variable p') (Just (IdType tA a (Variable x'))) Nothing Universe))))
+--     typecheck d (App (App tC a) (Refl (Just tA) a))
+--     typecheck x tA
+--     typecheck p (IdType tA a x)
+--     evalType (App (App tC x) p)
+
 typecheck :: Eq a => (a -> TypedTerm b a) -> Term b a -> TypedTerm b a -> TypedTerm b a
 typecheck typeOfFreeVar term expectedType = case (term, expectedType) of
   (Lambda body, PiT _ a b) ->
@@ -113,6 +140,15 @@ unify typeOfFreeVar = go
       let t = go t1 t2
           x = go x1 x2
        in ReflT (IdTypeT universeT t x x) t x
+    go' (IdJT tt1 tA1 a1 tC1 d1 x1 p1) (IdJT tt2 tA2 a2 tC2 d2 x2 p2) =
+      let tt = go tt1 tt2
+          tA = go tA1 tA2
+          a = go a1 a2
+          tC = go tC1 tC2
+          d = go d1 d2
+          x = go x1 x2
+          p = go p1 p2
+       in IdJT tt tA a tC d x p
     go' _l _r = error "errorDoc (\"can't unify terms:\n\" <> ppTypedTerm [\"x\", \"y\", \"z\"] (unsafeCoerce l) <> \"\nand\n\" <> ppTypedTerm [\"x\", \"y\", \"z\"] (unsafeCoerce r))"
 
 typecheckClosed :: Eq a => Term b a -> TypedTerm b a -> TypedTerm b a

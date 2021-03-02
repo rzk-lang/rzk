@@ -1,12 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Rzk.Free.Example where
 
 import           Control.Monad.Trans  (lift)
 
+import           Rzk.Free.Parser
 import           Rzk.Free.Syntax.Term
 import           Rzk.Free.TypeCheck
 
 -- $setup
 -- >>> import Rzk.Free.Pretty
+
+type TypedTerm' = TypedTerm Var Var
 
 -- * Example terms
 
@@ -57,3 +61,33 @@ idfun = lam "x" (Variable "x")
 -- λx₁ → x₁ : (x₁ : U) → (λx₂ → x₂) U
 idfunT :: TypedTerm String String
 idfunT = mkType $ Universe --> App idfun Universe
+
+typeOfJ :: TypedTerm String String
+typeOfJ = mkType $
+  piType "A" Universe $
+    piType "a" (v "A") $
+      piType "C" (piType "z" (v "A") (IdType (v "A") (v "a") (v "z") --> Universe)) $
+        piType "d" (App (App (v "C") (v "a")) (Refl (v "A") (v "a"))) $
+          piType "x" (v "A") $
+            piType "p" (IdType (v "A") (v "a") (v "x")) $
+              App (App (v "C") (v "x")) (v "p")
+  where
+    v = Variable
+
+-- |
+-- >>> ex3
+-- λx₁ → λx₂ → λx₃ → λx₄ → (λx₅ → λx₆ → λx₇ → λx₈ → λx₉ → λx₁₀ → J x₅ x₆ x₇ x₈ x₉ x₁₀) x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄
+-- >>> whnf ex3
+-- λx₁ → λx₂ → λx₃ → λx₄ → (λx₅ → λx₆ → λx₇ → λx₈ → λx₉ → λx₁₀ → J x₅ x₆ x₇ x₈ x₉ x₁₀) x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄
+-- >>> nf ex3
+-- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄
+ex3 :: Term'
+ex3 = "\\A -> \\x -> \\y -> \\p -> J A x (\\z -> \\q -> z =_{A} x) refl_{x : A} y p"
+
+-- | For now you can only typecheck 'ex3' in its normal form,
+-- since eta-expanded J cannot be typechecked at the moment.
+--
+-- >>> F.typecheckClosed (nf ex3) ex3Type
+-- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄ : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₄ : x₂ =_{x₁} x₃) → x₃ =_{x₁} x₂
+ex3Type :: TypedTerm'
+ex3Type = mkType "(A : U) -> (x : A) -> (y : A) -> (p : x =_{A} y) -> y =_{A} x"

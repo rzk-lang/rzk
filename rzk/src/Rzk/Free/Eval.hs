@@ -2,8 +2,8 @@
 module Rzk.Free.Eval where
 
 import           Bound
-import           Bound.Name
 
+import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.Term
 
 -- * Evaluation
@@ -14,6 +14,10 @@ whnf = \case
     case whnf t1 of
       Lambda body -> instantiate1 t2 body
       t1'         -> App t1' t2
+  IdJ tA a tC d x p ->
+    case whnf p of
+      Refl{} -> whnf d
+      p'     -> IdJ tA a tC d x p'
   t@Variable{} -> t
   t@Lambda{} -> t
   t@Universe{} -> t
@@ -29,6 +33,10 @@ nf = \case
     case whnf t1 of
       Lambda body -> nf (instantiate1 t2 body)
       t1'         -> App (nf t1') (nf t2)
+  IdJ tA a tC d x p ->
+    case whnf p of
+      Refl{} -> nf d
+      p'     -> IdJ (nf tA) (nf a) (nf tC) (nf d) (nf x) (nf p')
   Lambda body -> Lambda (nfScope body)
   Pi a b -> Pi (nf a) (nfScope b)
   IdType t x y -> IdType (nf t) (nf x) (nf y)
@@ -48,6 +56,10 @@ whnfT typeOfFreeVar = \case
         -> UnitT (UnitTypeT universeT)
       LambdaT _ body -> instantiate1 t2 body
       t1'            -> AppT t t1' t2
+  IdJT t tA a tC d x p ->
+    case whnfT typeOfFreeVar p of
+      ReflT{} -> whnfT typeOfFreeVar d
+      p'      -> IdJT t tA a tC d x p'
   t@VariableT{} -> t
   t@LambdaT{} -> t
   t@UniverseT{} -> t
@@ -70,6 +82,10 @@ nfT typeOfFreeVar = nfT'
             -> UnitT (UnitTypeT universeT)
           LambdaT _ body -> nfT' (instantiate1 t2 body)
           t1'            -> AppT (nfT' t) (nfT' t1') (nfT' t2)
+      IdJT t tA a tC d x p ->
+        case whnfT typeOfFreeVar p of
+          ReflT{} -> nfT' d
+          p'     -> IdJT (nfT' t) (nfT' tA) (nfT' a) (nfT' tC) (nfT' d) (nfT' x) (nfT' p')
       LambdaT t@(PiT _ a _) body -> LambdaT (nfT' t) (nfScopeT a body)
       LambdaT _ _ -> error "impossible type of Lambda"
       PiT _ a b      -> PiT universeT (nfT' a) (nfScopeT a b)

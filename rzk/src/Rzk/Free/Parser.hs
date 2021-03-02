@@ -7,7 +7,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module Rzk.Free.Parser where
 
-import           Bound.Name                                (abstract1Name)
 import           Control.Applicative
 import           Data.Char                                 (isPrint, isSpace)
 import qualified Data.HashSet                              as HashSet
@@ -22,6 +21,7 @@ import           Text.Parser.Token
 import           Text.Parser.Token.Style                   (emptyIdents)
 import           Text.Trifecta
 
+import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.Decl
 import           Rzk.Free.Syntax.Module
 import           Rzk.Free.Syntax.Term
@@ -84,7 +84,7 @@ rzkTerm' = "simple term" <??>
   -- <|> try rzkTermLambdaShape
   -- <|> rzkTermSigmaType
   <|> rzkTermRefl
-  -- <|> rzkTermIdJ
+  <|> rzkTermIdJ
   -- <|> rzkTermRecOr
   -- <|> rzkTermFirst
   -- <|> rzkTermSecond
@@ -205,19 +205,11 @@ rzkTermRefl = do
   symbol "}"
   return (Refl a x)
 
--- rzkTermIdJ :: RzkParser Term'
--- rzkTermIdJ = do
---   symbol "idJ"
---   symbol "("
---   tA <- rzkTerm <* comma
---   a  <- rzkTerm <* comma
---   tC <- rzkTerm <* comma
---   d  <- rzkTerm <* comma
---   x  <- rzkTerm <* comma
---   p  <- rzkTerm
---   symbol ")"
---   return (IdJ tA a tC d x p)
---
+rzkTermIdJ :: RzkParser Term'
+rzkTermIdJ = do
+  symbol "J"
+  return idJ
+
 -- rzkTermRecOr :: RzkParser Term'
 -- rzkTermRecOr = do
 --   symbol "recOR" <|> symbol "rec∨"

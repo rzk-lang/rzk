@@ -2,11 +2,11 @@
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE TemplateHaskell   #-}
 module Rzk.Free.Syntax.Term where
 
 import           Bound
-import           Bound.Name
 import           Control.Monad              (ap)
 import           Control.Monad.Identity     (Identity (..))
 import           Data.Bifoldable
@@ -14,6 +14,7 @@ import           Data.Bifunctor
 import           Data.Bifunctor.TH
 import           Data.Bitraversable
 
+import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
 
 -- * Term bifunctor to provide nodes
@@ -27,6 +28,7 @@ data TermF bound scope term
   | UnitF
   | IdTypeF term term term
   | ReflF term term
+  | IdJF term term term term term term
   deriving (Show, Functor, Foldable, Traversable)
 
 deriveBifunctor ''TermF
@@ -133,7 +135,10 @@ pattern IdType t x y = FreeScoped (IdTypeF t x y)
 pattern Refl :: Term b a -> Term b a -> Term b a
 pattern Refl t x = FreeScoped (ReflF t x)
 
-{-# COMPLETE Variable, App, Lambda, Universe, Pi, Unit, UnitType, IdType, Refl #-}
+pattern IdJ :: Term b a -> Term b a -> Term b a -> Term b a -> Term b a -> Term b a -> Term b a
+pattern IdJ tA a tC d x p = FreeScoped (IdJF tA a tC d x p)
+
+{-# COMPLETE Variable, App, Lambda, Universe, Pi, Unit, UnitType, IdType, Refl, IdJ #-}
 
 -- *** Patterns for typed terms
 
@@ -167,7 +172,10 @@ pattern IdTypeT tt t x y = Typed tt (IdTypeF t x y)
 pattern ReflT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
 pattern ReflT tt t x = Typed tt (ReflF t x)
 
-{-# COMPLETE VariableT, AppT, LambdaT, UniverseT, PiT, UnitT, UnitTypeT, IdTypeT, ReflT #-}
+pattern IdJT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+pattern IdJT tt tA a tC d x p = Typed tt (IdJF tA a tC d x p)
+
+{-# COMPLETE VariableT, AppT, LambdaT, UniverseT, PiT, UnitT, UnitTypeT, IdTypeT, ReflT, IdJT #-}
 {-# COMPLETE VariableT, Typed #-}
 
 -- ** With annotations
@@ -194,6 +202,9 @@ pattern PiA ann a b = FreeScopedT (Annotated ann (FreeScopedF (PiF a b)))
 lam :: Eq a => a -> Term a a -> Term a a
 lam x body = Lambda (abstract1Name x body)
 
+lam_ :: Term b (Maybe a) -> Term b a
+lam_ body = Lambda (abstract1Unnamed body)
+
 piType :: Eq a => a -> Term a a -> Term a a -> Term a a
 piType x a b = Pi a (abstract1Name x b)
 
@@ -209,8 +220,24 @@ typeOf :: (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
 typeOf _ (Typed t _)               = t
 typeOf typeOfFreeVar (VariableT x) = typeOfFreeVar x
 
+untyped :: TypedTerm b a -> Term b a
+untyped = transFreeScopedT termF
+
 universeT :: TypedTerm b a
 universeT = UniverseT universeT
 
-untyped :: TypedTerm b a -> Term b a
-untyped = transFreeScopedT termF
+piT :: TypedTerm b a -> Scope1TypedTerm b a -> TypedTerm b a
+piT = PiT universeT
+
+idTypeT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+idTypeT = IdTypeT universeT
+
+idJ :: Term b a
+idJ = lam_ (lam_ (lam_ (lam_ (lam_ (lam_ (IdJ arg1 arg2 arg3 arg4 arg5 arg6))))))
+  where
+    arg1 = Variable (Just (Just (Just (Just (Just Nothing)))))
+    arg2 = Variable (Just (Just (Just (Just Nothing))))
+    arg3 = Variable (Just (Just (Just Nothing)))
+    arg4 = Variable (Just (Just Nothing))
+    arg5 = Variable (Just Nothing)
+    arg6 = Variable (Nothing)

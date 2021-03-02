@@ -40,6 +40,7 @@ ppTerm vars = \case
   Pi a b -> ppScope1Term vars b $ \x b' ->
     parens (pretty x <:> ppTerm vars a) <+> "→" <+> b'
   Universe -> "U"
+  IdJ tA a tC d x p -> "J" <+> hsep (map (ppTermArg vars) [tA, a, tC, d, x, p])
 
 -- | Pretty-print an untyped in a head position.
 ppTermFun :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
@@ -50,6 +51,7 @@ ppTermFun vars = \case
   t@Unit{} -> ppTerm vars t
   t@UnitType{} -> ppTerm vars t
   t@Universe{} -> ppTerm vars t
+  t@IdJ{} -> ppTerm vars t
 
   t@Lambda{} -> parens (ppTerm vars t)
   t@IdType{} -> parens (ppTerm vars t)
@@ -64,10 +66,11 @@ ppTermArg vars = \case
   t@UnitType{} -> ppTerm vars t
   t@Universe{} -> ppTerm vars t
 
+  t@Pi{} -> parens (ppTerm vars t)
   t@App{} -> parens (ppTerm vars t)
   t@Lambda{} -> parens (ppTerm vars t)
   t@IdType{} -> parens (ppTerm vars t)
-  t@Pi{} -> parens (ppTerm vars t)
+  t@IdJ{} -> parens (ppTerm vars t)
 
 ppScope1Term
   :: (Pretty a, Pretty b)
