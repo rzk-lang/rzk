@@ -210,16 +210,6 @@ piType x a b = Pi a (abstract1Name x b)
 
 -- ** ???
 
-typeOfScoped :: Eq a => TypedTerm b a -> (a -> TypedTerm b a) -> Scope1TypedTerm b a -> Scope1TypedTerm b a
-typeOfScoped typeOfBoundVar typeOfFreeVar = toScope . typeOf typeOfVar . fromScope
-    where
-      typeOfVar (B (Name _ ())) = F <$> typeOfBoundVar
-      typeOfVar (F x)           = F <$> typeOfFreeVar x
-
-typeOf :: (a -> TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
-typeOf _ (Typed t _)               = t
-typeOf typeOfFreeVar (VariableT x) = typeOfFreeVar x
-
 untyped :: TypedTerm b a -> Term b a
 untyped = transFreeScopedT termF
 

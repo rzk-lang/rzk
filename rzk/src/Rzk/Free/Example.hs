@@ -27,7 +27,7 @@ natT :: Eq a => TypedTerm b a
 natT = mkType $ (Universe --> Universe) --> (Universe --> Universe)
 
 mkType :: Eq a => Term b a -> TypedTerm b a
-mkType t = typecheckClosed t universeT
+mkType t = unsafeTypecheckClosed t universeT
 
 ex1 :: Term String String
 ex1 = lam "f" (lam "x" (App (Variable "f") (Variable "x")))
@@ -36,7 +36,7 @@ ex1Type :: TypedTerm String String
 ex1Type = mkType $ piType "f" (Universe --> UnitType) (Universe --> UnitType)
 
 ex2 :: Term String String
-ex2 = lam "f" (Refl UnitType Unit)
+ex2 = lam "f" (Refl (App (Variable "f") Universe) Unit)
 
 -- |
 -- Type and term individually:
@@ -48,7 +48,7 @@ ex2 = lam "f" (Refl UnitType Unit)
 --
 -- Trying to typecheck:
 --
--- >>> typecheckClosed ex2 ex2Type
+-- >>> unsafeTypecheckClosed ex2 ex2Type
 -- λx₁ → refl_{unit : UNIT} : (x₁ : (x₁ : U) → UNIT) → unit =_{UNIT} x₁ U
 ex2Type :: TypedTerm String String
 ex2Type = mkType $ piType "f" (Universe --> UnitType) (IdType UnitType Unit (App (Variable "f") Universe))
@@ -57,7 +57,7 @@ idfun :: Term String String
 idfun = lam "x" (Variable "x")
 
 -- |
--- >>> typecheckClosed idfun idfunT
+-- >>> unsafeTypecheckClosed idfun idfunT
 -- λx₁ → x₁ : (x₁ : U) → (λx₂ → x₂) U
 idfunT :: TypedTerm String String
 idfunT = mkType $ Universe --> App idfun Universe
@@ -87,7 +87,7 @@ ex3 = "\\A -> \\x -> \\y -> \\p -> J A x (\\z -> \\q -> z =_{A} x) refl_{x : A} 
 -- | For now you can only typecheck 'ex3' in its normal form,
 -- since eta-expanded J cannot be typechecked at the moment.
 --
--- >>> F.typecheckClosed (nf ex3) ex3Type
+-- >>> F.unsafeTypecheckClosed (nf ex3) ex3Type
 -- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄ : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₄ : x₂ =_{x₁} x₃) → x₃ =_{x₁} x₂
 ex3Type :: TypedTerm'
 ex3Type = mkType "(A : U) -> (x : A) -> (y : A) -> (p : x =_{A} y) -> y =_{A} x"
