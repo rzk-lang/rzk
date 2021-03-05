@@ -1,7 +1,10 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
 module Rzk.Free.Eval where
 
 import           Bound
+import           Data.String               (IsString)
+import           Data.Text.Prettyprint.Doc (Pretty)
 
 import           Rzk.Free.Syntax.Term
 import           Rzk.Free.TypeCheck.Trans
@@ -102,8 +105,8 @@ nfT = nfT'
           enterScope typeOfBoundVar $ do
             toScope <$> nfT (fromScope term)
 
-unsafeWHNF :: TypedTerm b a -> TypedTerm b a
+unsafeWHNF :: (IsString a, Pretty a, Pretty b) => TypedTerm b a -> TypedTerm b a
 unsafeWHNF = unsafeRunTypeCheck . whnfT
 
-unsafeNF :: TypedTerm b a -> TypedTerm b a
+unsafeNF :: (IsString a, Pretty a, Pretty b) => TypedTerm b a -> TypedTerm b a
 unsafeNF = unsafeRunTypeCheck . nfT

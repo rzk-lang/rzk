@@ -6,7 +6,6 @@ module Rzk.Free.Bound.Name where
 
 import           Bound.Scope
 import           Bound.Var
-
 import           Data.Bifunctor.TH
 
 data Name n b = Name (Maybe n) b

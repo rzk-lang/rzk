@@ -1,13 +1,18 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Rzk.Free.TypeCheck where
 
 import           Bound
+import           Control.Monad.Except
+import           Data.String                  (IsString)
+import           Data.Text.Prettyprint.Doc    (Pretty)
 
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Eval
 import           Rzk.Free.Syntax.Term
 import           Rzk.Free.TypeCheck.Trans
+import           Rzk.Free.TypeCheck.TypeError
 
 -- * Typecheck
 
@@ -56,10 +61,10 @@ infer = \case
           PiT _ a b -> do
             t2' <- typecheck t2 a
             return (AppT (instantiate1 t2' b) t1' t2')
-          _ -> error "not a function!"
-      _ -> error "not a function!"
+          _ -> throwError (TypeErrorNotAFunction t1')
+      t1' -> throwError (TypeErrorNotAFunction t1')
 
-  Lambda _body -> error "errorDoc $ \"can't infer Lambda: \" <> ppTerm [\"x\", \"y\", \"z\"] (unsafeCoerce term)"
+  t@Lambda{} -> throwError (TypeErrorCannotInferLambda t)
   Unit -> return (UnitT (UnitTypeT universeT))
   UnitType -> return (UnitTypeT universeT)
   Variable x -> return (VariableT x)
@@ -92,7 +97,6 @@ typecheck :: Eq a => Term b a -> TypedTerm b a -> TypeCheck b a (TypedTerm b a)
 typecheck term expectedType = case (term, expectedType) of
   (Lambda body, PiT _ a b) ->
      LambdaT expectedType <$> typecheckScope a body b
-  (Lambda _, _) -> error "lambda is expected to be a non-function type?!"
   (Variable x, _) -> return (VariableT x)
   _ -> infer term >>= \case
          Typed ty x          -> do
@@ -130,9 +134,9 @@ unify = go
       bd <- unifyScoped ac b d
       xy <- unifyScoped ac x y
       return (LambdaT (PiT universeT ac bd) xy)
-    go' (VariableT x) (VariableT y)
+    go' inferred@(VariableT x) expected@(VariableT y)
       | x == y = return (VariableT x)
-      | otherwise = error "can't unify different variables"
+      | otherwise = throwError (TypeErrorUnexpected inferred expected)
     go' (UnitTypeT _) (UnitTypeT _) = return (UnitTypeT universeT)
     go' (UnitT _) (UnitT _) = return (UnitT (UnitTypeT universeT))
     go' (IdTypeT _ t1 x1 y1) (IdTypeT _ t2 x2 y2) = do
@@ -153,10 +157,10 @@ unify = go
       x <- go x1 x2
       p <- go p1 p2
       return (IdJT tt tA a tC d x p)
-    go' _l _r = error "errorDoc (\"can't unify terms:\n\" <> ppTypedTerm [\"x\", \"y\", \"z\"] (unsafeCoerce l) <> \"\nand\n\" <> ppTypedTerm [\"x\", \"y\", \"z\"] (unsafeCoerce r))"
+    go' inferred expected = throwError (TypeErrorUnexpected inferred expected)
 
-unsafeTypecheckClosed :: Eq a => Term b a -> TypedTerm b a -> TypedTerm b a
+unsafeTypecheckClosed :: (Eq a, IsString a, Pretty a, Pretty b) => Term b a -> TypedTerm b a -> TypedTerm b a
 unsafeTypecheckClosed term = unsafeRunTypeCheck . typecheck term
 
-unsafeInferClosed :: Eq a => Term b a -> TypedTerm b a
+unsafeInferClosed :: (Eq a, IsString a, Pretty a, Pretty b) => Term b a -> TypedTerm b a
 unsafeInferClosed = unsafeRunTypeCheck . infer

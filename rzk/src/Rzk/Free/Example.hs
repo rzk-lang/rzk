@@ -1,7 +1,10 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Rzk.Free.Example where
 
-import           Control.Monad.Trans  (lift)
+import           Control.Monad.Trans       (lift)
+import           Data.String               (IsString)
+import           Data.Text.Prettyprint.Doc (Pretty)
 
 import           Rzk.Free.Parser
 import           Rzk.Free.Syntax.Term
@@ -23,10 +26,10 @@ nat n = lam "s" (lam "z" (iterate (App (Variable "s")) (Variable "z") !! n))
 (-->) :: Term b a -> Term b a -> Term b a
 a --> b = Pi a (lift b)
 
-natT :: Eq a => TypedTerm b a
+natT :: TypedTerm String String
 natT = mkType $ (Universe --> Universe) --> (Universe --> Universe)
 
-mkType :: Eq a => Term b a -> TypedTerm b a
+mkType :: (Eq a, IsString a, Pretty a, Pretty b) => Term b a -> TypedTerm b a
 mkType t = unsafeTypecheckClosed t universeT
 
 ex1 :: Term String String
@@ -36,7 +39,7 @@ ex1Type :: TypedTerm String String
 ex1Type = mkType $ piType "f" (Universe --> UnitType) (Universe --> UnitType)
 
 ex2 :: Term String String
-ex2 = lam "f" (Refl (App (Variable "f") Universe) Unit)
+ex2 = lam "f" (Refl UnitType (App (Variable "f") Universe))
 
 -- |
 -- Type and term individually:

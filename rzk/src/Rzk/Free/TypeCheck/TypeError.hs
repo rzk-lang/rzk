@@ -1,28 +1,57 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Rzk.Free.TypeCheck.TypeError where
 
 import           Bound
-import           Data.Text            (Text)
+import           Data.String
+import           Data.Text.Prettyprint.Doc
 
 import           Rzk.Free.Bound.Name
-import           Rzk.Free.Pretty      ()
+import           Rzk.Free.Pretty
 import           Rzk.Free.Syntax.Term
 
 data TypeError b a
-  = TypeErrorInfinite a (Term b a)
-  | TypeErrorUnexpected (Term b a) (Term b a) (Term b a) (Term b a) (Term b a)
-  | TypeErrorUndefinedVariable a
+  = TypeErrorUnexpected (TypedTerm b a) (TypedTerm b a)
   | TypeErrorCannotInferLambda (Term b a)
-  | TypeErrorCannotInferPair (Term b a)
-  | TypeErrorNotAFunction (Term b a) (Term b a) (Term b a)
-  | TypeErrorNotAPair (Term b a) (Term b a) (Term b a)
-  | TypeErrorExpectedFunctionType (Term b a) (Term b a)
-  | TypeErrorInvalidTypeFamily
-  | TypeErrorTopeContextNotSatisfied (Term b a) (Term b a) [Term b a]
-  | TypeErrorOther Text
+  | TypeErrorNotAFunction (TypedTerm b a)
   | TypeErrorScope (TypeError b (Var (Name b ()) a))
-  -- deriving (Show)
+  deriving (Functor)
 
+instance (IsString a, Pretty a, Pretty b) => Show (TypeError b a) where
+  show = show . pretty
+
+instance (IsString a, Pretty a, Pretty b) => Pretty (TypeError b a) where
+  pretty = ppTypeError defaultFreshVars
+
+ppTypeErrorScope
+  :: (IsString a, Pretty a, Pretty b)
+  => [a] -> TypeError b (Var (Name b ()) a) -> Doc ann
+ppTypeErrorScope [] _err = error "not enough fresh variables"
+ppTypeErrorScope (z:zs) err = ppTypeError zs (prettyVar <$> err)
+  where
+    prettyVar (B _) = z
+    prettyVar (F x) = x
+
+ppTypeError
+  :: (IsString a, Pretty a, Pretty b)
+  => [a] -> TypeError b a -> Doc ann
+ppTypeError vars = \case
+  TypeErrorScope err -> ppTypeErrorScope vars err
+
+  TypeErrorUnexpected actual expected -> vsep
+    [ "expected"
+    , indent 2 (ppTerm vars (untyped expected))
+    , "but found"
+    , indent 2 (ppTerm vars (untyped actual))
+    ]
+
+  TypeErrorCannotInferLambda term -> vsep
+    [ "cannot infer the type of lambda abstraction"
+    , indent 2 (ppTerm vars term)
+    ]
+
+  TypeErrorNotAFunction _ -> undefined
 
 -- instance (Pretty b, Pretty a, IsString b) => Pretty (TypeError b a) where
 --   pretty = ppTypeError
