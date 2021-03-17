@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE DeriveFoldable       #-}
+{-# LANGUAGE DeriveFunctor        #-}
+{-# LANGUAGE DeriveTraversable    #-}
+{-# LANGUAGE PatternSynonyms      #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Rzk.Free.Syntax.FreeScoped where
 
 import           Bound

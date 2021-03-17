@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5a30ce9163b31e205c8357e98b85cc8283f4253767fa1b6d48f8dc9083a2d57d
+-- hash: 1c6afc5ad0cb903cc931cc711479837841dce6bdfff9af2ff792c1792d0bcf98
 
 name:           rzk
 version:        0.1.0.0
@@ -42,6 +42,7 @@ library
       Rzk.Free.Pretty
       Rzk.Free.Syntax.Decl
       Rzk.Free.Syntax.FreeScoped
+      Rzk.Free.Syntax.FreeScoped.Unification
       Rzk.Free.Syntax.Module
       Rzk.Free.Syntax.Term
       Rzk.Free.TypeCheck
@@ -67,6 +68,7 @@ library
     , bound
     , free
     , hashable
+    , logict
     , mtl
     , parsers
     , prettyprinter
@@ -91,6 +93,7 @@ executable rzk
     , bound
     , free
     , hashable
+    , logict
     , mtl
     , parsers
     , prettyprinter
@@ -118,6 +121,7 @@ test-suite doctests
     , doctest
     , free
     , hashable
+    , logict
     , mtl
     , parsers
     , prettyprinter
@@ -144,6 +148,7 @@ test-suite rzk-test
     , bound
     , free
     , hashable
+    , logict
     , mtl
     , parsers
     , prettyprinter

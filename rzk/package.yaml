@@ -43,6 +43,7 @@ dependencies:
 - free
 - bifunctors
 - transformers
+- logict
 
 library:
   source-dirs: src

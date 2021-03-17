@@ -1,18 +1,22 @@
 {-# LANGUAGE DeriveFoldable    #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ViewPatterns      #-}
 module Rzk.Free.Syntax.Term where
 
 import           Bound
+import           Bound.Scope                (instantiateVars)
 import           Control.Monad              (ap)
 import           Control.Monad.Identity     (Identity (..))
 import           Data.Bifoldable
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
 import           Data.Bitraversable
+import           Data.List                  (foldl')
 
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
@@ -111,6 +115,32 @@ type ATermF' ann b a = TermF (Scope1ATerm ann b a) (ATerm ann b a) a
 pattern Variable :: a -> Term b a
 pattern Variable x = PureScoped x
 
+appList :: Term b a -> Maybe (Term b a, [Term b a])
+appList = \case
+  App t1 t2 -> Just (go t1 [t2])
+  _ -> Nothing
+  where
+    go (App t x) xs = go t (x:xs)
+    go t xs         = (t, xs)
+
+peelApps :: Term b a -> (Term b a, [Term b a])
+peelApps = go []
+  where
+    go xs (App t x) = go (x:xs) t
+    go xs t         = (t, xs)
+
+mkLams :: Int -> Scope Int (Term b) a -> Term b a
+mkLams n = go n []
+  where
+    go :: Int -> [a] -> Scope Int (Term b) a -> Term b a
+    go 0 xs s = instantiateVars xs s
+    go n xs s = Lambda (abstract1Unnamed (go (n - 1) (map Just xs <> [Nothing]) (Just <$> s)))
+
+pattern Apps :: Term b a -> [Term b a] -> Term b a
+pattern Apps f xs <- (appList -> Just (f, xs))
+  where
+    Apps f xs = foldl' App f xs
+
 pattern App :: Term b a -> Term b a -> Term b a
 pattern App t1 t2 = FreeScoped (AppF t1 t2)
 
@@ -147,6 +177,24 @@ pattern VariableT x = PureScoped x
 
 pattern Typed :: TypedTerm b a -> TermF b (Scope1TypedTerm b a) (TypedTerm b a) -> TypedTerm b a
 pattern Typed t term = FreeScoped (TypedF t term)
+
+appListT
+  :: TypedTerm b a
+  -> Maybe (TypedTerm b a, (TypedTerm b a, [(TypedTerm b a, TypedTerm b a)]))
+appListT = \case
+  AppT tt t1 t2 -> Just (tt, go t1 [(t2, tt)])
+  _ -> Nothing
+  where
+    go (AppT tt' t x) xs = go t ((x, tt'):xs)
+    go t xs              = (t, xs)
+
+pattern AppsT
+  :: TypedTerm b a
+  -> [(TypedTerm b a, TypedTerm b a)]
+  -> TypedTerm b a
+pattern AppsT f xs <- (appListT -> Just (tt, (f, xs)))
+  where
+    AppsT f xs = foldl' (\g (x, t) -> AppT t g x) f xs
 
 pattern AppT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
 pattern AppT t t1 t2 = Typed t (AppF t1 t2)
@@ -231,3 +279,20 @@ idJ = lam_ (lam_ (lam_ (lam_ (lam_ (lam_ (IdJ arg1 arg2 arg3 arg4 arg5 arg6)))))
     arg4 = Variable (Just (Just Nothing))
     arg5 = Variable (Just Nothing)
     arg6 = Variable (Nothing)
+
+-- * Unification
+
+zipMatch
+  :: TermF b s t -> TermF b s t -> Maybe (TermF b (Either s (s, s)) (Either t (t, t)))
+zipMatch t1 t2 =
+  case (t1, t2) of
+    (LambdaF body1, LambdaF body2) -> return (LambdaF (Right (body1, body2)))
+    (AppF f1 x1, AppF f2 x2) -> return (AppF (Right (f1, f2)) (Right (x1, x2)))
+    (UniverseF, UniverseF) -> return UniverseF
+    (PiF a1 b1, PiF a2 b2) -> return (PiF (Right (a1, a2)) (Right (b1, b2)))
+    (UnitTypeF, UnitTypeF) -> return UnitTypeF
+    (UnitF, UnitF) -> return UnitF
+    (IdTypeF a1 x1 y1, IdTypeF a2 x2 y2) -> return (IdTypeF (Right (a1, a2)) (Right (x1, x2)) (Right (y1, y2)))
+    (ReflF a1 x1, ReflF a2 x2) -> return (ReflF (Right (a1, a2)) (Right (x1, x2)))
+    -- TODO: IdJF
+    _ -> Nothing

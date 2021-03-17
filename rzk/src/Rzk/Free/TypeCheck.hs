@@ -4,7 +4,9 @@
 module Rzk.Free.TypeCheck where
 
 import           Bound
+import           Bound.Scope
 import           Control.Monad.Except
+import           Data.List                    (foldl')
 import           Data.String                  (IsString)
 import           Data.Text.Prettyprint.Doc    (Pretty)
 
@@ -35,6 +37,41 @@ inferScoped typeOfBoundVar term =
   enterScope typeOfBoundVar $ do
     toScope <$> infer (fromScope term)
 
+inferFun :: Eq a => Term b a -> Term b a -> TypeCheck b a (TypedTerm b a)
+inferFun arg = \case
+  Lambda body -> do
+    arg' <- infer arg
+    typeOfArg <- typeOf arg'
+    body' <- inferScoped typeOfArg body
+    typeOfBody <- typeOfScoped arg' body'
+    return (LambdaT (PiT universeT typeOfArg typeOfBody) body')
+  t -> infer t
+
+inferMany :: Eq a => [Term b a] -> TypeCheck b a [TypedTerm b a]
+inferMany = mapM infer
+
+inferApps :: Eq a => Term b a -> [TypedTerm b a] -> TypeCheck b a (TypedTerm b a)
+inferApps f [] = infer f
+inferApps f (x:xs) =
+  case f of
+    Lambda body -> do
+      typeOfX <- typeOf x
+      body' <- enterScope typeOfX $ do
+        toScope <$> inferApps (fromScope body) (map (fmap F) xs)
+      typeOfBody <- typeOfScoped x body'
+      return (AppT (instantiate1 x typeOfBody) (LambdaT (PiT universeT typeOfX typeOfBody) body') x)
+
+    t -> do
+      t' <- infer t
+      foldl' (\g z -> g >>= \g' -> appT g' z) (pure t') (x:xs)
+
+appT :: TypedTerm b a -> TypedTerm b a -> TypeCheck b a (TypedTerm b a)
+appT f x = typeOf f >>= \case
+  PiT _ typeOfArg typeOfBody ->
+    return (AppT (instantiate1 x typeOfBody) f x)
+  _ -> throwError (TypeErrorNotAFunction f)
+
+
 infer :: Eq a => Term b a -> TypeCheck b a (TypedTerm b a)
 infer = \case
   Universe -> return universeT
@@ -43,26 +80,9 @@ infer = \case
     b' <- typecheckScope a' b (toScope universeT)
     return (PiT universeT a' b')
 
-  App (Lambda body) arg -> do
-    arg' <- infer arg
-    typeOfArg <- typeOf arg'
-    body' <- inferScoped typeOfArg body
-    typeOfBody <- typeOfScoped arg' body'
-    let typeOfResult = instantiate1 arg' typeOfBody
-    return (AppT typeOfResult (LambdaT (PiT universeT typeOfArg typeOfBody) body') arg')
-
-  App t1 t2 -> do
-    infer t1 >>= \case
-      t1'@(Typed (PiT _ a b) _) -> do
-        t2' <- typecheck t2 a
-        return (AppT (instantiate1 t2' b) t1' t2')
-      t1'@(VariableT x) -> do
-        typeOfFreeVar x >>= \case
-          PiT _ a b -> do
-            t2' <- typecheck t2 a
-            return (AppT (instantiate1 t2' b) t1' t2')
-          _ -> throwError (TypeErrorNotAFunction t1')
-      t1' -> throwError (TypeErrorNotAFunction t1')
+  Apps f args -> do
+    args' <- inferMany args
+    inferApps f args'
 
   t@Lambda{} -> throwError (TypeErrorCannotInferLambda t)
   Unit -> return (UnitT (UnitTypeT universeT))

@@ -94,3 +94,9 @@ ex3 = "\\A -> \\x -> \\y -> \\p -> J A x (\\z -> \\q -> z =_{A} x) refl_{x : A} 
 -- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄ : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₄ : x₂ =_{x₁} x₃) → x₃ =_{x₁} x₂
 ex3Type :: TypedTerm'
 ex3Type = mkType "(A : U) -> (x : A) -> (y : A) -> (p : x =_{A} y) -> y =_{A} x"
+
+ex4 :: Term'
+ex4 = "\\A -> \\f -> (\\x -> \\y -> f x y) A (\\z -> z)"
+
+ex4Type :: TypedTerm'
+ex4Type = mkType "(A : U) -> ((B : U) -> (g : (z : B) -> B) -> B) -> A"
