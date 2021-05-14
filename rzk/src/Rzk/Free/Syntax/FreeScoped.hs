@@ -93,3 +93,5 @@ pattern FreeScoped
   :: term (Scope b (FreeScoped b term) a) (FreeScoped b term a)
   -> FreeScoped b term a
 pattern FreeScoped t = FreeScopedT (Identity (FreeScopedF t))
+
+{-# COMPLETE PureScoped, FreeScoped #-}

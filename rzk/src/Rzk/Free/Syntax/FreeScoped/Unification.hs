@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFoldable             #-}
+{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FunctionalDependencies     #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.FreeScoped.Unification where
 
 import           Bound.Scope                (Scope, instantiate, toScope)
@@ -18,9 +20,10 @@ import           Control.Applicative
 import           Control.Monad.State
 import           Data.Bifoldable
 import           Data.Bifunctor
+import           Data.Bifunctor.TH
 import           Data.Bitraversable
 import qualified Data.Foldable              as F
-import           Data.List                  (intersect, partition, union)
+import           Data.List                  (partition)
 import           Data.String
 import           Data.Text.Prettyprint.Doc  (Pretty (..))
 import           Rzk.Free.Syntax.FreeScoped
@@ -28,9 +31,19 @@ import           Rzk.Free.Syntax.FreeScoped
 import           Debug.Trace
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Parser
-import           Rzk.Free.Pretty
+import           Rzk.Free.Pretty            ()
 import           Rzk.Free.Syntax.Term
 import           Unsafe.Coerce
+
+data UVar b a v
+  = UFreeVar a
+  | UMetaVar v
+  | UBoundVar v b
+  deriving (Eq, Foldable, Functor)
+
+deriveBifunctor ''UVar
+deriveBifoldable ''UVar
+deriveBitraversable ''UVar
 
 type UTerm b a v = UFreeScoped (Name b ()) (TermF b) a v
 
@@ -45,19 +58,16 @@ unsafeTraceConstraint' tag x y = trace (tag <> " " <> show (unsafeCoerce x :: (U
 unsafeTraceConstraints' :: String -> a -> b -> b
 unsafeTraceConstraints' tag x y = trace (tag <> " " <> show (unsafeCoerce x :: [(UTerm', UTerm')])) y
 
-data UVar b a v
-  = UFreeVar a
-  | UMetaVar v
-  | UBoundVar v b
-  deriving (Eq, Foldable)
-
 instance IsString a => IsString (UVar b a v) where
   fromString = UFreeVar . fromString
 
 instance (Pretty a, Pretty v) => Pretty (UVar b a v) where
   pretty (UFreeVar x)    = pretty x
-  pretty (UMetaVar v)    = "?M" <> pretty v
-  pretty (UBoundVar n b) = "[bound]" <> pretty n
+  pretty (UMetaVar v)    = "?" <> pretty v
+  pretty (UBoundVar n _) = "[bound]" <> pretty n
+
+instance (Pretty a, Pretty v) => Show (UVar b a v) where
+  show = show . pretty
 
 type UFreeScoped b term a v = FreeScoped b term (UVar b a v)
 
@@ -71,21 +81,21 @@ class (Eq var, Monad m) => MonadBind term var m | m -> term var where
 data BindState term var = BindState
   { bindings   :: [(var, term)]
   , freshVars  :: [var]
-  , freshMetas :: var
+  , freshMetas :: [var]
   }
 
-initBindState :: Enum var => BindState term var
+initBindState :: BindState term var
 initBindState = BindState
   { bindings = []
   , freshVars = []
-  , freshMetas = toEnum 100
+  , freshMetas = []
   }
 
 newtype AssocBindT term var m a = AssocBindT
   { runAssocBindT :: StateT (BindState term var) m a
   } deriving (Functor, Applicative, Alternative, Monad, MonadPlus)
 
-instance (Eq var, Enum var, Monad m) => MonadBind term var (AssocBindT term var m) where
+instance (Eq var, Monad m) => MonadBind term var (AssocBindT term var m) where
   lookupVar x = AssocBindT (gets (lookup x . bindings))
   freeVar = AssocBindT $ do
     s@BindState{..} <- get
@@ -105,8 +115,11 @@ instance (Eq var, Enum var, Monad m) => MonadBind term var (AssocBindT term var 
     put s { bindings = (x, t) : bindings }
   freshMeta = AssocBindT $ do
     s@BindState{..} <- get
-    put s { freshMetas = succ freshMetas }
-    return freshMetas
+    case freshMetas of
+      [] -> error "not enough fresh meta variables!"
+      v:vs -> do
+        put s { freshMetas = vs }
+        return v
 
 type Constraint b term a v = (UFreeScoped b term a v, UFreeScoped b term a v)
 
@@ -124,6 +137,18 @@ noHolesToMeta
   => FreeScoped b term a -> UFreeScoped b term a v
 noHolesToMeta = fmap UFreeVar
 
+toMetaVars
+  :: Bifunctor term
+  => (a -> Maybe v)
+  -> FreeScoped b term a
+  -> UFreeScoped b term a v
+toMetaVars f = fmap toMeta
+  where
+    toMeta x =
+      case f x of
+        Nothing -> UFreeVar x
+        Just y  -> UMetaVar y
+
 simplify
   :: ( MonadBind (UFreeScoped b term a v) v m
      , MonadPlus m
@@ -137,7 +162,7 @@ simplify
   -> Constraint b term a v
   -> m (Maybe [Constraint b term a v])
 simplify reduce zipMatch peel (t1, t2)
-  = unsafeTraceConstraint' "[simplify]" (t1, t2) $
+  = -- unsafeTraceConstraint' "[simplify]" (t1, t2) $
   case (reduce t1, reduce t2) of
     (PureScoped b1@UBoundVar{}, PureScoped b2@UBoundVar{})
       | b1 == b2  -> return (Just [])
@@ -161,7 +186,9 @@ simplify reduce zipMatch peel (t1, t2)
       , (PureScoped x2, args2) <- peel t2' -> do
           guard (x1 == x2)
           guard (length args1 == length args2)
-          return (Just (zip args1 args2))
+          if length args1 == 0
+             then return Nothing
+             else return (Just (zip args1 args2))
     _ -> return Nothing
 
 repeatedlySimplify
@@ -270,17 +297,16 @@ unify
   -> [Constraint b term a v]
   -> m (Subst b term a v, [Constraint b term a v])
 unify reduce zipMatch peel mkApps mkLams s cs = do
-  unsafeTraceConstraints' "[unify]" cs $ do
-    let cs' = applySubst s cs
-    unsafeTraceConstraints' "[unify2]" cs' $ do
-      cs'' <- repeatedlySimplify reduce zipMatch peel cs'
-      let (flexflexes, flexrigids) = partition flexflex cs''
-      traceShow (length flexflexes, length flexrigids) $
-        case flexrigids of
-          [] -> return (s, flexflexes)
-          fr:_ -> do
-            let psubsts = tryFlexRigid peel mkApps mkLams fr
-            trySubsts psubsts (flexrigids <> flexflexes)
+  -- unsafeTraceConstraints' "[unify]" cs $ do
+  let cs' = applySubst s cs
+    -- unsafeTraceConstraints' "[unify2]" cs' $ do
+  cs'' <- repeatedlySimplify reduce zipMatch peel cs'
+  let (flexflexes, flexrigids) = partition flexflex cs''
+  case flexrigids of
+    [] -> return (s, flexflexes)
+    fr:_ -> do
+      let psubsts = tryFlexRigid peel mkApps mkLams fr
+      trySubsts psubsts (flexrigids <> flexflexes)
   where
     applySubst s = map (\(t1, t2) -> (manySubst s t1, manySubst s t2))
     flexflex (t1, t2) = isStuck peel t1 && isStuck peel t2
@@ -292,7 +318,7 @@ unify reduce zipMatch peel mkApps mkLams s cs = do
       these `mplus` those
 
 driver
-  :: (MonadPlus m, Enum v, Bitraversable term, Eq v, Eq a, Eq b)
+  :: (MonadPlus m, Bitraversable term, Eq v, Eq a, Eq b)
   => (UFreeScoped b term a v -> UFreeScoped b term a v)
   -> (forall s t. term s t
                -> term s t
