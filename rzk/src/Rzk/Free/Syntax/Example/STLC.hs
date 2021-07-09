@@ -57,7 +57,8 @@ data TermF scope term
 
   | UnitTypeF
   | UnitF
-  | LetUnitF term scope
+
+  | LetF term scope
 
 --  | TypeAsc term term
 --  | ...
@@ -120,8 +121,8 @@ pattern Unit = FreeScoped UnitF
 pattern UnitType :: Term b a
 pattern UnitType = FreeScoped UnitTypeF
 
-pattern LetUnit :: Term b a -> ScopedTerm b a -> Term b a
-pattern LetUnit u t = FreeScoped (LetUnitF u t)
+pattern Let :: Term b a -> ScopedTerm b a -> Term b a
+pattern Let u t = FreeScoped (LetF u t)
 
 -- | A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
 pattern Fun :: Term b a -> Term b a -> Term b a
@@ -135,7 +136,7 @@ pattern Lam ty body = FreeScoped (LamF ty body)
 pattern App :: Term b a -> Term b a -> Term b a
 pattern App t1 t2 = FreeScoped (AppF t1 t2)
 
-{-# COMPLETE Var, Universe, UnitType, Unit, LetUnit, Fun, Lam, App #-}
+{-# COMPLETE Var, Universe, UnitType, Unit, Let, Fun, Lam, App #-}
 
 -- | A variable.
 pattern VarT :: a -> TypedTerm b a
@@ -174,6 +175,12 @@ universeT = FreeScoped (TypedF UniverseF Nothing)
 -- λx₁ → x₁ x
 lam :: Eq a => Maybe (Term a a) -> a -> Term a a -> Term a a
 lam ty x body = Lam ty (abstract1Name x body)
+
+lam_ :: Eq a => a -> Term a a -> Term a a
+lam_ x body = Lam Nothing (abstract1Name x body)
+
+let_ :: Eq a => Term a a -> a -> Term a a -> Term a a
+let_ u x body = Let u (abstract1Name x body)
 
 data TypeInfo metavar ty var = TypeInfo
   { knownFreeVars :: [(var, ty)]      -- ^ types of free variables
@@ -498,7 +505,18 @@ inferTypeForF2 term = case term of
 
   UnitTypeF -> pure (TypedF UnitTypeF (Just universeT))
   UnitF -> pure (TypedF UnitF (Just (UnitTypeT universeT)))
-  LetUnitF _unit _body -> error "not implemented"
+  LetF inferArg inferBody -> do
+    arg <- inferArg
+    typeOfArg <- typeOf arg
+    typeOfArg' <- typeOfArg `shouldHaveType` universeT
+    scopedTypedBody <- typecheckInScope $ do
+      assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfArg')
+      inferBody
+    typeOfBody <- typeOfScopedWith typeOfArg' scopedTypedBody >>= nonDep
+    typeOfBody' <- typeOfBody `shouldHaveType` universeT
+    pure $ TypedF
+      (LetF arg scopedTypedBody)
+      (Just typeOfBody')
 
 inferTypeForF
   :: (Eq a, Eq v)
@@ -537,7 +555,7 @@ inferTypeForF term = case term of
 
   UnitTypeF -> pure universeT
   UnitF -> pure (UnitTypeT universeT)
-  LetUnitF _unit _body -> error "not implemented"
+  LetF _unit _body -> error "not implemented"
 --    typecheckInScope . typecheckDist $ do
 --      let registerBound x@(Bound.B _) = assignType x (FreeScoped (TypedF UnitTypeF universeT))
 --      traverse registerBound (fromScope body)
@@ -681,8 +699,8 @@ instance Unifiable TermF where
   zipMatch UnitTypeF UnitTypeF = Just UnitTypeF
   zipMatch UnitF UnitF = Just UnitF
 
-  zipMatch (LetUnitF u1 t1) (LetUnitF u2 t2)
-    = Just (LetUnitF (Right (u1, u2)) (Right (t1, t2)))
+  zipMatch (LetF u1 t1) (LetF u2 t2)
+    = Just (LetF (Right (u1, u2)) (Right (t1, t2)))
 
   zipMatch FunF{} _ = Nothing
   zipMatch LamF{} _ = Nothing
@@ -690,7 +708,7 @@ instance Unifiable TermF where
   zipMatch AppF{} _ = Nothing
   zipMatch UnitTypeF{} _ = Nothing
   zipMatch UnitF{} _ = Nothing
-  zipMatch LetUnitF{} _ = Nothing
+  zipMatch LetF{} _ = Nothing
 
   appSome _ []     = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
@@ -789,8 +807,8 @@ ppTerm vars = \case
 
   UnitType -> "UNIT"
   Unit -> "unit"
-  LetUnit u t -> ppScopedTerm vars t $ \x t' ->
-    "let" <+> pretty x <+> "=" <+> ppTerm vars u <+> "in" <+> t'
+  Let u t -> ppScopedTerm vars t $ \x t' ->
+    align (hsep ["let" <+> pretty x <+> "=" <+> ppTerm vars u <+> "in", t'])
 
 ppElimWithArgs :: (Pretty a, Pretty b) => [a] -> Doc ann -> [Term b a] -> Doc ann
 ppElimWithArgs vars name args = name <> tupled (map (ppTermFun vars) args)
@@ -806,7 +824,7 @@ ppTermFun vars = \case
 
   t@Lam{} -> Doc.parens (ppTerm vars t)
   t@Fun{} -> Doc.parens (ppTerm vars t)
-  t@LetUnit{} -> Doc.parens (ppTerm vars t)
+  t@Let{} -> Doc.parens (ppTerm vars t)
 
 -- | Pretty-print an untyped in an argument position.
 ppTermArg :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
@@ -819,7 +837,7 @@ ppTermArg vars = \case
   t@App{} -> Doc.parens (ppTerm vars t)
   t@Lam{} -> Doc.parens (ppTerm vars t)
   t@Fun{} -> Doc.parens (ppTerm vars t)
-  t@LetUnit{} -> Doc.parens (ppTerm vars t)
+  t@Let{} -> Doc.parens (ppTerm vars t)
 
 ppScopedTerm
   :: (Pretty a, Pretty b)
@@ -829,7 +847,22 @@ ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Va
 
 examples :: IO ()
 examples = mapM_ runExample . zip [1..] $
-  [ lam Nothing "f" $
+  [ let_ (lam_ "f" $ lam_ "z" $ Var "z") "zero" $
+    let_ (lam_ "n" $ lam_ "f" $ lam_ "z" $ App (Var "f") (App (App (Var "n") (Var "f")) (Var "z"))) "succ" $
+      App (Var "succ") (App (Var "succ") (Var "zero"))
+
+  , let_ (lam_ "f" $ lam_ "z" $ Var "z") "zero" $
+      Var "zero"
+
+  , App (lam_ "x" (Var "x")) $
+      lam_ "f" $ lam_ "z" $ Var "z"
+
+  , let_ Unit "x" Unit
+
+  , let_ Unit "x" (Var "x")
+
+
+  , lam Nothing "f" $
       lam Nothing "x" $
         App (Var "f") (Var "x") -- ok (fixed)
 
@@ -897,17 +930,17 @@ examples = mapM_ runExample . zip [1..] $
   where
     runExample :: (Int, Term') -> IO ()
     runExample (n, term) = do
-      putStrLn ("Term #" <> show n <> ":")
-      putStr   "    "
+      putStrLn ("Example #" <> show n <> ":")
+      -- putStr   "[input term]:          "
       print term
-      _ <- getLine
-      putStrLn ("Term #" <> show n <> " with inferred type:")
-      putStr   "    "
+      -- _ <- getLine
+      -- putStr   "[with inferred types]: "
       case runTypeCheckOnce' (infer term) of
         Left err -> putStrLn ("Type Error: " <> show err)
         Right (typedTerm, typeInfo) -> do
           print typedTerm
           print typeInfo
+      putStrLn ""
       _ <- getLine
       return ()
 

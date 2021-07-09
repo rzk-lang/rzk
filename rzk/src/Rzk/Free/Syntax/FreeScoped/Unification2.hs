@@ -358,9 +358,6 @@ unify
   -> m (Subst b term a v, [Constraint b term a v])
 unify reduce s cs = do
   -- unsafeTraceConstraints' "[unify]" cs $ do
-  let (csSubsts, csWithoutSubsts) = extractSubsts cs
-      s'  = csSubsts <> s
-      cs' = applySubst s' csWithoutSubsts
     -- unsafeTraceConstraints' "[unify2]" cs' $ do
   cs'' <- repeatedlySimplify reduce cs'
   let (flexflexes, flexrigids) = partition flexflex cs''
@@ -370,6 +367,14 @@ unify reduce s cs = do
       let psubsts = tryFlexRigid fr
       trySubsts psubsts (flexrigids <> flexflexes)
   where
+    (csSubsts, csWithoutSubsts) = extractSubsts cs
+    s'  = csSubsts <+> s
+    cs' = applySubst csSubsts (applySubst s' (filter (not . trivial) cs))
+
+    trivial (PureScoped (UMetaVar v1), PureScoped (UMetaVar v2))
+      = v1 == v2
+    trivial _ = False
+
     extractSubsts = \case
       [] -> ([], [])
       (PureScoped (UMetaVar v1), PureScoped (UMetaVar v2)):cs'
@@ -377,7 +382,7 @@ unify reduce s cs = do
       (PureScoped (UMetaVar v), t):cs'
         | v `notElem` metavars t ->
           case extractSubsts cs' of
-            (ss, cs'') -> ((v, t) : ss, cs'')
+            (ss, cs'') -> ([(v, t)] <+> ss, cs'')
       c:cs' ->
         case extractSubsts cs' of
           (ss, cs'') -> (ss, c:cs'')
@@ -387,7 +392,7 @@ unify reduce s cs = do
     trySubsts [] cs = mzero
     trySubsts (mss : psubsts) cs = do
       ss <- mss
-      let these = foldr mplus mzero [unify reduce (newS <+> s) cs | newS <- ss]
+      let these = foldr mplus mzero [unify reduce (newS <+> s') cs | newS <- ss]
       let those = trySubsts psubsts cs
       these `mplus` those
 
