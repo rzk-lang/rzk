@@ -43,9 +43,9 @@ import qualified Rzk.Syntax.Var                          as Rzk
 
 -- trace :: String -> a -> a
 -- trace = const id
---
--- traceShow :: Show b => b -> a -> a
--- traceShow = trace . show
+
+traceShow :: Show b => b -> a -> a
+traceShow = trace . show
 
 -- | Generating functor for terms in Martin-Loef Type Theory.
 data TermF scope term
@@ -183,7 +183,7 @@ instance (Show metavar, Show ty, Show var) => Show (TypeInfo metavar ty var) whe
     , "  , knownMetaVars = " <> show knownMetaVars
     , "  , knownSubsts   = " <> show knownSubsts
     , "  , constraints   = " <> show constraints
-    , "  , freshMetaVars = " <> show (take 5 freshMetaVars)
+    , "  , freshMetaVars = " <> init (show (take 5 freshMetaVars)) <> ",...]"
     , "  }"
     ]
 
@@ -261,10 +261,16 @@ newtype TypeCheck ty var metavar a = TypeCheck
   deriving (MonadError TypeError)
 
 execTypeCheck' :: TypeCheck' a -> Either TypeError a
-execTypeCheck' = execTypeCheck defaultFreshVars
+execTypeCheck' = execTypeCheck defaultFreshMetaVars
 
 execTypeCheck :: [metavar] -> TypeCheck ty var metavar a -> Either TypeError a
-execTypeCheck vars m = fst <$> observe' (runExceptT (runStateT (runTypeCheck m) initState))
+execTypeCheck vars m = fst <$> runTypeCheckOnce vars m
+
+runTypeCheckOnce' :: TypeCheck' a -> Either TypeError (a, TypeInfo')
+runTypeCheckOnce' = runTypeCheckOnce defaultFreshMetaVars
+
+runTypeCheckOnce :: [metavar] -> TypeCheck ty var metavar a -> Either TypeError (a, TypeInfo metavar ty var)
+runTypeCheckOnce vars m = second observe <$> observe' (runExceptT (runStateT (runTypeCheck m) initState))
   where
     observe' x =
       case observeMany 1 x of
@@ -363,15 +369,14 @@ unifyWithExpected
   -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
 unifyWithExpected t1 t2 = do
   info@TypeInfo{constraints = cs} <- getTypeInfo
-  trace ("[unifyWithExpected]\n  t1=" <> show (unsafeCoerce t1 :: UTypedTerm') <> "\n  t2=" <> show (unsafeCoerce t2 :: UTypedTerm') <> "\n  " <> show (unsafeCoerce info :: TypeInfo')) $ do
-    (substs, flexflex) <- unify whnfT [] ((t1, t2) : cs) <|> fail "unable to unify ..."
-    put $ pure info
-      { knownFreeVars = map (second (manySubst substs)) (knownFreeVars info)
-      , knownMetaVars = map (second (manySubst substs)) (knownMetaVars info)
-      , knownSubsts   = substs <> knownSubsts info
-      , constraints   = flexflex
-      }
-    trace ("[unifyWithExpected] substs=" <> show (unsafeCoerce substs :: [(Rzk.Var, UTypedTerm')])) $ return (manySubst substs t1)
+  (substs, flexflex) <- unify whnfT [] ((t1, t2) : cs) <|> fail "unable to unify ..."
+  put $ pure info
+    { knownFreeVars = map (second (manySubst substs)) (knownFreeVars info)
+    , knownMetaVars = map (second (manySubst substs)) (knownMetaVars info)
+    , knownSubsts   = substs <> knownSubsts info
+    , constraints   = flexflex
+    }
+  return (manySubst substs t1)
 
 whnfT :: UTypedTerm b a v -> UTypedTerm b a v
 whnfT = id
@@ -410,25 +415,25 @@ typeOfScopedWith boundVarType scope = toScope <$> do
     PureScoped (Bound.F x)          -> fmap Bound.F <$> typeOf (PureScoped x)
     PureScoped (Bound.B _)          -> fmap Bound.F <$> pure boundVarType
 
-typeOfScoped
-  :: (Eq a, Eq v)
-  => UScopedTypedTerm b a v -> TypeCheck (UTypedTerm b a v) a v (UScopedTypedTerm b a v)
-typeOfScoped scope = toScope <$> do
-  case fromScope scope of
-    FreeScoped (TypedF _ Nothing) -> return universeT
-    FreeScoped (TypedF _ (Just ty)) -> return ty
-    PureScoped (Bound.F x)   -> fmap Bound.F <$> typeOf (PureScoped x)
-    PureScoped (Bound.B _)   -> PureScoped . Bound.F . UMetaVar <$> freshTypeMetaVar
-
-typeOfScopedNonDep
-  :: (Eq a, Eq v)
-  => UScopedTypedTerm b a v -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
-typeOfScopedNonDep scope = do
-  scopedType <- typeOfScoped scope
-  traverse fromBound (fromScope scopedType)
-  where
-    fromBound (Bound.B _) = fail "typeOfScopedNonDep: dependent type!"
-    fromBound (Bound.F x) = pure x
+-- typeOfScoped
+--   :: (Eq a, Eq v)
+--   => UScopedTypedTerm b a v -> TypeCheck (UTypedTerm b a v) a v (UScopedTypedTerm b a v)
+-- typeOfScoped scope = toScope <$> do
+--   case fromScope scope of
+--     FreeScoped (TypedF _ Nothing) -> return universeT
+--     FreeScoped (TypedF _ (Just ty)) -> return ty
+--     PureScoped (Bound.F x)   -> fmap Bound.F <$> typeOf (PureScoped x)
+--     PureScoped (Bound.B _)   -> PureScoped . Bound.F . UMetaVar <$> freshTypeMetaVar
+--
+-- typeOfScopedNonDep
+--   :: (Eq a, Eq v)
+--   => UScopedTypedTerm b a v -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
+-- typeOfScopedNonDep scope = do
+--   scopedType <- typeOfScoped scope
+--   traverse fromBound (fromScope scopedType)
+--   where
+--     fromBound (Bound.B _) = fail "typeOfScopedNonDep: dependent type!"
+--     fromBound (Bound.F x) = pure x
 
 inferTypeForF
   :: (Eq a, Eq v)
@@ -442,20 +447,18 @@ inferTypeForF term = case term of
     _ <- b `shouldHaveType` universeT
     pure universeT
 
-  LamF mtypeOfArg body -> do
+  LamF mtypeOfArg body -> trace "[inferTypeForF LamF]" $ do
     typeOfArg <- case mtypeOfArg of
       Just t  -> return t
       Nothing -> VarT . UMetaVar <$> freshTypeMetaVar
     typeOfArg' <- typeOfArg `shouldHaveType` universeT
     typeOfBody <- do
-      let fromUVar (UFreeVar x) = x
-          fromUVar _            = error "leaked UVar"
-      scopedTypedBody <- inferScopedWith typeOfArg' (toScope (fmap (fmap fromUVar) (untyped (fromScope body))))
+      scopedTypedBody <- clarifyScopedTypedTermWith typeOfArg' body
       typeOfScopedWith typeOfArg' scopedTypedBody >>= nonDep
     typeOfBody' <- typeOfBody `shouldHaveType` universeT
     pure (FunT universeT typeOfArg' typeOfBody')
 
-  AppF f x -> do
+  AppF f x -> trace "[inferTypeForF AppF]" $ do
     typeOf f >>= \case
       FunT _ argType bodyType -> do
         _ <- x `shouldHaveType` argType
@@ -463,7 +466,7 @@ inferTypeForF term = case term of
       t@(VarT _) -> do
         bodyType <- VarT . UMetaVar <$> freshTypeMetaVar
         typeOf_x <- typeOf x
-        _ <- t `unifyWithExpected` FunT universeT typeOf_x bodyType -- FIXME: loops forever?
+        _ <- t `unifyWithExpected` FunT universeT typeOf_x bodyType
         clarifyTypedTerm bodyType
       _ -> fail "inferTypeForF: application of a non-function"
 
@@ -480,24 +483,41 @@ clarifyTypedTerm
   => UTypedTerm b a v
   -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
 clarifyTypedTerm t = do
-  info@TypeInfo{knownSubsts = substs} <- getTypeInfo
+  TypeInfo{knownSubsts = substs} <- getTypeInfo
   return (manySubst substs t)
+
+clarifyScopedTypedTermWith
+  :: (Eq a, Eq v)
+  => UTypedTerm b a v
+  -> UScopedTypedTerm b a v
+  -> TypeCheck (UTypedTerm b a v) a v (UScopedTypedTerm b a v)
+clarifyScopedTypedTermWith boundVarType scope = fmap (toScope . fmap dist') $ do
+  typecheckInScope . typecheckDist $ do
+    let registerBound (Bound.B x) =
+          assignType (Bound.B x) (fmap (dist . Bound.F) boundVarType)
+        registerBound _ = return ()
+        scope' = fromScope scope
+    mapM_ registerBound scope'
+    clarifyTypedTerm (dist <$> scope')
 
 shouldHaveType
   :: (Eq a, Eq v)
   => UTypedTerm b a v
   -> UTypedTerm b a v
   -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
-shouldHaveType term expectedType = trace ("[shouldHaveType]: term = " <> show (unsafeCoerce term :: Term')) $ do
+shouldHaveType term expectedType = do
   actualType <- typeOf term
-  (actualType `unifyWithExpected` expectedType) <|> fail "expected type ... but actual type is ... for term ..."
+  _ <- (actualType `unifyWithExpected` expectedType)
+          <|> fail "expected type ... but actual type is ... for term ..."
   clarifyTypedTerm term
 
 inferF
   :: (Eq a, Eq v)
   => TermF (UScopedTypedTerm b a v) (UTypedTerm b a v)
   -> TypeCheck (UTypedTerm b a v) a v (TypedTermF (UScopedTypedTerm b a v) (UTypedTerm b a v))
-inferF term = TypedF term . Just <$> inferTypeForF term
+inferF term = TypedF term . Just <$> do
+  ty <- inferTypeForF term
+  clarifyTypedTerm ty -- FIXME: too expensive?
 
 infer :: (Eq a, Eq v)
       => Term b a -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
@@ -521,14 +541,14 @@ inferScopedWith
   => UTypedTerm b a v -- ^ Type of the bound variable.
   -> ScopedTerm b a
   -> TypeCheck (UTypedTerm b a v) a v (UScopedTypedTerm b a v)
-inferScopedWith boundVarType scope = fmap (toScope . fmap dist') $ do
+inferScopedWith boundVarType scope = trace "[inferScopedWith]" $ fmap (toScope . fmap dist') $ do
   typecheckInScope . typecheckDist $ do
     let registerBound (Bound.B x) =
           assignType (Bound.B x) (fmap (dist . Bound.F) boundVarType)
         registerBound _ = return ()
         scope' = fromScope scope
     mapM_ registerBound scope'
-    infer scope'
+    trace "[inferScopedWith.infer]" $ infer scope'
 
 nonDep
   :: (Eq a, Eq v)
@@ -647,9 +667,14 @@ instance (Pretty a, Pretty b, IsString a) => Show (Term b a) where
 instance (Pretty a, Pretty b, IsString a) => Pretty (Term b a) where
   pretty = ppTerm defaultFreshVars
 
-
 defaultFreshVars :: IsString a => [a]
-defaultFreshVars = [ fromString ("x" <> toIndex i) | i <- [1..] ]
+defaultFreshVars = mkDefaultFreshVars "x"
+
+defaultFreshMetaVars :: IsString a => [a]
+defaultFreshMetaVars = mkDefaultFreshVars "M"
+
+mkDefaultFreshVars :: IsString a => String -> [a]
+mkDefaultFreshVars prefix = [ fromString (prefix <> toIndex i) | i <- [1..] ]
   where
     toIndex n = index
       where
@@ -726,7 +751,55 @@ ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Va
 
 examples :: IO ()
 examples = mapM_ runExample . zip [1..] $
-  [ Unit                  -- ok
+  [ lam Nothing "x" $
+      lam Nothing "x" $
+        Var "x" -- FIXME: losing information, not specific enough type
+
+  , lam Nothing "x" $
+      lam Nothing "y" $
+        Var "x" -- FIXME: losing information, not specific enough type
+
+  , lam (Just (Fun (Var "A") (Var "B"))) "f" $
+      lam (Just (Var "A")) "x" $
+        App (Var "f") (Var "x") -- FIXME: losing information about bound variables
+
+  , lam (Just (Fun (Var "A") (Var "B"))) "f" $
+      lam Nothing "x" $
+        App (Var "f") (Var "x") -- ok
+
+  , lam Nothing "x" $
+      Var "x" -- ok
+
+  , lam (Just (Var "A")) "x" $
+      Var "x" -- ok
+
+  , lam (Just (Fun (Var "A") (Var "B"))) "f" $
+      Var "f" -- ok
+
+  , lam Nothing "f" $
+      lam Nothing "x" $
+        App (Var "f") (Var "x") -- ok (fixed)
+
+  , lam Nothing "f" $
+      App (Var "f") (Var "f")  -- ok: type error
+
+  , lam Nothing "f" $
+      App (Var "f") Unit -- ok
+
+  , Fun (Var "A") UnitType -- ok (looped because of unsafeCoerce)
+  , Fun (Var "A") (Var "B") -- ok (looped because of unsafeCoerce)
+
+  , lam Nothing "f" $
+      lam (Just UnitType) "x" $
+        App (Var "f") (App (Var "f") (Var "x"))
+        -- ^ ok
+
+  , lam Nothing "f" $
+      lam (Just UnitType) "x" $
+        App (Var "f") (Var "x")
+        -- ^ FIXME: type is not fully inferred
+
+  , Unit                  -- ok
   , App Unit Unit         -- type error
   , UnitType              -- ok
   , Var "x"               -- ok-ish
@@ -736,22 +809,6 @@ examples = mapM_ runExample . zip [1..] $
 
   , Fun Unit Unit         -- type error
   , Fun UnitType UnitType -- ok
-  , Fun (Var "A") UnitType -- FIXME: loops forever
-  , Fun (Var "A") (Var "B") -- FIXME: loops forever
-
-  , lam Nothing "f" $
-      lam (Just Unit) "x" $
-        App (Var "f") (App (Var "f") (Var "x"))
-        -- ^ FIXME: type is not fully inferred
-
-  , lam Nothing "f" $
-      lam (Just Unit) "x" $
-        App (Var "f") (Var "x")
-        -- ^ FIXME: type is not fully inferred
-
-  , lam (Just (Fun (Var "A") (Var "B"))) "f" $
-      lam (Just (Var "A")) "x" $
-        App (Var "f") (Var "x") -- FIXME: unification loops forever
 
   , Var "x"
   , App (Var "f") (Var "x")
@@ -769,7 +826,11 @@ examples = mapM_ runExample . zip [1..] $
       _ <- getLine
       putStrLn ("Term #" <> show n <> " with inferred type:")
       putStr   "    "
-      print (execTypeCheck' (infer term))
+      case runTypeCheckOnce' (infer term) of
+        Left err -> putStrLn ("Type Error: " <> show err)
+        Right (typedTerm, typeInfo) -> do
+          print typedTerm
+          print typeInfo
       _ <- getLine
       return ()
 

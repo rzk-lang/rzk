@@ -14,6 +14,8 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.FreeScoped.Unification2 where
 
+import           Debug.Trace
+
 import           Bound.Name
 import           Bound.Scope                            (instantiate,
                                                          instantiate1, toScope)
@@ -356,16 +358,31 @@ unify
   -> m (Subst b term a v, [Constraint b term a v])
 unify reduce s cs = do
   -- unsafeTraceConstraints' "[unify]" cs $ do
-  let cs' = applySubst s cs
+  let (csSubsts, csWithoutSubsts) = extractSubsts cs
+      s'  = csSubsts <> s
+      cs' = applySubst s' csWithoutSubsts
     -- unsafeTraceConstraints' "[unify2]" cs' $ do
   cs'' <- repeatedlySimplify reduce cs'
   let (flexflexes, flexrigids) = partition flexflex cs''
-  case flexrigids of
-    [] -> return (s, flexflexes)
-    fr:_ -> do
-      let psubsts = tryFlexRigid fr
-      trySubsts psubsts (flexrigids <> flexflexes)
+  trace ("[unify] flexflexes[" <> show (length flexflexes) <> "]  flexrigids[" <> show (length flexrigids) <> "]") $
+    case flexrigids of
+      [] -> return (s', flexflexes)
+      fr:_ -> do
+        let psubsts = tryFlexRigid fr
+        trySubsts psubsts (flexrigids <> flexflexes)
   where
+    extractSubsts = \case
+      [] -> ([], [])
+      (PureScoped (UMetaVar v1), PureScoped (UMetaVar v2)):cs'
+        | v1 == v2 -> extractSubsts cs'
+      (PureScoped (UMetaVar v), t):cs'
+        | v `notElem` metavars t ->
+          case extractSubsts cs' of
+            (ss, cs'') -> ((v, t) : ss, cs'')
+      c:cs' ->
+        case extractSubsts cs' of
+          (ss, cs'') -> (ss, c:cs'')
+
     applySubst s = map (\(t1, t2) -> (manySubst s t1, manySubst s t2))
     flexflex (t1, t2) = isStuck t1 && isStuck t2
     trySubsts [] cs = mzero
