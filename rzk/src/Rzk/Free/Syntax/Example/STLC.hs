@@ -792,12 +792,12 @@ examples = mapM_ runExample . zip [1..] $
   , lam Nothing "f" $
       lam (Just UnitType) "x" $
         App (Var "f") (App (Var "f") (Var "x"))
-        -- ^ ok
+        -- ok
 
   , lam Nothing "f" $
       lam (Just UnitType) "x" $
         App (Var "f") (Var "x")
-        -- ^ FIXME: type is not fully inferred
+        -- FIXME: type is not fully inferred
 
   , Unit                  -- ok
   , App Unit Unit         -- type error
