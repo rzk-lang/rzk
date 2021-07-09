@@ -14,7 +14,7 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.Example.STLC where
 
-import           Debug.Trace
+-- import           Debug.Trace
 import           Unsafe.Coerce
 
 import           Bound.Scope                             (Scope, fromScope,
@@ -41,8 +41,8 @@ import           Rzk.Free.Syntax.FreeScoped.Unification2 (Unifiable (..),
                                                           manySubst, unify)
 import qualified Rzk.Syntax.Var                          as Rzk
 
--- trace :: String -> a -> a
--- trace = const id
+trace :: String -> a -> a
+trace = const id
 
 traceShow :: Show b => b -> a -> a
 traceShow = trace . show
@@ -98,6 +98,13 @@ type UScopedTypedTerm b a v = Scope (Name b ()) (TypedTerm b) (UVar (Name b ()) 
 type UTypedTerm' = UTypedTerm Rzk.Var Rzk.Var Rzk.Var
 type UTypedTermInScope' = UTypedTermInScope Rzk.Var Rzk.Var Rzk.Var
 type UScopedTypedTerm' = UScopedTypedTerm Rzk.Var Rzk.Var Rzk.Var
+
+type InScope' = Bound.Var (Name Rzk.Var ())
+
+type UTypedTerm'1 = UTypedTerm Rzk.Var (InScope' Rzk.Var) Rzk.Var
+type UTypedTerm'2 = UTypedTerm Rzk.Var (InScope' (InScope' Rzk.Var)) Rzk.Var
+
+type TypeInfo'2 = TypeInfo Rzk.Var UTypedTerm'2 (InScope' (InScope' Rzk.Var))
 
 -- | A variable.
 pattern Var :: a -> Term b a
@@ -360,7 +367,7 @@ typecheck
   -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
 typecheck term expectedType = do
   typedTerm <- infer term
-  typedTerm `shouldHaveType` expectedType
+  trace "shouldHaveType #1" $ typedTerm `shouldHaveType` expectedType
 
 unifyWithExpected
   :: (Eq a, Eq v)
@@ -435,6 +442,64 @@ typeOfScopedWith boundVarType scope = toScope <$> do
 --     fromBound (Bound.B _) = fail "typeOfScopedNonDep: dependent type!"
 --     fromBound (Bound.F x) = pure x
 
+inferTypeForF2
+  :: (Eq a, Eq v)
+  => TermF
+        (TypeCheck (UTypedTermInScope b a v) (Bound.Var (Name b ()) a) v
+            (UScopedTypedTerm b a v))
+        (TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v))
+  -> TypeCheck (UTypedTerm b a v) a v
+        (TypedTermF (UScopedTypedTerm b a v) (UTypedTerm b a v))
+inferTypeForF2 term = case term of
+  UniverseF -> pure (TypedF UniverseF (Just universeT))
+  -- a -> b
+  FunF inferA inferB -> do
+    a <- inferA
+    _ <- trace "shouldHaveType #2" $ a `shouldHaveType` universeT
+    b <- inferB
+    _ <- trace "shouldHaveType #3" $ b `shouldHaveType` universeT
+    pure (TypedF (FunF a b) (Just universeT))
+
+  LamF minferTypeOfArg inferBody -> trace "[inferTypeForF LamF]" $ do
+    typeOfArg <- case minferTypeOfArg of
+      Just inferTypeOfArg -> inferTypeOfArg
+      Nothing             -> VarT . UMetaVar <$> freshTypeMetaVar
+    typeOfArg' <- trace "shouldHaveType #4" $ typeOfArg `shouldHaveType` universeT
+    scopedTypedBody <- typecheckInScope $ do
+      assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfArg') -- FIXME: unnamed?
+      inferBody
+    typeOfBody <- typeOfScopedWith typeOfArg' scopedTypedBody >>= nonDep
+    typeOfBody' <- trace "shouldHaveType #5" $ typeOfBody `shouldHaveType` universeT
+    pure $ TypedF
+      (LamF (typeOfArg <$ minferTypeOfArg) scopedTypedBody)
+      (Just (FunT universeT typeOfArg' typeOfBody'))
+
+  AppF infer_f infer_x -> trace "[inferTypeForF AppF]" $ do
+    f <- infer_f
+    x <- infer_x
+    TypedF (AppF f x) . Just <$> do
+      typeOf f >>= \case
+        FunT _ argType bodyType -> do
+          info <- getTypeInfo
+          typeOf_x <- typeOf x
+          _ <-
+            trace (show (unsafeCoerce x :: UTypedTerm'2) <> " `shouldHaveType` " <> show (unsafeCoerce argType :: UTypedTerm'2)) $
+              trace (show (unsafeCoerce info :: TypeInfo'2)) $
+                trace (show (unsafeCoerce typeOf_x :: UTypedTerm'2)) $
+                  trace (show (unsafeCoerce typeOf_x :: UTypedTerm'2) <> " `unifyWithExpected` " <> show (unsafeCoerce argType :: UTypedTerm'2))
+                  x `shouldHaveType` argType
+          trace "shouldHaveType #7" $ bodyType `shouldHaveType` universeT
+        t@(VarT _) -> do
+          bodyType <- VarT . UMetaVar <$> freshTypeMetaVar
+          typeOf_x <- typeOf x
+          _ <- trace "unifyWithExpected #1" $ t `unifyWithExpected` FunT universeT typeOf_x bodyType
+          clarifyTypedTerm bodyType
+        _ -> fail "inferTypeForF: application of a non-function"
+
+  UnitTypeF -> pure (TypedF UnitTypeF (Just universeT))
+  UnitF -> pure (TypedF UnitF (Just (UnitTypeT universeT)))
+  LetUnitF _unit _body -> error "not implemented"
+
 inferTypeForF
   :: (Eq a, Eq v)
   => TermF (UScopedTypedTerm b a v) (UTypedTerm b a v)
@@ -466,7 +531,7 @@ inferTypeForF term = case term of
       t@(VarT _) -> do
         bodyType <- VarT . UMetaVar <$> freshTypeMetaVar
         typeOf_x <- typeOf x
-        _ <- t `unifyWithExpected` FunT universeT typeOf_x bodyType
+        _ <- trace "unifyWithExpected #2" $ t `unifyWithExpected` FunT universeT typeOf_x bodyType
         clarifyTypedTerm bodyType
       _ -> fail "inferTypeForF: application of a non-function"
 
@@ -507,7 +572,7 @@ shouldHaveType
   -> TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v)
 shouldHaveType term expectedType = do
   actualType <- typeOf term
-  _ <- (actualType `unifyWithExpected` expectedType)
+  _ <- trace "unifyWithExpected #3" $ (actualType `unifyWithExpected` expectedType)
           <|> fail "expected type ... but actual type is ... for term ..."
   clarifyTypedTerm term
 
@@ -526,8 +591,10 @@ infer = \case
     addKnownFreeVar x
     return (PureScoped (UFreeVar x))
   FreeScoped t -> do
-    t' <- bitraverse inferScoped infer t
-    FreeScoped <$> inferF t'
+    ty <- FreeScoped <$> inferTypeForF2 (bimap inferScoped infer t)
+    clarifyTypedTerm ty
+  where
+    inferScoped = fmap (toScope . fmap dist') . typecheckDist . infer . fromScope
 
 inferScoped
   :: (Eq a, Eq v)
@@ -653,6 +720,17 @@ instance Unifiable term => Unifiable (TypedF term) where
 instance Pretty Rzk.Var where
   pretty (Rzk.Var x) = pretty x
 
+instance (Pretty n, Pretty b) => Pretty (Name n b) where
+  pretty (Name Nothing b)     = pretty b
+  pretty (Name (Just name) b) = "<" <> pretty name <> " " <> pretty b <> ">"
+
+instance (Pretty b, Pretty a) => Pretty (Bound.Var b a) where
+  pretty (Bound.B b) = "<bound " <> pretty b <> ">"
+  pretty (Bound.F x) = "<free " <> pretty x <> ">"
+
+instance IsString a => IsString (Bound.Var b a) where
+  fromString = Bound.F . fromString
+
 -- | Uses 'Pretty' instance.
 --
 -- >>> mkLams 5 (abstract (const Nothing) (Var "y")) :: Term String String
@@ -751,17 +829,25 @@ ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Va
 
 examples :: IO ()
 examples = mapM_ runExample . zip [1..] $
-  [ lam Nothing "x" $
+  [ lam Nothing "f" $
       lam Nothing "x" $
-        Var "x" -- FIXME: losing information, not specific enough type
+        App (Var "f") (Var "x") -- ok (fixed)
 
-  , lam Nothing "x" $
-      lam Nothing "y" $
-        Var "x" -- FIXME: losing information, not specific enough type
+  , lam (Just (Fun UnitType UnitType)) "f" $
+      lam (Just UnitType) "x" $
+        App (Var "f") (Var "x") -- ok
 
   , lam (Just (Fun (Var "A") (Var "B"))) "f" $
       lam (Just (Var "A")) "x" $
-        App (Var "f") (Var "x") -- FIXME: losing information about bound variables
+        App (Var "f") (Var "x") -- ok (fixed)
+
+  , lam Nothing "x" $
+      lam Nothing "x" $
+        Var "x" -- ok
+
+  , lam Nothing "x" $
+      lam Nothing "y" $
+        Var "x" -- ok (fixed)
 
   , lam (Just (Fun (Var "A") (Var "B"))) "f" $
       lam Nothing "x" $
@@ -777,10 +863,6 @@ examples = mapM_ runExample . zip [1..] $
       Var "f" -- ok
 
   , lam Nothing "f" $
-      lam Nothing "x" $
-        App (Var "f") (Var "x") -- ok (fixed)
-
-  , lam Nothing "f" $
       App (Var "f") (Var "f")  -- ok: type error
 
   , lam Nothing "f" $
@@ -793,11 +875,6 @@ examples = mapM_ runExample . zip [1..] $
       lam (Just UnitType) "x" $
         App (Var "f") (App (Var "f") (Var "x"))
         -- ok
-
-  , lam Nothing "f" $
-      lam (Just UnitType) "x" $
-        App (Var "f") (Var "x")
-        -- FIXME: type is not fully inferred
 
   , Unit                  -- ok
   , App Unit Unit         -- type error

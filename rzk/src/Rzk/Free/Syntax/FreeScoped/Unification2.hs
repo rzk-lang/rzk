@@ -14,8 +14,6 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.FreeScoped.Unification2 where
 
-import           Debug.Trace
-
 import           Bound.Name
 import           Bound.Scope                            (instantiate,
                                                          instantiate1, toScope)
@@ -130,6 +128,10 @@ isStuck t =
     (PureScoped (UMetaVar _), _) -> True
     _                            -> False
 
+data SimplifyResult a
+  = CannotSimplify
+  | Simplified [a]
+
 simplify
   :: ( MonadBind (UFreeScoped b term a v) v m
      , MonadPlus m
@@ -137,23 +139,21 @@ simplify
      , Unifiable term )
   => (UFreeScoped b term a v -> UFreeScoped b term a v)
   -> Constraint b term a v
-  -> m (Maybe [Constraint b term a v])
+  -> m (SimplifyResult (Constraint b term a v))
 simplify reduce (t1, t2)
   = -- unsafeTraceConstraint' "[simplify]" (t1, t2) $
   case (reduce t1, reduce t2) of
     (PureScoped b1@UBoundVar{}, PureScoped b2@UBoundVar{})
-      | b1 == b2  -> return (Just [])
+      | b1 == b2  -> return (Simplified [])
       | otherwise -> mzero
     (t1', t2')
-      | isStuck t1' || isStuck t2' -> return Nothing
+      | isStuck t1' || isStuck t2' -> return CannotSimplify
     (t1', t2')
-      | (PureScoped x1, args1@(_:_)) <- peelApps t1'
-      , (PureScoped x2, args2@(_:_)) <- peelApps t2' -> do
+      | (PureScoped x1, args1) <- peelApps t1'
+      , (PureScoped x2, args2) <- peelApps t2' -> do
           guard (x1 == x2)
           guard (length args1 == length args2)
-          if length args1 == 0
-             then return Nothing
-             else return (Just (zip args1 args2))
+          return (Simplified (zip args1 args2))
     (FreeScoped t1', FreeScoped t2')
       | Just t <- zipMatch t1' t2' -> do
           let go (Left _)           = return []
@@ -165,8 +165,8 @@ simplify reduce (t1, t2)
                 let ss1 = instantiate (pure . UBoundVar i) s1
                     ss2 = instantiate (pure . UBoundVar i) s2
                 return [(ss1, ss2)]
-          Just . bifold <$> bitraverse goScope go t
-    _ -> return Nothing
+          Simplified . bifold <$> bitraverse goScope go t
+    _ -> return CannotSimplify
 
 repeatedlySimplify
   :: ( MonadBind (UFreeScoped b term a v) v m
@@ -181,10 +181,10 @@ repeatedlySimplify reduce = go
     go [] = return []
     go (c:cs) = do
       simplify reduce c >>= \case
-        Nothing -> do
+        CannotSimplify -> do
           cs' <- go cs
           return (c:cs')
-        Just c' -> do
+        Simplified c' -> do
           go (c' <> cs)
 
 metavars :: Bifoldable term => UFreeScoped b term a v -> [v]
@@ -364,12 +364,11 @@ unify reduce s cs = do
     -- unsafeTraceConstraints' "[unify2]" cs' $ do
   cs'' <- repeatedlySimplify reduce cs'
   let (flexflexes, flexrigids) = partition flexflex cs''
-  trace ("[unify] flexflexes[" <> show (length flexflexes) <> "]  flexrigids[" <> show (length flexrigids) <> "]") $
-    case flexrigids of
-      [] -> return (s', flexflexes)
-      fr:_ -> do
-        let psubsts = tryFlexRigid fr
-        trySubsts psubsts (flexrigids <> flexflexes)
+  case flexrigids of
+    [] -> return (s', flexflexes)
+    fr:_ -> do
+      let psubsts = tryFlexRigid fr
+      trySubsts psubsts (flexrigids <> flexflexes)
   where
     extractSubsts = \case
       [] -> ([], [])
