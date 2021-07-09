@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 451f8ac0949e66a001dcd770a8075d80bcd4b7a5a8d9c661d2cd7e37513156b0
+-- hash: 68a8ccf97b7d24886b2d894c6b2f45f9b2a388b4e71cfdb79468e75df2907b66
 
 name:           rzk
 version:        0.1.0.0
@@ -41,7 +41,10 @@ library
       Rzk.Free.Parser
       Rzk.Free.Pretty
       Rzk.Free.Syntax.Decl
+      Rzk.Free.Syntax.Example.MLTT
+      Rzk.Free.Syntax.Example.STLC
       Rzk.Free.Syntax.Example.ULC
+      Rzk.Free.Syntax.Example.ULC2
       Rzk.Free.Syntax.Free2
       Rzk.Free.Syntax.FreeScoped
       Rzk.Free.Syntax.FreeScoped.Pretty
@@ -71,8 +74,10 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bound
+    , deepseq
     , free
     , hashable
+    , kan-extensions
     , logict
     , mtl
     , parsers
@@ -96,8 +101,10 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bound
+    , deepseq
     , free
     , hashable
+    , kan-extensions
     , logict
     , mtl
     , parsers
@@ -123,9 +130,11 @@ test-suite doctests
     , base
     , bifunctors
     , bound
+    , deepseq
     , doctest
     , free
     , hashable
+    , kan-extensions
     , logict
     , mtl
     , parsers
@@ -151,8 +160,10 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bound
+    , deepseq
     , free
     , hashable
+    , kan-extensions
     , logict
     , mtl
     , parsers

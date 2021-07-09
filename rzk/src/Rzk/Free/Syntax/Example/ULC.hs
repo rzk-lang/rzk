@@ -17,10 +17,10 @@ import           Control.Applicative
 import           Data.Bifunctor.TH
 import           Data.Char                                 (chr, isPrint,
                                                             isSpace, ord)
+import           Data.Coerce                               (coerce)
 import qualified Data.HashSet                              as HashSet
 import           Data.List                                 (foldl')
 import           Data.String                               (IsString (..))
-import           Data.Text                                 (Text)
 import qualified Data.Text                                 as Text
 import           Data.Text.Prettyprint.Doc                 as Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
@@ -62,7 +62,7 @@ type Term b = FreeScoped (Name b ()) TermF
 type ScopedTerm b a = Scope (Name b ()) (Term b) a
 
 -- | Term with 'String' identitiers for bound and free variables.
-type Term' = Term Text Text
+type Term' = Term Rzk.Var Rzk.Var
 
 -- ** Simple pattern synonyms
 
@@ -226,7 +226,7 @@ instance Unifiable TermF where
 --
 type UTerm b a v = UFreeScoped (Name b ()) TermF a v
 
-type UTerm' = UTerm Text Text Rzk.Var
+type UTerm' = UTerm Rzk.Var Rzk.Var Rzk.Var
 
 unifyTerms
   :: (Eq v, Eq a)
@@ -283,8 +283,8 @@ pNotAppTerm = pVar <|> pLam <|> Trifecta.parens pTerm
 pVar :: Parser Term'
 pVar = Var <$> pIdent
 
-pIdent :: Parser Text
-pIdent = Text.pack <$> ident pIdentStyle
+pIdent :: Parser Rzk.Var
+pIdent = Rzk.Var . Text.pack <$> ident pIdentStyle
 
 pIdentStyle :: IdentifierStyle Parser
 pIdentStyle = (emptyIdents @Parser)
@@ -318,8 +318,8 @@ instance IsString UTerm' where
   fromString = toUTerm . fromString
     where
       toUTerm = toMetaVars $ \x ->
-        if "?" `Text.isPrefixOf` x
-           then Just (Rzk.Var (Text.drop 1 x))
+        if "?" `Text.isPrefixOf` coerce x
+           then Just (coerce (Text.drop 1) x)
            else Nothing
 
 unsafeParseTerm :: String -> Term'

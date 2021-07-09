@@ -44,6 +44,8 @@ dependencies:
 - bifunctors
 - transformers
 - logict
+- deepseq
+- kan-extensions
 
 library:
   source-dirs: src

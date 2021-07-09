@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFoldable       #-}
 {-# LANGUAGE DeriveFunctor        #-}
 {-# LANGUAGE DeriveTraversable    #-}
+{-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE PatternSynonyms      #-}
 {-# LANGUAGE RankNTypes           #-}
 {-# LANGUAGE StandaloneDeriving   #-}

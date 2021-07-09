@@ -72,10 +72,6 @@ instance (Pretty a, Pretty v) => Show (UVar b a v) where
 type UFreeScoped b term a v = FreeScoped b term (UVar b a v)
 
 class (Eq var, Monad m) => MonadBind term var m | m -> term var where
-  lookupVar :: var -> m (Maybe term)
-  freeVar :: m var
-  newVar :: term -> m var
-  bindVar :: var -> term -> m ()
   freshMeta :: m var
 
 data BindState term var = BindState
@@ -96,23 +92,6 @@ newtype AssocBindT term var m a = AssocBindT
   } deriving (Functor, Applicative, Alternative, Monad, MonadPlus)
 
 instance (Eq var, Monad m) => MonadBind term var (AssocBindT term var m) where
-  lookupVar x = AssocBindT (gets (lookup x . bindings))
-  freeVar = AssocBindT $ do
-    s@BindState{..} <- get
-    let x:xs = freshVars
-    put s {freshVars = xs}
-    return x
-  newVar t = AssocBindT $ do
-    s@BindState{..} <- get
-    let x:xs = freshVars
-    put s
-      { freshVars = xs
-      , bindings = (x, t) : bindings
-      }
-    return x
-  bindVar x t = AssocBindT $ do
-    s@BindState{..} <- get
-    put s { bindings = (x, t) : bindings }
   freshMeta = AssocBindT $ do
     s@BindState{..} <- get
     case freshMetas of
