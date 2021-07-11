@@ -294,7 +294,8 @@ unifyWithExpected
   -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
 unifyWithExpected t1 t2 = do
   info@TypeInfo{constraints = cs} <- getTypeInfo
-  (substs, flexflex) <- unify whnfT [] ((t1, t2) : cs) <|> fail "unable to unify ..."
+  (substs, flexflex) <- unify whnfT [] ((t1, t2) : cs)
+    <|> fail "unable to unify ..."
   put $ pure info
     { knownFreeVars = map (second (manySubst substs)) (knownFreeVars info)
     , knownMetaVars = map (second (manySubst substs)) (knownMetaVars info)
@@ -436,7 +437,7 @@ instance Unifiable term => Unifiable (TypedF term) where
       (Just t1, Just t2) -> return (TypedF term (Just (Right (t1, t2))))
       _                  -> return (TypedF term Nothing)
 
-  appSome fun args = (TypedF term (error "can't infer type"), args')
+  appSome fun args = (TypedF term Nothing, args')
     where
       (term, args') = appSome fun args
 
@@ -448,6 +449,9 @@ instance Unifiable term => Unifiable (TypedF term) where
 
 untyped :: (Bifunctor t) => TypedTerm t b a -> Term t b a
 untyped = transFreeScopedT termF
+
+pseudoTyped :: (Bifunctor t) => Term t b a -> TypedTerm t b a
+pseudoTyped = transFreeScopedT (`TypedF` Nothing)
 
 untypedScoped :: (Bifunctor t) => ScopedTypedTerm t b a -> ScopedTerm t b a
 untypedScoped = toScope . untyped . fromScope
