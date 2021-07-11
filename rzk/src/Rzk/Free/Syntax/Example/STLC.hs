@@ -14,9 +14,6 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.Example.STLC where
 
--- import           Debug.Trace
-import           Unsafe.Coerce
-
 import qualified Bound.Scope                             as Scope
 import qualified Bound.Var                               as Bound
 import           Data.Bifunctor
@@ -32,7 +29,7 @@ import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
                                                           TypeInfo, assignType,
                                                           clarifyTypedTerm,
                                                           freshTypeMetaVar,
-                                                          getTypeInfo, nonDep,
+                                                          nonDep,
                                                           shouldHaveType,
                                                           typeOf,
                                                           typeOfScopedWith,
@@ -45,12 +42,6 @@ import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
 import           Rzk.Free.Syntax.FreeScoped.Unification  (UVar (..))
 import           Rzk.Free.Syntax.FreeScoped.Unification2 (Unifiable (..))
 import qualified Rzk.Syntax.Var                          as Rzk
-
-trace :: String -> a -> a
-trace = const id
-
-traceShow :: Show b => b -> a -> a
-traceShow = trace . show
 
 -- | Generating functor for terms in Martin-Loef Type Theory.
 data TermF scope term
@@ -217,44 +208,37 @@ inferTypeForTermF term = case term of
   -- a -> b
   FunF inferA inferB -> do
     a <- inferA
-    _ <- trace "shouldHaveType #2" $ a `shouldHaveType` universeT
+    _ <- a `shouldHaveType` universeT
     b <- inferB
-    _ <- trace "shouldHaveType #3" $ b `shouldHaveType` universeT
+    _ <- b `shouldHaveType` universeT
     pure (TypeCheck.TypedF (FunF a b) (Just universeT))
 
-  LamF minferTypeOfArg inferBody -> trace "[inferTypeForF LamF]" $ do
+  LamF minferTypeOfArg inferBody -> do
     typeOfArg <- case minferTypeOfArg of
       Just inferTypeOfArg -> inferTypeOfArg
       Nothing             -> VarT . UMetaVar <$> freshTypeMetaVar
-    typeOfArg' <- trace "shouldHaveType #4" $ typeOfArg `shouldHaveType` universeT
+    typeOfArg' <- typeOfArg `shouldHaveType` universeT
     scopedTypedBody <- typecheckInScope $ do
       assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfArg') -- FIXME: unnamed?
       inferBody
     typeOfBody <- typeOfScopedWith typeOfArg' scopedTypedBody >>= nonDep
-    typeOfBody' <- trace "shouldHaveType #5" $ typeOfBody `shouldHaveType` universeT
+    typeOfBody' <- typeOfBody `shouldHaveType` universeT
     pure $ TypeCheck.TypedF
       (LamF (typeOfArg <$ minferTypeOfArg) scopedTypedBody)
       (Just (FunT universeT typeOfArg' typeOfBody'))
 
-  AppF infer_f infer_x -> trace "[inferTypeForF AppF]" $ do
+  AppF infer_f infer_x -> do
     f <- infer_f
     x <- infer_x
     TypeCheck.TypedF (AppF f x) . Just <$> do
       typeOf f >>= \case
         FunT _ argType bodyType -> do
-          info <- getTypeInfo
-          typeOf_x <- typeOf x
-          _ <-
-            trace (show (unsafeCoerce x :: UTypedTerm'2) <> " `shouldHaveType` " <> show (unsafeCoerce argType :: UTypedTerm'2)) $
-              trace (show (unsafeCoerce info :: TypeInfo'2)) $
-                trace (show (unsafeCoerce typeOf_x :: UTypedTerm'2)) $
-                  trace (show (unsafeCoerce typeOf_x :: UTypedTerm'2) <> " `unifyWithExpected` " <> show (unsafeCoerce argType :: UTypedTerm'2))
-                  x `shouldHaveType` argType
-          trace "shouldHaveType #7" $ bodyType `shouldHaveType` universeT
+          _ <- x `shouldHaveType` argType
+          bodyType `shouldHaveType` universeT
         t@(VarT _) -> do
           bodyType <- VarT . UMetaVar <$> freshTypeMetaVar
           typeOf_x <- typeOf x
-          _ <- trace "unifyWithExpected #1" $ t `unifyWithExpected` FunT universeT typeOf_x bodyType
+          _ <- t `unifyWithExpected` FunT universeT typeOf_x bodyType
           clarifyTypedTerm bodyType
         _ -> fail "inferTypeForF: application of a non-function"
 
