@@ -208,7 +208,10 @@ tryFlexRigid (t1, t2)
   | otherwise = []
   where
     -- proj :: Int -> v -> UFreeScoped b term a v -> Int -> [m [Subst b term a v]]
-    proj bvars mv f nargs = map (generateSubst bvars mv f) [nargs ..]
+    proj bvars mv f nargs = map (generateSubst bvars mv f) [nargs .. maxArgs]
+      ++ error "too many invalid guesses in a higher-order unification procedure"
+
+    maxArgs = 100 -- FIXME: make configurable (and optional?)
 
     -- generateSubst :: Int -> v -> UFreeScoped b term a v -> Int -> m [Subst b term a v]
     generateSubst bvars mv f nargs = do
@@ -380,6 +383,10 @@ unify reduce s cs = do
       (PureScoped (UMetaVar v1), PureScoped (UMetaVar v2)):cs'
         | v1 == v2 -> extractSubsts cs'
       (PureScoped (UMetaVar v), t):cs'
+        | v `notElem` metavars t ->
+          case extractSubsts cs' of
+            (ss, cs'') -> ([(v, t)] <+> ss, cs'')
+      (t, PureScoped (UMetaVar v)):cs'
         | v `notElem` metavars t ->
           case extractSubsts cs' of
             (ss, cs'') -> ([(v, t)] <+> ss, cs'')
