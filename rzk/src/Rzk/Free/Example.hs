@@ -45,14 +45,14 @@ ex2 = lam "f" (Refl UnitType (App (Variable "f") Universe))
 -- Type and term individually:
 --
 -- >>> ex2
--- λx₁ → refl_{unit : UNIT}
+-- λx₁ → refl_{x₁ U : UNIT}
 -- >>> ex2Type
 -- (x₁ : (x₁ : U) → UNIT) → unit =_{UNIT} x₁ U : U
 --
 -- Trying to typecheck:
 --
 -- >>> unsafeTypecheckClosed ex2 ex2Type
--- λx₁ → refl_{unit : UNIT} : (x₁ : (x₁ : U) → UNIT) → unit =_{UNIT} x₁ U
+-- λx₁ → refl_{x₁ U : UNIT} : (x₁ : (x₁ : U) → UNIT) → unit =_{UNIT} x₁ U
 ex2Type :: TypedTerm String String
 ex2Type = mkType $ piType "f" (Universe --> UnitType) (IdType UnitType Unit (App (Variable "f") Universe))
 
@@ -80,18 +80,11 @@ typeOfJ = mkType $
 -- |
 -- >>> ex3
 -- λx₁ → λx₂ → λx₃ → λx₄ → (λx₅ → λx₆ → λx₇ → λx₈ → λx₉ → λx₁₀ → J x₅ x₆ x₇ x₈ x₉ x₁₀) x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄
--- >>> whnf ex3
--- λx₁ → λx₂ → λx₃ → λx₄ → (λx₅ → λx₆ → λx₇ → λx₈ → λx₉ → λx₁₀ → J x₅ x₆ x₇ x₈ x₉ x₁₀) x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄
--- >>> nf ex3
--- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄
 ex3 :: Term'
 ex3 = "\\A -> \\x -> \\y -> \\p -> J A x (\\z -> \\q -> z =_{A} x) refl_{x : A} y p"
 
 -- | For now you can only typecheck 'ex3' in its normal form,
 -- since eta-expanded J cannot be typechecked at the moment.
---
--- >>> F.unsafeTypecheckClosed (nf ex3) ex3Type
--- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl_{x₂ : x₁} x₃ x₄ : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₄ : x₂ =_{x₁} x₃) → x₃ =_{x₁} x₂
 ex3Type :: TypedTerm'
 ex3Type = mkType "(A : U) -> (x : A) -> (y : A) -> (p : x =_{A} y) -> y =_{A} x"
 

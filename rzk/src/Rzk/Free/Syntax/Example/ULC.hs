@@ -125,20 +125,6 @@ lam x body = Lam (abstract1Name x body)
 -- | Given a scope with bound variables indexed by integer numbers,
 -- build a term with as many \(\lambda\)-abstractions as necessary
 -- to abstract away the entire scope.
---
--- >>> t1 = App (Var "x") (Var "y") :: Term String String
--- >>> t2 = abstract (`elemIndex` ["x","y"]) t1 :: Scope Int (Term String) String
--- >>> mkLams 2 t2
--- λx₁ → λx₂ → x₁ x₂
---
--- It is possible to abstract over more variables that there are bound variables:
---
--- >>> t1 = App (Var "x") (Var "y") :: Term String String
--- >>> t2 = abstract (`elemIndex` ["x","y"]) t1 :: Scope Int (Term String) String
--- >>> mkLams 3 t2
--- λx₁ → λx₂ → λx₃ → x₁ x₂
---
--- However, using less variables will lead to an exception.
 mkLams :: Int -> Scope Int (Term b) a -> Term b a
 mkLams n = go n []
   where
@@ -339,16 +325,10 @@ instance Pretty Rzk.Var where
   pretty (Rzk.Var x) = pretty x
 
 -- | Uses 'Pretty' instance.
---
--- >>> mkLams 5 (abstract (const Nothing) (Var "y")) :: Term String String
--- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → y
 instance (Pretty a, Pretty b, IsString a) => Show (Term b a) where
   show = show . pretty
 
 -- | Uses default names (@x@ with a positive integer subscript) for bound variables:
---
--- >>> pretty (mkLams 5 (abstract (const Nothing) (Var "y")) :: Term String String)
--- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → y
 instance (Pretty a, Pretty b, IsString a) => Pretty (Term b a) where
   pretty = ppTerm defaultFreshVars
     where

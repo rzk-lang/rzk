@@ -296,7 +296,7 @@ indent = unlines . map ("  " <> ) . lines
 -- >>> putStrLn $ ppExpr (map pure ['a'..'z']) exampleExpr1
 -- a(b, c) :=
 --   b + c
--- <BLANK>
+-- <BLANKLINE>
 -- a(2, 3)
 --
 -- >>> evalExpr (undefined <$ exampleExpr1)

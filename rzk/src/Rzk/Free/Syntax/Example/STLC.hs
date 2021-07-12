@@ -513,16 +513,7 @@ unifyTerms'
   -> [([(Rzk.Var, UTypedTerm')], [(UTypedTerm', UTypedTerm')])]
 unifyTerms' = unifyTerms (iterate succ "?")
 
--- | Unify two terms with meta-variables.
---
--- >>> t1 = "\\x -> \\y -> ?f x y" :: UTypedTerm'
--- >>> t2 = "\\x -> \\y -> y (x y)" :: UTypedTerm'
--- >>> t1
--- λx₁ → λx₂ → ?f x₁ x₂
--- >>> t2
--- λx₁ → λx₂ → x₂ (x₁ x₂)
--- >>> unifyTerms'_ t1 t2
--- [(f,λx₁ → λx₂ → x₂ ((λx₃ → λx₄ → x₄ ((λx₅ → λx₆ → x₆) x₄ x₃)) x₂ x₁)),(?₂,λx₁ → λx₂ → x₂ ((λx₃ → λx₄ → x₄) x₂ x₁)),(?₃,λx₁ → λx₂ → x₂)]
+-- | Unify two typed terms with meta-variables.
 unifyTerms'_
   :: UTypedTerm'
   -> UTypedTerm'
@@ -674,16 +665,10 @@ instance IsString a => IsString (Bound.Var b a) where
   fromString = Bound.F . fromString
 
 -- | Uses 'Pretty' instance.
---
--- >>> mkLams 5 (abstract (const Nothing) (Var "y")) :: Term String String
--- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → y
 instance (Pretty a, Pretty b, IsString a) => Show (Term b a) where
   show = show . pretty
 
 -- | Uses default names (@x@ with a positive integer subscript) for bound variables:
---
--- >>> pretty (mkLams 5 (abstract (const Nothing) (Var "y")) :: Term String String)
--- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → y
 instance (Pretty a, Pretty b, IsString a) => Pretty (Term b a) where
   pretty = ppTerm defaultFreshVars
 
