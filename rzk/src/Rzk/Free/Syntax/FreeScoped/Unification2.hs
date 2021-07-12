@@ -201,15 +201,21 @@ tryFlexRigid
 tryFlexRigid (t1, t2)
   | (PureScoped (UMetaVar i), cxt1) <- peelApps t1,
     (stuckTerm, cxt2) <- peelApps t2,
-    not (i `elem` metavars t2) = proj (length cxt1) i stuckTerm 0
+    not (i `elem` metavars t2) =
+      if null cxt1
+         then [pure [[(i, t2)]]]
+         else proj (length cxt1) i stuckTerm 0
   | (PureScoped (UMetaVar i), cxt1) <- peelApps t2,
     (stuckTerm, cxt2) <- peelApps t1,
-    not (i `elem` metavars t1) = proj (length cxt1) i stuckTerm 0
+    not (i `elem` metavars t1) =
+      if null cxt1
+         then [pure [[(i, t2)]]]
+         else proj (length cxt1) i stuckTerm 0
   | otherwise = []
   where
     -- proj :: Int -> v -> UFreeScoped b term a v -> Int -> [m [Subst b term a v]]
     proj bvars mv f nargs = map (generateSubst bvars mv f) [nargs .. maxArgs]
-      ++ error "too many invalid guesses in a higher-order unification procedure"
+      ++ error ("too many invalid guesses in a higher-order unification procedure")
 
     maxArgs = 100 -- FIXME: make configurable (and optional?)
 
