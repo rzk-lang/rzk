@@ -67,17 +67,25 @@ data TermF scope term
   -- | Unit (the only value of the unit type): \(\mathsf{unit}\)
   | UnitF
 
-  -- Fixpoint combinator
+  -- | Fixpoint combinator: \(\mathsf{fix\;} t\)
   | FixF term
 
+  -- | Type of natural numbers: \(\mathsf{NAT}\)
   | NatTypeF
+  -- | Natural number literals: \(0, 1, 2, \ldots\)
   | NatLitF Integer
+  -- | Multiplication of numbers: \(t_1 \times t_2\)
   | NatMultiplyF term term
+  -- | Predecessor (decrement): \(\mathsf{pred\;} t\)
   | NatPredF term
+  -- | Check if natural number is zero: \(\mathsf{isZero\;} t\)
   | NatIsZeroF term
 
+  -- | Type of booleans: \(\mathsf{BOOL}\)
   | BoolTypeF
+  -- | Boolean literal: \(\mathsf{true}\) or \(\mathsf{false}\)
   | BoolLitF Bool
+  -- | \(\mathsf{if}\)-expression: \(\mathsf{if\;}t_{\text{cond}} \mathsf{\;them\;} t_1 \mathsf{\;else\;} t_2\)
   | BoolIfF term term term
   deriving (Show, Functor, Foldable, Traversable)
 
@@ -782,6 +790,404 @@ ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Va
 
 -- ** Examples
 
+-- | Each example presents:
+--
+-- * an untyped term
+-- * a typed term (with inferred type)
+-- * extra type information (inferred types of free variables, known information about meta-variables, unresolved constraints, etc.)
+--
+-- @
+-- Example #1:
+-- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂))))
+-- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂)))) : NAT → NAT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₃,NAT : U),(M₁,NAT → ?M₃ : U),(M₂,NAT : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #2:
+-- λ(x₁ : (λx₁ → x₁) A) → (λx₂ → x₂) x₁
+-- λ(x₁ : (λx₁ → x₁) A) → (λx₂ → x₂) x₁ : (λx₁ → x₁) A → (λx₁ → x₁) A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₃,(λx₁ → x₁) A : U),(M₁,U : U),(M₂,?M₁)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #3:
+-- let x₁ = λx₁ → λx₂ → x₂ in let x₂ = λx₂ → λx₃ → λx₄ → x₃ (x₂ x₃ x₄) in x₂ (x₂ x₁)
+-- let x₁ = λx₁ → λx₂ → x₂ in let x₂ = λx₂ → λx₃ → λx₄ → x₃ (x₂ x₃ x₄) in x₂ (x₂ x₁) : (?M₇ → ?M₇) → ?M₇ → ?M₇
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₈,U : U),(M₇,U : U),(M₆,U : U),(M₅,U : U),(M₄,U : U),(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₈,?M₇),(M₅,?M₇),(M₁,?M₇ → ?M₈ : U),(M₂,?M₇),(M₂,?M₅),(M₁,?M₇ → ?M₈ : U),(M₄,?M₇ → ?M₈ : U),(M₆,?M₅ → ?M₇ : U),(M₃,?M₄ → ?M₆ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₉,M₁₀,M₁₁,M₁₂,M₁₃,...]
+--   }
+--
+--
+-- Example #4:
+-- let x₁ = λx₁ → λx₂ → x₂ in x₁
+-- let x₁ = λx₁ → λx₂ → x₂ in x₁ : ?M₁ → ?M₂ → ?M₂
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #5:
+-- (λx₁ → x₁) (λx₁ → λx₂ → x₂)
+-- (λx₁ → x₁) (λx₁ → λx₂ → x₂) : ?M₂ → ?M₃ → ?M₃
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,?M₂ → ?M₃ → ?M₃ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #6:
+-- let x₁ = unit in unit
+-- let x₁ = unit in unit : UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #7:
+-- let x₁ = unit in x₁
+-- let x₁ = unit in x₁ : UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #8:
+-- λx₁ → λx₂ → x₁ x₂
+-- λx₁ → λx₂ → x₁ x₂ : (?M₂ → ?M₃) → ?M₂ → ?M₃
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,?M₂ → ?M₃ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #9:
+-- λ(x₁ : UNIT → UNIT) → λ(x₂ : UNIT) → x₁ x₂
+-- λ(x₁ : UNIT → UNIT) → λ(x₂ : UNIT) → x₁ x₂ : (UNIT → UNIT) → UNIT → UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #10:
+-- λ(x₁ : A → B) → λ(x₂ : A) → x₁ x₂
+-- λ(x₁ : A → B) → λ(x₂ : A) → x₁ x₂ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #11:
+-- λx₁ → λx₂ → x₂
+-- λx₁ → λx₂ → x₂ : ?M₁ → ?M₂ → ?M₂
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #12:
+-- λx₁ → λx₂ → x₁
+-- λx₁ → λx₂ → x₁ : ?M₁ → ?M₂ → ?M₁
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #13:
+-- λ(x₁ : A → B) → λx₂ → x₁ x₂
+-- λ(x₁ : A → B) → λx₂ → x₁ x₂ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₃,A),(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #14:
+-- λx₁ → x₁
+-- λx₁ → x₁ : ?M₁ → ?M₁
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #15:
+-- λ(x₁ : A) → x₁
+-- λ(x₁ : A) → x₁ : A → A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = [(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #16:
+-- λ(x₁ : A → B) → x₁
+-- λ(x₁ : A → B) → x₁ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #17:
+-- λx₁ → x₁ x₁
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #18:
+-- λx₁ → x₁ unit
+-- λx₁ → x₁ unit : (UNIT → ?M₂) → ?M₂
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #19:
+-- A → UNIT
+-- A → UNIT : U
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = [(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #20:
+-- A → B
+-- A → B : U
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #21:
+-- λx₁ → λ(x₂ : UNIT) → x₁ (x₁ x₂)
+-- λx₁ → λ(x₂ : UNIT) → x₁ (x₁ x₂) : (UNIT → UNIT) → UNIT → UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,UNIT : U),(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #22:
+-- unit
+-- unit : UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #23:
+-- unit unit
+-- Type Error: TypeErrorOther "inferTypeForF: application of a non-function"
+--
+-- Example #24:
+-- UNIT
+-- UNIT : U
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #25:
+-- x
+-- x
+-- TypeInfo
+--   { knownFreeVars = [(x,?M₁)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #26:
+-- f unit
+-- f unit : ?M₂
+-- TypeInfo
+--   { knownFreeVars = [(f,UNIT → ?M₂ : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = [(?M₂,?M₂)]
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #27:
+-- f (f unit)
+-- f (f unit) : UNIT
+-- TypeInfo
+--   { knownFreeVars = [(f,UNIT → UNIT : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,UNIT : U),(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #28:
+-- unit → unit
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #29:
+-- UNIT → UNIT
+-- UNIT → UNIT : U
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #30:
+-- x
+-- x
+-- TypeInfo
+--   { knownFreeVars = [(x,?M₁)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #31:
+-- f x
+-- f x : ?M₃
+-- TypeInfo
+--   { knownFreeVars = [(x,?M₂),(f,?M₂ → ?M₃ : U)]
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,?M₂ → ?M₃ : U)]
+--   , constraints   = [(?M₂,?M₂),(?M₃,?M₃)]
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #32:
+-- λ(x₁ : unit) → x₁
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #33:
+-- λ(x₁ : unit) → y
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #34:
+-- λ(x₁ : A) → x₁
+-- λ(x₁ : A) → x₁ : A → A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = [(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #35:
+-- λ(x₁ : A → B) → x₁
+-- λ(x₁ : A → B) → x₁ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #36:
+-- λ(x₁ : (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A) → (λx₂ → x₂) x₁
+-- λ(x₁ : (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A) → (λx₂ → x₂) x₁ : (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A → (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₉,U : U),(M₈,U : U),(M₇,U : U),(M₆,U : U),(M₅,U : U),(M₄,U : U),(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₉,(λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A : U),(M₅,U : U),(M₈,?M₅),(M₇,?M₅),(M₇,?M₅),(M₂,?M₅ → ?M₅ : U),(M₂,?M₅ → ?M₅ : U),(M₂,?M₅ → ?M₅ : U),(M₆,?M₅),(M₄,?M₅ → ?M₆ : U),(M₃,?M₂),(M₁,?M₂ → ?M₃ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₁₀,M₁₁,M₁₂,M₁₃,M₁₄,...]
+--   }
+-- @
 examples :: IO ()
 examples = mapM_ runExample . zip [1..] $
   [ ex_factorial
@@ -868,7 +1274,7 @@ examples = mapM_ runExample . zip [1..] $
   , lam (Just (Var "A")) "x" (Var "x")
   , lam (Just (Fun (Var "A") (Var "B"))) "x" (Var "x")
 
-  , lam (Just (App (App (App (ex_nat 7) (ex_nat 6)) (lam_ "x" (Var "x"))) (Var "A"))) "x" (App (lam_ "z" (Var "z")) (Var "x")) -- FIXME: optimize to avoid recomputation of whnf
+  , lam (Just (App (App (App (ex_nat 5) (ex_nat 6)) (lam_ "x" (Var "x"))) (Var "A"))) "x" (App (lam_ "z" (Var "z")) (Var "x")) -- FIXME: optimize to avoid recomputation of whnf
 
   ]
 
@@ -885,7 +1291,7 @@ runExample (n, term) = do
       print typedTerm
       print typeInfo
   putStrLn ""
-  _ <- getLine
+  -- _ <- getLine
   return ()
 
 -- *** Church numerals
@@ -908,32 +1314,77 @@ ex_zero = lam_ "s" (lam_ "z" (Var "z"))
 ex_nat :: Int -> Term'
 ex_nat n = lam_ "s" (lam_ "z" (iterate (App (Var "s")) (Var "z") !! n))
 
+-- |
+-- >>> ex_add
+-- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄)
+--
+-- >>> unsafeInfer' ex_add
+-- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄) : (?M₃ → ?M₇ → ?M₈) → (?M₃ → ?M₄ → ?M₇) → ?M₃ → ?M₄ → ?M₈
 ex_add :: Term'
 ex_add = lam_ "n" (lam_ "m" (lam_ "s" (lam_ "z"
   (App (App (Var "n") (Var "s")) (App (App (Var "m") (Var "s")) (Var "z"))))))
 
+-- |
+-- >>> ex_mul
+-- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃)
+-- >>> unsafeInfer' ex_mul
+-- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃) : (?M₄ → ?M₅) → (?M₃ → ?M₄) → ?M₃ → ?M₅
 ex_mul :: Term'
 ex_mul = lam_ "n" (lam_ "m" (lam_ "s"
   (App (Var "n") (App (Var "m") (Var "s")))))
 
+-- |
+-- >>> ex_mkPair (Var "x") (Var "y")
+-- λx₁ → x₁ x y
 ex_mkPair :: Term' -> Term' -> Term'
 ex_mkPair t1 t2 = lam_ "_ex_mkPair" (App (App (Var "_ex_mkPair") t1) t2)
 
+-- |
+-- >>> ex_fst
+-- λx₁ → x₁ (λx₂ → λx₃ → x₂)
+-- >>> unsafeInfer' ex_fst
+-- λx₁ → x₁ (λx₂ → λx₃ → x₂) : ((?M₂ → ?M₃ → ?M₂) → ?M₄) → ?M₄
 ex_fst :: Term'
 ex_fst = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "f"))))
 
+-- |
+-- >>> ex_snd
+-- λx₁ → x₁ (λx₂ → λx₃ → x₃)
+-- >>> unsafeInfer' ex_snd
+-- λx₁ → x₁ (λx₂ → λx₃ → x₃) : ((?M₂ → ?M₃ → ?M₃) → ?M₄) → ?M₄
 ex_snd :: Term'
 ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 
+-- |
+-- >>> ex_pred
+-- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄)))
+-- >>> unsafeInfer' ex_pred
+-- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄))) : ((((?M₂₂ → ?M₂₃ → ?M₂₃) → (?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → (((?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → ((?M₁₆ → ?M₁₉) → ?M₁₆ → ?M₂₀) → ?M₂₈) → ?M₂₈) → (((?M₃₁ → ?M₃₂ → ?M₃₂) → (?M₃₄ → ?M₃₅ → ?M₃₅) → ?M₃₆) → ?M₃₆) → (?M₃ → ?M₄ → ?M₃) → ?M₅) → ?M₅
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
--- cannot infer type (seems to be a problem of simply typed Church numerals)
--- we need church numerals to have polymorphic type
+-- |
+-- >>> ex_factorial_church
+-- fix (λx₁ → λx₂ → x₂ (λx₃ → (λx₄ → λx₅ → λx₆ → x₄ (x₅ x₆)) x₂ (x₁ ((λx₄ → (λx₅ → x₅ (λx₆ → λx₇ → x₆)) (x₄ (λx₅ → λx₆ → x₆ ((λx₇ → x₇ (λx₈ → λx₉ → x₉)) x₅) ((λx₇ → λx₈ → λx₉ → λx₁₀ → x₇ x₉ (x₈ x₉ x₁₀)) ((λx₇ → x₇ (λx₈ → λx₉ → x₉)) x₅) (λx₇ → λx₈ → x₇ x₈))) (λx₅ → x₅ (λx₆ → λx₇ → x₇) (λx₆ → λx₇ → x₇)))) x₂))) (λx₃ → λx₄ → x₃ x₄))
+--
+-- >>> nfUntyped (App ex_factorial_church (ex_nat 3))
+-- λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))
+--
+-- Note: we cannot typecheck this term in STC (FIXME: double check), we need church numerals to have polymorphic type or union type.
 ex_factorial_church :: Term'
 ex_factorial_church = Fix $ lam_ "f" $ lam_ "n" $
   App (App (Var "n") (lam_ "m" $ App (App ex_mul (Var "n")) (App (Var "f") (App ex_pred (Var "n"))))) (ex_nat 1)
 
+-- *** Examples using built-in types
+
+-- |
+-- >>> ex_factorial
+-- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂))))
+-- >>> unsafeInfer' ex_factorial
+-- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂)))) : NAT → NAT
+--
+-- >>> nf (unsafeInfer' (App ex_factorial (NatLit 10)))
+-- 3628800 : NAT
 ex_factorial :: Term'
 ex_factorial = Fix $ lam_ "f" $ lam_ "n" $
   BoolIf (NatIsZero (Var "n"))
