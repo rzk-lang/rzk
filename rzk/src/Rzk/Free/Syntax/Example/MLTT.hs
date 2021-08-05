@@ -626,7 +626,7 @@ inferTypeForTermF term = case term of
            Nothing     -> TypeCheck.freshAppliedTypeMetaVar
            Just inferA -> inferA >>= (`shouldHaveType` universeT)
     x <- inferX >>= (`shouldHaveType` a)
-    pure (TypeCheck.TypedF (ReflF (Just a) x) (Just (IdTypeT (Just universeT) a x x)))
+    pure (TypeCheck.TypedF (ReflF (a <$ minferA) x) (Just (IdTypeT (Just universeT) a x x)))
 
   JF infer_A infer_a infer_C infer_d infer_x infer_p -> do
     tA  <- infer_A >>= (`shouldHaveType` universeT)
@@ -1187,7 +1187,11 @@ ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Va
 -- @
 examples :: IO ()
 examples = mapM_ runExample . zip [1..] $
-  [ lam_ "A" (lam (Just (Var "A")) "x" (Refl Nothing (Var "x")))
+  [ lam_ "A" (lam_ "x" (Refl Nothing (Var "x")))
+
+  , lam_ "A" (lam (Just (Var "A")) "x" (Refl Nothing (Var "x")))
+
+  , lam_ "A" (lam_ "x" (Refl (Just (Var "A")) (Var "x")))
 
   , lam (Just (App (lam_ "x" (Var "x")) (Var "A"))) "x" (App (lam_ "y" (Var "y")) (Var "x")) -- ok (fixed)
 
@@ -1320,6 +1324,21 @@ ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 -- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄))) : ((((?M₂₂ → ?M₂₃ → ?M₂₃) → (?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → (((?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → ((?M₁₆ → ?M₁₉) → ?M₁₆ → ?M₂₀) → ?M₂₈) → ?M₂₈) → (((?M₃₁ → ?M₃₂ → ?M₃₂) → (?M₃₄ → ?M₃₅ → ?M₃₅) → ?M₃₆) → ?M₃₆) → (?M₃ → ?M₄ → ?M₃) → ?M₅) → ?M₅
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
+
+ex_pathinv :: Term'
+ex_pathinv =
+  lam_ "A" $
+    lam_ "x" $
+    lam_ "y" $
+      lam_ "p" $
+        J (Var "A")
+          (Var "x")
+          (lam_ "z" $
+            lam (Just (IdType (Var "A") (Var "x") (Var "z"))) "q" $ -- FIXME: does not typecheck without explicit type for unused argument here
+              IdType (Var "A") (Var "z") (Var "x"))
+          (Refl Nothing (Var "x"))
+          (Var "y")
+          (Var "p")
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF

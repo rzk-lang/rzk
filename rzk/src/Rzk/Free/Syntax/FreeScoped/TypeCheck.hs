@@ -15,12 +15,12 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.FreeScoped.TypeCheck where
 
-import           Debug.Trace
-import           Unsafe.Coerce
+-- import           Debug.Trace
+-- import           Unsafe.Coerce
 
 import           Bound.Scope                             (Scope, fromScope,
                                                           toScope)
-import qualified Bound.Scope                             as Bound
+-- import qualified Bound.Scope                             as Bound
 import qualified Bound.Var                               as Bound
 import           Control.Applicative
 import           Control.Monad.Except
@@ -589,7 +589,7 @@ instance Unifiable term => Unifiable (TypedF term) where
 
   abstract body = TypedF (abstract body) Nothing
 
-mapTypeRec :: Bifunctor t => (forall a b. TypedTerm t b a -> TypedTerm t b a) -> TypedTerm t b a -> TypedTerm t b a
+mapTypeRec :: Bifunctor t => (forall x y. TypedTerm t y x -> TypedTerm t y x) -> TypedTerm t b a -> TypedTerm t b a
 mapTypeRec f = \case
   t@PureScoped{} -> t
   FreeScoped (TypedF term ty) -> FreeScoped (TypedF (bimap mapScoped (mapTypeRec f) term) (f <$> ty))
