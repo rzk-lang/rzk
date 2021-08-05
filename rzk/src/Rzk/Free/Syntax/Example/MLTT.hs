@@ -1,256 +1,434 @@
-{-# OPTIONS_GHC -fno-warn-unused-do-bind -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PatternSynonyms            #-}
-{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE UndecidableInstances       #-}
-{-# LANGUAGE ViewPatterns               #-}
--- |
--- Martin-L\"of Type Theory.
 module Rzk.Free.Syntax.Example.MLTT where
 
-import           Bound.Scope                               (Scope, fromScope,
-                                                            instantiate1,
-                                                            instantiateVars,
-                                                            toScope)
-import qualified Bound.Var                                 as Bound
-import           Control.Applicative
-import           Control.Monad.State
+import           Debug.Trace
+import           Unsafe.Coerce
+
+import qualified Bound.Scope                             as Scope
+import qualified Bound.Var                               as Bound
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
-import           Data.Bitraversable
-import           Data.Char                                 (chr, isPrint,
-                                                            isSpace, ord)
-import           Data.Coerce                               (coerce)
-import qualified Data.HashSet                              as HashSet
-import           Data.List                                 (foldl')
-import           Data.String                               (IsString (..))
-import qualified Data.Text                                 as Text
-import           Data.Text.Prettyprint.Doc                 as Doc
-import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
-import           System.IO.Unsafe                          (unsafePerformIO)
-import           Text.Parser.Token
-import           Text.Parser.Token.Style                   (emptyIdents)
-import           Text.Trifecta                             as Trifecta
+import           Data.Char                               (chr, ord)
+import           Data.Maybe                              (fromMaybe)
+import           Data.String                             (IsString (..))
+import           Data.Text.Prettyprint.Doc               as Doc
 
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
-import           Rzk.Free.Syntax.FreeScoped.Unification    (MonadBind,
-                                                            UFreeScoped,
-                                                            UVar (..),
-                                                            freshMeta,
-                                                            toMetaVars)
-import qualified Rzk.Free.Syntax.FreeScoped.Unification    as U
-import           Rzk.Free.Syntax.FreeScoped.Unification2   (Unifiable (..),
-                                                            driver, manySubst,
-                                                            mkApps, unify)
-import qualified Rzk.Syntax.Var                            as Rzk
+import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
+                                                          TypeInfo, assignType,
+                                                          nonDep,
+                                                          shouldHaveType,
+                                                          typeOf,
+                                                          typeOfScopedWith,
+                                                          typecheckDist,
+                                                          typecheckInScope,
+                                                          unifyWithExpected',
+                                                          untyped,
+                                                          untypedScoped)
+import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
+import           Rzk.Free.Syntax.FreeScoped.Unification2 (Unifiable (..))
+import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification2
+import qualified Rzk.Syntax.Var                          as Rzk
 
--- * Definition
+-- * Generators
 
--- | Generating functor for terms in Martin-Loef Type Theory.
+-- | Generating bifunctor for terms in simply typed lambda calculus.
 data TermF scope term
-  = UniverseF !Int   -- ^ Universe type \(\mathcal{U}_i\)
+  -- | Universe is the type of all types: \(\mathcal{U}\)
+  = UniverseF
 
-  | SigmaF term scope -- ^ A dependent sum type (\(\Sigma\)-type): \(\sum_{x : A} B(x)\)
-  | PairF term term   -- ^ A dependent pair \((T_1, T_2)\).
-  | FirstF term        -- ^ Project first component of a (dependent) pair: \(\pi_{1} T\).
-  | SecondF term       -- ^ Project second component of a (dependent) pair: \(\pi_{2} T\).
+  -- | Type of functions: \(A \to B\)
+  | PiF term scope
+  -- | Lambda function with an optional argument type: \(\lambda (x : A). t\)
+  | LamF (Maybe term) scope
+  -- | Application of one term to another: \((t_1) t_2\)
+  | AppF term term
 
-  | PiF term scope  -- ^ A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
-  | LamF scope      -- ^ Abstraction: \(\lambda x. T\)
-  | AppF term term  -- ^ Application: \(T_1 T_2\)
+  -- | Dependent sum type former \(\sum_{x : A} B(x)\).
+  -- The term argument represents type family \(B : A \to \mathcal{U}\).
+  | SigmaF term scope
+  -- | A (dependent) pair of terms.
+  -- @Pair x y@ represents a term of the form \((x, y)\).
+  | PairF term term
+  -- | Project the first element of a pair: \(\pi_1 p\).
+  | FirstF term
+  -- | Project the second element of a pair: \(\pi_2 p\).
+  | SecondF term
 
-  | IdF term term term
-  -- ^ Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
-  | ReflF term term
-  -- ^ Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
-  -- @Refl a x@ corresponds to \(\mathsf{refl}_{A} x\).
-  | JF term term term term term term
-  -- ^ Path induction (for identity types).
+  -- | Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
+  | IdTypeF term term term
+  -- | Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
+  -- @Refl a x@ corresponds to \(x =_a x\).
+  | ReflF (Maybe term) term
+  -- | Path induction (for identity types).
   -- For any type \(A\) and \(a : A\), type family
   -- \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\)
   -- and \(d : C(a,\mathsf{refl}_a)\)
   -- and \(x : A\)
   -- and \(p : a =_A x\)
   -- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\).
+  | JF term term term term term term
+
   deriving (Show, Functor, Foldable, Traversable)
 
--- | An (untyped) term in Martin-Lof Type Theory
--- is freely generated by 'TermF':
---
--- * @'Term' b a@ is a term with free variables in @a@ and bound variables in @b@
--- * @'Name' b ()@ tells us that each \(\lambda\)-abstraction binds exactly one variable
--- (since bound variables are indexed by @()@)
-type Term b = FreeScoped (Name b ()) TermF
+-- | Generating bifunctor for typed terms of simply typed lambda calculus.
+type TypedTermF = TypeCheck.TypedF TermF
 
--- | A helper type synonym for the scoped terms.
--- These can be found, for example, in a body of a \(\lambda\)-abstraction.
-type ScopedTerm b a = Scope (Name b ()) (Term b) a
+-- ** Useful type synonyms (could be generated by TH)
 
--- | Term with 'String' identitiers for bound and free variables.
+-- | An untyped/unchecked term of simply typed lambda calculus.
+type Term b = TypeCheck.Term TermF b
+
+-- | An untyped/unchecked term of simply typed lambda calculus
+-- in one scope layer.
+type TermInScope b a = TypeCheck.TermInScope TermF b a
+
+-- | A 'Scope.Scope' with an untyped/unchecked term
+-- of simply typed lambda calculus.
+type ScopedTerm b = TypeCheck.ScopedTerm TermF b
+
+type TypedTerm b = TypeCheck.TypedTerm TermF b
+type TypedTermInScope b a = TypeCheck.TypedTermInScope TermF b a
+type ScopedTypedTerm b = TypeCheck.ScopedTypedTerm TermF b
+
+type UTypedTerm b a v = TypeCheck.UTypedTerm TermF b a v
+type UTypedTermInScope b a v = TypeCheck.UTypedTermInScope TermF b a v
+type UScopedTypedTerm b a v = TypeCheck.UScopedTypedTerm TermF b a v
+
 type Term' = Term Rzk.Var Rzk.Var
+type TermInScope' = TermInScope Rzk.Var Rzk.Var
+type ScopedTerm' = ScopedTerm Rzk.Var Rzk.Var
 
--- ** Untyped pattern synonyms
+type TypedTerm' = TypedTerm Rzk.Var Rzk.Var
+type TypedTermInScope' = TypedTermInScope Rzk.Var Rzk.Var
+type ScopedTypedTerm' = ScopedTypedTerm Rzk.Var Rzk.Var
+
+type UTypedTerm' = UTypedTerm Rzk.Var Rzk.Var Rzk.Var
+type UTypedTermInScope' = UTypedTermInScope Rzk.Var Rzk.Var Rzk.Var
+type UScopedTypedTerm' = UScopedTypedTerm Rzk.Var Rzk.Var Rzk.Var
+
+type InScope' = Bound.Var (Name Rzk.Var ())
+
+type UTypedTerm'1 = UTypedTerm Rzk.Var (InScope' Rzk.Var) Rzk.Var
+type UTypedTerm'2 = UTypedTerm Rzk.Var (InScope' (InScope' Rzk.Var)) Rzk.Var
+
+type TypeInfo'1 = TypeInfo Rzk.Var UTypedTerm'1 (InScope' Rzk.Var)
+type TypeInfo'2 = TypeInfo Rzk.Var UTypedTerm'2 (InScope' (InScope' Rzk.Var))
+
+-- *** For typechecking
+
+type TypeInfo' = TypeInfo Rzk.Var UTypedTerm' Rzk.Var
+type TypeInfoInScope'
+  = TypeInfo Rzk.Var UTypedTermInScope' (Bound.Var (Name Rzk.Var ()) Rzk.Var)
+
+type TypeInfoInScopeIgnored' = TypeCheck.TypeInfoInScopeIgnored' TermF
+
+type TypeCheck' = TypeCheck UTypedTerm' Rzk.Var Rzk.Var
+type TypeCheckInScope'
+  = TypeCheck UTypedTermInScope' (Bound.Var (Name Rzk.Var ()) Rzk.Var) Rzk.Var
+
+-- ** Pattern synonyms (should be generated with TH)
+
+-- *** Untyped
 
 -- | A variable.
 pattern Var :: a -> Term b a
 pattern Var x = PureScoped x
 
 -- | Universe type \(\mathcal{U}_i\)
-pattern Universe :: Int -> Term b a
-pattern Universe i = FreeScoped (UniverseF i)
-
--- | Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
-pattern Id :: Term b a -> Term b a -> Term b a -> Term b a
-pattern Id a x y = FreeScoped (IdF a x y)
-
--- | Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
--- @Refl a x@ corresponds to \(\mathsf{refl}_{A} x\).
-pattern Refl :: Term b a -> Term b a -> Term b a
-pattern Refl a x = FreeScoped (ReflF a x)
-
--- | Path induction (for identity types).
--- For any type \(A\) and \(a : A\), type family
--- \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\)
--- and \(d : C(a,\mathsf{refl}_a)\)
--- and \(x : A\)
--- and \(p : a =_A x\)
--- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\).
-pattern J
-  :: Term b a -> Term b a -> Term b a -> Term b a -> Term b a -> Term b a -> Term b a
-pattern J tA a tC d x p = FreeScoped (JF tA a tC d x p)
-
--- | A dependent sum type (\(\Sigma\)-type): \(\sum_{x : A} B(x)\)
-pattern Sigma :: Term b a -> ScopedTerm b a -> Term b a
-pattern Sigma a b = FreeScoped (SigmaF a b)
-
--- | A dependent pair \((T_1, T_2)\).
-pattern Pair :: Term b a -> Term b a -> Term b a
-pattern Pair t1 t2 = FreeScoped (PairF t1 t2)
-
--- | Project first component of a (dependent) pair: \(\pi_{1} T\).
-pattern First :: Term b a -> Term b a
-pattern First t = FreeScoped (FirstF t)
-
--- | Project second component of a (dependent) pair: \(\pi_{2} T\).
-pattern Second :: Term b a -> Term b a
-pattern Second t = FreeScoped (SecondF t)
+pattern Universe :: Term b a
+pattern Universe = FreeScoped UniverseF
 
 -- | A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
 pattern Pi :: Term b a -> ScopedTerm b a -> Term b a
 pattern Pi a b = FreeScoped (PiF a b)
 
+mkFun :: Term b a -> Term b a -> Term b a
+mkFun a b = Pi a (Scope.toScope (Bound.F <$> b))
+
 -- | A \(\lambda\)-abstraction.
-pattern Lam :: ScopedTerm b a -> Term b a
-pattern Lam body = FreeScoped (LamF body)
+pattern Lam :: Maybe (Term b a) -> ScopedTerm b a -> Term b a
+pattern Lam ty body = FreeScoped (LamF ty body)
 
 -- | An application of one term to another.
 pattern App :: Term b a -> Term b a -> Term b a
 pattern App t1 t2 = FreeScoped (AppF t1 t2)
 
-{-# COMPLETE Var, Universe, Sigma, Pair, First, Second, Pi, Lam, App, Id, Refl, J #-}
+pattern Sigma :: Term b a -> ScopedTerm b a -> Term b a
+pattern Sigma a b = FreeScoped (SigmaF a b)
 
--- ** Telescoped applications and abstractions
+pattern Pair :: Term b a -> Term b a -> Term b a
+pattern Pair t1 t2 = FreeScoped (PairF t1 t2)
 
--- | If a term is a series of applications, split
--- it into its head and a non-empty list of arguments.
+pattern First :: Term b a -> Term b a
+pattern First t = FreeScoped (FirstF t)
+
+pattern Second :: Term b a -> Term b a
+pattern Second t = FreeScoped (SecondF t)
+
+pattern IdType :: Term b a -> Term b a -> Term b a -> Term b a
+pattern IdType t x y = FreeScoped (IdTypeF t x y)
+
+pattern Refl :: Maybe (Term b a) -> Term b a -> Term b a
+pattern Refl t x = FreeScoped (ReflF t x)
+
+pattern J
+  :: Term b a
+  -> Term b a
+  -> Term b a
+  -> Term b a
+  -> Term b a
+  -> Term b a
+  -> Term b a
+pattern J tA a tC d x p = FreeScoped (JF tA a tC d x p)
+
+{-# COMPLETE
+   Var, Universe,
+   Pi, Lam, App,
+   Sigma, Pair, First, Second,
+   IdType, Refl, J
+   #-}
+
+-- *** Typed
+
+-- | A variable.
+pattern VarT :: a -> TypedTerm b a
+pattern VarT x = PureScoped x
+
+-- | Universe type \(\mathcal{U}_i\)
+pattern UniverseT :: Maybe (TypedTerm b a) -> TypedTerm b a
+pattern UniverseT ty = TypeCheck.TypedT ty UniverseF
+
+-- | A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
+pattern PiT :: Maybe (TypedTerm b a) -> TypedTerm b a -> ScopedTypedTerm b a -> TypedTerm b a
+pattern PiT ty a b = TypeCheck.TypedT ty (PiF a b)
+
+mkFunT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+mkFunT a b = PiT (Just universeT) a (Scope.toScope (Bound.F <$> b))
+
+-- | A \(\lambda\)-abstraction.
+pattern LamT :: Maybe (TypedTerm b a) -> Maybe (TypedTerm b a) -> ScopedTypedTerm b a -> TypedTerm b a
+pattern LamT ty argType body = TypeCheck.TypedT ty (LamF argType body)
+
+-- | An application of one term to another.
+pattern AppT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+pattern AppT ty t1 t2 = TypeCheck.TypedT ty (AppF t1 t2)
+
+pattern SigmaT :: Maybe (TypedTerm b a) -> TypedTerm b a -> ScopedTypedTerm b a -> TypedTerm b a
+pattern SigmaT ty a b = TypeCheck.TypedT ty (SigmaF a b)
+
+pattern PairT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+pattern PairT ty t1 t2 = TypeCheck.TypedT ty (PairF t1 t2)
+
+pattern FirstT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
+pattern FirstT ty t = TypeCheck.TypedT ty (FirstF t)
+
+pattern SecondT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
+pattern SecondT ty t = TypeCheck.TypedT ty (SecondF t)
+
+pattern IdTypeT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
+pattern IdTypeT ty t x y = TypeCheck.TypedT ty (IdTypeF t x y)
+
+pattern ReflT :: Maybe (TypedTerm b a) -> Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
+pattern ReflT ty t x = TypeCheck.TypedT ty (ReflF t x)
+
+pattern JT
+  :: Maybe (TypedTerm b a)
+  -> TypedTerm b a
+  -> TypedTerm b a
+  -> TypedTerm b a
+  -> TypedTerm b a
+  -> TypedTerm b a
+  -> TypedTerm b a
+  -> TypedTerm b a
+pattern JT ty tA a tC d x p = TypeCheck.TypedT ty (JF tA a tC d x p)
+
+{-# COMPLETE
+   VarT, UniverseT,
+   PiT, LamT, AppT,
+   SigmaT, PairT, FirstT, SecondT,
+   IdTypeT, ReflT, JT
+   #-}
+
+-- ** Smart constructors
+
+-- | Universe (type of types).
 --
--- >>> t = App (App (App (Var "f") (Var "x")) (Var "y")) (Var "z") :: Term String String
--- >>> t
--- f x y z
--- >>> appList t
--- Just (f,[x,y,z])
--- >>> appList  (Var "f" :: Term String String)
--- Nothing
-appList :: Term b a -> Maybe (Term b a, [Term b a])
-appList = \case
-  App t1 t2 -> Just (go t1 [t2])
-  _ -> Nothing
-  where
-    go (App t x) xs = go t (x:xs)
-    go t xs         = (t, xs)
-
--- | Split a term into its head and a (possibly empty) list of arguments.
---
--- >>> t = App (App (App (Var "f") (Var "x")) (Var "y")) (Var "z") :: Term String String
--- >>> peelApps  t
--- (f,[x,y,z])
--- >>> peelApps (Var "f" :: Term String String)
--- (f,[])
-peelApps :: Term b a -> (Term b a, [Term b a])
-peelApps = go []
-  where
-    go xs (App t x) = go (x:xs) t
-    go xs t         = (t, xs)
+-- >>> universeT :: TypedTerm'
+-- U : U
+universeT :: TypedTerm b a
+universeT = TypeCheck.TypedT Nothing UniverseF
 
 -- | Abstract over one variable in a term.
 --
--- >>> lam "x" (App (Var "f") (Var "x")) :: Term String String
+-- >>> lam Nothing "x" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → f x₁
--- >>> lam "f" (App (Var "f") (Var "x")) :: Term String String
+-- >>> lam Nothing "f" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → x₁ x
-lam :: Eq a => a -> Term a a -> Term a a
-lam x body = Lam (abstract1Name x body)
+-- >>> lam (Just (Var "A")) "x" (App (Var "f") (Var "x")) :: Term'
+-- λ(x₁ : A) → f x₁
+-- >>> lam (Just (Fun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
+-- λ(x₁ : A → B) → x₁ x
+lam :: Eq a => Maybe (Term a a) -> a -> Term a a -> Term a a
+lam ty x body = Lam ty (abstract1Name x body)
 
--- | Given a scope with bound variables indexed by integer numbers,
--- build a term with as many \(\lambda\)-abstractions as necessary
--- to abstract away the entire scope.
-mkLams :: Int -> Scope Int (Term b) a -> Term b a
-mkLams n = go n []
-  where
-    go :: Int -> [a] -> Scope Int (Term b) a -> Term b a
-    go 0 xs s = instantiateVars xs s
-    go k xs s = Lam (abstract1Unnamed (go (k - 1) (map Just xs <> [Nothing]) (Just <$> s)))
+-- | Abstract over one variable in a term (without type).
+--
+-- >>> lam_ "x" (App (Var "f") (Var "x")) :: Term'
+-- λx₁ → f x₁
+lam_ :: Eq a => a -> Term a a -> Term a a
+lam_ x body = Lam Nothing (abstract1Name x body)
 
--- | A pattern synonym corresponding to 'appList'.
-pattern Apps :: Term b a -> [Term b a] -> Term b a
-pattern Apps f xs <- (appList -> Just (f, xs))
-  where
-    Apps f xs = foldl' App f xs
+-- ** Evaluation
 
--- * Evaluation
+whnfUntyped :: Term b a -> Term b a
+whnfUntyped = untyped . whnf . TypeCheck.pseudoTyped
+
+nfUntyped :: Term b a -> Term b a
+nfUntyped = untyped . nf . TypeCheck.pseudoTyped
 
 -- | Evaluate a term to its weak head normal form (WHNF).
---
--- >>> t = lam "s" (lam "z" (App (Var "s") (App (Var "s") (Var "z")))) :: Term String String
--- >>> App t t
--- (λx₁ → λx₂ → x₁ (x₁ x₂)) (λx₁ → λx₂ → x₁ (x₁ x₂))
--- >>> whnf (App t t)
--- λx₁ → (λx₂ → λx₃ → x₂ (x₂ x₃)) ((λx₂ → λx₃ → x₂ (x₂ x₃)) x₁)
-whnf :: Term b a -> Term b a
-whnf = untyped . whnfT . transFreeScopedT (`TypedF` error "undefined type")
+whnf :: TypedTerm b a -> TypedTerm b a
+whnf = \case
+  AppT ty f x ->
+    case whnf f of
+      LamT _ty _typeOfArg body ->
+        whnf (Scope.instantiate1 x body)
+      f' -> AppT ty f' x
 
--- | Evaluate a term to its normal form (NF).
---
--- >>> t = lam "s" (lam "z" (App (Var "s") (App (Var "s") (Var "z")))) :: Term String String
--- >>> App t t
--- (λx₁ → λx₂ → x₁ (x₁ x₂)) (λx₁ → λx₂ → x₁ (x₁ x₂))
--- >>> nf (App t t)
--- λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ x₂)))
-nf :: Term b a -> Term b a
-nf = untyped . nfT . transFreeScopedT (`TypedF` error "undefined type")
+  FirstT ty t ->
+    case whnf t of
+      PairT _ty f _s -> whnf f
+      t'             -> FirstT ty t'
 
--- * Unification
+  SecondT ty t ->
+    case whnf t of
+      PairT _ty _f s -> whnf s
+      t'             -> SecondT ty t'
 
+  JT ty tA a tC d x p ->
+    case whnf p of
+      ReflT _ _ _ -> whnf d
+      p'          -> JT ty tA a tC d x p'
+
+  t@LamT{} -> t
+  t@PairT{} -> t
+  t@ReflT{} -> t
+
+  t@UniverseT{} -> t
+  t@PiT{} -> t
+  t@SigmaT{} -> t
+  t@IdTypeT{} -> t
+
+  t@VarT{} -> t
+
+nf :: TypedTerm b a -> TypedTerm b a
+nf = \case
+  AppT ty f x ->
+    case whnf f of
+      LamT _ty _typeOfArg body ->
+        nf (Scope.instantiate1 x body)
+      f' -> AppT (nf <$> ty) (nf f') (nf x)
+
+  FirstT ty t ->
+    case whnf t of
+      PairT _ty f _s -> nf f
+      t'             -> FirstT (nf <$> ty) (nf t')
+
+  SecondT ty t ->
+    case whnf t of
+      PairT _ty _f s -> nf s
+      t'             -> SecondT (nf <$> ty) (nf t')
+
+  JT ty tA a tC d x p ->
+    case whnf p of
+      ReflT _ _ _ -> nf d
+      p'          -> JT (nf <$> ty) (nf tA) (nf a) (nf tC) (nf d) (nf x) (nf p')
+
+  LamT ty typeOfArg body -> LamT (nf <$> ty) (nf <$> typeOfArg) (nfScope body)
+  PairT ty t1 t2 -> PairT (nf <$> ty) (nf t1) (nf t2)
+  ReflT ty a x -> ReflT (nf <$> ty) (nf <$> a) (nf x)
+
+  UniverseT ty -> UniverseT (nf <$> ty)
+  PiT ty a b -> PiT (nf <$> ty) (nf a) (nfScope b)
+  SigmaT ty a b -> SigmaT (nf <$> ty) (nf a) (nfScope b)
+  IdTypeT ty a x y -> IdTypeT (nf <$> ty) (nf a) (nf x) (nf y)
+
+  t@VarT{} -> t
+  where
+    nfScope = Scope.toScope . nf . Scope.fromScope
+
+-- ** Unification
+
+-- | Should be derived with TH or Generics.
 instance Unifiable TermF where
   zipMatch (AppF f1 x1) (AppF f2 x2)
     = Just (AppF (Right (f1, f2)) (Right (x1, x2)))
-  zipMatch (LamF body1) (LamF body2)
-    = Just (LamF (Right (body1, body2)))
-  zipMatch _ _ = Nothing
+
+  zipMatch (LamF argTy1 body1) (LamF argTy2 body2)
+    = Just (LamF argTy (Right (body1, body2)))
+    where
+      argTy =
+        case (argTy1, argTy2) of
+          (Nothing, _)     -> Left <$> argTy2
+          (_, Nothing)     -> Left <$> argTy1
+          (Just x, Just y) -> Just (Right (x, y))
+
+  zipMatch (PiF arg1 body1) (PiF arg2 body2)
+    = Just (PiF (Right (arg1, arg2)) (Right (body1, body2)))
+
+  zipMatch (SigmaF arg1 body1) (SigmaF arg2 body2)
+    = Just (SigmaF (Right (arg1, arg2)) (Right (body1, body2)))
+  zipMatch (PairF f1 x1) (PairF f2 x2)
+    = Just (PairF (Right (f1, f2)) (Right (x1, x2)))
+  zipMatch (FirstF t1) (FirstF t2)
+    = Just (FirstF (Right (t1, t2)))
+  zipMatch (SecondF t1) (SecondF t2)
+    = Just (SecondF (Right (t1, t2)))
+
+  zipMatch (IdTypeF a1 x1 y1) (IdTypeF a2 x2 y2)
+    = Just (IdTypeF (Right (a1, a2)) (Right (x1, x2)) (Right (y1, y2)))
+  zipMatch (ReflF a1 x1) (ReflF a2 x2)
+    = Just (ReflF a (Right (x1, x2)))
+    where
+      a =
+        case (a1, a2) of
+          (Nothing, _)     -> Left <$> a2
+          (_, Nothing)     -> Left <$> a1
+          (Just x, Just y) -> Just (Right (x, y))
+  zipMatch (JF tA1 a1 tC1 d1 x1 p1) (JF tA2 a2 tC2 d2 x2 p2)
+    = Just (JF (Right (tA1, tA2)) (Right (a1, a2)) (Right (tC1, tC2)) (Right (d1, d2)) (Right (x1, x2)) (Right (p1, p2)))
+
+  zipMatch UniverseF UniverseF = Just UniverseF
+
+  zipMatch PiF{} _ = Nothing
+  zipMatch LamF{} _ = Nothing
+  zipMatch AppF{} _ = Nothing
+
+  zipMatch SigmaF{} _ = Nothing
+  zipMatch PairF{} _ = Nothing
+  zipMatch FirstF{} _ = Nothing
+  zipMatch SecondF{} _ = Nothing
+
+  zipMatch IdTypeF{} _ = Nothing
+  zipMatch ReflF{} _ = Nothing
+  zipMatch JF{} _ = Nothing
+
+  zipMatch UniverseF{} _ = Nothing
 
   appSome _ []     = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
@@ -258,164 +436,311 @@ instance Unifiable TermF where
   unAppSome (AppF f x) = Just (f, [x])
   unAppSome _          = Nothing
 
-  abstract = LamF
-
--- | A term with unification metavariables in untyped \(\lambda\)-calculus
--- freely generated by 'TermF'.
---
---
-type UTerm b a v = UFreeScoped (Name b ()) TermF a v
-
-type UTerm' = UTerm Rzk.Var Rzk.Var Rzk.Var
+  abstract = LamF Nothing
 
 unifyTerms
   :: (Eq v, Eq a)
   => [v]
-  -> UTerm b a v
-  -> UTerm b a v
-  -> [([(v, UTerm b a v)], [(UTerm b a v, UTerm b a v)])]
-unifyTerms mvars t1 t2 = driver mvars whnf (t1, t2)
+  -> UTypedTerm b a v
+  -> UTypedTerm b a v
+  -> [([(v, UTypedTerm b a v)], [(UTypedTerm b a v, UTypedTerm b a v)])]
+unifyTerms mvars t1 t2 = Unification2.driver mvars whnf (t1, t2)
 
 unifyTerms_
   :: (Eq v, Eq a)
   => [v]
-  -> UTerm b a v
-  -> UTerm b a v
-  -> [(v, UTerm b a v)]
+  -> UTypedTerm b a v
+  -> UTypedTerm b a v
+  -> [(v, UTypedTerm b a v)]
 unifyTerms_ mvars t1 t2 = fst (head (unifyTerms mvars t1 t2))
 
 unifyTerms'
-  :: UTerm'
-  -> UTerm'
-  -> [([(Rzk.Var, UTerm')], [(UTerm', UTerm')])]
+  :: UTypedTerm'
+  -> UTypedTerm'
+  -> [([(Rzk.Var, UTypedTerm')], [(UTypedTerm', UTypedTerm')])]
 unifyTerms' = unifyTerms (iterate succ "?")
 
--- | Unify two terms with meta-variables.
---
--- >>> t1 = "\\x -> \\y -> ?f x y" :: UTerm'
--- >>> t2 = "\\x -> \\y -> y (x y)" :: UTerm'
--- >>> t1
--- λx₁ → λx₂ → ?f x₁ x₂
--- >>> t2
--- λx₁ → λx₂ → x₂ (x₁ x₂)
--- >>> unifyTerms'_ t1 t2
--- [(f,λx₁ → λx₂ → x₂ ((λx₃ → λx₄ → x₄ ((λx₅ → λx₆ → x₆) x₄ x₃)) x₂ x₁)),(?₂,λx₁ → λx₂ → x₂ ((λx₃ → λx₄ → x₄) x₂ x₁)),(?₃,λx₁ → λx₂ → x₂)]
+-- | Unify two typed terms with meta-variables.
 unifyTerms'_
-  :: UTerm'
-  -> UTerm'
-  -> [(Rzk.Var, UTerm')]
+  :: UTypedTerm'
+  -> UTypedTerm'
+  -> [(Rzk.Var, UTypedTerm')]
 unifyTerms'_ t1 t2 = fst (head (unifyTerms' t1 t2))
 
--- * Parsing
 
-pTerm :: Parser Term'
-pTerm = pApps <|> Trifecta.parens pTerm
+-- ** Typechecking and inference
 
-pApps :: Parser Term'
-pApps = do
-  f <- pNotAppTerm
-  args <- many pNotAppTerm
-  return (mkApps f args)
+instance TypeCheck.TypeCheckable TermF where
+  inferTypeFor = inferTypeForTermF
+  whnfT = whnf
+  universeT = TypeCheck.TypedT Nothing UniverseF
 
-pNotAppTerm :: Parser Term'
-pNotAppTerm = pVar <|> pLam <|> Trifecta.parens pTerm
+instance TypeCheck.HasTypeFamilies TermF where
+  piT = PiT (Just universeT)
 
-pVar :: Parser Term'
-pVar = Var <$> pIdent
+unsafeTraceCurrentTypeInfo' :: String -> TypeCheck (UTypedTerm b a v) a v ()
+unsafeTraceCurrentTypeInfo' tag = do
+  info <- TypeCheck.getTypeInfo
+  trace ("unsafeTraceCurrentTypeInfo'[" <> tag <> "]: " <> show (unsafeCoerce info :: TypeInfo')) $
+    return ()
 
-pIdent :: Parser Rzk.Var
-pIdent = Rzk.Var . Text.pack <$> ident pIdentStyle
+unsafeTraceCurrentTypeInfoInScope' :: String -> TypeCheck (UTypedTermInScope b a v) (Bound.Var (Name b ()) a) v ()
+unsafeTraceCurrentTypeInfoInScope' tag = do
+  info <- TypeCheck.getTypeInfo
+  trace ("unsafeTraceCurrentTypeInfo'[" <> tag <> "]: " <> show (unsafeCoerce info :: TypeInfoInScope')) $
+    return ()
 
-pIdentStyle :: IdentifierStyle Parser
-pIdentStyle = (emptyIdents @Parser)
-  { _styleStart     = satisfy isIdentChar
-  , _styleLetter    = satisfy isIdentChar
-  , _styleReserved  = HashSet.fromList [ "λ", "\\", "→", "->" ]
-  }
+unsafeTraceCurrentTypeInfoInScopeIgnored'
+  :: (Eq a, Eq v)
+  => String -> TypeCheck (UTypedTermInScope b a v) (Bound.Var (Name b ()) a) v ()
+unsafeTraceCurrentTypeInfoInScopeIgnored' tag = do
+  info <- TypeCheck.getTypeInfo
+  info' <- TypeCheck.ignoreBoundVarInTypeInfo info
+  trace ("unsafeTraceCurrentTypeInfo'[" <> tag <> "]: " <> show (unsafeCoerce info' :: TypeInfoInScopeIgnored')) $
+    return ()
 
-pLam :: Parser Term'
-pLam = do
-  symbol "λ" <|> symbol "\\"
-  x <- pIdent
-  symbol "->" <|> symbol "→"
-  t <- pTerm
-  return (Lam (abstract1Name x t))
+inferTypeForTermF
+  :: (Eq a, Eq v)
+  => TermF
+        (TypeCheck (UTypedTermInScope b a v) (Bound.Var (Name b ()) a) v
+            (UScopedTypedTerm b a v))
+        (TypeCheck (UTypedTerm b a v) a v (UTypedTerm b a v))
+  -> TypeCheck (UTypedTerm b a v) a v
+        (TypedTermF (UScopedTypedTerm b a v) (UTypedTerm b a v))
+inferTypeForTermF term = case term of
+  UniverseF -> pure (TypeCheck.TypedF UniverseF (Just universeT))
+  -- a -> b
+  PiF inferA inferB -> do
+    a <- inferA
+    typeOfA <- a `shouldHaveType` universeT >>= typeOf
+    b <- typecheckInScope $ do
+      assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfA) -- FIXME: unnamed?
+      inferB
+    typeOfB <- typeOfScopedWith typeOfA b >>= nonDep
+    _ <- typeOfB `shouldHaveType` universeT
+    pure (TypeCheck.TypedF (PiF a b) (Just universeT))
 
--- ** Char predicates
+  LamF minferTypeOfArg inferBody -> do
+    typeOfArg <- case minferTypeOfArg of
+      Just inferTypeOfArg -> inferTypeOfArg
+      Nothing             -> TypeCheck.freshAppliedTypeMetaVar
+    typeOfArg' <- typeOfArg `shouldHaveType` universeT
+    -- unsafeTraceCurrentTypeInfo' "LamF"
+    scopedTypedBody <- typecheckInScope $ do
+      assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfArg') -- FIXME: unnamed?
+      r <- inferBody
+      -- unsafeTraceCurrentTypeInfoInScope' "LamF"
+      -- unsafeTraceCurrentTypeInfoInScopeIgnored' "IGNORED"
+      return r
+    -- unsafeTraceCurrentTypeInfo' "LamF"
+    typeOfBody <- typeOfScopedWith typeOfArg' scopedTypedBody
+    -- unsafeTraceCurrentTypeInfo' "LamF"
+    typeOfTypeOfBody <- typeOfScopedWith typeOfArg' typeOfBody >>= nonDep
+    -- unsafeTraceCurrentTypeInfo' "LamF"
+    _ <- unifyWithExpected' "LamF" typeOfTypeOfBody universeT
+    pure $ TypeCheck.TypedF
+      (LamF (typeOfArg <$ minferTypeOfArg) scopedTypedBody)
+      (Just (PiT (Just universeT) typeOfArg' typeOfBody))
 
-isIdentChar :: Char -> Bool
-isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
+  AppF infer_f infer_x -> do
+    f <- infer_f
+    x <- infer_x
+    TypeCheck.TypedF (AppF f x) . Just <$> do
+      typeOf f >>= \case
+        PiT _ argType bodyType -> do
+          _ <- x `shouldHaveType` argType
+          Scope.instantiate1 x bodyType `shouldHaveType` universeT
+        t -> do
+          typeOf_x <- typeOf x
+          bodyType <- fmap (Scope.toScope . fmap TypeCheck.dist') . typecheckInScope . typecheckDist $ do
+            assignType (Bound.B (Name Nothing ())) (fmap (TypeCheck.dist . Bound.F) typeOf_x) -- FIXME: unnamed?
+            TypeCheck.freshAppliedTypeMetaVar
+              -- (map (fmap (TypeCheck.dist . Bound.F)) [f, x]) -- TODO: explain?
+          _ <- unifyWithExpected' "AppF" t (PiT (Just universeT) typeOf_x bodyType)
+          return (Scope.instantiate1 x bodyType)
 
-isDelim :: Char -> Bool
-isDelim c = c `elem` ("()[]{},\\λ→" :: String)
+  SigmaF inferA inferB -> do
+    a <- inferA
+    typeOfA <- a `shouldHaveType` universeT >>= typeOf
+    b <- typecheckInScope $ do
+      assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfA) -- FIXME: unnamed?
+      inferB
+    typeOfB <- typeOfScopedWith typeOfA b >>= nonDep
+    _ <- typeOfB `shouldHaveType` universeT
+    pure (TypeCheck.TypedF (SigmaF a b) (Just universeT))
 
--- * Orphan 'IsString' instances
+  PairF inferFirst inferSecond -> do
+    f <- inferFirst
+    typeOf_f <- typeOf f
 
-instance IsString Term' where
-  fromString = unsafeParseTerm
+    s <- inferSecond
+    typeOf_s   <- typeOf s
+    typeOf_s'  <- fmap (Scope.toScope . fmap TypeCheck.dist') . typecheckInScope . typecheckDist $ do
+      assignType (Bound.B (Name Nothing ())) (fmap (TypeCheck.dist . Bound.F) typeOf_f) -- FIXME: unnamed?
+      TypeCheck.freshAppliedTypeMetaVar
+    -- FIXME: do not discard?
+    _ <- unifyWithExpected' "PairF" typeOf_s (Scope.instantiate1 f typeOf_s')
 
-instance IsString UTerm' where
-  fromString = toUTerm . fromString
-    where
-      toUTerm = toMetaVars $ \x ->
-        if "?" `Text.isPrefixOf` coerce x
-           then Just (coerce (Text.drop 1) x)
-           else Nothing
+    pure (TypeCheck.TypedF
+            (PairF f s)
+            (Just (SigmaT (Just universeT) typeOf_f typeOf_s')))
 
-unsafeParseTerm :: String -> Term'
-unsafeParseTerm = unsafeParseString pTerm
+  FirstF inferT -> do
+    t <- inferT
+    typeOf t >>= \case
+      SigmaT _ty f _s ->
+        pure (TypeCheck.TypedF (FirstF t) (Just f))
+      ty -> do
+        f <- TypeCheck.freshAppliedTypeMetaVar
+        typeOf_f <- typeOf f
+        s <- fmap (Scope.toScope . fmap TypeCheck.dist') . typecheckInScope . typecheckDist $ do
+          assignType (Bound.B (Name Nothing ())) (fmap (TypeCheck.dist . Bound.F) typeOf_f) -- FIXME: unnamed?
+          TypeCheck.freshAppliedTypeMetaVar
+        _ <- unifyWithExpected' "FirstF" ty (SigmaT (Just universeT) f s)
+        pure (TypeCheck.TypedF (FirstF t) (Just f))
 
-unsafeParseString :: Parser a -> String -> a
-unsafeParseString parser input =
-  case parseString parser mempty input of
-    Success x       -> x
-    Failure errInfo -> unsafePerformIO $ do
-      putDoc (_errDoc errInfo <> "\n")
-      error "Parser error while attempting unsafeParseString"
+  SecondF inferT -> do
+    t <- inferT
+    typeOf t >>= \case
+      SigmaT _ty f s ->
+        pure (TypeCheck.TypedF
+                (SecondF t)
+                (Just (Scope.instantiate1 (FirstT (Just f) t) s)))
+      ty -> do
+        f <- TypeCheck.freshAppliedTypeMetaVar
+        typeOf_f <- typeOf f
+        s <- fmap (Scope.toScope . fmap TypeCheck.dist') . typecheckInScope . typecheckDist $ do
+          assignType (Bound.B (Name Nothing ())) (fmap (TypeCheck.dist . Bound.F) typeOf_f) -- FIXME: unnamed?
+          TypeCheck.freshAppliedTypeMetaVar
+        _ <- unifyWithExpected' "FirstF" ty (SigmaT (Just universeT) f s)
+        pure (TypeCheck.TypedF (SecondF t) (Just (Scope.instantiate1 (FirstT (Just f) t) s)))
 
--- * Pretty-printing
+  IdTypeF inferA inferX inferY -> do
+    a <- inferA >>= (`shouldHaveType` universeT)
+    x <- inferX >>= (`shouldHaveType` a)
+    y <- inferY >>= (`shouldHaveType` a)
+    pure (TypeCheck.TypedF (IdTypeF a x y) (Just universeT))
+
+  ReflF minferA inferX -> do
+    a <- case minferA of
+           Nothing     -> TypeCheck.freshAppliedTypeMetaVar
+           Just inferA -> inferA >>= (`shouldHaveType` universeT)
+    x <- inferX >>= (`shouldHaveType` a)
+    pure (TypeCheck.TypedF (ReflF (Just a) x) (Just (IdTypeT (Just universeT) a x x)))
+
+  JF infer_A infer_a infer_C infer_d infer_x infer_p -> do
+    tA  <- infer_A >>= (`shouldHaveType` universeT)
+    a   <- infer_a >>= (`shouldHaveType` tA)
+    let typeOf_C = TypeCheck.piT tA . Scope.toScope $
+          mkFunT (IdTypeT (Just universeT) (Bound.F <$> tA) (Bound.F <$> a) (VarT (Bound.B (Name Nothing ())))) universeT
+    tC  <- infer_C >>= (`shouldHaveType` typeOf_C)
+    let typeOf_C_a = mkFunT (IdTypeT (Just universeT) tA a a) universeT
+    let typeOf_d = AppT (Just universeT) (AppT (Just typeOf_C_a) tC a) (ReflT (Just (IdTypeT (Just universeT) tA a a)) (Just tA) a)
+    d   <- infer_d >>= (`shouldHaveType` typeOf_d )
+    x   <- infer_x >>= (`shouldHaveType` tA)
+    p   <- infer_p >>= (`shouldHaveType` IdTypeT (Just universeT) tA a x)
+    let typeOf_C_x = mkFunT (IdTypeT (Just universeT) tA a x) universeT
+    let typeOf_result = AppT (Just universeT) (AppT (Just typeOf_C_x) tC x) p
+    return (TypeCheck.TypedF (JF tA a tC d x p) (Just typeOf_result))
+
+execTypeCheck' :: TypeCheck' a -> Either TypeError a
+execTypeCheck' = TypeCheck.execTypeCheck defaultFreshMetaVars
+
+runTypeCheckOnce' :: TypeCheck' a -> Either TypeError (a, TypeInfo')
+runTypeCheckOnce' = TypeCheck.runTypeCheckOnce defaultFreshMetaVars
+
+infer' :: Term' -> TypeCheck' UTypedTerm'
+infer' = TypeCheck.infer
+
+inferScoped' :: ScopedTerm' -> TypeCheck' UScopedTypedTerm'
+inferScoped' = TypeCheck.inferScoped
+
+inferInScope' :: TermInScope' -> TypeCheck' UTypedTermInScope'
+inferInScope' = fmap (fmap TypeCheck.dist') . typecheckInScope . typecheckDist . TypeCheck.infer
+
+unsafeInfer' :: Term' -> UTypedTerm'
+unsafeInfer' = unsafeUnpack . execTypeCheck' . infer'
+  where
+    unsafeUnpack (Right typedTerm) = typedTerm
+    unsafeUnpack _ = error "unsafeInfer': failed to extract term with inferred type"
+
+-- ** Pretty-printing
 
 instance Pretty Rzk.Var where
   pretty (Rzk.Var x) = pretty x
 
+instance (Pretty n, Pretty b) => Pretty (Name n b) where
+  pretty (Name Nothing b)     = pretty b
+  pretty (Name (Just name) b) = "<" <> pretty name <> " " <> pretty b <> ">"
+
+instance (Pretty b, Pretty a) => Pretty (Bound.Var b a) where
+  pretty (Bound.B b) = "<bound " <> pretty b <> ">"
+  pretty (Bound.F x) = "<free " <> pretty x <> ">"
+
+instance IsString a => IsString (Bound.Var b a) where
+  fromString = Bound.F . fromString
+
 -- | Uses 'Pretty' instance.
---
 instance (Pretty a, Pretty b, IsString a) => Show (Term b a) where
   show = show . pretty
 
 -- | Uses default names (@x@ with a positive integer subscript) for bound variables:
 instance (Pretty a, Pretty b, IsString a) => Pretty (Term b a) where
   pretty = ppTerm defaultFreshVars
-    where
-      defaultFreshVars = [ fromString ("x" <> toIndex i) | i <- [1..] ]
 
-      toIndex n = index
-        where
-          digitToSub c = chr ((ord c - ord '0') + ord '₀')
-          index = map digitToSub (show n)
+defaultFreshVars :: IsString a => [a]
+defaultFreshVars = mkDefaultFreshVars "x"
+
+defaultFreshMetaVars :: IsString a => [a]
+defaultFreshMetaVars = mkDefaultFreshVars "M"
+
+mkDefaultFreshVars :: IsString a => String -> [a]
+mkDefaultFreshVars prefix = [ fromString (prefix <> toIndex i) | i <- [1..] ]
+  where
+    toIndex n = index
+      where
+        digitToSub c = chr ((ord c - ord '0') + ord '₀')
+        index = map digitToSub (show n)
+
+instance (Pretty a, Pretty b, IsString a) => Show (TypedTerm b a) where
+  show = \case
+    FreeScoped (TypeCheck.TypedF term ty) -> show (FreeScoped (bimap untypedScoped untyped term)) <> " : " <> show (untyped (fromMaybe universeT ty))
+    t -> show (untyped t)
+
+ppTypedTerm :: (Pretty a, Pretty b) => [a] -> TypedTerm b a -> Doc ann
+ppTypedTerm vars = ppTerm vars . untyped
 
 -- | Pretty-print an untyped term.
 ppTerm :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
 ppTerm vars = \case
   Var x -> pretty x
 
-  Universe i -> "U" <> pretty i
+  Universe -> "U"
 
   Pi a b -> ppScopedTerm vars b $ \x b' ->
-    "(" <> pretty x <+> " : " <+> ppTerm vars a <> ") → " <> b'
-  Lam body -> ppScopedTerm vars body $ \x body' ->
+    if withoutBoundVars b
+       then ppTermArg vars a <+> "→" <+> b'
+       else parens (pretty x <+> ":" <+> ppTerm vars a) <+> "→" <+> b'
+  Lam Nothing body -> ppScopedTerm vars body $ \x body' ->
     "λ" <> pretty x <+> "→" <+> body'
+  Lam (Just ty) body -> ppScopedTerm vars body $ \x body' ->
+    "λ" <> parens (pretty x <+> ":" <+> ppTerm vars ty) <+> "→" <+> body'
   App f x -> ppTermFun vars f <+> ppTermArg vars x
 
   Sigma a b -> ppScopedTerm vars b $ \x b' ->
-    "∑ (" <> pretty x <+> " : " <+> ppTerm vars a <> "), " <> b'
-  Pair t1 t2 -> "(" <> ppTerm vars t1 <> ", " <> ppTerm vars t2 <> ")"
-  First t -> "π₁ " <> ppTermArg vars t
-  Second t -> "π₂ " <> ppTermArg vars t
+    if withoutBoundVars b
+       then ppTermArg vars a <+> "×" <+> b'
+       else parens (pretty x <+> ":" <+> ppTerm vars a) <+> "×" <+> b'
+  Pair f s -> tupled (map (ppTerm vars) [f, s])
+  First t  -> "π₁" <+> ppTermArg vars t
+  Second t -> "π₂" <+> ppTermArg vars t
 
-  Id a x y -> ppTermArg vars x <+> "=_{" <> ppTerm vars a <> "}" <+> ppTermArg vars y
-  Refl a x -> "refl_{" <> ppTerm vars x <> " : " <> ppTerm vars a <> "}"
-  J tA a tC d x p -> ppElimWithArgs vars "idJ" [tA, a, tC, d, x, p]
+  IdType a x y -> ppTermFun vars x <+> "=_{" <> ppTerm vars a <> "}" <+> ppTermFun vars y
+  Refl Nothing x -> "refl" <+> ppTermArg vars x
+  Refl (Just a) x -> "refl_{" <> ppTerm vars a <> "}" <+> ppTermArg vars x
+  J tA a tC d x p -> ppElimWithArgs vars "J" [tA, a, tC, d, x, p]
+  where
+    withoutBoundVars = null . Scope.bindings
 
 ppElimWithArgs :: (Pretty a, Pretty b) => [a] -> Doc ann -> [Term b a] -> Doc ann
 ppElimWithArgs vars name args = name <> tupled (map (ppTermFun vars) args)
@@ -428,490 +753,574 @@ ppTermFun vars = \case
   t@First{} -> ppTerm vars t
   t@Second{} -> ppTerm vars t
   t@Pair{} -> ppTerm vars t
-  t@Universe{} -> ppTerm vars t
-  t@Id{} -> ppTerm vars t
   t@Refl{} -> ppTerm vars t
   t@J{} -> ppTerm vars t
+  t@Universe{} -> ppTerm vars t
 
   t@Lam{} -> Doc.parens (ppTerm vars t)
   t@Sigma{} -> Doc.parens (ppTerm vars t)
+  t@IdType{} -> Doc.parens (ppTerm vars t)
   t@Pi{} -> Doc.parens (ppTerm vars t)
 
 -- | Pretty-print an untyped in an argument position.
 ppTermArg :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
 ppTermArg vars = \case
   t@Var{} -> ppTerm vars t
-  t@Pair{} -> ppTerm vars t
   t@Universe{} -> ppTerm vars t
+  t@Pair{} -> ppTerm vars t
 
   t@App{} -> Doc.parens (ppTerm vars t)
-  t@Lam{} -> Doc.parens (ppTerm vars t)
   t@First{} -> Doc.parens (ppTerm vars t)
   t@Second{} -> Doc.parens (ppTerm vars t)
-  t@Pi{} -> Doc.parens (ppTerm vars t)
-  t@Sigma{} -> Doc.parens (ppTerm vars t)
-  t@Id{} -> Doc.parens (ppTerm vars t)
   t@Refl{} -> Doc.parens (ppTerm vars t)
   t@J{} -> Doc.parens (ppTerm vars t)
+  t@Lam{} -> Doc.parens (ppTerm vars t)
+  t@Pi{} -> Doc.parens (ppTerm vars t)
+  t@Sigma{} -> Doc.parens (ppTerm vars t)
+  t@IdType{} -> Doc.parens (ppTerm vars t)
 
 ppScopedTerm
   :: (Pretty a, Pretty b)
   => [a] -> ScopedTerm b a -> (a -> Doc ann -> Doc ann) -> Doc ann
 ppScopedTerm [] _ _            = error "not enough fresh names"
-ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (instantiate1 (Var x) t))
+ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Var x) t))
 
--- * Typed terms
+-- ** Examples
 
-data TypedF term scope typedTerm = TypedF
-  { termF :: term scope typedTerm
-  , typeF :: typedTerm
-  } deriving (Show, Functor, Foldable, Traversable)
-
-instance Unifiable term => Unifiable (TypedF term) where
-  zipMatch (TypedF term1 type1) (TypedF term2 type2) = do
-    term <- zipMatch term1 term2
-    return (TypedF term (Right (type1, type2)))
-
-  appSome fun args = (TypedF term (error "can't infer type"), args')
-    where
-      (term, args') = appSome fun args
-
-  unAppSome (TypedF term _type) = do
-    (fun, args) <- unAppSome term
-    return (fun, args)
-
-  abstract body = TypedF (abstract body) (error "can't infer type")
-
-type TypedTermF = TypedF TermF
-
--- | An (untyped) term in Martin-Lof Type Theory
--- is freely generated by 'TermF':
+-- | Each example presents:
 --
--- * @'Term' b a@ is a term with free variables in @a@ and bound variables in @b@
--- * @'Name' b ()@ tells us that each \(\lambda\)-abstraction binds exactly one variable
--- (since bound variables are indexed by @()@)
-type TypedTerm b = FreeScoped (Name b ()) TypedTermF
-
--- | A helper type synonym for the scoped terms.
--- These can be found, for example, in a body of a \(\lambda\)-abstraction.
-type ScopedTypedTerm b a = Scope (Name b ()) (TypedTerm b) a
-
--- | Term with 'String' identitiers for bound and free variables.
-type TypedTerm' = TypedTerm Rzk.Var Rzk.Var
-
--- ** Typed pattern synonyms
-
--- | A variable.
-pattern VarT :: a -> TypedTerm b a
-pattern VarT x = PureScoped x
-
--- | Universe type \(\mathcal{U}_i\)
-pattern UniverseT :: TypedTerm b a -> Int -> TypedTerm b a
-pattern UniverseT ty i = FreeScoped (TypedF (UniverseF i) ty)
-
--- | Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
-pattern IdT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern IdT ty a x y = FreeScoped (TypedF (IdF a x y) ty)
-
--- | Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
--- @Refl a x@ corresponds to \(\mathsf{refl}_{A} x\).
-pattern ReflT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern ReflT ty a x = FreeScoped (TypedF (ReflF a x) ty)
-
--- | Path induction (for identity types).
--- For any type \(A\) and \(a : A\), type family
--- \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\)
--- and \(d : C(a,\mathsf{refl}_a)\)
--- and \(x : A\)
--- and \(p : a =_A x\)
--- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\).
-pattern JT
-  :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern JT ty tA a tC d x p = FreeScoped (TypedF (JF tA a tC d x p) ty)
-
--- | A dependent sum type (\(\Sigma\)-type): \(\sum_{x : A} B(x)\)
-pattern SigmaT :: TypedTerm b a -> TypedTerm b a -> ScopedTypedTerm b a -> TypedTerm b a
-pattern SigmaT ty a b = FreeScoped (TypedF (SigmaF a b) ty)
-
--- | A dependent pair \((T_1, T_2)\).
-pattern PairT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern PairT ty t1 t2 = FreeScoped (TypedF (PairF t1 t2) ty)
-
--- | Project first component of a (dependent) pair: \(\pi_{1} T\).
-pattern FirstT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern FirstT ty t = FreeScoped (TypedF (FirstF t) ty)
-
--- | Project second component of a (dependent) pair: \(\pi_{2} T\).
-pattern SecondT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern SecondT ty t = FreeScoped (TypedF (SecondF t) ty)
-
--- | A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
-pattern PiT :: TypedTerm b a -> TypedTerm b a -> ScopedTypedTerm b a -> TypedTerm b a
-pattern PiT ty a b = FreeScoped (TypedF (PiF a b) ty)
-
--- | A \(\lambda\)-abstraction.
-pattern LamT :: TypedTerm b a -> ScopedTypedTerm b a -> TypedTerm b a
-pattern LamT ty body = FreeScoped (TypedF (LamF body) ty)
-
--- | An application of one term to another.
-pattern AppT :: TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern AppT ty t1 t2 = FreeScoped (TypedF (AppF t1 t2) ty)
-
-{-# COMPLETE VarT, UniverseT, SigmaT, PairT, FirstT, SecondT, PiT, LamT, AppT, IdT, ReflT, JT #-}
-
-untyped :: TypedTerm b a -> Term b a
-untyped = transFreeScopedT termF
-
-whnfT :: TypedTerm b a -> TypedTerm b a
-whnfT = \case
-  AppT ty fun arg ->
-    -- to evaluate application we first evaluate
-    -- applied function term to its weak head normal form
-    case whnfT fun of
-      -- if it turns out to be a lambda abstraction
-      -- then we perform substitution and recursively compute whnfT of the result
-      LamT _ty body -> whnfT (instantiate1 arg body)
-      -- otherwise we stop evaluation
-      fun'          -> AppT ty fun' arg
-  FirstT ty arg ->
-    case whnfT arg of
-      PairT _ty t _ -> whnfT t
-      arg'          -> FirstT ty arg'
-  SecondT ty arg ->
-    case whnfT arg of
-      PairT _ty _ t -> whnfT t
-      arg'          -> SecondT ty arg'
-  JT ty tA a tC d x p ->
-    case whnfT p of
-      ReflT _ty _ _ -> whnfT d
-      p'            -> JT ty tA a tC d x p'
-  -- lambda abstractions and variables stay unchanged
-  t -> t
-
-nfT :: TypedTerm b a -> TypedTerm b a
-nfT = \case
-  AppT ty fun arg ->
-    -- to evaluate application we first evaluate
-    -- applied function term to its weak head normal form
-    case whnfT fun of
-      -- if it turns out to be a lambda abstraction
-      -- then we perform substitution and recursively compute NFT ty of the result
-      LamT _ty body -> nfT (instantiate1 arg body)
-      -- otherwise we compute NFT ty of both function and argument terms
-      fun'          -> AppT ty (nfT fun') (nfT arg)
-  -- when encountering a lambda-abstraction
-  -- we evaluate its body to its normal form
-  LamT ty body -> LamT ty (nfScopeT body)
-  PiT ty a b -> PiT ty (nfT a) (nfScopeT b)
-
-  FirstT ty arg ->
-    case whnfT arg of
-      PairT _ty t _ -> nfT t
-      arg'          -> FirstT ty (nfT arg')
-  SecondT ty arg ->
-    case whnfT arg of
-      PairT _ty _ t -> nfT t
-      arg'          -> SecondT ty (nfT arg')
-  PairT ty t1 t2 -> PairT ty (nfT t1) (nfT t2)
-  SigmaT ty a b -> SigmaT ty (nfT a) (nfScopeT b)
-
-  JT ty tA a tC d x p ->
-    case whnfT p of
-      ReflT _ty _ _ -> nfT d
-      p'            -> JT ty (nfT tA) (nfT a) (nfT tC) (nfT d) (nfT x) (nfT p')
-  ReflT ty a x -> ReflT ty (nfT a) (nfT x)
-  IdT ty a x y -> IdT ty (nfT a) (nfT x) (nfT y)
-
-  t@UniverseT{} -> t
-
-  -- variables stay unchanged
-  t@VarT{} -> t
-  where
-    nfScopeT = toScope . nfT . fromScope
-
--- | A typed term with unification metavariables in Martin-Lof Type Theory
--- freely generated by 'TypedTermF'.
-type UTypedTerm b a v = UFreeScoped (Name b ()) TypedTermF a v
-
-type UScopedTypedTerm b a v = Scope (Name b ()) (TypedTerm b) (UVar (Name b ()) a v)
-
-type UTypedTerm' = UTypedTerm Rzk.Var Rzk.Var Rzk.Var
-
-typeOf :: MonadTypecheck (TypedTerm b a) a m => TypedTerm b a -> m (TypedTerm b a)
-typeOf (FreeScoped (TypedF _ ty)) = return ty
-typeOf (PureScoped var)           = typeOfFreeVar var
-
-typeOfScoped ::
-    ( Eq a, MonadPlus m
-    , MonadBind (UTypedTerm b a v) v m
-    , MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m )
-  => UScopedTypedTerm b a v -> m (UScopedTypedTerm b a v)
-typeOfScoped scope = toScope <$> do
-  case fromScope scope of
-    FreeScoped (TypedF _ ty) -> return ty
-    PureScoped (Bound.F x)   -> fmap Bound.F <$> typeOfFreeVar x
-    PureScoped (Bound.B _)   -> VarT . Bound.F . UMetaVar <$> freshMeta
-
-class Monad m => MonadTypecheck term var m | m -> term var, term -> var where
-  typeOfFreeVar :: var -> m term
-  getConstraints :: m [(term, term)]
-  setConstraints :: [(term, term)] -> m ()
-  freshFreeVar :: m var
-
-data TypecheckState term var = TypecheckState
-  { knownFreeVarTypes :: [(var, term)]
-  , constraints       :: [(term, term)]
-  , freshFreeVars     :: [var]
-  }
-
-initTypecheckState :: TypecheckState term var
-initTypecheckState = TypecheckState
-  { knownFreeVarTypes = []
-  , constraints = []
-  , freshFreeVars = [] -- FIXME?
-  }
-
-newtype TypecheckT term var m a = TypecheckT
-  { runTypecheckT :: StateT (TypecheckState term var) m a }
-  deriving (Functor, Applicative, Monad, MonadState (TypecheckState term var), MonadTrans, MonadPlus, Alternative)
-
-instance MonadBind term' var' m => MonadBind term' var' (TypecheckT term var m) where
-  freshMeta = TypecheckT (lift U.freshMeta)
-
-evalTypecheckT :: Monad m => TypecheckT term var m a -> TypecheckState term var -> m a
-evalTypecheckT = evalStateT . runTypecheckT
-
-evalTypecheckT'
-  :: Monad m
-  => [v]
-  -> TypecheckT term (UVar b a v) (U.AssocBindT term v m) r
-  -> m r
-evalTypecheckT' mvars m = evalStateT
-  (U.runAssocBindT (evalTypecheckT m initTypecheckState))
-  U.initBindState { U.freshMetas = mvars }
-
-instance (Eq b, Eq a, Monad m, MonadBind (FreeScoped b' termf (UVar b a v)) v m)
-  => MonadTypecheck (FreeScoped b' termf (UVar b a v)) (UVar b a v) (TypecheckT (FreeScoped b' termf (UVar b a v)) (UVar b a v) m) where
-  typeOfFreeVar x = do
-    mtype <- gets (lookup x . knownFreeVarTypes)
-    case mtype of
-      Just ty -> return ty
-      Nothing -> TypecheckT (PureScoped . UMetaVar <$> lift freshMeta)
-
-  getConstraints = gets constraints
-  setConstraints new = modify (\s -> s { constraints = new })
-
-  freshFreeVar = do
-    s <- get
-    case s of
-      TypecheckState{freshFreeVars = x:xs} -> do
-        put s { freshFreeVars = xs }
-        return x
-      _ -> error "not enough fresh free variables"
-
-unifyWithExpected
-  :: (Eq a, MonadPlus m, MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m, MonadBind (UTypedTerm b a v) v m)
-  => UTypedTerm b a v
-  -> UTypedTerm b a v
-  -> m (UTypedTerm b a v)
-unifyWithExpected t1 t2 = do
-  cs <- getConstraints
-  (substs, flexflex) <- unify whnfT [] ((t1, t2) : cs)
-  setConstraints flexflex
-  return (manySubst substs t1)
-
-localTypedVar :: ( Eq a, MonadTypecheck (TypedTerm b a) a m )
-  => TypedTerm b a -> (a -> m r) -> m r
-localTypedVar = undefined
-
-shouldHaveType ::
-    ( Eq a, MonadPlus m
-    , MonadBind (UTypedTerm b a v) v m
-    , MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m )
-  => UTypedTerm b a v -> UTypedTerm b a v -> m (UTypedTerm b a v)
-shouldHaveType term expectedType = do
-  actualType <- typeOf term
-  actualType `unifyWithExpected` expectedType
-
-inferF ::
-    ( Eq a, MonadPlus m
-    , MonadBind (UTypedTerm b a v) v m
-    , MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m )
-  => TermF (UScopedTypedTerm b a v) (UTypedTerm b a v) -> m (UTypedTerm b a v)
-inferF = \case
-
-  AppF fun arg -> do
-    typeOf fun >>= \case
-      PiT _ a b -> do
-        typeOfArg <- typeOf arg
-        _ <- typeOfArg `unifyWithExpected` a
-        return (instantiate1 arg b)
-      _ -> error "type error"
-
-  LamF body -> do
-    typeOfBody <- typeOfScoped body
-    typeOfArg <- VarT . UMetaVar <$> freshMeta  -- FIXME: can we attach this information to the scope?
-    return (PiT universeT typeOfArg typeOfBody)
-
-  PiF typeOfArg typeOfBody -> do
-    typeOfArg `shouldHaveType` universeT
-    localTypedVar typeOfArg $ \x ->
-      instantiate1 (VarT x) typeOfBody `shouldHaveType` universeT
-    return universeT
-
-foldFreeScoped
-  :: (Bitraversable term, Monad g, Monad m)
-  => (forall x. term (Scope b g x) (g x) -> m (g x))
-  -> (forall x. x -> m (g x))
-  -> FreeScoped b term a
-  -> m (g a)
-foldFreeScoped phi single = \case
-  PureScoped x -> single x
-  FreeScoped t -> do
-    t' <- bitraverse
-            (fmap toScope . foldFreeScoped phi single . fromScope)
-            (foldFreeScoped phi single)
-            t
-    phi t'
-
-dist :: Bound.Var b (UVar b' a v) -> UVar b' (Bound.Var b a) v
-dist (Bound.B b)               = UFreeVar (Bound.B b)
-dist (Bound.F (UFreeVar x))    = UFreeVar (Bound.F x)
-dist (Bound.F (UBoundVar v b)) = UBoundVar v b
-dist (Bound.F (UMetaVar m))    = UMetaVar m
-
-dist' :: UVar b' (Bound.Var b a) v -> Bound.Var b (UVar b' a v)
-dist' (UFreeVar (Bound.B b)) = (Bound.B b)
-dist' (UFreeVar (Bound.F x)) = (Bound.F (UFreeVar x))
-dist' (UBoundVar v b)        = (Bound.F (UBoundVar v b))
-dist' (UMetaVar m)           = (Bound.F (UMetaVar m))
-
-newtype Typings term a = Typings { getTypings :: [(a, term)] }
-
--- newtype Typecheck term x m a = Typecheck
---   { runTypecheck :: StateT (Typings term x) m a }
---   deriving (Functor, Applicative, Monad, MonadPlus, Alternative)
+-- * an untyped term
+-- * a typed term (with inferred type)
+-- * extra type information (inferred types of free variables, known information about meta-variables, unresolved constraints, etc.)
 --
--- instance (Eq (UVar b' a v), Monad m, MonadBind (FreeScoped b term (UVar b' a v)) v m) =>
---   MonadTypecheck
---     (FreeScoped b term (UVar b' a v))
---     (UVar b' a v)
---     (Typecheck (FreeScoped b term (UVar b' a v)) (UVar b' a v) m) where
---   typeOfFreeVar x = Typecheck $ do
---     mtype <- gets (lookup x . getTypings)
---     case mtype of
---       Nothing -> PureScoped . UMetaVar <$> lift freshMeta
---       Just ty -> return ty
+-- @
+-- Example #1:
+-- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂))))
+-- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂)))) : NAT → NAT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₃,NAT : U),(M₁,NAT → ?M₃ : U),(M₂,NAT : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
 --
--- evalTypecheck :: Monad m => Typecheck term x m a -> m a
--- evalTypecheck = flip evalStateT (Typings []) . runTypecheck
+--
+-- Example #2:
+-- λ(x₁ : (λx₁ → x₁) A) → (λx₂ → x₂) x₁
+-- λ(x₁ : (λx₁ → x₁) A) → (λx₂ → x₂) x₁ : (λx₁ → x₁) A → (λx₁ → x₁) A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₃,(λx₁ → x₁) A : U),(M₁,U : U),(M₂,?M₁)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #3:
+-- let x₁ = λx₁ → λx₂ → x₂ in let x₂ = λx₂ → λx₃ → λx₄ → x₃ (x₂ x₃ x₄) in x₂ (x₂ x₁)
+-- let x₁ = λx₁ → λx₂ → x₂ in let x₂ = λx₂ → λx₃ → λx₄ → x₃ (x₂ x₃ x₄) in x₂ (x₂ x₁) : (?M₇ → ?M₇) → ?M₇ → ?M₇
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₈,U : U),(M₇,U : U),(M₆,U : U),(M₅,U : U),(M₄,U : U),(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₈,?M₇),(M₅,?M₇),(M₁,?M₇ → ?M₈ : U),(M₂,?M₇),(M₂,?M₅),(M₁,?M₇ → ?M₈ : U),(M₄,?M₇ → ?M₈ : U),(M₆,?M₅ → ?M₇ : U),(M₃,?M₄ → ?M₆ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₉,M₁₀,M₁₁,M₁₂,M₁₃,...]
+--   }
+--
+--
+-- Example #4:
+-- let x₁ = λx₁ → λx₂ → x₂ in x₁
+-- let x₁ = λx₁ → λx₂ → x₂ in x₁ : ?M₁ → ?M₂ → ?M₂
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #5:
+-- (λx₁ → x₁) (λx₁ → λx₂ → x₂)
+-- (λx₁ → x₁) (λx₁ → λx₂ → x₂) : ?M₂ → ?M₃ → ?M₃
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,?M₂ → ?M₃ → ?M₃ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #6:
+-- let x₁ = unit in unit
+-- let x₁ = unit in unit : UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #7:
+-- let x₁ = unit in x₁
+-- let x₁ = unit in x₁ : UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #8:
+-- λx₁ → λx₂ → x₁ x₂
+-- λx₁ → λx₂ → x₁ x₂ : (?M₂ → ?M₃) → ?M₂ → ?M₃
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,?M₂ → ?M₃ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #9:
+-- λ(x₁ : UNIT → UNIT) → λ(x₂ : UNIT) → x₁ x₂
+-- λ(x₁ : UNIT → UNIT) → λ(x₂ : UNIT) → x₁ x₂ : (UNIT → UNIT) → UNIT → UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #10:
+-- λ(x₁ : A → B) → λ(x₂ : A) → x₁ x₂
+-- λ(x₁ : A → B) → λ(x₂ : A) → x₁ x₂ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #11:
+-- λx₁ → λx₂ → x₂
+-- λx₁ → λx₂ → x₂ : ?M₁ → ?M₂ → ?M₂
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #12:
+-- λx₁ → λx₂ → x₁
+-- λx₁ → λx₂ → x₁ : ?M₁ → ?M₂ → ?M₁
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #13:
+-- λ(x₁ : A → B) → λx₂ → x₁ x₂
+-- λ(x₁ : A → B) → λx₂ → x₁ x₂ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₃,A),(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #14:
+-- λx₁ → x₁
+-- λx₁ → x₁ : ?M₁ → ?M₁
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #15:
+-- λ(x₁ : A) → x₁
+-- λ(x₁ : A) → x₁ : A → A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = [(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #16:
+-- λ(x₁ : A → B) → x₁
+-- λ(x₁ : A → B) → x₁ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #17:
+-- λx₁ → x₁ x₁
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #18:
+-- λx₁ → x₁ unit
+-- λx₁ → x₁ unit : (UNIT → ?M₂) → ?M₂
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #19:
+-- A → UNIT
+-- A → UNIT : U
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = [(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #20:
+-- A → B
+-- A → B : U
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #21:
+-- λx₁ → λ(x₂ : UNIT) → x₁ (x₁ x₂)
+-- λx₁ → λ(x₂ : UNIT) → x₁ (x₁ x₂) : (UNIT → UNIT) → UNIT → UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,UNIT : U),(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #22:
+-- unit
+-- unit : UNIT
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #23:
+-- unit unit
+-- Type Error: TypeErrorOther "inferTypeForF: application of a non-function"
+--
+-- Example #24:
+-- UNIT
+-- UNIT : U
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #25:
+-- x
+-- x
+-- TypeInfo
+--   { knownFreeVars = [(x,?M₁)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #26:
+-- f unit
+-- f unit : ?M₂
+-- TypeInfo
+--   { knownFreeVars = [(f,UNIT → ?M₂ : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = [(?M₂,?M₂)]
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #27:
+-- f (f unit)
+-- f (f unit) : UNIT
+-- TypeInfo
+--   { knownFreeVars = [(f,UNIT → UNIT : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,UNIT : U),(M₁,UNIT → ?M₂ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #28:
+-- unit → unit
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #29:
+-- UNIT → UNIT
+-- UNIT → UNIT : U
+-- TypeInfo
+--   { knownFreeVars = []
+--   , knownMetaVars = []
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₁,M₂,M₃,M₄,M₅,...]
+--   }
+--
+--
+-- Example #30:
+-- x
+-- x
+-- TypeInfo
+--   { knownFreeVars = [(x,?M₁)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = []
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #31:
+-- f x
+-- f x : ?M₃
+-- TypeInfo
+--   { knownFreeVars = [(x,?M₂),(f,?M₂ → ?M₃ : U)]
+--   , knownMetaVars = [(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₁,?M₂ → ?M₃ : U)]
+--   , constraints   = [(?M₂,?M₂),(?M₃,?M₃)]
+--   , freshMetaVars = [M₄,M₅,M₆,M₇,M₈,...]
+--   }
+--
+--
+-- Example #32:
+-- λ(x₁ : unit) → x₁
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #33:
+-- λ(x₁ : unit) → y
+-- Type Error: TypeErrorOther "unable to unify ..."
+--
+-- Example #34:
+-- λ(x₁ : A) → x₁
+-- λ(x₁ : A) → x₁ : A → A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₁,U : U)]
+--   , knownSubsts   = [(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₂,M₃,M₄,M₅,M₆,...]
+--   }
+--
+--
+-- Example #35:
+-- λ(x₁ : A → B) → x₁
+-- λ(x₁ : A → B) → x₁ : (A → B) → A → B
+-- TypeInfo
+--   { knownFreeVars = [(B,U : U),(A,U : U)]
+--   , knownMetaVars = [(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₂,U : U),(M₁,U : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₃,M₄,M₅,M₆,M₇,...]
+--   }
+--
+--
+-- Example #36:
+-- λ(x₁ : (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A) → (λx₂ → x₂) x₁
+-- λ(x₁ : (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A) → (λx₂ → x₂) x₁ : (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A → (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A
+-- TypeInfo
+--   { knownFreeVars = [(A,U : U)]
+--   , knownMetaVars = [(M₉,U : U),(M₈,U : U),(M₇,U : U),(M₆,U : U),(M₅,U : U),(M₄,U : U),(M₃,U : U),(M₂,U : U),(M₁,U : U)]
+--   , knownSubsts   = [(M₉,(λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ x₂))))) (λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))) (λx₁ → x₁) A : U),(M₅,U : U),(M₈,?M₅),(M₇,?M₅),(M₇,?M₅),(M₂,?M₅ → ?M₅ : U),(M₂,?M₅ → ?M₅ : U),(M₂,?M₅ → ?M₅ : U),(M₆,?M₅),(M₄,?M₅ → ?M₆ : U),(M₃,?M₂),(M₁,?M₂ → ?M₃ : U)]
+--   , constraints   = []
+--   , freshMetaVars = [M₁₀,M₁₁,M₁₂,M₁₃,M₁₄,...]
+--   }
+-- @
+examples :: IO ()
+examples = mapM_ runExample . zip [1..] $
+  [ lam_ "A" (lam (Just (Var "A")) "x" (Refl Nothing (Var "x")))
 
-newtype UScopedTypecheck term b m a = UScopedTypecheck
-  { runUScopedTypecheck :: StateT (Typings term b) m a }
-  deriving (Functor, Applicative, Monad, MonadPlus, Alternative)
+  , lam (Just (App (lam_ "x" (Var "x")) (Var "A"))) "x" (App (lam_ "y" (Var "y")) (Var "x")) -- ok (fixed)
 
-evalUScopedTypecheck :: Monad m => UScopedTypecheck term b m a -> m a
-evalUScopedTypecheck = flip evalStateT (Typings []) . runUScopedTypecheck
+  , lam Nothing "f" $
+      lam Nothing "x" $
+        App (Var "f") (Var "x") -- ok (fixed)
 
-instance (Eq b, Bifunctor term, MonadTypecheck (FreeScoped b term (UVar b' a v)) (UVar b' a v) m, MonadBind (FreeScoped b term (UVar b' a v)) v m) =>
-  MonadTypecheck (FreeScoped b term (UVar b' (Bound.Var b a) v)) (UVar b' (Bound.Var b a) v) (UScopedTypecheck (FreeScoped b term (UVar b' (Bound.Var b a) v)) b m) where
-    typeOfFreeVar x = UScopedTypecheck $ do
-      case x of
-        UFreeVar (Bound.B x') -> do
-          mtype <- gets (lookup x' . getTypings)
-          case mtype of
-            Nothing -> PureScoped . UMetaVar <$> lift freshMeta
-            Just ty -> return ty
-        UFreeVar (Bound.F x') -> fmap from <$> lift (typeOfFreeVar (UFreeVar x'))
-        UBoundVar v b         -> fmap from <$> lift (typeOfFreeVar (UBoundVar v b))
-        UMetaVar m            -> fmap from <$> lift (typeOfFreeVar (UMetaVar m))
-      where
-        from (UBoundVar v b) = UBoundVar v b
-        from (UFreeVar x)    = UFreeVar (Bound.F x)
-        from (UMetaVar m)    = UMetaVar m
+  , lam (Just (mkFun (Var "A") (Var "B"))) "f" $
+      lam (Just (Var "A")) "x" $
+        App (Var "f") (Var "x") -- ok (fixed)
 
-    getConstraints = UScopedTypecheck $ fmap (both (fmap from)) <$> lift getConstraints
-      where
-        both f (x, y) = (f x, f y)
+  , lam Nothing "x" $
+      lam Nothing "x" $
+        Var "x" -- ok
 
-        from (UBoundVar v b) = UBoundVar v b
-        from (UFreeVar x)    = UFreeVar (Bound.F x)
-        from (UMetaVar m)    = UMetaVar m
+  , lam Nothing "x" $
+      lam Nothing "y" $
+        Var "x" -- ok (fixed)
 
-    setConstraints cs = UScopedTypecheck $ lift (setConstraints (map (both (fmap to)) cs))
-      where
-        both f (x, y) = (f x, f y)
+  , lam (Just (mkFun (Var "A") (Var "B"))) "f" $
+      lam Nothing "x" $
+        App (Var "f") (Var "x") -- ok
 
-        to (UBoundVar v b)        = UBoundVar v b
-        to (UFreeVar (Bound.F x)) = UFreeVar x
-        to (UFreeVar (Bound.B _)) = error "can't leak constraints with bound variables"
-        to (UMetaVar m)           = UMetaVar m
+  , lam Nothing "x" $
+      Var "x" -- ok
 
-    freshFreeVar = UScopedTypecheck $ from <$> lift freshFreeVar
-      where
-        from (UBoundVar v b) = UBoundVar v b
-        from (UFreeVar x)    = UFreeVar (Bound.F x)
-        from (UMetaVar m)    = UMetaVar m
+  , lam (Just (Var "A")) "x" $
+      Var "x" -- ok
 
-instance (Bifunctor term, MonadBind (FreeScoped b term (UVar b' a v)) v m)
-  => MonadBind
-        (FreeScoped b term (UVar b' (Bound.Var b a) v))
-        v
-        (UScopedTypecheck
-            (FreeScoped b term (UVar b' (Bound.Var b a) v))
-            b m) where
-  freshMeta = UScopedTypecheck $ lift U.freshMeta
+  , lam (Just (mkFun (Var "A") (Var "B"))) "f" $
+      Var "f" -- ok
 
-infer ::
-    ( Eq a, MonadPlus m
-    , MonadBind (UTypedTerm b a v) v m
-    , MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m )
-  => UTerm b a v -> m (UTypedTerm b a v)
-infer (PureScoped var) = typeOfFreeVar var
-infer (FreeScoped t)   = bitraverse inferScoped infer t >>= inferF
+  , lam Nothing "f" $
+      App (Var "f") (Var "f")  -- ok: type error
 
-inferScoped :: forall a b v m.
-    ( Eq a, MonadPlus m
-    , MonadBind (UTypedTerm b a v) v m
-    , MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m )
-  => Scope (Name b ()) (FreeScoped (Name b ()) TermF) (UVar (Name b ()) a v)
-  -> m (UScopedTypedTerm b a v)
-inferScoped
-  = fmap (toScope . fmap dist')
-  . evalUScopedTypecheck @_ @(UTypedTerm b (Bound.Var (Name b ()) a) v) @(Name b ())
-  . infer
-  . fmap dist . fromScope
+  , mkFun (Var "A") (Var "B") -- ok (looped because of unsafeCoerce)
 
---inferTypeFor ::
---    ( Eq a, MonadPlus m
---    , MonadBind (UTypedTerm b a v) v m
---    , MonadTypecheck (UTypedTerm b a v) (UVar (Name b ()) a v) m)
---  => Term b a -> m (UTypedTerm b a v)
---inferTypeFor = \case
---  Var x -> return (VarT (UFreeVar x))
---  App fun arg -> do
---    fun' <- inferTypeFor fun
---    arg' <- inferTypeFor arg
---    typeOf fun' >>= \case
---      PiT _ a b -> do
---        typeOfArg <- typeOf arg'
---        _ <- typeOfArg `unifyWithExpected` a
---        let typeOfResult = instantiate1 arg' b
---        return (AppT typeOfResult fun' arg')
---      _ -> error "type error"
---  Lam body -> do
---    body' <- inferTypeForScoped body
---    typeOfScoped body' >>= \(typeOfArg, typeOfBody) ->
---      return (PiT universeT typeOfArg typeOfBody)
+  , Var "x"               -- ok-ish
 
-universeT :: TypedTerm b a
-universeT = UniverseT universeT 0
+  , Var "x"
+  , App (Var "f") (Var "x")
+  , lam (Just (Var "A")) "x" (Var "x")
+  , lam (Just (mkFun (Var "A") (Var "B"))) "x" (Var "x")
+
+  , lam (Just (App (App (App (ex_nat 5) (ex_nat 6)) (lam_ "x" (Var "x"))) (Var "A"))) "x" (App (lam_ "z" (Var "z")) (Var "x")) -- FIXME: optimize to avoid recomputation of whnf
+
+  ]
+
+runExample :: (Int, Term') -> IO ()
+runExample (n, term) = do
+  putStrLn ("Example #" <> show n <> ":")
+  -- putStr   "[input term]:          "
+  print term
+  -- _ <- getLine
+  -- putStr   "[with inferred types]: "
+  case runTypeCheckOnce' (TypeCheck.infer term) of
+    Left err -> putStrLn ("Type Error: " <> show err)
+    Right (typedTerm, typeInfo) -> do
+      print typedTerm
+      print typeInfo
+  putStrLn ""
+  _ <- getLine
+  return ()
+
+-- *** Church numerals
+
+-- |
+-- >>> ex_zero
+-- λx₁ → λx₂ → x₂
+--
+-- >>> execTypeCheck' (infer' ex_zero)
+-- Right λx₁ → λx₂ → x₂ : ?M₁ → ?M₂ → ?M₂
+ex_zero :: Term'
+ex_zero = lam_ "s" (lam_ "z" (Var "z"))
+
+-- |
+-- >>> ex_nat 3
+-- λx₁ → λx₂ → x₁ (x₁ (x₁ x₂))
+--
+-- >>> execTypeCheck' (infer' (ex_nat 3))
+-- Right λx₁ → λx₂ → x₁ (x₁ (x₁ x₂)) : (?M₂ → ?M₂) → ?M₂ → ?M₂
+ex_nat :: Int -> Term'
+ex_nat n = lam_ "s" (lam_ "z" (iterate (App (Var "s")) (Var "z") !! n))
+
+-- |
+-- >>> ex_add
+-- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄)
+--
+-- >>> unsafeInfer' ex_add
+-- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄) : (?M₃ → ?M₇ → ?M₈) → (?M₃ → ?M₄ → ?M₇) → ?M₃ → ?M₄ → ?M₈
+ex_add :: Term'
+ex_add = lam_ "n" (lam_ "m" (lam_ "s" (lam_ "z"
+  (App (App (Var "n") (Var "s")) (App (App (Var "m") (Var "s")) (Var "z"))))))
+
+-- |
+-- >>> ex_mul
+-- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃)
+-- >>> unsafeInfer' ex_mul
+-- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃) : (?M₄ → ?M₅) → (?M₃ → ?M₄) → ?M₃ → ?M₅
+ex_mul :: Term'
+ex_mul = lam_ "n" (lam_ "m" (lam_ "s"
+  (App (Var "n") (App (Var "m") (Var "s")))))
+
+-- |
+-- >>> ex_mkPair (Var "x") (Var "y")
+-- λx₁ → x₁ x y
+ex_mkPair :: Term' -> Term' -> Term'
+ex_mkPair t1 t2 = lam_ "_ex_mkPair" (App (App (Var "_ex_mkPair") t1) t2)
+
+-- |
+-- >>> ex_fst
+-- λx₁ → x₁ (λx₂ → λx₃ → x₂)
+-- >>> unsafeInfer' ex_fst
+-- λx₁ → x₁ (λx₂ → λx₃ → x₂) : ((?M₂ → ?M₃ → ?M₂) → ?M₄) → ?M₄
+ex_fst :: Term'
+ex_fst = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "f"))))
+
+-- |
+-- >>> ex_snd
+-- λx₁ → x₁ (λx₂ → λx₃ → x₃)
+-- >>> unsafeInfer' ex_snd
+-- λx₁ → x₁ (λx₂ → λx₃ → x₃) : ((?M₂ → ?M₃ → ?M₃) → ?M₄) → ?M₄
+ex_snd :: Term'
+ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
+
+-- |
+-- >>> ex_pred
+-- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄)))
+-- >>> unsafeInfer' ex_pred
+-- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄))) : ((((?M₂₂ → ?M₂₃ → ?M₂₃) → (?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → (((?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → ((?M₁₆ → ?M₁₉) → ?M₁₆ → ?M₂₀) → ?M₂₈) → ?M₂₈) → (((?M₃₁ → ?M₃₂ → ?M₃₂) → (?M₃₄ → ?M₃₅ → ?M₃₅) → ?M₃₆) → ?M₃₆) → (?M₃ → ?M₄ → ?M₃) → ?M₅) → ?M₅
+ex_pred :: Term'
+ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
 deriveBitraversable ''TermF
-
-deriveBifunctor ''TypedF
-deriveBifoldable ''TypedF
-deriveBitraversable ''TypedF
-

@@ -14,12 +14,17 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.FreeScoped.Unification2 where
 
+import           Data.Text                              (Text)
+import           Debug.Trace
+import           Unsafe.Coerce
+
 import           Bound.Name
 import           Bound.Scope                            (instantiate,
                                                          instantiate1, toScope)
 import qualified Bound.Scope                            as Bound
 import           Bound.Term                             (substitute)
 import           Bound.Var
+import           Data.Maybe                             (mapMaybe)
 
 import           Control.Monad.State
 import           Data.Bifoldable
@@ -133,7 +138,7 @@ data SimplifyResult a
   | Simplified [a]
 
 simplify
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Eq a, Eq b, Eq v
      , Unifiable term )
@@ -169,7 +174,7 @@ simplify reduce (t1, t2)
     _ -> return CannotSimplify
 
 repeatedlySimplify
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Unifiable term
      , Eq a, Eq b, Eq v )
@@ -190,9 +195,74 @@ repeatedlySimplify reduce = go
 metavars :: Bifoldable term => UFreeScoped b term a v -> [v]
 metavars = foldMap F.toList . F.toList
 
+ignoreVarInTerm
+  :: (Unifiable term, MonadBind v m, IndexVar b, Eq b, Eq a)
+  => a -> UFreeScoped b term a v -> m (Subst b term a v)
+ignoreVarInTerm x t =
+  case peelApps t of
+    (PureScoped (UMetaVar m), args)
+      | any (any (== UFreeVar x)) args -> do
+          m' <- freshMeta
+          let new = abstractInt n (mkApps (PureScoped (F (UMetaVar m'))) args')
+              n = length args
+              args' = mapMaybe keepOrSkip (zip [0..] args)
+              keepOrSkip (i, arg)
+                | any (== UFreeVar x) arg = Nothing
+                | otherwise = Just (PureScoped (B (n - i - 1)))
+          return [(m, new)]
+      | otherwise -> return []
+    _ -> return [] -- error "expected only flex-terms"
+
+ignoreVarInConstraints
+  :: (MonadBind v m, Unifiable term, IndexVar b, Eq b, Eq a)
+  => a -> [Constraint b term a v] -> m (Subst b term a v, [Constraint b term a v])
+ignoreVarInConstraints x cs =
+  getFirst (ignoreVarInTerm x) (concatMap both cs) >>= \case
+    [] -> return ([], cs)
+    subst -> do
+      (moreSubst, cs') <- ignoreVarInConstraints x (bimap (manySubst subst) (manySubst subst) <$> cs)
+      return (moreSubst <+> subst, cs')
+  where
+    both (t1, t2) = [t1, t2]
+
+    getFirst _ [] = return []
+    getFirst g (z:zs) = g z >>= \case
+      []    -> getFirst g zs
+      subst -> return subst
+
+ignoreVarIn
+  :: (MonadBind v m, Unifiable term, IndexVar b, Eq b, Eq a, Functor t, Foldable t)
+  => a -> t (UFreeScoped b term a v) -> m (Subst b term a v, t (UFreeScoped b term a v))
+ignoreVarIn x ts =
+  getFirst (ignoreVarInTerm x) (F.toList ts) >>= \case
+    [] -> return ([], ts)
+    subst -> do
+      (moreSubst, ts') <- ignoreVarIn x (manySubst subst <$> ts)
+      return (moreSubst <+> subst, ts')
+  where
+    getFirst _ [] = return []
+    getFirst g (z:zs) = g z >>= \case
+      []    -> getFirst g zs
+      subst -> return subst
+
+ignoreVarInLeft
+  :: (MonadBind v m, Unifiable term, IndexVar b, Eq b, Eq a, Bifunctor t, Bifoldable t)
+  => a -> t (UFreeScoped b term a v) x -> m (Subst b term a v, t (UFreeScoped b term a v) x)
+ignoreVarInLeft x ts =
+  getFirst (ignoreVarInTerm x) (bifoldMap pure (const []) ts) >>= \case
+    [] -> return ([], ts)
+    subst -> do
+      (moreSubst, ts') <- ignoreVarInLeft x (bimap (manySubst subst) id ts)
+      return (moreSubst <+> subst, ts')
+  where
+    getFirst _ [] = return []
+    getFirst g (z:zs) = g z >>= \case
+      []    -> getFirst g zs
+      subst -> return subst
+
 tryFlexRigid
   :: forall b term a v m.
-    ( MonadBind (UFreeScoped b term a v) v m
+    ( MonadBind v m
     , MonadPlus m
     , Unifiable term
     , Eq a, Eq b, Eq v
@@ -200,13 +270,13 @@ tryFlexRigid
   => Constraint b term a v -> [m [Subst b term a v]]
 tryFlexRigid (t1, t2)
   | (PureScoped (UMetaVar i), cxt1) <- peelApps t1,
-    (stuckTerm, cxt2) <- peelApps t2,
+    (stuckTerm, _cxt2) <- peelApps t2,
     not (i `elem` metavars t2) =
       if null cxt1
          then [pure [[(i, t2)]]]
          else proj (length cxt1) i stuckTerm 0
   | (PureScoped (UMetaVar i), cxt1) <- peelApps t2,
-    (stuckTerm, cxt2) <- peelApps t1,
+    (stuckTerm, _cxt2) <- peelApps t1,
     not (i `elem` metavars t1) =
       if null cxt1
          then [pure [[(i, t2)]]]
@@ -356,7 +426,7 @@ run :: (Monad m) => AssocBindT term var m a -> m a
 run = flip evalStateT initBindState . runAssocBindT
 
 unify
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Unifiable term
      , Eq a, Eq b, Eq v

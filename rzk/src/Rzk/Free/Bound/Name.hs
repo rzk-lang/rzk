@@ -20,6 +20,14 @@ deriveBifunctor ''Name
 deriveBifoldable ''Name
 deriveBitraversable ''Name
 
+abstractName' :: (Monad f) => (a -> Maybe (Name n b)) -> f a -> Scope (Name n b) f a
+abstractName' f t = Scope (fmap g t)
+  where
+    g y = case f y of
+            Just x  -> B x
+            Nothing -> F (return y)
+
+
 abstractName :: (Monad f) => (a -> Maybe b) -> f a -> Scope (Name a b) f a
 abstractName f t = Scope (fmap g t)
   where

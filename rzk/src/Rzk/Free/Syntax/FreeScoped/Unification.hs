@@ -71,7 +71,7 @@ instance (Pretty a, Pretty v) => Show (UVar b a v) where
 
 type UFreeScoped b term a v = FreeScoped b term (UVar b a v)
 
-class (Eq var, Monad m) => MonadBind term var m | m -> term var where
+class (Eq var, Monad m) => MonadBind var m | m -> var where
   freshMeta :: m var
 
 data BindState term var = BindState
@@ -91,7 +91,7 @@ newtype AssocBindT term var m a = AssocBindT
   { runAssocBindT :: StateT (BindState term var) m a
   } deriving (Functor, Applicative, Alternative, Monad, MonadPlus)
 
-instance (Eq var, Monad m) => MonadBind term var (AssocBindT term var m) where
+instance (Eq var, Monad m) => MonadBind var (AssocBindT term var m) where
   freshMeta = AssocBindT $ do
     s@BindState{..} <- get
     case freshMetas of
@@ -129,7 +129,7 @@ toMetaVars f = fmap toMeta
         Just y  -> UMetaVar y
 
 simplify
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Bitraversable term
      , Eq a, Eq b, Eq v )
@@ -171,7 +171,7 @@ simplify reduce zipMatch peel (t1, t2)
     _ -> return Nothing
 
 repeatedlySimplify
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Bitraversable term
      , Eq a, Eq b, Eq v )
@@ -205,7 +205,7 @@ noUBoundVarsIn = all notUBound . F.toList
     notUBound _           = True
 
 tryFlexRigid
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Bitraversable term
      , Eq a, Eq b, Eq v )
@@ -261,7 +261,7 @@ isStuck peel t =
     _                          -> False
 
 unify
-  :: ( MonadBind (UFreeScoped b term a v) v m
+  :: ( MonadBind v m
      , MonadPlus m
      , Bitraversable term
      , Eq a, Eq b, Eq v )
