@@ -220,6 +220,10 @@ pattern Fun n body = Coerce (FreeScoped (FunF n (UnScopedExpr body)))
 instance Num (Expr a) where
   fromInteger = Number . fromInteger
   (+) = Add
+  (*) = error "not implemented"
+  abs = error "not implemented"
+  signum = error "not implemented"
+  negate = error "not implemented"
 
 instance Show (Expr String) where
   show = ppExpr (map pure ['a'..'z'])
@@ -233,7 +237,7 @@ reduce = \case
   Fun n body -> Fun n body
   Let expr next ->
     reduce (instantiateExpr (\0 -> expr) next)
-  FunCall (Fun n scope) args ->
+  FunCall (Fun _n scope) args ->
     let args' = map reduce args
       in reduce (instantiateExpr (args' !!) scope)
   FunCall f args -> FunCall (reduce f) (map reduce args)
@@ -245,14 +249,14 @@ evalExpr = \case
   Add x y -> evalExpr x + evalExpr y
   Let expr next ->
     evalExpr (instantiateExpr (\0 -> expr) next)
-  FunCall (Fun n scope) args ->
+  FunCall (Fun _n scope) args ->
     let args' = map (Number . evalExpr) args
       in evalExpr (instantiateExpr (args' !!) scope)
   FunCall _ _ -> error "non-function application"
 
 ppExprScope :: [String] -> [String] -> ScopedExpr String -> String
-ppExprScope boundVars freshVars
-  = ppExpr freshVars . instantiateExpr boundVar
+ppExprScope boundVars freshVars'
+  = ppExpr freshVars' . instantiateExpr boundVar
   where
     boundVar i = Variable (boundVars !! i)
 

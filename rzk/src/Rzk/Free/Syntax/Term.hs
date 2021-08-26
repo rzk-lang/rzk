@@ -134,7 +134,7 @@ mkLams n = go n []
   where
     go :: Int -> [a] -> Scope Int (Term b) a -> Term b a
     go 0 xs s = instantiateVars xs s
-    go n xs s = Lambda (abstract1Unnamed (go (n - 1) (map Just xs <> [Nothing]) (Just <$> s)))
+    go k xs s = Lambda (abstract1Unnamed (go (k - 1) (map Just xs <> [Nothing]) (Just <$> s)))
 
 pattern Apps :: Term b a -> [Term b a] -> Term b a
 pattern Apps f xs <- (appList -> Just (f, xs))
@@ -192,7 +192,7 @@ pattern AppsT
   :: TypedTerm b a
   -> [(TypedTerm b a, TypedTerm b a)]
   -> TypedTerm b a
-pattern AppsT f xs <- (appListT -> Just (tt, (f, xs)))
+pattern AppsT f xs <- (appListT -> Just (_tt, (f, xs)))
   where
     AppsT f xs = foldl' (\g (x, t) -> AppT t g x) f xs
 

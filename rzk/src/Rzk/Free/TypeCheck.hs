@@ -1,10 +1,10 @@
+{-# OPTIONS_GHC -fmax-pmcheck-iterations=100000000 #-} -- FIXME
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Rzk.Free.TypeCheck where
 
 import           Bound
-import           Bound.Scope
 import           Control.Monad.Except
 import           Data.List                    (foldl')
 import           Data.String                  (IsString)
@@ -67,7 +67,7 @@ inferApps f (x:xs) =
 
 appT :: TypedTerm b a -> TypedTerm b a -> TypeCheck b a (TypedTerm b a)
 appT f x = typeOf f >>= \case
-  PiT _ typeOfArg typeOfBody ->
+  PiT _ _typeOfArg typeOfBody ->
     return (AppT (instantiate1 x typeOfBody) f x)
   _ -> throwError (TypeErrorNotAFunction f)
 
@@ -83,6 +83,9 @@ infer = \case
   Apps f args -> do
     args' <- inferMany args
     inferApps f args'
+  App f arg -> do
+    arg' <- infer arg
+    inferApps f [arg']
 
   t@Lambda{} -> throwError (TypeErrorCannotInferLambda t)
   Unit -> return (UnitT (UnitTypeT universeT))

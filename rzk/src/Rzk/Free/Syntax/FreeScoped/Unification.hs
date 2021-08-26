@@ -144,14 +144,14 @@ simplify
   -> (UFreeScoped b term a v -> (UFreeScoped b term a v, [UFreeScoped b term a v]))
   -> Constraint b term a v
   -> m (Maybe [Constraint b term a v])
-simplify reduce zipMatch peel (t1, t2)
+simplify reduce zipMatch' peel (t1, t2)
   = -- unsafeTraceConstraint' "[simplify]" (t1, t2) $
   case (reduce t1, reduce t2) of
     (PureScoped b1@UBoundVar{}, PureScoped b2@UBoundVar{})
       | b1 == b2  -> return (Just [])
       | otherwise -> mzero
     (FreeScoped t1', FreeScoped t2')
-      | Just t <- zipMatch t1' t2' -> do
+      | Just t <- zipMatch' t1' t2' -> do
           let go (Left _)           = return []
               go (Right (tt1, tt2)) = return [(tt1, tt2)]
 
@@ -186,11 +186,11 @@ repeatedlySimplify
   -> (UFreeScoped b term a v -> (UFreeScoped b term a v, [UFreeScoped b term a v]))
   -> [Constraint b term a v]
   -> m [Constraint b term a v]
-repeatedlySimplify reduce zipMatch peel = go
+repeatedlySimplify reduce zipMatch' peel = go
   where
     go [] = return []
     go (c:cs) = do
-      simplify reduce zipMatch peel c >>= \case
+      simplify reduce zipMatch' peel c >>= \case
         Nothing -> do
           cs' <- go cs
           return (c:cs')
@@ -217,12 +217,12 @@ tryFlexRigid
   -> (forall x. FreeScoped b term x -> [FreeScoped b term x] -> FreeScoped b term x)
   -> (forall x. Int -> Scope Int (FreeScoped b term) (UVar b x v) -> UFreeScoped b term x v)
   -> Constraint b term a v -> [m [Subst b term a v]]
-tryFlexRigid peel mkApps mkLams (t1, t2)
+tryFlexRigid peel mkApps mkLams' (t1, t2)
   | (PureScoped (UMetaVar i), cxt1) <- peel t1,
-    (stuckTerm, cxt2) <- peel t2,
+    (stuckTerm, _cxt2) <- peel t2,
     not (i `elem` metavars t2) = proj (length cxt1) i stuckTerm 0
   | (PureScoped (UMetaVar i), cxt1) <- peel t2,
-    (stuckTerm, cxt2) <- peel t1,
+    (stuckTerm, _cxt2) <- peel t1,
     not (i `elem` metavars t1) = proj (length cxt1) i stuckTerm 0
   | otherwise = []
   where proj bvars mv f nargs =
@@ -232,7 +232,7 @@ tryFlexRigid peel mkApps mkLams (t1, t2)
           let mkSubst t = [(mv, t)]
           args <- map saturateMV . map (PureScoped . F . UMetaVar)
                     <$> replicateM nargs freshMeta
-          return [mkSubst . mkLams bvars $ toScope $ mkApps t args
+          return [mkSubst . mkLams' bvars $ toScope $ mkApps t args
                  | t <- map (PureScoped . B) [0..bvars - 1] ++
                         if noUBoundVarsIn f then [fmap F f] else []]
 
@@ -247,7 +247,7 @@ substMV new v t = substitute (UMetaVar v) new t
 manySubst
   :: (Bifunctor term, Eq a, Eq v, Eq b)
   => Subst b term a v -> UFreeScoped b term a v -> UFreeScoped b term a v
-manySubst s t = foldr (\(mv, t) sol -> substMV t mv sol) t s
+manySubst s t = foldr (\(mv, t') sol -> substMV t' mv sol) t s
 
 (<+>)
   :: (Bifunctor term, Eq a, Eq v, Eq b)
@@ -279,25 +279,25 @@ unify
   -> Subst b term a v
   -> [Constraint b term a v]
   -> m (Subst b term a v, [Constraint b term a v])
-unify reduce zipMatch peel mkApps mkLams s cs = do
+unify reduce zipMatch' peel mkApps mkLams' s cs = do
   -- unsafeTraceConstraints' "[unify]" cs $ do
   let cs' = applySubst s cs
     -- unsafeTraceConstraints' "[unify2]" cs' $ do
-  cs'' <- repeatedlySimplify reduce zipMatch peel cs'
+  cs'' <- repeatedlySimplify reduce zipMatch' peel cs'
   let (flexflexes, flexrigids) = partition flexflex cs''
   case flexrigids of
     [] -> return (s, flexflexes)
     fr:_ -> do
-      let psubsts = tryFlexRigid peel mkApps mkLams fr
+      let psubsts = tryFlexRigid peel mkApps mkLams' fr
       trySubsts psubsts (flexrigids <> flexflexes)
   where
-    applySubst s = map (\(t1, t2) -> (manySubst s t1, manySubst s t2))
+    applySubst st = map (\(t1, t2) -> (manySubst st t1, manySubst st t2))
     flexflex (t1, t2) = isStuck peel t1 && isStuck peel t2
-    trySubsts [] cs = mzero
-    trySubsts (mss : psubsts) cs = do
+    trySubsts [] _cs = mzero
+    trySubsts (mss : psubsts) cs' = do
       ss <- mss
-      let these = foldr mplus mzero [unify reduce zipMatch peel mkApps mkLams (newS <+> s) cs | newS <- ss]
-      let those = trySubsts psubsts cs
+      let these = foldr mplus mzero [unify reduce zipMatch' peel mkApps mkLams' (newS <+> s) cs' | newS <- ss]
+      let those = trySubsts psubsts cs'
       these `mplus` those
 
 driver
@@ -311,8 +311,8 @@ driver
   -> (forall x. Int -> Scope Int (FreeScoped b term) (UVar b x v) -> UFreeScoped b term x v)
   -> Constraint b term a v
   -> m (Subst b term a v, [Constraint b term a v])
-driver reduce zipMatch peel mkApps mkLams
+driver reduce zipMatch' peel mkApps mkLams'
   = flip evalStateT initBindState
   . runAssocBindT
-  . unify reduce zipMatch peel mkApps mkLams []
+  . unify reduce zipMatch' peel mkApps mkLams' []
   . (\x -> [x])

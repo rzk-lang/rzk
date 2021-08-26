@@ -14,10 +14,6 @@
 {-# LANGUAGE TemplateHaskell            #-}
 module Rzk.Free.Syntax.FreeScoped.Unification2 where
 
-import           Data.Text                              (Text)
-import           Debug.Trace
-import           Unsafe.Coerce
-
 import           Bound.Name
 import           Bound.Scope                            (instantiate,
                                                          instantiate1, toScope)
@@ -41,8 +37,7 @@ import           Rzk.Free.Syntax.FreeScoped.Unification (AssocBindT (..),
                                                          Constraint,
                                                          MonadBind (..), Subst,
                                                          UFreeScoped, UVar (..),
-                                                         initBindState,
-                                                         noUBoundVarsIn)
+                                                         initBindState)
 import qualified Rzk.Syntax.Var                         as Rzk
 
 class IndexVar a where
@@ -335,7 +330,7 @@ abstractInt n
     wrapSomeBoundVars bs (B i)
       | i < length bs = B (bs !! i)
       | otherwise = F (B (i - length bs))
-    wrapSomeBoundVars bs (F x) = F (F x)
+    wrapSomeBoundVars _bs (F x) = F (F x)
 
 substMV
   :: (Bifunctor term, Eq a, Eq v, Eq b)
@@ -348,7 +343,7 @@ substMV new v t = substitute (UMetaVar v) new t
 manySubst
   :: (Bifunctor term, Eq a, Eq v, Eq b)
   => Subst b term a v -> UFreeScoped b term a v -> UFreeScoped b term a v
-manySubst s t = foldr (\(mv, t) sol -> substMV t mv sol) t s
+manySubst s t = foldr (\(mv, t') sol -> substMV t' mv sol) t s
 
 (<+>)
   :: (Bifunctor term, Eq a, Eq v, Eq b)
@@ -401,7 +396,7 @@ ppLambda :: Lambda String -> String
 ppLambda = go (map pure ['a'..'z'])
   where
     go vars = \case
-      PureScoped x -> x
+      PureScoped z -> z
       FreeScoped t ->
         case t of
           AbsF scope -> "\\" <> x <> "." <> go xs (instantiate1 (PureScoped x) scope)
@@ -429,10 +424,10 @@ instance Unifiable LambdaF where
   zipMatch t1 t2 =
     case (t1, t2) of
       (AbsF body1, AbsF body2) -> Just (AbsF (Right (body1, body2)))
-      (AppF t1 t2, AppF e1 e2) -> Just (AppF (Right (t1, e1)) (Right (t2, e2)))
+      (AppF f1 x1, AppF f2 x2) -> Just (AppF (Right (f1, f2)) (Right (x1, x2)))
       _ -> Nothing
 
-  appSome f []     = error "cannot apply to zero arguments"
+  appSome _f []    = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
 
   unAppSome = \case
@@ -466,7 +461,7 @@ unify reduce s cs = do
       let psubsts = tryFlexRigid fr
       trySubsts psubsts (flexrigids <> flexflexes)
   where
-    (csSubsts, csWithoutSubsts) = extractSubsts cs
+    (csSubsts, _csWithoutSubsts) = extractSubsts cs
     s'  = csSubsts <+> s
     cs' = applySubst csSubsts (applySubst s' (filter (not . trivial) cs))
 
@@ -476,27 +471,27 @@ unify reduce s cs = do
 
     extractSubsts = \case
       [] -> ([], [])
-      (PureScoped (UMetaVar v1), PureScoped (UMetaVar v2)):cs'
-        | v1 == v2 -> extractSubsts cs'
-      (PureScoped (UMetaVar v), t):cs'
+      (PureScoped (UMetaVar v1), PureScoped (UMetaVar v2)):cs''
+        | v1 == v2 -> extractSubsts cs''
+      (PureScoped (UMetaVar v), t):cs''
         | v `notElem` metavars t ->
-          case extractSubsts cs' of
-            (ss, cs'') -> ([(v, t)] <+> ss, cs'')
-      (t, PureScoped (UMetaVar v)):cs'
+          case extractSubsts cs'' of
+            (ss, cs''') -> ([(v, t)] <+> ss, cs''')
+      (t, PureScoped (UMetaVar v)):cs''
         | v `notElem` metavars t ->
-          case extractSubsts cs' of
-            (ss, cs'') -> ([(v, t)] <+> ss, cs'')
-      c:cs' ->
-        case extractSubsts cs' of
-          (ss, cs'') -> (ss, c:cs'')
+          case extractSubsts cs'' of
+            (ss, cs''') -> ([(v, t)] <+> ss, cs''')
+      c:cs'' ->
+        case extractSubsts cs'' of
+          (ss, cs''') -> (ss, c:cs''')
 
-    applySubst s = map (\(t1, t2) -> (manySubst s t1, manySubst s t2))
+    applySubst st = map (\(t1, t2) -> (manySubst st t1, manySubst st t2))
     flexflex (t1, t2) = isStuck t1 && isStuck t2
-    trySubsts [] cs = mzero
-    trySubsts (mss : psubsts) cs = do
+    trySubsts [] _cs = mzero
+    trySubsts (mss : psubsts) cs'' = do
       ss <- mss
-      let these = foldr mplus mzero [unify reduce (newS <+> s') cs | newS <- ss]
-      let those = trySubsts psubsts cs
+      let these = foldr mplus mzero [unify reduce (newS <+> s') cs'' | newS <- ss]
+      let those = trySubsts psubsts cs''
       these `mplus` those
 
 driver

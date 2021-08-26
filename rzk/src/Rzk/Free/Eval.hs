@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fmax-pmcheck-iterations=20000000 #-} -- FIXME
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase       #-}
 module Rzk.Free.Eval where
