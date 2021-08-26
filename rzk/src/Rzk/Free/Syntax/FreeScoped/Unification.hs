@@ -91,6 +91,10 @@ newtype AssocBindT term var m a = AssocBindT
   { runAssocBindT :: StateT (BindState term var) m a
   } deriving (Functor, Applicative, Alternative, Monad, MonadPlus)
 
+-- | FIXME
+instance Monad m => MonadFail (AssocBindT term var m) where
+  fail = error
+
 instance (Eq var, Monad m) => MonadBind var (AssocBindT term var m) where
   freshMeta = AssocBindT $ do
     s@BindState{..} <- get

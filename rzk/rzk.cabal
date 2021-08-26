@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 56ca1e85825dc9c3ff82aee566729cc47bdf2793a1bf89bd2e9e89a9c5aae9c0
+-- hash: 9b6e622d16c4638b701a3af00d8657d22e19c684fe4d3fdee0f4ff9b166c0593
 
 name:           rzk
 version:        0.1.0.0
@@ -84,6 +84,7 @@ library
     , parsers
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , profunctors
     , text
     , transformers
     , trifecta
@@ -111,6 +112,7 @@ executable rzk
     , parsers
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , profunctors
     , rzk
     , text
     , transformers
@@ -141,6 +143,7 @@ test-suite doctests
     , parsers
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , profunctors
     , template-haskell
     , text
     , transformers
@@ -170,6 +173,7 @@ test-suite rzk-test
     , parsers
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , profunctors
     , rzk
     , text
     , transformers

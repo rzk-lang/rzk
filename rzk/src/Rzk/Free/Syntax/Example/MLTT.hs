@@ -131,6 +131,8 @@ type TypeInfo'2 = TypeInfo Rzk.Var UTypedTerm'2 (InScope' (InScope' Rzk.Var))
 
 -- *** For typechecking
 
+type TypeError' = TypeError UTypedTerm'
+
 type TypeInfo' = TypeInfo Rzk.Var UTypedTerm' Rzk.Var
 type TypeInfoInScope'
   = TypeInfo Rzk.Var UTypedTermInScope' (Bound.Var (Name Rzk.Var ()) Rzk.Var)
@@ -633,7 +635,9 @@ inferTypeForTermF term = case term of
     a   <- infer_a >>= (`shouldHaveType` tA)
     let typeOf_C = TypeCheck.piT tA . Scope.toScope $
           mkFunT (IdTypeT (Just universeT) (Bound.F <$> tA) (Bound.F <$> a) (VarT (Bound.B (Name Nothing ())))) universeT
-    tC  <- infer_C >>= (`shouldHaveType` typeOf_C)
+    tC  <- do
+      tC <- infer_C
+      tC `shouldHaveType` typeOf_C
     let typeOf_C_a = mkFunT (IdTypeT (Just universeT) tA a a) universeT
     let typeOf_d = AppT (Just universeT) (AppT (Just typeOf_C_a) tC a) (ReflT (Just (IdTypeT (Just universeT) tA a a)) (Just tA) a)
     d   <- infer_d >>= (`shouldHaveType` typeOf_d )
@@ -643,10 +647,10 @@ inferTypeForTermF term = case term of
     let typeOf_result = AppT (Just universeT) (AppT (Just typeOf_C_x) tC x) p
     return (TypeCheck.TypedF (JF tA a tC d x p) (Just typeOf_result))
 
-execTypeCheck' :: TypeCheck' a -> Either TypeError a
+execTypeCheck' :: TypeCheck' a -> Either TypeError' a
 execTypeCheck' = TypeCheck.execTypeCheck defaultFreshMetaVars
 
-runTypeCheckOnce' :: TypeCheck' a -> Either TypeError (a, TypeInfo')
+runTypeCheckOnce' :: TypeCheck' a -> Either TypeError' (a, TypeInfo')
 runTypeCheckOnce' = TypeCheck.runTypeCheckOnce defaultFreshMetaVars
 
 infer' :: Term' -> TypeCheck' UTypedTerm'
@@ -1256,6 +1260,9 @@ runExample (n, term) = do
   _ <- getLine
   return ()
 
+runExample_ :: Term' -> IO ()
+runExample_ = runExample . (,) 0
+
 -- *** Church numerals
 
 -- |
@@ -1325,6 +1332,11 @@ ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
+ex_J :: Term'
+ex_J =
+  lam_ "A" $ lam_ "a" $ lam_ "C" $ lam_ "d" $ lam_ "x" $ lam_ "p" $
+    J (Var "A") (Var "a") (Var "C") (Var "d") (Var "x") (Var "p")
+
 ex_pathinv :: Term'
 ex_pathinv =
   lam_ "A" $
@@ -1332,12 +1344,13 @@ ex_pathinv =
     lam_ "y" $
       lam_ "p" $
         J (Var "A")
-          (Var "x")
-          (lam_ "z" $
-            lam (Just (IdType (Var "A") (Var "x") (Var "z"))) "q" $ -- FIXME: does not typecheck without explicit type for unused argument here
-              IdType (Var "A") (Var "z") (Var "x"))
-          (Refl Nothing (Var "x"))
           (Var "y")
+          (lam_ "z" $
+            lam_ "q" $ -- FIXME: does not typecheck without explicit type for unused argument here
+            -- lam (Just (IdType (Var "A") (Var "x") (Var "z"))) "q" $ -- FIXME: does not typecheck without explicit type for unused argument here
+              IdType (Var "A") (Var "y") (Var "z"))
+          (Refl Nothing (Var "y"))
+          (Var "x")
           (Var "p")
 
 deriveBifunctor ''TermF

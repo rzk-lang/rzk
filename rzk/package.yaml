@@ -42,6 +42,7 @@ dependencies:
 - hashable
 - free
 - bifunctors
+- profunctors
 - transformers
 - logict
 - deepseq

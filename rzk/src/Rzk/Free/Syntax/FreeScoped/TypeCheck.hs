@@ -252,25 +252,22 @@ fromTypeInfoInScope info = bimap (updateType . fmap dist') updateVar <$> do
     updateVar (Bound.B _) = error "unexpected leaked bound var"
     updateVar (Bound.F x) = x
 
-data TypeError
-  = TypeErrorOther String
-  deriving (Show)
-
-instance Semigroup TypeError where x <> _ = x
-
-instance Monoid TypeError where mempty = TypeErrorOther "mempty"
+data TypeError ty
+  = TypeErrorCannotUnifyWithExpected String ty ty
+  | TypeErrorOther String
+  deriving (Show, Functor)
 
 newtype TypeCheck ty var metavar a = TypeCheck
-  { runTypeCheck :: StateT (Logic (TypeInfo metavar ty var)) (ExceptT TypeError Logic) a
+  { runTypeCheck :: StateT (Logic (TypeInfo metavar ty var)) (ExceptT (TypeError ty) Logic) a
   }
   deriving (Functor, Applicative, Monad)
   deriving (MonadState (Logic (TypeInfo metavar ty var)))
-  deriving (MonadError TypeError)
+  deriving (MonadError (TypeError ty))
 
-execTypeCheck :: [metavar] -> TypeCheck ty var metavar a -> Either TypeError a
+execTypeCheck :: [metavar] -> TypeCheck ty var metavar a -> Either (TypeError ty) a
 execTypeCheck vars m = fst <$> runTypeCheckOnce vars m
 
-runTypeCheckOnce :: [metavar] -> TypeCheck ty var metavar a -> Either TypeError (a, TypeInfo metavar ty var)
+runTypeCheckOnce :: [metavar] -> TypeCheck ty var metavar a -> Either (TypeError ty) (a, TypeInfo metavar ty var)
 runTypeCheckOnce vars m = second observe <$> observe' (runExceptT (runStateT (runTypeCheck m) initState))
   where
     observe' x =
@@ -325,8 +322,10 @@ typecheckInScope
   -> TypeCheck (UTypedTerm t b a v) a v r
 typecheckInScope m = do
   info <- fmap toTypeInfoInScope <$> get
-  ((x, info'), _) <- TypeCheck $
-    lift (runStateT (runTypeCheck m') info)
+  ((x, info'), _) <- TypeCheck $ lift $
+    -- FIXME: instead of using 'abstract' indicate scope otherwise
+    withExceptT (fmap (FreeScoped . abstract . toScope)) $
+      runStateT (runTypeCheck m') info
   put (pure info')
   return x
   where
@@ -344,8 +343,9 @@ typecheckDist
   -> TypeCheck (UTypedTermInScope t b a v) (Bound.Var (Name b ()) a) v r
 typecheckDist m = do
   info <- fmap to <$> get
-  (x, info') <- TypeCheck $
-    lift (runStateT (runTypeCheck m) info)
+  (x, info') <- TypeCheck $ lift $
+    withExceptT (fmap (fmap dist')) $
+      runStateT (runTypeCheck m) info
   put (fmap from info')
   return x
   where
@@ -358,8 +358,9 @@ typecheckDist'
   -> TypeCheck (UTypedTerm t b (Bound.Var (Name b ()) a) v) (Bound.Var (Name b ()) a) v r
 typecheckDist' m = do
   info <- fmap from <$> get
-  (x, info') <- TypeCheck $
-    lift (runStateT (runTypeCheck m) info)
+  (x, info') <- TypeCheck $ lift $
+    withExceptT (fmap (fmap dist)) $
+      runStateT (runTypeCheck m) info
   put (fmap to info')
   return x
   where
@@ -391,7 +392,7 @@ unifyWithExpected'
 unifyWithExpected' err t1 t2 = do
   info@TypeInfo{constraints = cs} <- getTypeInfo
   (substs, flexflex) <- unify whnfT [] ((t1, t2) : cs)
-    <|> fail err
+    <|> throwError (TypeErrorCannotUnifyWithExpected err t1 t2)
   put $ pure (bimap (manySubst substs) id info)
     { knownSubsts   = substs <> knownSubsts info
     , constraints   = flexflex

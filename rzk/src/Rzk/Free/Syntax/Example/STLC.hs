@@ -134,6 +134,8 @@ type TypeInfo'2 = TypeInfo Rzk.Var UTypedTerm'2 (InScope' (InScope' Rzk.Var))
 
 -- *** For typechecking
 
+type TypeError' = TypeError UTypedTerm'
+
 type TypeInfo' = TypeInfo Rzk.Var UTypedTerm' Rzk.Var
 type TypeInfoInScope'
   = TypeInfo Rzk.Var UTypedTermInScope' (Bound.Var (Name Rzk.Var ()) Rzk.Var)
@@ -635,10 +637,10 @@ inferTypeForTermF term = case term of
     false <- inferFalse >>= (`shouldHaveType` typeOfTrue)
     pure (TypeCheck.TypedF (BoolIfF cond true false) (Just typeOfTrue))
 
-execTypeCheck' :: TypeCheck' a -> Either TypeError a
+execTypeCheck' :: TypeCheck' a -> Either TypeError' a
 execTypeCheck' = TypeCheck.execTypeCheck defaultFreshMetaVars
 
-runTypeCheckOnce' :: TypeCheck' a -> Either TypeError (a, TypeInfo')
+runTypeCheckOnce' :: TypeCheck' a -> Either TypeError' (a, TypeInfo')
 runTypeCheckOnce' = TypeCheck.runTypeCheckOnce defaultFreshMetaVars
 
 infer' :: Term' -> TypeCheck' UTypedTerm'

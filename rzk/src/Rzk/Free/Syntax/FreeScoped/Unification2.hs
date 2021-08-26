@@ -263,6 +263,7 @@ ignoreVarInLeft x ts =
 tryFlexRigid
   :: forall b term a v m.
     ( MonadBind v m
+    , MonadFail m
     , MonadPlus m
     , Unifiable term
     , Eq a, Eq b, Eq v
@@ -285,7 +286,7 @@ tryFlexRigid (t1, t2)
   where
     -- proj :: Int -> v -> UFreeScoped b term a v -> Int -> [m [Subst b term a v]]
     proj bvars mv f nargs = map (generateSubst bvars mv f) [nargs .. maxArgs]
-      ++ error ("too many invalid guesses in a higher-order unification procedure")
+      ++ fail ("too many invalid guesses in a higher-order unification procedure")
 
     maxArgs = 100 -- FIXME: make configurable (and optional?)
 
@@ -297,8 +298,26 @@ tryFlexRigid (t1, t2)
                 <$> replicateM nargs freshMeta
       return
         [ mkSubst (abstractInt bvars (mkApps t args))
-        | t <- map (PureScoped . B) [0..bvars - 1] ++
-                  if noUBoundVarsIn f then [fmap F f] else []]
+        | t <- map (PureScoped . B) [0..bvars - 1]
+                ++ [F <$> abstractUBoundVars f]]
+
+abstractUBoundVars
+  :: (Unifiable term, IndexVar b)
+  => UFreeScoped b term a v
+  -> UFreeScoped b term a v
+abstractUBoundVars t = abstractInt n $
+  flip evalState 0 $ do
+    forM t $ \case
+      UBoundVar{} -> do
+        i <- get
+        modify (+1)
+        return (B i)
+      v -> return (F v)
+  where
+    n = length (filter isUBoundVar (F.toList t))
+
+    isUBoundVar UBoundVar{} = True
+    isUBoundVar _           = False
 
 abstractInt
   :: (Unifiable term, IndexVar b)
@@ -427,6 +446,7 @@ run = flip evalStateT initBindState . runAssocBindT
 
 unify
   :: ( MonadBind v m
+     , MonadFail m
      , MonadPlus m
      , Unifiable term
      , Eq a, Eq b, Eq v
