@@ -1346,12 +1346,28 @@ ex_pathinv =
         J (Var "A")
           (Var "y")
           (lam_ "z" $
-            lam_ "q" $ -- FIXME: does not typecheck without explicit type for unused argument here
-            -- lam (Just (IdType (Var "A") (Var "x") (Var "z"))) "q" $ -- FIXME: does not typecheck without explicit type for unused argument here
+            lam_ "q" $
               IdType (Var "A") (Var "y") (Var "z"))
           (Refl Nothing (Var "y"))
           (Var "x")
           (Var "p")
+
+ex_pathtrans :: Term'
+ex_pathtrans =
+  lam_ "A" $
+    lam_ "x" $
+    lam_ "y" $
+    lam_ "z" $
+      lam_ "p" $
+      lam_ "q" $
+        J (Var "A")
+          (Var "y")
+          (lam_ "w" $
+            lam_ "s" $
+              IdType (Var "A") (Var "x") (Var "w"))
+          (Var "p")
+          (Var "z")
+          (Var "q")
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
