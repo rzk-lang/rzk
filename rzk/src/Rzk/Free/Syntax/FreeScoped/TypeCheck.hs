@@ -35,12 +35,13 @@ import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
 import           Rzk.Free.Syntax.FreeScoped.Unification  (MonadBind, UVar (..),
                                                           freshMeta)
-import           Rzk.Free.Syntax.FreeScoped.Unification2 (Unifiable (..),
+import           Rzk.Free.Syntax.FreeScoped.Unification2 (HigherOrderUnifiable (..),
+                                                          Unifiable (..),
                                                           manySubst, unify)
 import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification
 import qualified Rzk.Syntax.Var                          as Rzk
 
-class (Bifunctor t, Bifoldable t, Unifiable t) => TypeCheckable t where
+class (Bifunctor t, Bifoldable t) => TypeCheckable t where
   inferTypeFor
     :: (Eq a, Eq v)
     => t
@@ -183,7 +184,7 @@ manySubstInTypeInfo
 manySubstInTypeInfo info = bimap (manySubst (knownSubsts info)) id info
 
 resolveConstraints
-  :: (TypeCheckable t, Eq a, Eq v)
+  :: (HigherOrderUnifiable t, TypeCheckable t, Eq a, Eq v)
   => TypeCheck (UTypedTerm t b a v) a v ()
 resolveConstraints = do
   info@TypeInfo{constraints = cs} <- getTypeInfo
@@ -224,7 +225,7 @@ resolveConstraints = do
 
 
 ignoreBoundVarInTypeInfo
-  :: (Eq a, TypeCheckable t, Eq v, MonadBind v m)
+  :: (Eq a, HigherOrderUnifiable t, TypeCheckable t, Eq v, MonadBind v m)
   => TypeInfo v (UTypedTermInScope t b a v) (Bound.Var (Name b ()) a)
   -> m (TypeInfo v (UTypedTerm t b (Bound.Var (Name b ()) a) v) (Bound.Var (Name b ()) a))
 ignoreBoundVarInTypeInfo info = bimap nfT id <$> do
@@ -239,7 +240,7 @@ ignoreBoundVarInTypeInfo info = bimap nfT id <$> do
     isBound _           = False
 
 fromTypeInfoInScope
-  :: (Eq a, TypeCheckable t, Eq v, MonadBind v m)
+  :: (Eq a, HigherOrderUnifiable t, TypeCheckable t, Eq v, MonadBind v m)
   => TypeInfo v (UTypedTermInScope t b a v) (Bound.Var (Name b ()) a)
   -> m (TypeInfo v (UTypedTerm t b a v) a)
 fromTypeInfoInScope info = bimap (updateType . fmap dist') updateVar <$> do
@@ -317,7 +318,7 @@ instance Eq v => MonadBind v (TypeCheck ty a v) where
 
 -- typecheckInScope :: TypeCheckInScope' a -> TypeCheck' a
 typecheckInScope
-  :: (Eq a, TypeCheckable t, Eq v)
+  :: (Eq a, HigherOrderUnifiable t, TypeCheckable t, Eq v)
   => TypeCheck (UTypedTermInScope t b a v) (Bound.Var (Name b ()) a) v r
   -> TypeCheck (UTypedTerm t b a v) a v r
 typecheckInScope m = do
@@ -368,7 +369,7 @@ typecheckDist' m = do
     from = bimap (fmap dist') id
 
 typecheck
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => Term t b a
   -> UTypedTerm t b a v
   -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
@@ -377,14 +378,14 @@ typecheck term expectedType = do
   typedTerm `shouldHaveType` expectedType
 
 unifyWithExpected
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => UTypedTerm t b a v
   -> UTypedTerm t b a v
   -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
 unifyWithExpected = unifyWithExpected' "unable to unify..."
 
 unifyWithExpected'
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => String
   -> UTypedTerm t b a v
   -> UTypedTerm t b a v
@@ -429,7 +430,7 @@ freshTypeMetaVar
 freshTypeMetaVar = freshTypeMetaVar' universeT
 
 freshAppliedTypeMetaVar
-  :: (Eq a, Eq v, HasTypeFamilies t)
+  :: (Eq a, Eq v, HasTypeFamilies t, HigherOrderUnifiable t)
   => TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
 freshAppliedTypeMetaVar = freshAppliedTypeMetaVarFor [] []
 
@@ -452,7 +453,7 @@ mkTypeFam t = \case
       mkTypeFam (piT typeOfArg (abstractName' f t)) args
 
 freshAppliedTypeMetaVarFor
-  :: (Eq a, Eq v, HasTypeFamilies t)
+  :: (Eq a, Eq v, HasTypeFamilies t, HigherOrderUnifiable t)
   => [UTypedTerm t b a v] -- ^ Exclude bound vars from these terms.
   -> [UTypedTerm t b a v] -- ^ Apply additionally to these terms.
   -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
@@ -495,7 +496,7 @@ clarifyTypedTerm t = do
   return (manySubst substs t)
 
 clarifyScopedTypedTermWith
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => UTypedTerm t b a v
   -> UScopedTypedTerm t b a v
   -> TypeCheck (UTypedTerm t b a v) a v (UScopedTypedTerm t b a v)
@@ -509,7 +510,7 @@ clarifyScopedTypedTermWith boundVarType scope = fmap (toScope . fmap dist') $ do
     clarifyTypedTerm (dist <$> scope')
 
 shouldHaveType
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => UTypedTerm t b a v
   -> UTypedTerm t b a v
   -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
@@ -532,14 +533,14 @@ infer = fmap (mapType nfT) . \case
     inferScoped' = fmap (toScope . fmap dist') . typecheckDist . infer . fromScope
 
 inferScoped
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => ScopedTerm t b a
   -> TypeCheck (UTypedTerm t b a v) a v (UScopedTypedTerm t b a v)
 inferScoped
   = fmap (toScope . fmap dist') . typecheckInScope . typecheckDist . infer . fromScope
 
 inferScopedWith
-  :: (Eq a, Eq v, TypeCheckable t)
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
   => UTypedTerm t b a v -- ^ Type of the bound variable.
   -> ScopedTerm t b a
   -> TypeCheck (UTypedTerm t b a v) a v (UScopedTypedTerm t b a v)
@@ -580,6 +581,7 @@ instance Unifiable term => Unifiable (TypedF term) where
       (Just t1, Just t2) -> return (TypedF term (Just (Right (t1, t2))))
       _                  -> return (TypedF term Nothing)
 
+instance HigherOrderUnifiable term => HigherOrderUnifiable (TypedF term) where
   appSome fun args = (TypedF term Nothing, args')
     where
       (term, args') = appSome fun args

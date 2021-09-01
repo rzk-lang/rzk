@@ -5,6 +5,8 @@
 {-# LANGUAGE PatternSynonyms      #-}
 {-# LANGUAGE RankNTypes           #-}
 {-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Rzk.Free.Syntax.FreeScoped where
 
@@ -13,6 +15,7 @@ import           Control.Monad          (ap, liftM)
 import           Control.Monad.Identity (Identity (..))
 import           Data.Bifoldable
 import           Data.Bifunctor
+import           Data.Bifunctor.TH
 import           Data.Bitraversable
 
 -- * Free monad transformer with scoping
@@ -96,3 +99,14 @@ pattern FreeScoped
 pattern FreeScoped t = FreeScopedT (Identity (FreeScopedF t))
 
 {-# COMPLETE PureScoped, FreeScoped #-}
+
+data Sum f g scope term
+  = InL (f scope term)
+  | InR (g scope term)
+  deriving (Functor, Foldable, Traversable)
+
+type (:+:) = Sum
+
+deriveBifunctor ''Sum
+deriveBifoldable ''Sum
+deriveBitraversable ''Sum

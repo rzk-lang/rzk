@@ -40,7 +40,8 @@ import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
                                                           untypedScoped)
 import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
 import           Rzk.Free.Syntax.FreeScoped.Unification  (UVar (..))
-import           Rzk.Free.Syntax.FreeScoped.Unification2 (Unifiable (..))
+import           Rzk.Free.Syntax.FreeScoped.Unification2 (HigherOrderUnifiable (..),
+                                                          Unifiable (..))
 import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification
 import qualified Rzk.Syntax.Var                          as Rzk
 
@@ -493,6 +494,7 @@ instance Unifiable TermF where
   zipMatch BoolLitF{} _ = Nothing
   zipMatch BoolIfF{} _ = Nothing
 
+instance HigherOrderUnifiable TermF where
   appSome _ []     = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
 

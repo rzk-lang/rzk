@@ -33,7 +33,8 @@ import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
 import           Rzk.Free.Syntax.FreeScoped.Unification    (UFreeScoped,
                                                             toMetaVars)
-import           Rzk.Free.Syntax.FreeScoped.Unification2   (Unifiable (..),
+import           Rzk.Free.Syntax.FreeScoped.Unification2   (HigherOrderUnifiable (..),
+                                                            Unifiable (..),
                                                             driver, mkApps)
 import qualified Rzk.Syntax.Var                            as Rzk
 
@@ -198,6 +199,7 @@ instance Unifiable TermF where
     = Just (LamF (Right (body1, body2)))
   zipMatch _ _ = Nothing
 
+instance HigherOrderUnifiable TermF where
   appSome _ []     = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
 

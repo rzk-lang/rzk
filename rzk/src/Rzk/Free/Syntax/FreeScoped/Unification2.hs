@@ -12,6 +12,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeOperators              #-}
 module Rzk.Free.Syntax.FreeScoped.Unification2 where
 
 import           Bound.Name
@@ -75,13 +76,25 @@ class Bitraversable t => Unifiable t where
     -> t scope term
     -> Maybe (t (Either scope (scope, scope)) (Either term (term, term)))
 
+class Unifiable t => HigherOrderUnifiable t where
   appSome :: term -> [term] -> (t scope term, [term])
 
   unAppSome :: t scope term -> Maybe (term, [term])
 
   abstract :: scope -> t scope term
-  -- abstract :: scope? -> t (Scope Int scope) term
 
+instance (Unifiable f, Unifiable g) => Unifiable (f :+: g) where
+  zipMatch (InL f1) (InL f2) = fmap InL (zipMatch f1 f2)
+  zipMatch (InR g1) (InR g2) = fmap InR (zipMatch g1 g2)
+  zipMatch _ _               = Nothing
+
+instance (Unifiable f, HigherOrderUnifiable g) => HigherOrderUnifiable (f :+: g) where
+  appSome f args = bimap InR id (appSome f args)
+
+  unAppSome (InL _) = Nothing
+  unAppSome (InR t) = unAppSome t
+
+  abstract body = InR (abstract body)
 
 -- data ExprF var expr
 --   = LambdaF var expr
@@ -102,7 +115,7 @@ class Bitraversable t => Unifiable t where
 -- f(x) = ?0 (?1 x) (?2 x) (?3 x) ...
 
 peelApps
-  :: Unifiable term
+  :: HigherOrderUnifiable term
   => FreeScoped b term a
   -> (FreeScoped b term a, [FreeScoped b term a])
 peelApps = \case
@@ -113,7 +126,7 @@ peelApps = \case
       Just (g, args) -> (<> args) <$> peelApps g
 
 mkApps
-  :: Unifiable term
+  :: HigherOrderUnifiable term
   => FreeScoped b term a
   -> [FreeScoped b term a]
   -> FreeScoped b term a
@@ -122,7 +135,7 @@ mkApps g args = mkApps (FreeScoped g') args'
   where
     (g', args') = appSome g args
 
-isStuck :: Unifiable term => UFreeScoped b term a v -> Bool
+isStuck :: HigherOrderUnifiable term => UFreeScoped b term a v -> Bool
 isStuck t =
   case peelApps t of
     (PureScoped (UMetaVar _), _) -> True
@@ -136,7 +149,7 @@ simplify
   :: ( MonadBind v m
      , MonadPlus m
      , Eq a, Eq b, Eq v
-     , Unifiable term )
+     , HigherOrderUnifiable term )
   => (UFreeScoped b term a v -> UFreeScoped b term a v)
   -> Constraint b term a v
   -> m (SimplifyResult (Constraint b term a v))
@@ -171,7 +184,7 @@ simplify reduce (t1, t2)
 repeatedlySimplify
   :: ( MonadBind v m
      , MonadPlus m
-     , Unifiable term
+     , HigherOrderUnifiable term
      , Eq a, Eq b, Eq v )
   => (UFreeScoped b term a v -> UFreeScoped b term a v)
   -> [Constraint b term a v]
@@ -191,7 +204,7 @@ metavars :: Bifoldable term => UFreeScoped b term a v -> [v]
 metavars = foldMap F.toList . F.toList
 
 ignoreVarInTerm
-  :: (Unifiable term, MonadBind v m, IndexVar b, Eq b, Eq a)
+  :: (HigherOrderUnifiable term, MonadBind v m, IndexVar b, Eq b, Eq a)
   => a -> UFreeScoped b term a v -> m (Subst b term a v)
 ignoreVarInTerm x t =
   case peelApps t of
@@ -209,7 +222,7 @@ ignoreVarInTerm x t =
     _ -> return [] -- error "expected only flex-terms"
 
 ignoreVarInConstraints
-  :: (MonadBind v m, Unifiable term, IndexVar b, Eq b, Eq a)
+  :: (MonadBind v m, HigherOrderUnifiable term, IndexVar b, Eq b, Eq a)
   => a -> [Constraint b term a v] -> m (Subst b term a v, [Constraint b term a v])
 ignoreVarInConstraints x cs =
   getFirst (ignoreVarInTerm x) (concatMap both cs) >>= \case
@@ -226,7 +239,7 @@ ignoreVarInConstraints x cs =
       subst -> return subst
 
 ignoreVarIn
-  :: (MonadBind v m, Unifiable term, IndexVar b, Eq b, Eq a, Functor t, Foldable t)
+  :: (MonadBind v m, HigherOrderUnifiable term, IndexVar b, Eq b, Eq a, Functor t, Foldable t)
   => a -> t (UFreeScoped b term a v) -> m (Subst b term a v, t (UFreeScoped b term a v))
 ignoreVarIn x ts =
   getFirst (ignoreVarInTerm x) (F.toList ts) >>= \case
@@ -241,7 +254,7 @@ ignoreVarIn x ts =
       subst -> return subst
 
 ignoreVarInLeft
-  :: (MonadBind v m, Unifiable term, IndexVar b, Eq b, Eq a, Bifunctor t, Bifoldable t)
+  :: (MonadBind v m, HigherOrderUnifiable term, IndexVar b, Eq b, Eq a, Bifunctor t, Bifoldable t)
   => a -> t (UFreeScoped b term a v) x -> m (Subst b term a v, t (UFreeScoped b term a v) x)
 ignoreVarInLeft x ts =
   getFirst (ignoreVarInTerm x) (bifoldMap pure (const []) ts) >>= \case
@@ -260,7 +273,7 @@ tryFlexRigid
     ( MonadBind v m
     , MonadFail m
     , MonadPlus m
-    , Unifiable term
+    , HigherOrderUnifiable term
     , Eq a, Eq b, Eq v
     , IndexVar b)
   => Constraint b term a v -> [m [Subst b term a v]]
@@ -297,7 +310,7 @@ tryFlexRigid (t1, t2)
                 ++ [F <$> abstractUBoundVars f]]
 
 abstractUBoundVars
-  :: (Unifiable term, IndexVar b)
+  :: (HigherOrderUnifiable term, IndexVar b)
   => UFreeScoped b term a v
   -> UFreeScoped b term a v
 abstractUBoundVars t = abstractInt n $
@@ -315,7 +328,7 @@ abstractUBoundVars t = abstractInt n $
     isUBoundVar _           = False
 
 abstractInt
-  :: (Unifiable term, IndexVar b)
+  :: (HigherOrderUnifiable term, IndexVar b)
   => Int -> FreeScoped b term (Var Int a) -> FreeScoped b term a
 abstractInt n
   | n <= 0 = fmap unsafeExtractFreeVar
@@ -427,6 +440,7 @@ instance Unifiable LambdaF where
       (AppF f1 x1, AppF f2 x2) -> Just (AppF (Right (f1, f2)) (Right (x1, x2)))
       _ -> Nothing
 
+instance HigherOrderUnifiable LambdaF where
   appSome _f []    = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
 
@@ -443,7 +457,7 @@ unify
   :: ( MonadBind v m
      , MonadFail m
      , MonadPlus m
-     , Unifiable term
+     , HigherOrderUnifiable term
      , Eq a, Eq b, Eq v
      , IndexVar b )
   => (UFreeScoped b term a v -> UFreeScoped b term a v)
@@ -495,7 +509,7 @@ unify reduce s cs = do
       these `mplus` those
 
 driver
-  :: (MonadPlus m, Unifiable term, Eq v, Eq a, Eq b, IndexVar b)
+  :: (MonadPlus m, HigherOrderUnifiable term, Eq v, Eq a, Eq b, IndexVar b)
   => [v]
   -> (UFreeScoped b term a v -> UFreeScoped b term a v)
   -> Constraint b term a v
@@ -507,7 +521,7 @@ driver mvars reduce
   . (\x -> [x])
 
 driverDefault
-  :: (Unifiable term, Eq a, Eq b, IndexVar b)
+  :: (HigherOrderUnifiable term, Eq a, Eq b, IndexVar b)
   => (UFreeScoped b term a Rzk.Var -> UFreeScoped b term a Rzk.Var)
   -> Constraint b term a Rzk.Var
   -> [(Subst b term a Rzk.Var, [Constraint b term a Rzk.Var])]

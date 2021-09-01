@@ -40,13 +40,14 @@ import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
                                                           untyped,
                                                           untypedScoped)
 import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
-import           Rzk.Free.Syntax.FreeScoped.Unification2 (Unifiable (..))
+import           Rzk.Free.Syntax.FreeScoped.Unification2 (HigherOrderUnifiable (..),
+                                                          Unifiable (..))
 import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification2
 import qualified Rzk.Syntax.Var                          as Rzk
 
 -- * Generators
 
--- | Generating bifunctor for terms in simply typed lambda calculus.
+-- | Generating bifunctor for terms in .
 data TermF scope term
   -- | Universe is the type of all types: \(\mathcal{U}\)
   = UniverseF
@@ -432,6 +433,7 @@ instance Unifiable TermF where
 
   zipMatch UniverseF{} _ = Nothing
 
+instance HigherOrderUnifiable TermF where
   appSome _ []     = error "cannot apply to zero arguments"
   appSome f (x:xs) = (AppF f x, xs)
 
@@ -1344,12 +1346,12 @@ ex_pathinv =
     lam_ "y" $
       lam_ "p" $
         J (Var "A")
-          (Var "y")
+          (Var "x")
           (lam_ "z" $
             lam_ "q" $
-              IdType (Var "A") (Var "y") (Var "z"))
-          (Refl Nothing (Var "y"))
-          (Var "x")
+              IdType (Var "A") (Var "z") (Var "x"))
+          (Refl Nothing (Var "x"))
+          (Var "y")
           (Var "p")
 
 ex_pathtrans :: Term'
