@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP           #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -13,6 +14,12 @@ import           Control.Applicative  (liftA2, (<|>))
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.State
+
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail (MonadFail)
+import qualified Control.Monad.Fail as Fail
+#endif
+
 import           Data.Foldable        (sequenceA_, traverse_)
 import           Data.List            (nub, (\\))
 import           Data.Text            (Text)

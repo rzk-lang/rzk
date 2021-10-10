@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -18,6 +19,11 @@ import           Bound.Term                 (substitute)
 import           Bound.Var
 import           Control.Applicative
 import           Control.Monad.State
+
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail (MonadFail(..))
+#endif
+
 import           Data.Bifoldable
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
@@ -90,6 +96,7 @@ initBindState = BindState
 newtype AssocBindT term var m a = AssocBindT
   { runAssocBindT :: StateT (BindState term var) m a
   } deriving (Functor, Applicative, Alternative, Monad, MonadPlus)
+
 
 -- | FIXME
 instance Monad m => MonadFail (AssocBindT term var m) where

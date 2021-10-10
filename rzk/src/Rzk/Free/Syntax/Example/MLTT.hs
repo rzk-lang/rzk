@@ -271,27 +271,27 @@ pattern JT ty tA a tC d x p = TypeCheck.TypedT ty (JF tA a tC d x p)
 
 -- | Universe (type of types).
 --
--- >>> universeT :: TypedTerm'
+-- > universeT :: TypedTerm'
 -- U : U
 universeT :: TypedTerm b a
 universeT = TypeCheck.TypedT Nothing UniverseF
 
 -- | Abstract over one variable in a term.
 --
--- >>> lam Nothing "x" (App (Var "f") (Var "x")) :: Term'
+-- > lam Nothing "x" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → f x₁
--- >>> lam Nothing "f" (App (Var "f") (Var "x")) :: Term'
+-- > lam Nothing "f" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → x₁ x
--- >>> lam (Just (Var "A")) "x" (App (Var "f") (Var "x")) :: Term'
+-- > lam (Just (Var "A")) "x" (App (Var "f") (Var "x")) :: Term'
 -- λ(x₁ : A) → f x₁
--- >>> lam (Just (Fun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
+-- > lam (Just (Fun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
 -- λ(x₁ : A → B) → x₁ x
 lam :: Eq a => Maybe (Term a a) -> a -> Term a a -> Term a a
 lam ty x body = Lam ty (abstract1Name x body)
 
 -- | Abstract over one variable in a term (without type).
 --
--- >>> lam_ "x" (App (Var "f") (Var "x")) :: Term'
+-- > lam_ "x" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → f x₁
 lam_ :: Eq a => a -> Term a a -> Term a a
 lam_ x body = Lam Nothing (abstract1Name x body)
@@ -1268,68 +1268,68 @@ runExample_ = runExample . (,) 0
 -- *** Church numerals
 
 -- |
--- >>> ex_zero
+-- > ex_zero
 -- λx₁ → λx₂ → x₂
 --
--- >>> execTypeCheck' (infer' ex_zero)
+-- > execTypeCheck' (infer' ex_zero)
 -- Right λx₁ → λx₂ → x₂ : ?M₁ → ?M₂ → ?M₂
 ex_zero :: Term'
 ex_zero = lam_ "s" (lam_ "z" (Var "z"))
 
 -- |
--- >>> ex_nat 3
+-- > ex_nat 3
 -- λx₁ → λx₂ → x₁ (x₁ (x₁ x₂))
 --
--- >>> execTypeCheck' (infer' (ex_nat 3))
+-- > execTypeCheck' (infer' (ex_nat 3))
 -- Right λx₁ → λx₂ → x₁ (x₁ (x₁ x₂)) : (?M₂ → ?M₂) → ?M₂ → ?M₂
 ex_nat :: Int -> Term'
 ex_nat n = lam_ "s" (lam_ "z" (iterate (App (Var "s")) (Var "z") !! n))
 
 -- |
--- >>> ex_add
+-- > ex_add
 -- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄)
 --
--- >>> unsafeInfer' ex_add
+-- > unsafeInfer' ex_add
 -- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄) : (?M₃ → ?M₇ → ?M₈) → (?M₃ → ?M₄ → ?M₇) → ?M₃ → ?M₄ → ?M₈
 ex_add :: Term'
 ex_add = lam_ "n" (lam_ "m" (lam_ "s" (lam_ "z"
   (App (App (Var "n") (Var "s")) (App (App (Var "m") (Var "s")) (Var "z"))))))
 
 -- |
--- >>> ex_mul
+-- > ex_mul
 -- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃)
--- >>> unsafeInfer' ex_mul
+-- > unsafeInfer' ex_mul
 -- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃) : (?M₄ → ?M₅) → (?M₃ → ?M₄) → ?M₃ → ?M₅
 ex_mul :: Term'
 ex_mul = lam_ "n" (lam_ "m" (lam_ "s"
   (App (Var "n") (App (Var "m") (Var "s")))))
 
 -- |
--- >>> ex_mkPair (Var "x") (Var "y")
+-- > ex_mkPair (Var "x") (Var "y")
 -- λx₁ → x₁ x y
 ex_mkPair :: Term' -> Term' -> Term'
 ex_mkPair t1 t2 = lam_ "_ex_mkPair" (App (App (Var "_ex_mkPair") t1) t2)
 
 -- |
--- >>> ex_fst
+-- > ex_fst
 -- λx₁ → x₁ (λx₂ → λx₃ → x₂)
--- >>> unsafeInfer' ex_fst
+-- > unsafeInfer' ex_fst
 -- λx₁ → x₁ (λx₂ → λx₃ → x₂) : ((?M₂ → ?M₃ → ?M₂) → ?M₄) → ?M₄
 ex_fst :: Term'
 ex_fst = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "f"))))
 
 -- |
--- >>> ex_snd
+-- > ex_snd
 -- λx₁ → x₁ (λx₂ → λx₃ → x₃)
--- >>> unsafeInfer' ex_snd
+-- > unsafeInfer' ex_snd
 -- λx₁ → x₁ (λx₂ → λx₃ → x₃) : ((?M₂ → ?M₃ → ?M₃) → ?M₄) → ?M₄
 ex_snd :: Term'
 ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 
 -- |
--- >>> ex_pred
+-- > ex_pred
 -- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄)))
--- >>> unsafeInfer' ex_pred
+-- > unsafeInfer' ex_pred
 -- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄))) : ((((?M₂₂ → ?M₂₃ → ?M₂₃) → (?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → (((?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → ((?M₁₆ → ?M₁₉) → ?M₁₆ → ?M₂₀) → ?M₂₈) → ?M₂₈) → (((?M₃₁ → ?M₃₂ → ?M₃₂) → (?M₃₄ → ?M₃₅ → ?M₃₅) → ?M₃₆) → ?M₃₆) → (?M₃ → ?M₄ → ?M₃) → ?M₅) → ?M₅
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))

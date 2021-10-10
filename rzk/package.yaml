@@ -34,11 +34,10 @@ dependencies:
 - mtl
 - text
 - parsers
-- trifecta
+- trifecta >= 2.1
 - unordered-containers
 - prettyprinter
-- prettyprinter-ansi-terminal
-- ansi-terminal
+- prettyprinter-ansi-terminal >= 1.1.2
 - hashable
 - free
 - bifunctors
@@ -47,6 +46,7 @@ dependencies:
 - logict
 - deepseq
 - kan-extensions
+- ansi-terminal
 
 library:
   source-dirs: src

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveTraversable          #-}
@@ -26,6 +27,12 @@ import           Control.Applicative
 import           Control.Monad.Except
 import           Control.Monad.Logic
 import           Control.Monad.State
+
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail (MonadFail)
+import qualified Control.Monad.Fail as Fail
+#endif
+
 import           Data.Bifoldable                         (Bifoldable)
 import           Data.Bifunctor
 import           Data.Bifunctor.TH

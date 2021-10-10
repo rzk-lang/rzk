@@ -1,0 +1,63 @@
+<html>
+  <head>
+    <title>Try Rzk proof assistant!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.min.js"></script>
+    <script src="result/bin/try-rzk.jsexe/all.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/monokai.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/material.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/solarized.min.css">
+    <style>
+      section { width: 100%; }
+      .row { display: flex; }
+      .column { flex: 50%; }
+      .example { cursor: pointer; }
+      #__textarea__ { border: 1px solid lightgray; }
+    </style>
+  </head>
+  <body>
+    <section>
+      <div class="row">
+        <div class="column">
+          <div id="__textarea__"></div>
+        </div>
+        <div class="column">
+          <div>
+            <div id="__app__"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <script>
+      /* extract query parameters from the URL */
+      const params = new URLSearchParams(window.location.search);
+
+      /* set up CodeMirror in the __textarea__ div */
+      var frame = document.getElementById("__textarea__");
+      var myCodeMirror = CodeMirror(frame, {
+        value: "",
+        lineNumbers: true,
+        mode: {name: "javascript", json: true},   /* TODO: custom mode? */
+        theme: "solarized",                         /* TODO: add a selection box? */
+      });
+
+      /* upon every update of the code */
+      myCodeMirror.on("changes", function(cm, changedObjects){
+        /* update the permalink */
+        document.getElementById('__permalink__').href =
+          window.location.protocol + '//' + window.location.host + window.location.pathname
+          + "?snippet=" + encodeURIComponent(myCodeMirror.getValue());
+        /* TODO: process the code in the application */
+      });
+
+      /* use default snippet if one is not set in the query parameters */
+      snippet = "";
+      if (params.has("snippet")) {
+        snippet = decodeURIComponent(params.get("snippet"));
+      }
+      myCodeMirror.setValue(snippet);
+    </script>
+  </body>
+</html>
