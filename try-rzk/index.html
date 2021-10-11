@@ -5,51 +5,43 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.min.js"></script>
     <script src="result/bin/try-rzk.jsexe/all.js"></script>
+    <!-- <script src="https://fizruk.github.io/rzk/result/bin/try-rzk.jsexe/all.js"></script> -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/monokai.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/material.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/solarized.min.css">
+    <link rel="stylesheet" href="https://codemirror.net/theme/gruvbox-dark.css">
     <style>
       section { width: 100%; }
-      .row { display: flex; }
-      .column { flex: 50%; }
-      .example { cursor: pointer; }
-      #__textarea__ { border: 1px solid lightgray; }
+      body { margin: 0; background-color: #282828; }
+      .row { display: flex; justify-content:space-evenly; margin: 0; padding: 0; width: 100%; }
+      .column { margin-top: 0; margin-bottom: 0; height: 100vh; width: 49%;  }
+      .CodeMirror { height: auto; }
+      #__response__ { background-color: #202028; color: #eee8d5; font-family: monospace; }
     </style>
   </head>
-  <body>
-    <section>
-      <div class="row">
-        <div class="column">
-          <div id="__textarea__"></div>
-        </div>
-        <div class="column">
-          <div>
-            <div id="__app__"></div>
-          </div>
-        </div>
+  <body class="cm-c-gruvbox-dark">
+    <div class="row">
+      <div class="column" id="__codemirror__">
       </div>
-    </section>
+      <div class="column" id="__response__">
+        <div id="__app__"></div>
+      </div>
+    </div>
+
     <script>
       /* extract query parameters from the URL */
       const params = new URLSearchParams(window.location.search);
 
       /* set up CodeMirror in the __textarea__ div */
-      var frame = document.getElementById("__textarea__");
+      var frame = document.getElementById("__codemirror__");
       var myCodeMirror = CodeMirror(frame, {
-        value: "",
         lineNumbers: true,
-        mode: {name: "javascript", json: true},   /* TODO: custom mode? */
-        theme: "solarized",                         /* TODO: add a selection box? */
-      });
-
-      /* upon every update of the code */
-      myCodeMirror.on("changes", function(cm, changedObjects){
-        /* update the permalink */
-        document.getElementById('__permalink__').href =
-          window.location.protocol + '//' + window.location.host + window.location.pathname
-          + "?snippet=" + encodeURIComponent(myCodeMirror.getValue());
-        /* TODO: process the code in the application */
+        value: "function myScript(){return 100;}\n",
+        mode:  "javascript",
+        viewportMargin: Infinity,
+        indentUnit: 2,
+        smartIndent: true,
+        tabSize: 2,
+        theme: "gruvbox-dark"
       });
 
       /* use default snippet if one is not set in the query parameters */
