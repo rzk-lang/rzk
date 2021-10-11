@@ -397,6 +397,12 @@ unsafeParseDecl = unsafeParseString rzkDecl
 unsafeParseModule :: String -> Module Var
 unsafeParseModule = unsafeParseString rzkModule
 
+safeParseModule :: String -> Either String (Module Var)
+safeParseModule input =
+  case parseString (runUnlined rzkModule) mempty input of
+    Success x       -> pure x
+    Failure errInfo -> Left (show errInfo)
+
 unsafeParseString :: RzkParser a -> String -> a
 unsafeParseString parser input =
   case parseString (runUnlined parser) mempty input of

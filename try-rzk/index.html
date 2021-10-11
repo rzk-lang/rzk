@@ -4,8 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.min.js"></script>
-    <!-- <script src="result/bin/try-rzk.jsexe/all.js"></script> -->
-    <script src="https://fizruk.github.io/rzk/result/bin/try-rzk.jsexe/all.js"></script> <!-- FIXME -->
+    <script src="result/bin/try-rzk.jsexe/all.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/solarized.min.css">
     <link rel="stylesheet" href="https://codemirror.net/theme/gruvbox-dark.css">
@@ -45,7 +44,7 @@
       });
 
       /* use default snippet if one is not set in the query parameters */
-      snippet = "";
+      snippet = "prod : (A : U) -> (B : U) -> U\n  := \\A -> \\B -> ∑ (x : A), B\nisweq : (A : U) -> (B : U) -> (f : (_ : A) -> B) -> U\n  := \\A -> \\B -> \\f -> ∑ (g : (_ : B) -> A), prod ((x : A) -> g (f x) =_{A} x) ((y : B) -> f (g y) =_{B} y)\nweq : (A : U) -> (B : U) -> U\n  := \\A -> \\B -> ∑ (f : (_ : A) -> B), isweq A B f\nTheorem-4.1 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {(t : I) | psi t} -> TOPE) -> (X : U) -> (Y : <{t : I | psi t} -> (x : X) -> U >) -> (f : <{t : I | phi t} -> (x : X) -> Y t x >) -> weq <{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]> ((x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>)\n  := \\I -> \\psi -> \\phi -> \\X -> \\Y -> \\f -> (\\k -> \\x -> \\t -> k t x, (\\k -> \\{t : I | psi t} -> \\x -> (k x) t, (\\k -> refl_{k}, \\k -> refl_{k})))\n";
       if (params.has("snippet")) {
         snippet = decodeURIComponent(params.get("snippet"));
       }
