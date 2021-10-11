@@ -11,6 +11,7 @@
 module Rzk.Free.Syntax.FreeScoped where
 
 import           Bound
+import qualified Bound.Scope            as Bound
 import           Control.Monad          (ap, liftM)
 import           Control.Monad.Identity (Identity (..))
 import           Data.Bifoldable
@@ -86,6 +87,15 @@ wrapFreeScopedT
   -> FreeScopedT b term m a
 wrapFreeScopedT = FreeScopedT . return . FreeScopedF
 
+iterFreeScopedT
+  :: (Monad m, Bifunctor term)
+  => (forall x. term (Scope b m x) (m x) -> m x)
+  -> FreeScopedT b term m a
+  -> m a
+iterFreeScopedT phi (FreeScopedT m) = m >>= \case
+  PureScopedF x -> return x
+  FreeScopedF t -> phi (bimap (Bound.hoistScope (iterFreeScopedT phi)) (iterFreeScopedT phi) t)
+
 -- * Free monad with scoping
 
 type FreeScoped b term = FreeScopedT b term Identity
@@ -98,6 +108,13 @@ pattern FreeScoped
   -> FreeScoped b term a
 pattern FreeScoped t = FreeScopedT (Identity (FreeScopedF t))
 
+iterFreeScopedM
+  :: (Monad m, Bifunctor term)
+  => (forall x. term (Scope b m x) (m x) -> m x)
+  -> FreeScoped b term a
+  -> m a
+iterFreeScopedM phi = iterFreeScopedT phi . hoistFreeScopedT (return . runIdentity)
+
 {-# COMPLETE PureScoped, FreeScoped #-}
 
 data Sum f g scope term
@@ -106,6 +123,15 @@ data Sum f g scope term
   deriving (Functor, Foldable, Traversable)
 
 type (:+:) = Sum
+
+-- viewL
+--   :: (Monad m, Bifunctor f)
+--   => FreeScopedT b (f :+: g) m a
+--   -> FreeScopedT b f m (FreeScopedT b (f :+: g) m a)
+-- viewL t@(FreeScopedT m) = FreeScopedT $ m <&> \case
+--   FreeScopedF (InL f) -> FreeScopedF $
+--     bimap (Bound.toScope . error "impossible" . viewL . Bound.fromScope) viewL f
+--   _ -> PureScopedF t
 
 deriveBifunctor ''Sum
 deriveBifoldable ''Sum

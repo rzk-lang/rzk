@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d1c7731c278735b2d99e8fcc2bea95f0ad849df808ac8db6504a3663206211b4
+-- hash: 466d0de2c17c590d39aacc427d8de2e78ccbe8702ee521aa22e190347dbad368
 
 name:           rzk
 version:        0.1.0.0
@@ -48,6 +48,7 @@ library
       Rzk.Free.Syntax.Free2
       Rzk.Free.Syntax.FreeScoped
       Rzk.Free.Syntax.FreeScoped.Pretty
+      Rzk.Free.Syntax.FreeScoped.ScopedUnification
       Rzk.Free.Syntax.FreeScoped.TypeCheck
       Rzk.Free.Syntax.FreeScoped.Unification
       Rzk.Free.Syntax.FreeScoped.Unification2

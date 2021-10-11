@@ -284,7 +284,7 @@ universeT = TypeCheck.TypedT Nothing UniverseF
 -- λx₁ → x₁ x
 -- >>> lam (Just (Var "A")) "x" (App (Var "f") (Var "x")) :: Term'
 -- λ(x₁ : A) → f x₁
--- >>> lam (Just (Fun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
+-- >>> lam (Just (mkFun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
 -- λ(x₁ : A → B) → x₁ x
 lam :: Eq a => Maybe (Term a a) -> a -> Term a a -> Term a a
 lam ty x body = Lam ty (abstract1Name x body)
@@ -709,12 +709,20 @@ mkDefaultFreshVars prefix = [ fromString (prefix <> toIndex i) | i <- [1..] ]
         index = map digitToSub (show n)
 
 instance (Pretty a, Pretty b, IsString a) => Show (TypedTerm b a) where
-  show = \case
-    FreeScoped (TypeCheck.TypedF term ty) -> show (FreeScoped (bimap untypedScoped untyped term)) <> " : " <> show (untyped (fromMaybe universeT ty))
-    t -> show (untyped t)
+  show = show . ppTermWithType defaultFreshVars
+
+ppTermWithType :: (Pretty a, Pretty b) => [a] -> TypedTerm b a -> Doc ann
+ppTermWithType vars t = group $
+  case t of
+    FreeScoped (TypeCheck.TypedF term ty) ->
+      ppTypedTerm vars t <> nest 2 (line <> ":" <+> group (ppTypedTerm vars (fromMaybe universeT ty)))
+    _ -> ppTypedTerm vars t
 
 ppTypedTerm :: (Pretty a, Pretty b) => [a] -> TypedTerm b a -> Doc ann
 ppTypedTerm vars = ppTerm vars . untyped
+
+ppType :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
+ppType vars = group . ppTerm vars
 
 -- | Pretty-print an untyped term.
 ppTerm :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
@@ -725,35 +733,35 @@ ppTerm vars = \case
 
   Pi a b -> ppScopedTerm vars b $ \x b' ->
     if withoutBoundVars b
-       then ppTermArg vars a <+> "→" <+> b'
-       else parens (pretty x <+> ":" <+> ppTerm vars a) <+> "→" <+> b'
+       then align (ppTermArg vars a <+> "→" <> line <> b')
+       else align (parens (pretty x <+> ":" <+> ppType vars a) <+> "→" <> line <> b')
   Lam Nothing body -> ppScopedTerm vars body $ \x body' ->
     "λ" <> pretty x <+> "→" <+> body'
   Lam (Just ty) body -> ppScopedTerm vars body $ \x body' ->
-    "λ" <> parens (pretty x <+> ":" <+> ppTerm vars ty) <+> "→" <+> body'
+    "λ" <> parens (pretty x <+> ":" <+> ppType vars ty) <+> "→" <+> body'
   App f x -> ppTermFun vars f <+> ppTermArg vars x
 
   Sigma a b -> ppScopedTerm vars b $ \x b' ->
     if withoutBoundVars b
-       then ppTermArg vars a <+> "×" <+> b'
-       else parens (pretty x <+> ":" <+> ppTerm vars a) <+> "×" <+> b'
-  Pair f s -> tupled (map (ppTerm vars) [f, s])
+       then ppTermArg vars a <+> "×" <> line <> b'
+       else parens (pretty x <+> ":" <+> ppType vars a) <+> "×" <> line <> b'
+  Pair f s -> tupled (map (group . ppTerm vars) [f, s])
   First t  -> "π₁" <+> ppTermArg vars t
   Second t -> "π₂" <+> ppTermArg vars t
 
-  IdType a x y -> ppTermFun vars x <+> "=_{" <> ppTerm vars a <> "}" <+> ppTermFun vars y
+  IdType a x y -> ppTermFun vars x <+> "=_{" <> ppType vars a <> "}" <+> ppTermFun vars y
   Refl Nothing x -> "refl" <+> ppTermArg vars x
-  Refl (Just a) x -> "refl_{" <> ppTerm vars a <> "}" <+> ppTermArg vars x
+  Refl (Just a) x -> "refl_{" <> ppType vars a <> "}" <+> ppTermArg vars x
   J tA a tC d x p -> ppElimWithArgs vars "J" [tA, a, tC, d, x, p]
   where
     withoutBoundVars = null . Scope.bindings
 
 ppElimWithArgs :: (Pretty a, Pretty b) => [a] -> Doc ann -> [Term b a] -> Doc ann
-ppElimWithArgs vars name args = name <> tupled (map (ppTermFun vars) args)
+ppElimWithArgs vars name args = hsep (name : map (ppTermFun vars) args)
 
 -- | Pretty-print an untyped in a head position.
 ppTermFun :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
-ppTermFun vars = \case
+ppTermFun vars = group . \case
   t@Var{} -> ppTerm vars t
   t@App{} -> ppTerm vars t
   t@First{} -> ppTerm vars t
@@ -770,7 +778,7 @@ ppTermFun vars = \case
 
 -- | Pretty-print an untyped in an argument position.
 ppTermArg :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
-ppTermArg vars = \case
+ppTermArg vars = group . \case
   t@Var{} -> ppTerm vars t
   t@Universe{} -> ppTerm vars t
   t@Pair{} -> ppTerm vars t
@@ -1268,38 +1276,33 @@ runExample_ = runExample . (,) 0
 -- *** Church numerals
 
 -- |
--- >>> ex_zero
--- λx₁ → λx₂ → x₂
---
--- >>> execTypeCheck' (infer' ex_zero)
--- Right λx₁ → λx₂ → x₂ : ?M₁ → ?M₂ → ?M₂
+-- >>> unsafeInfer' ex_zero
+-- λx₁ → λx₂ → x₂ : (x₁ : ?M₁) → (?M₂ x₁) → ?M₂ x₁
 ex_zero :: Term'
 ex_zero = lam_ "s" (lam_ "z" (Var "z"))
 
 -- |
--- >>> ex_nat 3
--- λx₁ → λx₂ → x₁ (x₁ (x₁ x₂))
---
--- >>> execTypeCheck' (infer' (ex_nat 3))
--- Right λx₁ → λx₂ → x₁ (x₁ (x₁ x₂)) : (?M₂ → ?M₂) → ?M₂ → ?M₂
+-- >>> unsafeInfer' (ex_nat 3)
+-- λx₁ → λx₂ → x₁ (x₁ (x₁ x₂)) : (?M₆ → ?M₆) → ?M₆ → ?M₆
 ex_nat :: Int -> Term'
 ex_nat n = lam_ "s" (lam_ "z" (iterate (App (Var "s")) (Var "z") !! n))
 
 -- |
--- >>> ex_add
--- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄)
---
 -- >>> unsafeInfer' ex_add
--- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄) : (?M₃ → ?M₇ → ?M₈) → (?M₃ → ?M₄ → ?M₇) → ?M₃ → ?M₄ → ?M₈
+-- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄)
+--   : (?M₂₁ → (x₂ : ?M₁₈) → ?M₁₉ x₂) →
+--     (x₂ : ?M₂₁ → ?M₂₀ → ?M₁₈) →
+--     (x₃ : ?M₂₁) →
+--     (x₄ : ?M₂₀) →
+--     ?M₁₉ (x₂ x₃ x₄)
 ex_add :: Term'
 ex_add = lam_ "n" (lam_ "m" (lam_ "s" (lam_ "z"
   (App (App (Var "n") (Var "s")) (App (App (Var "m") (Var "s")) (Var "z"))))))
 
 -- |
--- >>> ex_mul
--- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃)
 -- >>> unsafeInfer' ex_mul
--- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃) : (?M₄ → ?M₅) → (?M₃ → ?M₄) → ?M₃ → ?M₅
+-- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃)
+--   : ((x₁ : ?M₁₁) → ?M₁₂ x₁) → (x₂ : ?M₁₃ → ?M₁₁) → (x₃ : ?M₁₃) → ?M₁₂ (x₂ x₃)
 ex_mul :: Term'
 ex_mul = lam_ "n" (lam_ "m" (lam_ "s"
   (App (Var "n") (App (Var "m") (Var "s")))))
@@ -1326,19 +1329,25 @@ ex_fst = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "f"))))
 ex_snd :: Term'
 ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 
--- |
--- >>> ex_pred
--- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄)))
--- >>> unsafeInfer' ex_pred
--- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄))) : ((((?M₂₂ → ?M₂₃ → ?M₂₃) → (?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → (((?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → ((?M₁₆ → ?M₁₉) → ?M₁₆ → ?M₂₀) → ?M₂₈) → ?M₂₈) → (((?M₃₁ → ?M₃₂ → ?M₃₂) → (?M₃₄ → ?M₃₅ → ?M₃₅) → ?M₃₆) → ?M₃₆) → (?M₃ → ?M₄ → ?M₃) → ?M₅) → ?M₅
+-- | FIXME: inferred type contains bound meta variables!
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
+-- | \(\eta\)-expanded J path eliminator:
+--
+-- >>> unsafeInfer' ex_J
+-- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → λx₆ → J x₁ x₂ x₃ x₄ x₅ x₆
+-- : (x₁ : U) → (x₂ : x₁) → (x₃ : (x₃ : x₁) → (x₂ =_{x₁} x₃) → U) → (x₃ x₂ (refl_{x₁} x₂)) → (x₅ : x₁) → (x₆ : x₂ =_{x₁} x₅) → x₃ x₅ x₆
 ex_J :: Term'
 ex_J =
   lam_ "A" $ lam_ "a" $ lam_ "C" $ lam_ "d" $ lam_ "x" $ lam_ "p" $
     J (Var "A") (Var "a") (Var "C") (Var "d") (Var "x") (Var "p")
 
+-- | An example proof of symmetry for path type:
+--
+-- >>> unsafeInfer' ex_pathinv
+-- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl x₂ x₃ x₄
+-- : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₂ =_{x₁} x₃) → x₃ =_{x₁} x₂
 ex_pathinv :: Term'
 ex_pathinv =
   lam_ "A" $
@@ -1354,6 +1363,11 @@ ex_pathinv =
           (Var "y")
           (Var "p")
 
+-- | An example proof of transitivity for path type:
+--
+-- >>> unsafeInfer' ex_pathtrans
+-- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → λx₆ → J x₁ x₃ (λx₇ → λx₈ → x₂ =_{x₁} x₇) x₅ x₄ x₆
+-- : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₄ : x₁) → (x₂ =_{x₁} x₃) → (x₃ =_{x₁} x₄) → x₂ =_{x₁} x₄
 ex_pathtrans :: Term'
 ex_pathtrans =
   lam_ "A" $
