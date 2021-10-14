@@ -52,7 +52,7 @@ updateModel (Check input) m = noEff m
     responseStr = ms $
       case Rzk.safeParseSomeModule (fromMisoString input) of
         Left err -> err
-        Right m  -> show $ Rzk.compileSomeModule m
+        Right m  -> Rzk.compileSomeModule m
 
 -- | Constructs a virtual DOM from a model
 viewModel :: Model -> View Action
