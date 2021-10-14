@@ -12,38 +12,53 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 module Rzk.Free.Syntax.Example.STLC where
 
-import qualified Bound.Scope                             as Scope
-import qualified Bound.Var                               as Bound
+import qualified Bound.Scope                               as Scope
+import qualified Bound.Var                                 as Bound
+import           Control.Applicative
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
-import           Data.Char                               (chr, ord)
-import           Data.Maybe                              (fromMaybe)
-import           Data.String                             (IsString (..))
-import           Data.Text.Prettyprint.Doc               as Doc
+import           Data.Char                                 (chr, isPrint,
+                                                            isSpace, ord)
+import qualified Data.HashSet                              as HashSet
+import           Data.Maybe                                (fromMaybe)
+import           Data.String                               (IsString (..))
+import qualified Data.Text                                 as Text
+import           Data.Text.Prettyprint.Doc                 as Doc
+import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
+import           System.IO.Unsafe                          (unsafePerformIO)
+import           Text.Parser.Token                         ()
+import           Text.Parser.Token.Style                   (emptyIdents)
+import           Text.Trifecta                             (IdentifierStyle (..),
+                                                            Parser,
+                                                            TokenParsing,
+                                                            symbol)
+import qualified Text.Trifecta                             as Trifecta
 
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
-import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
-                                                          TypeInfo, assignType,
-                                                          clarifyTypedTerm,
-                                                          freshTypeMetaVar,
-                                                          nonDep,
-                                                          shouldHaveType,
-                                                          typeOf,
-                                                          typeOfScopedWith,
-                                                          typecheckDist,
-                                                          typecheckInScope,
-                                                          unifyWithExpected,
-                                                          untyped,
-                                                          untypedScoped)
-import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
-import           Rzk.Free.Syntax.FreeScoped.Unification  (UVar (..))
-import           Rzk.Free.Syntax.FreeScoped.Unification2 (HigherOrderUnifiable (..),
-                                                          Unifiable (..))
-import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification
-import qualified Rzk.Syntax.Var                          as Rzk
+import           Rzk.Free.Syntax.FreeScoped.TypeCheck      (TypeCheck,
+                                                            TypeError, TypeInfo,
+                                                            assignType,
+                                                            clarifyTypedTerm,
+                                                            freshTypeMetaVar,
+                                                            nonDep,
+                                                            shouldHaveType,
+                                                            typeOf,
+                                                            typeOfScopedWith,
+                                                            typecheckDist,
+                                                            typecheckInScope,
+                                                            unifyWithExpected,
+                                                            untyped,
+                                                            untypedScoped)
+import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck      as TypeCheck
+import           Rzk.Free.Syntax.FreeScoped.Unification    (UVar (..))
+import           Rzk.Free.Syntax.FreeScoped.Unification2   (HigherOrderUnifiable (..),
+                                                            Unifiable (..))
+import qualified Rzk.Free.Syntax.FreeScoped.Unification2   as Unification
+import qualified Rzk.Syntax.Var                            as Rzk
 
 -- * Generators
 
@@ -648,6 +663,9 @@ runTypeCheckOnce' = TypeCheck.runTypeCheckOnce defaultFreshMetaVars
 infer' :: Term' -> TypeCheck' UTypedTerm'
 infer' = TypeCheck.infer
 
+typecheck' :: Term' -> Term' -> TypeCheck' UTypedTerm'
+typecheck' = TypeCheck.typecheckUntyped
+
 inferScoped' :: ScopedTerm' -> TypeCheck' UScopedTypedTerm'
 inferScoped' = TypeCheck.inferScoped
 
@@ -661,9 +679,6 @@ unsafeInfer' = unsafeUnpack . execTypeCheck' . infer'
     unsafeUnpack _ = error "unsafeInfer': failed to extract term with inferred type"
 
 -- ** Pretty-printing
-
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
 
 instance (Pretty n, Pretty b) => Pretty (Name n b) where
   pretty (Name Nothing b)     = pretty b
@@ -1394,6 +1409,65 @@ ex_factorial = Fix $ lam_ "f" $ lam_ "n" $
   BoolIf (NatIsZero (Var "n"))
     (NatLit 1)
     (NatMultiply (Var "n") (App (Var "f") (NatPred (Var "n"))))
+
+-- * Parsing
+
+pTerm :: (TokenParsing m, Monad m) => m Term'
+pTerm = pApps <|> Trifecta.parens pTerm
+
+pApps :: (TokenParsing m, Monad m) => m Term'
+pApps = do
+  f <- pNotAppTerm
+  args <- many pNotAppTerm
+  return (Unification.mkApps f args)
+
+pNotAppTerm :: (TokenParsing m, Monad m) => m Term'
+pNotAppTerm = pVar <|> pLam <|> Trifecta.parens pTerm
+
+pVar :: (TokenParsing m, Monad m) => m Term'
+pVar = Var <$> pIdent
+
+pIdent :: (TokenParsing m, Monad m) => m Rzk.Var
+pIdent = Rzk.Var . Text.pack <$> Trifecta.ident pIdentStyle
+
+pIdentStyle :: (TokenParsing m, Monad m) => IdentifierStyle m
+pIdentStyle = (emptyIdents @Parser)
+  { _styleStart     = Trifecta.satisfy isIdentChar
+  , _styleLetter    = Trifecta.satisfy isIdentChar
+  , _styleReserved  = HashSet.fromList [ "λ", "\\", "→", "->" ]
+  }
+
+pLam :: (TokenParsing m, Monad m) => m Term'
+pLam = do
+  _ <- symbol "λ" <|> symbol "\\"
+  x <- pIdent
+  _ <- symbol "->" <|> symbol "→"
+  t <- pTerm
+  return (Lam Nothing (abstract1Name x t))
+
+-- ** Char predicates
+
+isIdentChar :: Char -> Bool
+isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
+
+isDelim :: Char -> Bool
+isDelim c = c `elem` ("()[]{},\\λ→" :: String)
+
+-- * Orphan 'IsString' instances
+
+instance IsString Term' where
+  fromString = unsafeParseTerm
+
+unsafeParseTerm :: String -> Term'
+unsafeParseTerm = unsafeParseString pTerm
+
+unsafeParseString :: Parser a -> String -> a
+unsafeParseString parser input =
+  case Trifecta.parseString parser mempty input of
+    Trifecta.Success x       -> x
+    Trifecta.Failure errInfo -> unsafePerformIO $ do
+      putDoc (Trifecta._errDoc errInfo <> "\n")
+      error "Parser error while attempting unsafeParseString"
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF

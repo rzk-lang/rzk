@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP             #-}
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveTraversable          #-}
@@ -29,8 +29,8 @@ import           Control.Monad.Logic
 import           Control.Monad.State
 
 #if !MIN_VERSION_base(4,13,0)
-import Control.Monad.Fail (MonadFail)
-import qualified Control.Monad.Fail as Fail
+import           Control.Monad.Fail                      (MonadFail)
+import qualified Control.Monad.Fail                      as Fail
 #endif
 
 import           Data.Bifoldable                         (Bifoldable)
@@ -526,6 +526,13 @@ shouldHaveType term expectedType = do
   _ <- (unifyWithExpected' "shouldHaveType" actualType expectedType)
           <|> fail "expected type ... but actual type is ... for term ..."
   clarifyTypedTerm term
+
+typecheckUntyped
+  :: (Eq a, Eq v, HigherOrderUnifiable t, TypeCheckable t)
+  => Term t b a -> Term t b a -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)
+typecheckUntyped term ty = do
+  ty' <- typecheck ty universeT
+  typecheck term ty'
 
 infer :: (Eq a, Eq v, TypeCheckable t)
       => Term t b a -> TypeCheck (UTypedTerm t b a v) a v (UTypedTerm t b a v)

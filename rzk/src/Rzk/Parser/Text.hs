@@ -8,17 +8,17 @@
 module Rzk.Parser.Text where
 
 import           Control.Applicative
-import           Data.Char                                 (isPrint, isSpace)
-import qualified Data.HashSet                              as HashSet
-import           Data.String                               (IsString (..))
-import           Data.Text                                 (Text)
-import qualified Data.Text                                 as Text
+import           Data.Char                     (isPrint, isSpace)
+import qualified Data.HashSet                  as HashSet
+import           Data.String                   (IsString (..))
+import           Data.Text                     (Text)
+import qualified Data.Text                     as Text
 import           Prettyprinter.Render.Terminal (putDoc)
 import           System.IO.Unsafe
 
 import           Text.Parser.Expression
 import           Text.Parser.Token
-import           Text.Parser.Token.Style                   (emptyIdents)
+import           Text.Parser.Token.Style       (emptyIdents)
 import           Text.Trifecta
 
 import           Rzk.Syntax.Decl

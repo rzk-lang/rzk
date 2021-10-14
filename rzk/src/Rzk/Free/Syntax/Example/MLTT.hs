@@ -672,9 +672,6 @@ unsafeInfer' = unsafeUnpack . execTypeCheck' . infer'
 
 -- ** Pretty-printing
 
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
-
 instance (Pretty n, Pretty b) => Pretty (Name n b) where
   pretty (Name Nothing b)     = pretty b
   pretty (Name (Just name) b) = "<" <> pretty name <> " " <> pretty b <> ">"
