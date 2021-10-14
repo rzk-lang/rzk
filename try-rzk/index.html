@@ -29,7 +29,42 @@
     </div>
 
     <script>
-      CodeMirror.defineSimpleMode("rzk", {
+      CodeMirror.defineSimpleMode("rzk-stlc", {
+        // The start state contains the rules that are initially used
+        start: [
+          {regex: /#(infer|unify|typecheck|whnf|nf)/, token: "meta"},
+          // The regex matches the token, the token property contains the type
+          {regex: /"(?:[^\\]|\\.)*?(?:"|$)/, token: "string"},
+          // Rules are matched in the order in which they appear, so there is
+          // no ambiguity between this one and the one above
+          {regex: /(?:U|NAT|UNIT|BOOL)\b/,
+           token: "keyword"},
+          {regex: /(?:if|then|else)\b/,
+           token: "keyword"},
+          {regex: /unit|false|true|fix|mul|pred|isZero|\*/, token: "atom"},
+          {regex: /0x[a-f\d]+|[-+]?(?:\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/i,
+           token: "number"},
+          {regex: /\/(?:[^\\]|\\.)*?\//, token: "variable-3"},
+          // A next property will cause the mode to move to a different state
+          // {regex: /\/\*/, token: "comment", next: "comment"},
+          // {regex: /[-+\/*=<>!]+/, token: "operator"},
+          // indent and dedent properties guide autoindentation
+          {regex: /[\{\[\(]/, indent: true},
+          {regex: /[\}\]\)]/, dedent: true},
+          {regex: /([\w][^\s]*)(\s+:)/, token: ["variable-2", null]},
+          {regex: /[\w][^\s]*/, token: "variable"},
+        ],
+        // The meta property contains global information about the mode. It
+        // can contain properties like lineComment, which are supported by
+        // all modes, and also directives like dontIndentStates, which are
+        // specific to simple modes.
+        meta: {
+          dontIndentStates: ["comment"],
+          lineComment: "--"
+        }
+      });
+
+      CodeMirror.defineSimpleMode("rzk-1", {
         // The start state contains the rules that are initially used
         start: [
           // The regex matches the token, the token property contains the type
@@ -80,6 +115,22 @@
         }
       });
 
+      CodeMirror.defineSimpleMode("rzk-poly", {
+        // The start state contains the rules that are initially used
+        start: [
+          {regex: /(#lang)( stlc)/,  token: ["attribute", "keyword"], mode: {spec: "rzk-stlc", end: /eof/}},
+          {regex: /(#lang)( rzk-1)/, token: ["attribute", "keyword"], mode: {spec: "rzk-1", end: /eof/}}
+        ],
+        // The meta property contains global information about the mode. It
+        // can contain properties like lineComment, which are supported by
+        // all modes, and also directives like dontIndentStates, which are
+        // specific to simple modes.
+        meta: {
+          dontIndentStates: ["comment"],
+          lineComment: "--"
+        }
+      });
+
       /* extract query parameters from the URL */
       const params = new URLSearchParams(window.location.search);
 
@@ -88,7 +139,7 @@
       var myCodeMirror = CodeMirror(frame, {
         lineNumbers: true,
         value: "function myScript(){return 100;}\n",
-        mode:  "rzk",
+        mode:  "rzk-poly",
         viewportMargin: Infinity,
         indentUnit: 2,
         smartIndent: true,
@@ -97,7 +148,7 @@
       });
 
       /* use default snippet if one is not set in the query parameters */
-      snippet = "prod : (A : U) -> (B : U) -> U\n  := \\A -> \\B -> ∑ (x : A), B\nisweq : (A : U) -> (B : U) -> (f : (_ : A) -> B) -> U\n  := \\A -> \\B -> \\f -> ∑ (g : (_ : B) -> A), prod ((x : A) -> g (f x) =_{A} x) ((y : B) -> f (g y) =_{B} y)\nweq : (A : U) -> (B : U) -> U\n  := \\A -> \\B -> ∑ (f : (_ : A) -> B), isweq A B f\nTheorem-4.1 : (I : CUBE) -> (psi : (t : I) -> TOPE) -> (phi : {(t : I) | psi t} -> TOPE) -> (X : U) -> (Y : <{t : I | psi t} -> (x : X) -> U >) -> (f : <{t : I | phi t} -> (x : X) -> Y t x >) -> weq <{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]> ((x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>)\n  := \\I -> \\psi -> \\phi -> \\X -> \\Y -> \\f -> (\\k -> \\x -> \\t -> k t x, (\\k -> \\{t : I | psi t} -> \\x -> (k x) t, (\\k -> refl_{k}, \\k -> refl_{k})))\n";
+      snippet = "#lang stlc\n\n#infer fix (λfct → λn → if (isZero n) then 1 else (n * (f (pred n))))\n#whnf fix (λfct → λn → if (isZero n) then 1 else (n * (f (pred n)))) 8\n";
       if (params.has("snippet")) {
         snippet = decodeURIComponent(params.get("snippet"));
       }
