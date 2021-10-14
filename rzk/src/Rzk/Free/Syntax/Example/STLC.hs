@@ -1413,7 +1413,10 @@ ex_factorial = Fix $ lam_ "f" $ lam_ "n" $
 -- * Parsing
 
 pTerm :: (TokenParsing m, Monad m) => m Term'
-pTerm = pApps <|> Trifecta.parens pTerm
+pTerm = Trifecta.choice
+  [ NatMultiply <$> Trifecta.try (pNotAppTerm <* symbol "*") <*> pTerm
+  , pApps
+  , Trifecta.parens pTerm ]
 
 pApps :: (TokenParsing m, Monad m) => m Term'
 pApps = do
@@ -1422,7 +1425,27 @@ pApps = do
   return (Unification.mkApps f args)
 
 pNotAppTerm :: (TokenParsing m, Monad m) => m Term'
-pNotAppTerm = pVar <|> pLam <|> Trifecta.parens pTerm
+pNotAppTerm = Trifecta.choice
+  [ pLet
+  , UnitType <$ symbol "UNIT"
+  , Unit <$ symbol "unit"
+  , lam_ "x" (Fix (Var "x")) <$ symbol "fix"
+
+  , NatType <$ symbol "NAT"
+  , NatLit <$> Trifecta.integer
+  , lam_ "x" (lam_ "y" (NatMultiply (Var "x") (Var "y"))) <$ symbol "mul"
+  , lam_ "x" (NatPred (Var "x")) <$ symbol "pred"
+  , lam_ "x" (NatIsZero (Var "x")) <$ symbol "isZero"
+
+  , BoolType <$ symbol "BOOL"
+  , BoolLit False <$ symbol "false"
+  , BoolLit True  <$ symbol "true"
+  , BoolIf <$ symbol "if" <*> pTerm <* symbol "then" <*> pTerm <* symbol "else" <*> pTerm
+
+  , pVar
+  , pLam
+  , Trifecta.parens pTerm
+  ]
 
 pVar :: (TokenParsing m, Monad m) => m Term'
 pVar = Var <$> pIdent
@@ -1434,7 +1457,13 @@ pIdentStyle :: (TokenParsing m, Monad m) => IdentifierStyle m
 pIdentStyle = (emptyIdents @Parser)
   { _styleStart     = Trifecta.satisfy isIdentChar
   , _styleLetter    = Trifecta.satisfy isIdentChar
-  , _styleReserved  = HashSet.fromList [ "λ", "\\", "→", "->" ]
+  , _styleReserved  = HashSet.fromList [ "λ", "\\", "→", "->"
+                                       , "let", "in"
+                                       , "fix"
+                                       , "UNIT", "unit"
+                                       , "NAT"
+                                       , "BOOL", "false", "true"
+                                       , "if", "then", "else" ]
   }
 
 pLam :: (TokenParsing m, Monad m) => m Term'
@@ -1444,6 +1473,16 @@ pLam = do
   _ <- symbol "->" <|> symbol "→"
   t <- pTerm
   return (Lam Nothing (abstract1Name x t))
+
+pLet :: (TokenParsing m, Monad m) => m Term'
+pLet = do
+  _ <- symbol "let"
+  x <- pIdent
+  _ <- symbol "="
+  a <- pTerm
+  _ <- symbol "in"
+  t <- pTerm
+  return (let_ a x t)
 
 -- ** Char predicates
 
