@@ -1,18 +1,16 @@
 -- | Haskell language pragma
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeApplications  #-}
 
 -- | Haskell module declaration
 module Main where
 
 -- | Miso framework import
-import Miso
-import Miso.String
+import           Miso
+import           Miso.String
 
-import           Rzk.Parser.Text
-import           Rzk.Syntax.Var
-import           Rzk.TypeChecker
+import qualified Rzk.Polylingual as Rzk
 
 -- | Type synonym for an application model
 data Model = Model
@@ -52,10 +50,9 @@ updateModel (Check input) m = noEff m
   { response = responseStr }
   where
     responseStr = ms $
-      case safeParseModule (fromMisoString input) of
+      case Rzk.safeParseSomeModule (fromMisoString input) of
         Left err -> err
-        Right m -> show $
-          typecheckModule @Var ["{H}"] m
+        Right m  -> show $ Rzk.compileSomeModule m
 
 -- | Constructs a virtual DOM from a model
 viewModel :: Model -> View Action
