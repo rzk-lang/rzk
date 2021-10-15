@@ -149,7 +149,7 @@
       });
 
       /* use default snippet if one is not set in the query parameters */
-      snippet = "#lang stlc\n\n#infer fix (λfct → λn → if (isZero n) then 1 else (n * (f (pred n))))\n#whnf fix (λfct → λn → if (isZero n) then 1 else (n * (f (pred n)))) 8\n";
+      snippet = "#lang stlc\n\n-- infer the type of factorial\n#infer fix -- using fixpoint combinator to simulate recursion\n  (λfct → λn →\n    if isZero n\n      then 1\n      else n * (fct (pred n)))\n\n-- compute 8!\n#whnf fix -- using fixpoint combinator to simulate recursion\n  (λfct → λn →\n    if isZero n\n      then 1\n      else n * (fct (pred n)))\n  8\n\n";
       if (params.has("snippet")) {
         snippet = decodeURIComponent(params.get("snippet"));
       }
