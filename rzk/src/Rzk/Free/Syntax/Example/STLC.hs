@@ -1445,7 +1445,7 @@ pNotAppTerm = Trifecta.choice
   , pVar
   , pLam
   , Trifecta.parens pTerm
-  ] <* Trifecta.someSpace
+  ]
 
 pVar :: (TokenParsing m, Monad m) => m Term'
 pVar = Var <$> pIdent

@@ -6,7 +6,6 @@ module Rzk.Polylingual where
 
 import           Control.Applicative
 import           Control.Monad                (void)
-import           Control.Monad.Trans          (lift)
 import           Data.Char                    (isPrint, isSpace)
 import qualified Data.HashSet                 as HashSet
 import qualified Data.Text                    as Text
@@ -28,21 +27,18 @@ newtype PolyParser a
   = PolyParser { runPolyParser :: Parser a }
   deriving (Functor, Applicative, Alternative, Monad, Parsing, CharParsing, LookAheadParsing)
 
-instance LookAheadParsing p => LookAheadParsing (Unlined p) where
-  lookAhead = Unlined . lookAhead . runUnlined
-
+(<??>) :: Parsing m => String -> m a -> m a
 (<??>) = flip (<?>)
 
+lineComment :: (CharParsing m, LookAheadParsing m) => m String
+lineComment = (<??>) "line comment" $
+  string "--" *>
+    manyTill anyChar (choice [ void newline, lookAhead eof ])
+
 instance TokenParsing PolyParser where
-  someSpace = void $ many $ do
-    optional (PolyParser someSpace)
-    (<??>) "line comment" $ symbol "--" *>
-      many (notChar '\n') *>
-      choice [ void newline, eof ]
-  nesting = PolyParser . nesting . runPolyParser
-  semi = PolyParser semi
-  highlight h = PolyParser . highlight h . runPolyParser
-  token = PolyParser . token . runPolyParser
+  someSpace = void $ some $ choice
+    [ PolyParser someSpace <?> "some space"
+    , void lineComment ]
 
 data Decl var term = Decl
   { declName :: var
@@ -123,9 +119,8 @@ safeParseSomeModule input =
     Success x       -> pure x
     Failure errInfo -> Left (show errInfo)
 
-
 pSomeModule :: Parser SomeModule
-pSomeModule = do
+pSomeModule = runPolyParser $ do
   mode <- pLangMode
   m <- case mode of
     Rzk1 -> Module_Rzk1 <$> pRzk1
@@ -134,33 +129,33 @@ pSomeModule = do
   eof
   return m
 
-pLangMode :: Parser LangMode
-pLangMode =
-  string "#lang " *>
+pLangMode :: (Monad m, TokenParsing m) => m LangMode
+pLangMode = do
+  void (symbol "#lang")
   choice
     [ Rzk1 <$ symbol "rzk-1"
     , STLC <$ symbol "stlc"
     , MLTT <$ symbol "mltt"
     ]
 
-pRzk1 :: Parser (Module Var (Rzk1.Term Var))
+pRzk1 :: PolyParser (Module Var (Rzk1.Term Var))
 pRzk1 = Module <$> many (pCommand (PolyParser (runUnlined Rzk1.rzkTerm)))
 
-pSTLC :: Parser (Module Var STLC.Term')
+pSTLC :: PolyParser (Module Var STLC.Term')
 pSTLC = Module <$> many (pCommand STLC.pTerm)
 
-pMLTT :: Parser (Module Var MLTT.Term')
+pMLTT :: PolyParser (Module Var MLTT.Term')
 pMLTT = Module <$> many (pCommand (undefined <$ string ""))
 
-pCommand :: PolyParser term -> Parser (Command Var term)
-pCommand pTerm = runPolyParser $ choice
+pCommand :: PolyParser term -> PolyParser (Command Var term)
+pCommand pTerm = "command" <??> choice
   [ Infer <$ symbol "#infer" <*> pTerm
   , TypeCheck <$ symbol "#typecheck" <*> pTerm <* symbol ":" <*> pTerm
   , Evaluate EvaluateToWHNF <$ symbol "#whnf" <*> pTerm
   , Evaluate EvaluateToNF <$ symbol "#nf" <*> pTerm
   , Unify <$ symbol "#unify" <*> pTerm <* symbol "with" <*> pTerm
   , fmap Declare $ do
-      symbol "#def "
+      void (symbol "#def")
       declName <- PolyParser pIdent
       choice
         [ (try (symbol ":=") *>) $ do
@@ -169,7 +164,7 @@ pCommand pTerm = runPolyParser $ choice
             return Decl{..}
         , (symbol ":" *>) $ do
             declType <- Just <$> pTerm
-            symbol ":="
+            void (symbol ":=")
             declBody <- pTerm
             return Decl{..}
         ]
