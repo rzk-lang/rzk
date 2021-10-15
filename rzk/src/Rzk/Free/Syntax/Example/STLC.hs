@@ -1445,7 +1445,7 @@ pNotAppTerm = Trifecta.choice
   , pVar
   , pLam
   , Trifecta.parens pTerm
-  ]
+  ] <* Trifecta.someSpace
 
 pVar :: (TokenParsing m, Monad m) => m Term'
 pVar = Var <$> pIdent
@@ -1463,7 +1463,8 @@ pIdentStyle = (emptyIdents @Parser)
                                        , "UNIT", "unit"
                                        , "NAT"
                                        , "BOOL", "false", "true"
-                                       , "if", "then", "else" ]
+                                       , "if", "then", "else"
+                                       , "--", ":=", ":" ]
   }
 
 pLam :: (TokenParsing m, Monad m) => m Term'
@@ -1490,7 +1491,7 @@ isIdentChar :: Char -> Bool
 isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
 
 isDelim :: Char -> Bool
-isDelim c = c `elem` ("()[]{},\\λ→" :: String)
+isDelim c = c `elem` ("()[]{},\\λ→#" :: String)
 
 -- * Orphan 'IsString' instances
 

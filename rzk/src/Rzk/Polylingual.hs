@@ -1,13 +1,16 @@
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TypeApplications           #-}
 module Rzk.Polylingual where
 
 import           Control.Applicative
+import           Control.Monad                (void)
 import           Control.Monad.Trans          (lift)
 import           Data.Char                    (isPrint, isSpace)
 import qualified Data.HashSet                 as HashSet
 import qualified Data.Text                    as Text
+import           Text.Parser.LookAhead        (LookAheadParsing (..))
 import           Text.Parser.Token
 import           Text.Parser.Token.Style      (emptyIdents)
 import           Text.Trifecta
@@ -20,6 +23,26 @@ import qualified Rzk.Free.Syntax.Example.MLTT as MLTT
 import qualified Rzk.Free.Syntax.Example.STLC as STLC
 
 import           Rzk.Syntax.Var               (Var (..))
+
+newtype PolyParser a
+  = PolyParser { runPolyParser :: Parser a }
+  deriving (Functor, Applicative, Alternative, Monad, Parsing, CharParsing, LookAheadParsing)
+
+instance LookAheadParsing p => LookAheadParsing (Unlined p) where
+  lookAhead = Unlined . lookAhead . runUnlined
+
+(<??>) = flip (<?>)
+
+instance TokenParsing PolyParser where
+  someSpace = void $ many $ do
+    optional (PolyParser someSpace)
+    (<??>) "line comment" $ symbol "--" *>
+      many (notChar '\n') *>
+      choice [ void newline, eof ]
+  nesting = PolyParser . nesting . runPolyParser
+  semi = PolyParser semi
+  highlight h = PolyParser . highlight h . runPolyParser
+  token = PolyParser . token . runPolyParser
 
 data Decl var term = Decl
   { declName :: var
@@ -87,7 +110,8 @@ runCommandSTLC = \case
     case STLC.execTypeCheck' (STLC.infer' term) of
       Right typedTerm -> show (STLC.nf typedTerm)
       Left msg        -> show msg
-  Declare _ -> "declarations are not supported in STLC at the moment"
+  Declare decl ->
+    "declarations are not supported in STLC at the moment:\n  " <> show decl
   Unify _ _ -> "#unify is not supported in STLC at the moment"
 
 runCommandMLTT :: Command Var MLTT.Term' -> String
@@ -120,32 +144,36 @@ pLangMode =
     ]
 
 pRzk1 :: Parser (Module Var (Rzk1.Term Var))
-pRzk1 = Module <$> many (pCommand Rzk1.rzkTerm)
+pRzk1 = Module <$> many (pCommand (PolyParser (runUnlined Rzk1.rzkTerm)))
 
 pSTLC :: Parser (Module Var STLC.Term')
 pSTLC = Module <$> many (pCommand STLC.pTerm)
 
 pMLTT :: Parser (Module Var MLTT.Term')
-pMLTT = Module <$> many (pCommand (lift (undefined <$ string "")))
+pMLTT = Module <$> many (pCommand (undefined <$ string ""))
 
-pCommand :: Unlined Parser term -> Parser (Command Var term)
-pCommand pTerm = runUnlined $ choice
+pCommand :: PolyParser term -> Parser (Command Var term)
+pCommand pTerm = runPolyParser $ choice
   [ Infer <$ symbol "#infer" <*> pTerm
   , TypeCheck <$ symbol "#typecheck" <*> pTerm <* symbol ":" <*> pTerm
   , Evaluate EvaluateToWHNF <$ symbol "#whnf" <*> pTerm
   , Evaluate EvaluateToNF <$ symbol "#nf" <*> pTerm
-  , fmap Declare $ lift $ do
-      declName <- pIdent
-      declType <- choice
-        [ Just <$>
-          ((try (symbol ":" *> notFollowedBy (symbol "="))) *>
-            runUnlined pTerm <* newline)
-        , pure Nothing ]
-      someSpace
-      declBody <- symbol ":=" *> runUnlined pTerm
-      return Decl{..}
   , Unify <$ symbol "#unify" <*> pTerm <* symbol "with" <*> pTerm
-  ] <* newline
+  , fmap Declare $ do
+      symbol "#def "
+      declName <- PolyParser pIdent
+      choice
+        [ (try (symbol ":=") *>) $ do
+            let declType = Nothing
+            declBody <- pTerm
+            return Decl{..}
+        , (symbol ":" *>) $ do
+            declType <- Just <$> pTerm
+            symbol ":="
+            declBody <- pTerm
+            return Decl{..}
+        ]
+  ]
 
 pIdent :: Parser Var
 pIdent = Var . Text.pack <$> ident pIdentStyle
