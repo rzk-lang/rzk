@@ -6,7 +6,9 @@ module Rzk.Polylingual where
 
 import           Control.Applicative
 import           Control.Monad                (void)
+import           Data.Char                    (toLower, toUpper)
 import           Data.Char                    (isPrint, isSpace)
+import           Data.Foldable                (traverse_)
 import qualified Data.HashSet                 as HashSet
 import qualified Data.Text                    as Text
 import           Text.Parser.LookAhead        (LookAheadParsing (..))
@@ -19,6 +21,7 @@ import qualified Rzk.Pretty.Text              ()
 import qualified Rzk.Syntax.Term              as Rzk1
 
 import qualified Rzk.Free.Syntax.Example.MLTT as MLTT
+import qualified Rzk.Free.Syntax.Example.PCF  as PCF
 import qualified Rzk.Free.Syntax.Example.STLC as STLC
 
 import           Rzk.Syntax.Var               (Var (..))
@@ -66,12 +69,14 @@ data Module var term = Module
 data LangMode
   = Rzk1
   | STLC
+  | PCF
   | MLTT
   deriving (Show, Eq)
 
 data SomeModule
   = Module_Rzk1 (Module Var (Rzk1.Term Var))
   | Module_STLC (Module Var STLC.Term')
+  | Module_PCF  (Module Var PCF.Term')
   | Module_MLTT (Module Var MLTT.Term')
   deriving (Show)
 
@@ -79,6 +84,7 @@ compileSomeModule :: SomeModule -> String
 compileSomeModule = \case
   Module_Rzk1 m -> compileModule runCommandRzk1 m
   Module_STLC m -> compileModule runCommandSTLC m
+  Module_PCF  m -> compileModule runCommandPCF  m
   Module_MLTT m -> compileModule runCommandMLTT m
 
 compileModule :: (Command var term -> String) -> Module var term -> String
@@ -110,6 +116,28 @@ runCommandSTLC = \case
     "declarations are not supported in STLC at the moment:\n  " <> show decl
   Unify _ _ -> "#unify is not supported in STLC at the moment"
 
+runCommandPCF :: Command Var PCF.Term' -> String
+runCommandPCF = \case
+  TypeCheck term ty ->
+    case PCF.execTypeCheck' (PCF.typecheck' term ty) of
+      Right typedTerm -> show typedTerm
+      Left msg        -> show msg
+  Infer term ->
+    case PCF.execTypeCheck' (PCF.infer' term) of
+      Right typedTerm -> show typedTerm
+      Left msg        -> show msg
+  Evaluate EvaluateToWHNF term ->
+    case PCF.execTypeCheck' (PCF.infer' term) of
+      Right typedTerm -> show (PCF.whnf typedTerm)
+      Left msg        -> show msg
+  Evaluate EvaluateToNF term ->
+    case PCF.execTypeCheck' (PCF.infer' term) of
+      Right typedTerm -> show (PCF.nf typedTerm)
+      Left msg        -> show msg
+  Declare decl ->
+    "declarations are not supported in PCF at the moment:\n  " <> show decl
+  Unify _ _ -> "#unify is not supported in PCF at the moment"
+
 runCommandMLTT :: Command Var MLTT.Term' -> String
 runCommandMLTT _ = "rzk-1 is not supported at the moment"
 
@@ -125,17 +153,25 @@ pSomeModule = runPolyParser $ do
   m <- case mode of
     Rzk1 -> Module_Rzk1 <$> pRzk1
     STLC -> Module_STLC <$> pSTLC
+    PCF  -> Module_PCF  <$> pPCF
     MLTT -> Module_MLTT <$> pMLTT
   eof
   return m
+
+charCI :: CharParsing m => Char -> m Char
+charCI c = choice [ char (toLower c), char (toUpper c) ]
+
+symbolCI :: (Monad m, TokenParsing m) => String -> m String
+symbolCI s = s <$ token (traverse_ charCI s) <?> show s
 
 pLangMode :: (Monad m, TokenParsing m) => m LangMode
 pLangMode = do
   void (symbol "#lang")
   choice
-    [ Rzk1 <$ symbol "rzk-1"
-    , STLC <$ symbol "stlc"
-    , MLTT <$ symbol "mltt"
+    [ Rzk1 <$ symbolCI "rzk-1"
+    , STLC <$ symbolCI "stlc"
+    , PCF  <$ symbolCI "pcf"
+    , MLTT <$ symbolCI "mltt"
     ]
 
 pRzk1 :: PolyParser (Module Var (Rzk1.Term Var))
@@ -143,6 +179,9 @@ pRzk1 = Module <$> many (pCommand (PolyParser (runUnlined Rzk1.rzkTerm)))
 
 pSTLC :: PolyParser (Module Var STLC.Term')
 pSTLC = Module <$> many (pCommand STLC.pTerm)
+
+pPCF :: PolyParser (Module Var PCF.Term')
+pPCF = Module <$> many (pCommand PCF.pTerm)
 
 pMLTT :: PolyParser (Module Var MLTT.Term')
 pMLTT = Module <$> many (pCommand (undefined <$ string ""))
