@@ -32,7 +32,7 @@
       CodeMirror.defineSimpleMode("rzk-stlc", {
         // The start state contains the rules that are initially used
         start: [
-          {regex: /#(infer|unify|typecheck|whnf|nf)/, token: "meta"},
+          {regex: /#(infer|unify|typecheck|whnf|nf|def)/, token: "meta"},
           // The regex matches the token, the token property contains the type
           {regex: /"(?:[^\\]|\\.)*?(?:"|$)/, token: "string"},
           // Rules are matched in the order in which they appear, so there is
@@ -53,6 +53,7 @@
           {regex: /[\}\]\)]/, dedent: true},
           {regex: /([\w][^\s]*)(\s+:)/, token: ["variable-2", null]},
           {regex: /[\w][^\s]*/, token: "variable"},
+          {regex: /--.*/, token: "comment"}
         ],
         // The meta property contains global information about the mode. It
         // can contain properties like lineComment, which are supported by
