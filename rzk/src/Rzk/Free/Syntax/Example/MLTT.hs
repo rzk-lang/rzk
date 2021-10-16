@@ -188,6 +188,9 @@ pattern App t1 t2 = FreeScoped (AppF t1 t2)
 pattern Sigma :: Term b a -> ScopedTerm b a -> Term b a
 pattern Sigma a b = FreeScoped (SigmaF a b)
 
+mkProdType :: Term b a -> Term b a -> Term b a
+mkProdType a b = Sigma a (Scope.toScope (Bound.F <$> b))
+
 pattern Pair :: Term b a -> Term b a -> Term b a
 pattern Pair t1 t2 = FreeScoped (PairF t1 t2)
 
@@ -781,18 +784,18 @@ ppTerm vars = \case
        then ppTermArg vars a <+> "×" <> line <> b'
        else parens (pretty x <+> ":" <+> ppType vars a) <+> "×" <> line <> b'
   Pair f s -> tupled (map (group . ppTerm vars) [f, s])
-  First t  -> "π₁" <+> ppTermArg vars t
-  Second t -> "π₂" <+> ppTermArg vars t
+  First t  -> ppElimWithArgs vars "π₁" [t]
+  Second t -> ppElimWithArgs vars "π₂" [t]
 
   IdType a x y -> ppTermFun vars x <+> "=_{" <> ppType vars a <> "}" <+> ppTermFun vars y
-  Refl Nothing x -> "refl" <+> ppTermArg vars x
-  Refl (Just a) x -> "refl_{" <> ppType vars a <> "}" <+> ppTermArg vars x
+  Refl Nothing x -> ppElimWithArgs vars "refl" [x]
+  Refl (Just a) x -> ppElimWithArgs vars ("refl_{" <> ppType vars a <> "}") [x]
   J tA a tC d x p -> ppElimWithArgs vars "J" [tA, a, tC, d, x, p]
   where
     withoutBoundVars = null . Scope.bindings
 
 ppElimWithArgs :: (Pretty a, Pretty b) => [a] -> Doc ann -> [Term b a] -> Doc ann
-ppElimWithArgs vars name args = hsep (name : map (ppTermFun vars) args)
+ppElimWithArgs vars name args = name <> tupled (map (ppTermFun vars) args)
 
 -- | Pretty-print an untyped in a head position.
 ppTermFun :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
@@ -1420,6 +1423,8 @@ pOperatorTable :: (TokenParsing m, Monad m) => OperatorTable m Term'
 pOperatorTable =
   [ [ Infix (pure App) AssocLeft ]
   , [ Infix (IdType <$ symbol "=_{" <*> pTerm <* symbol "}") AssocNone]
+  , [ Infix (mkProdType <$ symbol "*") AssocRight ]
+  , [ Infix (mkFun <$ symbol "->") AssocRight ]
   ]
 
 pTerm :: (TokenParsing m, Monad m) => m Term'
@@ -1436,33 +1441,43 @@ pNotAppTerm = Trifecta.choice
 pNotPiSigmaTerm :: (TokenParsing m, Monad m) => m Term'
 pNotPiSigmaTerm = Trifecta.choice
   [ Universe <$ symbol "U"
-  , lam_ "x" (First (Var "x")) <$ (symbol "first" <|> symbol "π₁")
-  , lam_ "x" (Second (Var "x")) <$ (symbol "second" <|> symbol "π₂")
-  , (\ty -> lam_ "x" (Refl (Just ty) (Var "x")))
-      <$ symbol "refl_{" <*> pTerm <* symbol "}"
-  , lam_ "x" (Refl Nothing (Var "x"))
-      <$ symbol "refl"
-  , etaJ <$ symbol "J"
+  , First <$  (symbol "first" <|> symbol "π₁")
+          <*> Trifecta.parens pTerm
+  , Second <$  (symbol "second" <|> symbol "π₂")
+          <*> Trifecta.parens pTerm
+  , Refl <$ symbol "refl_{"
+         <*> (Just <$> pTerm)
+         <* symbol "}"
+         <*> Trifecta.parens pTerm
+  , Refl Nothing
+         <$ symbol "refl"
+         <*> Trifecta.parens pTerm
+  , symbol "J" *> Trifecta.parens
+      (J <$> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm )
+  -- , lam_ "x" (First (Var "x")) <$ (symbol "first" <|> symbol "π₁")
+  -- , lam_ "x" (Second (Var "x")) <$ (symbol "second" <|> symbol "π₂")
+  -- , (\ty -> lam_ "x" (Refl (Just ty) (Var "x")))
+  --    <$ symbol "refl_{" <*> pTerm <* symbol "}"
+  -- , lam_ "x" (Refl Nothing (Var "x"))
+  --    <$ symbol "refl"
+  -- , etaJ <$ symbol "J"
   , pVar
   , pLam
   , Trifecta.parens pTerm
   ]
 
 pPi :: (TokenParsing m, Monad m) => m Term'
-pPi =
-  Trifecta.choice
-    [ Trifecta.try (Trifecta.parens arg)
-    , mkFun <$> pNotPiSigmaTerm ] <*
-  symbol "->" <*> pTerm
+pPi = Trifecta.parens arg <* symbol "->" <*> pTerm
   where
     arg = pi_ <$> pIdent <* symbol ":" <*> pTerm
 
 pSigma :: (TokenParsing m, Monad m) => m Term'
-pSigma =
-  Trifecta.choice
-    [ Trifecta.try (Trifecta.parens arg)
-    , mkFun <$> pNotPiSigmaTerm ] <*
-      (symbol "*" <|> symbol "×") <*> pTerm
+pSigma = Trifecta.parens arg <* (symbol "*" <|> symbol "×") <*> pTerm
   where
     arg = pi_ <$> pIdent <* symbol ":" <*> pTerm
 
