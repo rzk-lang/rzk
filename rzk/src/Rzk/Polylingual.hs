@@ -6,8 +6,8 @@ module Rzk.Polylingual where
 
 import           Control.Applicative
 import           Control.Monad                (void)
-import           Data.Char                    (toLower, toUpper)
-import           Data.Char                    (isPrint, isSpace)
+import           Data.Char                    (isPrint, isSpace, toLower,
+                                               toUpper)
 import           Data.Foldable                (traverse_)
 import qualified Data.HashSet                 as HashSet
 import qualified Data.Text                    as Text
@@ -139,7 +139,27 @@ runCommandPCF = \case
   Unify _ _ -> "#unify is not supported in PCF at the moment"
 
 runCommandMLTT :: Command Var MLTT.Term' -> String
-runCommandMLTT _ = "rzk-1 is not supported at the moment"
+runCommandMLTT = \case
+  TypeCheck term ty ->
+    case MLTT.execTypeCheck' (MLTT.typecheck' term ty) of
+      Right typedTerm -> show typedTerm
+      Left msg        -> show msg
+  Infer term ->
+    case MLTT.execTypeCheck' (MLTT.infer' term) of
+      Right typedTerm -> show typedTerm
+      Left msg        -> show msg
+  Evaluate EvaluateToWHNF term ->
+    case MLTT.execTypeCheck' (MLTT.infer' term) of
+      Right typedTerm -> show (MLTT.whnf typedTerm)
+      Left msg        -> show msg
+  Evaluate EvaluateToNF term ->
+    case MLTT.execTypeCheck' (MLTT.infer' term) of
+      Right typedTerm -> show (MLTT.nf typedTerm)
+      Left msg        -> show msg
+  Declare decl ->
+    "declarations are not supported in MLTT at the moment:\n  " <> show decl
+  Unify _ _ -> "#unify is not supported in MLTT at the moment"
+
 
 safeParseSomeModule :: String -> Either String SomeModule
 safeParseSomeModule input =
@@ -184,7 +204,7 @@ pPCF :: PolyParser (Module Var PCF.Term')
 pPCF = Module <$> many (pCommand PCF.pTerm)
 
 pMLTT :: PolyParser (Module Var MLTT.Term')
-pMLTT = Module <$> many (pCommand (undefined <$ string ""))
+pMLTT = Module <$> many (pCommand MLTT.pTerm)
 
 pCommand :: PolyParser term -> PolyParser (Command Var term)
 pCommand pTerm = "command" <??> choice
