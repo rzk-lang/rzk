@@ -216,10 +216,31 @@
         theme: "gruvbox-dark"
       });
 
+      snippet_rzk1 = "#lang rzk-1\n\nprod : (A : U) → (B : U) → U\n  := λ(A : U) → λ(B : U) → ∑ (x : A), B\n\nisweq : (A : U) → (B : U) → (f : (_ : A) → B) → U\n  := λ(A : U) → λ(B : U) → λ(f : (_ : A) → B) → ∑ (g : (_ : B) → A), (prod ((x : A) → (g (f x)) =_{A} x)) ((y : B) → (f (g y)) =_{B} y)\n\nweq : (A : U) → (B : U) → U\n  := λ(A : U) → λ(B : U) → ∑ (f : (_ : A) → B), ((isweq A) B) f\n    \nRS17:Thm:4_1 : (I : CUBE) → (psi : (t : I) → TOPE) → (phi : {t : I | psi t} → TOPE) → (X : U) → (Y : <{t : I | psi t} → (x : X) → U [BOT |-> recBOT]>) → (f : <{t : I | phi t} → (x : X) → Y t x [BOT |-> recBOT]>) → weq (<{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>) ((x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>)\n  := λ(I : CUBE) → λ(psi : (t : I) → TOPE) → λ(phi : {t : I | psi t} → TOPE) → λ(X : U) → λ(Y : <{t : I | psi t} → (x : X) → U [BOT |-> recBOT]>) → λ(f : <{t : I | phi t} → (x : X) → Y t x [BOT |-> recBOT]>) → (λ(g : <{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>) → λ(x : X) → λ{t : I | psi t} → g t x, (λ(g : (x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>) → λ{t : I | psi t} → λ(x : X) → g x t, (λ(g : <{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>) → refl_{g : <{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>}, λ(g : (x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>) → refl_{g : (x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>})))\n";
+
+      snippet_stlc = "#lang stlc\n\n#infer λA → λx → x\n    \n#infer λf → f x y\n    \n#infer λf → f f\n\n#infer λf → λg → λx → f (g x)\n  \n#infer λf → λg → λx → f g (g x)\n";
+
+      snippet_pcf = "#lang pcf\n\n-- infer the type of factorial\n#infer fix -- using fixpoint combinator to simulate recursion\n  (λfct → λn →\n    if isZero n\n      then 1\n      else n * (fct (pred n)))\n\n-- compute 8!\n#whnf fix -- using fixpoint combinator to simulate recursion\n  (λfct → λn →\n    if isZero n\n      then 1\n      else n * (fct (pred n)))\n  8\n\n";
+
+      snippet_mltt = "#lang mltt\n\n-- eta-expanded J\n#infer\n  λA → λC → λd → λx → λp →\n    J(A, a, C, d, x, p)\n\n-- path inversion\n#infer\n--  λA → λx → λy →\n  λp →\n  	J(A, x, λz → λq → z =_{A} x, refl(x), y, p)\n      \n-- path inversion of refl yields refl\n#nf\n  λA → λa →\n  (λx → λy → λp → J(A, x, λz → λq → z =_{A} x, refl(x), y, p))\n    a a (refl(a))\n\n-- concatenation of paths (transitivity)      \n#infer\n  λp → λq →\n    J(A, y, λw → λ_s → x =_{A} w, p, z, q)\n";
+
+      snippet = "";
+
       /* use default snippet if one is not set in the query parameters */
-      snippet = "#lang pcf\n\n-- infer the type of factorial\n#infer fix -- using fixpoint combinator to simulate recursion\n  (λfct → λn →\n    if isZero n\n      then 1\n      else n * (fct (pred n)))\n\n-- compute 8!\n#whnf fix -- using fixpoint combinator to simulate recursion\n  (λfct → λn →\n    if isZero n\n      then 1\n      else n * (fct (pred n)))\n  8\n\n";
       if (params.has("snippet")) {
         snippet = decodeURIComponent(params.get("snippet"));
+      } else {
+        /* default lang is mltt */
+        lang = "mltt";
+
+        if (params.has("lang")) {
+          lang = decodeURIComponent(params.get("lang"));
+        }
+
+        if (lang == "mltt")  { snippet = snippet_mltt; }
+        if (lang == "pcf")   { snippet = snippet_pcf; }
+        if (lang == "stlc")  { snippet = snippet_stlc; }
+        if (lang == "rzk-1") { snippet = snippet_rzk1; }
       }
       myCodeMirror.setValue(snippet);
     </script>
