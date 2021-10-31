@@ -124,6 +124,24 @@ data Sum f g scope term
 
 type (:+:) = Sum
 
+data Const a scope term = Const a
+  deriving (Functor, Foldable, Traversable)
+
+-- stratSum
+--   :: (Bifunctor f, Bifunctor g)
+--   => FreeScoped b (f :+: g) a
+--   -> FreeScoped b f (FreeScoped b (f :+: g) a)
+-- stratSum = \case
+--   PureScoped x -> pure (pure x)
+--   FreeScoped (InL f) -> FreeScoped (bimap stratSumScoped stratSum f)
+--   fg -> pure fg
+--
+-- stratSumScoped
+--   :: (Bifunctor f, Bifunctor g)
+--   => Scope b (FreeScoped b (f :+: g)) a
+--   -> Scope b (FreeScoped b f) (FreeScoped b (f :+: g) a)
+-- stratSumScoped = toScope . _ . stratSum . fromScope
+
 -- viewL
 --   :: (Monad m, Bifunctor f)
 --   => FreeScopedT b (f :+: g) m a
@@ -136,3 +154,7 @@ type (:+:) = Sum
 deriveBifunctor ''Sum
 deriveBifoldable ''Sum
 deriveBitraversable ''Sum
+
+deriveBifunctor ''Const
+deriveBifoldable ''Const
+deriveBitraversable ''Const
