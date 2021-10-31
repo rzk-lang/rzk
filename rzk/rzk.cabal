@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d1c7731c278735b2d99e8fcc2bea95f0ad849df808ac8db6504a3663206211b4
+-- hash: 469e7eb27d1a8042d8c347b5a49bcf431c02b6787fca144fa10836408493be0a
 
 name:           rzk
 version:        0.1.0.0
@@ -42,8 +42,8 @@ library
       Rzk.Free.Pretty
       Rzk.Free.Syntax.Decl
       Rzk.Free.Syntax.Example.MLTT
+      Rzk.Free.Syntax.Example.PCF
       Rzk.Free.Syntax.Example.STLC
-      Rzk.Free.Syntax.Example.TTSC
       Rzk.Free.Syntax.Example.ULC
       Rzk.Free.Syntax.Free2
       Rzk.Free.Syntax.FreeScoped
@@ -59,6 +59,7 @@ library
       Rzk.Free.TypeCheck.Trans
       Rzk.Free.TypeCheck.TypeError
       Rzk.Parser.Text
+      Rzk.Polylingual
       Rzk.Pretty.Text
       Rzk.Syntax.Decl
       Rzk.Syntax.Module
@@ -83,11 +84,11 @@ library
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010
 
@@ -111,12 +112,12 @@ executable rzk
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , rzk
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010
 
@@ -142,12 +143,12 @@ test-suite doctests
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , template-haskell
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010
 
@@ -172,11 +173,11 @@ test-suite rzk-test
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , rzk
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010

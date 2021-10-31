@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveTraversable          #-}
@@ -24,6 +25,11 @@ import           Bound.Var
 import           Data.Maybe                             (mapMaybe)
 
 import           Control.Monad.State
+
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail (MonadFail)
+#endif
+
 import           Data.Bifoldable
 import           Data.Bifunctor
 import           Data.Bifunctor.TH

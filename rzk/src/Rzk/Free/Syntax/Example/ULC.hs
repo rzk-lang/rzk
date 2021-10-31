@@ -323,9 +323,6 @@ unsafeParseString parser input =
 
 -- * Pretty-printing
 
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
-
 -- | Uses 'Pretty' instance.
 instance (Pretty a, Pretty b, IsString a) => Show (Term b a) where
   show = show . pretty

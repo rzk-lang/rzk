@@ -12,38 +12,53 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 module Rzk.Free.Syntax.Example.STLC where
 
-import qualified Bound.Scope                             as Scope
-import qualified Bound.Var                               as Bound
+import qualified Bound.Scope                               as Scope
+import qualified Bound.Var                                 as Bound
+import           Control.Applicative
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
-import           Data.Char                               (chr, ord)
-import           Data.Maybe                              (fromMaybe)
-import           Data.String                             (IsString (..))
-import           Data.Text.Prettyprint.Doc               as Doc
+import           Data.Char                                 (chr, isPrint,
+                                                            isSpace, ord)
+import qualified Data.HashSet                              as HashSet
+import           Data.Maybe                                (fromMaybe)
+import           Data.String                               (IsString (..))
+import qualified Data.Text                                 as Text
+import           Data.Text.Prettyprint.Doc                 as Doc
+import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
+import           System.IO.Unsafe                          (unsafePerformIO)
+import           Text.Parser.Token                         ()
+import           Text.Parser.Token.Style                   (emptyIdents)
+import           Text.Trifecta                             (IdentifierStyle (..),
+                                                            Parser,
+                                                            TokenParsing,
+                                                            symbol)
+import qualified Text.Trifecta                             as Trifecta
 
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
-import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
-                                                          TypeInfo, assignType,
-                                                          clarifyTypedTerm,
-                                                          freshTypeMetaVar,
-                                                          nonDep,
-                                                          shouldHaveType,
-                                                          typeOf,
-                                                          typeOfScopedWith,
-                                                          typecheckDist,
-                                                          typecheckInScope,
-                                                          unifyWithExpected,
-                                                          untyped,
-                                                          untypedScoped)
-import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
-import           Rzk.Free.Syntax.FreeScoped.Unification  (UVar (..))
-import           Rzk.Free.Syntax.FreeScoped.Unification2 (HigherOrderUnifiable (..),
-                                                          Unifiable (..))
-import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification
-import qualified Rzk.Syntax.Var                          as Rzk
+import           Rzk.Free.Syntax.FreeScoped.TypeCheck      (TypeCheck,
+                                                            TypeError, TypeInfo,
+                                                            assignType,
+                                                            clarifyTypedTerm,
+                                                            freshTypeMetaVar,
+                                                            nonDep,
+                                                            shouldHaveType,
+                                                            typeOf,
+                                                            typeOfScopedWith,
+                                                            typecheckDist,
+                                                            typecheckInScope,
+                                                            unifyWithExpected,
+                                                            untyped,
+                                                            untypedScoped)
+import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck      as TypeCheck
+import           Rzk.Free.Syntax.FreeScoped.Unification    (UVar (..))
+import           Rzk.Free.Syntax.FreeScoped.Unification2   (HigherOrderUnifiable (..),
+                                                            Unifiable (..))
+import qualified Rzk.Free.Syntax.FreeScoped.Unification2   as Unification
+import qualified Rzk.Syntax.Var                            as Rzk
 
 -- * Generators
 
@@ -58,36 +73,6 @@ data TermF scope term
   | LamF (Maybe term) scope
   -- | Application of one term to another: \((t_1) t_2\)
   | AppF term term
-
-  -- | Non-recursive \(\mathsf{let}\)-expression:
-  -- \(\mathsf{let\;} x = t_1 \mathsf{\;in\;} t_2\).
-  | LetF term scope
-
-  -- | Unit type: \(\mathsf{UNIT}\)
-  | UnitTypeF
-  -- | Unit (the only value of the unit type): \(\mathsf{unit}\)
-  | UnitF
-
-  -- | Fixpoint combinator: \(\mathsf{fix\;} t\)
-  | FixF term
-
-  -- | Type of natural numbers: \(\mathsf{NAT}\)
-  | NatTypeF
-  -- | Natural number literals: \(0, 1, 2, \ldots\)
-  | NatLitF Integer
-  -- | Multiplication of numbers: \(t_1 \times t_2\)
-  | NatMultiplyF term term
-  -- | Predecessor (decrement): \(\mathsf{pred\;} t\)
-  | NatPredF term
-  -- | Check if natural number is zero: \(\mathsf{isZero\;} t\)
-  | NatIsZeroF term
-
-  -- | Type of booleans: \(\mathsf{BOOL}\)
-  | BoolTypeF
-  -- | Boolean literal: \(\mathsf{true}\) or \(\mathsf{false}\)
-  | BoolLitF Bool
-  -- | \(\mathsf{if}\)-expression: \(\mathsf{if\;}t_{\text{cond}} \mathsf{\;them\;} t_1 \mathsf{\;else\;} t_2\)
-  | BoolIfF term term term
   deriving (Show, Functor, Foldable, Traversable)
 
 -- | Generating bifunctor for typed terms of simply typed lambda calculus.
@@ -157,15 +142,6 @@ pattern Var x = PureScoped x
 pattern Universe :: Term b a
 pattern Universe = FreeScoped UniverseF
 
-pattern Unit :: Term b a
-pattern Unit = FreeScoped UnitF
-
-pattern UnitType :: Term b a
-pattern UnitType = FreeScoped UnitTypeF
-
-pattern Let :: Term b a -> ScopedTerm b a -> Term b a
-pattern Let u t = FreeScoped (LetF u t)
-
 -- | A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
 pattern Fun :: Term b a -> Term b a -> Term b a
 pattern Fun a b = FreeScoped (FunF a b)
@@ -178,40 +154,9 @@ pattern Lam ty body = FreeScoped (LamF ty body)
 pattern App :: Term b a -> Term b a -> Term b a
 pattern App t1 t2 = FreeScoped (AppF t1 t2)
 
-pattern Fix :: Term b a -> Term b a
-pattern Fix t = FreeScoped (FixF t)
-
-pattern NatType :: Term b a
-pattern NatType = FreeScoped NatTypeF
-
-pattern NatLit :: Integer -> Term b a
-pattern NatLit n = FreeScoped (NatLitF n)
-
-pattern NatMultiply :: Term b a -> Term b a -> Term b a
-pattern NatMultiply n m = FreeScoped (NatMultiplyF n m)
-
-pattern NatPred :: Term b a -> Term b a
-pattern NatPred n = FreeScoped (NatPredF n)
-
-pattern NatIsZero :: Term b a -> Term b a
-pattern NatIsZero n = FreeScoped (NatIsZeroF n)
-
-pattern BoolType :: Term b a
-pattern BoolType = FreeScoped BoolTypeF
-
-pattern BoolLit :: Bool -> Term b a
-pattern BoolLit b = FreeScoped (BoolLitF b)
-
-pattern BoolIf :: Term b a -> Term b a -> Term b a -> Term b a
-pattern BoolIf c t f = FreeScoped (BoolIfF c t f)
-
 {-# COMPLETE
    Var, Universe,
-   Fun, Lam, App,
-   Let, Fix,
-   UnitType, Unit,
-   NatType, NatLit, NatMultiply, NatPred, NatIsZero,
-   BoolType, BoolLit, BoolIf #-}
+   Fun, Lam, App #-}
 
 -- *** Typed
 
@@ -222,12 +167,6 @@ pattern VarT x = PureScoped x
 -- | Universe type \(\mathcal{U}_i\)
 pattern UniverseT :: Maybe (TypedTerm b a) -> TypedTerm b a
 pattern UniverseT ty = TypeCheck.TypedT ty UniverseF
-
-pattern UnitTypeT :: Maybe (TypedTerm b a) -> TypedTerm b a
-pattern UnitTypeT ty = TypeCheck.TypedT ty UnitTypeF
-
-pattern UnitT :: Maybe (TypedTerm b a) -> TypedTerm b a
-pattern UnitT ty = TypeCheck.TypedT ty UnitF
 
 -- | A dependent product type (\(\Pi\)-type): \(\prod_{x : A} B(x)).
 pattern FunT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
@@ -241,43 +180,9 @@ pattern LamT ty argType body = TypeCheck.TypedT ty (LamF argType body)
 pattern AppT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
 pattern AppT ty t1 t2 = TypeCheck.TypedT ty (AppF t1 t2)
 
-pattern LetT :: Maybe (TypedTerm b a) -> TypedTerm b a -> ScopedTypedTerm b a -> TypedTerm b a
-pattern LetT ty term scope = TypeCheck.TypedT ty (LetF term scope)
-
-pattern FixT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
-pattern FixT ty term = TypeCheck.TypedT ty (FixF term)
-
-pattern NatTypeT :: Maybe (TypedTerm b a) -> TypedTerm b a
-pattern NatTypeT ty = TypeCheck.TypedT ty NatTypeF
-
-pattern NatLitT :: Maybe (TypedTerm b a) -> Integer -> TypedTerm b a
-pattern NatLitT ty n = TypeCheck.TypedT ty (NatLitF n)
-
-pattern NatMultiplyT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern NatMultiplyT ty n m = TypeCheck.TypedT ty (NatMultiplyF n m)
-
-pattern NatPredT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
-pattern NatPredT ty n = TypeCheck.TypedT ty (NatPredF n)
-
-pattern NatIsZeroT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a
-pattern NatIsZeroT ty n = TypeCheck.TypedT ty (NatIsZeroF n)
-
-pattern BoolTypeT :: Maybe (TypedTerm b a) -> TypedTerm b a
-pattern BoolTypeT ty = TypeCheck.TypedT ty BoolTypeF
-
-pattern BoolLitT :: Maybe (TypedTerm b a) -> Bool -> TypedTerm b a
-pattern BoolLitT ty b = TypeCheck.TypedT ty (BoolLitF b)
-
-pattern BoolIfT :: Maybe (TypedTerm b a) -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a -> TypedTerm b a
-pattern BoolIfT ty c t f = TypeCheck.TypedT ty (BoolIfF c t f)
-
 {-# COMPLETE
    VarT, UniverseT,
-   FunT, LamT, AppT,
-   LetT, FixT,
-   UnitTypeT, UnitT,
-   NatTypeT, NatLitT, NatMultiplyT, NatPredT, NatIsZeroT,
-   BoolTypeT, BoolLitT, BoolIfT #-}
+   FunT, LamT, AppT #-}
 
 -- ** Smart constructors
 
@@ -287,12 +192,6 @@ pattern BoolIfT ty c t f = TypeCheck.TypedT ty (BoolIfF c t f)
 -- U : U
 universeT :: TypedTerm b a
 universeT = TypeCheck.TypedT Nothing UniverseF
-
-natTypeT :: TypedTerm b a
-natTypeT = NatTypeT (Just universeT)
-
-boolTypeT :: TypedTerm b a
-boolTypeT = BoolTypeT (Just universeT)
 
 -- | Abstract over one variable in a term.
 --
@@ -314,13 +213,6 @@ lam ty x body = Lam ty (abstract1Name x body)
 lam_ :: Eq a => a -> Term a a -> Term a a
 lam_ x body = Lam Nothing (abstract1Name x body)
 
--- | Non-recursive \(\mathsf{let}\)-expression with one bound variable.
---
--- >>> let_ (App (Var "f") (Var "x")) "y" (App (Var "g") (Var "y")) :: Term'
--- let x₁ = f x in g x₁
-let_ :: Eq a => Term a a -> a -> Term a a -> Term a a
-let_ u x body = Let u (abstract1Name x body)
-
 -- ** Evaluation
 
 whnfUntyped :: Term b a -> Term b a
@@ -338,45 +230,10 @@ whnf = \case
         whnf (Scope.instantiate1 x body)
       f' -> AppT ty f' x
 
-  LetT _type term body -> whnf (Scope.instantiate1 term body)
-
-  FixT ty term -> whnf (AppT ty term (FixT ty term))
-
-  NatMultiplyT ty t1 t2 ->
-    case whnf t1 of
-      t1'@(NatLitT _ n) ->
-        case whnf t2 of
-          NatLitT _ m ->
-            NatLitT ty (n * m)
-          t2' -> NatMultiplyT ty t1' t2'
-      t1' -> NatMultiplyT ty t1' t2
-
-  NatPredT ty t ->
-    case whnf t of
-      NatLitT _ n -> NatLitT ty (n - 1)
-      t'          -> NatPredT ty t'
-
-  NatIsZeroT ty t ->
-    case whnf t of
-      NatLitT _ n -> BoolLitT (Just (BoolTypeT (Just universeT))) (n == 0)
-      t'          -> NatIsZeroT ty t'
-
-  BoolIfT ty c t f ->
-    case whnf c of
-      BoolLitT _ True  -> whnf t
-      BoolLitT _ False -> whnf f
-      c'               -> BoolIfT ty c' t f
-
   t@LamT{} -> t
   t@UniverseT{} -> t
-  t@UnitTypeT{} -> t
-  t@UnitT{} -> t
   t@VarT{} -> t
   t@FunT{} -> t
-  t@NatTypeT{} -> t
-  t@NatLitT{} -> t
-  t@BoolTypeT{} -> t
-  t@BoolLitT{} -> t
 
 nf :: TypedTerm b a -> TypedTerm b a
 nf = \case
@@ -386,44 +243,9 @@ nf = \case
         nf (Scope.instantiate1 x body)
       f' -> AppT (nf <$> ty) (nf f') (nf x)
 
-  LetT _type term body -> nf (Scope.instantiate1 term body)
-
-  FixT ty term -> nf (AppT ty term (FixT ty term))
-
-  NatMultiplyT ty t1 t2 ->
-    case whnf t1 of
-      t1'@(NatLitT _ n) ->
-        case whnf t2 of
-          NatLitT _ m ->
-            NatLitT (nf <$> ty) (n * m)
-          t2' -> NatMultiplyT (nf <$> ty) (nf t1') (nf t2')
-      t1' -> NatMultiplyT (nf <$> ty) (nf t1') (nf t2)
-
-  NatPredT ty t ->
-    case whnf t of
-      NatLitT _ n -> NatLitT (nf <$> ty) (n - 1)
-      t'          -> NatPredT (nf <$> ty) (nf t')
-
-  NatIsZeroT ty t ->
-    case whnf t of
-      NatLitT _ n -> BoolLitT (Just (BoolTypeT (Just universeT))) (n == 0)
-      t'          -> NatIsZeroT (nf <$> ty) (nf t')
-
-  BoolIfT ty c t f ->
-    case whnf c of
-      BoolLitT _ True  -> nf t
-      BoolLitT _ False -> nf f
-      c'               -> BoolIfT (nf <$> ty) (nf c') (nf t) (nf f)
-
   LamT ty typeOfArg body -> LamT (nf <$> ty) (nf <$> typeOfArg) (nfScope body)
   UniverseT ty -> UniverseT (nf <$> ty)
-  UnitTypeT ty -> UnitTypeT (nf <$> ty)
-  UnitT ty -> UnitT (nf <$> ty)
   FunT ty a b -> FunT (nf <$> ty) (nf a) (nf b)
-  NatTypeT ty -> NatTypeT (nf <$> ty)
-  NatLitT ty n -> NatLitT (nf <$> ty) n
-  BoolTypeT ty -> BoolTypeT (nf <$> ty)
-  BoolLitT ty n -> BoolLitT (nf <$> ty) n
 
   t@VarT{} -> t
   where
@@ -450,49 +272,10 @@ instance Unifiable TermF where
 
   zipMatch UniverseF UniverseF = Just UniverseF
 
-  zipMatch UnitTypeF UnitTypeF = Just UnitTypeF
-  zipMatch UnitF UnitF = Just UnitF
-
-  zipMatch (LetF u1 t1) (LetF u2 t2)
-    = Just (LetF (Right (u1, u2)) (Right (t1, t2)))
-
-  zipMatch (FixF t1) (FixF t2)
-    = Just (FixF (Right (t1, t2)))
-
-  zipMatch NatTypeF NatTypeF = Just NatTypeF
-  zipMatch (NatLitF n1) (NatLitF n2)
-    | n1 == n2 = Just (NatLitF n1)
-    | otherwise = Nothing
-  zipMatch (NatMultiplyF n1 m1) (NatMultiplyF n2 m2)
-    = Just (NatMultiplyF (Right (n1, n2)) (Right (m1, m2)))
-  zipMatch (NatPredF n1) (NatPredF n2)
-    = Just (NatPredF (Right (n1, n2)))
-  zipMatch (NatIsZeroF n1) (NatIsZeroF n2)
-    = Just (NatIsZeroF (Right (n1, n2)))
-
-  zipMatch BoolTypeF BoolTypeF = Just BoolTypeF
-  zipMatch (BoolLitF b1) (BoolLitF b2)
-    | b1 == b2 = Just (BoolLitF b1)
-    | otherwise = Nothing
-  zipMatch (BoolIfF c1 t1 f1) (BoolIfF c2 t2 f2)
-    = Just (BoolIfF (Right (c1, c2)) (Right (t1, t2)) (Right (f1, f2)))
-
   zipMatch FunF{} _ = Nothing
   zipMatch LamF{} _ = Nothing
   zipMatch UniverseF{} _ = Nothing
   zipMatch AppF{} _ = Nothing
-  zipMatch UnitTypeF{} _ = Nothing
-  zipMatch UnitF{} _ = Nothing
-  zipMatch LetF{} _ = Nothing
-  zipMatch FixF{} _ = Nothing
-  zipMatch NatTypeF{} _ = Nothing
-  zipMatch NatLitF{} _ = Nothing
-  zipMatch NatMultiplyF{} _ = Nothing
-  zipMatch NatPredF{} _ = Nothing
-  zipMatch NatIsZeroF{} _ = Nothing
-  zipMatch BoolTypeF{} _ = Nothing
-  zipMatch BoolLitF{} _ = Nothing
-  zipMatch BoolIfF{} _ = Nothing
 
 instance HigherOrderUnifiable TermF where
   appSome _ []     = error "cannot apply to zero arguments"
@@ -587,58 +370,6 @@ inferTypeForTermF term = case term of
           clarifyTypedTerm bodyType
         _ -> fail "inferTypeForF: application of a non-function"
 
-  UnitTypeF -> pure (TypeCheck.TypedF UnitTypeF (Just universeT))
-  UnitF -> pure (TypeCheck.TypedF UnitF (Just (UnitTypeT (Just universeT))))
-  LetF inferArg inferBody -> do
-    arg <- inferArg
-    typeOfArg <- typeOf arg
-    typeOfArg' <- typeOfArg `shouldHaveType` universeT
-    scopedTypedBody <- typecheckInScope $ do
-      assignType (Bound.B (Name Nothing ())) (fmap Bound.F typeOfArg')
-      inferBody
-    typeOfBody <- typeOfScopedWith typeOfArg' scopedTypedBody >>= nonDep
-    typeOfBody' <- typeOfBody `shouldHaveType` universeT
-    pure $ TypeCheck.TypedF
-      (LetF arg scopedTypedBody)
-      (Just typeOfBody')
-
-  FixF inferTerm -> do
-    f <- inferTerm
-    TypeCheck.TypedF (FixF f) . Just <$> do
-      typeOf f >>= \case
-        FunT _ argType bodyType -> do
-          bodyType `unifyWithExpected` argType
-        t@(VarT _) -> do
-          resultType <- VarT . UMetaVar <$> freshTypeMetaVar
-          _ <- t `unifyWithExpected` FunT (Just universeT) resultType resultType
-          clarifyTypedTerm resultType
-        _ -> fail "inferTypeForF: fix used with a non-function"
-
-  NatTypeF -> pure (TypeCheck.TypedF NatTypeF (Just universeT))
-  NatLitF n -> pure (TypeCheck.TypedF (NatLitF n) (Just (NatTypeT (Just universeT))))
-  NatMultiplyF inferN inferM -> do
-    n <- inferN
-    n' <- n `shouldHaveType` natTypeT
-    m <- inferM
-    m' <- m `shouldHaveType` natTypeT
-    return (TypeCheck.TypedF (NatMultiplyF n' m') (Just natTypeT))
-  NatPredF inferN -> do
-    n <- inferN >>= (`shouldHaveType` natTypeT)
-    return (TypeCheck.TypedF (NatPredF n) (Just natTypeT))
-  NatIsZeroF inferN -> do
-    n <- inferN >>= (`shouldHaveType` natTypeT)
-    return (TypeCheck.TypedF (NatIsZeroF n) (Just boolTypeT))
-
-  BoolTypeF -> pure (TypeCheck.TypedF BoolTypeF (Just universeT))
-  BoolLitF b -> pure (TypeCheck.TypedF (BoolLitF b) (Just (BoolTypeT (Just universeT))))
-
-  BoolIfF inferCond inferTrue inferFalse -> do
-    cond <- inferCond >>= (`shouldHaveType` boolTypeT)
-    true <- inferTrue
-    typeOfTrue <- typeOf true
-    false <- inferFalse >>= (`shouldHaveType` typeOfTrue)
-    pure (TypeCheck.TypedF (BoolIfF cond true false) (Just typeOfTrue))
-
 execTypeCheck' :: TypeCheck' a -> Either TypeError' a
 execTypeCheck' = TypeCheck.execTypeCheck defaultFreshMetaVars
 
@@ -647,6 +378,9 @@ runTypeCheckOnce' = TypeCheck.runTypeCheckOnce defaultFreshMetaVars
 
 infer' :: Term' -> TypeCheck' UTypedTerm'
 infer' = TypeCheck.infer
+
+typecheck' :: Term' -> Term' -> TypeCheck' UTypedTerm'
+typecheck' = TypeCheck.typecheckUntyped
 
 inferScoped' :: ScopedTerm' -> TypeCheck' UScopedTypedTerm'
 inferScoped' = TypeCheck.inferScoped
@@ -661,9 +395,6 @@ unsafeInfer' = unsafeUnpack . execTypeCheck' . infer'
     unsafeUnpack _ = error "unsafeInfer': failed to extract term with inferred type"
 
 -- ** Pretty-printing
-
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
 
 instance (Pretty n, Pretty b) => Pretty (Name n b) where
   pretty (Name Nothing b)     = pretty b
@@ -720,24 +451,6 @@ ppTerm vars = \case
     "λ" <> parens (pretty x <+> ":" <+> ppTerm vars ty) <+> "→" <+> body'
   App f x -> ppTermFun vars f <+> ppTermArg vars x
 
-  Fix f -> "fix" <+> ppTermArg vars f
-
-  UnitType -> "UNIT"
-  Unit -> "unit"
-  Let u t -> ppScopedTerm vars t $ \x t' ->
-    align (hsep ["let" <+> pretty x <+> "=" <+> ppTerm vars u <+> "in", t'])
-
-  NatType -> "NAT"
-  NatLit n -> pretty n
-  NatMultiply n m -> ppTermArg vars n <+> "*" <+> ppTermArg vars m
-  NatPred n -> "pred" <+> ppTermArg vars n
-  NatIsZero n -> "isZero" <+> ppTermArg vars n
-
-  BoolType -> "BOOL"
-  BoolLit True -> "true"
-  BoolLit False -> "false"
-  BoolIf c t f -> "if" <+> ppTermArg vars c <+> "then" <+> ppTermArg vars t <+> "else" <+> ppTermArg vars f
-
 ppElimWithArgs :: (Pretty a, Pretty b) => [a] -> Doc ann -> [Term b a] -> Doc ann
 ppElimWithArgs vars name args = name <> tupled (map (ppTermFun vars) args)
 
@@ -747,21 +460,9 @@ ppTermFun vars = \case
   t@Var{} -> ppTerm vars t
   t@App{} -> ppTerm vars t
   t@Universe{} -> ppTerm vars t
-  t@Unit{} -> ppTerm vars t
-  t@UnitType{} -> ppTerm vars t
-  t@Fix{} -> ppTerm vars t
-  t@NatType{} -> ppTerm vars t
-  t@NatLit{} -> ppTerm vars t
-  t@BoolType{} -> ppTerm vars t
-  t@BoolLit{} -> ppTerm vars t
 
   t@Lam{} -> Doc.parens (ppTerm vars t)
   t@Fun{} -> Doc.parens (ppTerm vars t)
-  t@Let{} -> Doc.parens (ppTerm vars t)
-  t@NatMultiply{} -> Doc.parens (ppTerm vars t)
-  t@NatPred{} -> Doc.parens (ppTerm vars t)
-  t@NatIsZero{} -> Doc.parens (ppTerm vars t)
-  t@BoolIf{} -> Doc.parens (ppTerm vars t)
 
 
 -- | Pretty-print an untyped in an argument position.
@@ -769,22 +470,10 @@ ppTermArg :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
 ppTermArg vars = \case
   t@Var{} -> ppTerm vars t
   t@Universe{} -> ppTerm vars t
-  t@Unit{} -> ppTerm vars t
-  t@UnitType{} -> ppTerm vars t
-  t@NatType{} -> ppTerm vars t
-  t@NatLit{} -> ppTerm vars t
-  t@BoolType{} -> ppTerm vars t
-  t@BoolLit{} -> ppTerm vars t
 
   t@App{} -> Doc.parens (ppTerm vars t)
-  t@Fix{} -> Doc.parens (ppTerm vars t)
   t@Lam{} -> Doc.parens (ppTerm vars t)
   t@Fun{} -> Doc.parens (ppTerm vars t)
-  t@Let{} -> Doc.parens (ppTerm vars t)
-  t@NatMultiply{} -> Doc.parens (ppTerm vars t)
-  t@NatPred{} -> Doc.parens (ppTerm vars t)
-  t@NatIsZero{} -> Doc.parens (ppTerm vars t)
-  t@BoolIf{} -> Doc.parens (ppTerm vars t)
 
 ppScopedTerm
   :: (Pretty a, Pretty b)
@@ -1194,32 +883,14 @@ ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Scope.instantiate1 (Va
 -- @
 examples :: IO ()
 examples = mapM_ runExample . zip [1..] $
-  [ ex_factorial
-
-  , lam (Just (App (lam_ "x" (Var "x")) (Var "A"))) "x" (App (lam_ "y" (Var "y")) (Var "x")) -- ok (fixed)
-
-  , let_ (lam_ "f" $ lam_ "z" $ Var "z") "zero" $
-    let_ (lam_ "n" $ lam_ "f" $ lam_ "z" $ App (Var "f") (App (App (Var "n") (Var "f")) (Var "z"))) "succ" $
-      App (Var "succ") (App (Var "succ") (Var "zero"))
-
-  , let_ (lam_ "f" $ lam_ "z" $ Var "z") "zero" $
-      Var "zero"
+  [ lam (Just (App (lam_ "x" (Var "x")) (Var "A"))) "x" (App (lam_ "y" (Var "y")) (Var "x")) -- ok (fixed)
 
   , App (lam_ "x" (Var "x")) $
       lam_ "f" $ lam_ "z" $ Var "z"
 
-  , let_ Unit "x" Unit
-
-  , let_ Unit "x" (Var "x")
-
-
   , lam Nothing "f" $
       lam Nothing "x" $
         App (Var "f") (Var "x") -- ok (fixed)
-
-  , lam (Just (Fun UnitType UnitType)) "f" $
-      lam (Just UnitType) "x" $
-        App (Var "f") (Var "x") -- ok
 
   , lam (Just (Fun (Var "A") (Var "B"))) "f" $
       lam (Just (Var "A")) "x" $
@@ -1249,32 +920,12 @@ examples = mapM_ runExample . zip [1..] $
   , lam Nothing "f" $
       App (Var "f") (Var "f")  -- ok: type error
 
-  , lam Nothing "f" $
-      App (Var "f") Unit -- ok
-
-  , Fun (Var "A") UnitType -- ok (looped because of unsafeCoerce)
   , Fun (Var "A") (Var "B") -- ok (looped because of unsafeCoerce)
 
-  , lam Nothing "f" $
-      lam (Just UnitType) "x" $
-        App (Var "f") (App (Var "f") (Var "x"))
-        -- ok
-
-  , Unit                  -- ok
-  , App Unit Unit         -- type error
-  , UnitType              -- ok
   , Var "x"               -- ok-ish
-  , App (Var "f") Unit    -- ambiguous
-
-  , App (Var "f") (App (Var "f") Unit) -- ok (fixed)
-
-  , Fun Unit Unit         -- type error
-  , Fun UnitType UnitType -- ok
 
   , Var "x"
   , App (Var "f") (Var "x")
-  , lam (Just Unit) "x" (Var "x")
-  , lam (Just Unit) "x" (Var "y")
   , lam (Just (Var "A")) "x" (Var "x")
   , lam (Just (Fun (Var "A") (Var "B"))) "x" (Var "x")
 
@@ -1367,33 +1018,74 @@ ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
--- |
--- >>> ex_factorial_church
--- fix (λx₁ → λx₂ → x₂ (λx₃ → (λx₄ → λx₅ → λx₆ → x₄ (x₅ x₆)) x₂ (x₁ ((λx₄ → (λx₅ → x₅ (λx₆ → λx₇ → x₆)) (x₄ (λx₅ → λx₆ → x₆ ((λx₇ → x₇ (λx₈ → λx₉ → x₉)) x₅) ((λx₇ → λx₈ → λx₉ → λx₁₀ → x₇ x₉ (x₈ x₉ x₁₀)) ((λx₇ → x₇ (λx₈ → λx₉ → x₉)) x₅) (λx₇ → λx₈ → x₇ x₈))) (λx₅ → x₅ (λx₆ → λx₇ → x₇) (λx₆ → λx₇ → x₇)))) x₂))) (λx₃ → λx₄ → x₃ x₄))
---
--- >>> nfUntyped (App ex_factorial_church (ex_nat 3))
--- λx₁ → λx₂ → x₁ (x₁ (x₁ (x₁ (x₁ (x₁ x₂)))))
---
--- Note: we cannot typecheck this term in STC (FIXME: double check), we need church numerals to have polymorphic type or union type.
-ex_factorial_church :: Term'
-ex_factorial_church = Fix $ lam_ "f" $ lam_ "n" $
-  App (App (Var "n") (lam_ "m" $ App (App ex_mul (Var "n")) (App (Var "f") (App ex_pred (Var "n"))))) (ex_nat 1)
+-- * Parsing
 
--- *** Examples using built-in types
+pTerm :: (TokenParsing m, Monad m) => m Term'
+pTerm = Trifecta.choice
+  [ pApps
+  , Trifecta.parens pTerm ]
 
--- |
--- >>> ex_factorial
--- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂))))
--- >>> unsafeInfer' ex_factorial
--- fix (λx₁ → λx₂ → if (isZero x₂) then 1 else (x₂ * (x₁ (pred x₂)))) : NAT → NAT
---
--- >>> nf (unsafeInfer' (App ex_factorial (NatLit 10)))
--- 3628800 : NAT
-ex_factorial :: Term'
-ex_factorial = Fix $ lam_ "f" $ lam_ "n" $
-  BoolIf (NatIsZero (Var "n"))
-    (NatLit 1)
-    (NatMultiply (Var "n") (App (Var "f") (NatPred (Var "n"))))
+pApps :: (TokenParsing m, Monad m) => m Term'
+pApps = do
+  f <- pNotAppTerm
+  args <- many pNotAppTerm
+  return (Unification.mkApps f args)
+
+pNotAppTerm :: (TokenParsing m, Monad m) => m Term'
+pNotAppTerm = Trifecta.choice
+  [ pVar, pLam, Trifecta.parens pTerm ]
+
+pVar :: (TokenParsing m, Monad m) => m Term'
+pVar = Var <$> pIdent
+
+pIdent :: (TokenParsing m, Monad m) => m Rzk.Var
+pIdent = Rzk.Var . Text.pack <$> Trifecta.ident pIdentStyle
+
+pIdentStyle :: (TokenParsing m, Monad m) => IdentifierStyle m
+pIdentStyle = (emptyIdents @Parser)
+  { _styleStart     = Trifecta.satisfy isIdentChar
+  , _styleLetter    = Trifecta.satisfy isIdentChar
+  , _styleReserved  = HashSet.fromList [ "λ", "\\", "→", "->"
+                                       , "let", "in"
+                                       , "fix"
+                                       , "UNIT", "unit"
+                                       , "NAT"
+                                       , "BOOL", "false", "true"
+                                       , "if", "then", "else"
+                                       , "--", ":=", ":" ]
+  }
+
+pLam :: (TokenParsing m, Monad m) => m Term'
+pLam = do
+  _ <- symbol "λ" <|> symbol "\\"
+  x <- pIdent
+  _ <- symbol "->" <|> symbol "→"
+  t <- pTerm
+  return (Lam Nothing (abstract1Name x t))
+
+-- ** Char predicates
+
+isIdentChar :: Char -> Bool
+isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
+
+isDelim :: Char -> Bool
+isDelim c = c `elem` ("()[]{},\\λ→#" :: String)
+
+-- * Orphan 'IsString' instances
+
+instance IsString Term' where
+  fromString = unsafeParseTerm
+
+unsafeParseTerm :: String -> Term'
+unsafeParseTerm = unsafeParseString pTerm
+
+unsafeParseString :: Parser a -> String -> a
+unsafeParseString parser input =
+  case Trifecta.parseString parser mempty input of
+    Trifecta.Success x       -> x
+    Trifecta.Failure errInfo -> unsafePerformIO $ do
+      putDoc (Trifecta._errDoc errInfo <> "\n")
+      error "Parser error while attempting unsafeParseString"
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF

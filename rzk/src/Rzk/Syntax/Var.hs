@@ -1,11 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Rzk.Syntax.Var where
 
-import           Data.Char   (chr, ord)
-import           Data.Coerce (coerce)
-import           Data.String (IsString (..))
-import           Data.Text   (Text)
-import qualified Data.Text   as Text
+import           Data.Char                 (chr, ord)
+import           Data.Coerce               (coerce)
+import           Data.String               (IsString (..))
+import           Data.Text                 (Text)
+import qualified Data.Text                 as Text
+import           Data.Text.Prettyprint.Doc (Pretty (..))
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -14,7 +15,9 @@ import qualified Data.Text   as Text
 newtype Var = Var { getVar :: Text }
   deriving (Eq, IsString)
 
-instance Show Var where show = Text.unpack . getVar
+instance Show Var where show = show . pretty
+instance Pretty Var where pretty (Var x) = pretty x
+
 
 -- | 'Enum' instance allows to easily increment index for a variable:
 --
