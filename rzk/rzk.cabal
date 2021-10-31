@@ -42,8 +42,8 @@ library
       Rzk.Free.Pretty
       Rzk.Free.Syntax.Decl
       Rzk.Free.Syntax.Example.MLTT
+      Rzk.Free.Syntax.Example.PCF
       Rzk.Free.Syntax.Example.STLC
-      Rzk.Free.Syntax.Example.TTSC
       Rzk.Free.Syntax.Example.ULC
       Rzk.Free.Syntax.Free2
       Rzk.Free.Syntax.FreeScoped
@@ -60,6 +60,7 @@ library
       Rzk.Free.TypeCheck.Trans
       Rzk.Free.TypeCheck.TypeError
       Rzk.Parser.Text
+      Rzk.Polylingual
       Rzk.Pretty.Text
       Rzk.Syntax.Decl
       Rzk.Syntax.Module
@@ -84,11 +85,11 @@ library
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010
 
@@ -112,12 +113,12 @@ executable rzk
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , rzk
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010
 
@@ -143,12 +144,12 @@ test-suite doctests
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , template-haskell
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010
 
@@ -173,11 +174,11 @@ test-suite rzk-test
     , mtl
     , parsers
     , prettyprinter
-    , prettyprinter-ansi-terminal
+    , prettyprinter-ansi-terminal >=1.1.2
     , profunctors
     , rzk
     , text
     , transformers
-    , trifecta
+    , trifecta >=2.1
     , unordered-containers
   default-language: Haskell2010

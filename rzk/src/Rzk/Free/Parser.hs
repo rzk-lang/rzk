@@ -13,7 +13,7 @@ import qualified Data.HashSet                              as HashSet
 import           Data.String                               (IsString (..))
 import           Data.Text                                 (Text)
 import qualified Data.Text                                 as Text
-import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
+import           Data.Text.Prettyprint.Doc.Render.Text (putDoc)
 import           System.IO.Unsafe
 
 import           Text.Parser.Expression

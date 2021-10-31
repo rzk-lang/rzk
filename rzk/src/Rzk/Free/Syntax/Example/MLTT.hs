@@ -12,38 +12,52 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeApplications           #-}
 module Rzk.Free.Syntax.Example.MLTT where
 
 import           Debug.Trace
 import           Unsafe.Coerce
 
-import qualified Bound.Scope                             as Scope
-import qualified Bound.Var                               as Bound
-import           Data.Bifunctor
+import qualified Bound.Scope                               as Scope
+import qualified Bound.Var                                 as Bound
+import           Control.Applicative
 import           Data.Bifunctor.TH
-import           Data.Char                               (chr, ord)
-import           Data.Maybe                              (fromMaybe)
-import           Data.String                             (IsString (..))
-import           Data.Text.Prettyprint.Doc               as Doc
+import           Data.Char                                 (chr, isPrint,
+                                                            isSpace, ord)
+import qualified Data.HashSet                              as HashSet
+import           Data.Maybe                                (fromMaybe)
+import           Data.String                               (IsString (..))
+import qualified Data.Text                                 as Text
+import           Data.Text.Prettyprint.Doc                 as Doc
+import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
+import           System.IO.Unsafe                          (unsafePerformIO)
+import           Text.Parser.Expression
+import           Text.Parser.Token                         ()
+import           Text.Parser.Token.Style                   (emptyIdents)
+import           Text.Trifecta                             (IdentifierStyle (..),
+                                                            Parser,
+                                                            TokenParsing,
+                                                            symbol)
+import qualified Text.Trifecta                             as Trifecta
 
 import           Rzk.Free.Bound.Name
 import           Rzk.Free.Syntax.FreeScoped
-import           Rzk.Free.Syntax.FreeScoped.TypeCheck    (TypeCheck, TypeError,
-                                                          TypeInfo, assignType,
-                                                          nonDep,
-                                                          shouldHaveType,
-                                                          typeOf,
-                                                          typeOfScopedWith,
-                                                          typecheckDist,
-                                                          typecheckInScope,
-                                                          unifyWithExpected',
-                                                          untyped,
-                                                          untypedScoped)
-import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck    as TypeCheck
-import           Rzk.Free.Syntax.FreeScoped.Unification2 (HigherOrderUnifiable (..),
-                                                          Unifiable (..))
-import qualified Rzk.Free.Syntax.FreeScoped.Unification2 as Unification2
-import qualified Rzk.Syntax.Var                          as Rzk
+import           Rzk.Free.Syntax.FreeScoped.TypeCheck      (TypeCheck,
+                                                            TypeError, TypeInfo,
+                                                            assignType, nonDep,
+                                                            shouldHaveType,
+                                                            typeOf,
+                                                            typeOfScopedWith,
+                                                            typecheckDist,
+                                                            typecheckInScope,
+                                                            unifyWithExpected',
+                                                            untyped)
+import qualified Rzk.Free.Syntax.FreeScoped.TypeCheck      as TypeCheck
+import           Rzk.Free.Syntax.FreeScoped.Unification2   (HigherOrderUnifiable (..),
+                                                            Unifiable (..))
+import qualified Rzk.Free.Syntax.FreeScoped.Unification2   as Unification2
+import qualified Rzk.Syntax.Var                            as Rzk
 
 -- * Generators
 
@@ -174,6 +188,9 @@ pattern App t1 t2 = FreeScoped (AppF t1 t2)
 pattern Sigma :: Term b a -> ScopedTerm b a -> Term b a
 pattern Sigma a b = FreeScoped (SigmaF a b)
 
+mkProdType :: Term b a -> Term b a -> Term b a
+mkProdType a b = Sigma a (Scope.toScope (Bound.F <$> b))
+
 pattern Pair :: Term b a -> Term b a -> Term b a
 pattern Pair t1 t2 = FreeScoped (PairF t1 t2)
 
@@ -271,30 +288,51 @@ pattern JT ty tA a tC d x p = TypeCheck.TypedT ty (JF tA a tC d x p)
 
 -- | Universe (type of types).
 --
--- >>> universeT :: TypedTerm'
+-- > universeT :: TypedTerm'
 -- U : U
 universeT :: TypedTerm b a
 universeT = TypeCheck.TypedT Nothing UniverseF
 
 -- | Abstract over one variable in a term.
 --
--- >>> lam Nothing "x" (App (Var "f") (Var "x")) :: Term'
+-- > lam Nothing "x" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → f x₁
--- >>> lam Nothing "f" (App (Var "f") (Var "x")) :: Term'
+-- > lam Nothing "f" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → x₁ x
--- >>> lam (Just (Var "A")) "x" (App (Var "f") (Var "x")) :: Term'
+-- > lam (Just (Var "A")) "x" (App (Var "f") (Var "x")) :: Term'
 -- λ(x₁ : A) → f x₁
--- >>> lam (Just (mkFun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
+-- > lam (Just (Fun (Var "A") (Var "B"))) "f" (App (Var "f") (Var "x")) :: Term'
 -- λ(x₁ : A → B) → x₁ x
 lam :: Eq a => Maybe (Term a a) -> a -> Term a a -> Term a a
 lam ty x body = Lam ty (abstract1Name x body)
 
 -- | Abstract over one variable in a term (without type).
 --
--- >>> lam_ "x" (App (Var "f") (Var "x")) :: Term'
+-- > lam_ "x" (App (Var "f") (Var "x")) :: Term'
 -- λx₁ → f x₁
 lam_ :: Eq a => a -> Term a a -> Term a a
 lam_ x body = Lam Nothing (abstract1Name x body)
+
+etaJ :: Term b a
+etaJ =
+  Lam Nothing $ Scope.toScope $
+  Lam Nothing $ Scope.toScope $
+  Lam Nothing $ Scope.toScope $
+  Lam Nothing $ Scope.toScope $
+  Lam Nothing $ Scope.toScope $
+  Lam Nothing $ Scope.toScope $
+    J (Var (Bound.F (Bound.F (Bound.F (Bound.F (Bound.F (Bound.B (Name Nothing ()))))))))
+      (Var (Bound.F (Bound.F (Bound.F (Bound.F (Bound.B (Name Nothing ())))))))
+      (Var (Bound.F (Bound.F (Bound.F (Bound.B (Name Nothing ()))))))
+      (Var (Bound.F (Bound.F (Bound.B (Name Nothing ())))))
+      (Var (Bound.F (Bound.B (Name Nothing ()))))
+      (Var (Bound.B (Name Nothing ())))
+
+pi_ :: Eq a => a -> Term a a -> Term a a -> Term a a
+pi_ x a b = Pi a (abstract1Name x b)
+
+sigma_ :: Eq a => a -> Term a a -> Term a a -> Term a a
+sigma_ x a b = Sigma a (abstract1Name x b)
 
 -- ** Evaluation
 
@@ -655,6 +693,9 @@ execTypeCheck' = TypeCheck.execTypeCheck defaultFreshMetaVars
 runTypeCheckOnce' :: TypeCheck' a -> Either TypeError' (a, TypeInfo')
 runTypeCheckOnce' = TypeCheck.runTypeCheckOnce defaultFreshMetaVars
 
+typecheck' :: Term' -> Term' -> TypeCheck' UTypedTerm'
+typecheck' = TypeCheck.typecheckUntyped
+
 infer' :: Term' -> TypeCheck' UTypedTerm'
 infer' = TypeCheck.infer
 
@@ -671,9 +712,6 @@ unsafeInfer' = unsafeUnpack . execTypeCheck' . infer'
     unsafeUnpack _ = error "unsafeInfer': failed to extract term with inferred type"
 
 -- ** Pretty-printing
-
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
 
 instance (Pretty n, Pretty b) => Pretty (Name n b) where
   pretty (Name Nothing b)     = pretty b
@@ -714,7 +752,7 @@ instance (Pretty a, Pretty b, IsString a) => Show (TypedTerm b a) where
 ppTermWithType :: (Pretty a, Pretty b) => [a] -> TypedTerm b a -> Doc ann
 ppTermWithType vars t = group $
   case t of
-    FreeScoped (TypeCheck.TypedF term ty) ->
+    FreeScoped (TypeCheck.TypedF _term ty) ->
       ppTypedTerm vars t <> nest 2 (line <> ":" <+> group (ppTypedTerm vars (fromMaybe universeT ty)))
     _ -> ppTypedTerm vars t
 
@@ -746,12 +784,14 @@ ppTerm vars = \case
        then ppTermArg vars a <+> "×" <> line <> b'
        else parens (pretty x <+> ":" <+> ppType vars a) <+> "×" <> line <> b'
   Pair f s -> tupled (map (group . ppTerm vars) [f, s])
-  First t  -> "π₁" <+> ppTermArg vars t
-  Second t -> "π₂" <+> ppTermArg vars t
+
+  First t  -> ppElimWithArgs vars "π₁" [t]
+  Second t -> ppElimWithArgs vars "π₂" [t]
 
   IdType a x y -> ppTermFun vars x <+> "=_{" <> ppType vars a <> "}" <+> ppTermFun vars y
-  Refl Nothing x -> "refl" <+> ppTermArg vars x
-  Refl (Just a) x -> "refl_{" <> ppType vars a <> "}" <+> ppTermArg vars x
+  Refl Nothing x -> ppElimWithArgs vars "refl" [x]
+  Refl (Just a) x -> ppElimWithArgs vars ("refl_{" <> ppType vars a <> "}") [x]
+
   J tA a tC d x p -> ppElimWithArgs vars "J" [tA, a, tC, d, x, p]
   where
     withoutBoundVars = null . Scope.bindings
@@ -1276,60 +1316,69 @@ runExample_ = runExample . (,) 0
 -- *** Church numerals
 
 -- |
--- >>> unsafeInfer' ex_zero
--- λx₁ → λx₂ → x₂ : (x₁ : ?M₁) → (?M₂ x₁) → ?M₂ x₁
+-- > ex_zero
+-- λx₁ → λx₂ → x₂
+--
+-- > execTypeCheck' (infer' ex_zero)
+-- Right λx₁ → λx₂ → x₂ : ?M₁ → ?M₂ → ?M₂
 ex_zero :: Term'
 ex_zero = lam_ "s" (lam_ "z" (Var "z"))
 
 -- |
--- >>> unsafeInfer' (ex_nat 3)
--- λx₁ → λx₂ → x₁ (x₁ (x₁ x₂)) : (?M₆ → ?M₆) → ?M₆ → ?M₆
+-- > ex_nat 3
+-- λx₁ → λx₂ → x₁ (x₁ (x₁ x₂))
+--
+-- > execTypeCheck' (infer' (ex_nat 3))
+-- Right λx₁ → λx₂ → x₁ (x₁ (x₁ x₂)) : (?M₂ → ?M₂) → ?M₂ → ?M₂
 ex_nat :: Int -> Term'
 ex_nat n = lam_ "s" (lam_ "z" (iterate (App (Var "s")) (Var "z") !! n))
 
 -- |
--- >>> unsafeInfer' ex_add
+-- > ex_add
 -- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄)
---   : (?M₂₁ → (x₂ : ?M₁₈) → ?M₁₉ x₂) →
---     (x₂ : ?M₂₁ → ?M₂₀ → ?M₁₈) →
---     (x₃ : ?M₂₁) →
---     (x₄ : ?M₂₀) →
---     ?M₁₉ (x₂ x₃ x₄)
+--
+-- > unsafeInfer' ex_add
+-- λx₁ → λx₂ → λx₃ → λx₄ → x₁ x₃ (x₂ x₃ x₄) : (?M₃ → ?M₇ → ?M₈) → (?M₃ → ?M₄ → ?M₇) → ?M₃ → ?M₄ → ?M₈
 ex_add :: Term'
 ex_add = lam_ "n" (lam_ "m" (lam_ "s" (lam_ "z"
   (App (App (Var "n") (Var "s")) (App (App (Var "m") (Var "s")) (Var "z"))))))
 
 -- |
--- >>> unsafeInfer' ex_mul
+-- > ex_mul
 -- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃)
---   : ((x₁ : ?M₁₁) → ?M₁₂ x₁) → (x₂ : ?M₁₃ → ?M₁₁) → (x₃ : ?M₁₃) → ?M₁₂ (x₂ x₃)
+-- > unsafeInfer' ex_mul
+-- λx₁ → λx₂ → λx₃ → x₁ (x₂ x₃) : (?M₄ → ?M₅) → (?M₃ → ?M₄) → ?M₃ → ?M₅
 ex_mul :: Term'
 ex_mul = lam_ "n" (lam_ "m" (lam_ "s"
   (App (Var "n") (App (Var "m") (Var "s")))))
 
 -- |
--- >>> ex_mkPair (Var "x") (Var "y")
+-- > ex_mkPair (Var "x") (Var "y")
 -- λx₁ → x₁ x y
 ex_mkPair :: Term' -> Term' -> Term'
 ex_mkPair t1 t2 = lam_ "_ex_mkPair" (App (App (Var "_ex_mkPair") t1) t2)
 
 -- |
--- >>> ex_fst
+-- > ex_fst
 -- λx₁ → x₁ (λx₂ → λx₃ → x₂)
--- >>> unsafeInfer' ex_fst
+-- > unsafeInfer' ex_fst
 -- λx₁ → x₁ (λx₂ → λx₃ → x₂) : ((?M₂ → ?M₃ → ?M₂) → ?M₄) → ?M₄
 ex_fst :: Term'
 ex_fst = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "f"))))
 
 -- |
--- >>> ex_snd
+-- > ex_snd
 -- λx₁ → x₁ (λx₂ → λx₃ → x₃)
--- >>> unsafeInfer' ex_snd
+-- > unsafeInfer' ex_snd
 -- λx₁ → x₁ (λx₂ → λx₃ → x₃) : ((?M₂ → ?M₃ → ?M₃) → ?M₄) → ?M₄
 ex_snd :: Term'
 ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 
--- | FIXME: inferred type contains bound meta variables!
+-- |
+-- > ex_pred
+-- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄)))
+-- > unsafeInfer' ex_pred
+-- λx₁ → (λx₂ → x₂ (λx₃ → λx₄ → x₃)) (x₁ (λx₂ → λx₃ → x₃ ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) ((λx₄ → λx₅ → λx₆ → λx₇ → x₄ x₆ (x₅ x₆ x₇)) ((λx₄ → x₄ (λx₅ → λx₆ → x₆)) x₂) (λx₄ → λx₅ → x₄ x₅))) (λx₂ → x₂ (λx₃ → λx₄ → x₄) (λx₃ → λx₄ → x₄))) : ((((?M₂₂ → ?M₂₃ → ?M₂₃) → (?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → (((?M₁₆ → ?M₁₉) → ?M₁₉ → ?M₂₀) → ((?M₁₆ → ?M₁₉) → ?M₁₆ → ?M₂₀) → ?M₂₈) → ?M₂₈) → (((?M₃₁ → ?M₃₂ → ?M₃₂) → (?M₃₄ → ?M₃₅ → ?M₃₅) → ?M₃₆) → ?M₃₆) → (?M₃ → ?M₄ → ?M₃) → ?M₅) → ?M₅
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
@@ -1384,6 +1433,165 @@ ex_pathtrans =
           (Var "p")
           (Var "z")
           (Var "q")
+
+-- * Parsing
+
+pOperatorTable :: (TokenParsing m, Monad m) => OperatorTable m Term'
+pOperatorTable =
+  [ [ Infix (pure App) AssocLeft ]
+  , [ Infix (IdType <$ symbol "=_{" <*> pTerm <* symbol "}") AssocNone]
+  , [ Infix (mkProdType <$ symbol "*") AssocRight ]
+  , [ Infix (mkFun <$ symbol "->") AssocRight ]
+  ]
+
+pTerm :: (TokenParsing m, Monad m) => m Term'
+pTerm = buildExpressionParser pOperatorTable pNotAppTerm
+
+pNotAppTerm :: (TokenParsing m, Monad m) => m Term'
+pNotAppTerm = Trifecta.choice
+  [ Trifecta.try pPi
+  , Trifecta.try pSigma
+  , Trifecta.try pPair
+  , pNotPiSigmaTerm
+  ]
+
+pNotPiSigmaTerm :: (TokenParsing m, Monad m) => m Term'
+pNotPiSigmaTerm = Trifecta.choice
+  [ Universe <$ symbol "U"
+  , First <$  (symbol "first" <|> symbol "π₁")
+          <*> Trifecta.parens pTerm
+  , Second <$  (symbol "second" <|> symbol "π₂")
+          <*> Trifecta.parens pTerm
+  , Refl <$ symbol "refl_{"
+         <*> (Just <$> pTerm)
+         <* symbol "}"
+         <*> Trifecta.parens pTerm
+  , Refl Nothing
+         <$ symbol "refl"
+         <*> Trifecta.parens pTerm
+  , symbol "J" *> Trifecta.parens
+      (J <$> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm <* Trifecta.comma
+         <*> pTerm )
+  -- , lam_ "x" (First (Var "x")) <$ (symbol "first" <|> symbol "π₁")
+  -- , lam_ "x" (Second (Var "x")) <$ (symbol "second" <|> symbol "π₂")
+  -- , (\ty -> lam_ "x" (Refl (Just ty) (Var "x")))
+  --    <$ symbol "refl_{" <*> pTerm <* symbol "}"
+  -- , lam_ "x" (Refl Nothing (Var "x"))
+  --    <$ symbol "refl"
+  -- , etaJ <$ symbol "J"
+  , pVar
+  , pLam
+  , Trifecta.parens pTerm
+  ]
+
+pPi :: (TokenParsing m, Monad m) => m Term'
+pPi = Trifecta.parens arg <* symbol "->" <*> pTerm
+  where
+    arg = pi_ <$> pIdent <* symbol ":" <*> pTerm
+
+pSigma :: (TokenParsing m, Monad m) => m Term'
+pSigma = Trifecta.parens arg <* (symbol "*" <|> symbol "×") <*> pTerm
+  where
+    arg = pi_ <$> pIdent <* symbol ":" <*> pTerm
+
+pPair :: (TokenParsing m, Monad m) => m Term'
+pPair = Trifecta.parens $
+  Pair <$> pTerm <* Trifecta.comma <*> pTerm
+
+--   = UniverseF
+--
+--   -- | Type of functions: \(A \to B\)
+--   | PiF term scope
+--   -- | Lambda function with an optional argument type: \(\lambda (x : A). t\)
+--   | LamF (Maybe term) scope
+--   -- | Application of one term to another: \((t_1) t_2\)
+--   | AppF term term
+--
+--   -- | Dependent sum type former \(\sum_{x : A} B(x)\).
+--   -- The term argument represents type family \(B : A \to \mathcal{U}\).
+--   | SigmaF term scope
+--   -- | A (dependent) pair of terms.
+--   -- @Pair x y@ represents a term of the form \((x, y)\).
+--   | PairF term term
+--   -- | Project the first element of a pair: \(\pi_1 p\).
+--   | FirstF term
+--   -- | Project the second element of a pair: \(\pi_2 p\).
+--   | SecondF term
+--
+--   -- | Identity type former \(x =_A y\) (corresponding to term @IdType a x y@).
+--   | IdTypeF term term term
+--   -- | Trivial inhabitant of \(x =_A x\) for any type \(A\) and \(x : A\).
+--   -- @Refl a x@ corresponds to \(x =_a x\).
+--   | ReflF (Maybe term) term
+--   -- | Path induction (for identity types).
+--   -- For any type \(A\) and \(a : A\), type family
+--   -- \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\)
+--   -- and \(d : C(a,\mathsf{refl}_a)\)
+--   -- and \(x : A\)
+--   -- and \(p : a =_A x\)
+--   -- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\).
+--   | JF term term term term term term
+
+pVar :: (TokenParsing m, Monad m) => m Term'
+pVar = Var <$> pIdent
+
+pIdent :: (TokenParsing m, Monad m) => m Rzk.Var
+pIdent = Rzk.Var . Text.pack <$> Trifecta.ident pIdentStyle
+
+pIdentStyle :: (TokenParsing m, Monad m) => IdentifierStyle m
+pIdentStyle = (emptyIdents @Parser)
+  { _styleStart     = Trifecta.satisfy isIdentChar
+  , _styleLetter    = Trifecta.satisfy isIdentChar
+  , _styleReserved  = HashSet.fromList [ "λ", "\\", "→", "->"
+                                       , "let", "in"
+                                       , "fix"
+                                       , "UNIT", "unit"
+                                       , "NAT"
+                                       , "BOOL", "false", "true"
+                                       , "if", "then", "else"
+                                       , "=_{", "}"
+                                       , "--", ":=", ":" ]
+  }
+
+pLam :: (TokenParsing m, Monad m) => m Term'
+pLam = do
+  _ <- symbol "λ" <|> symbol "\\"
+  (x, ty) <- Trifecta.choice
+    [ (,Nothing) <$> pIdent
+    , Trifecta.parens $
+        (,) <$> pIdent <* symbol ":" <*> (Just <$> pTerm)
+    ]
+  _ <- symbol "->" <|> symbol "→"
+  t <- pTerm
+  return (Lam ty (abstract1Name x t))
+
+-- ** Char predicates
+
+isIdentChar :: Char -> Bool
+isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
+
+isDelim :: Char -> Bool
+isDelim c = c `elem` ("()[]{}=,\\λ→#" :: String)
+
+-- * Orphan 'IsString' instances
+
+instance IsString Term' where
+  fromString = unsafeParseTerm
+
+unsafeParseTerm :: String -> Term'
+unsafeParseTerm = unsafeParseString pTerm
+
+unsafeParseString :: Parser a -> String -> a
+unsafeParseString parser input =
+  case Trifecta.parseString parser mempty input of
+    Trifecta.Success x       -> x
+    Trifecta.Failure errInfo -> unsafePerformIO $ do
+      putDoc (Trifecta._errDoc errInfo <> "\n")
+      error "Parser error while attempting unsafeParseString"
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
