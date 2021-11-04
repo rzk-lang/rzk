@@ -461,7 +461,7 @@ tryFlexRigid (ForAll c)  = tryFlexRigid (dist <$> Bound.Simple.fromScope c)
     dist (Bound.B b)            = UFreeVar (Bound.B b)
     dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
     dist (Bound.F (UMetaVar v)) = UMetaVar v
-tryFlexRigid (t1 :~: t2)
+tryFlexRigid (t1 :~: _t2)
   | isStuckU t1 = error "not implemented yet"
   | otherwise = error "not implemented yet"
 
@@ -578,7 +578,7 @@ runUnifyM' m = runFresh (observeAllT m) defaultFreshMetaVars
 -- *** Exception: not implemented yet
 unifyUTerms' :: UTerm' -> UTerm' -> Maybe [USubst (Name Rzk.Var ()) TermF Rzk.Var]
 unifyUTerms' t1 t2 = listToMaybe . runUnifyM' $ do
-  (flexflex, substs) <- unify [] [t1 :~: t2]
+  (_flexflex, substs) <- unify [] [t1 :~: t2]
   return substs
 
 -- ** Simple pattern synonyms
@@ -640,9 +640,6 @@ lamU x body = LamE (abstractName' f body)
 
 -- * Pretty-printing
 
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
-
 -- | Uses 'Pretty' instance.
 instance (Pretty a, Pretty b, IsString a) => Show (Term b a) where
   show = show . pretty
@@ -689,7 +686,9 @@ ppScopedTerm [] _ _            = error "not enough fresh names"
 ppScopedTerm (x:xs) t withScope = withScope x (ppTerm xs (Bound.instantiate1 (Var x) t))
 
 ppConstraint :: [Rzk.Var] -> Constraint' -> Doc ann
-ppConstraint (x:xs) = \case
+ppConstraint [] = error "not enough fresh variables"
+ppConstraint vars@(x:xs) = \case
+  t1 :~: t2 -> ppUTermArg vars t1 <+> "~" <+> ppUTermArg vars t2
   ForAll c -> "forall" <+> pretty x <> dot
     <+> ppConstraint xs (instantiateC (pure (UFreeVar x)) c)
 
@@ -765,11 +764,6 @@ ppScopedUTerm
 ppScopedUTerm [] _ _             = error "not enough fresh names"
 ppScopedUTerm (x:xs) t withScope = withScope x $
   ppUTerm xs (Bound.instantiate1 (VarE (UFreeVar x)) t)
-
-ppUConstraint :: [Rzk.Var] -> UConstraint' -> Doc ann
-ppUConstraint (x:xs) = \case
-  ForAll c -> "forall" <+> pretty x <> dot
-    <+> ppUConstraint xs (instantiateC (pure (UFreeVar x)) c)
 
 ppMetaAbs :: (Pretty b, Pretty v) => [Rzk.Var] -> MetaAbs (Name b ()) (TermF :+: MetaAppF) v -> Doc ann
 ppMetaAbs vars (MetaAbs arity body) =
