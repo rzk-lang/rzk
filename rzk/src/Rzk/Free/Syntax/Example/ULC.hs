@@ -21,6 +21,7 @@ import           Data.Coerce                               (coerce)
 import qualified Data.HashSet                              as HashSet
 import           Data.List                                 (foldl')
 import           Data.String                               (IsString (..))
+import           Data.String                               (IsString (..))
 import qualified Data.Text                                 as Text
 import           Data.Text.Prettyprint.Doc                 as Doc
 import           Data.Text.Prettyprint.Doc.Render.Terminal (putDoc)
