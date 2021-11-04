@@ -158,8 +158,6 @@ class Bifunctor t => Reducible t where
       swap (InR y) = InL y
 
 instance (Reducible f, Reducible g) => Reducible (f :+: g) where
-  -- FIXME: recursively reduce until we cannot reduce anymore?
-  -- or maybe ask for step-by-step reduction to improve
   reduceInL
     = transFreeScopedT assoc'
     . reduceInL
@@ -363,7 +361,7 @@ substituteGuesses defaultBoundVar = fmap Substs . \case
             guess
           let arity = length args
           return [(v, MetaAbs arity $ Bound.abstractEither (\case {UFreeVar i -> Left i; UMetaVar v' -> Right v'}) (FreeScoped (InL guess')))]
-      (_, _guesses) -> pure [] -- FIXME: go recursively?
+      (_, _guesses) -> pure []
 
     -- TODO: allow inner meta variables to access all bound variables by default?
     goScoped
@@ -581,7 +579,6 @@ tryFlexRigid (t1 :~: t2) =
 
     generateWithBoundHead i = pure (PureScoped (Bound.B i))
 
-    -- FIXME: ignore PureScoped (UFreeVar (Bound.B _)) ?
     generateWithHead (PureScoped (UFreeVar (Bound.B _))) _ = mzero
     generateWithHead h n = join <$> traverse go h
       where
