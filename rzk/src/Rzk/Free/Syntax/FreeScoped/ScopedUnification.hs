@@ -82,6 +82,11 @@ instance (Unifiable f, Unifiable g) => Unifiable (f :+: g) where
   zipMatch (InR g1) (InR g2) = fmap InR (zipMatch g1 g2)
   zipMatch _ _               = Nothing
 
+data IsHead
+  = HasHead
+  | NoHead
+  deriving (Eq, Show)
+
 class Unifiable t => HigherOrderUnifiable t where
   -- | Assign a list of valid shape guesses to each subterm (and subscope).
   --
@@ -90,7 +95,7 @@ class Unifiable t => HigherOrderUnifiable t where
     :: t scope term
     -> t (scope, [t () ()]) (term, [t () ()])
 
-  shapes :: [t Bool Bool]
+  shapes :: [t IsHead IsHead]
   shapes = []
 
 toHeadForm :: HigherOrderUnifiable t => FreeScoped b t a -> FreeScoped b t (Maybe a)
@@ -570,8 +575,8 @@ tryFlexRigid (t1 :~: t2) =
       [ FreeScoped . InL <$> bitraverse goScope go shape
       | shape <- shapes ]
       where
-        go False = pure t `mplus` grow t n
-        go True  = genFullMeta n
+        go HasHead = pure t `mplus` grow t n
+        go NoHead  = genFullMeta n
 
         -- FIXME: we are not using extra bound variables here!
         goScope x = Bound.toScope . fmap Bound.F <$> go x
@@ -651,7 +656,7 @@ instance HigherOrderUnifiable TermF where
     where
       noGuesses = bimap (,[]) (,[])
 
-  shapes = [ AppF False True ]
+  shapes = [ AppF HasHead NoHead ]
 
 instance Reducible TermF where
   reduceInL = \case
