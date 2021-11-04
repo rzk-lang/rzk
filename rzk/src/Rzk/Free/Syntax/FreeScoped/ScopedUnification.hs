@@ -11,6 +11,7 @@
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -646,7 +647,9 @@ instance Unifiable TermF where
 
 instance HigherOrderUnifiable TermF where
   shapeGuesses (AppF f x)  = AppF (f, [LamF ()]) (x, [])
-  shapeGuesses (LamF body) = LamF (body, [])
+  shapeGuesses t = noGuesses t
+    where
+      noGuesses = bimap (,[]) (,[])
 
   shapes = [ AppF False True ]
 
