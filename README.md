@@ -49,6 +49,48 @@ Also, for Riehl and Shulman's type theory I would also need to account for tope 
 
 So the third attempt, available in `Rzk.Free.Syntax.FreeScoped.ScopedUnification`, is similar to the second one, but is now more general and fixes the issue with bound variables. It relies on Sweirstra's idea of data types a la carte [3] and extends a given language with meta variables and applications of meta variables, rather than assuming the target language has lambdas or applications. This approach should work well for simple tuples and Σ-types as well as different kinds of lambda abstractions in a type theory. Here we also handle bound variables and constraints with more precision. The approach has been tested with untyped lambda calculus, but should be easily extended to other languages up to MLTT soon.
 
+## Development
+
+The project is developed with both Stack and Nix (for GHCJS version).
+
+### Building with GHC
+
+For quick local development and testing it is recommended to work with a GHC version, using [Stack tool](https://docs.haskellstack.org/en/stable/README/). Clone this project and simply run `stack build`:
+
+```sh
+git clone git@github.com:fizruk/rzk.git
+cd rzk
+stack build
+```
+
+The build provides an executable `rzk` which can be used to typecheck files:
+
+```haskell
+stack exec -- rzk typecheck FILE
+```
+
+### Building with GHCJS
+
+`try-rzk` package is designed to be compiled using GHCJS for an in-browser version of the proof assistant. To build this package you need to use Nix. It is recommended that you use Cachix to avoid recompiling lots of dependencies:
+
+```sh
+# Install Nix
+curl https://nixos.org/nix/install | sh
+# (optionally) Install Cachix
+nix-env -iA cachix -f https://cachix.org/api/v1/install
+# (optionally) Use cached miso from Cachix
+cachix use miso-haskell
+```
+
+Clone the repository, enter `try-rzk` directory and use `nix-build`:
+```sh
+git clone git@github.com:fizruk/rzk.git
+cd rzk/try-rzk
+nix-build
+```
+
+Now open `index.html` to see the result. Note that if local GHCJS build is unavailable, `index.html` will use the [JS file from GitHub Pages](https://fizruk.github.io/rzk/result/bin/try-rzk.jsexe/all.js) as a fallback.
+
 # References
 
 1. Emily Riehl, & Michael Shulman. (2017). A type theory for synthetic ∞-categories. https://arxiv.org/abs/1705.07442
