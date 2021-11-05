@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeApplications           #-}
 module Rzk.Polylingual where
@@ -18,7 +19,10 @@ import           Text.Trifecta
 
 import qualified Rzk.Parser.Text              as Rzk1
 import qualified Rzk.Pretty.Text              ()
+import qualified Rzk.Syntax.Decl              as Rzk1
+import qualified Rzk.Syntax.Module            as Rzk1
 import qualified Rzk.Syntax.Term              as Rzk1
+import qualified Rzk.TypeChecker              as Rzk1
 
 import qualified Rzk.Free.Syntax.Example.MLTT as MLTT
 import qualified Rzk.Free.Syntax.Example.PCF  as PCF
@@ -82,7 +86,7 @@ data SomeModule
 
 compileSomeModule :: SomeModule -> String
 compileSomeModule = \case
-  Module_Rzk1 m -> compileModule runCommandRzk1 m
+  Module_Rzk1 m -> compileModuleRzk1 (moduleToRzk1 m)
   Module_STLC m -> compileModule runCommandSTLC m
   Module_PCF  m -> compileModule runCommandPCF  m
   Module_MLTT m -> compileModule runCommandMLTT m
@@ -90,6 +94,15 @@ compileSomeModule = \case
 compileModule :: (Command var term -> String) -> Module var term -> String
 compileModule runCommand Module{..} = unlines
   (map runCommand moduleCommands)
+
+moduleToRzk1 :: Module Var (Rzk1.Term Var) -> Rzk1.Module Var
+moduleToRzk1 Module{..} = Rzk1.Module
+  [ Rzk1.Decl name ty value
+  | Declare (Decl name (Just ty) value) <- moduleCommands
+  ]
+
+compileModuleRzk1 :: Rzk1.Module Var -> String
+compileModuleRzk1 = show . Rzk1.typecheckModule ["{H}"]
 
 runCommandRzk1 :: Command Var (Rzk1.Term Var) -> String
 runCommandRzk1 _ = "rzk-1 is not supported at the moment"
