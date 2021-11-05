@@ -659,9 +659,6 @@ unifyTerms'_ t1 t2 = fst (head (unifyTerms' t1 t2))
 
 -- ** Pretty-printing
 
-instance Pretty Rzk.Var where
-  pretty (Rzk.Var x) = pretty x
-
 instance (Pretty n, Pretty b) => Pretty (Name.Name n b) where
   pretty (Name.Name Nothing b)     = pretty b
   pretty (Name.Name (Just name) b) = "<" <> pretty name <> " " <> pretty b <> ">"
