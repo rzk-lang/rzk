@@ -38,12 +38,12 @@ jobs:
           # mdbook-version: 'latest'
 
       - name: 🧰 Setup nix (cache)
-      - uses: cachix/install-nix-action@v13
+        uses: cachix/install-nix-action@v13
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: 💾 Setup cachix (miso-haskell)
-      - uses: cachix/cachix-action@v10
+        uses: cachix/cachix-action@v10
         with:
           name: miso-haskell
 
@@ -61,7 +61,7 @@ jobs:
           mv $(stack path --local-doc-root)/* dist/haddock
 
       - name: 🔨 Build GHCJS version with Nix
-      - run: |
+        run: |
           nix-build try-rzk/
           mkdir -p dist/result/bin
           cp -r ./result/bin/try-rzk.jsexe/ dist/result/bin/.
