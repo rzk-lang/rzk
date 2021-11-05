@@ -5,8 +5,8 @@ with (import (builtins.fetchTarball {
 let indexed-traversable-src = pkgs.fetchFromGitHub {
       owner = "haskellari";
       repo = "indexed-traversable";
-      rev = "master";
-      sha256 = "0c4ynm16qma6a4f2qgi07ffm2hiw4j46b01rh0sllm21b6riczij";
+      rev = "indexed-traversable-0.1.2";
+      sha256 = "1qn5kx2chka9kf3ngfm09g9x3zgp74xyni2v95df3z5gn1jkaa6m";
     } + "/indexed-traversable";
     indexed-traversable-latest = pkgs.haskell.packages.ghcjs.callCabal2nix "indexed-traversable" indexed-traversable-src {};
 

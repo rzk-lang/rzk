@@ -11,6 +11,7 @@
 module Rzk.Free.Syntax.FreeScoped where
 
 import           Bound
+import qualified Bound.Scope            as Bound
 import           Control.Monad          (ap, liftM)
 import           Control.Monad.Identity (Identity (..))
 import           Data.Bifoldable
@@ -86,6 +87,15 @@ wrapFreeScopedT
   -> FreeScopedT b term m a
 wrapFreeScopedT = FreeScopedT . return . FreeScopedF
 
+iterFreeScopedT
+  :: (Monad m, Bifunctor term)
+  => (forall x. term (Scope b m x) (m x) -> m x)
+  -> FreeScopedT b term m a
+  -> m a
+iterFreeScopedT phi (FreeScopedT m) = m >>= \case
+  PureScopedF x -> return x
+  FreeScopedF t -> phi (bimap (Bound.hoistScope (iterFreeScopedT phi)) (iterFreeScopedT phi) t)
+
 -- * Free monad with scoping
 
 type FreeScoped b term = FreeScopedT b term Identity
@@ -98,6 +108,13 @@ pattern FreeScoped
   -> FreeScoped b term a
 pattern FreeScoped t = FreeScopedT (Identity (FreeScopedF t))
 
+iterFreeScopedM
+  :: (Monad m, Bifunctor term)
+  => (forall x. term (Scope b m x) (m x) -> m x)
+  -> FreeScoped b term a
+  -> m a
+iterFreeScopedM phi = iterFreeScopedT phi . hoistFreeScopedT (return . runIdentity)
+
 {-# COMPLETE PureScoped, FreeScoped #-}
 
 data Sum f g scope term
@@ -107,6 +124,37 @@ data Sum f g scope term
 
 type (:+:) = Sum
 
+data Const a scope term = Const a
+  deriving (Functor, Foldable, Traversable)
+
+-- stratSum
+--   :: (Bifunctor f, Bifunctor g)
+--   => FreeScoped b (f :+: g) a
+--   -> FreeScoped b f (FreeScoped b (f :+: g) a)
+-- stratSum = \case
+--   PureScoped x -> pure (pure x)
+--   FreeScoped (InL f) -> FreeScoped (bimap stratSumScoped stratSum f)
+--   fg -> pure fg
+--
+-- stratSumScoped
+--   :: (Bifunctor f, Bifunctor g)
+--   => Scope b (FreeScoped b (f :+: g)) a
+--   -> Scope b (FreeScoped b f) (FreeScoped b (f :+: g) a)
+-- stratSumScoped = toScope . _ . stratSum . fromScope
+
+-- viewL
+--   :: (Monad m, Bifunctor f)
+--   => FreeScopedT b (f :+: g) m a
+--   -> FreeScopedT b f m (FreeScopedT b (f :+: g) m a)
+-- viewL t@(FreeScopedT m) = FreeScopedT $ m <&> \case
+--   FreeScopedF (InL f) -> FreeScopedF $
+--     bimap (Bound.toScope . error "impossible" . viewL . Bound.fromScope) viewL f
+--   _ -> PureScopedF t
+
 deriveBifunctor ''Sum
 deriveBifoldable ''Sum
 deriveBitraversable ''Sum
+
+deriveBifunctor ''Const
+deriveBifoldable ''Const
+deriveBitraversable ''Const

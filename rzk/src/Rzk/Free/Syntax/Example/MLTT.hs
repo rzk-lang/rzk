@@ -784,18 +784,20 @@ ppTerm vars = \case
        then ppTermArg vars a <+> "×" <> line <> b'
        else parens (pretty x <+> ":" <+> ppType vars a) <+> "×" <> line <> b'
   Pair f s -> tupled (map (group . ppTerm vars) [f, s])
+
   First t  -> ppElimWithArgs vars "π₁" [t]
   Second t -> ppElimWithArgs vars "π₂" [t]
 
   IdType a x y -> ppTermFun vars x <+> "=_{" <> ppType vars a <> "}" <+> ppTermFun vars y
   Refl Nothing x -> ppElimWithArgs vars "refl" [x]
   Refl (Just a) x -> ppElimWithArgs vars ("refl_{" <> ppType vars a <> "}") [x]
+
   J tA a tC d x p -> ppElimWithArgs vars "J" [tA, a, tC, d, x, p]
   where
     withoutBoundVars = null . Scope.bindings
 
 ppElimWithArgs :: (Pretty a, Pretty b) => [a] -> Doc ann -> [Term b a] -> Doc ann
-ppElimWithArgs vars name args = name <> tupled (map (ppTermFun vars) args)
+ppElimWithArgs vars name args = hsep (name : map (ppTermFun vars) args)
 
 -- | Pretty-print an untyped in a head position.
 ppTermFun :: (Pretty a, Pretty b) => [a] -> Term b a -> Doc ann
@@ -1380,11 +1382,21 @@ ex_snd = lam_ "p" (App (Var "p") (lam_ "f" (lam_ "s" (Var "s"))))
 ex_pred :: Term'
 ex_pred = lam_ "n" (App ex_fst (App (App (Var "n") (lam_ "p" (ex_mkPair (App ex_snd (Var "p")) (App (App ex_add (App ex_snd (Var "p"))) (ex_nat 1))))) (ex_mkPair ex_zero ex_zero)))
 
+-- | \(\eta\)-expanded J path eliminator:
+--
+-- >>> unsafeInfer' ex_J
+-- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → λx₆ → J x₁ x₂ x₃ x₄ x₅ x₆
+-- : (x₁ : U) → (x₂ : x₁) → (x₃ : (x₃ : x₁) → (x₂ =_{x₁} x₃) → U) → (x₃ x₂ (refl_{x₁} x₂)) → (x₅ : x₁) → (x₆ : x₂ =_{x₁} x₅) → x₃ x₅ x₆
 ex_J :: Term'
 ex_J =
   lam_ "A" $ lam_ "a" $ lam_ "C" $ lam_ "d" $ lam_ "x" $ lam_ "p" $
     J (Var "A") (Var "a") (Var "C") (Var "d") (Var "x") (Var "p")
 
+-- | An example proof of symmetry for path type:
+--
+-- >>> unsafeInfer' ex_pathinv
+-- λx₁ → λx₂ → λx₃ → λx₄ → J x₁ x₂ (λx₅ → λx₆ → x₅ =_{x₁} x₂) refl x₂ x₃ x₄
+-- : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₂ =_{x₁} x₃) → x₃ =_{x₁} x₂
 ex_pathinv :: Term'
 ex_pathinv =
   lam_ "A" $
@@ -1400,6 +1412,11 @@ ex_pathinv =
           (Var "y")
           (Var "p")
 
+-- | An example proof of transitivity for path type:
+--
+-- >>> unsafeInfer' ex_pathtrans
+-- λx₁ → λx₂ → λx₃ → λx₄ → λx₅ → λx₆ → J x₁ x₃ (λx₇ → λx₈ → x₂ =_{x₁} x₇) x₅ x₄ x₆
+-- : (x₁ : U) → (x₂ : x₁) → (x₃ : x₁) → (x₄ : x₁) → (x₂ =_{x₁} x₃) → (x₃ =_{x₁} x₄) → x₂ =_{x₁} x₄
 ex_pathtrans :: Term'
 ex_pathtrans =
   lam_ "A" $

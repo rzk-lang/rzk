@@ -134,6 +134,7 @@
       CodeMirror.defineSimpleMode("rzk-1", {
         // The start state contains the rules that are initially used
         start: [
+          {regex: /#(infer|unify|typecheck|whnf|nf|def)/, token: "meta"},
           // The regex matches the token, the token property contains the type
           {regex: /"(?:[^\\]|\\.)*?(?:"|$)/, token: "string"},
           // You can match multiple tokens at once. Note that the captured
@@ -155,7 +156,7 @@
            token: "number"},
           {regex: /\/(?:[^\\]|\\.)*?\//, token: "variable-3"},
           // A next property will cause the mode to move to a different state
-          // {regex: /\/\*/, token: "comment", next: "comment"},
+          {regex: /--.*/, token: "comment"},
           // {regex: /[-+\/*=<>!]+/, token: "operator"},
           // indent and dedent properties guide autoindentation
           {regex: /[\{\[\(]/, indent: true},
@@ -216,7 +217,7 @@
         theme: "gruvbox-dark"
       });
 
-      snippet_rzk1 = "#lang rzk-1\n\nprod : (A : U) → (B : U) → U\n  := λ(A : U) → λ(B : U) → ∑ (x : A), B\n\nisweq : (A : U) → (B : U) → (f : (_ : A) → B) → U\n  := λ(A : U) → λ(B : U) → λ(f : (_ : A) → B) → ∑ (g : (_ : B) → A), (prod ((x : A) → (g (f x)) =_{A} x)) ((y : B) → (f (g y)) =_{B} y)\n\nweq : (A : U) → (B : U) → U\n  := λ(A : U) → λ(B : U) → ∑ (f : (_ : A) → B), ((isweq A) B) f\n    \nRS17:Thm:4_1 : (I : CUBE) → (psi : (t : I) → TOPE) → (phi : {t : I | psi t} → TOPE) → (X : U) → (Y : <{t : I | psi t} → (x : X) → U [BOT |-> recBOT]>) → (f : <{t : I | phi t} → (x : X) → Y t x [BOT |-> recBOT]>) → weq (<{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>) ((x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>)\n  := λ(I : CUBE) → λ(psi : (t : I) → TOPE) → λ(phi : {t : I | psi t} → TOPE) → λ(X : U) → λ(Y : <{t : I | psi t} → (x : X) → U [BOT |-> recBOT]>) → λ(f : <{t : I | phi t} → (x : X) → Y t x [BOT |-> recBOT]>) → (λ(g : <{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>) → λ(x : X) → λ{t : I | psi t} → g t x, (λ(g : (x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>) → λ{t : I | psi t} → λ(x : X) → g x t, (λ(g : <{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>) → refl_{g : <{t : I | psi t} → (x : X) → Y t x [phi t |-> f t]>}, λ(g : (x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>) → refl_{g : (x : X) → <{t : I | psi t} → Y t x [phi t |-> f t x]>})))\n";
+      snippet_rzk1 = "#lang rzk-1\n\n#def prod : (A : U) -> (B : U) -> U\n  := \\A -> \\B -> ∑ (x : A), B\n\n#def isweq : (A : U) -> (B : U) -> (f : (_ : A) -> B) -> U\n  := \\A -> \\B -> \\f ->\n        ∑ (g : (_ : B) -> A),\n          prod ((x : A) -> g (f x) =_{A} x)\n               ((y : B) -> f (g y) =_{B} y)\n\n#def weq : (A : U) -> (B : U) -> U\n  := \\A -> \\B -> ∑ (f : (_ : A) -> B), isweq A B f\n\n#def Theorem-4.1\n        : (I : CUBE)\n        -> (psi : (t : I) -> TOPE)\n        -> (phi : {(t : I) | psi t} -> TOPE)\n        -> (X : U)\n        -> (Y : <{t : I | psi t} -> (x : X) -> U >)\n        -> (f : <{t : I | phi t} -> (x : X) -> Y t x >)\n        -> weq <{t : I | psi t} -> (x : X) -> Y t x [phi t |-> f t]>\n               ((x : X) -> <{t : I | psi t} -> Y t x [phi t |-> f t x]>)\n  := \\I -> \\psi -> \\phi -> \\X -> \\Y -> \\f ->\n        (\\k -> \\x -> \\t -> k t x,\n          (\\k -> \\{t : I | psi t} -> \\x -> (k x) t,\n            (\\k -> refl_{k}, \\k -> refl_{k})))\n";
 
       snippet_stlc = "#lang stlc\n\n#infer λA → λx → x\n    \n#infer λf → f x y\n    \n#infer λf → f f\n\n#infer λf → λg → λx → f (g x)\n  \n#infer λf → λg → λx → f g (g x)\n";
 

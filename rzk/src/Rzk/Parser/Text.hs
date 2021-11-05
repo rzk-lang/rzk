@@ -65,11 +65,11 @@ rzkDecl = "declaration" <??> do
 
 -- ** Term
 
-rzkTerm :: RzkParser (Term Var)
+rzkTerm :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTerm = "term" <??>
   buildExpressionParser rzkOperatorTable rzkTerm'
 
-rzkTerm' :: RzkParser (Term Var)
+rzkTerm' :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTerm' = "simple term" <??>
       try rzkTermPiType
   <|> rzkTermPiShape
@@ -99,62 +99,62 @@ rzkTerm' = "simple term" <??>
   <|> RecBottom <$ (symbol "recBOT" <|> symbol "rec⊥")
   <|> rzkTermVar
 
-rzkTermVar :: RzkParser (Term Var)
+rzkTermVar :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermVar = "variable" <??>
   (Variable <$> (Var <$> rzkIdent))
 
-rzkTermColonType :: RzkParser (Term Var, Term Var)
+rzkTermColonType :: (Monad m, TokenParsing m) => m (Term Var, Term Var)
 rzkTermColonType = do
   term <- rzkTerm
   colon
   type_ <- rzkTerm
   return (term, type_)
 
-rzkTermColonType' :: RzkParser (Term Var, Maybe (Term Var))
+rzkTermColonType' :: (Monad m, TokenParsing m) => m (Term Var, Maybe (Term Var))
 rzkTermColonType' = try withType <|> withoutType
   where
     withType = fmap Just <$> rzkTermColonType
     withoutType = (\t -> (t, Nothing)) <$> rzkTerm
 
-rzkVarColonType' :: RzkParser (Var, Maybe (Term Var))
+rzkVarColonType' :: (Monad m, TokenParsing m) => m (Var, Maybe (Term Var))
 rzkVarColonType' = try withType <|> withoutType
   where
     withType = fmap Just <$> parens rzkVarColonType
     withoutType = (\x -> (Var x, Nothing)) <$> rzkIdent
 
-rzkVarColonType :: RzkParser (Var, Term Var)
+rzkVarColonType :: (Monad m, TokenParsing m) => m (Var, Term Var)
 rzkVarColonType = do
   x <- Var <$> rzkIdent
   colon
   type_ <- rzkTerm
   return (x, type_)
 
-rzkPattern :: RzkParser (Term Var)
+rzkPattern :: (Monad m, TokenParsing m) => m (Term Var)
 rzkPattern =
       (Variable . Var) <$> rzkIdent
   <|> rzkTermPair
 
-rzkPatternColonType :: RzkParser (Term Var, Term Var)
+rzkPatternColonType :: (Monad m, TokenParsing m) => m (Term Var, Term Var)
 rzkPatternColonType = do
   x <- rzkPattern
   colon
   type_ <- rzkTerm
   return (x, type_)
 
-rzkPatternColonType' :: RzkParser (Term Var, Maybe (Term Var))
+rzkPatternColonType' :: (Monad m, TokenParsing m) => m (Term Var, Maybe (Term Var))
 rzkPatternColonType' = try withType <|> withoutType
   where
     withType = fmap Just <$> parens rzkPatternColonType
     withoutType = (\pat -> (pat, Nothing)) <$> rzkPattern
 
-rzkTermPiType :: RzkParser (Term Var)
+rzkTermPiType :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermPiType = "dependent function type" <??> do
   (pattern, a) <- parens rzkPatternColonType
   symbol "->" <|> symbol "→"
   t <- rzkTerm
   return (Pi (Lambda pattern (Just a) Nothing t))
 
-rzkTermPiShape :: RzkParser (Term Var)
+rzkTermPiShape :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermPiShape = "dependent function type (from a shape)" <??> do
   symbol "{"
   (pattern, i) <- rzkPatternColonType'
@@ -165,7 +165,7 @@ rzkTermPiShape = "dependent function type (from a shape)" <??> do
   a <- rzkTerm
   return (Pi (Lambda pattern i (Just phi) a))
 
-rzkTermLambda :: RzkParser (Term Var)
+rzkTermLambda :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   symbol "λ" <|> symbol "\\"
   (x, a) <- rzkPatternColonType'
@@ -173,7 +173,7 @@ rzkTermLambda = "lambda abstraction (anonymous function from a type)" <??> do
   t <- rzkTerm
   return (Lambda x a Nothing t)
 
-rzkTermLambdaShape :: RzkParser (Term Var)
+rzkTermLambdaShape :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermLambdaShape = "lambda abstraction (anonymous function from a shape)" <??> do
   symbol "λ" <|> symbol "\\"
   symbol "{"
@@ -185,7 +185,7 @@ rzkTermLambdaShape = "lambda abstraction (anonymous function from a shape)" <??>
   a <- rzkTerm
   return (Lambda t (Just i) (Just phi) a)
 
-rzkTermSigmaType :: RzkParser (Term Var)
+rzkTermSigmaType :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermSigmaType = "dependent sum type" <??> do
   symbol "∑" <|> symbol "Sigma"
   (x, a) <- parens rzkPatternColonType
@@ -193,14 +193,14 @@ rzkTermSigmaType = "dependent sum type" <??> do
   t <- rzkTerm
   return (Sigma (Lambda x (Just a) Nothing t))
 
-rzkTermRefl :: RzkParser (Term Var)
+rzkTermRefl :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermRefl = do
   symbol "refl_{"
   (x, a) <- rzkTermColonType'
   symbol "}"
   return (Refl a x)
 
-rzkTermIdJ :: RzkParser (Term Var)
+rzkTermIdJ :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermIdJ = do
   symbol "idJ"
   symbol "("
@@ -213,7 +213,7 @@ rzkTermIdJ = do
   symbol ")"
   return (IdJ tA a tC d x p)
 
-rzkTermRecOr :: RzkParser (Term Var)
+rzkTermRecOr :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermRecOr = do
   symbol "recOR" <|> symbol "rec∨"
   symbol "("
@@ -224,17 +224,17 @@ rzkTermRecOr = do
   symbol ")"
   return (RecOr psi phi a b)
 
-rzkTermFirst :: RzkParser (Term Var)
+rzkTermFirst :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermFirst = do
   (symbol "first" <|> symbol "π₁") <?> "π₁"
   First <$> rzkTerm
 
-rzkTermSecond :: RzkParser (Term Var)
+rzkTermSecond :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermSecond = do
   (symbol "second" <|> symbol "π₂") <?> "π₂"
   Second <$> rzkTerm
 
-rzkTermExtensionTypeFromCube :: RzkParser (Term Var)
+rzkTermExtensionTypeFromCube :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermExtensionTypeFromCube = between (symbol "<(") (symbol ">") $ do
   t <- rzkPattern
   symbol ":"
@@ -255,7 +255,7 @@ rzkTermExtensionTypeFromCube = between (symbol "<(") (symbol ">") $ do
   return (ExtensionType t cI TopeTop tA phi a)
 
 
-rzkTermExtensionType :: RzkParser (Term Var)
+rzkTermExtensionType :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermExtensionType = between (symbol "<{") (symbol ">") $ do
   t <- rzkPattern
   symbol ":"
@@ -289,19 +289,19 @@ rzkTermExtensionType = between (symbol "<{") (symbol ">") $ do
 --   skipSpace
 --   Second <$> termParens True
 
-rzkTermPair :: RzkParser (Term Var)
+rzkTermPair :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermPair = parens (Pair <$> rzkTerm <* comma <*> rzkTerm)
 
-rzkTermApp :: RzkParser (Term Var)
+rzkTermApp :: (Monad m, TokenParsing m) => m (Term Var)
 rzkTermApp = do
   t1 <- rzkTerm
   t2 <- rzkTerm
   return (App t1 t2)
 
-rzkOperator :: RzkParser a -> RzkParser a
+rzkOperator :: (Monad m, TokenParsing m) => m a -> m a
 rzkOperator op = op -- <* skipMany (satisfy isSpace)
 
-rzkOperatorTable :: OperatorTable RzkParser (Term Var)
+rzkOperatorTable :: (Monad m, TokenParsing m) => OperatorTable m (Term Var)
 rzkOperatorTable =
   [ [ Infix (pure App) AssocLeft ]
   , [ Infix (CubeProd <$ rzkOperator (symbol "*" <|> symbol "×")) AssocLeft ]
@@ -319,10 +319,10 @@ rzkOperatorTable =
 
 -- ** Identifiers
 
-rzkIdent :: RzkParser Text
+rzkIdent :: (Monad m, TokenParsing m) => m Text
 rzkIdent = Text.pack <$> ident rzkIdentStyle
 
-rzkIdentStyle :: IdentifierStyle RzkParser
+rzkIdentStyle :: TokenParsing m => IdentifierStyle m
 rzkIdentStyle = (emptyIdents @RzkParser)
   { _styleStart     = satisfy isIdentChar
   , _styleLetter    = satisfy isIdentChar
@@ -348,6 +348,7 @@ rzkIdentStyle = (emptyIdents @RzkParser)
   , "refl_", "refl_{"
   , "```"
   , "<", ">" , "|->", "|"
+  , "--" -- for comments
   ]
   }
 
@@ -357,7 +358,7 @@ isIdentChar :: Char -> Bool
 isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
 
 isDelim :: Char -> Bool
-isDelim c = c `elem` ("()[]{}," :: String)
+isDelim c = c `elem` ("()[]{},#" :: String)
 
 -- * Orphan 'IsString' instances
 
