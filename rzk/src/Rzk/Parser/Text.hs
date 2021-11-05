@@ -357,7 +357,7 @@ isIdentChar :: Char -> Bool
 isIdentChar c = isPrint c && not (isSpace c) && not (isDelim c)
 
 isDelim :: Char -> Bool
-isDelim c = c `elem` ("()[]{}," :: String)
+isDelim c = c `elem` ("()[]{},#" :: String)
 
 -- * Orphan 'IsString' instances
 
