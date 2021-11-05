@@ -33,6 +33,22 @@
     </div>
 
     <script>
+      // adapted from https://stackoverflow.com/a/28828681/442535
+      function getText(url){
+          // read text from URL location
+          var request = new XMLHttpRequest();
+          request.open('GET', url, true);
+          request.send(null);
+          request.onreadystatechange = function () {
+              if (request.readyState === 4 && request.status === 200) {
+                  var type = request.getResponseHeader('Content-Type');
+                  if (type.indexOf("text") !== 1) {
+                      return request.responseText;
+                  }
+              }
+          }
+      }
+
       CodeMirror.defineSimpleMode("rzk-stlc", {
         // The start state contains the rules that are initially used
         start: [
@@ -230,20 +246,34 @@
       /* use default snippet if one is not set in the query parameters */
       if (params.has("snippet")) {
         snippet = decodeURIComponent(params.get("snippet"));
-      } else {
-        /* default lang is mltt */
-        lang = "mltt";
-
-        if (params.has("lang")) {
-          lang = decodeURIComponent(params.get("lang"));
-        }
-
-        if (lang == "mltt")  { snippet = snippet_mltt; }
-        if (lang == "pcf")   { snippet = snippet_pcf; }
-        if (lang == "stlc")  { snippet = snippet_stlc; }
-        if (lang == "rzk-1") { snippet = snippet_rzk1; }
+      } else if (params.has("snippet_url")) {
+        snippet_url = decodeURIComponent(params.get("snippet_url"));
+        fetch(snippet_url).then(function (response) {
+          // The API call was successful!
+          response.text().then(function(txt) {
+            snippet = txt;
+            myCodeMirror.setValue(snippet);
+          });
+        }).catch(function (err) {
+          // There was an error
+          console.warn('Something went wrong.', err);
+        });
       }
-      myCodeMirror.setValue(snippet);
+
+      if (!snippet) {
+          /* default lang is mltt */
+          lang = "mltt";
+
+          if (params.has("lang")) {
+            lang = decodeURIComponent(params.get("lang"));
+          }
+
+          if (lang == "mltt")  { snippet = snippet_mltt; }
+          if (lang == "pcf")   { snippet = snippet_pcf; }
+          if (lang == "stlc")  { snippet = snippet_stlc; }
+          if (lang == "rzk-1") { snippet = snippet_rzk1; }
+          myCodeMirror.setValue(snippet);
+      }
     </script>
   </body>
 </html>
