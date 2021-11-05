@@ -208,7 +208,7 @@ pLangMode = do
     ]
 
 pRzk1 :: PolyParser (Module Var (Rzk1.Term Var))
-pRzk1 = Module <$> many (pCommand (PolyParser (runUnlined Rzk1.rzkTerm <* symbol "\n")))
+pRzk1 = Module <$> many (pCommand (PolyParser Rzk1.rzkTerm))
 
 pSTLC :: PolyParser (Module Var STLC.Term')
 pSTLC = Module <$> many (pCommand STLC.pTerm)
