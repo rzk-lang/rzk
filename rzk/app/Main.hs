@@ -4,17 +4,17 @@ module Main where
 
 import           System.Environment (getArgs)
 
-import           Rzk.Parser.Text
-import           Rzk.Syntax.Var
-import           Rzk.TypeChecker
+import           Rzk.Polylingual
 
 main :: IO ()
 main = do
   args <- getArgs
   case args of
     ["typecheck", path] -> do
-      m <- loadModuleFromMarkdownFile path
-      print (typecheckModule @Var ["{H}"] m)
+      result <- safeParseSomeModule <$> readFile path
+      case result of
+        Left err -> putStrLn err
+        Right m  -> putStrLn (compileSomeModule m)
     _ -> ppUsage
 
 ppUsage :: IO ()
