@@ -1,7 +1,13 @@
 # rzk
 
+
 [![CI status](https://github.com/fizruk/rzk/actions/workflows/ci.yml/badge.svg)](https://github.com/fizruk/rzk/actions/workflows/ci.yml)
-[![Haddock](https://github.com/fizruk/rzk/actions/workflows/haddock.yml/badge.svg)](https://fizruk.github.io/rzk/haddock/index.html)
+[![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://fizruk.github.io/rzk/haddock/index.html)
+
+[![stlc](https://shields.io/static/v1?label=lang&message=stlc&color=blueviolet)](https://fizruk.github.io/rzk/?lang=stlc)
+[![`#lang pcf`](https://shields.io/static/v1?label=lang&message=pcf&color=blueviolet)](https://fizruk.github.io/rzk/?lang=pcf)
+[![`#lang mltt`](https://shields.io/static/v1?label=lang&message=mltt&color=blueviolet)](https://fizruk.github.io/rzk/?lang=mltt)
+[![`#lang rzk-1`](https://shields.io/static/v1?label=lang&message=rzk-1&color=blueviolet)](https://fizruk.github.io/rzk/?lang=rzk-1)
 
 Prototype interactive proof assistant based on a type theory for synthetic ∞-categories.
 
