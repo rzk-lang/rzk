@@ -348,6 +348,7 @@ rzkIdentStyle = (emptyIdents @RzkParser)
   , "refl_", "refl_{"
   , "```"
   , "<", ">" , "|->", "|"
+  , "--" -- for comments
   ]
   }
 
