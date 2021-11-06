@@ -54,12 +54,6 @@ jobs:
             .stack
           key: ${{ runner.os }}-${{ hashFiles('stack.yaml.lock', 'rzk.cabal') }}-stack
 
-      - name: 🔨 Build Haddock Documentation (with Stack)
-        run: |
-          stack haddock
-          mkdir -p dist/haddock
-          mv $(stack path --local-doc-root)/* dist/haddock
-
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix-build try-rzk/
@@ -67,6 +61,12 @@ jobs:
           cp -r ./result/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
           cp try-rzk/index.html dist/.
+
+      - name: 🔨 Build Haddock Documentation (with Stack)
+        run: |
+          stack haddock
+          mkdir -p dist/haddock
+          mv $(stack path --local-doc-root)/* dist/haddock
 
       - name: 🔨 Build mdBook
         run: |
