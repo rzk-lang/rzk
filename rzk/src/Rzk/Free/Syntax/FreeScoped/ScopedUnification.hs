@@ -19,7 +19,6 @@ module Rzk.Free.Syntax.FreeScoped.ScopedUnification where
 
 import qualified Bound.Scope                as Bound
 import qualified Bound.Scope.Simple         as Bound.Simple
-import qualified Bound.Term                 as Bound
 import qualified Bound.Var                  as Bound
 import           Control.Applicative        (Alternative)
 import           Control.Monad.Logic
@@ -32,7 +31,7 @@ import           Data.Functor.Identity      (Identity (..))
 import           Data.List                  (partition)
 import           Data.Maybe                 (listToMaybe)
 import           Data.Monoid                (Any (..))
-import           Data.Void                  (absurd)
+import           Data.Void
 
 import           Data.Char                  (chr, ord)
 import           Data.String                (IsString (..))
@@ -42,34 +41,28 @@ import qualified Rzk.Syntax.Var             as Rzk
 
 import           Rzk.Free.Syntax.FreeScoped
 
--- | A variable in a unifiable term.
-data UVar a v
-  = UFreeVar a
-  -- ^ A free variable.
-  | UMetaVar v
-  -- ^ A meta variable.
-  deriving (Eq, Functor)
+data MetaAppF v scope term
+  = MetaAppF v [term]
+  deriving (Functor, Foldable, Traversable)
 
-data MetaAppF scope term
-  = MetaAppF term [term]
+deriveBifunctor ''MetaAppF
+deriveBifoldable ''MetaAppF
+deriveBitraversable ''MetaAppF
 
-instance Unifiable MetaAppF where
-  zipMatch (MetaAppF x xs) (MetaAppF y ys)
-    | length xs /= length ys = Nothing
-    | otherwise = Just
-        (MetaAppF (Right (x, y)) (Right <$> zip xs ys))
+instance Unifiable (MetaAppF v) where
+  zipMatch _ _ = Nothing
 
-instance HigherOrderUnifiable MetaAppF where
-  shapeGuesses (MetaAppF x xs) = MetaAppF (x, []) (zip xs (repeat []))
+instance HigherOrderUnifiable (MetaAppF v) where
+  shapeGuesses (MetaAppF x xs) = MetaAppF x (zip xs (repeat []))
 
-instance Reducible MetaAppF where
+instance Reducible (MetaAppF v) where
   reduceInL = id
   reduceInR = id
   reduce    = id
 
 -- | A free scoped monad for higher-order unification.
 type UFreeScoped b t a v =
-  FreeScoped b (t :+: MetaAppF) (UVar a v)
+  FreeScoped b (t :+: MetaAppF v) a
 
 class Bitraversable t => Unifiable t where
   zipMatch
@@ -97,16 +90,6 @@ class Unifiable t => HigherOrderUnifiable t where
 
   shapes :: [t IsHead IsHead]
   shapes = []
-
-toHeadForm :: HigherOrderUnifiable t => FreeScoped b t a -> FreeScoped b t (Maybe a)
-toHeadForm = \case
-  t@PureScoped{} -> Just <$> t
-  FreeScoped f -> FreeScoped (bimap goScoped go (shapeGuesses f))
-  where
-    go (t, [])  = toHeadForm t
-    go (_, _:_) = PureScoped Nothing
-
-    goScoped (s, _) = Just <$> s
 
 extractHeads :: HigherOrderUnifiable t => FreeScoped b t a -> [FreeScoped b t a]
 extractHeads = \case
@@ -182,16 +165,6 @@ data Constraint b t a
   | ForAll (Bound.Simple.Scope b (Constraint b t) a)
   deriving (Functor)
 
-substInConstraint
-  :: (Eq a, Eq b, Bifunctor t)
-  => (a, FreeScoped b t a)
-  -> Constraint b t a
-  -> Constraint b t a
-substInConstraint (x, t) = \case
-  t1 :~: t2 -> Bound.substitute x t t1 :~: Bound.substitute x t t2
-  ForAll c -> ForAll $ Bound.Simple.toScope $
-    substInConstraint (Bound.F x, Bound.F <$> t) (Bound.Simple.fromScope c)
-
 substInConstraintWith
   :: (Bifunctor t)
   => (a -> FreeScoped b t x)
@@ -215,7 +188,7 @@ instantiateC t = substInConstraintWith withB . Bound.Simple.fromScope
     withB (Bound.B _) = t
     withB (Bound.F x) = pure x
 
-type UConstraint b t a v = Constraint b (t :+: MetaAppF) (UVar a v)
+type UConstraint b t a v = Constraint b (t :+: MetaAppF v) a
 
 class Monad m => MonadFresh v m | m -> v where
   freshMeta :: m v
@@ -243,101 +216,40 @@ runFreshT m vs = evalStateT (unFreshT m) vs
 runFresh :: Fresh v a -> [v] -> a
 runFresh m = runIdentity . runFreshT m
 
-runFreshIntegers :: Fresh Integer a -> a
-runFreshIntegers m = runFresh m [0..]
-
 data MetaAbs b t a = MetaAbs
   { metaAbsArity :: !Int
   , metaAbsBody  :: Bound.Scope Int (FreeScoped b t) a
   } deriving (Functor)
 
-type Subst b t a = (a, MetaAbs b t a)
-type USubstClosed b t v = Subst b (t :+: MetaAppF) v
-type USubst b t a v = Subst b (t :+: MetaAppF) (UVar a v)
+type USubst b t a v = (v, MetaAbs b (t :+: MetaAppF v) a)
+type USubstClosed b t v = USubst b t Void v
 
-newtype Substs b t a = Substs { getSubsts :: [Subst b t a] }
+newtype Substs b t v a = Substs { getSubsts :: [USubst b t a v] }
   deriving (Semigroup, Monoid, Functor)
 
-type USubstsClosed b t v = Substs b (t :+: MetaAppF) v
-type USubsts b t a v = Substs b (t :+: MetaAppF) (UVar a v)
+type USubsts b t a v = Substs b t v a
+type USubstsClosed b t v = Substs b t v Void
 
 applyUSubsts
-  :: (Eq a, Eq b, Eq v, Bifunctor t)
+  :: (Eq v, Bifunctor t)
   => USubsts b t a v
   -> UFreeScoped b t a v
   -> UFreeScoped b t a v
 applyUSubsts substs = \case
-  t@(PureScoped UFreeVar{}) -> t
-  t@(PureScoped v) ->
-    case lookup v (getSubsts substs) of
-      Just (MetaAbs _arity s) ->
-        Bound.instantiate (error "impossible: no arguments") s
-      Nothing -> t
-  t@(FreeScoped (InR (MetaAppF (PureScoped v) args))) ->
+  t@PureScoped{} -> t
+  t@(FreeScoped (InR (MetaAppF v args))) ->
     case lookup v (getSubsts substs) of
       Just (MetaAbs _arity s) ->
         Bound.instantiate (args !!) s
       Nothing -> t
-  FreeScoped t -> FreeScoped (bimap (Bound.toScope . fmap dist' . applyUSubsts (bimap Bound.F id <$> substs) . fmap dist . Bound.fromScope) (applyUSubsts substs) t)
-  where
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
-
-    dist' (UFreeVar (Bound.B b)) = Bound.B b
-    dist' (UFreeVar (Bound.F x)) = Bound.F (UFreeVar x)
-    dist' (UMetaVar v)           = Bound.F (UMetaVar v)
-
-applySubsts
-  :: (Eq a, Eq b, Bifunctor t)
-  => Substs b (t :+: MetaAppF) a
-  -> FreeScoped b (t :+: MetaAppF)  a
-  -> FreeScoped b (t :+: MetaAppF) a
-applySubsts substs = \case
-  t@(PureScoped v) ->
-    case lookup v (getSubsts substs) of
-      Just (MetaAbs _arity s) ->
-        Bound.instantiate (error "impossible: no arguments") s
-      Nothing -> t
-  t@(FreeScoped (InR (MetaAppF (PureScoped v) args))) ->
-    case lookup v (getSubsts substs) of
-      Just (MetaAbs _arity s) ->
-        Bound.instantiate (args !!) s
-      Nothing -> t
-  FreeScoped t -> FreeScoped (bimap (Bound.toScope . applySubsts (Bound.F <$> substs) . Bound.fromScope) (applySubsts substs) t)
+  FreeScoped t -> FreeScoped (bimap (Bound.toScope . applyUSubsts (Bound.F <$> substs) . Bound.fromScope) (applyUSubsts substs) t)
 
 applyUSubstsClosed
   :: (Eq v, Bifunctor t)
   => USubstsClosed b t v
   -> UFreeScoped b t a v
   -> UFreeScoped b t a v
-applyUSubstsClosed substs = \case
-  t@(PureScoped UFreeVar{}) -> t
-  t@(PureScoped (UMetaVar v)) ->
-    case lookup v (getSubsts substs) of
-      Just (MetaAbs _arity s) ->
-        Bound.instantiate (error "impossible: no arguments") (UMetaVar <$> s)
-      Nothing -> t
-  t@(FreeScoped (InR (MetaAppF (PureScoped (UMetaVar v)) args))) ->
-    case lookup v (getSubsts substs) of
-      Just (MetaAbs _arity s) ->
-        Bound.instantiate (args !!) (UMetaVar <$> s)
-      Nothing -> t
-  FreeScoped t -> FreeScoped (bimap (Bound.toScope . fmap dist' . applyUSubstsClosed substs . fmap dist . Bound.fromScope) (applyUSubstsClosed substs) t)
-  where
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
-
-    dist' (UFreeVar (Bound.B b)) = Bound.B b
-    dist' (UFreeVar (Bound.F x)) = Bound.F (UFreeVar x)
-    dist' (UMetaVar v)           = Bound.F (UMetaVar v)
-
-isStuck :: HigherOrderUnifiable t => UFreeScoped b t a v -> Bool
-isStuck = isStuck' isUMetaVar
-  where
-    isUMetaVar UMetaVar{} = True
-    isUMetaVar _          = False
+applyUSubstsClosed = applyUSubsts . vacuous
 
 substituteGuesses
   :: forall a b v t m.
@@ -351,34 +263,28 @@ substituteGuesses defaultBoundVar = fmap Substs . \case
   FreeScoped (InR _) -> pure []
   where
     go :: forall x.
-      (FreeScoped b (t :+: MetaAppF) (UVar x v), [t () ()])
+      (FreeScoped b (t :+: MetaAppF v) x, [t () ()])
       -> m [USubstClosed b t v]
     go = \case
       (FreeScoped (InL t), _guesses) ->
         bifold <$> bitraverse goScoped go (shapeGuesses t)
-      (PureScoped (UMetaVar v), guesses) ->
-        go (FreeScoped (InR (MetaAppF (PureScoped (UMetaVar v)) [])), guesses)
       (_t, []) -> pure []
-      (FreeScoped (InR (MetaAppF (PureScoped (UMetaVar v)) args)), guesses) -> do
+      (FreeScoped (InR (MetaAppF v args)), guesses) -> do
         msum $ flip map guesses $ \guess -> do
           guess' <- bitraverse
-            (const $ Bound.toScope . FreeScoped . InR . flip MetaAppF (pure (Bound.B defaultBoundVar) : (zipWith const (pure . Bound.F . UFreeVar <$> [0..]) args)) . pure . Bound.F . UMetaVar <$> freshMeta)
-            (const $ FreeScoped . InR . flip MetaAppF (zipWith const (pure . UFreeVar <$> [0..]) args) . pure . UMetaVar <$> freshMeta)
+            (const $ Bound.toScope . FreeScoped . InR . flip MetaAppF (pure (Bound.B defaultBoundVar) : (zipWith const (pure . Bound.F <$> [0..]) args)) <$> freshMeta)
+            (const $ FreeScoped . InR . flip MetaAppF (zipWith const (pure <$> [0..]) args) <$> freshMeta)
             guess
           let arity = length args
-          return [(v, MetaAbs arity $ Bound.abstractEither (\case {UFreeVar i -> Left i; UMetaVar v' -> Right v'}) (FreeScoped (InL guess')))]
+          return [(v, MetaAbs arity $ Bound.abstractEither Left (FreeScoped (InL guess')))]
       (_, _guesses) -> pure []
 
     -- TODO: allow inner meta variables to access all bound variables by default?
     goScoped
       :: forall x.
-        (Bound.Scope b (FreeScoped b (t :+: MetaAppF)) (UVar x v), [t () ()])
+        (Bound.Scope b (FreeScoped b (t :+: MetaAppF v)) x, [t () ()])
       -> m [USubstClosed b t v]
-    goScoped (s, guesses) = go (dist <$> Bound.fromScope s, guesses)
-      where
-        dist (Bound.B b)            = UFreeVar (Bound.B b)
-        dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-        dist (Bound.F (UMetaVar v)) = UMetaVar v
+    goScoped (s, guesses) = go (Bound.fromScope s, guesses)
 
 guessAndSubstitute
   :: (Eq v, HigherOrderUnifiable t, MonadFresh v m, MonadPlus m)
@@ -409,27 +315,11 @@ data SimplifyResult a
   | Simplified [a]
   deriving (Show, Functor, Foldable, Traversable)
 
-isStuck'
-  :: HigherOrderUnifiable t
-  => (a -> Bool) -> FreeScoped b t a -> Bool
-isStuck' p = \case
-  PureScoped x -> p x
-  FreeScoped t -> getAny $ bifoldMap
-    (Any . isStuckSubScope)
-    (Any . isStuckSubTerm)
-    (shapeGuesses t)
-  where
-    isStuckSubTerm (t, guesses)
-      = not (null guesses) && isStuck' p t
-    isStuckSubScope (s, guesses)
-      = not (null guesses) && isStuck' (any p) (Bound.fromScope s)
-
 isStuckU
   :: HigherOrderUnifiable t
   => UFreeScoped b t a v -> Bool
 isStuckU = \case
-  PureScoped UMetaVar{} -> True
-  PureScoped UFreeVar{} -> False
+  PureScoped{} -> False
   FreeScoped (InR (MetaAppF _ _)) -> True
   FreeScoped t -> getAny $ bifoldMap
     (Any . isStuckSubScope)
@@ -440,41 +330,7 @@ isStuckU = \case
       = not (null guesses) && isStuckU t
 
     isStuckSubScope (s, guesses)
-      = not (null guesses) && isStuckU (dist <$> Bound.fromScope s)
-
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
-
-simplify
-  :: ( HigherOrderUnifiable t, Reducible t
-     , MonadPlus m, MonadFresh v m
-     , Eq a, Eq b, Eq v )
-  => (a -> Bool)
-  -> Constraint b t a
-  -> m (SimplifyResult (Constraint b t a))
-simplify isMeta (ForAll c) = fmap (ForAll . Bound.Simple.toScope) <$>
-  simplify (any isMeta) (Bound.Simple.fromScope c)
-simplify isMeta (t1 :~: t2) =
-  case (reduce t1, reduce t2) of
-
-    (t1', t2')
-      | isStuck' isMeta t1' || isStuck' isMeta t2' -> return (CannotSimplify (t1' :~: t2'))
-
-    (FreeScoped t1', FreeScoped t2') ->
-      case zipMatch t1' t2' of
-        Nothing -> mzero
-        Just t  -> do
-          let go (Left _)         = return []
-              go (Right (e1, e2)) = return [e1 :~: e2]
-
-              goScope (Left _)  = return []
-              goScope (Right (s1, s2)) = return
-                [ForAll $ Bound.Simple.toScope $
-                  Bound.fromScope s1 :~: Bound.fromScope s2]
-          Simplified . bifold <$> bitraverse goScope go t
-
-    (t1', t2') -> return (CannotSimplify (t1' :~: t2'))
+      = not (null guesses) && isStuckU (Bound.fromScope s)
 
 simplifyU
   :: ( HigherOrderUnifiable t, Reducible t
@@ -484,16 +340,8 @@ simplifyU
   -> UConstraint b t a v
   -> m (SimplifyResult (UConstraint b t a v), USubstsClosed b t v)
 simplifyU defaultBoundVar (ForAll c) =
-  first (fmap (ForAll . Bound.Simple.toScope . fmap dist')) <$>
-    simplifyU defaultBoundVar (dist <$> Bound.Simple.fromScope c)
-  where
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
-
-    dist' (UFreeVar (Bound.B b)) = Bound.B b
-    dist' (UFreeVar (Bound.F x)) = Bound.F (UFreeVar x)
-    dist' (UMetaVar v)           = Bound.F (UMetaVar v)
+  first (fmap (ForAll . Bound.Simple.toScope)) <$>
+    simplifyU defaultBoundVar (Bound.Simple.fromScope c)
 
 simplifyU defaultBoundVar (t1 :~: t2) = do
   (r1, substs1) <- reduceAndGuess defaultBoundVar t1
@@ -535,10 +383,10 @@ repeatedlySimplifyU defaultBoundVar = go
     go (c:cs) = do
       simplifyU defaultBoundVar c >>= \case
         (CannotSimplify c', substs) -> do
-          (cs', moreSubsts) <- go (applyUSubstsC (UMetaVar <$> substs) <$> cs)
+          (cs', moreSubsts) <- go (applyUSubstsC (vacuous substs) <$> cs)
           return (c':cs', moreSubsts <> applyUSubstsClosedS moreSubsts substs)
         (Simplified c', substs) -> do
-          (cs', moreSubsts) <- go (c' <> (applyUSubstsC (UMetaVar <$> substs) <$> cs))
+          (cs', moreSubsts) <- go (c' <> (applyUSubstsC (vacuous substs) <$> cs))
           return (cs', moreSubsts <> applyUSubstsClosedS moreSubsts substs)
 
 tryFlexRigid
@@ -547,16 +395,14 @@ tryFlexRigid
      , Eq a, Eq b, Eq v )
   => UConstraint b t (Bound.Var b' a) v
   -> [m [USubsts b t a v]]
-tryFlexRigid (ForAll c)  = tryFlexRigid (dist <$> Bound.Simple.fromScope c)
+tryFlexRigid (ForAll c)  = tryFlexRigid (joinBound <$> Bound.Simple.fromScope c)
   where
-    dist (Bound.B b)                      = UFreeVar (Bound.B (Left b))
-    dist (Bound.F (UFreeVar (Bound.B b))) = UFreeVar (Bound.B (Right b))
-    dist (Bound.F (UFreeVar (Bound.F x))) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v))           = UMetaVar v
-
+    joinBound (Bound.B x)           = Bound.B (Left x)
+    joinBound (Bound.F (Bound.B y)) = Bound.B (Right y)
+    joinBound (Bound.F (Bound.F z)) = Bound.F z
 tryFlexRigid (t1 :~: t2) =
   case t1 of
-    FreeScoped (InR (MetaAppF (PureScoped (UMetaVar v)) args)) ->
+    FreeScoped (InR (MetaAppF v args)) ->
       generate v (length args) (extractHead t2)
     _ -> []
   where
@@ -564,7 +410,7 @@ tryFlexRigid (t1 :~: t2) =
     genFullMeta n = do
       v <- freshMeta
       let args = [ PureScoped (Bound.B i) | i <- [0 .. n - 1] ]
-      return $ FreeScoped (InR (MetaAppF (PureScoped (Bound.F (UMetaVar v))) args))
+      return $ FreeScoped (InR (MetaAppF v args))
 
     generate v n h =
       [ mkSubst v n <$> (t >>= \t' -> pure t' `mplus` grow t' n)
@@ -581,21 +427,26 @@ tryFlexRigid (t1 :~: t2) =
         -- FIXME: we are not using extra bound variables here!
         goScope x = Bound.toScope . fmap Bound.F <$> go x
 
-    mkSubst v n t = [Substs [(UMetaVar v, MetaAbs n (Bound.toScope t))]]
+    mkSubst v n t = [Substs [(v, MetaAbs n (Bound.toScope t))]]
 
     generateWithBoundHead i = pure (PureScoped (Bound.B i))
 
-    generateWithHead (PureScoped (UFreeVar (Bound.B _))) _ = mzero
+    generateWithHead (PureScoped (Bound.B _)) _ = mzero
     generateWithHead h n = join <$> traverse go h
       where
-        go (UFreeVar (Bound.B _)) = genFullMeta n
-        go (UFreeVar (Bound.F x)) = pure (PureScoped (Bound.F (UFreeVar x)))
-        go (UMetaVar v)           = pure (PureScoped (Bound.F (UMetaVar v)))
+        go (Bound.B _) = genFullMeta n
+        go (Bound.F x) = pure (PureScoped (Bound.F x))
 
--- FIXME:
--- t1 = FreeScoped (InR (MetaAppF (PureScoped (UMetaVar "f")) [PureScoped (UFreeVar "x")])) :: UTerm'
--- t2 = AppE (VarE (UFreeVar "x")) (VarE (UFreeVar "y")) :: UTerm'
--- unifyUTerms' t1 t2
+-- | Unify two terms with meta variables.
+--
+-- >>> t1 = MetaApp "f" [VarE "x"] :: UTerm'
+-- >>> t2 = AppE (VarE "x") (VarE "y") :: UTerm'
+-- >>> t1
+-- ?f[x]
+-- >>> t2
+-- x y
+-- >>> unifyUTerms'_ t1 t2
+-- Just [(f,λx₁. x y)]
 unify
   :: ( HigherOrderUnifiable t, Reducible t
      , MonadPlus m, MonadLogic m, MonadFresh v m
@@ -606,14 +457,14 @@ unify
   -> m ([UConstraint b t a v], USubsts b t a v)
 unify defaultBoundVar substs constraints = do
   (constraints', moreSubsts) <- repeatedlySimplifyU defaultBoundVar constraints
-  let moreSubsts' = UMetaVar <$> moreSubsts
+  let moreSubsts' = vacuous moreSubsts
       substs' = applyUSubstsS moreSubsts' substs
       oldSubsts = substs' <> moreSubsts'
       (flexflex, flexrigid) = partition isFlexFlex constraints'
   case flexrigid of
     [] -> return (flexflex, oldSubsts)
     fr : _ -> do
-      let psubsts = tryFlexRigid (bimap Bound.F id <$> fr)
+      let psubsts = tryFlexRigid (Bound.F <$> fr)
       trySubsts oldSubsts psubsts (flexrigid <> flexflex)
   where
     trySubsts oldSubsts psubsts cs = do
@@ -630,11 +481,7 @@ isFlexFlex
   => UConstraint b t a v
   -> Bool
 isFlexFlex (t1 :~: t2) = isStuckU t1 && isStuckU t2
-isFlexFlex (ForAll c)  = isFlexFlex (dist <$> Bound.Simple.fromScope c)
-  where
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
+isFlexFlex (ForAll c)  = isFlexFlex (Bound.Simple.fromScope c)
 
 -- * Example: untyped lambda calculus
 
@@ -677,13 +524,12 @@ type Term b = FreeScoped (Name b ()) TermF
 type ScopedTerm b a = Bound.Scope (Name b ()) (Term b) a
 type UTerm b a v = UFreeScoped (Name b ()) TermF a v
 type ScopedUTerm b a v
-  = Bound.Scope (Name b ()) (FreeScoped (Name b ()) (TermF :+: MetaAppF)) (UVar a v)
+  = Bound.Scope (Name b ()) (FreeScoped (Name b ()) (TermF :+: MetaAppF v)) a
 
 type Term'  = Term  Rzk.Var Rzk.Var
 type UTerm' = UTerm Rzk.Var Rzk.Var Rzk.Var
 
 type Constraint' = UConstraint (Name Rzk.Var ()) TermF Rzk.Var Rzk.Var
-type UConstraint' = UConstraint (Name Rzk.Var ()) TermF Rzk.Var (UVar Rzk.Var Rzk.Var)
 
 applyUSubstsClosedS
   :: (Eq b, Eq v, Bifunctor t)
@@ -693,7 +539,7 @@ applyUSubstsClosedS
 applyUSubstsClosedS substs (Substs ss) = Substs (second f <$> ss)
   where
     f (MetaAbs n body) = MetaAbs n . Bound.toScope $
-      applySubsts (Bound.F <$> substs) (Bound.fromScope body)
+      applyUSubsts (Bound.F <$> substs) (Bound.fromScope body)
 
 applyUSubstsS
   :: (Eq a, Eq b, Eq v, Bifunctor t)
@@ -702,16 +548,8 @@ applyUSubstsS
   -> USubsts b t a v
 applyUSubstsS substs (Substs ss) = Substs (fmap f <$> ss)
   where
-    f (MetaAbs n body) = MetaAbs n . Bound.toScope . fmap dist' $
-      applyUSubsts (bimap Bound.F id <$> substs) (dist <$> Bound.fromScope body)
-
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
-
-    dist' (UFreeVar (Bound.B b)) = Bound.B b
-    dist' (UFreeVar (Bound.F x)) = Bound.F (UFreeVar x)
-    dist' (UMetaVar v)           = Bound.F (UMetaVar v)
+    f (MetaAbs n body) = MetaAbs n . Bound.toScope $
+      applyUSubsts (Bound.F <$> substs) (Bound.fromScope body)
 
 applyUSubstsC
   :: (Eq a, Eq b, Eq v, Bifunctor t)
@@ -721,17 +559,8 @@ applyUSubstsC
 applyUSubstsC substs = \case
   t1 :~: t2 ->
     applyUSubsts substs t1 :~: applyUSubsts substs t2
-  ForAll c -> ForAll $ Bound.Simple.toScope $ fmap dist' $
-    applyUSubstsC (bimap Bound.F id <$> substs) (dist <$> (Bound.Simple.fromScope c))
-  where
-    dist (Bound.B b)            = UFreeVar (Bound.B b)
-    dist (Bound.F (UFreeVar x)) = UFreeVar (Bound.F x)
-    dist (Bound.F (UMetaVar v)) = UMetaVar v
-
-    dist' (UFreeVar (Bound.B b)) = Bound.B b
-    dist' (UFreeVar (Bound.F x)) = Bound.F (UFreeVar x)
-    dist' (UMetaVar v)           = Bound.F (UMetaVar v)
-
+  ForAll c -> ForAll $ Bound.Simple.toScope $
+    applyUSubstsC (Bound.F <$> substs) ((Bound.Simple.fromScope c))
 
 -- ** Testing
 
@@ -773,10 +602,13 @@ unifyUTerms'_ t1 t2 = listToMaybe . runUnifyM' $ do
     | (v, t) <- substs
     , v `elem` metas ]    -- removing intermediate meta variables
   where
-    metas = foldMap getMeta t1 <> foldMap getMeta t2
-      where
-        getMeta v@UMetaVar{} = [v]
-        getMeta _            = []
+    metas = getMetas t1 <> getMetas t2
+
+    getMetas :: (Bifunctor t, Bifoldable t) => UFreeScoped b t a v -> [v]
+    getMetas = \case
+      PureScoped{} -> []
+      FreeScoped (InR (MetaAppF v args)) -> v : foldMap getMetas args
+      FreeScoped (InL t) -> bifoldMap (getMetas . Bound.fromScope) getMetas t
 
 -- ** Simple pattern synonyms
 
@@ -811,6 +643,13 @@ pattern ExtE ext = FreeScoped (InR ext)
 
 {-# COMPLETE VarE, LamE, AppE, ExtE #-}
 
+pattern MetaApp :: v -> [UFreeScoped b t a v] -> UFreeScoped b t a v
+pattern MetaApp v args = FreeScoped (InR (MetaAppF v args))
+
+pattern MetaVar :: v -> UFreeScoped b t a v
+pattern MetaVar v = MetaApp v []
+
+
 -- | Abstract over one variable in a term.
 --
 -- >>> lam "x" (App (Var "f") (Var "x")) :: Term String String
@@ -831,8 +670,8 @@ lam x body = Lam (abstract1Name x body)
 lamU :: Eq a => a -> UTerm a a v -> UTerm a a v
 lamU x body = LamE (abstractName' f body)
   where
-    f (UFreeVar y) | x == y = Just (Name (Just x) ())
-    f _            = Nothing
+    f y | x == y = Just (Name (Just x) ())
+    f _ = Nothing
 
 
 -- * Pretty-printing
@@ -893,52 +732,22 @@ instance Pretty Constraint' where
           digitToSub c = chr ((ord c - ord '0') + ord '₀')
           index = map digitToSub (show n)
 
-instance Show UConstraint' where show = show . pretty
-instance Pretty UConstraint' where
-  pretty = ppUConstraint defaultFreshVars
-    where
-      defaultFreshVars = [ fromString ("x" <> toIndex i) | i <- [1..] ]
-
-      toIndex n = index
-        where
-          digitToSub c = chr ((ord c - ord '0') + ord '₀')
-          index = map digitToSub (show n)
-
 ppConstraint :: [Rzk.Var] -> Constraint' -> Doc ann
 ppConstraint [] = error "not enough fresh variables"
 ppConstraint vars@(x:xs) = \case
   t1 :~: t2 -> ppUTermArg vars t1 <+> "~" <+> ppUTermArg vars t2
   ForAll c -> "forall" <+> pretty x <> dot
-    <+> ppConstraint xs (instantiateC (pure (UFreeVar x)) c)
+    <+> ppConstraint xs (instantiateC (pure x) c)
 
-ppUConstraint :: [Rzk.Var] -> UConstraint' -> Doc ann
-ppUConstraint [] = error "not enough fresh variables"
-ppUConstraint vars@(x:xs) = \case
-  t1 :~: t2 -> ppUTermArg vars t1 <+> "~" <+> ppUTermArg vars t2
-  ForAll c -> "forall" <+> pretty x <> dot
-    <+> ppUConstraint xs (instantiateC (pure (UFreeVar x)) c)
 -- ** Pretty-printing terms and constraints with meta variables
 
-instance (Pretty a, Pretty v) => Show (UVar a v) where
-  show = show . pretty
-
-instance (Pretty a, Pretty v) => Pretty (UVar a v) where
-  pretty (UFreeVar x) = pretty x
-  pretty (UMetaVar v) = "?" <> pretty v
-
-instance (Pretty b, Pretty v, Show v) => Show (Substs (Name b ()) (TermF :+: MetaAppF) v) where
+instance (IsString a, Pretty a, Pretty b, Pretty v, Show v) => Show (Substs (Name b ()) TermF v a) where
   show (Substs substs) = show substs
 
-instance {-# OVERLAPPING #-} (IsString a, Pretty a, Pretty b, Pretty v, Show v) => Show (Substs (Name b ()) (TermF :+: MetaAppF) (UVar a v)) where
-  show (Substs substs) = show substs
-
-instance (Pretty b, Pretty v) => Show (MetaAbs (Name b ()) (TermF :+: MetaAppF) v) where
-  show = show . pretty . fmap (UMetaVar @Rzk.Var)
-
-instance {-# OVERLAPPING #-} (IsString a, Pretty a, Pretty b, Pretty v) => Show (MetaAbs (Name b ()) (TermF :+: MetaAppF) (UVar a v)) where
+instance (IsString a, Pretty a, Pretty b, Pretty v) => Show (MetaAbs (Name b ()) (TermF :+: MetaAppF v) a) where
   show = show . pretty
 
-instance (IsString a, Pretty a, Pretty b, Pretty v) => Pretty (MetaAbs (Name b ()) (TermF :+: MetaAppF) (UVar a v)) where
+instance (IsString a, Pretty a, Pretty b, Pretty v) => Pretty (MetaAbs (Name b ()) (TermF :+: MetaAppF v) a) where
   pretty = ppMetaAbs defaultFreshVars
     where
       defaultFreshVars = [ fromString ("x" <> toIndex i) | i <- [1..] ]
@@ -970,7 +779,7 @@ ppUTerm vars = \case
   AppE f x -> ppUTermFun vars f <+> ppUTermArg vars x
   LamE body -> ppScopedUTerm vars body $ \x body' ->
     "λ" <> pretty x <+> "→" <+> body'
-  ExtE (MetaAppF m args) -> ppUTermFun vars m <>
+  ExtE (MetaAppF v args) -> "?" <> pretty v <>
     encloseSep "[" "]" comma (ppUTerm vars <$> args)
 
 -- | Pretty-print an untyped in a head position.
@@ -996,25 +805,17 @@ ppScopedUTerm
   => [a] -> ScopedUTerm b a v -> (a -> Doc ann -> Doc ann) -> Doc ann
 ppScopedUTerm [] _ _             = error "not enough fresh names"
 ppScopedUTerm (x:xs) t withScope = withScope x $
-  ppUTerm xs (Bound.instantiate1 (VarE (UFreeVar x)) t)
+  ppUTerm xs (Bound.instantiate1 (VarE x) t)
 
 -- FIXME: this is for closed MetaAbs only
-ppMetaAbs :: (Pretty a, Pretty b, Pretty v) => [a] -> MetaAbs (Name b ()) (TermF :+: MetaAppF) (UVar a v) -> Doc ann
+ppMetaAbs :: (Pretty a, Pretty b, Pretty v) => [a] -> MetaAbs (Name b ()) (TermF :+: MetaAppF v) a -> Doc ann
 ppMetaAbs vars (MetaAbs arity body) =
   (if null args then ("" <>) else (("λ" <> hsep (map pretty args) <> ".") <+>))
-  (ppUTerm vars' (Bound.instantiate ((VarE . UFreeVar <$> args) !!) body))
+  (ppUTerm vars' (Bound.instantiate ((VarE <$> args) !!) body))
   where
     (args, vars') = splitAt arity vars
 
 -- TH derived instances
-deriveBifunctor ''UVar
-deriveBifoldable ''UVar
-deriveBitraversable ''UVar
-
-deriveBifunctor ''MetaAppF
-deriveBifoldable ''MetaAppF
-deriveBitraversable ''MetaAppF
-
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
 deriveBitraversable ''TermF
