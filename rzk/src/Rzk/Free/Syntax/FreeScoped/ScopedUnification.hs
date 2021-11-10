@@ -437,16 +437,6 @@ tryFlexRigid (t1 :~: t2) =
         go (Bound.B _) = genFullMeta n
         go (Bound.F x) = pure (PureScoped (Bound.F x))
 
--- | Unify two terms with meta variables.
---
--- >>> t1 = MetaApp "f" [VarE "x"] :: UTerm'
--- >>> t2 = AppE (VarE "x") (VarE "y") :: UTerm'
--- >>> t1
--- ?f[x]
--- >>> t2
--- x y
--- >>> unifyUTerms'_ t1 t2
--- Just [(f,λx₁. x y)]
 unify
   :: ( HigherOrderUnifiable t, Reducible t
      , MonadPlus m, MonadLogic m, MonadFresh v m
@@ -566,16 +556,6 @@ applyUSubstsC substs = \case
 
 type UnifyM' = LogicT (Fresh Rzk.Var)
 
--- |
--- >>> t1 = (AppE (AppE (pure (UMetaVar "f")) (pure (UFreeVar "x"))) (pure (UFreeVar "z"))) :: UTerm'
--- >>> runUnifyM' $ reduceAndGuess (Rzk.Name Nothing ()) t1
--- [(?M₂[z,x],[(f,λx₁ → ?M₁[x₁]),(M₁,λx₁. λx₂ → ?M₂[x₂,x₁])])]
---
--- >>> t = lamU "z" (AppE (VarE (UMetaVar "f")) (VarE (UFreeVar "x"))) :: UTerm'
--- >>> t
--- λx₁ → ?f x
--- >>> runUnifyM' $ reduceAndGuess (Rzk.Name Nothing ()) t
--- [(λx₁ → (λx₂ → ?M₁[x₂]) x,[(f,λx₁ → ?M₁[x₁])])]
 runUnifyM' :: UnifyM' a -> [a]
 runUnifyM' m = runFresh (observeAllT m) defaultFreshMetaVars
   where
@@ -586,14 +566,16 @@ runUnifyM' m = runFresh (observeAllT m) defaultFreshMetaVars
         digitToSub c = chr ((ord c - ord '0') + ord '₀')
         index = map digitToSub (show n)
 
--- >>> t1 = lamU "x" (lamU "y" (AppE (AppE (VarE (UMetaVar "f")) (VarE (UFreeVar "x"))) (VarE (UFreeVar "y"))))
--- >>> t2 = lamU "x" (lamU "y" (AppE (VarE (UFreeVar "y")) (AppE (VarE (UFreeVar "x")) (VarE (UFreeVar "y"))))) :: UTerm'
+-- | Unify to 'UTerm''s:
+--
+-- >>> t1 = MetaApp "f" [VarE "x"] :: UTerm'
+-- >>> t2 = AppE (VarE "x") (VarE "y") :: UTerm'
 -- >>> t1
--- λx₁ → λx₂ → ?f x₁ x₂
+-- ?f[x]
 -- >>> t2
--- λx₁ → λx₂ → x₂ (x₁ x₂)
--- >>> unifyUTerms' t1 t2
--- Just [(?f,λx₁ → λx₂ → x₂ (x₁ x₂))]
+-- x y
+-- >>> unifyUTerms'_ t1 t2
+-- Just [(f,λx₁. x y)]
 unifyUTerms'_ :: UTerm' -> UTerm' -> Maybe (USubsts (Name Rzk.Var ()) TermF Rzk.Var Rzk.Var)
 unifyUTerms'_ t1 t2 = listToMaybe . runUnifyM' $ do
   (_flexflex, Substs substs) <- unify (Name Nothing ()) (Substs []) [t1 :~: t2]
