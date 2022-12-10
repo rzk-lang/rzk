@@ -1,5 +1,4 @@
 .DS_Store
-rzk/rzk.cabal
 docs/out/
 dist
 dist-*
