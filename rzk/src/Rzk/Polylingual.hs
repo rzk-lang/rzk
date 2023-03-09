@@ -6,6 +6,7 @@
 module Rzk.Polylingual where
 
 import           Control.Applicative
+import qualified Data.List as List
 import           Control.Monad                (void)
 import           Data.Char                    (isPrint, isSpace, toLower,
                                                toUpper)
@@ -173,10 +174,22 @@ runCommandMLTT = \case
     "declarations are not supported in MLTT at the moment:\n  " <> show decl
   Unify _ _ -> "#unify is not supported in MLTT at the moment"
 
+removeComments :: String -> String
+removeComments = unlines . map removeComment . lines
+
+removeComment :: String -> String
+removeComment "" = ""
+removeComment ('-':'-':' ':_) = ""
+removeComment s =
+  case List.span (/= ' ') s of
+    (before, "") -> before
+    (before, after) ->
+      case List.span (== ' ') after of
+        (middle, end) -> before ++ middle ++ removeComment end
 
 safeParseSomeModule :: String -> Either String SomeModule
 safeParseSomeModule input =
-  case parseString pSomeModule mempty input of
+  case parseString pSomeModule mempty (removeComments input) of
     Success x       -> pure x
     Failure errInfo -> Left (show errInfo)
 
