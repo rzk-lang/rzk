@@ -33,6 +33,7 @@ import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
 import           Rzk.Debug.Trace
+import Debug.Trace
 
 data TypeCheckerAction var
   = ActionTypeCheck (Term var) (Term var)
@@ -936,8 +937,9 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
         psi' <- localPattern' (y, x) $ evalType psi
         ensureEqTope phi' psi'
         localConstraint phi' $ do
+          b' <- evalType b
           d' <- localPattern' (y, x) $ evalType d
-          unify' b d'
+          trace "[[ololo]]" $ unify' b' d'
     unify'' tt1@(App u1 u2) tt2@(App v1 v2) = do
       appExt u1 u2 >>= \case
         Nothing -> appExt v1 v2 >>= \case
@@ -1013,15 +1015,19 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       unify' cI cI'
       localPatternTyping (t', Just cI') $ do
         psi_ <- localPattern' (t, t') $ evalType psi
-        unify' psi_ psi'
+        psi'_ <- localPattern' (t, t') $ evalType psi'
+        unify' psi_ psi'_
         localConstraint psi' $ do
           tA_ <- localPattern' (t, t') $ evalType tA
-          unify' tA_ tA'
+          tA'_ <- evalType tA'
+          unify' tA_ tA'_
           phi_ <- localPattern' (t, t') $ evalType phi
-          unify' phi_ phi'
+          phi'_ <- evalType phi'
+          unify' phi_ phi'_
           localConstraint phi' $ do
             a_ <- localPattern' (t, t') $ evalType a
-            unify' a_ a'
+            a'_ <- evalType a'
+            unify' a_ a'_
 
     -- unification by eta-expansion!
     unify'' (Lambda x a Nothing m) tt2 = do
