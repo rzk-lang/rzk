@@ -68,11 +68,17 @@ jobs:
           mkdir -p dist/haddock
           mv $(stack path --local-doc-root)/* dist/haddock
 
-      - name: 🔨 Build mdBook
+      - name: 🔨 Build MkDocs
+        uses: Tiryoh/actions-mkdocs@v0
+        with:
+          mkdocs_version: 'latest' # option
+          #mkdocs_version: '1.1' # option
+          #requirements: 'requirements.txt' # option
+          configfile: 'docs/mkdocs.yml' # option
+
+      - name: 🔨 Copy MkDocs files
         run: |
-          mdbook build docs/
-          mkdir -p dist/docs/
-          mv docs/out/* dist/docs/
+          cp -r docs/split.html docs/site dist/.
 
       - name: 📘 Publish Documentation
         uses: peaceiris/actions-gh-pages@v3
