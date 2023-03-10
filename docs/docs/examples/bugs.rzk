@@ -1,0 +1,57 @@
+#lang rzk-1
+
+#def hom : (A : U) -> (x : A) -> (y : A) -> U
+  := \A -> \x -> \y ->
+    <{t : 2 | TOP} -> A
+       [t === 0_2 \/ t === 1_2 |-> recOR(t === 0_2, t === 1_2, x, y)]>
+  
+#def hom2
+  : (A : U)
+  -> (x : A) -> (y : A) -> (z : A)
+  -> (f : hom A x y)
+  -> (g : hom A y z)
+  -> (h : hom A x z)
+  -> U
+  := \A -> \x -> \y -> \z -> \f -> \g -> \h ->
+    <{(t, s) : 2 * 2 | t <= s} -> A
+    	[ t === 0_2 \/ s === 1_2 \/ t === s |->
+        	recOR(s === 1_2, t === 0_2 \/ t === s, f t, recOR(t === 0_2, t === s, g s, h s)) ]>
+
+#def iscontr : (A : U) -> U
+  := \A -> (x : A) -> (y : A) -> x =_{A} y
+    
+#def isSegal : (A : U) -> U
+  := \A ->
+       (x : A) -> (y : A) -> (z : A)
+    -> (f : hom A x y)
+    -> (g : hom A y z)
+    -> iscontr (∑ (h : hom A x z), hom2 A x y z f g h)
+
+#def prod : (A : U) -> (B : U) -> U
+  := \A -> \B -> ∑ (x : A), B
+
+#def isweq : (A : U) -> (B : U) -> (f : (_ : A) -> B) -> U
+  := \A -> \B -> \f ->
+        ∑ (g : (_ : B) -> A),
+          prod ((x : A) -> g (f x) =_{A} x)
+               ((y : B) -> f (g y) =_{B} y)
+
+#def weq : (A : U) -> (B : U) -> U
+  := \A -> \B -> ∑ (f : (_ : A) -> B), isweq A B f
+
+#def Theorem-4.2_curry_ext
+  : (I : CUBE)
+  -> (J : CUBE)
+  -> (psi : (t : I) -> TOPE)
+  -> (zeta : (s : J) -> TOPE)
+  -> (X : <{t : I | psi t} -> <{s : J | zeta s} -> U> >)
+  -> (chi : {(t : I) | psi t} -> TOPE)
+  -> (phi : {(s : J) | zeta s} -> TOPE)
+  -> (f : <{(t, s) : I * J | psi t /\ zeta s} -> X t s >)
+  -> (_ : <{(t, s) : I * J | psi t /\ zeta s}
+             -> X t s [(phi t /\ zeta s) \/ (psi t /\ chi s) |-> f (t, s)]>)
+  -> <{t : I | psi t}
+        -> <{s : J | zeta s} -> X t s [chi s |-> f (t, s)]>
+           [phi t |-> \{s : J | zeta s} -> f (t, s)]>
+  := \I -> \J -> \psi -> \zeta -> \X -> \chi -> \phi -> \f ->
+    \k -> \t -> \{s : J | zeta s} -> k (t, s)

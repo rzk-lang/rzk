@@ -1,0 +1,14 @@
+site_name: "rzk: an experimental proof assistant for syntheric ∞-categories"
+nav:
+  - General:
+    - About: index.md
+  - Type Theory with Shapes:
+      - Introduction: tts/introduction.md
+      - Examples: tts/examples.md
+      - Formalising RS17: tts/RS17.md
+  - Other Languages:
+      - STLC: other/stlc.md
+      - PCF: other/pcf.md
+      - MLTT: other/mltt.md
+
+theme: readthedocs
