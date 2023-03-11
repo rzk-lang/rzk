@@ -958,17 +958,24 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       ensureTopeContext t TopeBottom
     unify'' t RecBottom = do
       ensureTopeContext t TopeBottom
-    unify'' (RecOr psi phi a b) (RecOr psi' phi' a' b') = do
-      ensureEqTope psi psi'
-      ensureEqTope phi phi'
+    unify'' (RecOr psi phi a b) r = do
       localConstraint psi $ do
-        a_ <- evalType a
-        a'_ <- evalType a'
-        unify' a_ a'_
+        a' <- evalType a
+        r' <- evalType r
+        unify' a' r'
       localConstraint phi $ do
-        b_ <- evalType b
-        b'_ <- evalType b'
-        unify' b_ b'_
+        b' <- evalType b
+        r' <- evalType r
+        unify' b' r'
+    unify'' l (RecOr psi phi a b) = do
+      localConstraint psi $ do
+        a' <- evalType a
+        l' <- evalType l
+        unify' l' a'
+      localConstraint phi $ do
+        b' <- evalType b
+        l' <- evalType l
+        unify' l' b'
 
     unify'' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
       unify' cI cI'
