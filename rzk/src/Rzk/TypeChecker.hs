@@ -21,7 +21,7 @@ import qualified Control.Monad.Fail as Fail
 #endif
 
 import           Data.Foldable        (sequenceA_, traverse_)
-import           Data.List            (nub, (\\))
+import           Data.List            (nub)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
@@ -31,9 +31,6 @@ import           Rzk.Syntax.Decl
 import           Rzk.Syntax.Module
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
-
-import           Rzk.Debug.Trace
-import Debug.Trace
 
 data TypeCheckerAction var
   = ActionTypeCheck (Term var) (Term var)
@@ -395,48 +392,6 @@ addTypeHoleFor x = do
     Just ty -> return ty
     Nothing -> Hole <$> genFreshHole
 
-unfoldRepeatedly :: Eq a => ([a] -> [a]) -> [a] -> [a]
-unfoldRepeatedly unfold xs
-  | null xs' = xs
-  | otherwise = unfoldRepeatedly unfold (xs' <> xs)
-  where
-    xs' = unfold xs \\ xs
-
-unfoldTopesInCube2 :: Eq var => [Term var] -> [Term var]
-unfoldTopesInCube2
-  = unfoldRepeatedly antisymmetryTopesInCube2
-  . unfoldRepeatedly distinctTopes
-  . unfoldRepeatedly transitivityTopesInCube2
-  . unfoldRepeatedly unfoldConjunction
-
-unfoldConjunction :: [Term var] -> [Term var]
-unfoldConjunction topes =
-  [ t
-  | TopeAnd psi phi <- topes
-  , t <- [psi, phi]
-  ]
-
-transitivityTopesInCube2 :: Eq var => [Term var] -> [Term var]
-transitivityTopesInCube2 topes =
-  [ TopeLEQ x z
-  | TopeLEQ x y <- topes
-  , TopeLEQ y' z <- topes
-  , y == y'
-  , x /= z
-  ]
-
-antisymmetryTopesInCube2 :: Eq var => [Term var] -> [Term var]
-antisymmetryTopesInCube2 topes =
-  [ TopeEQ x y
-  | TopeLEQ x y <- topes
-  , TopeLEQ y' x' <- topes
-  , x == x'
-  , y == y'
-  ]
-
-distinctTopes :: [Term var] -> [Term var]
-distinctTopes topes = [ TopeBottom | TopeLEQ Cube2_1 Cube2_0 <- topes ]
-
 unfoldTopeWithInclusions :: (Eq var, Enum var) => Term var -> TypeCheck var [Term var]
 unfoldTopeWithInclusions = go
   where
@@ -461,9 +416,8 @@ unfoldTopeWithInclusions = go
       phi -> return [phi]
 
 unfoldTopes' :: (Eq var, Enum var) => [Term var] -> TypeCheck var [Term var]
-unfoldTopes' topes = do
-  topes' <- concat <$> traverse unfoldTopeWithInclusions topes
-  return (unfoldTopesInCube2 topes')
+unfoldTopes' topes = concat <$>
+  traverse unfoldTopeWithInclusions topes
 
 inferLenient :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe (Term var))
 inferLenient term = do
@@ -473,7 +427,6 @@ inferLenient term = do
   return result
 
 infer :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
--- infer ttt = unsafeTraceTerm "infer" ttt $ ($ ttt) $ \case
 infer term = localAction (ActionInferType term) $ ($ term) $ \case
   Variable x    -> do
     mty <- lookupTypeOf x
@@ -500,15 +453,13 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         typecheck t2 i
         localPattern' (t, t2) $ do
           phi' <- evalType phi
-          unsafeTraceTyping "infer.App.Pi" term' phi' $ do
-            ensureTopeContext term' phi'
+          ensureTopeContext term' phi'
           evalType a
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
         typecheck t2 cI
         localPattern' (t, t2) $ do
           psi' <- evalType psi
-          unsafeTraceTyping "infer.App.ExtensionType" term' psi' $ do
-            ensureTopeContext term' psi'
+          ensureTopeContext term' psi'
           evalType tA
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
@@ -547,7 +498,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         typecheck a' Universe
         typecheck x a'
         return a'
-      Nothing -> unsafeTraceTerm "infer.Refl" x $ infer x
+      Nothing -> infer x
     return (IdType typeof_x x x)
   IdJ tA a tC d x p -> do
     typecheck tA Universe
@@ -599,6 +550,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     typeOf_b <- localConstraint phi $ infer b
     localConstraint (TopeAnd psi phi) $ do
       unify t typeOf_a typeOf_b
+      unify t a b
     return (RecOr psi phi typeOf_a typeOf_b)
 
   ExtensionType t cI psi tA phi a -> do
@@ -614,6 +566,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         ensureSubTope a psi' phi'
         localConstraint phi' $ do
           a' <- evalType a
+          Context{..} <- ask
           typecheck a' tA'
           return Universe
 
@@ -630,33 +583,29 @@ ensureTopeContext term phi = do
   Context{..} <- ask
   contextTopes' <- unfoldTopes' contextTopes
   unless (contextTopes' `entailTope` phi) $ do
-    unsafeTraceTerm "ensureTopeContext.error" term $ do
-      issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
+    issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 ensureSubTope term psi phi = do
   Context{..} <- ask
   phi' <- unfoldTopes' [phi]
   unless (phi' `entailTope` psi) $ do
-    unsafeTraceTerm "ensureSubTope.error" term $ do
-      issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
+    issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
 
 ensureEqTope :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 ensureEqTope psi phi = do
   Context{..} <- ask
-  phi' <- unfoldTopes' [phi]
-  psi' <- unfoldTopes' [psi]
+  phi' <- unfoldTopes' (phi : contextTopes)
+  psi' <- unfoldTopes' (psi : contextTopes)
   unless (phi' `entailTope` psi) $ do
-    unsafeTraceTyping "ensureEqTope.error.1" psi phi $ do
-      issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
+    issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
   unless (psi' `entailTope` phi) $ do
-    unsafeTraceTyping "ensureEqTope.error.2" psi phi $ do
-      issueTypeError (TypeErrorTopeContextNotSatisfied phi phi psi')
+    issueTypeError (TypeErrorTopeContextNotSatisfied phi phi psi')
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 inferTypeFamily = \case
   Lambda x (Just a) Nothing m -> do
-    typeOf_a <- unsafeTraceTerm "inferTypeFamily" TopeBottom $ infer a
+    typeOf_a <- infer a
     typecheck typeOf_a Universe
     localPatternTyping (x, Just a) $
       typecheck m Universe
@@ -822,7 +771,7 @@ typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
         Nothing  -> setTypeOf x ty
         Just xty -> unify (Variable x) xty ty
     _ -> do
-      inferredType <- unsafeTraceTerm "infer" term $ infer term
+      inferredType <- infer term
       unify term inferredType expectedType
 
 checkInfiniteType :: forall var. (Eq var, Enum var) => Term var -> var -> Term var -> TypeCheck var (Term var)
@@ -892,7 +841,8 @@ appExt f x = do
       localPattern' (t, x) $ do
         Context{..} <- ask
         phi' <- evalType phi
-        if contextTopes `entailTope` phi'
+        contextTopes' <- unfoldTopes' contextTopes
+        if contextTopes' `entailTope` phi'
            then Just <$> evalType a
            else pure Nothing
     _ -> pure Nothing
@@ -904,7 +854,12 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
   t2' <- evalType t2
   unify' t1' t2'
   where
-    unify' tt1 tt2 = localAction (ActionUnify tt1 tt2) $ unify'' tt1 tt2
+    unify' tt1 tt2 = localAction (ActionUnify tt1 tt2) $ do
+      Context{..} <- ask
+      contextTopes' <- unfoldTopes' contextTopes
+      if contextTopes' `entailTope` TopeBottom
+         then return () -- anything unifies in an empty context
+         else unify'' tt1 tt2
 
     unify'' (Hole x) (Hole y)
       | x == y = return ()
@@ -939,7 +894,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
         localConstraint phi' $ do
           b' <- evalType b
           d' <- localPattern' (y, x) $ evalType d
-          trace "[[ololo]]" $ unify' b' d'
+          unify' b' d'
     unify'' tt1@(App u1 u2) tt2@(App v1 v2) = do
       appExt u1 u2 >>= \case
         Nothing -> appExt v1 v2 >>= \case
@@ -999,17 +954,21 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       unify' s s'
 
     unify'' RecBottom RecBottom = return ()
-    unify'' RecBottom t = do
-      unsafeTraceTerm "unify' RecBottom t :: ensureTopeContext" t $ do
-        ensureTopeContext t TopeBottom
+    unify'' RecBottom t = 
+      ensureTopeContext t TopeBottom
     unify'' t RecBottom = do
-      unsafeTraceTerm "unify' t RecBottom :: ensureTopeContext" t $ do
-        ensureTopeContext t TopeBottom
+      ensureTopeContext t TopeBottom
     unify'' (RecOr psi phi a b) (RecOr psi' phi' a' b') = do
       ensureEqTope psi psi'
       ensureEqTope phi phi'
-      unify' a a'
-      unify' b b'
+      localConstraint psi $ do
+        a_ <- evalType a
+        a'_ <- evalType a'
+        unify' a_ a'_
+      localConstraint phi $ do
+        b_ <- evalType b
+        b'_ <- evalType b'
+        unify' b_ b'_
 
     unify'' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
       unify' cI cI'
@@ -1101,7 +1060,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           let s' = refreshVar (vars <> freeVars i) s
           localTyping (s', Just i) $ do
             psi' <- localVar (s, Variable s') $ evalType psi
-            unsafeTraceTerm "" (Pair (Variable s') psi') $ localConstraint psi' $ do
+            localConstraint psi' $ do
               issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
               unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
         _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)

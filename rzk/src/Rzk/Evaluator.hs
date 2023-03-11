@@ -17,6 +17,7 @@ import qualified Data.Text             as Text
 
 import           Rzk.Pretty.Text       (ppTerm, ppVar)
 import           Rzk.Syntax.Term
+import           Rzk.Debug.Trace
 import           Rzk.Syntax.Var
 
 -- $setup
@@ -221,7 +222,7 @@ eval = \case
 
   TopeOr  psi phi -> TopeOr <$> eval psi <*> eval phi
   TopeAnd psi phi -> TopeAnd <$> eval psi <*> eval phi
-  TopeEQ  x   y   -> pure (TopeEQ x y)
+  TopeEQ  x   y   -> TopeEQ <$> eval x <*> eval y
 
   RecBottom -> pure RecBottom
   RecOr psi phi a b -> do
@@ -232,8 +233,8 @@ eval = \case
       if (contextTopes `entailTope` phi') then eval b else do
         a' <- eval a
         b' <- eval b
-        pure $ if a == b
-                  then a
+        pure $ if a' == b'
+                  then a'
                   else RecOr psi' phi' a' b'
 
   ExtensionType t cI psi tA phi a -> do
@@ -258,13 +259,80 @@ unfoldTopes [] = [[]]
 unfoldTopes (tope:topes) = nub $
   case tope of
     TopeBottom      -> [[TopeBottom]]
-    TopeTop         -> topes'
-    TopeOr phi psi  -> topes' >>= \ts -> unfoldTopes (phi:ts) <> unfoldTopes (psi:ts)
-    TopeAnd phi psi -> ([phi, psi] ++) <$> topes'
-    t@(TopeEQ x y)  -> (\ts -> [t, TopeEQ y x] ++ ts {- apply substition? -}) <$> topes'
-    t               -> (t:) <$> topes'
+    TopeTop         -> topeses
+    TopeOr phi psi  -> concat
+      [ unfoldTopes (tope':topes)
+      | tope' <- [phi, psi]
+      ]
+    TopeAnd phi psi -> unfoldTopes (phi : psi : topes)
+    t@(TopeEQ x y)  -> (\ts -> [t, TopeEQ y x] ++ ts {- apply substition? -}) <$> topeses
+    t               -> (t:) <$> topeses
   where
-    topes' = unfoldTopes topes
+    topeses = unfoldTopes topes
+
+unfoldRepeatedly :: Eq a => ([a] -> [a]) -> [a] -> [a]
+unfoldRepeatedly unfold xs
+  | null xs' = xs
+  | otherwise = unfoldRepeatedly unfold (nub (xs' <> xs))
+  where
+    xs' = unfold xs \\ xs
+
+unfoldRepeatedlyN :: Eq a => ([a] -> [a]) -> Int -> [a] -> [a]
+unfoldRepeatedlyN unfold n xs
+  | n == 0 = xs
+  | null xs' = xs
+  | otherwise = unfoldRepeatedlyN unfold (n - 1) (nub (xs' <> xs))
+  where
+    xs' = unfold xs \\ xs
+
+unfoldTopesInCube2 :: Eq var => [Term var] -> [Term var]
+unfoldTopesInCube2
+  = unfoldRepeatedlyN unfoldTopesInCube2Once 10
+
+unfoldTopesInCube2Once :: Eq var => [Term var] -> [Term var]
+unfoldTopesInCube2Once
+  = antisymmetryTopesInCube2
+      <> distinctTopes
+      <> transitivityTopesInCube2
+      <> transitivityTopesEQ
+      <> unfoldConjunction
+
+unfoldConjunction :: [Term var] -> [Term var]
+unfoldConjunction topes =
+  [ t
+  | TopeAnd psi phi <- topes
+  , t <- [psi, phi]
+  ]
+
+transitivityTopesInCube2 :: Eq var => [Term var] -> [Term var]
+transitivityTopesInCube2 topes =
+  [ TopeLEQ x z
+  | TopeLEQ x y <- topes
+  , TopeLEQ y' z <- topes
+  , y == y'
+  , x /= z
+  ]
+
+transitivityTopesEQ :: Eq var => [Term var] -> [Term var]
+transitivityTopesEQ topes =
+  [ TopeEQ x z
+  | TopeEQ x y <- topes
+  , TopeEQ y' z <- topes
+  , y == y'
+  , x /= z
+  ]
+
+antisymmetryTopesInCube2 :: Eq var => [Term var] -> [Term var]
+antisymmetryTopesInCube2 topes =
+  [ TopeEQ x y
+  | TopeLEQ x y <- topes
+  , TopeLEQ y' x' <- topes
+  , x == x'
+  , y == y'
+  ]
+
+distinctTopes :: [Term var] -> [Term var]
+distinctTopes topes = [ TopeBottom | TopeEQ Cube2_1 Cube2_0 <- topes ]
 
 entailTope :: Eq var => [Term var] -> Term var -> Bool
 entailTope topes t =
@@ -273,8 +341,8 @@ entailTope topes t =
 entailTopeM
   :: (Monad m, Eq var)
   => (Term var -> Term var -> m Bool) -> [Term var] -> Term var -> m Bool
-entailTopeM isIncludedIn topes tope = or <$>
-  traverse (\topes' -> entailTopeM' isIncludedIn topes' tope) (unfoldTopes (topes ++ addLEQs tope))
+entailTopeM isIncludedIn topes tope = and <$>
+  traverse (\topes' -> entailTopeM' isIncludedIn (unfoldTopesInCube2 topes') tope) (unfoldTopes (topes ++ addLEQs tope))
 
 addLEQs :: Term var -> [Term var]
 addLEQs (TopeLEQ x y)     = [TopeOr (TopeLEQ x y) (TopeLEQ y x)]
@@ -301,15 +369,17 @@ entailTopeM' isIncludedIn topes = go
         False -> go psi
       TopeEQ (First  (Pair x _y)) s -> go (TopeEQ x s)
       TopeEQ (Second (Pair _x y)) s -> go (TopeEQ y s)
-      TopeEQ t s -> pure $ or
+      TopeEQ t s | or
         [ t == CubeUnitStar
         , s == CubeUnitStar
         , t == s
         , TopeEQ s t `elem` topes
-        ]
-      TopeLEQ x y | x == y -> pure True
-      TopeLEQ Cube2_0 _ -> pure True
-      TopeLEQ _ Cube2_1 -> pure True
+        ] -> pure True
+      TopeLEQ x y -> go (TopeEQ x y) >>= \case
+        True -> pure True
+        False -> go (TopeEQ x Cube2_0) >>= \case
+          True -> pure True
+          False -> go (TopeEQ y Cube2_1)
       tope -> anyM (`isIncludedIn` tope) topes
 
     anyM _ [] = pure False
