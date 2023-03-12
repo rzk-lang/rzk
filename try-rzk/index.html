@@ -338,6 +338,12 @@
           if (lang == "rzk-1") { snippet = snippet_rzk1; }
           myCodeMirror.setValue(snippet);
       }
+
+      myCodeMirror.setOption("extraKeys", {
+        "Ctrl-Enter": function(cm) {
+          __rzk__trigger_Run(myCodeMirror.getValue());
+        }
+      });
     </script>
   </body>
 </html>

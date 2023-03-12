@@ -9,6 +9,9 @@ module Main where
 -- | Miso framework import
 import           Miso
 import           Miso.String
+import           GHCJS.Foreign.Callback
+import           GHCJS.Marshal (fromJSVal)
+import           GHCJS.Prim (JSVal)
 
 import qualified Rzk.Polylingual as Rzk
 
@@ -33,9 +36,16 @@ main = startApp App {..}
     update = updateModel          -- update function
     view   = viewModel            -- view function
     events = defaultEvents        -- default delegated events
-    subs   = []                   -- empty subscription list
+    subs   = [ ctrlEnterSub ]
     mountPoint = Just "__app__"   -- mount point for application (Nothing defaults to 'body')
     logLevel = Off                -- used during prerendering to see if the VDOM and DOM are in sync (only used with `miso` function)
+
+ctrlEnterSub :: Sub Action
+ctrlEnterSub sink = do
+  callback <- asyncCallback1 $ \codeVal inputVal -> do
+    Just input <- fromJSVal inputVal
+    sink (Run input)
+  set__rzk__trigger_Run_callback callback
 
 initModel :: Model
 initModel = Model
@@ -57,7 +67,7 @@ updateModel (Check input) m = noEff m
 -- | Constructs a virtual DOM from a model
 viewModel :: Model -> View Action
 viewModel Model{..} = div_ [] [
-   button_ [ onClick Reload ] [ text "Typecheck" ]
+   button_ [ onClick Reload ] [ text "Typecheck (Ctrl + Enter)" ]
  , br_ []
  , br_ []
  , pre_ [] [ text (ms response) ]
@@ -65,3 +75,6 @@ viewModel Model{..} = div_ [] [
 
 foreign import javascript unsafe "$r = myCodeMirror.getValue();"
   codemirrorGetValue :: IO MisoString
+
+foreign import javascript unsafe "__rzk__trigger_Run = $1"
+  set__rzk__trigger_Run_callback :: (Callback (JSVal -> IO ())) -> IO ()
