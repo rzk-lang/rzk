@@ -9,7 +9,7 @@ module Main where
 -- | Miso framework import
 import           Miso
 import           Miso.String
-import           GHCJS.Foreign.Callback
+import qualified GHCJS.Foreign.Callback as GHCJS
 import           GHCJS.Marshal (fromJSVal)
 import           GHCJS.Prim (JSVal)
 
@@ -42,7 +42,7 @@ main = startApp App {..}
 
 ctrlEnterSub :: Sub Action
 ctrlEnterSub sink = do
-  callback <- asyncCallback1 $ \codeVal inputVal -> do
+  callback <- GHCJS.asyncCallback1 $ \codeVal inputVal -> do
     Just input <- fromJSVal inputVal
     sink (Run input)
   set__rzk__trigger_Run_callback callback
@@ -77,4 +77,4 @@ foreign import javascript unsafe "$r = myCodeMirror.getValue();"
   codemirrorGetValue :: IO MisoString
 
 foreign import javascript unsafe "__rzk__trigger_Run = $1"
-  set__rzk__trigger_Run_callback :: (Callback (JSVal -> IO ())) -> IO ()
+  set__rzk__trigger_Run_callback :: (GHCJS.Callback (JSVal -> IO ())) -> IO ()
