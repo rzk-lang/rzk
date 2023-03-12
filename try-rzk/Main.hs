@@ -42,10 +42,10 @@ main = startApp App {..}
 
 ctrlEnterSub :: Sub Action
 ctrlEnterSub sink = do
-  callback <- GHCJS.asyncCallback1 $ \codeVal inputVal -> do
+  callback <- GHCJS.asyncCallback1 $ \inputVal -> do
     Just input <- fromJSVal inputVal
-    sink (Run input)
-  set__rzk__trigger_Run_callback callback
+    sink (Check input)
+  set__rzk__trigger_Check_callback callback
 
 initModel :: Model
 initModel = Model
@@ -76,5 +76,5 @@ viewModel Model{..} = div_ [] [
 foreign import javascript unsafe "$r = myCodeMirror.getValue();"
   codemirrorGetValue :: IO MisoString
 
-foreign import javascript unsafe "__rzk__trigger_Run = $1"
-  set__rzk__trigger_Run_callback :: (GHCJS.Callback (JSVal -> IO ())) -> IO ()
+foreign import javascript unsafe "__rzk__trigger_Check = $1"
+  set__rzk__trigger_Check_callback :: (GHCJS.Callback (JSVal -> IO ())) -> IO ()
