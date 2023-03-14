@@ -4,7 +4,17 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
-module Rzk.Evaluator where
+module Rzk.Evaluator (
+  EvalError(..),
+  Context(..), emptyContext,
+  Eval, runEval,
+  localFreeVar, localPattern, localVar, localVars, lookupVar,
+  freeVars, allVars,
+  renameVars,
+  localConstraint,
+  eval,
+  entailTope
+) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
@@ -17,7 +27,6 @@ import qualified Data.Text             as Text
 
 import           Rzk.Pretty.Text       (ppTerm, ppVar)
 import           Rzk.Syntax.Term
-import           Rzk.Debug.Trace
 import           Rzk.Syntax.Var
 
 -- $setup
@@ -130,17 +139,9 @@ enterPatternScope = \case
 localConstraint :: MonadReader (Context var) m => Term var -> m a -> m a
 localConstraint phi = local (\context -> context { contextTopes = phi : contextTopes context })
 
--- | Add tope inclusion information locally during evaluation.
-localTopeInclusion :: MonadReader (Context var) m => Term var -> Term var -> m a -> m a
-localTopeInclusion psi phi = local (\context -> context { contextTopeInclusions = (psi, phi) : contextTopeInclusions context })
-
 -- | Add a free variable locally during evaluation.
 localFreeVar :: MonadReader (Context var) m => var -> m a -> m a
 localFreeVar x = local (addVar x)
-
--- | Evaluate a closed term (all variables are bound).
-evalClosed :: (Eq var, Enum var) => Term var -> Either (EvalError var) (Term var)
-evalClosed = runExcept . flip runReaderT emptyContext . runEval . eval
 
 -- | Find all variables in a term.
 allVars :: Eq var => Term var -> [var]
@@ -222,16 +223,6 @@ freeVars = \case
   Cube2_0 -> []
   Cube2_1 -> []
   TopeLEQ t s -> freeVars t <> freeVars s
-
--- | Evaluate an open term (some variables might occur freely).
---
--- >>> evalOpen @Var "(λ(x : A) → x =_{A} (λ(y : B) → y)) y"
--- Right y =_{A} (λ(y₁ : B) → y₁)
-evalOpen :: (Eq var, Enum var) => Term var -> Either (EvalError var) (Term var)
-evalOpen t = go t
-  where
-    go = runExcept . flip runReaderT context . runEval . eval
-    context = emptyContext { contextFreeVariables = freeVars t }
 
 -- | Evaluate a term.
 --
@@ -329,13 +320,6 @@ unfoldTopes (tope:topes) = nub $
     t               -> (t:) <$> topeses
   where
     topeses = unfoldTopes topes
-
-unfoldRepeatedly :: Eq a => ([a] -> [a]) -> [a] -> [a]
-unfoldRepeatedly unfold xs
-  | null xs' = xs
-  | otherwise = unfoldRepeatedly unfold (nub (xs' <> xs))
-  where
-    xs' = unfold xs \\ xs
 
 unfoldRepeatedlyN :: Eq a => ([a] -> [a]) -> Int -> [a] -> [a]
 unfoldRepeatedlyN unfold n xs
