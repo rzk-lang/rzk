@@ -10,7 +10,8 @@ mkDerivation {
   version = "0.1.0.0";
   src = ./.;
   isLibrary = true;
-  isExecutable = true;
+  isExecutable = false;
+  doHaddock = false;
   setupHaskellDepends = [ base Cabal cabal-doctest ];
   libraryHaskellDepends = [
     ansi-terminal base bifunctors bound deepseq free hashable
