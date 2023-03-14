@@ -1,57 +1,139 @@
 #lang rzk-1
 
-#def hom : (A : U) -> (x : A) -> (y : A) -> U
-  := \A -> \x -> \y ->
-    <{t : 2 | TOP} -> A
-       [t === 0_2 \/ t === 1_2 |-> recOR(t === 0_2, t === 1_2, x, y)]>
-  
-#def hom2
-  : (A : U)
-  -> (x : A) -> (y : A) -> (z : A)
-  -> (f : hom A x y)
-  -> (g : hom A y z)
-  -> (h : hom A x z)
-  -> U
-  := \A -> \x -> \y -> \z -> \f -> \g -> \h ->
-    <{(t, s) : 2 * 2 | t <= s} -> A
-    	[ t === 0_2 \/ s === 1_2 \/ t === s |->
-        	recOR(s === 1_2, t === 0_2 \/ t === s, f t, recOR(t === 0_2, t === s, g s, h s)) ]>
+#def Δ¹ : (t : 2) -> TOPE
+  := \(t : 2) -> TOP
+
+#def ∂Δ¹ : (t : 2) -> TOPE
+  := \(t : 2) -> (t === 0_2 \/ t === 1_2)
+
+#def Δ² : (t : 2 * 2) -> TOPE
+  := \(t, s) -> s <= t
+
+#def ∂Δ² : (t : 2 * 2) -> TOPE
+  := \(t, s) -> (s === 0_2 \/ t === 1_2 \/ s === t)
+
+#def hom : (A : U) -> (t : A) -> (y : A) -> U
+  := \A -> \x -> \y -> <{t : 2 | Δ¹ t } -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]>
+
+-- #def hom2
+--   : (A : U)
+--   -> (t : A) -> (y : A) -> (z : A)
+--   -> (f : hom A t y)
+--   -> (g : hom A y z)
+--   -> (h : hom A t z)
+--   -> U
+--   := \A -> \t -> \y -> \z -> \f -> \g -> \h ->
+--     <{(t, s) : 2 * 2 | t <= s} -> A
+--         [ t === 0_2 \/ s === 1_2 \/ t === s |->
+--                 recOR(s === 1_2, t === 0_2 \/ t === s, f t, recOR(t === 0_2, t === s, g s, h s)) ]>
+
 
 #def iscontr : (A : U) -> U
-  := \A -> (x : A) -> (y : A) -> x =_{A} y
-    
-#def isSegal : (A : U) -> U
-  := \A ->
-       (x : A) -> (y : A) -> (z : A)
-    -> (f : hom A x y)
-    -> (g : hom A y z)
-    -> iscontr (∑ (h : hom A x z), hom2 A x y z f g h)
+  := \A -> ∑ (a : A), (x : A) -> a =_{A} x
+
+#def iscontr : (A : U) -> U
+  := \A -> ∑ (a : A), (x : A) -> a =_{A} x
 
 #def prod : (A : U) -> (B : U) -> U
   := \A -> \B -> ∑ (x : A), B
 
-#def isweq : (A : U) -> (B : U) -> (f : (_ : A) -> B) -> U
-  := \A -> \B -> \f ->
-        ∑ (g : (_ : B) -> A),
-          prod ((x : A) -> g (f x) =_{A} x)
-               ((y : B) -> f (g y) =_{B} y)
+#def isweq : (A : U) -> (B : U) -> (f : (x : A) -> B) -> U
+  := \A -> \B -> \f -> ∑ (g : (x : B) -> A), prod ((x : A) -> g (f x) =_{A} x) ((y : B) -> f (g y) =_{B} y)
 
 #def weq : (A : U) -> (B : U) -> U
-  := \A -> \B -> ∑ (f : (_ : A) -> B), isweq A B f
+  := \A -> \B -> ∑ (f : (x : A) -> B), isweq A B f
 
-#def Theorem-4.2_curry_ext
-  : (I : CUBE)
-  -> (J : CUBE)
-  -> (psi : (t : I) -> TOPE)
-  -> (zeta : (s : J) -> TOPE)
-  -> (X : <{t : I | psi t} -> <{s : J | zeta s} -> U> >)
-  -> (chi : {(t : I) | psi t} -> TOPE)
-  -> (phi : {(s : J) | zeta s} -> TOPE)
-  -> (f : <{(t, s) : I * J | psi t /\ zeta s} -> X t s >)
-  -> (_ : <{(t, s) : I * J | psi t /\ zeta s}
-             -> X t s [(phi t /\ zeta s) \/ (psi t /\ chi s) |-> f (t, s)]>)
-  -> <{t : I | psi t}
-        -> <{s : J | zeta s} -> X t s [chi s |-> f (t, s)]>
-           [phi t |-> \{s : J | zeta s} -> f (t, s)]>
-  := \I -> \J -> \psi -> \zeta -> \X -> \chi -> \phi -> \f ->
-    \k -> \t -> \{s : J | zeta s} -> k (t, s)
+#def bugtype : U
+  := (A : (x : U) -> U) -> weq ((t : U) -> A t) U
+
+#def bug2
+  : (r : bugtype) -> bugtype
+  := \r -> r
+
+-- #def relfunext2 : U
+--   :=
+--     (I : CUBE) ->
+--     (psi : (t : I) -> TOPE) ->
+--     (A : <{t : I | psi t} -> U >) ->
+--     (f : <{t : I | psi t} -> A t >) ->
+--     (g : <{t : I | psi t} -> A t >) ->
+--     weq (f =_{<{t : I | psi t} -> A t >} g)
+--       <{t : I | psi t} -> f t =_{A t} g t >
+-- 
+-- #def bug : (r : relfunext2) -> relfunext2
+--   := \r -> r
+
+-- #def relfunext2 : U
+--   :=
+--     (I : CUBE) ->
+--     (psi : (t : I) -> TOPE) ->
+--     (phi : (t : I) -> TOPE) ->
+--     (A : <{t : I | psi t} -> U >) ->
+--     (a : <{t : I | psi t /\ phi t} -> A t >) ->
+--     (f : <{t : I | psi t} -> A t [ psi t /\ phi t |-> a t ]>) ->
+--     (g : <{t : I | psi t} -> A t [ psi t /\ phi t |-> a t ]>) ->
+--     weq (f =_{<{t : I | psi t} -> A t [ psi t /\ phi t |-> a t ]>} g)
+--       <{t : I | psi t} -> f t =_{A t} g t [ psi t /\ phi t |-> refl_{f t} ]>
+-- 
+-- #def bug : (r : relfunext2) -> U
+--   := \r -> U
+-- 
+-- #def relfunext : U
+--   :=
+--     (I : CUBE) ->
+--     (psi : (t : I) -> TOPE) ->
+--     (phi : (t : I) -> TOPE) ->
+--     (A : <{t : I | psi t} -> U >) ->
+--     (iscontrA : <{t : I | psi t} -> iscontr (A t) >) ->
+--     (a : <{t : I | psi t /\ phi t} -> A t >) ->
+--     <{t : I | psi t} -> A t [ psi t /\ phi t |-> a t]>
+
+-- f =_{〈{t : I | psi t} → (f =_{〈{t₁ : I | psi t₁} → (f =_{〈{t₂ : I | psi t₂} → A t₂[ ((psi t₂) ∧ (phi t₂)) ↦ a t₂ ]〉} g) t₁[ ((psi t₁) ∧ (phi t₁)) ↦ a t₁ ]〉} g) t[ ((psi t) ∧ (phi t)) ↦ a t ]〉} g)
+
+-- #def restrict
+--   : (I : CUBE) ->
+--     (psi : (t : I) -> TOPE) ->
+--     (phi : (t : I) -> TOPE) ->
+--     (A : (t : I) -> U) ->
+--     (a : <{t : I | psi t} -> A t >) ->
+--     <{t : I | psi t /\ phi t} -> A t >
+--   := \I -> \psi -> \phi -> \A -> \a ->
+--      \t -> a t
+-- 
+-- #def restricts-path
+--   : (r : relfunext2) ->
+--     (I : CUBE) ->
+--     (psi : (t : I) -> TOPE) ->
+--     (phi : (t : I) -> TOPE) ->
+--     (A : (t : I) -> U) ->
+--     (a_psi : <{t : I | psi t} -> A t >) ->
+--     (a_phi : <{t : I | phi t} -> A t >) ->
+--     (e : <{t : I | psi t /\ phi t} -> a_psi t =_{A t} a_phi t >) ->
+--     U
+--     -- ((\t -> a_psi t) t =_{<{t : I | psi t /\ psi t} -> A t >} (\t -> a_phi t))
+--       -- <{t : I | psi t} -> f t =_{A t} g t [ psi t /\ phi t |-> refl_{f t} ]>
+-- --     restrict I psi phi A a_psi
+-- --       =_{ <{t : I | psi t /\ phi t} -> A t > }
+-- --     restrict I phi psi A a_phi
+--   :=
+--     \r ->
+--     \I -> \psi -> \phi -> \A -> \a_psi -> \a_phi -> \e ->
+--     r -- I
+--       -- (\t -> psi t /\ phi t)
+--       -- (\t -> BOT)
+--       -- (\t -> A t)
+--       -- (\t -> recBOT)
+--       -- (\t -> a_psi t)
+--       -- (\t -> a_phi t)
+-- 
+-- #def recOR-id
+--   : (I : CUBE) ->
+--     (psi : (t : I) -> TOPE) ->
+--     (phi : (t : I) -> TOPE) ->
+--     (A : (t : I) -> U) ->
+--     (a_psi : <{t : I | psi t} -> A t >) ->
+--     (a_phi : <{t : I | phi t} -> A t >) ->
+--     (e : <{t : I | psi t /\ phi t} -> a_psi t =_{A t} a_phi t >) ->
+--     <{t : I | psi t \/ phi t} -> A t >
+--   := \I -> \psi -> \phi -> \A -> \a_psi -> \a_phi -> \e ->
+--      \t -> recOR(psi t, phi t, a_psi'', a_phi'')

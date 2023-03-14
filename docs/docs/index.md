@@ -4,7 +4,7 @@
 
 The assistant is polylingual, supporting several language modes. The language mode is specified in the first line of the source module code:
 
-```
+```rzk
 #lang <mode>
 ```
 

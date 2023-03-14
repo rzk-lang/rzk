@@ -6,9 +6,15 @@ nav:
       - Introduction: tts/introduction.md
       - Examples: tts/examples.md
       - Formalising RS17: tts/RS17.md
+      - Weak tope disjunction elimination: tts/recId.md
   - Other Languages:
       - STLC: other/stlc.md
       - PCF: other/pcf.md
       - MLTT: other/mltt.md
 
-theme: readthedocs
+theme:
+  name: readthedocs
+  highlightjs: false  # we override default hightlightjs in custom_theme/
+  custom_dir: custom_theme/
+extra_css:
+  - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
