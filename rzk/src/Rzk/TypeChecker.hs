@@ -476,12 +476,16 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     ty <- infer t
     case ty of
       Sigma (Lambda _ (Just a) Nothing _) -> return a
+      TypedTerm (Sigma (Lambda _ (Just a) Nothing _)) _ -> return a
       CubeProd i _j -> return i
       _ -> issueTypeError (TypeErrorNotAPair t ty (First t))
   Second t -> do
     ty <- infer t
     case ty of
       Sigma f@(Lambda _ a Nothing _) -> do
+        x <- genFreshVar
+        evalType (App (TypedTerm f (Pi (Lambda (Variable x) a Nothing Universe))) (First t))
+      TypedTerm (Sigma f@(Lambda _ a Nothing _)) _ -> do
         x <- genFreshVar
         evalType (App (TypedTerm f (Pi (Lambda (Variable x) a Nothing Universe))) (First t))
       CubeProd _i j -> return j
