@@ -986,14 +986,14 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       localPatternTyping (t', Just cI') $ do
         psi_ <- localPattern' (t, t') $ evalType psi
         psi'_ <- localPattern' (t, t') $ evalType psi'
-        unify' psi_ psi'_
+        ensureEqTope psi_ psi'_
         localConstraint psi' $ do
           tA_ <- localPattern' (t, t') $ evalType tA
           tA'_ <- evalType tA'
           unify' tA_ tA'_
           phi_ <- localPattern' (t, t') $ evalType phi
           phi'_ <- evalType phi'
-          unify' phi_ phi'_
+          ensureEqTope phi_ phi'_
           localConstraint phi' $ do
             a_ <- localPattern' (t, t') $ evalType a
             a'_ <- evalType a'
