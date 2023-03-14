@@ -51,6 +51,7 @@ data TypeError var
   | TypeErrorExpectedFunctionType (Term var) (Term var)
   | TypeErrorInvalidTypeFamily
   | TypeErrorTopeContextNotSatisfied (Term var) (Term var) [Term var]
+  | TypeErrorTopeContextNotEntailed (Term var) (Term var) [Term var]
 
 instance Show (TypeError Var) where
   show = Text.unpack . ppTypeError
@@ -116,6 +117,14 @@ ppTypeError = \case
   TypeErrorInvalidTypeFamily -> "Expected a type family, but got something else" -- FIXME
   TypeErrorTopeContextNotSatisfied term phi topes -> Text.intercalate "\n"
     [ "Cannot satisfy the tope constraint:"
+    , "  " <> ppTerm phi
+    , "in local tope context"
+    , Text.intercalate "\n" (map (("  " <>) . ppTerm) topes)
+    , "when typechecking term"
+    , "  " <> ppTerm term
+    ]
+  TypeErrorTopeContextNotEntailed term phi topes -> Text.intercalate "\n"
+    [ "Cannot ensure the tope constraint:"
     , "  " <> ppTerm phi
     , "in local tope context"
     , Text.intercalate "\n" (map (("  " <>) . ppTerm) topes)
@@ -434,8 +443,9 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       Nothing -> addTypeHoleFor x
       Just ty -> return ty
   TypedTerm term' ty -> do
-    typecheck term' ty
-    evalType ty
+    ty' <- evalType ty
+    typecheck term' ty'
+    return ty'
   Hole _        -> issueTypeError (TypeErrorOther "attemting to infer type of a hole!")
   Universe      -> pure Universe
   Pi t          -> inferTypeFamily t
@@ -447,19 +457,22 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       TypedTerm ty' _ -> do
         infer (App (TypedTerm t1 ty') t2)
       Pi f@(Lambda _ (Just a) Nothing _) -> do
-        typecheck t2 a
+        a' <- evalType a
+        typecheck t2 a'
         evalType (App f t2)
       Pi (Lambda t (Just i) (Just phi) a) -> do
-        typecheck t2 i
+        i' <- evalType i
+        typecheck t2 i'
         localPattern' (t, t2) $ do
           phi' <- evalType phi
-          ensureTopeContext term' phi'
+          ensureTopeContextEntailed term' phi'
           evalType a
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
-        typecheck t2 cI
+        cI' <- evalType cI
+        typecheck t2 cI'
         localPattern' (t, t2) $ do
           psi' <- evalType psi
-          ensureTopeContext term' psi'
+          ensureTopeContextEntailed term' psi'
           evalType tA
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
@@ -468,7 +481,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     typeOf_i <- infer i
     case typeOf_i of
       Cube -> do
-        j <- infer s
+        j <- infer s >>= evalType
         typecheck j Cube
         return (CubeProd i j)
       _ -> issueTypeError (TypeErrorCannotInferPair t)
@@ -493,8 +506,9 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
 
   IdType a x y -> do
     typecheck a Universe
-    typecheck x a
-    typecheck y a
+    a' <- evalType a
+    typecheck x a'
+    typecheck y a'
     return Universe
   Refl a x -> do
     typeof_x <- case a of
@@ -506,14 +520,17 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     return (IdType typeof_x x x)
   IdJ tA a tC d x p -> do
     typecheck tA Universe
-    typecheck a tA
+    tA' <- evalType tA
+    typecheck a tA'
     x' <- genFreshVar
     p' <- genFreshVar
-    typecheck tC
+    tC' <- evalType tC
+    typecheck tC'
       (Pi (Lambda (Variable x') (Just tA) Nothing
         (Pi (Lambda (Variable p') (Just (IdType tA a (Variable x'))) Nothing Universe))))
-    typecheck d (App (App tC a) (Refl (Just tA) a))
-    typecheck x tA
+    td <- evalType (App (App tC a) (Refl (Just tA) a))
+    typecheck d td
+    typecheck x tA'
     typecheck p (IdType tA a x)
     evalType (App (App tC x) p)
 
@@ -538,7 +555,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     typecheck phi Tope
     return Tope
   TopeEQ t s -> do
-    typeOf_t <- infer t
+    typeOf_t <- infer t >>= evalType
     typecheck typeOf_t Cube
     typecheck s typeOf_t
     return Tope
@@ -567,7 +584,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         typecheck tA' Universe
         phi' <- evalType phi
         typecheck phi' Tope
-        ensureSubTope a psi' phi'
+        ensureSubTope a phi' psi'
         localConstraint phi' $ do
           a' <- evalType a
           Context{..} <- ask
@@ -586,15 +603,22 @@ ensureTopeContext :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var
 ensureTopeContext term phi = do
   Context{..} <- ask
   contextTopes' <- unfoldTopes' contextTopes
-  unless (contextTopes' `entailTope` phi) $ do
+  unless ([phi] `entailTope` foldr TopeAnd TopeTop contextTopes') $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
+
+ensureTopeContextEntailed :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
+ensureTopeContextEntailed term phi = do
+  Context{..} <- ask
+  contextTopes' <- unfoldTopes' contextTopes
+  unless (contextTopes' `entailTope` phi) $ do
+    issueTypeError (TypeErrorTopeContextNotEntailed term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 ensureSubTope term psi phi = do
   Context{..} <- ask
-  phi' <- unfoldTopes' [phi]
-  unless (phi' `entailTope` psi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied term psi phi')
+  psi' <- unfoldTopes' [psi]
+  unless (psi' `entailTope` phi) $ do
+    issueTypeError (TypeErrorTopeContextNotSatisfied term phi psi')
 
 ensureEqTope :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 ensureEqTope psi phi = do
@@ -760,7 +784,8 @@ typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
     (Lambda _ _ _ _, _) -> do
       issueTypeError (TypeErrorExpectedFunctionType term expectedType)
     (Pair f s, Sigma g@(Lambda _ (Just a) Nothing _)) -> do
-      typecheck f a
+      a' <- evalType a
+      typecheck f a'
       secondType <- evalType (App g f)
       typecheck s secondType
     (Variable x, ty) -> do
@@ -876,7 +901,10 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
         Just xty -> unify' xty t
     unify'' t (Hole x) = unify' (Variable x) t
 
-    unify'' (Variable x) (Variable y) | x == y = pure ()
+    unify'' tt1@(Variable x) tt2@(Variable y)
+      | x == y = pure ()
+      | otherwise = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+
     unify'' (TypedTerm t ty) (TypedTerm t' ty') = do
       unify' ty ty'
       unify' t t'
