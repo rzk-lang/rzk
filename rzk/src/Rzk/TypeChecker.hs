@@ -1000,7 +1000,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
-          xxs' = refreshVars (vars <> freeVars m) xs
+          xxs' = refreshVars (vars <> allVars m) xs
           rename = if doRename then renameVars xxs' else id
           xs' = if doRename then map snd xxs' else xs
           x' = rename x
@@ -1012,7 +1012,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
-          xxs' = refreshVars (vars <> freeVars m) xs
+          xxs' = refreshVars (vars <> allVars m) xs
           rename = if doRename then renameVars xxs' else id
           xs' = if doRename then map snd xxs' else xs
           x' = rename x
@@ -1024,7 +1024,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
-          xxs' = refreshVars (vars <> freeVars m <> freeVars phi) xs
+          xxs' = refreshVars (vars <> allVars m <> allVars phi) xs
           rename = if doRename then renameVars xxs' else id
           xs' = if doRename then map snd xxs' else xs
           x' = rename x
@@ -1039,7 +1039,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       vars <- asks contextFreeVariables
       let xs = freeVars x
           doRename = any (`elem` vars) xs
-          xxs' = refreshVars (vars <> freeVars m <> freeVars phi) xs
+          xxs' = refreshVars (vars <> allVars m <> allVars phi) xs
           rename = if doRename then renameVars xxs' else id
           xs' = if doRename then map snd xxs' else xs
           x' = rename x
@@ -1064,11 +1064,11 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       case typeOf_tt1 of
         ExtensionType (Variable s) i psi _tA _phi _a -> do -- FIXME: make it work for patterns
           vars <- asks contextFreeVariables
-          let s' = refreshVar (vars <> freeVars i) s
+          let s' = refreshVar (vars <> allVars i) s
           localTyping (s', Just i) $ do
             psi' <- localVar (s, Variable s') $ evalType psi
             localConstraint psi' $ do
-              issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
+              -- issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
               unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
         _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 

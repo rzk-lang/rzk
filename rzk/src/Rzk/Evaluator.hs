@@ -107,6 +107,25 @@ localPattern = \case
   (Pair x y,   t) -> localPattern (x, First t) . localPattern (y, Second t)
   (pattern, _) -> const $ throwError (EvalErrorInvalidPattern pattern)
 
+enterScope :: (Eq var, Enum var) =>
+  (var, Term var) -> Term var -> (Term var -> Eval var (Term var)) -> Eval var (Term var)
+enterScope (x, e) body f = do
+  knownVars <- map fst <$> asks contextDefinedVariables
+  let vars = knownVars ++ allVars body
+      x' = refreshVar vars x
+  localVar (x', e) $ do
+    substitute x' e <$> f (renameVar x x' body)
+
+enterPatternScope
+  :: (Eq var, Enum var)
+  => (Term var, Term var) -> Term var -> (Term var -> Eval var (Term var)) -> Eval var (Term var)
+enterPatternScope = \case
+  (Variable x, t) -> enterScope (x, t)
+  (Pair x y,   t) -> \body m -> do
+    enterPatternScope (x, First t) body $ \body' ->
+      enterPatternScope (y, Second t) body' m
+  (pattern, _) -> const $ const $ throwError (EvalErrorInvalidPattern pattern)
+
 -- | Add tope constraint locally during evaluation.
 localConstraint :: MonadReader (Context var) m => Term var -> m a -> m a
 localConstraint phi = local (\context -> context { contextTopes = phi : contextTopes context })
@@ -122,6 +141,47 @@ localFreeVar x = local (addVar x)
 -- | Evaluate a closed term (all variables are bound).
 evalClosed :: (Eq var, Enum var) => Term var -> Either (EvalError var) (Term var)
 evalClosed = runExcept . flip runReaderT emptyContext . runEval . eval
+
+-- | Find all variables in a term.
+allVars :: Eq var => Term var -> [var]
+allVars = \case
+  Variable x -> [x]
+  TypedTerm term ty -> allVars term <> allVars ty
+  Hole _ -> []
+  Universe -> []
+  Pi t -> allVars t
+  Lambda x a phi m -> foldMap allVars a <> foldMap allVars phi <> allVars m <> allVars x
+  App t1 t2 -> allVars t1 <> allVars t2
+  Sigma t -> allVars t
+  Pair t1 t2 -> allVars t1 <> allVars t2
+  First t -> allVars t
+  Second t -> allVars t
+  IdType a x y -> allVars a <> allVars x <> allVars y
+  Refl a x -> foldMap allVars a <> allVars x
+  IdJ tA a tC d x p -> concatMap allVars [tA, a, tC, d, x, p]
+
+  Cube -> []
+  CubeUnit -> []
+  CubeUnitStar -> []
+  CubeProd i j -> allVars i <> allVars j
+
+  Tope -> []
+  TopeTop -> []
+  TopeBottom -> []
+  TopeOr psi phi -> allVars psi <> allVars phi
+  TopeAnd psi phi -> allVars psi <> allVars phi
+  TopeEQ t s -> allVars t <> allVars s
+  RecBottom -> []
+  RecOr psi phi a b -> concatMap allVars [psi, phi, a, b]
+
+  ExtensionType t cI psi tA phi a ->
+    allVars cI <> (concatMap allVars [psi, tA, phi, a] <> allVars t)
+
+  Cube2 -> []
+  Cube2_0 -> []
+  Cube2_1 -> []
+  TopeLEQ t s -> allVars t <> allVars s
+
 
 -- | Find all freely occuring variables in a term.
 freeVars :: Eq var => Term var -> [var]
@@ -188,9 +248,9 @@ eval = \case
   Pi t -> Pi <$> eval t
   Lambda x a phi m -> do
     vars <- asks contextKnownVars
-    let xs = freeVars x
+    let xs = allVars x
         doRename = any (`elem` vars) xs
-        xxs' = refreshVars (vars <> freeVars m <> foldMap freeVars phi) xs
+        xxs' = refreshVars (vars <> allVars m <> foldMap allVars phi) xs
         rename = if doRename then renameVars xxs' else id
         xs' = if doRename then map snd xxs' else xs
         x' = rename x
@@ -240,9 +300,9 @@ eval = \case
   ExtensionType t cI psi tA phi a -> do
     vars <- asks contextKnownVars
 
-    let ts = freeVars t
+    let ts = allVars t
         doRename = any (`elem` vars) ts
-        tts' = refreshVars (vars <> concatMap freeVars [psi, tA, phi, a]) ts
+        tts' = refreshVars (vars <> concatMap allVars [psi, tA, phi, a]) ts
         rename = if doRename then renameVars tts' else id
         ts' = if doRename then map snd tts' else ts
         t' = rename t
@@ -402,13 +462,13 @@ app t1 n =
       Context{..} <- ask
       if contextTopes `entailTope` phi
          then eval a
-         else localPattern (x, n) (eval m)
-    Lambda x _ Nothing m -> localPattern (x, n) (eval m)
+         else enterPatternScope (x, n) m eval
+    Lambda x _ Nothing m -> enterPatternScope (x, n) m eval
     Lambda x _ (Just phi) m -> do
-      localPattern (x, n) $ do
+      enterPatternScope (x, n) m $ \m' -> do
         phi' <- eval phi
         localConstraint phi' $ do
-          eval m
+          eval m'
     TypedTerm _ (ExtensionType _ _ _ _ phi a) -> do
       Context{..} <- ask
       if contextTopes `entailTope` phi
