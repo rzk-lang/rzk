@@ -10,18 +10,23 @@ function(hljs) {
     hljs.COMMENT('--', '$'),
   ] };
   const TYPE = {
-    begin: /CUBE|TOPE|U|∑/,
+    begin: /CUBE|TOPE|U|∑|2/,
     className: "type"
+  };
+  const SHAPE = {
+    begin: /TOP|BOT/,
+    className: "number"
   };
   const BUILTIN = {
     begin: /recOR|recBOT|idJ|refl/,
     className: "title.class"
   };
+  const IDENT_RE = /[^\(\)\[\]\{\}\s]+/;
   const POINT_VAR = {
     begin: [
       /\{/,
       /\s*/,
-      /[a-zA-Z_][a-zA-Z_0-9-]*/,
+      IDENT_RE,
       /\s*:\s*/,
       /[^\}|]+/,
       /\s+\|\s+/,
@@ -33,14 +38,14 @@ function(hljs) {
       // 5: "type",
       7: "number"
     },
-    contains: [ COMMENT, TYPE, BUILTIN ]
+    contains: [ COMMENT, TYPE, SHAPE, BUILTIN ]
   };
   const CONTEXTS = { variants: [
     {
       begin: [
         /\(/,
         /\s*/,
-        /[a-zA-Z_][a-zA-Z_0-9-]*/,
+        IDENT_RE,
         /\s+:/
       ],
       className: { 3: "variable" },
@@ -61,7 +66,7 @@ function(hljs) {
     }
   ],
     contains: [
-      'self', COMMENT, POINT_VAR, TYPE, BUILTIN
+      'self', COMMENT, POINT_VAR, TYPE, SHAPE, BUILTIN
     ]
   };
   return {
@@ -73,6 +78,7 @@ function(hljs) {
       POINT_VAR,
       CONTEXTS,
       TYPE,
+      SHAPE,
       BUILTIN,
       {
         begin: [
@@ -89,7 +95,7 @@ function(hljs) {
         begin: [
           /#def/,
           /\s+/,
-          /[a-zA-Z_][a-zA-Z_0-9-]*/
+          IDENT_RE,
         ],
         className: {
           1: "meta",
