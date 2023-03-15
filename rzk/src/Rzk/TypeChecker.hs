@@ -21,7 +21,7 @@ import qualified Control.Monad.Fail as Fail
 #endif
 
 import           Data.Foldable        (sequenceA_, traverse_)
-import           Data.List            (nub)
+import           Data.List            (nub, (\\))
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
@@ -32,12 +32,17 @@ import           Rzk.Syntax.Module
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
+import Unsafe.Coerce
+import           Rzk.Debug.Trace
+import Debug.Trace
+
 data TypeCheckerAction var
   = ActionTypeCheck (Term var) (Term var)
   | ActionInferType (Term var)
   | ActionUnifyTypesFor (Term var) (Term var) (Term var)
   | ActionUnify (Term var) (Term var)
   | ActionEval (Term var)
+  | ActionOther Text
 
 data TypeError var
   = TypeErrorInfinite var (Term var)
@@ -186,6 +191,7 @@ ppAction = \case
     [ "when trying to evaluate type/term"
     , "  " <> ppTerm term
     ]
+  ActionOther info -> "when " <> info <> "\n"
 
 ppKnownTypes :: [(Var, Term Var)] -> Text
 ppKnownTypes = Text.intercalate "\n" . map ppVarType
@@ -215,12 +221,19 @@ setTypeOf :: Eq var => var -> Term var -> TypeCheck var ()
 setTypeOf x ty = modify $ \context -> context
   { contextKnownTypes = (x, ty) : contextKnownTypes context }
 
-unsetTypeOf :: Eq var => var -> TypeCheck var ()
-unsetTypeOf x = modify $ \context -> context
-  { contextKnownTypes = filter ((/= x) . fst) (contextKnownTypes context) }
+unsetTypeOf :: Eq var => var -> Term var -> TypeCheck var ()
+unsetTypeOf x _type = modify $ \context -> context
+  { contextKnownTypes = unset (contextKnownTypes context) }
+  where
+    unset xs = case span ((/= x) . fst) xs of
+                 (_before, []) -> error "impossible happened!"
+                 (before, _:after) -> before ++ after
 
 localAction :: TypeCheckerAction var -> TypeCheck var a -> TypeCheck var a
 localAction action m = do
+  depth <- length <$> gets actionStack
+  when (depth > 50) $ do
+    issueTypeError (TypeErrorOther "maximum depth reached")
   modify (\context -> context { actionStack = action : actionStack context })
   result <- m
   modify (\context -> context { actionStack = drop 1 (actionStack context) })
@@ -231,11 +244,18 @@ localTyping (x, t) m = do
   traverse_ (setTypeOf x) t
   oldContext <- get
   result <- localFreeVar x (local (\context -> context { contextDefinedVariables = contextKnownHoles oldContext <> contextDefinedVariables context }) m)
-  unsetTypeOf x
+  traverse_ (unsetTypeOf x) t
   return result
 
 localPattern' :: (Term var, Term var) -> TypeCheck var a -> TypeCheck var a
 localPattern' pt m = runExceptT (localPattern pt (lift m)) >>= \case
+  Left err -> issueTypeError (TypeErrorEval (fst pt) err)
+  Right x  -> return x
+
+enterPatternScopeT
+  :: (Eq var, Enum var)
+  => (Term var, Term var) -> Term var -> (Term var -> TypeCheck var (Term var)) -> TypeCheck var (Term var)
+enterPatternScopeT pt body m = runExceptT (enterPatternScope' pt body (lift . m)) >>= \case
   Left err -> issueTypeError (TypeErrorEval (fst pt) err)
   Right x  -> return x
 
@@ -271,89 +291,19 @@ instantiateHole (a, t) = do
     return $ (hole, ty')
   put context { contextKnownHoles = (a, t) : newHoles }
 
-evalExtensionApps :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
-evalExtensionApps = go
-  where
-    go = \case
-      App t1 t2 -> do
-        case t1 of
-          Lambda _ _ _ _ -> App <$> go t1 <*> go t2
-          _ -> do
-            -- FIXME: instead of inferring info one more time,
-            -- we need to use already inferred information
-            (fmap stripExplicitTypeAnnotations <$> inferLenient t1) >>= \ty -> case ty of
-              Just (ExtensionType s _ _ _ phi a) -> do
-                Context{..} <- ask
-                localPattern' (s, t2) $ do
-                  phi' <- evalType phi
-                  contextTopes' <- unfoldTopes' contextTopes
-                  if contextTopes' `entailTope` phi'
-                    then evalType a >>= go
-                    else App <$> go t1 <*> go t2   -- FIXME: bring outside localVar?
-              _ -> App <$> go t1 <*> go t2
-
-      TypedTerm t a -> TypedTerm <$> go t <*> pure a
-      Pi t -> Pi <$> go t
-      Sigma t -> Sigma <$> go t
-
-      Lambda x a Nothing m -> do
-        a' <- traverse go a
-        localPatternTyping (x, a) $ do
-          m' <- go m
-          return (Lambda x a' Nothing m')
-      Lambda x a (Just phi) m -> do
-        a' <- traverse go a
-        localPatternTyping (x, a) $ do
-          phi' <- go phi
-          localConstraint phi' $ do
-            m' <- go m
-            return (Lambda x a' (Just phi') m')
-
-      Pair f s -> Pair <$> go f <*> go s
-      First t -> First <$> go t
-      Second t -> Second <$> go t
-
-      IdType a x y -> IdType <$> go a <*> go x <*> go y
-      Refl a x -> Refl <$> traverse go a <*> go x
-      IdJ tA a tC d x p -> IdJ <$> go tA <*> go a <*> go tC <*> go d <*> go x <*> go p
-
-      CubeProd x y -> CubeProd <$> go x <*> go y
-      TopeOr x y -> TopeOr <$> go x <*> go y
-      TopeAnd x y -> TopeAnd <$> go x <*> go y
-      TopeEQ x y -> TopeEQ <$> go x <*> go y
-
-      RecOr psi phi a b -> RecOr <$> go psi <*> go phi <*> go a <*> go b
-      ExtensionType t i psi tA phi a -> do
-        i' <- go i
-        localPatternTyping (t, Just i) $ do
-          psi' <- go psi
-          localConstraint psi' $ do
-            tA' <- go tA
-            phi' <- go phi
-            localConstraint phi' $ do
-              a' <- go a
-              return (ExtensionType t i' psi' tA' phi' a')
-
-      t@(Variable _) -> pure t
-      t@(Hole _) -> pure t
-      t@Cube -> pure t
-      t@CubeUnit -> pure t
-      t@CubeUnitStar -> pure t
-      t@Tope -> pure t
-      t@TopeTop -> pure t
-      t@TopeBottom -> pure t
-      t@Universe -> pure t
-      t@RecBottom -> pure t
-      t@Cube2 -> pure t
-      t@Cube2_0 -> pure t
-      t@Cube2_1 -> pure t
-      t@(TopeLEQ _ _) -> pure t
+localConstraint' :: (Eq var, Enum var) => Term var -> TypeCheck var a -> TypeCheck var a
+localConstraint' psi m = do
+  psi' <- evalType psi
+  localConstraint psi' m
 
 evalType :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 evalType t = localAction (ActionEval t) $ do
-  t' <- evalInTypeCheck t (eval t)
-  t'' <- evalExtensionApps t'
-  evalInTypeCheck t (eval t'')
+  Context{..} <- ask
+  evalInTypeCheck t (eval t) >>= \case
+    t'@(App f x) -> appExt f x >>= \case
+      Just t'' -> evalType t''
+      Nothing -> pure t'
+    t' -> pure t'
 
 evalInTypeCheck :: Term var -> Eval var a -> TypeCheck var a
 evalInTypeCheck t e = do
@@ -418,7 +368,7 @@ unfoldTopeWithInclusions = go
         typeOf_f <- infer f
         case typeOf_f of
           Pi (Lambda t _i (Just phi) _a) -> do
-            phi' <- localPattern' (t, x) $ evalType phi
+            phi' <- enterPatternScopeT (t, x) phi evalType
             phi'' <- go phi'
             return (psi : phi'' <> f')
           _ -> return (psi : f')
@@ -429,7 +379,7 @@ unfoldTopes' topes = concat <$>
   traverse unfoldTopeWithInclusions topes
 
 inferLenient :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe (Term var))
-inferLenient term = do
+inferLenient term = localAction (ActionInferType term) $ do
   context <- get
   result <- (Just <$> infer term) `catchError` \_ -> return Nothing
   put context
@@ -463,17 +413,21 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       Pi (Lambda t (Just i) (Just phi) a) -> do
         i' <- evalType i
         typecheck t2 i'
-        localPattern' (t, t2) $ do
-          phi' <- evalType phi
-          ensureTopeContextEntailed term' phi'
-          evalType a
+        enterPatternScopeT (t, t2) (Pair phi a) $ \(Pair phi' a') -> do
+          phi'' <- evalType phi'
+          ensureTopeContextEntailed term' phi''
+          evalType a'
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
         cI' <- evalType cI
         typecheck t2 cI'
-        localPattern' (t, t2) $ do
-          psi' <- evalType psi
-          ensureTopeContextEntailed term' psi'
-          evalType tA
+        enterPatternScopeT (t, t2) (Pair psi tA) $ \(Pair psi' tA') -> do
+          psi'' <- evalType psi'
+          ensureTopeContextEntailed term' psi''
+          unsafeTraceTerm "infer.evalType" tA' $
+            evalType tA'
+      RecBottom -> do
+        ensureTopeContext t1 TopeBottom
+        return RecBottom
       _ -> issueTypeError (TypeErrorNotAFunction t1 ty t2)
   Sigma t -> inferTypeFamily t
   t@(Pair f s) -> do
@@ -491,6 +445,9 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       Sigma (Lambda _ (Just a) Nothing _) -> return a
       TypedTerm (Sigma (Lambda _ (Just a) Nothing _)) _ -> return a
       CubeProd i _j -> return i
+      RecBottom -> do
+        ensureTopeContext t TopeBottom
+        return RecBottom
       _ -> issueTypeError (TypeErrorNotAPair t ty (First t))
   Second t -> do
     ty <- infer t
@@ -502,6 +459,9 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         x <- genFreshVar
         evalType (App (TypedTerm f (Pi (Lambda (Variable x) a Nothing Universe))) (First t))
       CubeProd _i j -> return j
+      RecBottom -> do
+        ensureTopeContext t TopeBottom
+        return RecBottom
       _ -> issueTypeError (TypeErrorNotAPair t ty (Second t))
 
   IdType a x y -> do
@@ -567,9 +527,9 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     typecheck psi Tope
     typecheck phi Tope
     ensureTopeContext t (TopeOr psi phi)
-    typeOf_a <- localConstraint psi $ infer a
-    typeOf_b <- localConstraint phi $ infer b
-    localConstraint (TopeAnd psi phi) $ do
+    typeOf_a <- localConstraint' psi $ infer a
+    typeOf_b <- localConstraint' phi $ infer b
+    localConstraint' (TopeAnd psi phi) $ do
       unify t typeOf_a typeOf_b
       unify t a b
     return (RecOr psi phi typeOf_a typeOf_b)
@@ -579,13 +539,13 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     localPatternTyping (t, Just cI) $ do
       psi' <- evalType psi
       typecheck psi' Tope
-      localConstraint psi' $ do
+      localConstraint' psi' $ do
         tA' <- evalType tA
         typecheck tA' Universe
         phi' <- evalType phi
         typecheck phi' Tope
         ensureSubTope a phi' psi'
-        localConstraint phi' $ do
+        localConstraint' phi' $ do
           a' <- evalType a
           Context{..} <- ask
           typecheck a' tA'
@@ -600,38 +560,43 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     return Tope
 
 ensureTopeContext :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureTopeContext term phi = do
+ensureTopeContext term phi = localAction (ActionOther "ensureTopeContext") $ do
   Context{..} <- ask
   contextTopes' <- unfoldTopes' contextTopes
   unless ([phi] `entailTope` foldr TopeAnd TopeTop contextTopes') $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term phi contextTopes)
 
 ensureTopeContextEntailed :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureTopeContextEntailed term phi = do
+ensureTopeContextEntailed term phi = localAction (ActionOther "ensureTopeContextEntailed") $ do
   Context{..} <- ask
-  contextTopes' <- unfoldTopes' contextTopes
-  unless (contextTopes' `entailTope` phi) $ do
-    issueTypeError (TypeErrorTopeContextNotEntailed term phi contextTopes)
+  phi' <- evalType phi
+  contextTopes' <- unfoldTopes' contextTopes >>= mapM evalType
+  unsafeTraceTyping "ensureTopeContextEntailed" phi' (foldr TopeAnd TopeTop contextTopes) $
+    unless (contextTopes' `entailTope` phi') $ do
+      issueTypeError (TypeErrorTopeContextNotEntailed term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
-ensureSubTope term psi phi = do
+ensureSubTope term psi phi = localAction (ActionOther "ensureSubTope") $ do
   Context{..} <- ask
   psi' <- unfoldTopes' [psi]
   unless (psi' `entailTope` phi) $ do
     issueTypeError (TypeErrorTopeContextNotSatisfied term phi psi')
 
 ensureEqTope :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
-ensureEqTope psi phi = do
+ensureEqTope psi phi = localAction (ActionOther "ensureEqTope") $ do
   Context{..} <- ask
-  phi' <- unfoldTopes' (phi : contextTopes)
-  psi' <- unfoldTopes' (psi : contextTopes)
-  unless (phi' `entailTope` psi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied psi psi phi')
-  unless (psi' `entailTope` phi) $ do
-    issueTypeError (TypeErrorTopeContextNotSatisfied phi phi psi')
+  phi' <- unfoldTopes' (phi : contextTopes) >>= mapM evalType
+  psi' <- unfoldTopes' (psi : contextTopes) >>= mapM evalType
+  psi'' <- evalType psi
+  phi'' <- evalType phi
+ --  unless (psi == phi) $ do
+  unless (phi' `entailTope` psi'') $ do
+    issueTypeError (TypeErrorTopeContextNotSatisfied psi psi'' phi')
+  unless (psi' `entailTope` phi'') $ do
+    issueTypeError (TypeErrorTopeContextNotSatisfied phi phi'' psi')
 
 inferTypeFamily :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
-inferTypeFamily = \case
+inferTypeFamily = localAction (ActionOther "inferTypeFamily") . \case
   Lambda x (Just a) Nothing m -> do
     typeOf_a <- infer a
     typecheck typeOf_a Universe
@@ -643,7 +608,7 @@ inferTypeFamily = \case
     localPatternTyping (t, Just i) $ do
       typecheck phi Tope
       phi' <- evalType phi
-      localConstraint phi' $
+      localConstraint' phi' $
         typecheck m Universe
     pure Universe
   _ -> issueTypeError TypeErrorInvalidTypeFamily
@@ -667,6 +632,7 @@ ppTypeCheckResult TypeCheckResult{..} =
       Just err -> Text.intercalate "\n"
         [ ppTypeErrorWithContext err
         , ""
+
         , "Failed to typecheck due to a type error!"
         ]
 
@@ -752,15 +718,15 @@ typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
                       (_, Nothing)       -> TopeTop   -- if only type was specified, then tope is defaulted to TOP
                       (_, Just psi'_)    -> psi'_     -- otherwise we use specified tope
         psi'_e <- evalType psi''
-        psi_e <- localPattern' (t, y) $ evalType psi
+        psi_e <- enterPatternScopeT (t, y) psi evalType
         ensureEqTope psi'_e psi_e
-        localConstraint psi_e $ do
-          tA' <- localPattern' (t, y) $ evalType tA
+        localConstraint' psi_e $ do
+          tA' <- enterPatternScopeT (t, y) tA evalType
           typecheck m tA'
-          phi_e <- localPattern' (t, y) $ evalType phi
-          localConstraint phi_e $ do
+          phi_e <- enterPatternScopeT (t, y) phi evalType
+          localConstraint' phi_e $ do
             m' <- evalType m
-            a' <- localPattern' (t, y) $ evalType a
+            a' <- enterPatternScopeT (t, y) a evalType
             unify term m' a'
 
     (Lambda y c Nothing m, Pi f@(Lambda _ (Just a) Nothing _)) -> do
@@ -768,7 +734,7 @@ typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
         Just c' -> unify y c' a
         Nothing -> return ()
       localPatternTyping (y, Just a) $ do
-        bodyType <- evalType (App f y)
+        bodyType <- evalInTypeCheck (App f y) $ eval (App f y)
         typecheck m bodyType
     (Lambda y c (Just phi) m, Pi (Lambda t (Just a) (Just psi) m')) -> do
       case c of
@@ -776,17 +742,19 @@ typecheck term expectedType = localAction (ActionTypeCheck term expectedType) $
         Nothing -> return ()
       localPatternTyping (y, Just a) $ do
         phi' <- evalType phi
-        psi' <- localPattern' (t, y) $ evalType psi
+        psi' <- enterPatternScopeT (t, y) psi evalType
         ensureEqTope phi' psi'
-        localConstraint phi' $ do
-          bodyType <- localPattern' (t, y) $ evalType m'
+        localConstraint' phi' $ do
+          bodyType <- enterPatternScopeT (t, y) m' evalType
           typecheck m bodyType
+    (t@Lambda{}, RecBottom) -> do
+      ensureTopeContext t TopeBottom
     (Lambda _ _ _ _, _) -> do
       issueTypeError (TypeErrorExpectedFunctionType term expectedType)
     (Pair f s, Sigma g@(Lambda _ (Just a) Nothing _)) -> do
       a' <- evalType a
       typecheck f a'
-      secondType <- evalType (App g f)
+      secondType <- evalInTypeCheck (App g f) $ eval (App g f)
       typecheck s secondType
     (Variable x, ty) -> do
       _ <- evalInTypeCheck (Variable x) $ lookupVar x  -- FIXME: improve error message
@@ -864,31 +832,46 @@ checkInfiniteType tt x = go
 
 appExt :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var (Maybe (Term var))
 appExt f x = do
-  typeOf_f <- infer f
-  case typeOf_f of
-    ExtensionType t _I _psi _tA phi a ->
-      localPattern' (t, x) $ do
+  res <- unsafeTraceTerm "appExt" (App f x) $ localAction (ActionEval (App f x)) $ do
+    typeOf_f <- infer f
+    case typeOf_f of
+      ExtensionType t _I _psi tA phi a -> do
         Context{..} <- ask
-        phi' <- evalType phi
         contextTopes' <- unfoldTopes' contextTopes
-        if contextTopes' `entailTope` phi'
-           then Just <$> evalType a
-           else pure Nothing
-    _ -> pure Nothing
+        evalInTypeCheck (App f x) $
+          enterPatternScope (t, x) (Pair tA (Pair phi a)) $ \(Pair tA' (Pair phi' a')) -> do
+            phi'' <- eval phi'
+            tA'' <- eval tA'
+            if contextTopes' `entailTope` phi''
+               then unsafeTraceTerm "appExt (success)" (App f x) $ Just <$> eval (TypedTerm a' tA'')
+               else unsafeTraceTyping "appExt (fail topes)" phi'' (foldr TopeAnd TopeTop contextTopes') $ pure Nothing
+      _ -> pure Nothing
+  case res of
+    Just t -> pure (Just t)
+    Nothing ->
+      case f of
+        App g y ->
+          unsafeTraceTerm "appExt (try nested)" (App f x) $
+            liftA2 App <$> appExt g y <*> pure (Just x)
+        _ -> pure Nothing
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
   TypingContext{..} <- get
   t1' <- evalType t1
   t2' <- evalType t2
-  unify' t1' t2'
+  if t1' == t2'
+     then return ()
+     else unify' t1' t2'
   where
     unify' tt1 tt2 = localAction (ActionUnify tt1 tt2) $ do
       Context{..} <- ask
       contextTopes' <- unfoldTopes' contextTopes
-      if contextTopes' `entailTope` TopeBottom
-         then return () -- anything unifies in an empty context
-         else unify'' tt1 tt2
+      if tt1 == tt2
+         then return ()
+         else if contextTopes' `entailTope` TopeBottom
+           then return () -- anything unifies in an empty context
+           else unify'' tt1 tt2
 
     unify'' (Hole x) (Hole y)
       | x == y = return ()
@@ -903,7 +886,12 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
 
     unify'' tt1@(Variable x) tt2@(Variable y)
       | x == y = pure ()
-      | otherwise = issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+      | otherwise = do
+          infer tt1 >>= \typeOf_tt1 -> case typeOf_tt1 of
+            CubeProd{} -> ensureTopeContext term (TopeEQ tt1 tt2)
+            CubeUnit{} -> ensureTopeContext term (TopeEQ tt1 tt2)
+            Cube2{} -> ensureTopeContext term (TopeEQ tt1 tt2)
+            _    -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
     unify'' (TypedTerm t ty) (TypedTerm t' ty') = do
       unify' ty ty'
@@ -914,27 +902,39 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
     unify'' (Pi t) (Pi t') = unify' t t'
     unify'' (Lambda x a Nothing b) (Lambda y c Nothing d) = do
       sequenceA_ (liftA2 unify' a c)
-      d' <- localVars (freeVars x) $ localPattern' (y, x) $ evalType d
+      d' <- localVars (freeVars x) $ enterPatternScopeT (y, x) d evalType
       localPatternTyping (x, a) $ do
         unify' b d'
     unify'' (Lambda x a (Just phi) b) (Lambda y c (Just psi) d) = do
       sequenceA_ (liftA2 unify' a c)
       localPatternTyping (x, a <|> c) $ do
         phi' <- evalType phi
-        psi' <- localPattern' (y, x) $ evalType psi
+        psi' <- enterPatternScopeT (y, x) psi evalType
         ensureEqTope phi' psi'
-        localConstraint phi' $ do
+        localConstraint' phi' $ do
           b' <- evalType b
-          d' <- localPattern' (y, x) $ evalType d
+          d' <- enterPatternScopeT (y, x) d evalType
           unify' b' d'
     unify'' tt1@(App u1 u2) tt2@(App v1 v2) = do
-      appExt u1 u2 >>= \case
-        Nothing -> appExt v1 v2 >>= \case
-          Nothing -> do
-            unify' u1 v1
-            unify' u2 v2
-          Just tt2' -> unify' tt1 tt2'
-        Just tt1' -> unify' tt1' tt2
+      Context{..} <- ask
+      case contextTopes of
+        (TopeOr l r : _)
+          | not (null ([l, r] \\ contextTopes)) -> do  -- FIXME: generalise
+            forM_ [l, r] $ \ct -> do
+              localConstraint ct $ do
+                unify'' tt1 tt2
+        _ -> do
+          appExt u1 u2 >>= \case
+            Nothing -> appExt v1 v2 >>= \case
+              Nothing -> do
+                unify' u1 v1
+                unify' u2 v2
+              Just tt2' -> do
+                tt2'' <- evalType tt2'
+                unify' tt1 tt2''
+            Just tt1' -> do
+              tt1'' <- evalType tt1'
+              unify' tt1'' tt2
 
     unify'' (Sigma t) (Sigma t') = unify' t t'
     unify'' (Pair f s) (Pair f' s') = do
@@ -965,18 +965,12 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       unify' i i'
       unify' j j'
 
-    unify'' Tope Tope = return ()
-    unify'' TopeTop TopeTop = return ()
-    unify'' TopeBottom TopeBottom = return ()
-    unify'' (TopeOr phi psi) (TopeOr phi' psi') = do
-      ensureEqTope phi phi'
-      ensureEqTope psi psi'
-    unify'' (TopeAnd phi psi) (TopeAnd phi' psi') = do
-      ensureEqTope phi phi'
-      ensureEqTope psi psi'
-    unify'' (TopeEQ t s) (TopeEQ t' s') = do
-      unify' t t'
-      unify' s s'
+    unify'' l@Tope{}       r = ensureEqTope l r
+    unify'' l@TopeTop      r = ensureEqTope l r
+    unify'' l@TopeBottom{} r = ensureEqTope l r
+    unify'' l@TopeOr{}     r = ensureEqTope l r
+    unify'' l@TopeAnd{}    r = ensureEqTope l r
+    unify'' l@TopeEQ{}     r = ensureEqTope l r
 
     unify'' Cube2 Cube2 = return ()
     unify'' Cube2_0 Cube2_0 = return ()
@@ -991,20 +985,20 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
     unify'' t RecBottom = do
       ensureTopeContext t TopeBottom
     unify'' (RecOr psi phi a b) r = do
-      localConstraint psi $ do
+      localConstraint' psi $ do
         a' <- evalType a
         r' <- evalType r
         unify' a' r'
-      localConstraint phi $ do
+      localConstraint' phi $ do
         b' <- evalType b
         r' <- evalType r
         unify' b' r'
     unify'' l (RecOr psi phi a b) = do
-      localConstraint psi $ do
+      localConstraint' psi $ do
         a' <- evalType a
         l' <- evalType l
         unify' l' a'
-      localConstraint phi $ do
+      localConstraint' phi $ do
         b' <- evalType b
         l' <- evalType l
         unify' l' b'
@@ -1012,18 +1006,18 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
     unify'' (ExtensionType t cI psi tA phi a) (ExtensionType t' cI' psi' tA' phi' a') = do
       unify' cI cI'
       localPatternTyping (t', Just cI') $ do
-        psi_ <- localPattern' (t, t') $ evalType psi
-        psi'_ <- localPattern' (t, t') $ evalType psi'
+        psi_ <- enterPatternScopeT (t, t') psi evalType
+        psi'_ <- enterPatternScopeT (t, t') psi' evalType
         ensureEqTope psi_ psi'_
-        localConstraint psi' $ do
-          tA_ <- localPattern' (t, t') $ evalType tA
+        localConstraint' psi' $ do
+          tA_ <- enterPatternScopeT (t, t') tA evalType
           tA'_ <- evalType tA'
           unify' tA_ tA'_
-          phi_ <- localPattern' (t, t') $ evalType phi
+          phi_ <- enterPatternScopeT (t, t') phi evalType
           phi'_ <- evalType phi'
           ensureEqTope phi_ phi'_
-          localConstraint phi' $ do
-            a_ <- localPattern' (t, t') $ evalType a
+          localConstraint' phi' $ do
+            a_ <- enterPatternScopeT (t, t') a evalType
             a'_ <- evalType a'
             unify' a_ a'_
 
@@ -1038,7 +1032,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           x' = rename x
       localPatternTyping (x', a) $ do
         localVars xs' $ do
-          m' <- localPattern' (x, x') $ evalType m
+          m' <- enterPatternScopeT (x, x') m evalType
           unify' m' (App tt2 x')
     unify'' tt1 (Lambda x a Nothing m) = do
       vars <- asks contextFreeVariables
@@ -1050,7 +1044,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           x' = rename x
       localPatternTyping (x', a) $ do
         localVars xs' $ do
-          m' <- localPattern' (x, x') $ evalType m
+          m' <- enterPatternScopeT (x, x') m evalType
           unify' (App tt1 x') m'
     unify'' (Lambda x a (Just phi) m) tt2 = do
       vars <- asks contextFreeVariables
@@ -1062,9 +1056,9 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           x' = rename x
       localPatternTyping (x', a) $ do
         localVars xs' $ do
-          phi' <- localPattern' (x, x') $ evalType phi
-          localConstraint phi' $ do
-            tt1' <- localPattern' (x, x') $ evalType m
+          phi' <- enterPatternScopeT (x, x') phi evalType
+          localConstraint' phi' $ do
+            tt1' <- enterPatternScopeT (x, x') m evalType
             let tt2' = App tt2 x'
             unify' tt1' tt2'
     unify'' tt1 (Lambda x a (Just phi) m) = do
@@ -1077,9 +1071,9 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           x' = rename x
       localPatternTyping (x', a) $ do
         localVars xs' $ do
-          phi' <- localPattern' (x, x') $ evalType phi
-          localConstraint phi' $ do
-            tt1' <- localPattern' (x, x') $ evalType m
+          phi' <- enterPatternScopeT (x, x') phi evalType
+          localConstraint' phi' $ do
+            tt1' <- enterPatternScopeT (x, x') m evalType
             let tt2' = (App tt1 x')
             unify' tt1' tt2'
 
@@ -1092,17 +1086,24 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
       unify' (Second tt1) s
 
     unify'' tt1 tt2 = do
-      typeOf_tt1 <- stripExplicitTypeAnnotations <$> infer tt1
-      case typeOf_tt1 of
-        ExtensionType (Variable s) i psi _tA _phi _a -> do -- FIXME: make it work for patterns
-          vars <- asks contextFreeVariables
-          let s' = refreshVar (vars <> allVars i) s
-          localTyping (s', Just i) $ do
-            psi' <- localVar (s, Variable s') $ evalType psi
-            localConstraint psi' $ do
-              -- issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
-              unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
+      Context{..} <- ask
+      case contextTopes of
+        (TopeOr l r : _) -> do  -- FIXME: generalise
+          forM_ [l, r] $ \ct -> do
+            localConstraint ct $ do
+              unify'' tt1 tt2
         _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+--       typeOf_tt1 <- stripExplicitTypeAnnotations <$> infer tt1
+--       case typeOf_tt1 of
+--         ExtensionType (Variable s) i psi _tA _phi _a -> do -- FIXME: make it work for patterns
+--           vars <- asks contextFreeVariables
+--           let s' = refreshVar (vars <> allVars i) s
+--           localTyping (s', Just i) $ do
+--             psi' <- localVar (s, Variable s') $ evalType psi
+--             localConstraint' psi' $ do
+--               -- issueTypeError_ (TypeErrorUnexpected term t1 t2 tt1 tt2) -- FIXME: dead code
+--               unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
+--         _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
 stripExplicitTypeAnnotations :: Term var -> Term var
 stripExplicitTypeAnnotations = \case

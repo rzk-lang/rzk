@@ -12,6 +12,7 @@ module Rzk.Evaluator (
   freeVars, allVars,
   renameVars,
   localConstraint,
+  enterPatternScope, enterPatternScope',
   eval,
   entailTope
 ) where
@@ -20,7 +21,7 @@ import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Functor.Identity
 import           Data.List             (nub, (\\))
-import           Data.Maybe            (fromMaybe, isNothing)
+import           Data.Maybe            (isNothing)
 import           Data.Monoid           (Endo (..))
 import           Data.Text             (Text)
 import qualified Data.Text             as Text
@@ -75,6 +76,14 @@ updateVar x t context@Context{..} = context
   { contextDefinedVariables = (x, t) : contextDefinedVariables }
 
 -- | Reassign term value to a variable.
+removeVar :: Eq var => var -> Context var -> Context var
+removeVar x context@Context{..} = context
+  { contextDefinedVariables = remove contextDefinedVariables }
+    where
+      remove xs = case span ((/= x) . fst) xs of
+                    (before, after) -> before ++ drop 1 after
+
+-- | Reassign term value to a variable.
 updateVars :: [(var, Term var)] -> Context var -> Context var
 updateVars xs context@Context{..} = context
   { contextDefinedVariables = xs <> contextDefinedVariables }
@@ -116,24 +125,33 @@ localPattern = \case
   (Pair x y,   t) -> localPattern (x, First t) . localPattern (y, Second t)
   (pattern, _) -> const $ throwError (EvalErrorInvalidPattern pattern)
 
-enterScope :: (Eq var, Enum var) =>
-  (var, Term var) -> Term var -> (Term var -> Eval var (Term var)) -> Eval var (Term var)
+enterScope
+  :: (Eq var, Enum var, Functor f,
+     MonadError (EvalError var) m, MonadReader (Context var) m)
+  => (var, Term var) -> Term var -> (Term var -> m (f (Term var))) -> m (f (Term var))
 enterScope (x, e) body f = do
-  knownVars <- map fst <$> asks contextDefinedVariables
+  knownVars <- asks ((map fst . contextDefinedVariables) <> contextFreeVariables )
   let vars = knownVars ++ allVars body
       x' = refreshVar vars x
   localVar (x', e) $ do
-    substitute x' e <$> f (renameVar x x' body)
+    fmap (substitute x' e) <$> f (renameVar x x' body)
 
 enterPatternScope
-  :: (Eq var, Enum var)
-  => (Term var, Term var) -> Term var -> (Term var -> Eval var (Term var)) -> Eval var (Term var)
+  :: (Eq var, Enum var, Functor f,
+     MonadError (EvalError var) m, MonadReader (Context var) m)
+  => (Term var, Term var) -> Term var -> (Term var -> m (f (Term var))) -> m (f (Term var))
 enterPatternScope = \case
   (Variable x, t) -> enterScope (x, t)
   (Pair x y,   t) -> \body m -> do
     enterPatternScope (x, First t) body $ \body' ->
       enterPatternScope (y, Second t) body' m
   (pattern, _) -> const $ const $ throwError (EvalErrorInvalidPattern pattern)
+
+enterPatternScope'
+  :: (Eq var, Enum var,
+     MonadError (EvalError var) m, MonadReader (Context var) m)
+  => (Term var, Term var) -> Term var -> (Term var -> m (Term var)) -> m (Term var)
+enterPatternScope' (x, e) body f = runIdentity <$> enterPatternScope (x, e) body (fmap Identity . f)
 
 -- | Add tope constraint locally during evaluation.
 localConstraint :: MonadReader (Context var) m => Term var -> m a -> m a
@@ -232,7 +250,11 @@ freeVars = \case
 -- * \(\mathcal{J}(A,a,C,d,a,\mathsf{refl}_a) \mapsto d\)
 eval :: (Eq var, Enum var) => Term var -> Eval var (Term var)
 eval = \case
-  Variable x -> fromMaybe (Variable x) <$> lookupVar x
+  Variable x -> do
+    lookupVar x >>= \case
+      Nothing -> pure (Variable x)
+      Just (Variable y) | x == y -> pure (Variable x)
+      Just t -> local (removeVar x) $ eval t
   TypedTerm term ty -> TypedTerm <$> eval term <*> eval ty -- FIXME: maybe type first?
   Hole x -> pure (Hole x)
   Universe -> pure Universe
@@ -250,12 +272,12 @@ eval = \case
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
-  First t -> eval t >>= pure . \case
-    Pair f _ -> f
-    t'       -> First t'
-  Second t -> eval t >>= pure . \case
-    Pair _ s -> s
-    t'       -> Second t'
+  First t -> eval t >>= \case
+    Pair f _ -> eval f
+    t'       -> pure (First t')
+  Second t -> eval t >>= \case
+    Pair _ s -> eval s
+    t'       -> pure (Second t')
   IdType a x y -> IdType <$> eval a <*> eval x <*> eval y
   Refl a x -> Refl <$> traverse eval a <*> eval x
   IdJ tA a tC d x p -> eval p >>= \case
@@ -419,11 +441,13 @@ entailTopeM' isIncludedIn topes = go
         , t == s
         , TopeEQ s t `elem` topes
         ] -> pure True
-      TopeLEQ x y -> go (TopeEQ x y) >>= \case
+      tope@(TopeLEQ x y) -> go (TopeEQ x y) >>= \case
         True -> pure True
         False -> go (TopeEQ x Cube2_0) >>= \case
           True -> pure True
-          False -> go (TopeEQ y Cube2_1)
+          False -> go (TopeEQ y Cube2_1) >>= \case
+            True -> pure True 
+            False -> anyM (`isIncludedIn` tope) topes
       tope -> anyM (`isIncludedIn` tope) topes
 
     anyM _ [] = pure False
@@ -442,22 +466,24 @@ pair f s =
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
 app t1 n =
   case t1 of
-    Lambda x (Just (ExtensionType _ _ _ _ phi a)) Nothing m -> do  -- FIXME: double check
+    Lambda x (Just (ExtensionType t _ _ _ phi a)) Nothing m -> do  -- FIXME: double check
       Context{..} <- ask
-      if contextTopes `entailTope` phi
+      phi' <- enterPatternScope' (t, n) phi eval
+      if contextTopes `entailTope` phi'
          then eval a
-         else enterPatternScope (x, n) m eval
-    Lambda x _ Nothing m -> enterPatternScope (x, n) m eval
+         else enterPatternScope' (x, n) m eval
+    Lambda x _ Nothing m -> enterPatternScope' (x, n) m eval
     Lambda x _ (Just phi) m -> do
-      enterPatternScope (x, n) m $ \m' -> do
-        phi' <- eval phi
-        localConstraint phi' $ do
+      enterPatternScope' (x, n) (Pair phi m) $ \(Pair phi' m') -> do
+        phi'' <- eval phi'
+        localConstraint phi'' $ do
           eval m'
-    TypedTerm _ (ExtensionType _ _ _ _ phi a) -> do
+    TypedTerm _ (ExtensionType t _ _ _ phi a) -> do
       Context{..} <- ask
-      if contextTopes `entailTope` phi
-         then do eval a
-         else pure (App t1 n)
+      enterPatternScope' (t, n) (Pair phi a) eval >>= \(Pair phi' a') -> do
+        if contextTopes `entailTope` phi'
+           then do eval a'
+           else do eval a' -- FIXME: this should be an error? pure (App t1 n)
     TypedTerm t (Pi f) -> do
       TypedTerm <$> app t n <*> app f n
     TypedTerm _ _ -> pure (App t1 n)
