@@ -32,7 +32,7 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: 📥 Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: 🧰 Setup nix (cache)
         uses: cachix/install-nix-action@v13
@@ -59,4 +59,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
-          target_folder: site
+          clean: false
