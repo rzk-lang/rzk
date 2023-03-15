@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: Deploy to GitHub Pages
+name: Build with GHCJS and Deploy to GitHub Pages
 
 # Controls when the workflow will run
 on:
@@ -16,7 +16,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  build-and-deploy:
+  ghcjs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -25,20 +25,6 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: 📥 Checkout repository
         uses: actions/checkout@v2
-
-      - name: 🧰 Setup Stack
-        uses: haskell/actions/setup@v1
-        with:
-          enable-stack: true
-
-      - name: 🧰 Setup Python
-        uses: actions/setup-python@v1
-
-      - name: 🧰 Install python-markdown-math (enable MathJax in the docs)
-        uses: BSFishy/pip-action@v1
-        with:
-          packages: |
-            python-markdown-math
 
       - name: 🧰 Setup nix (cache)
         uses: cachix/install-nix-action@v13
@@ -52,13 +38,6 @@ jobs:
         with:
           name: miso-haskell
 
-      - name: 💾 Cache .stack/
-        uses: actions/cache@v2
-        with:
-          path: |
-            .stack
-          key: ${{ runner.os }}-${{ hashFiles('stack.yaml.lock', 'rzk.cabal') }}-stack
-
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix-build try-rzk/
@@ -67,26 +46,9 @@ jobs:
           chmod -R +w dist/
           cp try-rzk/index.html dist/.
 
-      - name: 🔨 Build Haddock Documentation (with Stack)
-        run: |
-          stack haddock
-          mkdir -p dist/haddock
-          mv $(stack path --local-doc-root)/* dist/haddock
-
-      - name: 🔨 Build MkDocs
-        uses: Tiryoh/actions-mkdocs@v0
-        with:
-          mkdocs_version: 'latest' # option
-          #mkdocs_version: '1.1' # option
-          #requirements: 'requirements.txt' # option
-          configfile: 'docs/mkdocs.yml' # option
-
-      - name: 🔨 Copy MkDocs files
-        run: |
-          cp -r docs/split.html docs/site dist/.
-
-      - name: 📘 Publish Documentation
-        uses: peaceiris/actions-gh-pages@v3
+      - name: "📘 Publish JS \"binaries\""
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
+          folder: dist
+          target_folder: site
