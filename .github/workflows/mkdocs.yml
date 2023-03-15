@@ -29,23 +29,17 @@ jobs:
       - name: 🧰 Setup Python
         uses: actions/setup-python@v1
 
-      - name: 🧰 Install python-markdown-math (enable MathJax in the docs)
-        uses: BSFishy/pip-action@v1
-        with:
-          packages: |
-            python-markdown-math
-
       - name: 🔨 Build MkDocs
         uses: Tiryoh/actions-mkdocs@v0
         with:
           mkdocs_version: 'latest' # option
           #mkdocs_version: '1.1' # option
-          #requirements: 'requirements.txt' # option
+          requirements: 'docs/requirements.txt' # option
           configfile: 'docs/mkdocs.yml' # option
 
       - name: 🔨 Copy MkDocs files
         run: |
-          cp -r docs/split.html docs/site dist/.
+          mkdir -p dist/ && cp -r docs/split.html docs/site dist/.
 
       - name: 📘 Publish Generated MkDocs
         uses: JamesIves/github-pages-deploy-action@v4
