@@ -12,6 +12,9 @@ nav:
       - PCF: other/pcf.md
       - MLTT: other/mltt.md
 
+markdown_extensions:
+  - mdx_math
+
 theme:
   name: readthedocs
   highlightjs: false  # we override default hightlightjs in custom_theme/

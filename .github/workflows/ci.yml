@@ -31,11 +31,14 @@ jobs:
         with:
           enable-stack: true
 
-      - name: 🧰 Setup mdBook
-        uses: peaceiris/actions-mdbook@v1
+      - name: 🧰 Setup Python
+        uses: actions/setup-python@v1
+
+      - name: 🧰 Install python-markdown-math (enable MathJax in the docs)
+        uses: BSFishy/pip-action@v1
         with:
-          mdbook-version: '0.4.6'
-          # mdbook-version: 'latest'
+          packages: |
+            python-markdown-math
 
       - name: 🧰 Setup nix (cache)
         uses: cachix/install-nix-action@v13

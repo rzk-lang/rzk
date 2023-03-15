@@ -1,6 +1,9 @@
 # Tope disjuction elimination along identity paths
 
-`recOR(psi, phi, a, b)` is well-typed when `a` and `b` "agree" on `psi /\ phi`. This agreement has to be declared as a definitional equality. Sometimes this is too strong of a requirement, and we only know that there is a path `a = b`. Luckily, assuming relative function extensionality, we can define a weaker version of `recOR`, which we call `recId`.
+\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)\) (written `recOR(psi, phi, a_psi, a_phi)` in the code)
+is well-typed when \(a_\psi\) and \(a_\phi\) are _definitionally equal_ on \(\psi \land \phi\).
+Sometimes this is too strong since many terms are not _definitionally_ equal, but only equal up to a path.
+Luckily, assuming relative function extensionality, we can define a weaker version of \(rec_{\lor}\) (`recOR`), which we call `recId`, that can work in presence of a witness of type \(\prod_{t : I \mid \psi \land \phi} a_\psi = a_\phi\).
 
 ## Prerequisites
 
