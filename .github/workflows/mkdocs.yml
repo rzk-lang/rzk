@@ -36,7 +36,7 @@ jobs:
 
       - name: 🔨 Copy MkDocs files
         run: |
-          mkdir -p dist/ && cp -r docs/split.html docs/site dist/.
+          mkdir -p dist/ && cp -r docs/root/* docs/site dist/.
 
       - name: 📘 Publish Generated MkDocs
         uses: JamesIves/github-pages-deploy-action@v4
