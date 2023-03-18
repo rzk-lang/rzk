@@ -32,10 +32,6 @@ import           Rzk.Syntax.Module
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
-import Unsafe.Coerce
-import           Rzk.Debug.Trace
-import Debug.Trace
-
 data TypeCheckerAction var
   = ActionTypeCheck (Term var) (Term var)
   | ActionInferType (Term var)
@@ -414,7 +410,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         i' <- evalType i
         typecheck t2 i'
         enterPatternScopeT (t, t2) (Pair phi a) $ \(Pair phi' a') -> do
-          phi'' <- evalType phi'
+          -- phi'' <- evalType phi'
           -- ensureTopeContextEntailed term' phi''
           evalType a'
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
@@ -423,8 +419,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         enterPatternScopeT (t, t2) (Pair psi tA) $ \(Pair psi' tA') -> do
           psi'' <- evalType psi'
           ensureTopeContextEntailed term' psi''
-          unsafeTraceTerm "infer.evalType" tA' $
-            evalType tA'
+          evalType tA'
       RecBottom -> do
         ensureTopeContext t1 TopeBottom
         return RecBottom
@@ -571,9 +566,8 @@ ensureTopeContextEntailed term phi = localAction (ActionOther "ensureTopeContext
   Context{..} <- ask
   phi' <- evalType phi
   contextTopes' <- unfoldTopes' contextTopes >>= mapM evalType
-  unsafeTraceTyping "ensureTopeContextEntailed" phi' (foldr TopeAnd TopeTop contextTopes) $
-    unless (contextTopes' `entailTope` phi') $ do
-      issueTypeError (TypeErrorTopeContextNotEntailed term phi contextTopes)
+  unless (contextTopes' `entailTope` phi') $ do
+    issueTypeError (TypeErrorTopeContextNotEntailed term phi contextTopes)
 
 ensureSubTope :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 ensureSubTope term psi phi = localAction (ActionOther "ensureSubTope") $ do
@@ -833,7 +827,7 @@ checkInfiniteType tt x = go
 
 appExt :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var (Maybe (Term var))
 appExt f x = do
-  res <- unsafeTraceTerm "appExt" (App f x) $ localAction (ActionEval (App f x)) $ do
+  res <- localAction (ActionEval (App f x)) $ do
     typeOf_f <- infer f
     case typeOf_f of
       ExtensionType t _I _psi tA phi a -> do
@@ -844,16 +838,14 @@ appExt f x = do
             phi'' <- eval phi'
             tA'' <- eval tA'
             if contextTopes' `entailTope` phi''
-               then unsafeTraceTerm "appExt (success)" (App f x) $ Just <$> eval (TypedTerm a' tA'')
-               else unsafeTraceTyping "appExt (fail topes)" phi'' (foldr TopeAnd TopeTop contextTopes') $ pure Nothing
+               then Just <$> eval (TypedTerm a' tA'')
+               else pure Nothing
       _ -> pure Nothing
   case res of
     Just t -> pure (Just t)
     Nothing ->
       case f of
-        App g y ->
-          unsafeTraceTerm "appExt (try nested)" (App f x) $
-            liftA2 App <$> appExt g y <*> pure (Just x)
+        App g y -> liftA2 App <$> appExt g y <*> pure (Just x)
         _ -> pure Nothing
 
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
