@@ -415,7 +415,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
         typecheck t2 i'
         enterPatternScopeT (t, t2) (Pair phi a) $ \(Pair phi' a') -> do
           phi'' <- evalType phi'
-          ensureTopeContextEntailed term' phi''
+          -- ensureTopeContextEntailed term' phi''
           evalType a'
       ExtensionType t cI psi tA _phi _a -> do  -- FIXME: do we lose information?
         cI' <- evalType cI
@@ -441,7 +441,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       _ -> issueTypeError (TypeErrorCannotInferPair t)
   First t -> do
     ty <- infer t
-    case ty of
+    evalType ty >>= \case
       Sigma (Lambda _ (Just a) Nothing _) -> return a
       TypedTerm (Sigma (Lambda _ (Just a) Nothing _)) _ -> return a
       CubeProd i _j -> return i
@@ -451,7 +451,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       _ -> issueTypeError (TypeErrorNotAPair t ty (First t))
   Second t -> do
     ty <- infer t
-    case ty of
+    evalType ty >>= \case
       Sigma f@(Lambda _ a Nothing _) -> do
         x <- genFreshVar
         evalType (App (TypedTerm f (Pi (Lambda (Variable x) a Nothing Universe))) (First t))
@@ -677,6 +677,7 @@ typecheckModule :: (Eq var, Enum var) => [var] -> Module var -> TypeCheckResult 
 typecheckModule freshVars Module{..} = do
   getTypeCheckResult initialEvalContext initialTypingContext $
     forM_ moduleDecls $ \Decl{..} -> do
+      typecheck declType Universe
       ty <- evalType declType
       typecheck declBody ty
       modify (\context -> context { contextKnownTypes = (declName, ty) : contextKnownTypes context})
