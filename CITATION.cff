@@ -7,10 +7,3 @@ title: "rzk: a prototype proof assistant for synthetic $\\infty$-categories"
 version: 0.1.0.0
 url: "https://github.com/fizruk/rzk"
 message: "If you use this software, please consider citing both the article from preferred-citation and the software itself."
-preferred-citation:
-  authors:
-    - family-names: Kudasov
-      given-names: Nikolai
-  title: "Functional Pearl: dependent type inference via free higher-order unification"
-  url: "https://arxiv.org/abs/2204.05653"
-  type: article
