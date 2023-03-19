@@ -56,6 +56,25 @@ Also, for Riehl and Shulman's type theory I would also need to account for tope 
 
 So the third attempt, available in `Rzk.Free.Syntax.FreeScoped.ScopedUnification`, is similar to the second one, but is now more general and fixes the issue with bound variables. It relies on Sweirstra's idea of data types a la carte [3] and extends a given language with meta variables and applications of meta variables, rather than assuming the target language has lambdas or applications. This approach should work well for simple tuples and Σ-types as well as different kinds of lambda abstractions in a type theory. Here we also handle bound variables and constraints with more precision. The approach has been tested with untyped lambda calculus, but should be easily extended to other languages up to MLTT soon.
 
+## Building the Documentation Locally
+
+First, you need to install [MkDocs](https://www.mkdocs.org/getting-started/) and `mdx_math` Markdown extension (to enable LaTeX):
+
+```sh
+pip install python-markdown-math
+```
+
+Now, you can build and serve the documentation locally by running
+
+```sh
+mkdocs serve --config-file docs/mkdocs.yml
+```
+
+The (locally built) documentation should be available at http://127.0.0.1:8000
+
+The pages of the documentation are the `*.md` files in [docs/docs](docs/docs) directory and its subdirectories.
+To add a new page, you can create a new `*.md` file and add it to the navigation by modifying [docs/mkdocs.yml](docs/mkdocs.yml).
+
 ## Development
 
 The project is developed with both Stack and Nix (for GHCJS version).
