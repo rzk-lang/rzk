@@ -1,9 +1,9 @@
 # rzk
 
 
-[![GHCJS build](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml/badge.svg)](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml)
-[![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://fizruk.github.io/rzk/haddock/index.html)
 [![MkDocs](https://shields.io/badge/MkDocs-documentation-informational)](https://fizruk.github.io/rzk/split.html)
+[![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://fizruk.github.io/rzk/haddock/index.html)
+[![GHCJS build](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml/badge.svg)](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml)
 
 [![stlc](https://shields.io/static/v1?label=lang&message=stlc&color=blueviolet)](https://fizruk.github.io/rzk/?lang=stlc)
 [![`#lang pcf`](https://shields.io/static/v1?label=lang&message=pcf&color=blueviolet)](https://fizruk.github.io/rzk/?lang=pcf)
@@ -12,7 +12,7 @@
 
 Prototype interactive proof assistant based on a type theory for synthetic ∞-categories.
 
-[![Early prototype demo.](images/rzk-1-demo.png)](https://fizruk.github.io/rzk/?lang=rzk-1)
+[![Early prototype demo.](images/split-demo.png)](https://fizruk.github.io/rzk/split.html)
 
 ## Supported languages
 
