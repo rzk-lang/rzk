@@ -228,7 +228,7 @@ unsetTypeOf x _type = modify $ \context -> context
 localAction :: TypeCheckerAction var -> TypeCheck var a -> TypeCheck var a
 localAction action m = do
   depth <- length <$> gets actionStack
-  when (depth > 50) $ do
+  when (depth > 200) $ do -- FIXME: make a parameter
     issueTypeError (TypeErrorOther "maximum depth reached")
   modify (\context -> context { actionStack = action : actionStack context })
   result <- m
@@ -409,7 +409,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       Pi (Lambda t (Just i) (Just phi) a) -> do
         i' <- evalType i
         typecheck t2 i'
-        enterPatternScopeT (t, t2) (Pair phi a) $ \(Pair phi' a') -> do
+        enterPatternScopeT (t, t2) (Pair phi a) $ \(Pair _phi' a') -> do
           -- phi'' <- evalType phi'
           -- ensureTopeContextEntailed term' phi''
           evalType a'
