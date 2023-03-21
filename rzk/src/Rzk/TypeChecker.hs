@@ -828,7 +828,9 @@ checkInfiniteType tt x = go
 appExt :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var (Maybe (Term var))
 appExt f x = do
   res <- localAction (ActionEval (App f x)) $ do
-    typeOf_f <- infer f
+    typeOf_f <- infer f >>= return . \case
+      TypedTerm t _ty -> t
+      t -> t
     case typeOf_f of
       ExtensionType t _I _psi tA phi a -> do
         Context{..} <- ask
