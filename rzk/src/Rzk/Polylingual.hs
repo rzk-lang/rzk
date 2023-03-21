@@ -187,9 +187,23 @@ removeComment s =
       case List.span (== ' ') after of
         (middle, end) -> before ++ middle ++ removeComment end
 
+-- | Extract rzk code from a Markdown file
+--
+-- >>> putStrLn $ detectMarkdownCodeBlocks "\n```rzk\n#lang rzk-1\n```\nasd asd\n```rzk\n#def x : U\n  := U\n``` asda"
+-- #lang rzk-1
+-- #def x : U
+--   := U
+extractMarkdownCodeBlocks :: String -> String
+extractMarkdownCodeBlocks = Text.unpack . Text.intercalate "\n" . concatMap (take 1 . Text.splitOn "\n```") . drop 1 . Text.splitOn "```rzk\n" . ("# lead\n" <>) . Text.pack
+
+tryExtractMarkdownCodeBlocks :: String -> String
+tryExtractMarkdownCodeBlocks input
+  | "```rzk\n" `List.isInfixOf` input = extractMarkdownCodeBlocks input
+  | otherwise = input
+
 safeParseSomeModule :: String -> Either String SomeModule
 safeParseSomeModule input =
-  case parseString pSomeModule mempty (removeComments input) of
+  case parseString pSomeModule mempty (removeComments (tryExtractMarkdownCodeBlocks input)) of
     Success x       -> pure x
     Failure errInfo -> Left (show errInfo)
 
