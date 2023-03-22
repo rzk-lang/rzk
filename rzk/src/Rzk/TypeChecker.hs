@@ -436,7 +436,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       _ -> issueTypeError (TypeErrorCannotInferPair t)
   First t -> do
     ty <- infer t
-    evalType ty >>= \case
+    fmap stripExplicitTypeAnnotations (evalType ty) >>= \case
       Sigma (Lambda _ (Just a) Nothing _) -> return a
       TypedTerm (Sigma (Lambda _ (Just a) Nothing _)) _ -> return a
       CubeProd i _j -> return i
@@ -446,7 +446,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
       _ -> issueTypeError (TypeErrorNotAPair t ty (First t))
   Second t -> do
     ty <- infer t
-    evalType ty >>= \case
+    fmap stripExplicitTypeAnnotations (evalType ty) >>= \case
       Sigma f@(Lambda _ a Nothing _) -> do
         x <- genFreshVar
         evalType (App (TypedTerm f (Pi (Lambda (Variable x) a Nothing Universe))) (First t))
@@ -554,11 +554,12 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     typecheck s Cube2
     return Tope
 
-tryEnsureTopeContext :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe ())
-tryEnsureTopeContext phi = localAction (ActionOther "tryEnsureTopeContext") $ do
+tryEnsureTopeContextEntailed :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe ())
+tryEnsureTopeContextEntailed phi = localAction (ActionOther "tryEnsureTopeContext") $ do
   Context{..} <- ask
-  contextTopes' <- unfoldTopes' contextTopes
-  if ([phi] `entailTope` foldr TopeAnd TopeTop contextTopes')
+  phi' <- evalType phi
+  contextTopes' <- unfoldTopes' contextTopes >>= mapM evalType
+  if (contextTopes' `entailTope` phi')
      then return (Just ())
      else return Nothing
 
@@ -1098,7 +1099,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
         _ -> do
           infer tt1 >>= \case
             ty -> infer ty >>= \case
-              Cube -> tryEnsureTopeContext (TopeEQ tt1 tt2) >>= \case
+              Cube -> tryEnsureTopeContextEntailed (TopeEQ tt1 tt2) >>= \case
                 Nothing -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
                 Just{}  -> return ()
               _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
