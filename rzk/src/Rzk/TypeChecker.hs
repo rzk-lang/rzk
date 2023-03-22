@@ -398,7 +398,7 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
   t@(Lambda _ _ _ _) -> issueTypeError (TypeErrorCannotInferLambda t)
   term'@(App t1 t2) -> do
 
-    ty <- infer t1
+    ty <- infer t1 >>= evalType
     case ty of
       TypedTerm ty' _ -> do
         infer (App (TypedTerm t1 ty') t2)
@@ -828,7 +828,7 @@ checkInfiniteType tt x = go
 appExt :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var (Maybe (Term var))
 appExt f x = do
   res <- localAction (ActionEval (App f x)) $ do
-    typeOf_f <- infer f >>= return . \case
+    typeOf_f <- infer f >>= evalType >>= return . \case
       TypedTerm t _ty -> t
       t -> t
     case typeOf_f of
