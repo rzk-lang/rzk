@@ -14,7 +14,8 @@ module Rzk.Evaluator (
   localConstraint,
   enterPatternScope, enterPatternScope',
   eval,
-  entailTope
+  entailTope,
+  unfoldTopesInCube2,
 ) where
 
 import           Control.Monad.Except
@@ -353,7 +354,7 @@ unfoldRepeatedlyN unfold n xs
 
 unfoldTopesInCube2 :: Eq var => [Term var] -> [Term var]
 unfoldTopesInCube2
-  = unfoldRepeatedlyN unfoldTopesInCube2Once 10
+  = unfoldRepeatedlyN unfoldTopesInCube2Once 50
 
 unfoldTopesInCube2Once :: Eq var => [Term var] -> [Term var]
 unfoldTopesInCube2Once
@@ -361,6 +362,7 @@ unfoldTopesInCube2Once
       <> distinctTopes
       <> transitivityTopesInCube2
       <> transitivityTopesEQ
+      <> symmetryTopesEQ
       <> unfoldConjunction
 
 unfoldConjunction :: [Term var] -> [Term var]
@@ -386,6 +388,13 @@ transitivityTopesEQ topes =
   , TopeEQ y' z <- topes
   , y == y'
   , x /= z
+  ]
+
+symmetryTopesEQ :: Eq var => [Term var] -> [Term var]
+symmetryTopesEQ topes =
+  [ TopeEQ y x
+  | TopeEQ x y <- topes
+  , x /= y
   ]
 
 antisymmetryTopesInCube2 :: Eq var => [Term var] -> [Term var]
