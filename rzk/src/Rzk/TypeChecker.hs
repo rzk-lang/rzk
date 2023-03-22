@@ -554,6 +554,14 @@ infer term = localAction (ActionInferType term) $ ($ term) $ \case
     typecheck s Cube2
     return Tope
 
+tryEnsureTopeContext :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe ())
+tryEnsureTopeContext phi = localAction (ActionOther "tryEnsureTopeContext") $ do
+  Context{..} <- ask
+  contextTopes' <- unfoldTopes' contextTopes
+  if ([phi] `entailTope` foldr TopeAnd TopeTop contextTopes')
+     then return (Just ())
+     else return Nothing
+
 ensureTopeContext :: (Eq var, Enum var) => Term var -> Term var -> TypeCheck var ()
 ensureTopeContext term phi = localAction (ActionOther "ensureTopeContext") $ do
   Context{..} <- ask
@@ -1087,7 +1095,14 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           forM_ [l, r] $ \ct -> do
             localConstraint ct $ do
               unify'' tt1 tt2
-        _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+        _ -> do
+          infer tt1 >>= \case
+            ty -> infer ty >>= \case
+              Cube -> tryEnsureTopeContext (TopeEQ tt1 tt2) >>= \case
+                Nothing -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+                Just{}  -> return ()
+              _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
+
 --       typeOf_tt1 <- stripExplicitTypeAnnotations <$> infer tt1
 --       case typeOf_tt1 of
 --         ExtensionType (Variable s) i psi _tA _phi _a -> do -- FIXME: make it work for patterns
