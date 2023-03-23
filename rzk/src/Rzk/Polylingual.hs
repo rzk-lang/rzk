@@ -71,6 +71,9 @@ data Module var term = Module
   { moduleCommands :: [Command var term]
   } deriving (Show, Eq)
 
+instance Semigroup (Module var term) where
+  Module cs1 <> Module cs2 = Module (cs1 <> cs2)
+
 data LangMode
   = Rzk1
   | STLC
@@ -84,6 +87,23 @@ data SomeModule
   | Module_PCF  (Module Var PCF.Term')
   | Module_MLTT (Module Var MLTT.Term')
   deriving (Show)
+
+combineModules :: [SomeModule] -> Either String SomeModule
+combineModules [] = Left "no modules provided"
+combineModules (m : ms) = combineModules1 m ms
+
+combineModules1 :: SomeModule -> [SomeModule] -> Either String SomeModule
+combineModules1 m [] = return m
+combineModules1 (Module_Rzk1 m1) (Module_Rzk1 m2 : ms) =
+  combineModules1 (Module_Rzk1 (m1 <> m2)) ms
+combineModules1 (Module_STLC m1) (Module_STLC m2 : ms) =
+  combineModules1 (Module_STLC (m1 <> m2)) ms
+combineModules1 (Module_PCF m1) (Module_PCF m2 : ms) =
+  combineModules1 (Module_PCF (m1 <> m2)) ms
+combineModules1 (Module_MLTT m1) (Module_MLTT m2 : ms) =
+  combineModules1 (Module_MLTT (m1 <> m2)) ms
+combineModules1 _ _ =
+  Left "trying to combine modules for different languages!"
 
 compileSomeModule :: SomeModule -> String
 compileSomeModule = \case
