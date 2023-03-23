@@ -22,7 +22,6 @@ import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Functor.Identity
 import           Data.List             (nub, (\\))
-import           Data.Maybe            (isNothing)
 import           Data.Monoid           (Endo (..))
 import           Data.Text             (Text)
 import qualified Data.Text             as Text
@@ -52,10 +51,8 @@ ppEvalError = \case
 
 -- | Evaluation context.
 data Context var = Context
-  { contextDefinedVariables :: [(var, Term var)]
+  { contextDefinedVariables :: [(var, Maybe (Term var))]
     -- ^ Defined variables (variables that have terms assigned to them).
-  , contextFreeVariables    :: [var]
-    -- ^ Known free variables, used to avoid name clashes during substitution.
   , contextTopes            :: [Term var]
     -- ^ Topes in the context.
   , contextTopeInclusions   :: [(Term var, Term var)]
@@ -66,15 +63,18 @@ data Context var = Context
 emptyContext :: Context var
 emptyContext = Context
   { contextDefinedVariables = []
-  , contextFreeVariables = []
   , contextTopes = []
   , contextTopeInclusions = []
   }
 
 -- | Reassign term value to a variable.
-updateVar :: var -> Term var -> Context var -> Context var
-updateVar x t context@Context{..} = context
+updateVar' :: var -> Maybe (Term var) -> Context var -> Context var
+updateVar' x t context@Context{..} = context
   { contextDefinedVariables = (x, t) : contextDefinedVariables }
+
+-- | Reassign term value to a variable.
+updateVar :: var -> Term var -> Context var -> Context var
+updateVar x t = updateVar' x (Just t)
 
 -- | Reassign term value to a variable.
 removeVar :: Eq var => var -> Context var -> Context var
@@ -87,15 +87,14 @@ removeVar x context@Context{..} = context
 -- | Reassign term value to a variable.
 updateVars :: [(var, Term var)] -> Context var -> Context var
 updateVars xs context@Context{..} = context
-  { contextDefinedVariables = xs <> contextDefinedVariables }
+  { contextDefinedVariables = map (fmap Just) xs <> contextDefinedVariables }
 
 addVar :: var -> Context var -> Context var
-addVar x context@Context{..} = context
-  { contextFreeVariables = x : contextFreeVariables }
+addVar x = updateVar' x Nothing
 
 -- | List all known variables (used to avoid name clashes after substitution).
 contextKnownVars :: Context var -> [var]
-contextKnownVars Context{..} = contextFreeVariables <> map fst contextDefinedVariables
+contextKnownVars Context{..} = map fst contextDefinedVariables
 
 -- | Evaluation with variables of type @var@.
 newtype Eval var a = Eval { runEval :: ReaderT (Context var) (Except (EvalError var)) a }
@@ -103,13 +102,9 @@ newtype Eval var a = Eval { runEval :: ReaderT (Context var) (Except (EvalError 
 
 -- | Lookup definition of a variable (if exists).
 lookupVar :: Eq var => var -> Eval var (Maybe (Term var))
-lookupVar x = do
-  value <- asks (lookup x . contextDefinedVariables)
-  when (isNothing value) $ do
-    knownFreeVariable <- asks ((x `elem`) . contextFreeVariables)
-    when (not knownFreeVariable) $ do
-      throwError (EvalErrorUndefinedVariable x)
-  return value
+lookupVar x = asks (lookup x . contextDefinedVariables) >>= \case
+  Nothing -> throwError (EvalErrorUndefinedVariable x)
+  Just value -> return value
 
 -- | Add definition of a variable locally during evaluation.
 localVar :: MonadReader (Context var) m => (var, Term var) -> m a -> m a
@@ -131,7 +126,7 @@ enterScope
      MonadError (EvalError var) m, MonadReader (Context var) m)
   => (var, Term var) -> Term var -> (Term var -> m (f (Term var))) -> m (f (Term var))
 enterScope (x, e) body f = do
-  knownVars <- asks ((map fst . contextDefinedVariables) <> contextFreeVariables )
+  knownVars <- asks (map fst . contextDefinedVariables)
   let vars = knownVars ++ allVars body
       x' = refreshVar vars x
   localVar (x', e) $ do

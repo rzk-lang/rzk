@@ -239,7 +239,8 @@ localTyping :: Eq var => (var, Maybe (Term var)) -> TypeCheck var a -> TypeCheck
 localTyping (x, t) m = do
   traverse_ (setTypeOf x) t
   oldContext <- get
-  result <- localFreeVar x (local (\context -> context { contextDefinedVariables = contextKnownHoles oldContext <> contextDefinedVariables context }) m)
+  result <- localFreeVar x (local (\context -> context
+    { contextDefinedVariables = map (fmap Just) (contextKnownHoles oldContext) <> contextDefinedVariables context }) m)
   traverse_ (unsetTypeOf x) t
   return result
 
@@ -663,7 +664,8 @@ ppContext Context{..} = Text.intercalate "\n"
   , Text.intercalate "\n" (map ppDef contextDefinedVariables)
   ]
     where
-      ppDef (x, t) = ppVar x <> " := " <> ppTerm t
+      ppDef (x, Nothing) = ppVar x <> " is a local variable"
+      ppDef (x, Just t)  = ppVar x <> " := " <> ppTerm t
 
 getTypeCheckResult :: Context var -> TypingContext var -> TypeCheck var () -> TypeCheckResult var
 getTypeCheckResult initialEvalContext initialTypingContext
@@ -686,8 +688,7 @@ typecheckModule freshVars Module{..} = do
       modify (\context -> context { contextKnownTypes = (declName, ty) : contextKnownTypes context})
   where
     initialEvalContext = Context
-      { contextDefinedVariables = map (\Decl{..} -> (declName, declBody)) moduleDecls
-      , contextFreeVariables = map declName moduleDecls
+      { contextDefinedVariables = map (\Decl{..} -> (declName, Just declBody)) moduleDecls
       , contextTopes = []
       , contextTopeInclusions = []
       }
@@ -1027,7 +1028,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
 
     -- unification by eta-expansion!
     unify'' (Lambda x a Nothing m) tt2 = do
-      vars <- asks contextFreeVariables
+      vars <- asks (map fst . contextDefinedVariables)
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m) xs
@@ -1039,7 +1040,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           m' <- enterPatternScopeT (x, x') m evalType
           unify' m' (App tt2 x')
     unify'' tt1 (Lambda x a Nothing m) = do
-      vars <- asks contextFreeVariables
+      vars <- asks (map fst . contextDefinedVariables)
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m) xs
@@ -1051,7 +1052,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           m' <- enterPatternScopeT (x, x') m evalType
           unify' (App tt1 x') m'
     unify'' (Lambda x a (Just phi) m) tt2 = do
-      vars <- asks contextFreeVariables
+      vars <- asks (map fst . contextDefinedVariables)
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m <> allVars phi) xs
@@ -1066,7 +1067,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
             let tt2' = App tt2 x'
             unify' tt1' tt2'
     unify'' tt1 (Lambda x a (Just phi) m) = do
-      vars <- asks contextFreeVariables
+      vars <- asks (map fst . contextDefinedVariables)
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m <> allVars phi) xs
