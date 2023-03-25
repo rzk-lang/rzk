@@ -5,14 +5,14 @@
 [![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://fizruk.github.io/rzk/haddock/index.html)
 [![GHCJS build](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml/badge.svg)](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml)
 
-[![stlc](https://shields.io/static/v1?label=lang&message=stlc&color=blueviolet)](https://fizruk.github.io/rzk/?lang=stlc)
-[![`#lang pcf`](https://shields.io/static/v1?label=lang&message=pcf&color=blueviolet)](https://fizruk.github.io/rzk/?lang=pcf)
-[![`#lang mltt`](https://shields.io/static/v1?label=lang&message=mltt&color=blueviolet)](https://fizruk.github.io/rzk/?lang=mltt)
-[![`#lang rzk-1`](https://shields.io/static/v1?label=lang&message=rzk-1&color=blueviolet)](https://fizruk.github.io/rzk/?lang=rzk-1)
+[![stlc](https://shields.io/static/v1?label=lang&message=stlc&color=blueviolet)](https://fizruk.github.io/rzk/v0.1.0/?lang=stlc)
+[![`#lang pcf`](https://shields.io/static/v1?label=lang&message=pcf&color=blueviolet)](https://fizruk.github.io/rzk/v0.1.0/?lang=pcf)
+[![`#lang mltt`](https://shields.io/static/v1?label=lang&message=mltt&color=blueviolet)](https://fizruk.github.io/rzk/v0.1.0/?lang=mltt)
+[![`#lang rzk-1`](https://shields.io/static/v1?label=lang&message=rzk-1&color=blueviolet)](https://fizruk.github.io/rzk/v0.1.0/?lang=rzk-1)
 
 Prototype interactive proof assistant based on a type theory for synthetic ∞-categories.
 
-[![Early prototype demo.](images/split-demo.png)](https://fizruk.github.io/rzk/split.html)
+[![Early prototype demo.](images/split-demo.png)](https://fizruk.github.io/rzk/v0.1.0/split.html)
 
 ## Supported languages
 
@@ -24,31 +24,31 @@ The assistant is polylingual, supporting several language modes. The language mo
 
 Currently the online assistant supports the following `#lang` modes:
 
-- `#lang rzk-1` ([try online](https://fizruk.github.io/rzk/?lang=rzk-1)) —
+- `#lang rzk-1` ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=rzk-1)) —
   the early prototype of the proof assistant based on Riehl and Shulman's type theory for synthetic ∞-categories.
 
-- `#lang sltc` ([try online](https://fizruk.github.io/rzk/?lang=stlc)) —
+- `#lang sltc` ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=stlc)) —
   a variant of simply typed lambda calculus (STLC) with computation available at the level of types;
 
-- `#lang pcf` ([try online](https://fizruk.github.io/rzk/?lang=pcf)) —
+- `#lang pcf` ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=pcf)) —
   programming with computable functions (PCF), an extension of simply typed lambda calculus with natural numbers and booleans;
 
-- `#lang mltt` ([try online](https://fizruk.github.io/rzk/?lang=mltt)) —
+- `#lang mltt` ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=mltt)) —
   Martin-Löf Type Theory, a dependent type theory with [intensional identity types](https://ncatlab.org/nlab/show/identity+type).
 
 ## About this project
 
 This project has started with the idea of bringing the ideas of Riehl and Shulman's 2017 paper [1] to life by implementing a proof assistant based on their type theory with shapes.
-An early prototype has been implemented and is available as an executable `rzk` and also online at https://fizruk.github.io/rzk/?lang=rzk-1 .
+An early prototype has been implemented and is available as an executable `rzk` and also online at https://fizruk.github.io/rzk/v0.1.0/?lang=rzk-1 .
 The prototype is able to prove some of the important theorems about extension types from Section 4 of the original paper.
 
 However, the initial implementation proved fragile and not particularly trustworthy, so I have decided to give it another go. Inspired by `unification-fd` and my previous experience with free monads I have decided to try more generic tools like free monads and intrinsically well-scoped terms a la Ross and Patterson [2] via `bound` package. It turned out that combining free monads with scopes is not particularly trivial.
 
 Still, after some time I've managed to port over [Daniel Gratzner's version](https://github.com/jozefg/higher-order-unification) of higher-order unification algorithm (an untyped variation of Huet's algorithm). This approach to unification is avaialble in `Rzk.Free.Syntax.FreeScoped.Unification2` and is currently used by example implementations:
 - untyped lambda calculus (see `Rzk.Free.Syntax.Example.ULC`),
-- simply typed lambda calculus, with computation allowed at the level of types ([try online](https://fizruk.github.io/rzk/?lang=stlc)),
-- programming with computable functions ([try online](https://fizruk.github.io/rzk/?lang=pcf)),
-- Martin-Löf Type Theory ([try online](https://fizruk.github.io/rzk/?lang=mltt))
+- simply typed lambda calculus, with computation allowed at the level of types ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=stlc)),
+- programming with computable functions ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=pcf)),
+- Martin-Löf Type Theory ([try online](https://fizruk.github.io/rzk/v0.1.0/?lang=mltt))
 
 The second implementation did not quite get to Riehl and Shulman's type theory with shapes, as there were a couple of issues bothering me. First, this implementation relied on the fact that the language has lambda abstractions and applications, but only of one kind was accounted for in the unification algorithm. Riehl and Shulman's type theory technically has two different abstractions and applications (even though they reuse the same syntax in the paper for both) — for Π-types and for extensions types. Second, the handling of bound variables in Gratzner's implementation was incomplete, and it worsened with instinsic scopes in my code. When I tried to handle them properly in my code I has to resort to unsafe and awkward conversions. Those were quite tricky to debug.
 
@@ -115,7 +115,7 @@ cd rzk/try-rzk
 nix-build
 ```
 
-Now open `index.html` to see the result. Note that if local GHCJS build is unavailable, `index.html` will use the [JS file from GitHub Pages](https://fizruk.github.io/rzk/result/bin/try-rzk.jsexe/all.js) as a fallback.
+Now open `index.html` to see the result. Note that if local GHCJS build is unavailable, `index.html` will use the [JS file from GitHub Pages](https://fizruk.github.io/rzk/v0.1.0/result/bin/try-rzk.jsexe/all.js) as a fallback.
 
 # References
 
