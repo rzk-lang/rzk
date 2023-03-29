@@ -6,7 +6,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 module Rzk.Evaluator (
   EvalError(..),
-  Context(..), emptyContext,
+  Context(..), emptyContext, contextKnownVars,
   Eval, runEval,
   localFreeVar, localPattern, localVar, localVars, lookupVar,
   freeVars, allVars,
@@ -16,6 +16,7 @@ module Rzk.Evaluator (
   eval,
   entailTope,
   unfoldTopesInCube2,
+  stripExplicitTypeAnnotations,
 ) where
 
 import           Control.Monad.Except
@@ -126,7 +127,7 @@ enterScope
      MonadError (EvalError var) m, MonadReader (Context var) m)
   => (var, Term var) -> Term var -> (Term var -> m (f (Term var))) -> m (f (Term var))
 enterScope (x, e) body f = do
-  knownVars <- asks (map fst . contextDefinedVariables)
+  knownVars <- asks contextKnownVars
   let vars = knownVars ++ allVars body
       x' = refreshVar vars x
   localVar (x', e) $ do
@@ -268,15 +269,15 @@ eval = \case
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
-  First t -> eval t >>= \case
+  First t -> stripExplicitTypeAnnotations <$> eval t >>= \case
     Pair f _ -> eval f
     t'       -> pure (First t')
-  Second t -> eval t >>= \case
+  Second t -> stripExplicitTypeAnnotations <$> eval t >>= \case
     Pair _ s -> eval s
     t'       -> pure (Second t')
   IdType a x y -> IdType <$> eval a <*> eval x <*> eval y
   Refl a x -> Refl <$> traverse eval a <*> eval x
-  IdJ tA a tC d x p -> eval p >>= \case
+  IdJ tA a tC d x p -> stripExplicitTypeAnnotations <$> eval p >>= \case
     Refl _ _ -> eval d
     p' -> IdJ <$> eval tA <*> eval a <*> eval tC <*> eval d <*> eval x <*> pure p'
 
@@ -482,12 +483,14 @@ app t1 n =
         phi'' <- eval phi'
         localConstraint phi'' $ do
           eval m'
-    TypedTerm _ (ExtensionType t _ _ _ phi a) -> do
+    TypedTerm _ (ExtensionType t _ _ tA phi a) -> do
       Context{..} <- ask
-      enterPatternScope' (t, n) (Pair phi a) eval >>= \(Pair phi' a') -> do
-        if contextTopes `entailTope` phi'
-           then do eval a'
-           else do eval a' -- FIXME: this should be an error? pure (App t1 n)
+      enterPatternScope' (t, n) (Pair tA (Pair phi a)) $ \(Pair tA' (Pair phi' a')) -> do
+        phi'' <- eval phi'
+        tA'' <- eval tA'
+        if contextTopes `entailTope` phi''
+           then eval (TypedTerm a' tA'')
+           else pure (App t1 n)
     TypedTerm t (Pi f) -> do
       TypedTerm <$> app t n <*> app f n
     TypedTerm _ _ -> pure (App t1 n)
@@ -593,3 +596,7 @@ substitute x tt = go
       Cube2_1 -> Cube2_1
       TopeLEQ t' s -> TopeLEQ (go t') (go s)
 
+stripExplicitTypeAnnotations :: Term var -> Term var
+stripExplicitTypeAnnotations = \case
+  TypedTerm t _ -> stripExplicitTypeAnnotations t
+  t -> t

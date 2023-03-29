@@ -13,6 +13,7 @@ module Rzk.TypeChecker where
 import           Control.Applicative  (liftA2, (<|>))
 import           Control.Monad.Except
 import           Control.Monad.Reader
+import           Control.Monad.Writer (runWriterT, tell)
 import           Control.Monad.State
 
 #if !MIN_VERSION_base(4,13,0)
@@ -22,6 +23,7 @@ import qualified Control.Monad.Fail as Fail
 
 import           Data.Foldable        (sequenceA_, traverse_)
 import           Data.List            (nub, (\\))
+import           Data.Monoid          (Any(..))
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
@@ -296,11 +298,10 @@ localConstraint' psi m = do
 evalType :: (Eq var, Enum var) => Term var -> TypeCheck var (Term var)
 evalType t = localAction (ActionEval t) $ do
   Context{..} <- ask
-  evalInTypeCheck t (eval t) >>= \case
-    t'@(App f x) -> appExt f x >>= \case
-      Just t'' -> evalType t''
-      Nothing -> pure t'
-    t' -> pure t'
+  t' <- evalInTypeCheck t (eval t)
+  recursiveAppExt t' >>= \case
+    Nothing -> pure t'
+    Just t'' -> evalType t''
 
 evalInTypeCheck :: Term var -> Eval var a -> TypeCheck var a
 evalInTypeCheck t e = do
@@ -681,14 +682,20 @@ getTypeCheckResult initialEvalContext initialTypingContext
 typecheckModule :: (Eq var, Enum var) => [var] -> Module var -> TypeCheckResult var
 typecheckModule freshVars Module{..} = do
   getTypeCheckResult initialEvalContext initialTypingContext $
-    forM_ moduleDecls $ \Decl{..} -> do
+    go moduleDecls
+  where
+    go [] = return ()
+    go (Decl{..} : decls) = do
       typecheck declType Universe
       ty <- evalType declType
       typecheck declBody ty
       modify (\context -> context { contextKnownTypes = (declName, ty) : contextKnownTypes context})
-  where
+      declBody' <- evalType declBody
+      localVar (declName, declBody') $
+        go decls
+
     initialEvalContext = Context
-      { contextDefinedVariables = map (\Decl{..} -> (declName, Just declBody)) moduleDecls
+      { contextDefinedVariables = []
       , contextTopes = []
       , contextTopeInclusions = []
       }
@@ -860,6 +867,50 @@ appExt f x = do
         App g y -> liftA2 App <$> appExt g y <*> pure (Just x)
         _ -> pure Nothing
 
+recursiveAppExt :: (Eq var, Enum var) => Term var -> TypeCheck var (Maybe (Term var))
+recursiveAppExt tm = do
+  (tm', appliedAppExt) <- runWriterT (go tm)
+  if getAny appliedAppExt
+     then pure (Just tm')
+     else pure Nothing
+  where
+    go t = case t of
+      App f x -> lift (appExt f x) >>= \case
+        Nothing -> pure t
+        Just t' -> do
+          tell (Any True)
+          pure t'
+      Variable{} -> pure t
+      TypedTerm tt ty -> TypedTerm <$> go tt <*> go ty
+      Hole{} -> pure t
+      Universe{} -> pure t
+      Pi tt -> Pi <$> go tt
+      Lambda{} -> pure t  -- do not evaluate under lambdas
+      Sigma tt -> Sigma <$> go tt
+      Pair f s -> Pair <$> go f <*> go s
+      First tt -> First <$> go tt
+      Second tt -> Second <$> go tt
+      IdType a b c -> IdType <$> go a <*> go b <*> go c
+      Refl a b -> Refl <$> traverse go a <*> go b
+      IdJ a b c d e f -> IdJ <$> go a <*> go b <*> go c <*> go d <*> go e <*> go f
+      Cube{} -> pure t
+      CubeUnit{} -> pure t
+      CubeUnitStar{} -> pure t
+      CubeProd{} -> pure t
+      Tope{} -> pure t
+      TopeTop{} -> pure t
+      TopeBottom{} -> pure t
+      TopeOr{} -> pure t
+      TopeAnd{} -> pure t
+      TopeEQ{} -> pure t
+      RecBottom -> pure t
+      RecOr a b c d -> RecOr a b <$> go c <*> go d
+      ExtensionType{} -> pure t -- do not evaluate extension types
+      Cube2{} -> pure t
+      Cube2_0{} -> pure t
+      Cube2_1{} -> pure t
+      TopeLEQ{} -> pure t
+
 unify :: (Eq var, Enum var) => Term var -> Term var -> Term var -> TypeCheck var ()
 unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
   TypingContext{..} <- get
@@ -1028,7 +1079,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
 
     -- unification by eta-expansion!
     unify'' (Lambda x a Nothing m) tt2 = do
-      vars <- asks (map fst . contextDefinedVariables)
+      vars <- asks contextKnownVars
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m) xs
@@ -1040,7 +1091,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           m' <- enterPatternScopeT (x, x') m evalType
           unify' m' (App tt2 x')
     unify'' tt1 (Lambda x a Nothing m) = do
-      vars <- asks (map fst . contextDefinedVariables)
+      vars <- asks contextKnownVars
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m) xs
@@ -1052,7 +1103,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
           m' <- enterPatternScopeT (x, x') m evalType
           unify' (App tt1 x') m'
     unify'' (Lambda x a (Just phi) m) tt2 = do
-      vars <- asks (map fst . contextDefinedVariables)
+      vars <- asks contextKnownVars
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m <> allVars phi) xs
@@ -1067,7 +1118,7 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
             let tt2' = App tt2 x'
             unify' tt1' tt2'
     unify'' tt1 (Lambda x a (Just phi) m) = do
-      vars <- asks (map fst . contextDefinedVariables)
+      vars <- asks contextKnownVars
       let xs = freeVars x
           doRename = any (`elem` vars) xs
           xxs' = refreshVars (vars <> allVars m <> allVars phi) xs
@@ -1117,7 +1168,3 @@ unify term t1 t2 = localAction (ActionUnifyTypesFor term t1 t2) $ do
 --               unify' (App tt1 (Variable s')) (App tt2 (Variable s'))
 --         _ -> issueTypeError (TypeErrorUnexpected term t1 t2 tt1 tt2)
 
-stripExplicitTypeAnnotations :: Term var -> Term var
-stripExplicitTypeAnnotations = \case
-  TypedTerm t _ -> stripExplicitTypeAnnotations t
-  t -> t
