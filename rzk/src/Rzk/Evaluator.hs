@@ -483,14 +483,14 @@ app t1 n =
         phi'' <- eval phi'
         localConstraint phi'' $ do
           eval m'
-    TypedTerm _ (ExtensionType t _ _ tA phi a) -> do
+    TypedTerm tt (ExtensionType t _ _ tA phi a) -> do
       Context{..} <- ask
       enterPatternScope' (t, n) (Pair tA (Pair phi a)) $ \(Pair tA' (Pair phi' a')) -> do
         phi'' <- eval phi'
         tA'' <- eval tA'
         if contextTopes `entailTope` phi''
            then eval (TypedTerm a' tA'')
-           else pure (App t1 n)
+           else app tt n
     TypedTerm t (Pi f) -> do
       TypedTerm <$> app t n <*> app f n
     TypedTerm _ _ -> pure (App t1 n)
