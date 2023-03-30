@@ -876,7 +876,7 @@ recursiveAppExt tm = do
   where
     go t = case t of
       App f x -> lift (appExt f x) >>= \case
-        Nothing -> pure t
+        Nothing -> App <$> go f <*> go x
         Just t' -> do
           tell (Any True)
           pure t'
