@@ -270,14 +270,17 @@ eval = \case
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
   First t -> stripExplicitTypeAnnotations <$> eval t >>= \case
+    RecBottom -> pure RecBottom
     Pair f _ -> eval f
     t'       -> pure (First t')
   Second t -> stripExplicitTypeAnnotations <$> eval t >>= \case
+    RecBottom -> pure RecBottom
     Pair _ s -> eval s
     t'       -> pure (Second t')
   IdType a x y -> IdType <$> eval a <*> eval x <*> eval y
   Refl a x -> Refl <$> traverse eval a <*> eval x
   IdJ tA a tC d x p -> stripExplicitTypeAnnotations <$> eval p >>= \case
+    RecBottom -> pure RecBottom
     Refl _ _ -> eval d
     p' -> IdJ <$> eval tA <*> eval a <*> eval tC <*> eval d <*> eval x <*> pure p'
 
@@ -471,6 +474,7 @@ pair f s =
 app :: (Eq var, Enum var) => Term var -> Term var -> Eval var (Term var)
 app t1 n =
   case t1 of
+    RecBottom -> pure RecBottom
     Lambda x (Just (ExtensionType t _ _ _ phi a)) Nothing m -> do  -- FIXME: double check
       Context{..} <- ask
       phi' <- enterPatternScope' (t, n) phi eval
