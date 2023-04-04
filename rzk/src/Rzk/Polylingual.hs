@@ -25,10 +25,6 @@ import qualified Rzk.Syntax.Module            as Rzk1
 import qualified Rzk.Syntax.Term              as Rzk1
 import qualified Rzk.TypeChecker              as Rzk1
 
-import qualified Rzk.Free.Syntax.Example.MLTT as MLTT
-import qualified Rzk.Free.Syntax.Example.PCF  as PCF
-import qualified Rzk.Free.Syntax.Example.STLC as STLC
-
 import           Rzk.Syntax.Var               (Var (..))
 
 newtype PolyParser a
@@ -76,16 +72,10 @@ instance Semigroup (Module var term) where
 
 data LangMode
   = Rzk1
-  | STLC
-  | PCF
-  | MLTT
   deriving (Show, Eq)
 
 data SomeModule
   = Module_Rzk1 (Module Var (Rzk1.Term Var))
-  | Module_STLC (Module Var STLC.Term')
-  | Module_PCF  (Module Var PCF.Term')
-  | Module_MLTT (Module Var MLTT.Term')
   deriving (Show)
 
 combineModules :: [SomeModule] -> Either String SomeModule
@@ -96,21 +86,12 @@ combineModules1 :: SomeModule -> [SomeModule] -> Either String SomeModule
 combineModules1 m [] = return m
 combineModules1 (Module_Rzk1 m1) (Module_Rzk1 m2 : ms) =
   combineModules1 (Module_Rzk1 (m1 <> m2)) ms
-combineModules1 (Module_STLC m1) (Module_STLC m2 : ms) =
-  combineModules1 (Module_STLC (m1 <> m2)) ms
-combineModules1 (Module_PCF m1) (Module_PCF m2 : ms) =
-  combineModules1 (Module_PCF (m1 <> m2)) ms
-combineModules1 (Module_MLTT m1) (Module_MLTT m2 : ms) =
-  combineModules1 (Module_MLTT (m1 <> m2)) ms
-combineModules1 _ _ =
-  Left "trying to combine modules for different languages!"
+-- combineModules1 _ _ =
+--   Left "trying to combine modules for different languages!"
 
 compileSomeModule :: SomeModule -> String
 compileSomeModule = \case
   Module_Rzk1 m -> compileModuleRzk1 (moduleToRzk1 m)
-  Module_STLC m -> compileModule runCommandSTLC m
-  Module_PCF  m -> compileModule runCommandPCF  m
-  Module_MLTT m -> compileModule runCommandMLTT m
 
 compileModule :: (Command var term -> String) -> Module var term -> String
 compileModule runCommand Module{..} = unlines
@@ -127,72 +108,6 @@ compileModuleRzk1 = show . Rzk1.typecheckModule ["{H}"]
 
 runCommandRzk1 :: Command Var (Rzk1.Term Var) -> String
 runCommandRzk1 _ = "rzk-1 is not supported at the moment"
-
-runCommandSTLC :: Command Var STLC.Term' -> String
-runCommandSTLC = \case
-  TypeCheck term ty ->
-    case STLC.execTypeCheck' (STLC.typecheck' term ty) of
-      Right typedTerm -> show typedTerm
-      Left msg        -> show msg
-  Infer term ->
-    case STLC.execTypeCheck' (STLC.infer' term) of
-      Right typedTerm -> show typedTerm
-      Left msg        -> show msg
-  Evaluate EvaluateToWHNF term ->
-    case STLC.execTypeCheck' (STLC.infer' term) of
-      Right typedTerm -> show (STLC.whnf typedTerm)
-      Left msg        -> show msg
-  Evaluate EvaluateToNF term ->
-    case STLC.execTypeCheck' (STLC.infer' term) of
-      Right typedTerm -> show (STLC.nf typedTerm)
-      Left msg        -> show msg
-  Declare decl ->
-    "declarations are not supported in STLC at the moment:\n  " <> show decl
-  Unify _ _ -> "#unify is not supported in STLC at the moment"
-
-runCommandPCF :: Command Var PCF.Term' -> String
-runCommandPCF = \case
-  TypeCheck term ty ->
-    case PCF.execTypeCheck' (PCF.typecheck' term ty) of
-      Right typedTerm -> show typedTerm
-      Left msg        -> show msg
-  Infer term ->
-    case PCF.execTypeCheck' (PCF.infer' term) of
-      Right typedTerm -> show typedTerm
-      Left msg        -> show msg
-  Evaluate EvaluateToWHNF term ->
-    case PCF.execTypeCheck' (PCF.infer' term) of
-      Right typedTerm -> show (PCF.whnf typedTerm)
-      Left msg        -> show msg
-  Evaluate EvaluateToNF term ->
-    case PCF.execTypeCheck' (PCF.infer' term) of
-      Right typedTerm -> show (PCF.nf typedTerm)
-      Left msg        -> show msg
-  Declare decl ->
-    "declarations are not supported in PCF at the moment:\n  " <> show decl
-  Unify _ _ -> "#unify is not supported in PCF at the moment"
-
-runCommandMLTT :: Command Var MLTT.Term' -> String
-runCommandMLTT = \case
-  TypeCheck term ty ->
-    case MLTT.execTypeCheck' (MLTT.typecheck' term ty) of
-      Right typedTerm -> show typedTerm
-      Left msg        -> show msg
-  Infer term ->
-    case MLTT.execTypeCheck' (MLTT.infer' term) of
-      Right typedTerm -> show typedTerm
-      Left msg        -> show msg
-  Evaluate EvaluateToWHNF term ->
-    case MLTT.execTypeCheck' (MLTT.infer' term) of
-      Right typedTerm -> show (MLTT.whnf typedTerm)
-      Left msg        -> show msg
-  Evaluate EvaluateToNF term ->
-    case MLTT.execTypeCheck' (MLTT.infer' term) of
-      Right typedTerm -> show (MLTT.nf typedTerm)
-      Left msg        -> show msg
-  Declare decl ->
-    "declarations are not supported in MLTT at the moment:\n  " <> show decl
-  Unify _ _ -> "#unify is not supported in MLTT at the moment"
 
 removeComments :: String -> String
 removeComments = unlines . map removeComment . lines
@@ -232,9 +147,6 @@ pSomeModule = runPolyParser $ do
   mode <- pLangMode
   m <- case mode of
     Rzk1 -> Module_Rzk1 <$> pRzk1
-    STLC -> Module_STLC <$> pSTLC
-    PCF  -> Module_PCF  <$> pPCF
-    MLTT -> Module_MLTT <$> pMLTT
   eof
   return m
 
@@ -249,22 +161,10 @@ pLangMode = do
   void (symbol "#lang")
   choice
     [ Rzk1 <$ symbolCI "rzk-1"
-    , STLC <$ symbolCI "stlc"
-    , PCF  <$ symbolCI "pcf"
-    , MLTT <$ symbolCI "mltt"
     ]
 
 pRzk1 :: PolyParser (Module Var (Rzk1.Term Var))
 pRzk1 = Module <$> many (pCommand (PolyParser Rzk1.rzkTerm))
-
-pSTLC :: PolyParser (Module Var STLC.Term')
-pSTLC = Module <$> many (pCommand STLC.pTerm)
-
-pPCF :: PolyParser (Module Var PCF.Term')
-pPCF = Module <$> many (pCommand PCF.pTerm)
-
-pMLTT :: PolyParser (Module Var MLTT.Term')
-pMLTT = Module <$> many (pCommand MLTT.pTerm)
 
 pCommand :: PolyParser term -> PolyParser (Command Var term)
 pCommand pTerm = "command" <??> choice

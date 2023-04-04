@@ -1,10 +1,10 @@
 cabal-version: 1.24
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bba2d5727e9bf1e97fa4cee460adecf2703a21c7caa755777aee1d10461383fa
+-- hash: c010e76cda7c9e84d825afc143052d245390b5714b10f9898abfde992549229f
 
 name:           rzk
 version:        0.1.0.0
@@ -35,30 +35,6 @@ library
       Rzk
       Rzk.Debug.Trace
       Rzk.Evaluator
-      Rzk.Free.Bound.Name
-      Rzk.Free.Eval
-      Rzk.Free.Example
-      Rzk.Free.Parser
-      Rzk.Free.Pretty
-      Rzk.Free.Syntax.Decl
-      Rzk.Free.Syntax.Example.MLTT
-      Rzk.Free.Syntax.Example.PCF
-      Rzk.Free.Syntax.Example.STLC
-      Rzk.Free.Syntax.Example.ULC
-      Rzk.Free.Syntax.Free2
-      Rzk.Free.Syntax.FreeScoped
-      Rzk.Free.Syntax.FreeScoped.Pretty
-      Rzk.Free.Syntax.FreeScoped.ScopedUnification
-      Rzk.Free.Syntax.FreeScoped.TypeCheck
-      Rzk.Free.Syntax.FreeScoped.Unification
-      Rzk.Free.Syntax.FreeScoped.Unification2
-      Rzk.Free.Syntax.Module
-      Rzk.Free.Syntax.Term
-      Rzk.Free.Syntax.Term2
-      Rzk.Free.TypeCheck
-      Rzk.Free.TypeCheck.Context
-      Rzk.Free.TypeCheck.Trans
-      Rzk.Free.TypeCheck.TypeError
       Rzk.Parser.Text
       Rzk.Polylingual
       Rzk.Pretty.Text
