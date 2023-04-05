@@ -4,7 +4,9 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Language.Rzk.Free.Syntax where
 
+import Data.Char (chr, ord)
 import Data.Coerce
+import Data.List ((\\))
 import Data.Bifunctor.TH
 
 import Free.Scoped
@@ -30,12 +32,12 @@ data TermF scope term
     | TopeOrF term term
     | RecBottomF
     | RecOrF [(term, term)]
-    | TypeFunF term (Maybe scope) scope
-    | TypeSigmaF term scope
+    | TypeFunF (Maybe Rzk.VarIdent) term (Maybe scope) scope
+    | TypeSigmaF (Maybe Rzk.VarIdent) term scope
     | TypeIdF term term term
     | TypeIdSimpleF term term
     | AppF term term
-    | LambdaF (Maybe (term, Maybe scope)) scope
+    | LambdaF (Maybe Rzk.VarIdent) (Maybe (term, Maybe scope)) scope
     | PairF term term
     | FirstF term
     | SecondF term
@@ -55,6 +57,9 @@ deriveBitraversable ''TermF
 makePatternsAll ''TermF   -- declare all patterns using Template Haskell
 
 type Term' = Term Rzk.VarIdent
+
+freeVars :: Term a -> [a]
+freeVars = foldMap pure
 
 toTerm' :: Rzk.Term -> Term'
 toTerm' = toTerm Pure
@@ -98,37 +103,37 @@ toTerm bvars = go
       Rzk.TypeAsc x t -> TypeAsc (go x) (go t)
 
       Rzk.TypeFun (Rzk.ParamVarType x arg) ret ->
-        TypeFun (go arg) Nothing (toScope x bvars ret)
+        TypeFun (Just x) (go arg) Nothing (toScope x bvars ret)
       Rzk.TypeFun (Rzk.ParamVarShape (Rzk.PatternVar x) cube tope) ret ->
-        TypeFun (go cube) (Just (toScope x bvars tope)) (toScope x bvars ret)
+        TypeFun (Just x) (go cube) (Just (toScope x bvars tope)) (toScope x bvars ret)
       Rzk.TypeFun (Rzk.ParamVarShape Rzk.PatternWildcard cube tope) ret ->
-        TypeFun (go cube) (Just (toTerm (fmap S <$> bvars) tope)) (toTerm (fmap S <$> bvars) ret)
+        TypeFun Nothing (go cube) (Just (toTerm (fmap S <$> bvars) tope)) (toTerm (fmap S <$> bvars) ret)
       Rzk.TypeFun (Rzk.ParamWildcardType arg) ret ->
-        TypeFun (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
+        TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
       Rzk.TypeFun (Rzk.ParamType arg) ret ->
-        TypeFun (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
+        TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
       Rzk.TypeFun (Rzk.ParamVarShape Rzk.PatternPair{} _cube _tope) _ret ->
         error "pattern pairs are not supported"
 
       Rzk.TypeSigma (Rzk.PatternVar x) tA tB ->
-        TypeSigma (go tA) (toScope x bvars tB)
+        TypeSigma (Just x) (go tA) (toScope x bvars tB)
       Rzk.TypeSigma Rzk.PatternWildcard tA tB ->
-        TypeSigma (go tA) (toTerm (fmap S <$> bvars) tB)
+        TypeSigma Nothing (go tA) (toTerm (fmap S <$> bvars) tB)
       Rzk.TypeSigma Rzk.PatternPair{} _tA _tB ->
         error "pattern pairs are not supported"
 
       Rzk.Lambda (Rzk.ParamPattern Rzk.PatternWildcard) body ->
-        Lambda Nothing (toTerm (fmap S <$> bvars) body)
+        Lambda Nothing Nothing (toTerm (fmap S <$> bvars) body)
       Rzk.Lambda (Rzk.ParamPattern (Rzk.PatternVar x)) body ->
-        Lambda Nothing (toScope x bvars body)
+        Lambda (Just x) Nothing (toScope x bvars body)
       Rzk.Lambda (Rzk.ParamPatternType Rzk.PatternWildcard ty) body ->
-        Lambda (Just (go ty, Nothing)) (toTerm (fmap S <$> bvars) body)
+        Lambda Nothing (Just (go ty, Nothing)) (toTerm (fmap S <$> bvars) body)
       Rzk.Lambda (Rzk.ParamPatternType (Rzk.PatternVar x) ty) body ->
-        Lambda (Just (go ty, Nothing)) (toScope x bvars body)
+        Lambda (Just x) (Just (go ty, Nothing)) (toScope x bvars body)
       Rzk.Lambda (Rzk.ParamPatternShape Rzk.PatternWildcard cube tope) body ->
-        Lambda (Just (go cube, Just (toTerm (fmap S <$> bvars) tope))) (toTerm (fmap S <$> bvars) body)
+        Lambda Nothing (Just (go cube, Just (toTerm (fmap S <$> bvars) tope))) (toTerm (fmap S <$> bvars) body)
       Rzk.Lambda (Rzk.ParamPatternShape (Rzk.PatternVar x) cube tope) body ->
-        Lambda (Just (go cube, Just (toScope x bvars tope))) (toScope x bvars body)
+        Lambda (Just x) (Just (go cube, Just (toScope x bvars tope))) (toScope x bvars body)
       Rzk.Lambda (Rzk.ParamPattern Rzk.PatternPair{}) _body ->
         error "pattern pairs are not supported"
       Rzk.Lambda (Rzk.ParamPatternType Rzk.PatternPair{} _ty) _body ->
@@ -138,18 +143,27 @@ toTerm bvars = go
 
       Rzk.Hole{} -> error "holes are not supported"
 
-fromScope' :: Rzk.VarIdent -> [Rzk.VarIdent] -> Scope Term Rzk.VarIdent -> Rzk.Term
-fromScope' x xs = fromTerm' xs . (>>= f)
+fromTerm' :: Term' -> Rzk.Term
+fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
+  where vars = freeVars t
+
+fromScope' :: Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.VarIdent] -> Scope Term Rzk.VarIdent -> Rzk.Term
+fromScope' x used xs = fromTermWith' (x : used) xs . (>>= f)
   where
     f Z = Pure x
     f (S z) = Pure z
 
-fromTerm' :: [Rzk.VarIdent] -> Term' -> Rzk.Term
-fromTerm' vars = go
+fromTermWith' :: [Rzk.VarIdent] -> [Rzk.VarIdent] -> Term' -> Rzk.Term
+fromTermWith' used vars = go
   where
-    (x, xs) = case vars of
-                y:ys -> (y, ys)
-                _ -> error "not enough fresh variables!"
+    withFresh Nothing f =
+      case vars of
+        x:xs -> f (x, xs)
+        _ -> error "not enough fresh variables!"
+    withFresh (Just z) f = f (z', filter (/= z') vars)    -- FIXME: very inefficient filter
+      where
+        z' = refreshVar used z
+
     go = \case
       Pure z -> Rzk.Var z
 
@@ -171,22 +185,23 @@ fromTerm' vars = go
       RecBottom -> Rzk.RecBottom
       RecOr rs -> Rzk.RecOr [ Rzk.Restriction (go tope) (go term) | (tope, term) <- rs ]
 
-      TypeFun arg Nothing ret ->
-        Rzk.TypeFun (Rzk.ParamVarType x (go arg)) (fromScope' x xs ret)
-      TypeFun arg (Just tope) ret ->
-        Rzk.TypeFun (Rzk.ParamVarShape (Rzk.PatternVar x) (go arg) (fromScope' x xs tope)) (fromScope' x xs ret)
+      TypeFun z arg Nothing ret -> withFresh z $ \(x, xs) ->
+        Rzk.TypeFun (Rzk.ParamVarType x (go arg)) (fromScope' x used xs ret)
+      TypeFun z arg (Just tope) ret -> withFresh z $ \(x, xs) ->
+        Rzk.TypeFun (Rzk.ParamVarShape (Rzk.PatternVar x) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
 
-      TypeSigma a b -> Rzk.TypeSigma (Rzk.PatternVar x) (go a) (fromScope' x xs b)
+      TypeSigma z a b -> withFresh z $ \(x, xs) ->
+        Rzk.TypeSigma (Rzk.PatternVar x) (go a) (fromScope' x used xs b)
       TypeId l tA r -> Rzk.TypeId (go l) (go tA) (go r)
       TypeIdSimple l r -> Rzk.TypeIdSimple (go l) (go r)
       App l r -> Rzk.App (go l) (go r)
 
-      Lambda Nothing scope ->
-        Rzk.Lambda (Rzk.ParamPattern (Rzk.PatternVar x)) (fromScope' x xs scope)
-      Lambda (Just (ty, Nothing)) scope ->
-        Rzk.Lambda (Rzk.ParamPatternType (Rzk.PatternVar x) (go ty)) (fromScope' x xs scope)
-      Lambda (Just (cube, Just tope)) scope ->
-        Rzk.Lambda (Rzk.ParamPatternShape (Rzk.PatternVar x) (go cube) (fromScope' x xs tope)) (fromScope' x xs scope)
+      Lambda z Nothing scope -> withFresh z $ \(x, xs) ->
+        Rzk.Lambda (Rzk.ParamPattern (Rzk.PatternVar x)) (fromScope' x used xs scope)
+      Lambda z (Just (ty, Nothing)) scope -> withFresh z $ \(x, xs) ->
+        Rzk.Lambda (Rzk.ParamPatternType (Rzk.PatternVar x) (go ty)) (fromScope' x used xs scope)
+      Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
+        Rzk.Lambda (Rzk.ParamPatternShape (Rzk.PatternVar x) (go cube) (fromScope' x used xs tope)) (fromScope' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda (Maybe (term, Maybe scope)) scope
 
       Pair l r -> Rzk.Pair (go l) (go r)
@@ -199,4 +214,33 @@ fromTerm' vars = go
       TypeAsc l r -> Rzk.TypeAsc (go l) (go r)
 
 defaultVarIdents :: [Rzk.VarIdent]
-defaultVarIdents = coerce [ "x" <> show n | n <- [1..] ]
+defaultVarIdents = coerce [ "x" <> map digitToSub (show n) | n <- [1..] ]
+  where
+    digitToSub c = chr ((ord c - ord '0') + ord '₀')
+
+-- | Given a list of used variable names in the current context,
+-- generate a unique fresh name based on a given one.
+--
+-- >>> refreshVar ["x", "y", "x₁", "z"] "x"
+-- x₂
+refreshVar :: [Rzk.VarIdent] -> Rzk.VarIdent -> Rzk.VarIdent
+refreshVar vars x
+  | x `elem` vars = refreshVar vars (coerce incIndex x)
+  | otherwise     = x
+
+-- | Increment the subscript number at the end of the indentifier.
+--
+-- >>> incIndex "x"
+-- x₁
+-- >>> incIndex "x₁₉"
+-- x₂₀
+incIndex :: String -> String
+incIndex s = name <> newIndex
+  where
+    digitsSub = "₀₁₂₃₄₅₆₇₈₉" :: String
+    isDigitSub = (`elem` digitsSub)
+    digitFromSub c = chr ((ord c - ord '₀') + ord '0')
+    digitToSub c = chr ((ord c - ord '0') + ord '₀')
+    (name, index) = break isDigitSub s
+    oldIndexN = read ('0' : map digitFromSub index) -- FIXME: read
+    newIndex = map digitToSub (show (oldIndexN + 1))
