@@ -256,7 +256,16 @@ eval = \case
   Hole x -> pure (Hole x)
   Universe -> pure Universe
   Pi t -> Pi <$> eval t
-  t@Lambda{} -> pure t
+  Lambda x a phi m -> do
+    vars <- asks contextKnownVars
+    let xs = allVars x
+        doRename = any (`elem` vars) xs
+        xxs' = refreshVars (vars <> allVars m <> foldMap allVars phi) xs
+        rename = if doRename then renameVars xxs' else id
+        xs' = if doRename then map snd xxs' else xs
+        x' = rename x
+        ev = localVars xs' . eval . rename
+    Lambda x' <$> traverse eval a <*> traverse ev phi <*> ev m
   App t1 t2 -> join (app <$> eval t1 <*> eval t2)
   Sigma t -> Sigma <$> eval t
   Pair t1 t2 -> pair <$> eval t1 <*> eval t2
