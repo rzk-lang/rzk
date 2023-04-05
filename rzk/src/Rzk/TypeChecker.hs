@@ -685,17 +685,18 @@ getTypeCheckResult initialEvalContext initialTypingContext
 typecheckModule :: (Eq var, Enum var) => [var] -> Module var -> TypeCheckResult var
 typecheckModule freshVars Module{..} = do
   getTypeCheckResult initialEvalContext initialTypingContext $
-    go moduleDecls
+    go 1 moduleDecls
   where
-    go [] = return ()
-    go (Decl{..} : decls) = trace ("Checking " <> Text.unpack (unsafeCoerce declName)) $ do
+    totalDecls = length moduleDecls
+    go _ [] = return ()
+    go i (Decl{..} : decls) = trace ("[ " <> show i <> " out of " <> show totalDecls <> " ] Checking " <> Text.unpack (unsafeCoerce declName)) $ do
       typecheck declType Universe
       ty <- evalType declType
       typecheck declBody ty
       modify (\context -> context { contextKnownTypes = (declName, ty) : contextKnownTypes context})
       declBody' <- evalType declBody
       localVar (declName, declBody') $
-        go decls
+        go (i + 1) decls
 
     initialEvalContext = Context
       { contextDefinedVariables = []
