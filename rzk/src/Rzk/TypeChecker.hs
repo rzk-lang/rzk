@@ -34,6 +34,9 @@ import           Rzk.Syntax.Module
 import           Rzk.Syntax.Term
 import           Rzk.Syntax.Var
 
+import Debug.Trace (trace)
+import Unsafe.Coerce (unsafeCoerce)
+
 data TypeCheckerAction var
   = ActionTypeCheck (Term var) (Term var)
   | ActionInferType (Term var)
@@ -685,7 +688,7 @@ typecheckModule freshVars Module{..} = do
     go moduleDecls
   where
     go [] = return ()
-    go (Decl{..} : decls) = do
+    go (Decl{..} : decls) = trace ("Checking " <> Text.unpack (unsafeCoerce declName)) $ do
       typecheck declType Universe
       ty <- evalType declType
       typecheck declBody ty

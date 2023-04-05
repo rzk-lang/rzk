@@ -13,6 +13,7 @@ main = do
   case args of
     "typecheck" : paths -> do
       modules <- forM paths $ \path -> do
+        putStrLn ("Loading file " <> path)
         result <- safeParseSomeModule <$> readFile path
         case result of
           Left err -> do
