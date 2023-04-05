@@ -21,7 +21,9 @@ description:         Please see the README on GitHub at <https://github.com/fizr
 
 dependencies:
 - base >= 4.7 && < 5
-- array ==0.5.*
+- array
+- bifunctors
+- template-haskell
 
 ghc-options:
 - -Wall

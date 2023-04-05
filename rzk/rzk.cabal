@@ -25,6 +25,9 @@ source-repository head
 
 library
   exposed-modules:
+      Free.Scoped
+      Free.Scoped.TH
+      Language.Rzk.Free.Syntax
       Language.Rzk.Syntax
       Language.Rzk.Syntax.Abs
       Language.Rzk.Syntax.Layout
@@ -32,14 +35,17 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Rzk
+      Rzk.TypeCheck
   other-modules:
       Paths_rzk
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      array ==0.5.*
+      array
     , base >=4.7 && <5
+    , bifunctors
+    , template-haskell
   default-language: Haskell2010
 
 executable rzk-exe
@@ -50,9 +56,11 @@ executable rzk-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      array ==0.5.*
+      array
     , base >=4.7 && <5
+    , bifunctors
     , rzk
+    , template-haskell
   default-language: Haskell2010
 
 test-suite rzk-test
@@ -64,7 +72,9 @@ test-suite rzk-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      array ==0.5.*
+      array
     , base >=4.7 && <5
+    , bifunctors
     , rzk
+    , template-haskell
   default-language: Haskell2010
