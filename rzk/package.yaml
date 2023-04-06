@@ -24,6 +24,7 @@ dependencies:
 - array
 - bifunctors
 - template-haskell
+- mtl
 
 ghc-options:
 - -Wall

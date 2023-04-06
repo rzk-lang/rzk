@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE QuantifiedConstraints    #-}
+{-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -30,6 +32,8 @@ instantiate e f = f >>= g
 data FS t a
   = Pure a
   | Free (t (Scope (FS t) a) (FS t a))
+
+deriving instance (Eq a, forall x y. (Eq x, Eq y) => Eq (t x y)) => Eq (FS t a)
 
 instance Bifunctor t => Functor (FS t) where
   fmap f (Pure x) = Pure (f x)
@@ -72,18 +76,18 @@ deriveBifoldable ''Empty
 deriveBitraversable ''Empty
 
 data TypedF term scope typedTerm = TypedF
-  { typeF :: Maybe typedTerm
+  { typeF :: typedTerm
   , termF :: term scope typedTerm
-  } deriving (Show, Functor, Foldable, Traversable)
+  } deriving (Eq, Show, Functor, Foldable, Traversable)
 
 instance Bifunctor term => Bifunctor (TypedF term) where
-  bimap f g (TypedF t x) = TypedF (g <$> t) (bimap f g x)
+  bimap f g (TypedF t x) = TypedF (g t) (bimap f g x)
 
 instance Bifoldable term => Bifoldable (TypedF term) where
-  bifoldMap f g (TypedF t x) = foldMap g t <> bifoldMap f g x
+  bifoldMap f g (TypedF t x) = g t <> bifoldMap f g x
 
 instance Bitraversable term => Bitraversable (TypedF term) where
-  bitraverse f g (TypedF t x) = TypedF <$> traverse g t <*> bitraverse f g x
+  bitraverse f g (TypedF t x) = TypedF <$> g t <*> bitraverse f g x
 
 transFS
   :: (Bifunctor term)
@@ -93,6 +97,14 @@ transFS phi = \case
   Pure x -> Pure x
   Free t -> Free (phi (bimap (transFS phi) (transFS phi) t))
 
+untyped :: Bifunctor term => FS (TypedF term) a -> FS term a
+untyped = transFS termF
+
 pattern ExtE :: ext (Scope (FS (t :+: ext)) a) (FS (t :+: ext) a) -> FS (t :+: ext) a
 pattern ExtE t = Free (InR t)
 
+substitute :: Bifunctor t => FS t a -> Scope (FS t) a -> FS t a
+substitute t = (>>= f)
+  where
+    f Z = t
+    f (S y) = Pure y

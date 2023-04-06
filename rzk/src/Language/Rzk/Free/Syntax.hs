@@ -4,10 +4,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Language.Rzk.Free.Syntax where
 
+import Data.String
 import Data.Char (chr, ord)
 import Data.Coerce
 import Data.List ((\\))
 import Data.Bifunctor.TH
+import Data.Bifoldable
 
 import Free.Scoped
 import Free.Scoped.TH
@@ -46,6 +48,7 @@ data TermF scope term
     | ReflTermTypeF term term
     | IdJF term term term term term term
     | TypeAscF term term
+    deriving (Eq)
 
 type Term = FS TermF
 type TermT = FS (TypedF TermF)
@@ -57,6 +60,7 @@ deriveBitraversable ''TermF
 makePatternsAll ''TermF   -- declare all patterns using Template Haskell
 
 type Term' = Term Rzk.VarIdent
+type TermT' = TermT Rzk.VarIdent
 
 freeVars :: Term a -> [a]
 freeVars = foldMap pure
@@ -244,3 +248,25 @@ incIndex s = name <> newIndex
     (name, index) = break isDigitSub s
     oldIndexN = read ('0' : map digitFromSub index) -- FIXME: read
     newIndex = map digitToSub (show (oldIndexN + 1))
+
+instance Show Term' where
+  show = Rzk.printTree . fromTerm'
+
+instance IsString Term' where
+  fromString = toTerm' . fromRight . Rzk.parseTerm
+    where
+      fromRight (Left err) = error ("Parse error: " <> err)
+      fromRight (Right t) = t
+
+instance Show TermT' where
+  show var@Pure{} = Rzk.printTree (fromTerm' (untyped var))
+  show term@(Free (TypedF ty _)) = termStr <> " : " <> typeStr
+    where
+      termStr = Rzk.printTree (fromTerm' (untyped term))
+      typeStr = Rzk.printTree (fromTerm' (untyped ty))
+
+-- | Does not go recursively into 'UniverseT'.
+instance {-# OVERLAPPING #-} Foldable TermT where
+  foldMap _ UniverseT{} = mempty
+  foldMap f (Pure x) = f x
+  foldMap f (Free (TypedF ty term)) = foldMap f ty <> bifoldMap (foldMap (foldMap f)) (foldMap f) term
