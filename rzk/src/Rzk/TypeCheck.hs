@@ -16,7 +16,14 @@ import Unsafe.Coerce
 data TypeError var
   = TypeErrorOther String
   | TypeErrorUnify (Term var) (TermT var) (TermT var)
+  | TypeErrorUnifyTerms (TermT var) (TermT var)
+  | TypeErrorNotPair (TermT var) (TermT var)
+  | TypeErrorNotFunction (TermT var) (TermT var)
+  | TypeErrorCannotInferBareLambda (Term var)
+  | TypeErrorCannotInferBareRefl (Term var)
   | TypeErrorUndefined var
+  | TypeErrorTopeNotSatisfied (TermT var)
+  | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   deriving (Functor, Foldable)
 
 data TypeErrorInContext var = TypeErrorInContext
@@ -41,8 +48,44 @@ ppTypeError' = \case
     , "  " <> show (untyped actual)
     , "for term"
     , "  " <> show term ]
+  TypeErrorUnifyTerms expected actual -> unlines
+    [ "cannot unify term"
+    , "  " <> show (untyped expected)
+    , "with term"
+    , "  " <> show (untyped actual) ]
+  TypeErrorNotPair term ty -> unlines
+    [ "expected a cube product or dependent pair"
+    , "but got type"
+    , "  " <> show (untyped ty)
+    , "for term"
+    , "  " <> show (untyped term)
+    ]
+  TypeErrorNotFunction term ty -> unlines
+    [ "expected a function or extension type"
+    , "but got type"
+    , "  " <> show (untyped ty)
+    , "for term"
+    , "  " <> show (untyped term)
+    ]
+  TypeErrorCannotInferBareLambda term -> unlines
+    [ "cannot infer the type of the argument"
+    , "in lambda abstraction"
+    , "  " <> show term
+    ]
+  TypeErrorCannotInferBareRefl term -> unlines
+    [ "cannot infer the type of term"
+    , "  " <> show term
+    ]
   TypeErrorUndefined var -> unlines
     [ "undefined variable: " <> show (Pure var :: Term') ]
+  TypeErrorTopeNotSatisfied tope -> unlines
+    [ "cannot satisfy tope"
+    , "  " <> show (untyped tope) ]
+  TypeErrorTopesNotEquivalent expected actual -> unlines
+    [ "expected tope"
+    , "  " <> show (untyped expected)
+    , "but got"
+    , "  " <> show (untyped actual) ]
 
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
 ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
@@ -148,7 +191,7 @@ contextEntails :: Eq var => TermT var -> TypeCheck var ()
 contextEntails tope = do
   topes <- asks localTopes
   unless (topes `entail` tope) $ do
-    error "tope constraints are not satisfied"
+    issueTypeError $ TypeErrorTopeNotSatisfied tope
 
 enterScopeContext :: TermT var -> Context var -> Context (Inc var)
 enterScopeContext ty Context{..} = Context
@@ -192,8 +235,6 @@ whnfT = \case
   IdJT ty tA a tC d x p ->
     case whnfT p of
       ReflT{} -> whnfT d
-      ReflTermT{} -> whnfT d
-      ReflTermTypeT{} -> whnfT d
       p' -> IdJT ty tA a tC d x p'
   TypeAscT _ty t _ty' -> whnfT t
   t -> t
@@ -208,15 +249,160 @@ typeOf = \case
   Pure x -> typeOfVar x
   Free (TypedF ty _) -> pure ty
 
-unify :: Eq var => Term var -> TermT var -> TermT var -> TypeCheck var ()
-unify term expected actual = performing (ActionUnify term expected actual) $ do
-  unless (untyped (whnfT expected) == untyped (whnfT actual)) $
-    issueTypeError (TypeErrorUnify term expected actual)
+unifyTopes :: Eq var => TermT var -> TermT var -> TypeCheck var ()
+unifyTopes l r =
+  unless (untyped (whnfT l) == untyped (whnfT r)) $
+    issueTypeError (TypeErrorTopesNotEquivalent l r)
+
+unify :: Eq var => Maybe (Term var) -> TermT var -> TermT var -> TypeCheck var ()
+unify mterm expected actual = performing action $ do
+  case whnfT expected of
+    Pure{} -> def
+
+    UniverseT{} -> def
+    UniverseCubeT{} -> def
+    UniverseTopeT{} -> def
+
+    CubeUnitT{} -> def
+    CubeUnitStarT{} -> def
+    Cube2T{} -> def
+    Cube2_0T{} -> def
+    Cube2_1T{} -> def
+    CubeProductT _ l r ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        CubeProductT _ l' r' -> do
+          unify Nothing l l'
+          unify Nothing r r'
+        _ -> err
+
+    PairT _ty l r ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        PairT _ty' l' r' -> do
+          unify Nothing l l'
+          unify Nothing r r'
+        _ -> err
+
+    FirstT _ty t ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        FirstT _ty' t' -> unify Nothing t t'
+        _ -> err
+
+    SecondT _ty t ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        SecondT _ty' t' -> unify Nothing t t'
+        _ -> err
+
+    TopeTopT{}    -> unifyTopes expected actual
+    TopeBottomT{} -> unifyTopes expected actual
+    TopeEQT{}     -> unifyTopes expected actual
+    TopeLEQT{}    -> unifyTopes expected actual
+    TopeAndT{}    -> unifyTopes expected actual
+    TopeOrT{}     -> unifyTopes expected actual
+
+    RecBottomT{} -> return () -- unifies with anything
+    RecOrT _ty rs ->
+      forM_ rs $ \(tope, term) ->
+        localTope tope $
+          unify Nothing term actual
+
+    TypeFunT _ty _orig cube mtope ret ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        TypeFunT _ty' _orig' cube' mtope' ret' -> do
+          unify Nothing cube cube'
+          enterScope cube $ do
+            case (mtope, mtope') of
+              (Just tope, Just tope') -> unify Nothing tope tope'
+              (Nothing, Nothing) -> return ()
+              _ -> errS
+            unify Nothing ret ret'
+        _ -> err
+
+    TypeSigmaT _ty _orig a b ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        TypeSigmaT _ty' _orig' a' b' -> do
+          unify Nothing a a'
+          enterScope a $ unify Nothing b b'
+        _ -> err
+
+    TypeIdT _ty x _tA y ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        TypeIdT _ty' x' _tA' y' -> do
+          -- unify Nothing tA tA' -- TODO: do we need this check?
+          unify Nothing x x'
+          unify Nothing y y'
+        _ -> err
+
+    AppT _ty f x ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        AppT _ty' f' x' -> do
+          unify Nothing f f'
+          unify Nothing x x'
+        _ -> err
+
+    LambdaT (TypeFunT _ty _origF param mtope _ret) _orig _mparam body ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        LambdaT (TypeFunT _ty' _origF' param' mtope' _ret') _orig' _mparam' body' -> do
+          unify Nothing param param'
+          enterScope param $ do
+            case (mtope, mtope') of
+              (Just tope, Just tope') -> unify Nothing tope tope'
+              (Nothing, Nothing) -> return ()
+              _ -> errS
+            unify Nothing body body'
+        _ -> err
+    LambdaT{} -> error "impossible: lambda with non-function type!"
+
+    ReflT (TypeIdT _ty x _tA y) _x ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        ReflT (TypeIdT _ty' x' _tA' y') _x' -> do
+          -- unify Nothing tA tA' -- TODO: do we need this check?
+          unify Nothing x x'
+          unify Nothing y y'
+        _ -> err
+    ReflT{} -> error "impossible: refl with non-identity type!"
+
+    IdJT _ty a b c d e f ->
+      case whnfT actual of
+        RecBottomT{} -> return () -- unifies with anything
+        IdJT _ty' a' b' c' d' e' f' -> do
+          unify Nothing a a'
+          unify Nothing b b'
+          unify Nothing c c'
+          unify Nothing d d'
+          unify Nothing e e'
+          unify Nothing f f'
+        _ -> err
+
+    TypeAscT{} -> error "impossible: type ascription in WHNF!"
+
+  where
+    action = case mterm of
+               Nothing -> ActionUnifyTerms expected actual
+               Just term -> ActionUnify term expected actual
+    def = unless (untyped (whnfT expected) == untyped (whnfT actual)) err
+    err = case mterm of
+            Nothing   -> issueTypeError (TypeErrorUnifyTerms expected actual)
+            Just term -> issueTypeError (TypeErrorUnify term expected actual)
+    errS =
+      case mterm of
+        Nothing   -> issueTypeError (TypeErrorUnifyTerms (S <$> expected) (S <$> actual))
+        Just term -> issueTypeError (TypeErrorUnify (S <$> term) (S <$> expected) (S <$> actual))
+
+unifyTypes :: Eq var => Term var -> TermT var -> TermT var -> TypeCheck var ()
+unifyTypes = unify . Just
 
 unifyTerms :: Eq var => TermT var -> TermT var -> TypeCheck var ()
-unifyTerms expected actual = performing (ActionUnifyTerms expected actual) $ do
-  unless (whnfT expected == whnfT actual) $
-    error "unification failed"
+unifyTerms = unify Nothing
 
 localTope :: TermT var -> TypeCheck var a -> TypeCheck var a
 localTope tope = local f
@@ -224,7 +410,9 @@ localTope tope = local f
     f Context{..} = Context{ localTopes = tope : localTopes, .. }
 
 universeT :: TermT var
-universeT = iterate UniverseT (error "weird: going too deep into universe type") !! 3
+universeT = iterate UniverseT (error msg) !! 3
+  where
+    msg = "something bad happened: going too deep into a universe type"
 
 cubeT :: TermT var
 cubeT = UniverseCubeT universeT
@@ -257,17 +445,17 @@ typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
 typecheck term ty = performing (ActionTypeCheck term ty) $ do
   case term of
     Pure x -> do
-      unify term ty =<< typeOfVar x
+      unifyTypes term ty =<< typeOfVar x
       return (Pure x)
 
     Universe -> do
-      unify term ty universeT
+      unifyTypes term ty universeT
       return universeT
 
     _ -> do
       term' <- infer term
       inferredType <- typeOf term'
-      unify term ty inferredType
+      unifyTypes term ty inferredType
       return term'
 
 inferAs :: Eq var => TermT var -> Term var -> TypeCheck var (TermT var)
@@ -275,7 +463,7 @@ inferAs expectedKind term = do
   term' <- infer term
   ty <- typeOf term'
   kind <- typeOf ty
-  unify (untyped ty) expectedKind kind
+  unifyTypes (untyped ty) expectedKind kind
   return term'
 
 infer :: Eq var => Term var -> TypeCheck var (TermT var)
@@ -313,7 +501,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         return (FirstT lt t')
       CubeProductT _ty l _r ->
         return (FirstT l t')
-      _ -> error "not a pair type"
+      ty -> issueTypeError $ TypeErrorNotPair t' ty
 
   Second t -> do
     t' <- infer t
@@ -322,7 +510,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         return (SecondT (substitute (FirstT lt t') rt) t')
       CubeProductT _ty _l r ->
         return (SecondT r t')
-      _ -> error "not a pair type"
+      ty -> issueTypeError $ TypeErrorNotPair t' ty
 
   TopeTop -> pure (TopeTopT topeT)
   TopeBottom -> pure (TopeBottomT topeT)
@@ -352,10 +540,6 @@ infer tt = performing (ActionInfer tt) $ case tt of
     contextEntails topeBottomT
     return recBottomT
 
-  RecOr [] -> do
-    contextEntails topeBottomT
-    return (RecOrT recBottomT [])
-
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
@@ -365,6 +549,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     let rs' = map (fmap fst) ttts
         ts  = map (fmap snd) ttts
     sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
+    contextEntails (foldr (TopeOrT topeT) topeBottomT (map fst ttts) )
     return (RecOrT (RecOrT universeT ts) rs')
 
   TypeFun orig a Nothing b -> do
@@ -384,17 +569,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
     b' <- enterScope a' $ inferAs universeT b
     return (TypeSigmaT universeT orig a' b')
 
-  TypeId x tA y -> do
+  TypeId x (Just tA) y -> do
     tA' <- typecheck tA universeT
     x' <- typecheck x tA'
     y' <- typecheck y tA'
-    return (TypeIdT universeT x' tA' y')
+    return (TypeIdT universeT x' (Just tA') y')
 
-  TypeIdSimple x y -> do
+  TypeId x Nothing y -> do
     x' <- inferAs universeT x
     tA <- typeOf x'
     y' <- typecheck y tA
-    return (TypeIdT universeT x' tA y')
+    return (TypeIdT universeT x' (Just tA) y')
 
   App f x -> do
     f' <- inferAs universeT f
@@ -403,10 +588,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
         x' <- typecheck x a
         mapM_ (contextEntails . substitute x') mtope
         return (AppT (substitute x' b) f' x')
-      _ -> error "cannot apply a non-function"
+      ty -> issueTypeError $ TypeErrorNotFunction f' ty
 
   Lambda _orig Nothing _body -> do
-    error "cannot infer type for the argument of a lambda abstraction"
+    issueTypeError $ TypeErrorCannotInferBareLambda tt
   Lambda orig (Just (ty, Nothing)) body -> do
     ty' <- typecheck ty universeT
     enterScope ty' $ do
@@ -421,17 +606,38 @@ infer tt = performing (ActionInfer tt) $ case tt of
       ret <- typeOf body'
       return (LambdaT (TypeFunT universeT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
 
-  Refl -> error "cannot infer type of bare refl"
-  ReflTerm x -> do
+  Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
+  Refl (Just (x, Nothing)) -> do
     x' <- inferAs universeT x
     ty <- typeOf x'
-    return (ReflTermT (TypeIdT universeT x' ty x') x')
-  ReflTermType x ty -> do
+    return (ReflT (TypeIdT universeT x' (Just ty) x') (Just (x', Just ty)))
+  Refl (Just (x, Just ty)) -> do
     ty' <- typecheck ty universeT
     x' <- typecheck x ty'
-    return (ReflTermTypeT (TypeIdT universeT x' ty' x') x' ty')
+    return (ReflT (TypeIdT universeT x' (Just ty') x') (Just (x', Just ty')))
 
-  IdJ{} -> undefined
+  IdJ tA a tC d x p -> do
+    tA' <- typecheck tA universeT
+    a' <- typecheck a tA'
+    let typeOf_C =
+          TypeFunT universeT Nothing tA' Nothing $
+            TypeFunT universeT Nothing (TypeIdT universeT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
+              universeT
+    tC' <- typecheck tC typeOf_C
+    let typeOf_d =
+          AppT universeT
+            (AppT (TypeFunT universeT Nothing (TypeIdT universeT a' (Just tA') a') Nothing universeT)
+              tC' a')
+            (ReflT (TypeIdT universeT a' (Just tA') a') Nothing)
+    d' <- typecheck d typeOf_d
+    x' <- typecheck x tA'
+    p' <- typecheck p (TypeIdT universeT a' (Just tA') x')
+    let ret =
+          AppT universeT
+            (AppT (TypeFunT universeT Nothing (TypeIdT universeT a' (Just tA') x') Nothing universeT)
+              tC' x')
+            p'
+    return (IdJT ret tA' a' tC' d' x' p')
 
   TypeAsc term ty -> do
     ty' <- inferAs universeT ty

@@ -36,16 +36,13 @@ data TermF scope term
     | RecOrF [(term, term)]
     | TypeFunF (Maybe Rzk.VarIdent) term (Maybe scope) scope
     | TypeSigmaF (Maybe Rzk.VarIdent) term scope
-    | TypeIdF term term term
-    | TypeIdSimpleF term term
+    | TypeIdF term (Maybe term) term
     | AppF term term
     | LambdaF (Maybe Rzk.VarIdent) (Maybe (term, Maybe scope)) scope
     | PairF term term
     | FirstF term
     | SecondF term
-    | ReflF
-    | ReflTermF term
-    | ReflTermTypeF term term
+    | ReflF (Maybe (term, Maybe term))
     | IdJF term term term term term term
     | TypeAscF term term
     deriving (Eq)
@@ -94,15 +91,15 @@ toTerm bvars = go
       Rzk.TopeOr l r -> TopeOr (go l) (go r)
       Rzk.RecBottom -> RecBottom
       Rzk.RecOr rs -> RecOr [ (go tope, go term) | Rzk.Restriction tope term <- rs ]
-      Rzk.TypeId x tA y -> TypeId (go x) (go tA) (go y)
-      Rzk.TypeIdSimple x y -> TypeIdSimple (go x) (go y)
+      Rzk.TypeId x tA y -> TypeId (go x) (Just (go tA)) (go y)
+      Rzk.TypeIdSimple x y -> TypeId (go x) Nothing (go y)
       Rzk.App f x -> App (go f) (go x)
       Rzk.Pair l r -> Pair (go l) (go r)
       Rzk.First term -> First (go term)
       Rzk.Second term -> Second (go term)
-      Rzk.Refl -> Refl
-      Rzk.ReflTerm term -> ReflTerm (go term)
-      Rzk.ReflTermType x tA -> ReflTermType (go x) (go tA)
+      Rzk.Refl -> Refl Nothing
+      Rzk.ReflTerm term -> Refl (Just (go term, Nothing))
+      Rzk.ReflTermType x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc x t -> TypeAsc (go x) (go t)
 
@@ -196,8 +193,8 @@ fromTermWith' used vars = go
 
       TypeSigma z a b -> withFresh z $ \(x, xs) ->
         Rzk.TypeSigma (Rzk.PatternVar x) (go a) (fromScope' x used xs b)
-      TypeId l tA r -> Rzk.TypeId (go l) (go tA) (go r)
-      TypeIdSimple l r -> Rzk.TypeIdSimple (go l) (go r)
+      TypeId l (Just tA) r -> Rzk.TypeId (go l) (go tA) (go r)
+      TypeId l Nothing r -> Rzk.TypeIdSimple (go l) (go r)
       App l r -> Rzk.App (go l) (go r)
 
       Lambda z Nothing scope -> withFresh z $ \(x, xs) ->
@@ -211,9 +208,9 @@ fromTermWith' used vars = go
       Pair l r -> Rzk.Pair (go l) (go r)
       First term -> Rzk.First (go term)
       Second term -> Rzk.Second (go term)
-      Refl -> Rzk.Refl
-      ReflTerm t -> Rzk.ReflTerm (go t)
-      ReflTermType t ty -> Rzk.ReflTermType (go t) (go ty)
+      Refl Nothing -> Rzk.Refl
+      Refl (Just (t, Nothing)) -> Rzk.ReflTerm (go t)
+      Refl (Just (t, Just ty)) -> Rzk.ReflTermType (go t) (go ty)
       IdJ a b c d e f -> Rzk.IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       TypeAsc l r -> Rzk.TypeAsc (go l) (go r)
 
