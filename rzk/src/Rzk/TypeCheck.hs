@@ -1,10 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RecordWildCards #-}
 module Rzk.TypeCheck where
 
 import Control.Monad.Reader
 import Control.Monad.Except
 import Data.List (tails, (\\), intercalate)
+import Data.Maybe (fromMaybe)
 
 import Free.Scoped
 import Language.Rzk.Free.Syntax
@@ -12,6 +15,26 @@ import qualified Language.Rzk.Syntax as Rzk
 
 import Debug.Trace
 import Unsafe.Coerce
+
+defaultTypeCheck
+  :: TypeCheck Rzk.VarIdent a
+  -> Either (TypeErrorInScopedContext Rzk.VarIdent) a
+defaultTypeCheck tc = runExcept (runReaderT tc emptyContext)
+
+typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent ()
+typecheckModule (Rzk.Module _lang commands) = go 1 commands
+  where
+    totalCommands = length commands
+
+    go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent ()
+    go _i [] = return ()
+    go  i (Rzk.CommandDefine name ty term : moreCommands) =
+      trace ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Checking #def " <> show (Pure name :: Term') ) $ do
+        ty' <- typecheck (toTerm' ty) universeT
+        term' <- typecheck (toTerm' term) ty'
+        localDecl name ty' term' $
+          go (i + 1) moreCommands
 
 data TypeError var
   = TypeErrorOther String
@@ -33,7 +56,7 @@ data TypeErrorInContext var = TypeErrorInContext
 
 data TypeErrorInScopedContext var
   = PlainTypeError (TypeErrorInContext var)
-  | ScopedTypeError (TypeErrorInScopedContext (Inc var))
+  | ScopedTypeError (Maybe Rzk.VarIdent) (TypeErrorInScopedContext (Inc var))
   deriving (Functor, Foldable)
 
 type TypeError' = TypeError Rzk.VarIdent
@@ -89,7 +112,8 @@ ppTypeError' = \case
 
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
 ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
-  [ ppTypeError' typeErrorError
+  [ ppContext' typeErrorContext
+  , ppTypeError' typeErrorError
   ]
 
 ppTypeErrorInScopedContextWith'
@@ -99,7 +123,7 @@ ppTypeErrorInScopedContextWith'
   -> String
 ppTypeErrorInScopedContextWith' used vars = \case
   PlainTypeError err -> ppTypeErrorInContext err
-  ScopedTypeError err -> withFresh Nothing $ \(x, xs) ->
+  ScopedTypeError orig err -> withFresh orig $ \(x, xs) ->
     ppTypeErrorInScopedContextWith' (x:used) xs $ fmap (g x) err
   where
     g x Z = x
@@ -145,17 +169,17 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
 
   ActionUnify term expected actual ->
     [ "unifying expected type"
-    , "  " <> show expected
+    , "  " <> show (untyped expected)
     , "with actual type"
-    , "  " <> show actual
+    , "  " <> show (untyped actual)
     , "for term"
     , "  " <> show term ]
 
   ActionUnifyTerms expected actual ->
     [ "unifying term"
-    , "  " <> show expected
+    , "  " <> show (untyped expected)
     , "with term"
-    , "  " <> show actual ]
+    , "  " <> show (untyped actual) ]
 
   ActionInfer term ->
     [ "inferring type for term"
@@ -169,7 +193,8 @@ unsafeTraceAction' n = traceAction' n . unsafeCoerce
 
 data Context var = Context
   { varTypes    :: [(var, TermT var)]
-  , varValues   :: [(var, TermT var)]
+  , varValues   :: [(var, Maybe (TermT var))]
+  , varOrigs    :: [Maybe Rzk.VarIdent]
   , localTopes  :: [TermT var]
   , actionStack :: [Action var]
   } deriving (Functor, Foldable)
@@ -178,9 +203,30 @@ emptyContext :: Context var
 emptyContext = Context
   { varTypes = []
   , varValues = []
+  , varOrigs = []
   , localTopes = []
   , actionStack = []
   }
+
+ppContext' :: Context Rzk.VarIdent -> String
+ppContext' Context{..} = unlines
+  [ "Definitions in context:"
+  , unlines
+      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
+      | (x, ty) <- reverse varTypes ]
+  , unlines
+      [ show (Pure x :: Term') <> " = " <> show (untyped term)
+      | (x, Just term) <- reverse varValues ]
+  , intercalate "\n" (map (("when " <>) . ppAction 0) (reverse actionStack))
+  , "Local tope context:"
+  , unlines (map show localTopes)
+  ]
+
+localDecl :: var -> TermT var -> TermT var -> TypeCheck var a -> TypeCheck var a
+localDecl x ty term = local $ \Context{..} -> Context
+  { varTypes = (x, ty) : varTypes
+  , varValues = (x, Just term) : varValues
+  , .. }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
 
@@ -193,18 +239,19 @@ contextEntails tope = do
   unless (topes `entail` tope) $ do
     issueTypeError $ TypeErrorTopeNotSatisfied tope
 
-enterScopeContext :: TermT var -> Context var -> Context (Inc var)
-enterScopeContext ty Context{..} = Context
+enterScopeContext :: Maybe Rzk.VarIdent -> TermT var -> Context var -> Context (Inc var)
+enterScopeContext orig ty Context{..} = Context
   { varTypes = (Z, S <$> ty) : [ (S x, fmap S t) | (x, t) <- varTypes ]
-  , varValues = (Z, S <$> ty) : [ (S x, fmap S t) | (x, t) <- varValues ]
+  , varValues = (Z, Nothing) : [ (S x, fmap S <$> t) | (x, t) <- varValues ]
+  , varOrigs = orig : varOrigs
   , localTopes = map (fmap S) localTopes
   , actionStack = map (fmap S) actionStack
   }
 
-enterScope :: TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
-enterScope ty action = do
-  newContext <- asks (enterScopeContext ty)
-  lift $ withExceptT ScopedTypeError $
+enterScope :: Maybe Rzk.VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScope orig ty action = do
+  newContext <- asks (enterScopeContext orig ty)
+  lift $ withExceptT (ScopedTypeError orig) $
     runReaderT action newContext
 
 performing :: Action var -> TypeCheck var a -> TypeCheck var a
@@ -213,31 +260,79 @@ performing action tc = do
   -- unsafeTraceAction' (length actionStack) action $
   local (const Context { actionStack = action : actionStack, .. }) $ tc
 
+etaMatch :: Eq var => TermT var -> TermT var -> TypeCheck var (TermT var, TermT var)
+etaMatch expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
+etaMatch expected@PairT{}   actual@PairT{}   = pure (expected, actual)
+etaMatch expected@LambdaT{} actual = do
+  actual' <- etaExpand actual
+  pure (expected, actual')
+etaMatch expected actual@LambdaT{} = do
+  expected' <- etaExpand expected
+  pure (expected', actual)
+etaMatch expected@PairT{} actual = do
+  actual' <- etaExpand actual
+  pure (expected, actual')
+etaMatch expected actual@PairT{} = do
+  expected' <- etaExpand expected
+  pure (expected', actual)
+etaMatch expected actual = pure (expected, actual)
+
+etaExpand :: Eq var => TermT var -> TypeCheck var (TermT var)
+etaExpand term@LambdaT{} = pure term
+etaExpand term@PairT{} = pure term
+etaExpand term = do
+  typeOf term >>= \case
+    ty@(TypeFunT _ty orig param mtope ret) -> pure $
+      LambdaT ty orig (Just (param, mtope))
+        (AppT ret (S <$> term) (Pure Z))
+
+    ty@(TypeSigmaT _ty _orig a b) -> pure $
+      PairT ty
+        (FirstT a term)
+        (SecondT (substitute (FirstT a term) b) term)
+
+    ty@(CubeProductT _ty a b) -> pure $
+      PairT ty
+        (FirstT a term)
+        (SecondT b term)
+
+    _ -> pure term
+
 -- | Compute a typed term to its WHNF.
 --
 -- >>> whnfT "(\\p -> first (second p)) (x, (y, z))" :: Term'
 -- y
-whnfT :: TermT a -> TermT a
+whnfT :: Eq var => TermT var -> TypeCheck var (TermT var)
 whnfT = \case
+  t@(Pure var) ->
+    valueOfVar var >>= \case
+      Nothing -> pure t
+      Just term -> whnfT term
   AppT ty f x ->
-    case whnfT f of
+    whnfT f >>= \case
       LambdaT _ty _orig _arg body ->
         whnfT (substitute x body)
-      f' -> AppT ty f' x
+      f' -> pure (AppT ty f' x)
   FirstT ty t ->
-    case whnfT t of
+    whnfT t >>= \case
       PairT _ l _r -> whnfT l
-      t' -> FirstT ty t'
+      t' -> pure (FirstT ty t')
   SecondT ty t ->
-    case whnfT t of
+    whnfT t >>= \case
       PairT _ _l r -> whnfT r
-      t' -> SecondT ty t'
+      t' -> pure (SecondT ty t')
   IdJT ty tA a tC d x p ->
-    case whnfT p of
+    whnfT p >>= \case
       ReflT{} -> whnfT d
-      p' -> IdJT ty tA a tC d x p'
+      p' -> pure (IdJT ty tA a tC d x p')
   TypeAscT _ty t _ty' -> whnfT t
-  t -> t
+  t -> pure t
+
+
+valueOfVar :: Eq var => var -> TypeCheck var (Maybe (TermT var))
+valueOfVar x = asks (lookup x . varValues) >>= \case
+  Nothing -> issueTypeError $ TypeErrorUndefined x
+  Just ty -> return ty
 
 typeOfVar :: Eq var => var -> TypeCheck var (TermT var)
 typeOfVar x = asks (lookup x . varTypes) >>= \case
@@ -246,17 +341,33 @@ typeOfVar x = asks (lookup x . varTypes) >>= \case
 
 typeOf :: Eq var => TermT var -> TypeCheck var (TermT var)
 typeOf = \case
-  Pure x -> typeOfVar x
-  Free (TypedF ty _) -> pure ty
+  Pure x -> typeOfVar x >>= whnfT   -- FIXME: store WHNF, do not compute every time!
+  Free (TypedF ty _) -> whnfT ty    -- FIXME: store WHNF, do not compute every time!
 
 unifyTopes :: Eq var => TermT var -> TermT var -> TypeCheck var ()
-unifyTopes l r =
-  unless (untyped (whnfT l) == untyped (whnfT r)) $
+unifyTopes l r = do
+  l' <- whnfT l
+  r' <- whnfT r
+  unless (untyped l' == untyped r') $
     issueTypeError (TypeErrorTopesNotEquivalent l r)
 
 unify :: Eq var => Maybe (Term var) -> TermT var -> TermT var -> TypeCheck var ()
 unify mterm expected actual = performing action $ do
-  case whnfT expected of
+  expectedVal <- whnfT expected
+  actualVal <- whnfT actual
+  (expected', actual') <- etaMatch expectedVal actualVal
+  let def = unless (untyped expected' == untyped actual') err
+      err =
+        case mterm of
+          Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
+          Just term -> issueTypeError (TypeErrorUnify term expected' actual')
+      errS = do
+        expected'' <- whnfT (S <$> expected')
+        actual'' <- whnfT (S <$> actual')
+        case mterm of
+          Nothing   -> issueTypeError (TypeErrorUnifyTerms expected'' actual'')
+          Just term -> issueTypeError (TypeErrorUnify (S <$> term) expected'' actual'')
+  case expected' of
     Pure{} -> def
 
     UniverseT{} -> def
@@ -269,7 +380,7 @@ unify mterm expected actual = performing action $ do
     Cube2_0T{} -> def
     Cube2_1T{} -> def
     CubeProductT _ l r ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         CubeProductT _ l' r' -> do
           unify Nothing l l'
@@ -277,21 +388,24 @@ unify mterm expected actual = performing action $ do
         _ -> err
 
     PairT _ty l r ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         PairT _ty' l' r' -> do
           unify Nothing l l'
           unify Nothing r r'
+
+        -- one part of eta-expansion for pairs
+        -- FIXME: add symmetric version!
         _ -> err
 
     FirstT _ty t ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         FirstT _ty' t' -> unify Nothing t t'
         _ -> err
 
     SecondT _ty t ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         SecondT _ty' t' -> unify Nothing t t'
         _ -> err
@@ -310,11 +424,11 @@ unify mterm expected actual = performing action $ do
           unify Nothing term actual
 
     TypeFunT _ty _orig cube mtope ret ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
-        TypeFunT _ty' _orig' cube' mtope' ret' -> do
+        TypeFunT _ty' orig' cube' mtope' ret' -> do
           unify Nothing cube cube'
-          enterScope cube $ do
+          enterScope orig' cube $ do
             case (mtope, mtope') of
               (Just tope, Just tope') -> unify Nothing tope tope'
               (Nothing, Nothing) -> return ()
@@ -323,15 +437,15 @@ unify mterm expected actual = performing action $ do
         _ -> err
 
     TypeSigmaT _ty _orig a b ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
-        TypeSigmaT _ty' _orig' a' b' -> do
+        TypeSigmaT _ty' orig' a' b' -> do
           unify Nothing a a'
-          enterScope a $ unify Nothing b b'
+          enterScope orig' a $ unify Nothing b b'
         _ -> err
 
     TypeIdT _ty x _tA y ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         TypeIdT _ty' x' _tA' y' -> do
           -- unify Nothing tA tA' -- TODO: do we need this check?
@@ -340,7 +454,7 @@ unify mterm expected actual = performing action $ do
         _ -> err
 
     AppT _ty f x ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         AppT _ty' f' x' -> do
           unify Nothing f f'
@@ -348,21 +462,22 @@ unify mterm expected actual = performing action $ do
         _ -> err
 
     LambdaT (TypeFunT _ty _origF param mtope _ret) _orig _mparam body ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
-        LambdaT (TypeFunT _ty' _origF' param' mtope' _ret') _orig' _mparam' body' -> do
+        LambdaT (TypeFunT _ty' _origF' param' mtope' _ret') orig' _mparam' body' -> do
           unify Nothing param param'
-          enterScope param $ do
+          enterScope orig' param $ do
             case (mtope, mtope') of
               (Just tope, Just tope') -> unify Nothing tope tope'
               (Nothing, Nothing) -> return ()
               _ -> errS
             unify Nothing body body'
         _ -> err
+
     LambdaT{} -> error "impossible: lambda with non-function type!"
 
     ReflT (TypeIdT _ty x _tA y) _x ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         ReflT (TypeIdT _ty' x' _tA' y') _x' -> do
           -- unify Nothing tA tA' -- TODO: do we need this check?
@@ -372,7 +487,7 @@ unify mterm expected actual = performing action $ do
     ReflT{} -> error "impossible: refl with non-identity type!"
 
     IdJT _ty a b c d e f ->
-      case whnfT actual of
+      case actual' of
         RecBottomT{} -> return () -- unifies with anything
         IdJT _ty' a' b' c' d' e' f' -> do
           unify Nothing a a'
@@ -389,14 +504,6 @@ unify mterm expected actual = performing action $ do
     action = case mterm of
                Nothing -> ActionUnifyTerms expected actual
                Just term -> ActionUnify term expected actual
-    def = unless (untyped (whnfT expected) == untyped (whnfT actual)) err
-    err = case mterm of
-            Nothing   -> issueTypeError (TypeErrorUnifyTerms expected actual)
-            Just term -> issueTypeError (TypeErrorUnify term expected actual)
-    errS =
-      case mterm of
-        Nothing   -> issueTypeError (TypeErrorUnifyTerms (S <$> expected) (S <$> actual))
-        Just term -> issueTypeError (TypeErrorUnify (S <$> term) (S <$> expected) (S <$> actual))
 
 unifyTypes :: Eq var => Term var -> TermT var -> TermT var -> TypeCheck var ()
 unifyTypes = unify . Just
@@ -444,13 +551,40 @@ recBottomT = RecBottomT recBottomT
 typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
 typecheck term ty = performing (ActionTypeCheck term ty) $ do
   case term of
-    Pure x -> do
-      unifyTypes term ty =<< typeOfVar x
-      return (Pure x)
+    Lambda orig mparam body ->
+      whnfT ty >>= \case
+        ty'@(TypeFunT _ty _orig' param' mtope' ret) -> do
+          case mparam of
+            Nothing -> return ()
+            Just (param, mtope) -> do
+              param'' <- inferAs universeT param
+              unifyTerms param' param''
+              enterScope orig param' $ do
+                mtope'' <- typecheck (fromMaybe TopeTop mtope) topeT
+                unifyTerms (fromMaybe (TopeTopT topeT) mtope') mtope''
 
-    Universe -> do
-      unifyTypes term ty universeT
-      return universeT
+          enterScope orig param' $ do
+            let maybeLocalTope =
+                  case mtope' of
+                    Nothing -> id
+                    Just tope -> localTope tope
+            maybeLocalTope $ do
+              body' <- typecheck body ret
+              return (LambdaT ty' orig (Just (param', mtope')) body')
+
+        _ -> issueTypeError $ TypeErrorOther "unexpected lambda abstraction"
+
+    Pair l r ->
+      whnfT ty >>= \case
+        ty'@(CubeProductT _ty a b) -> do
+          l' <- typecheck l a
+          r' <- typecheck r b
+          return (PairT ty' l' r')
+        ty'@(TypeSigmaT _ty _orig a b) -> do
+          l' <- typecheck l a
+          r' <- typecheck r (substitute l' b)
+          return (PairT ty' l' r')
+        _ -> issueTypeError $ TypeErrorOther "expected cube product or dependent sum"
 
     _ -> do
       term' <- infer term
@@ -554,19 +688,19 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeFun orig a Nothing b -> do
     a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
-    b' <- enterScope a' $ inferAs universeT b
+    b' <- enterScope orig a' $ inferAs universeT b
     return (TypeFunT universeT orig a' Nothing b')
 
   TypeFun orig cube (Just tope) ret -> do
     cube' <- typecheck cube cubeT
-    enterScope cube' $ do
+    enterScope orig cube' $ do
       tope' <- typecheck tope topeT
       ret' <- inferAs universeT ret
       return (TypeFunT universeT orig cube' (Just tope') ret')
 
   TypeSigma orig a b -> do
     a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
-    b' <- enterScope a' $ inferAs universeT b
+    b' <- enterScope orig a' $ inferAs universeT b
     return (TypeSigmaT universeT orig a' b')
 
   TypeId x (Just tA) y -> do
@@ -594,13 +728,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     issueTypeError $ TypeErrorCannotInferBareLambda tt
   Lambda orig (Just (ty, Nothing)) body -> do
     ty' <- typecheck ty universeT
-    enterScope ty' $ do
+    enterScope orig ty' $ do
       body' <- infer body
       ret <- typeOf body' 
       return (LambdaT (TypeFunT universeT orig ty' Nothing ret) orig (Just (ty', Nothing)) body')
   Lambda orig (Just (cube, Just tope)) body -> do
     cube' <- typecheck cube universeT
-    enterScope cube' $ do
+    enterScope orig cube' $ do
       tope' <- infer tope
       body' <- localTope tope' $ infer body
       ret <- typeOf body'

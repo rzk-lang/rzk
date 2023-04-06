@@ -2,6 +2,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeSynonymInstances    #-}
+{-# LANGUAGE FlexibleInstances    #-}
 module Language.Rzk.Free.Syntax where
 
 import Data.String

@@ -43,9 +43,9 @@ render d = rend 0 False (map ($ "") $ d []) ""
   rend i p = \case
       "["      :ts -> char '[' . rend i False ts
       "("      :ts -> char '(' . rend i False ts
-      "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
-      "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
-      "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
+--      "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
+--      "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
+--      "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
       [";"]        -> char ';'
       ";"      :ts -> char ';' . new i ts
       t  : ts@(s:_) | closingOrPunctuation s
@@ -209,7 +209,7 @@ instance Print Language.Rzk.Syntax.Abs.Term where
     Language.Rzk.Syntax.Abs.TopeAnd term1 term2 -> prPrec i 3 (concatD [prt 4 term1, doc (showString "/\\"), prt 3 term2])
     Language.Rzk.Syntax.Abs.TopeOr term1 term2 -> prPrec i 2 (concatD [prt 3 term1, doc (showString "\\/"), prt 2 term2])
     Language.Rzk.Syntax.Abs.RecBottom -> prPrec i 7 (concatD [doc (showString "recBOT")])
-    Language.Rzk.Syntax.Abs.RecOr term1 term2 term3 term4 -> prPrec i 7 (concatD [doc (showString "recOR"), doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ","), prt 0 term3, doc (showString ","), prt 0 term4, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.RecOr restrictions -> prPrec i 7 (concatD [doc (showString "recOR"), doc (showString "["), prt 0 restrictions, doc (showString "]")])
     Language.Rzk.Syntax.Abs.TypeFun paramdecl term -> prPrec i 1 (concatD [prt 0 paramdecl, doc (showString "->"), prt 1 term])
     Language.Rzk.Syntax.Abs.TypeSigma pattern_ term1 term2 -> prPrec i 1 (concatD [doc (showString "Sigma"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString ","), prt 1 term2])
     Language.Rzk.Syntax.Abs.TypeId term1 term2 term3 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "=_{"), prt 0 term2, doc (showString "}"), prt 2 term3])

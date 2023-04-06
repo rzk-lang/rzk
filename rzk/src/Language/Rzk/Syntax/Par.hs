@@ -40,7 +40,7 @@ import qualified GHC.Exts as Happy_GHC_Exts
 import Control.Applicative(Applicative(..))
 import Control.Monad (ap)
 
--- parser produced by Happy Version 1.20.0
+-- parser produced by Happy Version 1.20.1.1
 
 newtype HappyAbsSyn  = HappyAbsSyn HappyAny
 #if __GLASGOW_HASKELL__ >= 607

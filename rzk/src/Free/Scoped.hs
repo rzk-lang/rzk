@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE QuantifiedConstraints    #-}
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE DeriveFunctor     #-}
