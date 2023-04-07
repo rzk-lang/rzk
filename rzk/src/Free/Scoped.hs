@@ -79,13 +79,14 @@ deriveBitraversable ''Empty
 data TypedF term scope typedTerm = TypedF
   { typeF :: typedTerm
   , termF :: term scope typedTerm
-  } deriving (Eq, Show, Functor, Foldable, Traversable)
+  } deriving (Eq, Show, Functor)
 
 instance Bifunctor term => Bifunctor (TypedF term) where
   bimap f g (TypedF t x) = TypedF (g t) (bimap f g x)
 
+-- | Important: does not fold over the 'typeF' component!
 instance Bifoldable term => Bifoldable (TypedF term) where
-  bifoldMap f g (TypedF t x) = g t <> bifoldMap f g x
+  bifoldMap f g (TypedF _ty x) = {- g ty <> -} bifoldMap f g x
 
 instance Bitraversable term => Bitraversable (TypedF term) where
   bitraverse f g (TypedF t x) = TypedF <$> g t <*> bitraverse f g x
