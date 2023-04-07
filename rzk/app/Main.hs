@@ -22,10 +22,13 @@ main = do
       let rzkModule = Rzk.Module (Rzk.LanguageDecl Rzk.Rzk1) 
             [ command | Rzk.Module _ commands <- modules, command <- commands ]
       case defaultTypeCheck (typecheckModule rzkModule) of
-        Left err -> error $ unlines
-          [ "Type Error:"
-          , ppTypeErrorInScopedContext' err
-          ]
+        Left err -> do
+          putStrLn "An error occurred when typechecking!"
+          putStrLn "Rendering type error... (this may take a few seconds)"
+          putStrLn $ unlines
+            [ "Type Error:"
+            , ppTypeErrorInScopedContext' err
+            ]
         Right () -> putStrLn "Everything is ok!"
     _ -> ppUsage
 
