@@ -11,7 +11,6 @@ import Data.Char (chr, ord)
 import Data.Coerce
 import Data.List ((\\))
 import Data.Bifunctor.TH
-import Data.Bifoldable
 
 import Free.Scoped
 import Free.Scoped.TH
@@ -263,9 +262,3 @@ instance Show TermT' where
     where
       termStr = Rzk.printTree (fromTerm' (untyped term))
       typeStr = Rzk.printTree (fromTerm' (untyped ty))
-
--- | Does not go recursively into 'UniverseT'.
-instance {-# OVERLAPPING #-} Foldable TermT where
-  foldMap _ UniverseT{} = mempty
-  foldMap f (Pure x) = f x
-  foldMap f (Free (TypedF ty term)) = foldMap f ty <> bifoldMap (foldMap (foldMap f)) (foldMap f) term
