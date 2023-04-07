@@ -49,7 +49,7 @@ library
     , template-haskell
   default-language: Haskell2010
 
-executable rzk-exe
+executable rzk
   main-is: Main.hs
   other-modules:
       Paths_rzk

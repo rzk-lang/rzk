@@ -20,11 +20,11 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
 
 dependencies:
-- base >= 4.7 && < 5
 - array
+- base >= 4.7 && < 5
 - bifunctors
-- template-haskell
 - mtl
+- template-haskell
 
 ghc-options:
 - -Wall
@@ -47,7 +47,7 @@ library:
     - Language.Rzk.Syntax.Skel
 
 executables:
-  rzk-exe:
+  rzk:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

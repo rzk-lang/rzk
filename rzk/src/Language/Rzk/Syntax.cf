@@ -31,7 +31,9 @@ ParamPatternShape. Param ::= "{" Pattern ":" Term "|" Term "}" ;
 ParamType.          ParamDecl ::= Term6 ;
 ParamWildcardType.  ParamDecl ::= "(" "_" ":" Term ")" ;
 ParamVarType.       ParamDecl ::= "(" VarIdent ":" Term ")" ;
-ParamVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
+ParamVarShape.      ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
+paramVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
+define paramVarShape pat cube tope = ParamVarShape pat cube tope ;
 
 -- (x, y :) -> z
 
@@ -48,7 +50,7 @@ CubeUnitStar.   Term7 ::= "*_1" ;
 Cube2.          Term7 ::= "2" ;
 Cube2_0.        Term7 ::= "0_2" ;
 Cube2_1.        Term7 ::= "1_2" ;
-CubeProduct.    Term5 ::= Term6 "*" Term6 ;
+CubeProduct.    Term5 ::= Term5 "*" Term6 ;
 -- Topes
 TopeTop.        Term7 ::= "TOP" ;
 TopeBottom.     Term7 ::= "BOT" ;
@@ -58,7 +60,7 @@ TopeAnd.        Term3 ::= Term4 "/\\" Term3 ;
 TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
 -- Tope disjunction elimination
 RecBottom.      Term7 ::= "recBOT" ;
-RecOr.          Term7 ::= "recOR" "[" [Restriction] "]" ;
+RecOr.          Term7 ::= "recOR" "(" [Restriction] ")" ;
 recOr.          Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 define recOr psi phi a b = RecOr [ Restriction psi a, Restriction phi b ] ;
 -- Types
@@ -66,6 +68,9 @@ TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
+TypeRestricted. Term  ::= Term1 "[" Restriction "]" ;
+typeExtension.  Term7 ::= "<" ParamDecl "->" Term ">" ;
+define typeExtension param ret = TypeFun param ret ;
 -- Terms
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" Param "->" Term1 ;

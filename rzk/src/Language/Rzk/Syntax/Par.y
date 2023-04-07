@@ -24,8 +24,8 @@ module Language.Rzk.Syntax.Par
   , pTerm3
   , pTerm2
   , pTerm1
-  , pTerm6
   , pTerm
+  , pTerm6
   , pListTerm
   ) where
 
@@ -52,8 +52,8 @@ import Language.Rzk.Syntax.Lex
 %name pTerm3 Term3
 %name pTerm2 Term2
 %name pTerm1 Term1
-%name pTerm6 Term6
 %name pTerm Term
+%name pTerm6 Term6
 %name pListTerm ListTerm
 -- no lexer declaration
 %monad { Err } { (>>=) } { return }
@@ -75,38 +75,40 @@ import Language.Rzk.Syntax.Lex
   ':'         { PT _ (TS _ 14)        }
   ':='        { PT _ (TS _ 15)        }
   ';'         { PT _ (TS _ 16)        }
-  '<='        { PT _ (TS _ 17)        }
-  '='         { PT _ (TS _ 18)        }
-  '==='       { PT _ (TS _ 19)        }
-  '=_{'       { PT _ (TS _ 20)        }
-  'BOT'       { PT _ (TS _ 21)        }
-  'CUBE'      { PT _ (TS _ 22)        }
-  'Sigma'     { PT _ (TS _ 23)        }
-  'TOP'       { PT _ (TS _ 24)        }
-  'TOPE'      { PT _ (TS _ 25)        }
-  'U'         { PT _ (TS _ 26)        }
-  '['         { PT _ (TS _ 27)        }
-  '\\'        { PT _ (TS _ 28)        }
-  '\\/'       { PT _ (TS _ 29)        }
-  ']'         { PT _ (TS _ 30)        }
-  '_'         { PT _ (TS _ 31)        }
-  'as'        { PT _ (TS _ 32)        }
-  'first'     { PT _ (TS _ 33)        }
-  'idJ'       { PT _ (TS _ 34)        }
-  'recBOT'    { PT _ (TS _ 35)        }
-  'recOR'     { PT _ (TS _ 36)        }
-  'refl'      { PT _ (TS _ 37)        }
-  'refl_{'    { PT _ (TS _ 38)        }
-  'rzk-1'     { PT _ (TS _ 39)        }
-  'rzk-2'     { PT _ (TS _ 40)        }
-  'second'    { PT _ (TS _ 41)        }
-  '{'         { PT _ (TS _ 42)        }
-  '|'         { PT _ (TS _ 43)        }
-  '|->'       { PT _ (TS _ 44)        }
-  '}'         { PT _ (TS _ 45)        }
-  'Σ'         { PT _ (TS _ 46)        }
-  '→'         { PT _ (TS _ 47)        }
-  '∑'         { PT _ (TS _ 48)        }
+  '<'         { PT _ (TS _ 17)        }
+  '<='        { PT _ (TS _ 18)        }
+  '='         { PT _ (TS _ 19)        }
+  '==='       { PT _ (TS _ 20)        }
+  '=_{'       { PT _ (TS _ 21)        }
+  '>'         { PT _ (TS _ 22)        }
+  'BOT'       { PT _ (TS _ 23)        }
+  'CUBE'      { PT _ (TS _ 24)        }
+  'Sigma'     { PT _ (TS _ 25)        }
+  'TOP'       { PT _ (TS _ 26)        }
+  'TOPE'      { PT _ (TS _ 27)        }
+  'U'         { PT _ (TS _ 28)        }
+  '['         { PT _ (TS _ 29)        }
+  '\\'        { PT _ (TS _ 30)        }
+  '\\/'       { PT _ (TS _ 31)        }
+  ']'         { PT _ (TS _ 32)        }
+  '_'         { PT _ (TS _ 33)        }
+  'as'        { PT _ (TS _ 34)        }
+  'first'     { PT _ (TS _ 35)        }
+  'idJ'       { PT _ (TS _ 36)        }
+  'recBOT'    { PT _ (TS _ 37)        }
+  'recOR'     { PT _ (TS _ 38)        }
+  'refl'      { PT _ (TS _ 39)        }
+  'refl_{'    { PT _ (TS _ 40)        }
+  'rzk-1'     { PT _ (TS _ 41)        }
+  'rzk-2'     { PT _ (TS _ 42)        }
+  'second'    { PT _ (TS _ 43)        }
+  '{'         { PT _ (TS _ 44)        }
+  '|'         { PT _ (TS _ 45)        }
+  '|->'       { PT _ (TS _ 46)        }
+  '}'         { PT _ (TS _ 47)        }
+  'Σ'         { PT _ (TS _ 48)        }
+  '→'         { PT _ (TS _ 49)        }
+  '∑'         { PT _ (TS _ 50)        }
   L_VarIdent  { PT _ (T_VarIdent $$)  }
   L_HoleIdent { PT _ (T_HoleIdent $$) }
 
@@ -156,7 +158,8 @@ ParamDecl
   : Term6 { Language.Rzk.Syntax.Abs.ParamType $1 }
   | '(' '_' ':' Term ')' { Language.Rzk.Syntax.Abs.ParamWildcardType $4 }
   | '(' VarIdent ':' Term ')' { Language.Rzk.Syntax.Abs.ParamVarType $2 $4 }
-  | '{' Pattern ':' Term '|' Term '}' { Language.Rzk.Syntax.Abs.ParamVarShape $2 $4 $6 }
+  | '{' '(' Pattern ':' Term ')' '|' Term '}' { Language.Rzk.Syntax.Abs.ParamVarShape $3 $5 $8 }
+  | '{' Pattern ':' Term '|' Term '}' { Language.Rzk.Syntax.Abs.paramVarShape $2 $4 $6 }
 
 Restriction :: { Language.Rzk.Syntax.Abs.Restriction }
 Restriction
@@ -180,8 +183,9 @@ Term7
   | 'TOP' { Language.Rzk.Syntax.Abs.TopeTop }
   | 'BOT' { Language.Rzk.Syntax.Abs.TopeBottom }
   | 'recBOT' { Language.Rzk.Syntax.Abs.RecBottom }
-  | 'recOR' '[' ListRestriction ']' { Language.Rzk.Syntax.Abs.RecOr $3 }
+  | 'recOR' '(' ListRestriction ')' { Language.Rzk.Syntax.Abs.RecOr $3 }
   | 'recOR' '(' Term ',' Term ',' Term ',' Term ')' { Language.Rzk.Syntax.Abs.recOr $3 $5 $7 $9 }
+  | '<' ParamDecl '->' Term '>' { Language.Rzk.Syntax.Abs.typeExtension $2 $4 }
   | '(' Term ',' Term ')' { Language.Rzk.Syntax.Abs.Pair $2 $4 }
   | 'refl' { Language.Rzk.Syntax.Abs.Refl }
   | 'refl_{' Term '}' { Language.Rzk.Syntax.Abs.ReflTerm $2 }
@@ -193,7 +197,7 @@ Term7
 
 Term5 :: { Language.Rzk.Syntax.Abs.Term }
 Term5
-  : Term6 '*' Term6 { Language.Rzk.Syntax.Abs.CubeProduct $1 $3 }
+  : Term5 '*' Term6 { Language.Rzk.Syntax.Abs.CubeProduct $1 $3 }
   | Term6 { $1 }
 
 Term4 :: { Language.Rzk.Syntax.Abs.Term }
@@ -224,17 +228,18 @@ Term1
   | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { Language.Rzk.Syntax.Abs.unicode_TypeSigma $3 $5 $8 }
   | '∑' '(' Pattern ':' Term ')' ',' Term1 { Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt $3 $5 $8 }
 
+Term :: { Language.Rzk.Syntax.Abs.Term }
+Term
+  : Term1 '[' Restriction ']' { Language.Rzk.Syntax.Abs.TypeRestricted $1 $3 }
+  | Term2 'as' Term1 { Language.Rzk.Syntax.Abs.TypeAsc $1 $3 }
+  | Term1 { $1 }
+
 Term6 :: { Language.Rzk.Syntax.Abs.Term }
 Term6
   : Term6 Term7 { Language.Rzk.Syntax.Abs.App $1 $2 }
   | 'first' Term7 { Language.Rzk.Syntax.Abs.First $2 }
   | 'second' Term7 { Language.Rzk.Syntax.Abs.Second $2 }
   | Term7 { $1 }
-
-Term :: { Language.Rzk.Syntax.Abs.Term }
-Term
-  : Term2 'as' Term1 { Language.Rzk.Syntax.Abs.TypeAsc $1 $3 }
-  | Term1 { $1 }
 
 ListTerm :: { [Language.Rzk.Syntax.Abs.Term] }
 ListTerm : Term { (:[]) $1 } | Term ',' ListTerm { (:) $1 $3 }

@@ -40,8 +40,14 @@ layoutClose = List.nub $ mapMaybe (delimClose . snd) layoutWords
 layoutSep   = List.nub $ TokSymbol ";" 16 : map (delimSep . snd) layoutWords
 
 parenOpen, parenClose :: [TokSymbol]
-parenOpen  = [TokSymbol "(" 3]
-parenClose = [TokSymbol ")" 4]
+parenOpen  =
+  [ TokSymbol "(" 3
+  , TokSymbol "[" 27
+  ]
+parenClose =
+  [ TokSymbol ")" 4
+  , TokSymbol "]" 30
+  ]
 
 -- | Report an error during layout resolution.
 layoutError

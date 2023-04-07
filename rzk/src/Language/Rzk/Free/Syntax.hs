@@ -47,6 +47,7 @@ data TermF scope term
     | ReflF (Maybe (term, Maybe term))
     | IdJF term term term term term term
     | TypeAscF term term
+    | TypeRestrictedF term (term, term)
     deriving (Eq)
 
 type Term = FS TermF
@@ -69,6 +70,16 @@ toTerm' = toTerm Pure
 
 toScope :: Rzk.VarIdent -> (Rzk.VarIdent -> Term a) -> Rzk.Term -> Scope Term a
 toScope x bvars = toTerm $ \z -> if x == z then Pure Z else S <$> bvars z
+
+toScopePattern :: Rzk.Pattern -> (Rzk.VarIdent -> Term a) -> Rzk.Term -> Scope Term a
+toScopePattern pat bvars = toTerm $ \z ->
+  case lookup z (bindings pat (Pure Z)) of
+    Just t -> t
+    Nothing -> S <$> bvars z
+  where
+    bindings Rzk.PatternWildcard   _ = []
+    bindings (Rzk.PatternVar x)    t = [(x, t)]
+    bindings (Rzk.PatternPair l r) t = bindings l (First t) <> bindings r (Second t)
 
 toTerm :: (Rzk.VarIdent -> Term a) -> Rzk.Term -> Term a
 toTerm bvars = go
@@ -107,44 +118,31 @@ toTerm bvars = go
 
       Rzk.TypeFun (Rzk.ParamVarType x arg) ret ->
         TypeFun (Just x) (go arg) Nothing (toScope x bvars ret)
-      Rzk.TypeFun (Rzk.ParamVarShape (Rzk.PatternVar x) cube tope) ret ->
-        TypeFun (Just x) (go cube) (Just (toScope x bvars tope)) (toScope x bvars ret)
-      Rzk.TypeFun (Rzk.ParamVarShape Rzk.PatternWildcard cube tope) ret ->
-        TypeFun Nothing (go cube) (Just (toTerm (fmap S <$> bvars) tope)) (toTerm (fmap S <$> bvars) ret)
+      Rzk.TypeFun (Rzk.ParamVarShape pat cube tope) ret ->
+        TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun (Rzk.ParamWildcardType arg) ret ->
         TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
       Rzk.TypeFun (Rzk.ParamType arg) ret ->
         TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
-      Rzk.TypeFun (Rzk.ParamVarShape Rzk.PatternPair{} _cube _tope) _ret ->
-        error "pattern pairs are not supported"
 
-      Rzk.TypeSigma (Rzk.PatternVar x) tA tB ->
-        TypeSigma (Just x) (go tA) (toScope x bvars tB)
-      Rzk.TypeSigma Rzk.PatternWildcard tA tB ->
-        TypeSigma Nothing (go tA) (toTerm (fmap S <$> bvars) tB)
-      Rzk.TypeSigma Rzk.PatternPair{} _tA _tB ->
-        error "pattern pairs are not supported"
+      Rzk.TypeSigma pat tA tB ->
+        TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.Lambda (Rzk.ParamPattern Rzk.PatternWildcard) body ->
-        Lambda Nothing Nothing (toTerm (fmap S <$> bvars) body)
-      Rzk.Lambda (Rzk.ParamPattern (Rzk.PatternVar x)) body ->
-        Lambda (Just x) Nothing (toScope x bvars body)
-      Rzk.Lambda (Rzk.ParamPatternType Rzk.PatternWildcard ty) body ->
-        Lambda Nothing (Just (go ty, Nothing)) (toTerm (fmap S <$> bvars) body)
-      Rzk.Lambda (Rzk.ParamPatternType (Rzk.PatternVar x) ty) body ->
-        Lambda (Just x) (Just (go ty, Nothing)) (toScope x bvars body)
-      Rzk.Lambda (Rzk.ParamPatternShape Rzk.PatternWildcard cube tope) body ->
-        Lambda Nothing (Just (go cube, Just (toTerm (fmap S <$> bvars) tope))) (toTerm (fmap S <$> bvars) body)
-      Rzk.Lambda (Rzk.ParamPatternShape (Rzk.PatternVar x) cube tope) body ->
-        Lambda (Just x) (Just (go cube, Just (toScope x bvars tope))) (toScope x bvars body)
-      Rzk.Lambda (Rzk.ParamPattern Rzk.PatternPair{}) _body ->
-        error "pattern pairs are not supported"
-      Rzk.Lambda (Rzk.ParamPatternType Rzk.PatternPair{} _ty) _body ->
-        error "pattern pairs are not supported"
-      Rzk.Lambda (Rzk.ParamPatternShape Rzk.PatternPair{} _cube _tope) _body ->
-        error "pattern pairs are not supported"
+      Rzk.Lambda (Rzk.ParamPattern pat) body ->
+        Lambda (patternVar pat) Nothing (toScopePattern pat bvars body)
+      Rzk.Lambda (Rzk.ParamPatternType pat ty) body ->
+        Lambda (patternVar pat) (Just (go ty, Nothing)) (toScopePattern pat bvars body)
+      Rzk.Lambda (Rzk.ParamPatternShape pat cube tope) body ->
+        Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope))) (toScopePattern pat bvars body)
+
+      Rzk.TypeRestricted ty (Rzk.Restriction tope term) ->
+        TypeRestricted (go ty) (go tope, go term)
 
       Rzk.Hole{} -> error "holes are not supported"
+
+
+    patternVar (Rzk.PatternVar x) = Just x
+    patternVar _ = Nothing
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
@@ -215,6 +213,8 @@ fromTermWith' used vars = go
       Refl (Just (t, Just ty)) -> Rzk.ReflTermType (go t) (go ty)
       IdJ a b c d e f -> Rzk.IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       TypeAsc l r -> Rzk.TypeAsc (go l) (go r)
+      TypeRestricted ty (tope, term) ->
+        Rzk.TypeRestricted (go ty) (Rzk.Restriction (go tope) (go term))
 
 defaultVarIdents :: [Rzk.VarIdent]
 defaultVarIdents = coerce [ "x" <> map digitToSub (show n) | n <- [1..] ]

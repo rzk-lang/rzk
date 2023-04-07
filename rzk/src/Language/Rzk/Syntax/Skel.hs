@@ -86,6 +86,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.TypeSigma pattern_ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeId term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeRestricted term restriction -> failure x
   Language.Rzk.Syntax.Abs.App term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.Lambda param term -> failure x
   Language.Rzk.Syntax.Abs.Pair term1 term2 -> failure x

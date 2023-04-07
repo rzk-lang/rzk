@@ -71,6 +71,7 @@ data Term
     | TypeSigma Pattern Term Term
     | TypeId Term Term Term
     | TypeIdSimple Term Term
+    | TypeRestricted Term Restriction
     | App Term Term
     | Lambda Param Term
     | Pair Term Term
@@ -85,8 +86,14 @@ data Term
     | TypeAsc Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
+paramVarShape :: Pattern -> Term -> Term -> ParamDecl
+paramVarShape = \ pat cube tope -> ParamVarShape pat cube tope
+
 recOr :: Term -> Term -> Term -> Term -> Term
 recOr = \ psi phi a b -> RecOr [Restriction psi a, Restriction phi b]
+
+typeExtension :: ParamDecl -> Term -> Term
+typeExtension = \ param ret -> TypeFun param ret
 
 unicode_TypeFun :: ParamDecl -> Term -> Term
 unicode_TypeFun = \ arg ret -> TypeFun arg ret

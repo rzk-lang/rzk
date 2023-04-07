@@ -500,6 +500,15 @@ unify mterm expected actual = performing action $ do
 
     TypeAscT{} -> error "impossible: type ascription in WHNF!"
 
+    TypeRestrictedT _ty ty (tope, term) ->
+      case actual' of
+        TypeRestrictedT _ty' ty' (tope', term') -> do
+          unify mterm ty ty'
+          unify Nothing tope tope'
+          localTope tope $
+            unify Nothing term term'
+        _ -> err    -- FIXME: need better unification for restrictions
+
   where
     action = case mterm of
                Nothing -> ActionUnifyTerms expected actual
@@ -777,6 +786,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
     ty' <- inferAs universeT ty
     term' <- typecheck term ty'
     return (TypeAscT ty' term' ty')
+
+  TypeRestricted ty (tope, term) -> do
+    ty' <- typecheck ty universeT
+    tope' <- typecheck tope topeT
+    term' <- localTope tope' $ typecheck term ty'
+    return (TypeRestrictedT universeT ty' (tope', term'))
 
 checkCoherence
   :: Eq var
