@@ -1362,9 +1362,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (RecOrT (RecOrT universeT ts) rs')
 
   TypeFun orig a Nothing b -> do
-    a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
-    b' <- enterScope orig a' $ inferAs universeT b
-    return (TypeFunT universeT orig a' Nothing b')
+    a' <- infer a
+    typeOf a' >>= \case
+      -- an argument can be a type
+      UniverseT{} -> do
+        b' <- enterScope orig a' $ inferAs universeT b
+        return (TypeFunT universeT orig a' Nothing b')
+      -- an argument can be a cube
+      UniverseCubeT{} -> do
+        b' <- enterScope orig a' $ inferAs universeT b
+        return (TypeFunT universeT orig a' Nothing b')
+      -- an argument can be a shape
+      TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+        enterScope orig cube $ do
+          let tope' = AppT topeT (S <$> a') (Pure Z)  -- eta expand a'
+          localTope tope' $ do
+            b' <- inferAs universeT b
+            return (TypeFunT universeT orig cube (Just tope') b')
+      _ -> issueTypeError $ TypeErrorOther "invalid function argument type"
 
   TypeFun orig cube (Just tope) ret -> do
     cube' <- typecheck cube cubeT
