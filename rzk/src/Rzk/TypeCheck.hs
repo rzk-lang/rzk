@@ -21,20 +21,52 @@ defaultTypeCheck
   -> Either (TypeErrorInScopedContext Rzk.VarIdent) a
 defaultTypeCheck tc = runExcept (runReaderT tc emptyContext)
 
-typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent ()
+data Decl var = Decl
+  { declName :: var
+  , declType :: TermT var
+  , declValue :: Maybe (TermT var)
+  }
+
+type Decl' = Decl Rzk.VarIdent
+
+typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck Rzk.VarIdent ()
+typecheckModulesWithLocation = \case
+  [] -> return ()
+  m : ms -> do
+    decls <- typecheckModuleWithLocation m
+    localDecls decls $
+      typecheckModulesWithLocation ms
+
+typecheckModules :: [Rzk.Module] -> TypeCheck Rzk.VarIdent ()
+typecheckModules = \case
+  [] -> return ()
+  m : ms -> do
+    decls <- typecheckModule m
+    localDecls decls $
+      typecheckModules ms
+
+typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck Rzk.VarIdent [Decl']
+typecheckModuleWithLocation (path, module_) = do
+  withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
+    typecheckModule module_
+
+typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent [Decl']
 typecheckModule (Rzk.Module _lang commands) = go 1 commands
   where
     totalCommands = length commands
 
-    go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent ()
-    go _i [] = return ()
-    go  i (Rzk.CommandDefine name ty term : moreCommands) =
+    go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
+    go _i [] = return []
+    go  i (command@(Rzk.CommandDefine name ty term) : moreCommands) =
       trace ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #def " <> show (Pure name :: Term') ) $ do
-        ty' <- typecheck (toTerm' ty) universeT
-        term' <- typecheck (toTerm' term) ty'
-        localDecl name ty' term' $
-          go (i + 1) moreCommands
+        withCommand command $ do
+          ty' <- typecheck (toTerm' ty) universeT
+          term' <- typecheck (toTerm' term) ty'
+          let decl = Decl name ty' (Just term')
+          fmap (decl :) $
+            localDecl decl $
+              go (i + 1) moreCommands
 
 data TypeError var
   = TypeErrorOther String
@@ -82,6 +114,9 @@ ppTypeError' = \case
     , "  " <> show (untyped ty)
     , "for term"
     , "  " <> show (untyped term)
+    , case ty of
+        TypeFunT{} -> "\nPerhaps the term is applied to too few arguments?"
+        _ -> ""
     ]
   TypeErrorNotFunction term ty -> unlines
     [ "expected a function or extension type"
@@ -89,6 +124,9 @@ ppTypeError' = \case
     , "  " <> show (untyped ty)
     , "for term"
     , "  " <> show (untyped term)
+    , case term of
+        AppT _ty f _x -> "\nPerhaps the term\n  " <> show (untyped f) <> "\nis applied to too many arguments?"
+        _ -> ""
     ]
   TypeErrorCannotInferBareLambda term -> unlines
     [ "cannot infer the type of the argument"
@@ -236,6 +274,11 @@ traceAction' n action = trace ("[debug]\n" <> ppAction n action)
 unsafeTraceAction' :: Int -> Action var -> a -> a
 unsafeTraceAction' n = traceAction' n . unsafeCoerce
 
+data LocationInfo = LocationInfo
+  { locationFilePath  :: Maybe FilePath
+  , locationLine      :: Maybe Int
+  }
+
 data Context var = Context
   { varTypes          :: [(var, TermT var)]
   , varValues         :: [(var, Maybe (TermT var))]
@@ -245,6 +288,8 @@ data Context var = Context
   , localTopesNFUnion :: [[TermT var]]
   , localTopesEntailBottom  :: Bool
   , actionStack       :: [Action var]
+  , currentCommand    :: Maybe Rzk.Command
+  , location          :: Maybe LocationInfo
   } deriving (Functor, Foldable)
 
 emptyContext :: Context var
@@ -257,6 +302,8 @@ emptyContext = Context
   , localTopesNFUnion = [[]]
   , localTopesEntailBottom = False
   , actionStack = []
+  , currentCommand = Nothing
+  , location = Nothing
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -271,17 +318,34 @@ ppContext' Context{..} = unlines
   , intercalate "\n" (map (("when " <>) . ppAction 0) (reverse actionStack))
   , "Local tope context:"
   , intercalate "\n" (map (("  " <>) . show . untyped) localTopes)
+  , case location of
+      Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
+      _ -> ""
+  , case currentCommand of
+      Just (Rzk.CommandDefine name _ty _term) ->
+        "  Error occurred when checking\n    #def " <> show (Pure name :: Term')
+      Nothing -> ""
 --  , "Local tope context (expanded):"
 --  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
   ]
 
-localDecl :: Eq var => var -> TermT var -> TermT var -> TypeCheck var a -> TypeCheck var a
-localDecl x ty term tc = do
+withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
+withLocation loc = local $ \Context{..} -> Context { location = Just loc, .. }
+
+withCommand :: Rzk.Command -> TypeCheck var a -> TypeCheck var a
+withCommand command = local $ \Context{..} -> Context { currentCommand = Just command, .. }
+
+localDecls :: Eq var => [Decl var] -> TypeCheck var a -> TypeCheck var a
+localDecls [] = id
+localDecls (decl : decls) = localDecl decl . localDecls decls
+
+localDecl :: Eq var => Decl var -> TypeCheck var a -> TypeCheck var a
+localDecl (Decl x ty term) tc = do
   ty' <- whnfT ty
-  term' <- whnfT term
+  term' <- traverse whnfT term
   flip local tc $ \Context{..} -> Context
     { varTypes = (x, ty') : varTypes
-    , varValues = (x, Just term') : varValues
+    , varValues = (x, term') : varValues
     , .. }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
@@ -498,7 +562,7 @@ enterScopeContext orig ty Context{..} = Context
   , localTopesNF = map (fmap S) localTopesNF
   , localTopesNFUnion = map (map (fmap S)) localTopesNFUnion
   , actionStack = map (fmap S) actionStack
-  , localTopesEntailBottom = localTopesEntailBottom
+  , ..
   }
 
 enterScope :: Maybe Rzk.VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
@@ -507,7 +571,7 @@ enterScope orig ty action = do
   lift $ withExceptT (ScopedTypeError orig) $
     runReaderT action newContext
 
-performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
+performing :: Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
   Context{..} <- ask
   unless (length actionStack < 100) $
@@ -675,12 +739,12 @@ whnfT tt = case tt of
         inBottom <- asks localTopesEntailBottom
         if inBottom
            then pure recBottomT -- if so, reduce to recBOT
-           else tryRestriction tt typeOf_tt >>= \case
+           else tryRestriction typeOf_tt >>= \case
             Just tt' -> whnfT tt'
             Nothing -> go tt
 
   where
-    tryRestriction term type_ =
+    tryRestriction type_ =
       case type_ of
         TypeRestrictedT _ _ (tope, term') -> do
           checkTope tope >>= \case
@@ -872,7 +936,7 @@ nfT tt = case tt of
         param' <- nfT param
         enterScope orig param' $ do
           mtope' <- traverse nfT mtope
-          maybe id (localTope "1") mtope' $
+          maybe id localTope mtope' $
             TypeFunT ty orig param' mtope' <$> nfT ret
 
       TypeSigmaT ty orig a b -> do
@@ -893,7 +957,7 @@ nfT tt = case tt of
             param' <- nfT param
             enterScope orig param' $ do
               mtope' <- traverse nfT mtope
-              maybe id (localTope "2") mtope' $
+              maybe id localTope mtope' $
                 LambdaT ty orig (Just (param', mtope')) <$> nfT body
           _ -> error "impossible: lambda with non-function type!"
 
@@ -901,7 +965,7 @@ nfT tt = case tt of
         nfT tope >>= \case
           TopeBottomT{} -> nfT type_  -- get rid of restrictions at BOT
           tope' -> TypeRestrictedT ty <$> nfT type_ <*> do
-            term' <- (localTope "3") tope' $
+            term' <- localTope tope' $
               nfT term
             return (tope', term')
 
@@ -976,7 +1040,7 @@ unifyInCurrentContext mterm expected actual = performing action $
             checkCoherence <$> rs <*> rs'
           _ -> do
             forM_ rs' $ \(tope, term) ->
-              localTope "14" tope $
+              localTope tope $
                 unify Nothing expected term
       _ -> typeOf expected' >>= typeOf >>= \case
         UniverseCubeT{} -> contextEntails (TopeEQT topeT expected' actual')
@@ -1041,11 +1105,17 @@ unifyInCurrentContext mterm expected actual = performing action $
             RecBottomT{} -> return () -- unifies with anything
             RecOrT _ty rs ->
               case actual' of
-                RecOrT _ty rs' -> sequence_ $
-                  checkCoherence <$> rs <*> rs'
+                -- ----------------------------------------------
+                -- IMPORTANT: this pattern matching is redundant,
+                -- but it is not obvious
+                -- take care when refactoring!
+                -- ----------------------------------------------
+--                RecOrT _ty rs' -> sequence_ $
+--                  checkCoherence <$> rs <*> rs'
+                -- ----------------------------------------------
                 _ -> do
                   forM_ rs $ \(tope, term) ->
-                    localTope "4" tope $
+                    localTope tope $
                       unify Nothing term actual
 
             TypeFunT _ty _orig cube mtope ret ->
@@ -1094,7 +1164,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                             case (mtope, mtope') of
                               (Just tope, Just tope') -> do
                                 unify Nothing tope tope'
-                                localTope "5" tope $ unify Nothing body body'
+                                localTope tope $ unify Nothing body body'
                               (Nothing, Nothing) -> do
                                 unify Nothing body body'
                               _ -> errS
@@ -1129,7 +1199,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                 TypeRestrictedT _ty' ty' (tope', term') -> do
                   unify mterm ty ty'
                   unify Nothing tope tope'
-                  localTope "6" tope $
+                  localTope tope $
                     unify Nothing term term'
                 _ -> err    -- FIXME: need better unification for restrictions
 
@@ -1144,8 +1214,8 @@ unifyTypes = unify . Just
 unifyTerms :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyTerms = unify Nothing
 
-localTope :: Eq var => String -> TermT var -> TypeCheck var a -> TypeCheck var a
-localTope tag tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
+localTope :: Eq var => TermT var -> TypeCheck var a -> TypeCheck var a
+localTope tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
   tope' <- nfT tope
   localTopes' <- asks localTopesNF
   local (f tope' localTopes') tc
@@ -1204,7 +1274,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
     TypeRestrictedT _ty ty' (tope, rterm) -> do
       term' <- typecheck term ty'
       contextEntailedBy tope
-      localTope "7" tope $
+      localTope tope $
         unifyTerms rterm term'
       return term'    -- FIXME: correct?
 
@@ -1222,7 +1292,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                   unifyTerms (fromMaybe (TopeTopT topeT) mtope') mtope''
 
             enterScope orig param' $ do
-              maybe id (localTope "8") mtope' $ do
+              maybe id localTope mtope' $ do
                 body' <- typecheck body ret
                 return (LambdaT ty' orig (Just (param', mtope')) body')
 
@@ -1336,7 +1406,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
-      localTope "9" tope' $ do
+      localTope tope' $ do
         term' <- inferAs universeT term
         ty <- typeOf term'
         return (tope', (term', ty))
@@ -1355,7 +1425,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     cube' <- typecheck cube cubeT
     enterScope orig cube' $ do
       tope' <- typecheck tope topeT
-      localTope "10" tope' $ do
+      localTope tope' $ do
         ret' <- inferAs universeT ret
         return (TypeFunT universeT orig cube' (Just tope') ret')
 
@@ -1400,7 +1470,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     cube' <- typecheck cube universeT
     enterScope orig cube' $ do
       tope' <- infer tope
-      body' <- localTope "11" tope' $ infer body
+      body' <- localTope tope' $ infer body
       ret <- typeOf body'
       return (LambdaT (TypeFunT universeT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
 
@@ -1445,7 +1515,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeRestricted ty (tope, term) -> do
     ty' <- typecheck ty universeT
     tope' <- typecheck tope topeT
-    term' <- localTope "12" tope' $ typecheck term ty'
+    term' <- localTope tope' $ typecheck term ty'
     return (TypeRestrictedT universeT ty' (tope', term'))
 
 checkCoherence
@@ -1455,7 +1525,7 @@ checkCoherence
   -> TypeCheck var ()
 checkCoherence (ltope, lterm) (rtope, rterm) =
   performing (ActionCheckCoherence (ltope, lterm) (rtope, rterm)) $ do
-    localTope "13" (TopeAndT topeT ltope rtope) $ do
+    localTope (TopeAndT topeT ltope rtope) $ do
       unifyTerms lterm rterm
 
 inferStandalone :: Eq var => Term var -> Either (TypeErrorInScopedContext var) (TermT var)

@@ -18,10 +18,8 @@ main = do
           Left err -> do
             putStrLn ("An error occurred when parsing file " <> path)
             error err
-          Right rzkModule -> return rzkModule
-      let rzkModule = Rzk.Module (Rzk.LanguageDecl Rzk.Rzk1) 
-            [ command | Rzk.Module _ commands <- modules, command <- commands ]
-      case defaultTypeCheck (typecheckModule rzkModule) of
+          Right rzkModule -> return (path, rzkModule)
+      case defaultTypeCheck (typecheckModulesWithLocation modules) of
         Left err -> do
           putStrLn "An error occurred when typechecking!"
           putStrLn "Rendering type error... (this may take a few seconds)"
