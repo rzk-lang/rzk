@@ -1255,6 +1255,21 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             return (PairT ty' l' r')
           _ -> issueTypeError $ TypeErrorOther "expected cube product or dependent sum"
 
+      Refl mx ->
+        case ty' of
+          TypeIdT _ty y _tA z -> do
+            tA <- typeOf y
+            forM_ mx $ \(x, mxty) -> do
+              forM_ mxty $ \xty -> do
+                xty' <- typecheck xty universeT
+                unifyTerms tA xty'
+              x' <- typecheck x tA
+              unifyTerms x' y
+              unifyTerms x' z
+            return (ReflT ty' (Just (y, Just tA)))
+          _ -> issueTypeError $ TypeErrorOther "expected identity type"
+
+
       _ -> do
         term' <- infer term
         inferredType <- typeOf term'
