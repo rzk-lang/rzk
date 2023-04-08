@@ -46,7 +46,7 @@ typecheckModules = \case
       typecheckModules ms
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck Rzk.VarIdent [Decl']
-typecheckModuleWithLocation (path, module_) = do
+typecheckModuleWithLocation (path, module_) = trace ("Checking module from " <> path) $ do
   withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
     typecheckModule module_
 
@@ -422,33 +422,38 @@ generateTopes newTopes oldTopes
         , untyped y == untyped y'
         , untyped x == untyped x' ]
 
---        -- FIXME: special case of substitution of EQ
---        -- transitivity EQ-LEQ (1)
---      , [ TopeLEQT topeT x z
---        | TopeEQT  _ty y z : newTopes' <- tails newTopes
---        , TopeLEQT _ty x y' <- newTopes' <> oldTopes
---        , untyped y == untyped y' ]
---
---        -- FIXME: special case of substitution of EQ
---        -- transitivity EQ-LEQ (2)
---      , [ TopeLEQT topeT x z
---        | TopeEQT  _ty x y : newTopes' <- tails newTopes
---        , TopeLEQT _ty y' z <- newTopes' <> oldTopes
---        , untyped y == untyped y' ]
---
---        -- FIXME: special case of substitution of EQ
---        -- transitivity EQ-LEQ (3)
---      , [ TopeLEQT topeT x z
---        | TopeLEQT  _ty y z : newTopes' <- tails newTopes
---        , TopeEQT _ty x y' <- newTopes' <> oldTopes
---        , untyped y == untyped y' ]
---
---        -- FIXME: special case of substitution of EQ
---        -- transitivity EQ-LEQ (4)
---      , [ TopeLEQT topeT x z
---        | TopeLEQT  _ty x y : newTopes' <- tails newTopes
---        , TopeEQT _ty y' z <- newTopes' <> oldTopes
---        , untyped y == untyped y' ]
+       -- FIXME: special case of substitution of EQ
+       -- transitivity EQ-LEQ (1)
+     , [ TopeLEQT topeT x z
+       | TopeEQT  _ty y z : newTopes' <- tails newTopes
+       , TopeLEQT _ty x y' <- newTopes' <> oldTopes
+       , untyped y == untyped y' ]
+
+       -- FIXME: special case of substitution of EQ
+       -- transitivity EQ-LEQ (2)
+     , [ TopeLEQT topeT x z
+       | TopeEQT  _ty x y : newTopes' <- tails newTopes
+       , TopeLEQT _ty y' z <- newTopes' <> oldTopes
+       , untyped y == untyped y' ]
+
+       -- FIXME: special case of substitution of EQ
+       -- transitivity EQ-LEQ (3)
+     , [ TopeLEQT topeT x z
+       | TopeLEQT  _ty y z : newTopes' <- tails newTopes
+       , TopeEQT _ty x y' <- newTopes' <> oldTopes
+       , untyped y == untyped y' ]
+
+       -- FIXME: special case of substitution of EQ
+       -- transitivity EQ-LEQ (4)
+     , [ TopeLEQT topeT x z
+       | TopeLEQT  _ty x y : newTopes' <- tails newTopes
+       , TopeEQT _ty y' z <- newTopes' <> oldTopes
+       , untyped y == untyped y' ]
+
+       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+     , [ TopeEQT topeT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
+       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+     , [ TopeEQT topeT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
       ]
 
 generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
