@@ -1,2 +1,4 @@
 .stack-work/
 *~
+*.bak
+.DS_Store
