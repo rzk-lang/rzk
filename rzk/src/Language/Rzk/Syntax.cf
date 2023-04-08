@@ -26,6 +26,7 @@ PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
 ParamPattern.      Param ::= Pattern ;
 ParamPatternType.  Param ::= "(" Pattern ":" Term ")" ;
 ParamPatternShape. Param ::= "{" Pattern ":" Term "|" Term "}" ;
+separator nonempty Param "" ;
 
 -- Parameter declaration for functions and extension types
 ParamType.          ParamDecl ::= Term6 ;
@@ -73,7 +74,7 @@ typeExtension.  Term7 ::= "<" ParamDecl "->" Term ">" ;
 define typeExtension param ret = TypeFun param ret ;
 -- Terms
 App.            Term6 ::= Term6 Term7 ;
-Lambda.         Term1 ::= "\\" Param "->" Term1 ;
+Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
 First.          Term6 ::= "first" Term7 ;
 Second.         Term6 ::= "second" Term7 ;

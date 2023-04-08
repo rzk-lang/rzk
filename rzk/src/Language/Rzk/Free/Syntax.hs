@@ -127,12 +127,15 @@ toTerm bvars = go
       Rzk.TypeSigma pat tA tB ->
         TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.Lambda (Rzk.ParamPattern pat) body ->
-        Lambda (patternVar pat) Nothing (toScopePattern pat bvars body)
-      Rzk.Lambda (Rzk.ParamPatternType pat ty) body ->
-        Lambda (patternVar pat) (Just (go ty, Nothing)) (toScopePattern pat bvars body)
-      Rzk.Lambda (Rzk.ParamPatternShape pat cube tope) body ->
-        Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope))) (toScopePattern pat bvars body)
+      Rzk.Lambda [] body -> go body
+      Rzk.Lambda (Rzk.ParamPattern pat : params) body ->
+        Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda params body))
+      Rzk.Lambda (Rzk.ParamPatternType pat ty : params) body ->
+        Lambda (patternVar pat) (Just (go ty, Nothing))
+          (toScopePattern pat bvars (Rzk.Lambda params body))
+      Rzk.Lambda (Rzk.ParamPatternShape pat cube tope : params) body ->
+        Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
+          (toScopePattern pat bvars (Rzk.Lambda params body))
 
       Rzk.TypeRestricted ty (Rzk.Restriction tope term) ->
         TypeRestricted (go ty) (go tope, go term)
@@ -197,11 +200,11 @@ fromTermWith' used vars = go
       App l r -> Rzk.App (go l) (go r)
 
       Lambda z Nothing scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda (Rzk.ParamPattern (Rzk.PatternVar x)) (fromScope' x used xs scope)
+        Rzk.Lambda [Rzk.ParamPattern (Rzk.PatternVar x)] (fromScope' x used xs scope)
       Lambda z (Just (ty, Nothing)) scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda (Rzk.ParamPatternType (Rzk.PatternVar x) (go ty)) (fromScope' x used xs scope)
+        Rzk.Lambda [Rzk.ParamPatternType (Rzk.PatternVar x) (go ty)] (fromScope' x used xs scope)
       Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda (Rzk.ParamPatternShape (Rzk.PatternVar x) (go cube) (fromScope' x used xs tope)) (fromScope' x used xs scope)
+        Rzk.Lambda [Rzk.ParamPatternShape (Rzk.PatternVar x) (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda (Maybe (term, Maybe scope)) scope
 
       Pair l r -> Rzk.Pair (go l) (go r)

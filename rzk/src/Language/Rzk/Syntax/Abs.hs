@@ -73,7 +73,7 @@ data Term
     | TypeIdSimple Term Term
     | TypeRestricted Term Restriction
     | App Term Term
-    | Lambda Param Term
+    | Lambda [Param] Term
     | Pair Term Term
     | First Term
     | Second Term

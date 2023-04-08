@@ -175,6 +175,11 @@ instance Print Language.Rzk.Syntax.Abs.Param where
     Language.Rzk.Syntax.Abs.ParamPatternType pattern_ term -> prPrec i 0 (concatD [doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term, doc (showString ")")])
     Language.Rzk.Syntax.Abs.ParamPatternShape pattern_ term1 term2 -> prPrec i 0 (concatD [doc (showString "{"), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString "|"), prt 0 term2, doc (showString "}")])
 
+instance Print [Language.Rzk.Syntax.Abs.Param] where
+  prt _ [] = concatD []
+  prt _ [x] = concatD [prt 0 x]
+  prt _ (x:xs) = concatD [prt 0 x, prt 0 xs]
+
 instance Print Language.Rzk.Syntax.Abs.ParamDecl where
   prt i = \case
     Language.Rzk.Syntax.Abs.ParamType term -> prPrec i 0 (concatD [prt 6 term])
@@ -216,7 +221,7 @@ instance Print Language.Rzk.Syntax.Abs.Term where
     Language.Rzk.Syntax.Abs.TypeIdSimple term1 term2 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "="), prt 2 term2])
     Language.Rzk.Syntax.Abs.TypeRestricted term restriction -> prPrec i 0 (concatD [prt 1 term, doc (showString "["), prt 0 restriction, doc (showString "]")])
     Language.Rzk.Syntax.Abs.App term1 term2 -> prPrec i 6 (concatD [prt 6 term1, prt 7 term2])
-    Language.Rzk.Syntax.Abs.Lambda param term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 param, doc (showString "->"), prt 1 term])
+    Language.Rzk.Syntax.Abs.Lambda params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "->"), prt 1 term])
     Language.Rzk.Syntax.Abs.Pair term1 term2 -> prPrec i 7 (concatD [doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ")")])
     Language.Rzk.Syntax.Abs.First term -> prPrec i 6 (concatD [doc (showString "first"), prt 7 term])
     Language.Rzk.Syntax.Abs.Second term -> prPrec i 6 (concatD [doc (showString "second"), prt 7 term])

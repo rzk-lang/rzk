@@ -15,6 +15,7 @@ module Language.Rzk.Syntax.Par
   , pListCommand
   , pPattern
   , pParam
+  , pListParam
   , pParamDecl
   , pRestriction
   , pListRestriction
@@ -43,6 +44,7 @@ import Language.Rzk.Syntax.Lex
 %name pListCommand ListCommand
 %name pPattern Pattern
 %name pParam Param
+%name pListParam ListParam
 %name pParamDecl ParamDecl
 %name pRestriction Restriction
 %name pListRestriction ListRestriction
@@ -153,6 +155,9 @@ Param
   | '(' Pattern ':' Term ')' { Language.Rzk.Syntax.Abs.ParamPatternType $2 $4 }
   | '{' Pattern ':' Term '|' Term '}' { Language.Rzk.Syntax.Abs.ParamPatternShape $2 $4 $6 }
 
+ListParam :: { [Language.Rzk.Syntax.Abs.Param] }
+ListParam : Param { (:[]) $1 } | Param ListParam { (:) $1 $2 }
+
 ParamDecl :: { Language.Rzk.Syntax.Abs.ParamDecl }
 ParamDecl
   : Term6 { Language.Rzk.Syntax.Abs.ParamType $1 }
@@ -222,7 +227,7 @@ Term1
   | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { Language.Rzk.Syntax.Abs.TypeSigma $3 $5 $8 }
   | Term2 '=_{' Term '}' Term2 { Language.Rzk.Syntax.Abs.TypeId $1 $3 $5 }
   | Term2 '=' Term2 { Language.Rzk.Syntax.Abs.TypeIdSimple $1 $3 }
-  | '\\' Param '->' Term1 { Language.Rzk.Syntax.Abs.Lambda $2 $4 }
+  | '\\' ListParam '->' Term1 { Language.Rzk.Syntax.Abs.Lambda $2 $4 }
   | Term2 { $1 }
   | ParamDecl '→' Term1 { Language.Rzk.Syntax.Abs.unicode_TypeFun $1 $3 }
   | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { Language.Rzk.Syntax.Abs.unicode_TypeSigma $3 $5 $8 }

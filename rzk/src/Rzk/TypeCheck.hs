@@ -1253,7 +1253,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             l' <- typecheck l a
             r' <- typecheck r (substitute l' b)
             return (PairT ty' l' r')
-          _ -> issueTypeError $ TypeErrorOther "expected cube product or dependent sum"
+          _ -> issueTypeError $ TypeErrorOther "unexpected pair"
 
       Refl mx ->
         case ty' of
@@ -1267,7 +1267,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
               unifyTerms x' y
               unifyTerms x' z
             return (ReflT ty' (Just (y, Just tA)))
-          _ -> issueTypeError $ TypeErrorOther "expected identity type"
+          _ -> issueTypeError $ TypeErrorOther "unexpected refl"
 
 
       _ -> do
