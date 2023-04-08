@@ -684,6 +684,15 @@ inTopeLayer = \case
 
   t -> typeOfUncomputed t >>= inTopeLayer
 
+tryRestriction :: Eq var => TermT var -> TypeCheck var (Maybe (TermT var))
+tryRestriction type_ =
+  case type_ of
+    TypeRestrictedT _ _ (tope, term') -> do
+      checkTope tope >>= \case
+        True -> pure (Just term')
+        False -> pure Nothing
+    _ -> pure Nothing
+
 -- | Compute a typed term to its WHNF.
 --
 -- >>> whnfT "(\\p -> first (second p)) (x, (y, z))" :: Term'
@@ -741,86 +750,41 @@ whnfT tt = case tt of
            then pure recBottomT -- if so, reduce to recBOT
            else tryRestriction typeOf_tt >>= \case
             Just tt' -> whnfT tt'
-            Nothing -> go tt
+            Nothing -> case tt of
+              t@(Pure var) ->
+                valueOfVar var >>= \case
+                  Nothing -> pure t
+                  Just term -> whnfT term
 
-  where
-    tryRestriction type_ =
-      case type_ of
-        TypeRestrictedT _ _ (tope, term') -> do
-          checkTope tope >>= \case
-            True -> pure (Just term')
-            False -> -- pure Nothing
---               -- see if it can be reduced in one of the alternatives
---               alts <- asks localTopesNFUnion
---               splitTopes <- forM alts $ \topes' -> do
---                 local (\Context{..} -> Context
---                     { localTopes = topes'
---                     , localTopesNF = topes'
---                     , localTopesNFUnion = [topes']
---                     , .. }) $
---                   checkTope tope >>= \case
---                     False -> pure (Left tope)
---                     True -> pure (Right tope)
---               case (lefts splitTopes, rights splitTopes) of
---                 (_, []) -> pure Nothing
---                 (ls, rs) -> pure Nothing
-              pure Nothing
-        _ -> pure Nothing
+              AppT ty f x ->
+                whnfT f >>= \case
+                  LambdaT _ty _orig _arg body ->
+                    whnfT (substitute x body)
+                  f' -> typeOf f' >>= \case
+                    TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
+                      TopeAndT topeT
+                        <$> (AppT ty <$> nfT f' <*> nfT x)
+                        <*> nfT (substitute x tope)
+                    _ -> pure (AppT ty f' x)
 
-    go tt' = performing (ActionWHNF tt') . ($ tt') $ \case
-      t@(Pure var) ->
-        valueOfVar var >>= \case
-          Nothing -> pure t
-          Just term -> whnfT term
+              FirstT ty t ->
+                whnfT t >>= \case
+                  PairT _ l _r -> whnfT l
+                  t' -> pure (FirstT ty t')
 
-      AppT ty f x ->
-        whnfT f >>= \case
-          LambdaT _ty _orig _arg body ->
-            whnfT (substitute x body)
-          f' -> typeOf f' >>= \case
-            TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
-              TopeAndT topeT
-                <$> (AppT ty <$> nfT f' <*> nfT x)
-                <*> nfT (substitute x tope)
-            _ -> pure (AppT ty f' x)
+              SecondT ty t ->
+                whnfT t >>= \case
+                  PairT _ _l r -> whnfT r
+                  t' -> pure (SecondT ty t')
+              IdJT ty tA a tC d x p ->
+                whnfT p >>= \case
+                  ReflT{} -> whnfT d
+                  p' -> pure (IdJT ty tA a tC d x p')
 
-      FirstT ty t ->
-        whnfT t >>= \case
-          PairT _ l _r -> whnfT l
-          t' -> pure (FirstT ty t')
-
-      SecondT ty t ->
-        whnfT t >>= \case
-          PairT _ _l r -> whnfT r
-          t' -> pure (SecondT ty t')
-      IdJT ty tA a tC d x p ->
-        whnfT p >>= \case
-          ReflT{} -> whnfT d
-          p' -> pure (IdJT ty tA a tC d x p')
-      TypeAscT _ty t _ty' -> whnfT t
-
-      TopeAndT ty l r -> TopeAndT ty <$> whnfT l <*> whnfT r
-      TopeOrT ty l r  -> TopeOrT ty <$> whnfT l <*> whnfT r
-
---    --------------------------------------------
---    FIXME: figure out why this is not correct
---    --------------------------------------------
---      RecOrT ty rs -> do
---        terms <- forM rs $ \(tope, term) -> do
---          tope' <- nfT tope
---          entailed <- checkTope tope'
---          return ((tope', term), not entailed)
---        case filter snd terms of
---          [] -> pure (RecOrT ty (map fst terms))
---          ((_tope, term), _) : _ -> whnfT term
---    --------------------------------------------
-
-      TypeRestrictedT ty type_ (tope, term) -> do
-        nfT tope >>= \case
-          TopeBottomT{} -> whnfT type_  -- get rid of restrictions at BOT
-          tope' -> TypeRestrictedT ty <$> whnfT type_ <*> pure (tope', term)
-
-      t -> pure t
+              TypeRestrictedT ty type_ (tope, term) -> do
+                nfT tope >>= \case
+                  TopeBottomT{} -> whnfT type_  -- get rid of restrictions at BOT
+                  tope' -> TypeRestrictedT ty <$> whnfT type_ <*> pure (tope', term)
 
 -- | Compute a typed term to its NF.
 --
@@ -844,132 +808,108 @@ nfT tt = case tt of
   TopeTopT{} -> pure tt
   TopeBottomT{} -> pure tt
 
+  -- type layer constants
+  ReflT{} -> pure tt
+  RecBottomT{} -> pure tt
+
+  -- now we are in the type layer
   _ -> do
+    -- check if we are in the empty context
     inBottom <- asks localTopesEntailBottom
     if inBottom
-       then pure recBottomT
-       else typeOfUncomputed tt >>= \case
-        TypeRestrictedT _ _ (tope, tt') -> do
-          inRestriction <- checkTope tope
-          if inRestriction
-             then nfT tt'
-             else go tt
-        _ -> go tt
-  where
-    go tt' = performing (ActionNF tt') . ($ tt') $ \case
-      t@(Pure var) ->
-        valueOfVar var >>= \case
-          Nothing -> pure t
-          Just term -> nfT term
+       then pure recBottomT -- if so, reduce to recBOT
+       else typeOf tt >>= tryRestriction >>= \case
+        Just tt' -> whnfT tt'
+        Nothing -> case tt of
+          t@(Pure var) ->
+            valueOfVar var >>= \case
+              Nothing -> pure t
+              Just term -> nfT term
 
-      AppT ty f x ->
-        whnfT f >>= \case
-          LambdaT _ty _orig _arg body ->
-            nfT (substitute x body)
-          f' -> typeOf f' >>= \case
-            TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
-              TopeAndT topeT
-                <$> (AppT ty <$> nfT f' <*> nfT x)
-                <*> nfT (substitute x tope)
-            _ -> AppT ty <$> nfT f' <*> nfT x
-
-      FirstT ty t ->
-        whnfT t >>= \case
-          PairT _ l _r -> nfT l
-          t' -> FirstT ty <$> nfT t'
-      SecondT ty t ->
-        whnfT t >>= \case
-          PairT _ _l r -> nfT r
-          t' -> SecondT ty <$> nfT t'
-      IdJT ty tA a tC d x p ->
-        whnfT p >>= \case
-          ReflT{} -> nfT d
-          p' -> IdJT ty <$> nfT tA <*> nfT a <*> nfT tC <*> nfT d <*> nfT x <*> nfT p'
-      TypeAscT _ty t _ty' -> nfT t
-
---      RecOrT ty rs -> do
---        terms <- forM rs $ \(tope, term) -> do
---          tope' <- nfT tope
---          entailed <- checkTope tope'
---          return ((tope', term), entailed)
---        case filter snd terms of
---          [] -> RecOrT ty <$> traverse (\(tope, term) -> (,) tope <$> nfT term) (map fst terms)
---          ((_tope, term), _):_ -> nfT term
-
-      TopeAndT ty l r ->
-        nfT l >>= \case
-          TopeBottomT{} -> pure topeBottomT
-          l' -> nfT r >>= \case
-            TopeBottomT{} -> pure topeBottomT
-            r' -> pure (TopeAndT ty l' r')
-
-      TopeOrT  ty l r -> do
-        l' <- nfT l
-        r' <- nfT r
-        case (l', r') of
-          (TopeBottomT{}, _) -> pure r'
-          (_, TopeBottomT{}) -> pure l'
-          _ -> pure (TopeOrT ty l' r')
-
-      TopeEQT  ty l r -> TopeEQT  ty <$> nfT l <*> nfT r
-      TopeLEQT ty l r -> TopeLEQT ty <$> nfT l <*> nfT r
-
-      PairT ty l r -> PairT ty <$> nfT l <*> nfT r
-
-      t@TopeTopT{} -> pure t
-      t@TopeBottomT{} -> pure t
-
-      t@UniverseT{} -> pure t
-      t@UniverseCubeT{} -> pure t
-      t@UniverseTopeT{} -> pure t
-
-      t@CubeUnitT{} -> pure t
-      t@CubeUnitStarT{} -> pure t
-
-      t@Cube2T{}    -> pure t
-      t@Cube2_0T{}  -> pure t
-      t@Cube2_1T{}  -> pure t
-
-      CubeProductT ty l r -> CubeProductT ty <$> nfT l <*> nfT r
-
-      TypeFunT ty orig param mtope ret -> do
-        param' <- nfT param
-        enterScope orig param' $ do
-          mtope' <- traverse nfT mtope
-          maybe id localTope mtope' $
-            TypeFunT ty orig param' mtope' <$> nfT ret
-
-      TypeSigmaT ty orig a b -> do
-        a' <- nfT a
-        enterScope orig a' $ do
-          TypeSigmaT ty orig a' <$> nfT b
-
-      TypeIdT ty x tA y -> TypeIdT ty <$> nfT x <*> traverse nfT tA <*> nfT y
-
-      ReflT ty m -> fmap (ReflT ty) $ forM m $ \(x, mty) -> do
-        x' <- nfT x
-        mty' <- traverse nfT mty
-        return (x', mty')
-
-      LambdaT ty orig _mparam body -> do
-        case stripTypeRestrictions ty of
-          TypeFunT _ty _orig param mtope _ret -> do
+          TypeFunT ty orig param mtope ret -> do
             param' <- nfT param
             enterScope orig param' $ do
               mtope' <- traverse nfT mtope
               maybe id localTope mtope' $
-                LambdaT ty orig (Just (param', mtope')) <$> nfT body
-          _ -> error "impossible: lambda with non-function type!"
+                TypeFunT ty orig param' mtope' <$> nfT ret
+          AppT ty f x ->
+            whnfT f >>= \case
+              LambdaT _ty _orig _arg body ->
+                nfT (substitute x body)
+              f' -> typeOf f' >>= \case
+                TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
+                  TopeAndT topeT
+                    <$> (AppT ty <$> nfT f' <*> nfT x)
+                    <*> nfT (substitute x tope)
+                _ -> AppT ty <$> nfT f' <*> nfT x
+          LambdaT ty orig _mparam body -> do
+            case stripTypeRestrictions ty of
+              TypeFunT _ty _orig param mtope _ret -> do
+                param' <- nfT param
+                enterScope orig param' $ do
+                  mtope' <- traverse nfT mtope
+                  maybe id localTope mtope' $
+                    LambdaT ty orig (Just (param', mtope')) <$> nfT body
+              _ -> error "impossible: lambda with non-function type!"
 
-      TypeRestrictedT ty type_ (tope, term) -> do
-        nfT tope >>= \case
-          TopeBottomT{} -> nfT type_  -- get rid of restrictions at BOT
-          tope' -> TypeRestrictedT ty <$> nfT type_ <*> do
-            term' <- localTope tope' $
-              nfT term
-            return (tope', term')
 
-      RecBottomT{} -> pure recBottomT
+          TypeSigmaT ty orig a b -> do
+            a' <- nfT a
+            enterScope orig a' $ do
+              TypeSigmaT ty orig a' <$> nfT b
+          PairT ty l r -> PairT ty <$> nfT l <*> nfT r
+          FirstT ty t ->
+            whnfT t >>= \case
+              PairT _ l _r -> nfT l
+              t' -> FirstT ty <$> nfT t'
+          SecondT ty t ->
+            whnfT t >>= \case
+              PairT _ _l r -> nfT r
+              t' -> SecondT ty <$> nfT t'
+
+          TypeIdT ty x tA y -> TypeIdT ty <$> nfT x <*> traverse nfT tA <*> nfT y
+          IdJT ty tA a tC d x p ->
+            whnfT p >>= \case
+              ReflT{} -> nfT d
+              p' -> IdJT ty <$> nfT tA <*> nfT a <*> nfT tC <*> nfT d <*> nfT x <*> nfT p'
+
+          TypeAscT _ty t _ty' -> nfT t
+
+          -- FIXME: not a proper NF
+          RecOrT ty rs -> fmap (RecOrT ty) $
+            forM rs $ \(tope, term) -> do
+              tope' <- nfT tope
+              term' <- localTope tope' $ nfT term
+              return (tope', term')
+
+          TopeAndT ty l r ->
+            nfT l >>= \case
+              TopeBottomT{} -> pure topeBottomT
+              l' -> nfT r >>= \case
+                TopeBottomT{} -> pure topeBottomT
+                r' -> pure (TopeAndT ty l' r')
+
+          TopeOrT  ty l r -> do
+            l' <- nfT l
+            r' <- nfT r
+            case (l', r') of
+              (TopeBottomT{}, _) -> pure r'
+              (_, TopeBottomT{}) -> pure l'
+              _ -> pure (TopeOrT ty l' r')
+
+          TopeEQT  ty l r -> TopeEQT  ty <$> nfT l <*> nfT r
+          TopeLEQT ty l r -> TopeLEQT ty <$> nfT l <*> nfT r
+
+          CubeProductT ty l r -> CubeProductT ty <$> nfT l <*> nfT r
+
+
+          TypeRestrictedT ty type_ (tope, term) -> do
+            nfT tope >>= \case
+              TopeBottomT{} -> nfT type_  -- get rid of restrictions at BOT
+              tope' -> TypeRestrictedT ty <$> nfT type_ <*> do
+                term' <- localTope tope' $
+                  nfT term
+                return (tope', term')
 
 valueOfVar :: Eq var => var -> TypeCheck var (Maybe (TermT var))
 valueOfVar x = asks (lookup x . varValues) >>= \case
