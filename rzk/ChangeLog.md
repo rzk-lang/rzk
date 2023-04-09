@@ -31,7 +31,7 @@ Otherwise, syntax is now made more flexible:
 ```rzk
 #def hom : (A : U) -> A -> A -> U
   := \A x y ->
-    {t : Δ¹} -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]
+    (t : Δ¹) -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]
 ```
 
 5. There are now 3 syntactic versions of `refl` with different amount of explicit annotations:
