@@ -91,7 +91,7 @@ makePatternTFor = \case
     let patName = mkName (removeF (nameBase name))
         patArgs = PrefixPatSyn (t : args)
         dir = ImplBidir
-    pat <- [p| Free (TypedF $(pure (VarP t)) $(pure (ConP name [] (VarP <$> args)))) |]
+    pat <- [p| Free (AnnF $(pure (VarP t)) $(pure (ConP name [] (VarP <$> args)))) |]
     return [PatSynD patName patArgs dir pat]
   _ -> fail "Can only make patterns for NormalC constructors"
   where
@@ -105,7 +105,7 @@ makePatternTEFor = \case
     let patName = mkName (removeF (nameBase name))
         patArgs = PrefixPatSyn (t : args)
         dir = ImplBidir
-    pat <- [p| Free (InL (TypedF $(pure (VarP t)) $(pure (ConP name [] (VarP <$> args))))) |]
+    pat <- [p| Free (InL (AnnF $(pure (VarP t)) $(pure (ConP name [] (VarP <$> args))))) |]
     return [PatSynD patName patArgs dir pat]
   _ -> fail "Can only make patterns for NormalC constructors"
   where

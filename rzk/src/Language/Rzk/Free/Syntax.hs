@@ -1,6 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-missing-pattern-synonym-signatures -fno-warn-missing-signatures -fno-warn-type-defaults #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeSynonymInstances    #-}
 {-# LANGUAGE FlexibleInstances    #-}
@@ -49,8 +53,17 @@ data TermF scope term
     | TypeRestrictedF term (term, term)
     deriving (Eq)
 
+newtype Type term = Type { getType :: term }
+  deriving (Eq, Functor, Foldable, Traversable)
+
+data TypeInfo term = TypeInfo
+  { infoType :: term
+  , infoWHNF :: term
+  , infoNF   :: term
+  } deriving (Eq, Functor, Foldable, Traversable)
+
 type Term = FS TermF
-type TermT = FS (TypedF TermF)
+type TermT = FS (AnnF TypeInfo TermF)
 
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
@@ -261,7 +274,7 @@ instance IsString Term' where
 
 instance Show TermT' where
   show var@Pure{} = Rzk.printTree (fromTerm' (untyped var))
-  show term@(Free (TypedF ty _)) = termStr <> " : " <> typeStr
+  show term@(Free (AnnF TypeInfo{..} _)) = termStr <> " : " <> typeStr
     where
       termStr = Rzk.printTree (fromTerm' (untyped term))
-      typeStr = Rzk.printTree (fromTerm' (untyped ty))
+      typeStr = Rzk.printTree (fromTerm' (untyped infoType))

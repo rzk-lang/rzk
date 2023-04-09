@@ -414,31 +414,31 @@ generateTopes newTopes oldTopes
   | TopeEQ Cube2_0 Cube2_1 `elem` map untyped newTopes = [topeBottomT]
   | otherwise = concat
       [  -- symmetry EQ
-        [ TopeEQT topeT y x | TopeEQT _ty x y <- newTopes ]
+        [ topeEQT y x | TopeEQT _ty x y <- newTopes ]
         -- transitivity EQ (1)
-      , [ TopeEQT topeT x z
+      , [ topeEQT x z
         | TopeEQT _ty x y : newTopes' <- tails newTopes
         , TopeEQT _ty y' z <- newTopes' <> oldTopes
         , untyped y == untyped y' ]
         -- transitivity EQ (2)
-      , [ TopeEQT topeT x z
+      , [ topeEQT x z
         | TopeEQT _ty y z : newTopes' <- tails newTopes
         , TopeEQT _ty x y' <- newTopes' <> oldTopes
         , untyped y == untyped y' ]
 
         -- transitivity LEQ (1)
-      , [ TopeLEQT topeT x z
+      , [ topeLEQT x z
         | TopeLEQT _ty x y : newTopes' <- tails newTopes
         , TopeLEQT _ty y' z <- newTopes' <> oldTopes
         , untyped y == untyped y' ]
         -- transitivity LEQ (2)
-      , [ TopeLEQT topeT x z
+      , [ topeLEQT x z
         | TopeLEQT _ty y z : newTopes' <- tails newTopes
         , TopeLEQT _ty x y' <- newTopes' <> oldTopes
         , untyped y == untyped y' ]
 
         -- antisymmetry LEQ
-      , [ TopeEQT topeT x y
+      , [ topeEQT x y
         | TopeLEQT _ty x y : newTopes' <- tails newTopes
         , TopeLEQT _ty y' x' <- newTopes' <> oldTopes
         , untyped y == untyped y'
@@ -446,41 +446,41 @@ generateTopes newTopes oldTopes
 
        -- FIXME: special case of substitution of EQ
        -- transitivity EQ-LEQ (1)
-     , [ TopeLEQT topeT x z
+     , [ topeLEQT x z
        | TopeEQT  _ty y z : newTopes' <- tails newTopes
        , TopeLEQT _ty x y' <- newTopes' <> oldTopes
        , untyped y == untyped y' ]
 
        -- FIXME: special case of substitution of EQ
        -- transitivity EQ-LEQ (2)
-     , [ TopeLEQT topeT x z
+     , [ topeLEQT x z
        | TopeEQT  _ty x y : newTopes' <- tails newTopes
        , TopeLEQT _ty y' z <- newTopes' <> oldTopes
        , untyped y == untyped y' ]
 
        -- FIXME: special case of substitution of EQ
        -- transitivity EQ-LEQ (3)
-     , [ TopeLEQT topeT x z
+     , [ topeLEQT x z
        | TopeLEQT  _ty y z : newTopes' <- tails newTopes
        , TopeEQT _ty x y' <- newTopes' <> oldTopes
        , untyped y == untyped y' ]
 
        -- FIXME: special case of substitution of EQ
        -- transitivity EQ-LEQ (4)
-     , [ TopeLEQT topeT x z
+     , [ topeLEQT x z
        | TopeLEQT  _ty x y : newTopes' <- tails newTopes
        , TopeEQT _ty y' z <- newTopes' <> oldTopes
        , untyped y == untyped y' ]
 
        -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
-     , [ TopeEQT topeT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
+     , [ topeEQT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
        -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
-     , [ TopeEQT topeT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
+     , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
       ]
 
 generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
 generateTopesForPoints points = nubTermT $ concat
-  [ [ TopeOrT topeT (TopeLEQT topeT x y) (TopeLEQT topeT y x)
+  [ [ topeOrT (topeLEQT x y) (topeLEQT y x)
     | x : points' <- tails points, y <- points'
     , untyped x /= untyped y
     , untyped x `notElem` [Cube2_0, Cube2_1]
@@ -504,7 +504,8 @@ subPoints :: TermT var -> [TermT var]
 subPoints = \case
   p@(PairT _ x y) -> p : foldMap subPoints [x, y]
   p@Pure{} -> [p]
-  p@(Free (TypedF Cube2T{} _)) -> [p]
+  p@(Free (AnnF TypeInfo{..} _))
+    | Cube2T{} <- infoType -> [p]
   _ -> []
 
 simplifyLHS :: Eq var => [TermT var] -> [[TermT var]]
@@ -516,7 +517,7 @@ simplifyLHS topes = {- trace ("simplifyLHS " <> show (fmap (untyped . (Rzk.VarId
     TopeAndT _ l r : topes' -> simplifyLHS (l : r : topes')
     TopeOrT  _ l r : topes' -> simplifyLHS (l : topes') <> simplifyLHS (r : topes')
     TopeEQT  _ (PairT _ x y) (PairT _ x' y') : topes' ->
-      simplifyLHS (TopeEQT topeT x x' : TopeEQT topeT y y' : topes')
+      simplifyLHS (topeEQT x x' : topeEQT y y' : topes')
     t : topes' -> map (t:) (simplifyLHS topes')
 
 solveRHS :: Eq var => [TermT var] -> TermT var -> Bool
@@ -525,7 +526,7 @@ solveRHS topes tope =
     _ | TopeBottom `elem` map untyped topes -> True
     TopeTopT{}     -> True
     TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y')
-      | solveRHS topes (TopeEQT topeT x x') && solveRHS topes (TopeEQT topeT y y') -> True
+      | solveRHS topes (topeEQT x x') && solveRHS topes (topeEQT y y') -> True
     TopeEQT  _ty l r -> or
       [ untyped l == untyped r
       , untyped tope `elem` map untyped topes
@@ -533,9 +534,9 @@ solveRHS topes tope =
       ]
     TopeLEQT _ty l r
       | untyped l == untyped r -> True
-      | solveRHS topes (TopeEQT topeT l r) -> True
-      | solveRHS topes (TopeEQT topeT l (Cube2_0T cube2T)) -> True
-      | solveRHS topes (TopeEQT topeT r (Cube2_1T cube2T)) -> True
+      | solveRHS topes (topeEQT l r) -> True
+      | solveRHS topes (topeEQT l cube2_0T) -> True
+      | solveRHS topes (topeEQT r cube2_1T) -> True
     -- TopeBottomT{}  -> solveLHS topes tope
     TopeAndT _ l r -> solveRHS topes l && solveRHS topes r
     TopeOrT  _ l r -> solveRHS topes l || solveRHS topes r
@@ -551,7 +552,7 @@ contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
 contextEntailedBy tope = performing (ActionContextEntailedBy tope) $ do
   contextTopes <- asks localTopesNF
   restrictionTope <- nfTope tope
-  let contextTopesRHS = foldr (TopeOrT topeT) topeBottomT contextTopes
+  let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
   unless ([restrictionTope] `entail` contextTopesRHS) $
     issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
 
@@ -572,8 +573,8 @@ contextEquiv :: Eq var => [TermT var] -> TypeCheck var ()
 contextEquiv topes = performing (ActionContextEquiv topes) $ do
   contextTopes <- asks localTopesNF
   recTopes <- mapM nfTope topes
-  let contextTopesRHS = foldr (TopeOrT topeT) topeBottomT contextTopes
-      recTopesRHS     = foldr (TopeOrT topeT) topeBottomT recTopes
+  let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
+      recTopesRHS     = foldr topeOrT topeBottomT recTopes
   unless (contextTopes `entail` recTopesRHS) $
     issueTypeError $ TypeErrorTopeNotSatisfied contextTopes recTopesRHS
   unless (recTopes `entail` contextTopesRHS) $
@@ -615,7 +616,7 @@ etaMatch :: Eq var => TermT var -> TermT var -> TypeCheck var (TermT var, TermT 
 etaMatch expected@TypeRestrictedT{} actual@TypeRestrictedT{} = pure (expected, actual)
 etaMatch expected (TypeRestrictedT _ty ty (_tope, _term)) = etaMatch expected ty
 etaMatch expected@TypeRestrictedT{} actual =
-  etaMatch expected (TypeRestrictedT universeT actual (topeBottomT, recBottomT))
+  etaMatch expected (typeRestrictedT actual (topeBottomT, recBottomT))
 -- ------------------------------------
 etaMatch expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
 etaMatch expected@PairT{}   actual@PairT{}   = pure (expected, actual)
@@ -640,18 +641,18 @@ etaExpand term = do
   ty <- typeOf term
   case stripTypeRestrictions ty of
     TypeFunT _ty orig param mtope ret -> pure $
-      LambdaT ty orig (Just (param, mtope))
-        (AppT ret (S <$> term) (Pure Z))
+      lambdaT ty orig (Just (param, mtope))
+        (appT ret (S <$> term) (Pure Z))
 
     TypeSigmaT _ty _orig a b -> pure $
-      PairT ty
-        (FirstT a term)
-        (SecondT (substitute (FirstT a term) b) term)
+      pairT ty
+        (firstT a term)
+        (secondT (substitute (firstT a term) b) term)
 
     CubeProductT _ty a b -> pure $
-      PairT ty
-        (FirstT a term)
-        (SecondT b term)
+      pairT ty
+        (firstT a term)
+        (secondT b term)
 
     _ -> pure term
 
@@ -775,7 +776,7 @@ whnfT tt = case tt of
                     whnfT (substitute x body)
                   f' -> typeOf f' >>= \case
                     TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
-                      TopeAndT topeT
+                      topeAndT
                         <$> (AppT ty <$> nfT f' <*> nfT x)
                         <*> nfT (substitute x tope)
                     _ -> pure (AppT ty f' x)
@@ -819,7 +820,7 @@ nfTope tt = performing (ActionNF tt) $ case tt of
   Cube2_1T{} -> pure tt
 
   -- cube layer with computation
-  CubeProductT ty l r -> CubeProductT ty <$> nfTope l <*> nfTope r
+  CubeProductT _ty l r -> cubeProductT <$> nfTope l <*> nfTope r
 
   -- tope layer constants
   TopeTopT{} -> pure tt
@@ -855,7 +856,7 @@ nfTope tt = performing (ActionNF tt) $ case tt of
         nfTope (substitute x body)
       f' -> typeOfUncomputed f' >>= \case
         TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
-          TopeAndT topeT
+          topeAndT
             <$> (AppT ty f' <$> nfTope x)
             <*> nfTope (substitute x tope)
         _ -> AppT ty f' <$> nfTope x
@@ -870,8 +871,9 @@ nfTope tt = performing (ActionNF tt) $ case tt of
       PairT _ty _x y -> pure y
       t' -> pure (SecondT ty t')
 
-  LambdaT ty@(TypeFunT _ty _origF param mtope _ret) orig _mparam body ->
-    LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
+  LambdaT ty orig _mparam body
+    | TypeFunT _ty _origF param mtope _ret <- infoType ty ->
+        LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
   LambdaT{} -> error "impossible"
 
   TypeFunT{} -> error "impossible"
@@ -948,12 +950,12 @@ nfT tt = case tt of
                 nfT (substitute x body)
               f' -> typeOf f' >>= \case
                 TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
-                  TopeAndT topeT
+                  topeAndT
                     <$> (AppT ty <$> nfT f' <*> nfT x)
                     <*> nfT (substitute x tope)
                 _ -> AppT ty <$> nfT f' <*> nfT x
           LambdaT ty orig _mparam body -> do
-            case stripTypeRestrictions ty of
+            case stripTypeRestrictions (infoType ty) of
               TypeFunT _ty _orig param mtope _ret -> do
                 param' <- nfT param
                 enterScope orig param' $ do
@@ -1012,7 +1014,7 @@ typeOfVar x = asks (lookup x . varTypes) >>= \case
 typeOfUncomputed :: Eq var => TermT var -> TypeCheck var (TermT var)
 typeOfUncomputed = \case
   Pure x -> typeOfVar x
-  Free (TypedF ty _) -> pure ty
+  Free (AnnF TypeInfo{..} _) -> pure infoType
 
 typeOf :: Eq var => TermT var -> TypeCheck var (TermT var)
 typeOf t = typeOfUncomputed t >>= whnfT 
@@ -1071,7 +1073,7 @@ unifyInCurrentContext mterm expected actual = performing action $
               localTope tope $
                 unifyTerms expected term
       _ -> typeOf expected' >>= typeOf >>= \case
-        UniverseCubeT{} -> contextEntails (TopeEQT topeT expected' actual')
+        UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
         _ -> do
           let def = unless (untyped expected' == untyped actual') err
               err =
@@ -1181,11 +1183,11 @@ unifyInCurrentContext mterm expected actual = performing action $
                 _ -> err
 
             LambdaT ty _orig _mparam body ->
-              case stripTypeRestrictions ty of
+              case stripTypeRestrictions (infoType ty) of
                 TypeFunT _ty _origF param mtope _ret ->
                   case actual' of
                     LambdaT ty' orig' _mparam' body' -> do
-                      case stripTypeRestrictions ty' of
+                      case stripTypeRestrictions (infoType ty') of
                         TypeFunT _ty' _origF' param' mtope' _ret' -> do
                           unify Nothing param param'
                           enterScope orig' param $ do
@@ -1200,9 +1202,9 @@ unifyInCurrentContext mterm expected actual = performing action $
                     _ -> err
                 _ -> err
 
-            ReflT (TypeIdT _ty x _tA y) _x ->
+            ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
               case actual' of
-                ReflT (TypeIdT _ty' x' _tA' y') _x' -> do
+                ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
                   -- unify Nothing tA tA' -- TODO: do we need this check?
                   unify Nothing x x'
                   unify Nothing y y'
@@ -1266,36 +1268,273 @@ localTope tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
         entailsBottom = (tope' : localTopes') `entail` topeBottomT
 
 universeT :: TermT var
-universeT = iterate UniverseT (error msg) !! 30
+universeT = iterate (\t -> UniverseT TypeInfo { infoType = t, infoNF = universeT, infoWHNF = universeT }) (error msg) !! 30
   where
     msg = "something bad happened: going too deep into a universe type"
 
 cubeT :: TermT var
-cubeT = UniverseCubeT universeT
+cubeT = UniverseCubeT TypeInfo
+  { infoType = universeT
+  , infoNF = cubeT
+  , infoWHNF = cubeT }
 
 topeT :: TermT var
-topeT = UniverseTopeT universeT
+topeT = UniverseTopeT TypeInfo
+  { infoType = universeT
+  , infoNF = topeT
+  , infoWHNF = topeT }
+
+topeEQT :: TermT var -> TermT var -> TermT var
+topeEQT l r = TopeEQT info l r
+  where
+    info = TypeInfo
+      { infoType = topeT
+      , infoNF = TopeEQT info l r
+      , infoWHNF = TopeEQT info l r
+      }
+
+topeLEQT :: TermT var -> TermT var -> TermT var
+topeLEQT l r = TopeLEQT info l r
+  where
+    info = TypeInfo
+      { infoType = topeT
+      , infoNF = TopeLEQT info l r
+      , infoWHNF = TopeLEQT info l r
+      }
+
+topeOrT :: TermT var -> TermT var -> TermT var
+topeOrT l r = TopeOrT info l r
+  where
+    info = TypeInfo
+      { infoType = topeT
+      , infoNF = TopeOrT info l r
+      , infoWHNF = TopeOrT info l r
+      }
+
+topeAndT :: TermT var -> TermT var -> TermT var
+topeAndT l r = TopeAndT info l r
+  where
+    info = TypeInfo
+      { infoType = topeT
+      , infoNF = TopeAndT info l r
+      , infoWHNF = TopeAndT info l r
+      }
+
+cubeProductT :: TermT var -> TermT var -> TermT var
+cubeProductT l r = t
+  where
+    t = CubeProductT info l r
+    info = TypeInfo
+      { infoType  = cubeT
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
 
 cubeUnitT :: TermT var
-cubeUnitT = CubeUnitT cubeT
+cubeUnitT = CubeUnitT TypeInfo
+  { infoType = cubeT
+  , infoNF = cubeUnitT
+  , infoWHNF = cubeUnitT }
 
 cubeUnitStarT :: TermT var
-cubeUnitStarT = CubeUnitStarT cubeUnitT
+cubeUnitStarT = CubeUnitStarT TypeInfo
+  { infoType = cubeUnitT
+  , infoNF = cubeUnitStarT
+  , infoWHNF = cubeUnitStarT }
 
 cube2T :: TermT var
-cube2T = Cube2T cubeT
+cube2T = Cube2T TypeInfo
+  { infoType = cubeT
+  , infoNF = cube2T
+  , infoWHNF = cube2T }
 
 cube2_0T :: TermT var
-cube2_0T = Cube2_0T cube2T
+cube2_0T = Cube2_0T TypeInfo
+  { infoType = cube2T
+  , infoNF = cube2_0T
+  , infoWHNF = cube2_0T }
 
 cube2_1T :: TermT var
-cube2_1T = Cube2_1T cube2T
+cube2_1T = Cube2_1T TypeInfo
+  { infoType = cube2T
+  , infoNF = cube2_1T
+  , infoWHNF = cube2_1T }
+
+topeTopT :: TermT var
+topeTopT = TopeTopT TypeInfo
+  { infoType = topeT
+  , infoNF = topeTopT
+  , infoWHNF = topeTopT }
 
 topeBottomT :: TermT var
-topeBottomT = TopeBottomT topeT
+topeBottomT = TopeBottomT TypeInfo
+  { infoType = topeT
+  , infoNF = topeBottomT
+  , infoWHNF = topeBottomT }
 
 recBottomT :: TermT var
-recBottomT = RecBottomT recBottomT
+recBottomT = RecBottomT TypeInfo
+  { infoType = recBottomT
+  , infoNF = recBottomT
+  , infoWHNF = recBottomT }
+
+typeRestrictedT :: TermT var -> (TermT var, TermT var) -> TermT var
+typeRestrictedT ty (tope, term) = t
+  where
+    t = TypeRestrictedT info ty (tope, term)
+    info = TypeInfo
+      { infoType  = universeT
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+lambdaT
+  :: TermT var
+  -> Maybe Rzk.VarIdent
+  -> Maybe (TermT var, Maybe (Scope TermT var))
+  -> Scope TermT var
+  -> TermT var
+lambdaT ty orig mparam body = t
+  where
+    t = LambdaT info orig mparam body
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+appT :: TermT var -> TermT var -> TermT var -> TermT var
+appT ty f x = t
+  where
+    t = AppT info f x
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+pairT :: TermT var -> TermT var -> TermT var -> TermT var
+pairT ty l r = t
+  where
+    t = PairT info l r
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+firstT :: TermT var -> TermT var -> TermT var
+firstT ty arg = t
+  where
+    t = FirstT info arg
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+secondT :: TermT var -> TermT var -> TermT var
+secondT ty arg = t
+  where
+    t = SecondT info arg
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+reflT
+  :: TermT var
+  -> Maybe (TermT var, Maybe (TermT var))
+  -> TermT var
+reflT ty mx = t
+  where
+    t = ReflT info mx
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+typeFunT
+  :: Maybe Rzk.VarIdent
+  -> TermT var
+  -> Maybe (Scope TermT var)
+  -> Scope TermT var
+  -> TermT var
+typeFunT orig cube mtope ret = t
+  where
+    t = TypeFunT info orig cube mtope ret
+    info = TypeInfo
+      { infoType  = universeT
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+typeSigmaT
+  :: Maybe Rzk.VarIdent
+  -> TermT var
+  -> Scope TermT var
+  -> TermT var
+typeSigmaT orig a b = t
+  where
+    t = TypeSigmaT info orig a b
+    info = TypeInfo
+      { infoType  = universeT
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+recOrT
+  :: TermT var
+  -> [(TermT var, TermT var)]
+  -> TermT var
+recOrT ty rs = t
+  where
+    t = RecOrT info rs
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+typeIdT :: TermT var -> Maybe (TermT var) -> TermT var -> TermT var
+typeIdT x tA y = t
+  where
+    t = TypeIdT info x tA y
+    info = TypeInfo
+      { infoType  = universeT
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+idJT
+  :: TermT var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+idJT ty tA a tC d x p = t
+  where
+    t = IdJT info tA a tC d x p
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
+
+typeAscT :: TermT var -> TermT var -> TermT var
+typeAscT x ty = t
+  where
+    t = TypeAscT info x ty
+    info = TypeInfo
+      { infoType  = ty
+      , infoNF    = t   -- FIXME
+      , infoWHNF  = t   -- FIXME
+      }
 
 typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
 typecheck term ty = performing (ActionTypeCheck term ty) $ do
@@ -1322,12 +1561,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                 unifyTerms param' param''
                 enterScope orig param' $ do
                   mtope'' <- typecheck (fromMaybe TopeTop mtope) topeT
-                  unifyTerms (fromMaybe (TopeTopT topeT) mtope') mtope''
+                  unifyTerms (fromMaybe topeTopT mtope') mtope''
 
             enterScope orig param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
-                return (LambdaT ty' orig (Just (param', mtope')) body')
+                return (lambdaT ty' orig (Just (param', mtope')) body')
 
           _ -> issueTypeError $ TypeErrorOther "unexpected lambda abstraction"
 
@@ -1336,11 +1575,11 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
           CubeProductT _ty a b -> do
             l' <- typecheck l a
             r' <- typecheck r b
-            return (PairT ty' l' r')
+            return (pairT ty' l' r')
           TypeSigmaT _ty _orig a b -> do
             l' <- typecheck l a
             r' <- typecheck r (substitute l' b)
-            return (PairT ty' l' r')
+            return (pairT ty' l' r')
           _ -> issueTypeError $ TypeErrorOther "unexpected pair"
 
       Refl mx ->
@@ -1356,7 +1595,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
               unifyTerms x' z
             when (isNothing mx) $
               unifyTerms y z
-            return (ReflT ty' (Just (y, Just tA)))
+            return (reflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorOther "unexpected refl"
 
 
@@ -1392,7 +1631,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   CubeProduct l r -> do
     l' <- typecheck l cubeT
     r' <- typecheck r cubeT
-    return (CubeProductT cubeT l' r')
+    return (cubeProductT l' r')
 
   Pair l r -> do
     l' <- infer l
@@ -1400,19 +1639,19 @@ infer tt = performing (ActionInfer tt) $ case tt of
     lt <- typeOf l'
     rt <- typeOf r'
     typeOf lt >>= \case
-      UniverseCubeT{} -> return (PairT (CubeProductT cubeT lt rt) l' r')
+      UniverseCubeT{} -> return (pairT (cubeProductT lt rt) l' r')
       _ -> do
         -- NOTE: infer as a non-dependent pair!
-        return (PairT (TypeSigmaT universeT Nothing lt (S <$> rt)) l' r')
+        return (pairT (typeSigmaT Nothing lt (S <$> rt)) l' r')
 
   First t -> do
     t' <- infer t
     fmap stripTypeRestrictions (typeOf t') >>= \case
       RecBottomT{} -> pure recBottomT -- FIXME: is this ok?
       TypeSigmaT _ty _orig lt _rt ->
-        return (FirstT lt t')
+        return (firstT lt t')
       CubeProductT _ty l _r ->
-        return (FirstT l t')
+        return (firstT l t')
       ty -> issueTypeError $ TypeErrorNotPair t' ty
 
   Second t -> do
@@ -1420,34 +1659,34 @@ infer tt = performing (ActionInfer tt) $ case tt of
     fmap stripTypeRestrictions (typeOf t') >>= \case
       RecBottomT{} -> pure recBottomT -- FIXME: is this ok?
       TypeSigmaT _ty _orig lt rt ->
-        return (SecondT (substitute (FirstT lt t') rt) t')
+        return (secondT (substitute (firstT lt t') rt) t')
       CubeProductT _ty _l r ->
-        return (SecondT r t')
+        return (secondT r t')
       ty -> issueTypeError $ TypeErrorNotPair t' ty
 
-  TopeTop -> pure (TopeTopT topeT)
-  TopeBottom -> pure (TopeBottomT topeT)
+  TopeTop -> pure topeTopT
+  TopeBottom -> pure topeBottomT
 
   TopeEQ l r -> do
     l' <- inferAs cubeT l
     lt <- typeOf l'
     r' <- typecheck r lt
-    return (TopeEQT topeT l' r')
+    return (topeEQT l' r')
 
   TopeLEQ l r -> do
     l' <- typecheck l cube2T
     r' <- typecheck r cube2T
-    return (TopeLEQT topeT l' r')
+    return (topeLEQT l' r')
 
   TopeAnd l r -> do
     l' <- typecheck l topeT
     r' <- typecheck r topeT
-    return (TopeAndT topeT l' r')
+    return (topeAndT l' r')
 
   TopeOr l r -> do
     l' <- typecheck l topeT
     r' <- typecheck r topeT
-    return (TopeOrT topeT l' r')
+    return (topeOrT l' r')
 
   RecBottom -> do
     contextEntails topeBottomT
@@ -1464,7 +1703,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         ts  = map (fmap snd) ttts
     sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
     contextEquiv (map fst ttts)
-    return (RecOrT (RecOrT universeT ts) rs')
+    return (recOrT (recOrT universeT ts) rs')
 
   TypeFun orig a Nothing b -> do
     a' <- infer a
@@ -1472,18 +1711,18 @@ infer tt = performing (ActionInfer tt) $ case tt of
       -- an argument can be a type
       UniverseT{} -> do
         b' <- enterScope orig a' $ inferAs universeT b
-        return (TypeFunT universeT orig a' Nothing b')
+        return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         b' <- enterScope orig a' $ inferAs universeT b
-        return (TypeFunT universeT orig a' Nothing b')
+        return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
       TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
         enterScope orig cube $ do
-          let tope' = AppT topeT (S <$> a') (Pure Z)  -- eta expand a'
+          let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
             b' <- inferAs universeT b
-            return (TypeFunT universeT orig cube (Just tope') b')
+            return (typeFunT orig cube (Just tope') b')
       _ -> issueTypeError $ TypeErrorOther "invalid function argument type"
 
   TypeFun orig cube (Just tope) ret -> do
@@ -1492,24 +1731,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
       tope' <- typecheck tope topeT
       localTope tope' $ do
         ret' <- inferAs universeT ret
-        return (TypeFunT universeT orig cube' (Just tope') ret')
+        return (typeFunT orig cube' (Just tope') ret')
 
   TypeSigma orig a b -> do
     a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
     b' <- enterScope orig a' $ inferAs universeT b
-    return (TypeSigmaT universeT orig a' b')
+    return (typeSigmaT orig a' b')
 
   TypeId x (Just tA) y -> do
     tA' <- typecheck tA universeT
     x' <- typecheck x tA'
     y' <- typecheck y tA'
-    return (TypeIdT universeT x' (Just tA') y')
+    return (typeIdT x' (Just tA') y')
 
   TypeId x Nothing y -> do
     x' <- inferAs universeT x
     tA <- typeOf x'
     y' <- typecheck y tA
-    return (TypeIdT universeT x' (Just tA) y')
+    return (typeIdT x' (Just tA) y')
 
   App f x -> do
     f' <- inferAs universeT f
@@ -1520,7 +1759,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         case b of
           UniverseTopeT{} -> return ()
           _ -> mapM_ (contextEntails . substitute x') mtope   -- FIXME: need to check?
-        return (AppT (substitute x' b) f' x')
+        return (appT (substitute x' b) f' x')
       ty -> issueTypeError $ TypeErrorNotFunction f' ty
 
   Lambda _orig Nothing _body -> do
@@ -1530,58 +1769,58 @@ infer tt = performing (ActionInfer tt) $ case tt of
     enterScope orig ty' $ do
       body' <- infer body
       ret <- typeOf body' 
-      return (LambdaT (TypeFunT universeT orig ty' Nothing ret) orig (Just (ty', Nothing)) body')
+      return (lambdaT (typeFunT orig ty' Nothing ret) orig (Just (ty', Nothing)) body')
   Lambda orig (Just (cube, Just tope)) body -> do
     cube' <- typecheck cube universeT
     enterScope orig cube' $ do
       tope' <- infer tope
       body' <- localTope tope' $ infer body
       ret <- typeOf body'
-      return (LambdaT (TypeFunT universeT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
+      return (lambdaT (typeFunT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
 
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do
     x' <- inferAs universeT x
     ty <- typeOf x'
-    return (ReflT (TypeIdT universeT x' (Just ty) x') (Just (x', Just ty)))
+    return (reflT (typeIdT x' (Just ty) x') (Just (x', Just ty)))
   Refl (Just (x, Just ty)) -> do
     ty' <- typecheck ty universeT
     x' <- typecheck x ty'
-    return (ReflT (TypeIdT universeT x' (Just ty') x') (Just (x', Just ty')))
+    return (reflT (typeIdT x' (Just ty') x') (Just (x', Just ty')))
 
   IdJ tA a tC d x p -> do
     tA' <- typecheck tA universeT
     a' <- typecheck a tA'
     let typeOf_C =
-          TypeFunT universeT Nothing tA' Nothing $
-            TypeFunT universeT Nothing (TypeIdT universeT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
+          typeFunT Nothing tA' Nothing $
+            typeFunT Nothing (typeIdT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
               universeT
     tC' <- typecheck tC typeOf_C
     let typeOf_d =
-          AppT universeT
-            (AppT (TypeFunT universeT Nothing (TypeIdT universeT a' (Just tA') a') Nothing universeT)
+          appT universeT
+            (appT (typeFunT Nothing (typeIdT a' (Just tA') a') Nothing universeT)
               tC' a')
-            (ReflT (TypeIdT universeT a' (Just tA') a') Nothing)
+            (reflT (typeIdT a' (Just tA') a') Nothing)
     d' <- typecheck d typeOf_d
     x' <- typecheck x tA'
-    p' <- typecheck p (TypeIdT universeT a' (Just tA') x')
+    p' <- typecheck p (typeIdT a' (Just tA') x')
     let ret =
-          AppT universeT
-            (AppT (TypeFunT universeT Nothing (TypeIdT universeT a' (Just tA') x') Nothing universeT)
+          appT universeT
+            (appT (typeFunT Nothing (typeIdT a' (Just tA') x') Nothing universeT)
               tC' x')
             p'
-    return (IdJT ret tA' a' tC' d' x' p')
+    return (idJT ret tA' a' tC' d' x' p')
 
   TypeAsc term ty -> do
     ty' <- inferAs universeT ty
     term' <- typecheck term ty'
-    return (TypeAscT ty' term' ty')
+    return (typeAscT term' ty')
 
   TypeRestricted ty (tope, term) -> do
     ty' <- typecheck ty universeT
     tope' <- typecheck tope topeT
     term' <- localTope tope' $ typecheck term ty'
-    return (TypeRestrictedT universeT ty' (tope', term'))
+    return (typeRestrictedT ty' (tope', term'))
 
 checkCoherence
   :: Eq var
@@ -1590,7 +1829,7 @@ checkCoherence
   -> TypeCheck var ()
 checkCoherence (ltope, lterm) (rtope, rterm) =
   performing (ActionCheckCoherence (ltope, lterm) (rtope, rterm)) $ do
-    localTope (TopeAndT topeT ltope rtope) $ do
+    localTope (topeAndT ltope rtope) $ do
       unifyTerms lterm rterm
 
 inferStandalone :: Eq var => Term var -> Either (TypeErrorInScopedContext var) (TermT var)

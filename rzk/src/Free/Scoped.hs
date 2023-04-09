@@ -76,20 +76,20 @@ deriveBifunctor ''Empty
 deriveBifoldable ''Empty
 deriveBitraversable ''Empty
 
-data TypedF term scope typedTerm = TypedF
-  { typeF :: typedTerm
+data AnnF ann term scope typedTerm = AnnF
+  { annF :: ann typedTerm
   , termF :: term scope typedTerm
   } deriving (Eq, Show, Functor)
 
-instance Bifunctor term => Bifunctor (TypedF term) where
-  bimap f g (TypedF t x) = TypedF (g t) (bimap f g x)
+instance (Functor ann, Bifunctor term) => Bifunctor (AnnF ann term) where
+  bimap f g (AnnF t x) = AnnF (fmap g t) (bimap f g x)
 
--- | Important: does not fold over the 'typeF' component!
-instance Bifoldable term => Bifoldable (TypedF term) where
-  bifoldMap f g (TypedF _ty x) = {- g ty <> -} bifoldMap f g x
+-- | Important: does not fold over the 'annF' component!
+instance Bifoldable term => Bifoldable (AnnF ann term) where
+  bifoldMap f g (AnnF _ty x) = {- g ty <> -} bifoldMap f g x
 
-instance Bitraversable term => Bitraversable (TypedF term) where
-  bitraverse f g (TypedF t x) = TypedF <$> g t <*> bitraverse f g x
+instance (Traversable ann, Bitraversable term) => Bitraversable (AnnF ann term) where
+  bitraverse f g (AnnF t x) = AnnF <$> traverse g t <*> bitraverse f g x
 
 transFS
   :: (Bifunctor term)
@@ -99,7 +99,7 @@ transFS phi = \case
   Pure x -> Pure x
   Free t -> Free (phi (bimap (transFS phi) (transFS phi) t))
 
-untyped :: Bifunctor term => FS (TypedF term) a -> FS term a
+untyped :: (Functor ann, Bifunctor term) => FS (AnnF ann term) a -> FS term a
 untyped = transFS termF
 
 pattern ExtE :: ext (Scope (FS (t :+: ext)) a) (FS (t :+: ext) a) -> FS (t :+: ext) a
