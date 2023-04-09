@@ -1027,10 +1027,12 @@ typeOf t = typeOfUncomputed t >>= whnfT
 
 unifyTopes :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyTopes l r = do
-  equiv <- topesEquiv l r
-  l' <- nfT l
-  r' <- nfT r
-  unless equiv $
+  let equiv = and
+        [ [l] `entail` r
+        , [r] `entail` l ]
+  unless equiv $ do
+    l' <- nfT l
+    r' <- nfT r
     issueTypeError (TypeErrorTopesNotEquivalent l' r')
 
 inAllSubContexts :: TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
@@ -1062,182 +1064,183 @@ unify mterm expected actual = performUnification `catchError` \typeError -> do
 
 unifyInCurrentContext :: Eq var => Maybe (Term var) -> TermT var -> TermT var -> TypeCheck var ()
 unifyInCurrentContext mterm expected actual = performing action $
-  unless (expected == actual) $ do
+  unless (expected == actual) $ do      -- NOTE: this gives a small, but noticeable speedup
     expectedVal <- whnfT expected
     actualVal <- whnfT actual
     (expected', actual') <- etaMatch expectedVal actualVal
-  --  expected'' <- nfT expected'
-  --  actual'' <- nfT actual'
-    case actual' of
-      RecBottomT{} -> return ()
-      RecOrT _ty rs' ->
-        case expected' of
-          RecOrT _ty rs -> sequence_ $
-            checkCoherence <$> rs <*> rs'
-          _ -> do
-            forM_ rs' $ \(tope, term) ->
-              localTope tope $
-                unifyTerms expected term
-      _ -> typeOf expected' >>= typeOf >>= \case
-        UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
-        _ -> do
-          let def = unless (expected' == actual') err
-              err =
-                case mterm of
-                  Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
-                  Just term -> issueTypeError (TypeErrorUnify term expected' actual')
-              errS = do
-                let expectedS = S <$> expected'
-                    actualS = S <$> actual'
-                case mterm of
-                  Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
-                  Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+    unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
+    --  expected'' <- nfT expected'
+    --  actual'' <- nfT actual'
+      case actual' of
+        RecBottomT{} -> return ()
+        RecOrT _ty rs' ->
           case expected' of
-            Pure{} -> def
+            RecOrT _ty rs -> sequence_ $
+              checkCoherence <$> rs <*> rs'
+            _ -> do
+              forM_ rs' $ \(tope, term) ->
+                localTope tope $
+                  unifyTerms expected' term
+        _ -> typeOf expected' >>= typeOf >>= \case
+          UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
+          _ -> do
+            let def = unless (expected' == actual') err
+                err =
+                  case mterm of
+                    Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
+                    Just term -> issueTypeError (TypeErrorUnify term expected' actual')
+                errS = do
+                  let expectedS = S <$> expected'
+                      actualS = S <$> actual'
+                  case mterm of
+                    Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
+                    Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+            case expected' of
+              Pure{} -> def
 
-            UniverseT{} -> def
-            UniverseCubeT{} -> def
-            UniverseTopeT{} -> def
+              UniverseT{} -> def
+              UniverseCubeT{} -> def
+              UniverseTopeT{} -> def
 
-            CubeUnitT{} -> def
-            CubeUnitStarT{} -> def
-            Cube2T{} -> def
-            Cube2_0T{} -> def
-            Cube2_1T{} -> def
-            CubeProductT _ l r ->
-              case actual' of
-                CubeProductT _ l' r' -> do
-                  unify Nothing l l'
-                  unify Nothing r r'
-                _ -> err
+              CubeUnitT{} -> def
+              CubeUnitStarT{} -> def
+              Cube2T{} -> def
+              Cube2_0T{} -> def
+              Cube2_1T{} -> def
+              CubeProductT _ l r ->
+                case actual' of
+                  CubeProductT _ l' r' -> do
+                    unify Nothing l l'
+                    unify Nothing r r'
+                  _ -> err
 
-            PairT _ty l r ->
-              case actual' of
-                PairT _ty' l' r' -> do
-                  unify Nothing l l'
-                  unify Nothing r r'
+              PairT _ty l r ->
+                case actual' of
+                  PairT _ty' l' r' -> do
+                    unify Nothing l l'
+                    unify Nothing r r'
 
-                -- one part of eta-expansion for pairs
-                -- FIXME: add symmetric version!
-                _ -> err
+                  -- one part of eta-expansion for pairs
+                  -- FIXME: add symmetric version!
+                  _ -> err
 
-            FirstT _ty t ->
-              case actual' of
-                FirstT _ty' t' -> unify Nothing t t'
-                _ -> err
+              FirstT _ty t ->
+                case actual' of
+                  FirstT _ty' t' -> unify Nothing t t'
+                  _ -> err
 
-            SecondT _ty t ->
-              case actual' of
-                SecondT _ty' t' -> unify Nothing t t'
-                _ -> err
+              SecondT _ty t ->
+                case actual' of
+                  SecondT _ty' t' -> unify Nothing t t'
+                  _ -> err
 
-            TopeTopT{}    -> unifyTopes expected actual
-            TopeBottomT{} -> unifyTopes expected actual
-            TopeEQT{}     -> unifyTopes expected actual
-            TopeLEQT{}    -> unifyTopes expected actual
-            TopeAndT{}    -> unifyTopes expected actual
-            TopeOrT{}     -> unifyTopes expected actual
+              TopeTopT{}    -> unifyTopes expected' actual'
+              TopeBottomT{} -> unifyTopes expected' actual'
+              TopeEQT{}     -> unifyTopes expected' actual'
+              TopeLEQT{}    -> unifyTopes expected' actual'
+              TopeAndT{}    -> unifyTopes expected' actual'
+              TopeOrT{}     -> unifyTopes expected' actual'
 
-            RecBottomT{} -> return () -- unifies with anything
-            RecOrT _ty rs ->
-              case actual' of
-                -- ----------------------------------------------
-                -- IMPORTANT: this pattern matching is redundant,
-                -- but it is not obvious
-                -- take care when refactoring!
-                -- ----------------------------------------------
---                RecOrT _ty rs' -> sequence_ $
---                  checkCoherence <$> rs <*> rs'
-                -- ----------------------------------------------
-                _ -> do
-                  forM_ rs $ \(tope, term) ->
+              RecBottomT{} -> return () -- unifies with anything
+              RecOrT _ty rs ->
+                case actual' of
+                  -- ----------------------------------------------
+                  -- IMPORTANT: this pattern matching is redundant,
+                  -- but it is not obvious, so
+                  -- take care when refactoring!
+                  -- ----------------------------------------------
+  --                RecOrT _ty rs' -> sequence_ $
+  --                  checkCoherence <$> rs <*> rs'
+                  -- ----------------------------------------------
+                  _ -> do
+                    forM_ rs $ \(tope, term) ->
+                      localTope tope $
+                        unify Nothing term actual'
+
+              TypeFunT _ty _orig cube mtope ret ->
+                case actual' of
+                  TypeFunT _ty' orig' cube' mtope' ret' -> do
+                    unify Nothing cube cube'
+                    enterScope orig' cube $ do
+                      case (mtope, mtope') of
+                        (Just tope, Just tope') -> unify Nothing tope tope'
+                        (Nothing, Nothing) -> return ()
+                        _ -> errS
+                      unify Nothing ret ret'
+                  _ -> err
+
+              TypeSigmaT _ty _orig a b ->
+                case actual' of
+                  TypeSigmaT _ty' orig' a' b' -> do
+                    unify Nothing a a'
+                    enterScope orig' a $ unify Nothing b b'
+                  _ -> err
+
+              TypeIdT _ty x _tA y ->
+                case actual' of
+                  TypeIdT _ty' x' _tA' y' -> do
+                    -- unify Nothing tA tA' -- TODO: do we need this check?
+                    unify Nothing x x'
+                    unify Nothing y y'
+                  _ -> err
+
+              AppT _ty f x ->
+                case actual' of
+                  AppT _ty' f' x' -> do
+                    unify Nothing f f'
+                    unify Nothing x x'
+                  _ -> err
+
+              LambdaT ty _orig _mparam body ->
+                case stripTypeRestrictions (infoType ty) of
+                  TypeFunT _ty _origF param mtope _ret ->
+                    case actual' of
+                      LambdaT ty' orig' _mparam' body' -> do
+                        case stripTypeRestrictions (infoType ty') of
+                          TypeFunT _ty' _origF' param' mtope' _ret' -> do
+                            unify Nothing param param'
+                            enterScope orig' param $ do
+                              case (mtope, mtope') of
+                                (Just tope, Just tope') -> do
+                                  unify Nothing tope tope'
+                                  localTope tope $ unify Nothing body body'
+                                (Nothing, Nothing) -> do
+                                  unify Nothing body body'
+                                _ -> errS
+                          _ -> err
+                      _ -> err
+                  _ -> err
+
+              ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
+                case actual' of
+                  ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
+                    -- unify Nothing tA tA' -- TODO: do we need this check?
+                    unify Nothing x x'
+                    unify Nothing y y'
+                  _ -> err
+              ReflT{} -> error "impossible: refl with non-identity type!"
+
+              IdJT _ty a b c d e f ->
+                case actual' of
+                  IdJT _ty' a' b' c' d' e' f' -> do
+                    unify Nothing a a'
+                    unify Nothing b b'
+                    unify Nothing c c'
+                    unify Nothing d d'
+                    unify Nothing e e'
+                    unify Nothing f f'
+                  _ -> err
+
+              TypeAscT{} -> error "impossible: type ascription in WHNF!"
+
+              TypeRestrictedT _ty ty (tope, term) ->
+                case actual' of
+                  TypeRestrictedT _ty' ty' (tope', term') -> do
+                    unify mterm ty ty'
+                    unify Nothing tope tope'
                     localTope tope $
-                      unify Nothing term actual
-
-            TypeFunT _ty _orig cube mtope ret ->
-              case actual' of
-                TypeFunT _ty' orig' cube' mtope' ret' -> do
-                  unify Nothing cube cube'
-                  enterScope orig' cube $ do
-                    case (mtope, mtope') of
-                      (Just tope, Just tope') -> unify Nothing tope tope'
-                      (Nothing, Nothing) -> return ()
-                      _ -> errS
-                    unify Nothing ret ret'
-                _ -> err
-
-            TypeSigmaT _ty _orig a b ->
-              case actual' of
-                TypeSigmaT _ty' orig' a' b' -> do
-                  unify Nothing a a'
-                  enterScope orig' a $ unify Nothing b b'
-                _ -> err
-
-            TypeIdT _ty x _tA y ->
-              case actual' of
-                TypeIdT _ty' x' _tA' y' -> do
-                  -- unify Nothing tA tA' -- TODO: do we need this check?
-                  unify Nothing x x'
-                  unify Nothing y y'
-                _ -> err
-
-            AppT _ty f x ->
-              case actual' of
-                AppT _ty' f' x' -> do
-                  unify Nothing f f'
-                  unify Nothing x x'
-                _ -> err
-
-            LambdaT ty _orig _mparam body ->
-              case stripTypeRestrictions (infoType ty) of
-                TypeFunT _ty _origF param mtope _ret ->
-                  case actual' of
-                    LambdaT ty' orig' _mparam' body' -> do
-                      case stripTypeRestrictions (infoType ty') of
-                        TypeFunT _ty' _origF' param' mtope' _ret' -> do
-                          unify Nothing param param'
-                          enterScope orig' param $ do
-                            case (mtope, mtope') of
-                              (Just tope, Just tope') -> do
-                                unify Nothing tope tope'
-                                localTope tope $ unify Nothing body body'
-                              (Nothing, Nothing) -> do
-                                unify Nothing body body'
-                              _ -> errS
-                        _ -> err
-                    _ -> err
-                _ -> err
-
-            ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
-              case actual' of
-                ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
-                  -- unify Nothing tA tA' -- TODO: do we need this check?
-                  unify Nothing x x'
-                  unify Nothing y y'
-                _ -> err
-            ReflT{} -> error "impossible: refl with non-identity type!"
-
-            IdJT _ty a b c d e f ->
-              case actual' of
-                IdJT _ty' a' b' c' d' e' f' -> do
-                  unify Nothing a a'
-                  unify Nothing b b'
-                  unify Nothing c c'
-                  unify Nothing d d'
-                  unify Nothing e e'
-                  unify Nothing f f'
-                _ -> err
-
-            TypeAscT{} -> error "impossible: type ascription in WHNF!"
-
-            TypeRestrictedT _ty ty (tope, term) ->
-              case actual' of
-                TypeRestrictedT _ty' ty' (tope', term') -> do
-                  unify mterm ty ty'
-                  unify Nothing tope tope'
-                  localTope tope $
-                    unify Nothing term term'
-                _ -> err    -- FIXME: need better unification for restrictions
+                      unify Nothing term term'
+                  _ -> err    -- FIXME: need better unification for restrictions
 
   where
     action = case mterm of
