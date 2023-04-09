@@ -13,6 +13,7 @@
 module Free.Scoped where
 
 import           Control.Monad      (ap)
+import           Data.Function      (on)
 import           Data.Bifoldable
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
@@ -79,7 +80,11 @@ deriveBitraversable ''Empty
 data AnnF ann term scope typedTerm = AnnF
   { annF :: ann typedTerm
   , termF :: term scope typedTerm
-  } deriving (Eq, Show, Functor)
+  } deriving (Show, Functor)
+
+-- | Important: does not compare the `annF` component!
+instance Eq (term scope typedTerm) => Eq (AnnF ann term scope typedTerm) where
+  (==) = (==) `on` termF
 
 instance (Functor ann, Bifunctor term) => Bifunctor (AnnF ann term) where
   bimap f g (AnnF t x) = AnnF (fmap g t) (bimap f g x)

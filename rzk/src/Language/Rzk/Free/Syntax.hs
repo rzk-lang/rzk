@@ -52,24 +52,35 @@ data TermF scope term
     | TypeAscF term term
     | TypeRestrictedF term (term, term)
     deriving (Eq)
+deriveBifunctor ''TermF
+deriveBifoldable ''TermF
+deriveBitraversable ''TermF
+makePatternsAll ''TermF   -- declare all patterns using Template Haskell
 
 newtype Type term = Type { getType :: term }
   deriving (Eq, Functor, Foldable, Traversable)
 
 data TypeInfo term = TypeInfo
   { infoType :: term
-  , infoWHNF :: term
-  , infoNF   :: term
+  , infoWHNF :: Maybe term
+  , infoNF   :: Maybe term
   } deriving (Eq, Functor, Foldable, Traversable)
 
 type Term = FS TermF
 type TermT = FS (AnnF TypeInfo TermF)
 
-deriveBifunctor ''TermF
-deriveBifoldable ''TermF
-deriveBitraversable ''TermF
+termIsNF :: TermT var -> TermT var
+termIsNF t@Pure{} = t
+termIsNF (Free (AnnF info f)) = t'
+  where
+    t' = Free (AnnF info { infoWHNF = Just t', infoNF = Just t' } f)
 
-makePatternsAll ''TermF   -- declare all patterns using Template Haskell
+invalidateWHNF :: TermT var -> TermT var
+invalidateWHNF = transFS $ \(AnnF info f) ->
+  AnnF info { infoWHNF = Nothing, infoNF = Nothing } f
+
+substituteT :: TermT var -> Scope TermT var -> TermT var
+substituteT x = substitute x . invalidateWHNF
 
 type Term' = Term Rzk.VarIdent
 type TermT' = TermT Rzk.VarIdent
