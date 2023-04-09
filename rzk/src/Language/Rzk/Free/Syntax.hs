@@ -69,6 +69,12 @@ data TypeInfo term = TypeInfo
 type Term = FS TermF
 type TermT = FS (AnnF TypeInfo TermF)
 
+termIsWHNF :: TermT var -> TermT var
+termIsWHNF t@Pure{} = t
+termIsWHNF (Free (AnnF info f)) = t'
+  where
+    t' = Free (AnnF info { infoWHNF = Just t' } f)
+
 termIsNF :: TermT var -> TermT var
 termIsNF t@Pure{} = t
 termIsNF (Free (AnnF info f)) = t'

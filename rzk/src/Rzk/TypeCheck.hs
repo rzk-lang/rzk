@@ -34,7 +34,7 @@ typecheckModulesWithLocation = \case
   [] -> return ()
   m : ms -> do
     decls <- typecheckModuleWithLocation m
-    localDecls decls $
+    localDeclsPrepared decls $
       typecheckModulesWithLocation ms
 
 typecheckModules :: [Rzk.Module] -> TypeCheck Rzk.VarIdent ()
@@ -42,7 +42,7 @@ typecheckModules = \case
   [] -> return ()
   m : ms -> do
     decls <- typecheckModule m
-    localDecls decls $
+    localDeclsPrepared decls $
       typecheckModules ms
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck Rzk.VarIdent [Decl']
@@ -62,11 +62,11 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
       traceTypeCheck Release ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #def " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
-          ty' <- typecheck (toTerm' ty) universeT
-          term' <- typecheck (toTerm' term) ty'
+          ty' <- typecheck (toTerm' ty) universeT >>= whnfT -- >>= pure . termIsWHNF
+          term' <- typecheck (toTerm' term) ty' >>= whnfT >>= pure . termIsWHNF
           let decl = Decl name ty' (Just term')
           fmap (decl :) $
-            localDecl decl $
+            localDeclPrepared decl $
               go (i + 1) moreCommands
 
 data TypeError var
@@ -174,7 +174,7 @@ ppTypeErrorInScopedContextWith' used vars = \case
     withFresh Nothing f =
       case vars of
         x:xs -> f (x, xs)
-        _ -> error "impossible: not enough fresh variables!"
+        _ -> panicImpossible "not enough fresh variables"
     withFresh (Just z) f = f (z', filter (/= z') vars)    -- FIXME: very inefficient filter
       where
         z' = refreshVar used z -- FIXME: inefficient
@@ -191,6 +191,13 @@ issueTypeError err = do
     { typeErrorError = err
     , typeErrorContext = context
     }
+
+panicImpossible :: String -> a
+panicImpossible msg = error $ unlines
+  [ "PANIC! Impossible happened (" <> msg <> ")!"
+  , "Please, report a bug at https://github.com/fizruk/rzk/issues"
+    -- TODO: add details and/or instructions how to produce an artifact for reproducing
+  ]
 
 data Action var
   = ActionTypeCheck (Term var) (TermT var)
@@ -361,22 +368,34 @@ localDecls :: Eq var => [Decl var] -> TypeCheck var a -> TypeCheck var a
 localDecls [] = id
 localDecls (decl : decls) = localDecl decl . localDecls decls
 
+localDeclsPrepared :: [Decl var] -> TypeCheck var a -> TypeCheck var a
+localDeclsPrepared [] = id
+localDeclsPrepared (decl : decls) = localDeclPrepared decl . localDeclsPrepared decls
+
 localDecl :: Eq var => Decl var -> TypeCheck var a -> TypeCheck var a
 localDecl (Decl x ty term) tc = do
   ty' <- whnfT ty
   term' <- traverse whnfT term
-  flip local tc $ \Context{..} -> Context
-    { varTypes = (x, ty') : varTypes
-    , varValues = (x, term') : varValues
+  localDeclPrepared (Decl x ty' term') tc
+
+localDeclPrepared :: Decl var -> TypeCheck var a -> TypeCheck var a
+localDeclPrepared (Decl x ty term) = local $ \Context{..} -> Context
+    { varTypes = (x, ty) : varTypes
+    , varValues = (x, term) : varValues
     , .. }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
 
 showSomeTermTs :: Eq var => [TermT var] -> String
-showSomeTermTs terms = show (map (\term -> untyped $ fmap (\x -> maybe (error "impossible") id (lookup x mapping)) term) terms)
+showSomeTermTs terms = show [ untyped (rename <$> term) | term <- terms ]
   where
     vars = nub (foldMap (foldMap pure) terms)
     mapping = zip vars defaultVarIdents
+    rename x = fromMaybe (Rzk.VarIdent "?") (lookup x mapping)
+
+traceStartAndFinish :: Show a => String -> a -> a
+traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
+  (\x -> trace ("finish [" <> tag <> "] with " <> show x) x)
 
 entail :: Eq var => [TermT var] -> TermT var -> Bool
 entail topes tope = all (`solveRHS` tope) $
@@ -742,7 +761,6 @@ whnfT tt = case tt of
   TypeSigmaT{} -> pure tt
   TypeIdT{} -> pure tt
   RecBottomT{} -> pure tt
-  RecOrT{} -> pure tt -- FIXME: should we consider recOR to be WHNF?
 
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> whnfT term
@@ -797,6 +815,18 @@ whnfT tt = case tt of
                 whnfT p >>= \case
                   ReflT{} -> whnfT d
                   p' -> pure (IdJT ty tA a tC d x p')
+
+              RecOrT _ty rs -> do
+                let go [] = pure Nothing
+                    go ((tope, tt') : rs') = do
+                      checkTope tope >>= \case
+                        True -> pure (Just tt')
+                        False -> go rs'
+                go rs >>= \case
+                  Just tt' -> whnfT tt'
+                  Nothing
+                    | [tt'] <- nubTermT (map snd rs) -> whnfT tt'
+                    | otherwise -> pure tt
 
               TypeRestrictedT ty type_ (tope, term) -> do
                 nfTope tope >>= \case
@@ -880,17 +910,17 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   LambdaT ty orig _mparam body
     | TypeFunT _ty _origF param mtope _ret <- infoType ty ->
         LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
-  LambdaT{} -> error "impossible"
+  LambdaT{} -> panicImpossible "lambda with a non-function type in the tope layer"
 
-  TypeFunT{} -> error "impossible"
-  TypeSigmaT{} -> error "impossible"
-  TypeIdT{} -> error "impossible"
-  ReflT{} -> error "impossible"
-  IdJT{} -> error "impossible"
-  TypeRestrictedT{} -> error "impossible"
+  TypeFunT{} -> panicImpossible "exposed function type in the tope layer"
+  TypeSigmaT{} -> panicImpossible "dependent sum type in the tope layer"
+  TypeIdT{} -> panicImpossible "identity type in the tope layer"
+  ReflT{} -> panicImpossible "refl in the tope layer"
+  IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
+  TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
 
-  RecOrT{} -> error "impossible"
-  RecBottomT{} -> error "impossible"
+  RecOrT{} -> panicImpossible "recOR in the tope layer"
+  RecBottomT{} -> panicImpossible "recBOT in the tope layer"
 
 -- | Compute a typed term to its NF.
 --
@@ -968,7 +998,7 @@ nfT tt = case tt of
                   mtope' <- traverse nfT mtope
                   maybe id localTope mtope' $
                     LambdaT ty orig (Just (param', mtope')) <$> nfT body
-              _ -> error "impossible: lambda with non-function type!"
+              _ -> panicImpossible "lambda with a non-function type"
 
 
           TypeSigmaT ty orig a b -> do
@@ -991,12 +1021,17 @@ nfT tt = case tt of
               ReflT{} -> nfT d
               p' -> IdJT ty <$> nfT tA <*> nfT a <*> nfT tC <*> nfT d <*> nfT x <*> nfT p'
 
-          -- FIXME: not a proper NF
-          RecOrT ty rs -> fmap (RecOrT ty) $
-            forM rs $ \(tope, term) -> do
-              tope' <- nfTope tope
-              term' <- localTope tope' $ nfT term
-              return (tope', term')
+          RecOrT _ty rs -> do
+            let go [] = pure Nothing
+                go ((tope, tt') : rs') = do
+                  checkTope tope >>= \case
+                    True -> pure (Just tt')
+                    False -> go rs'
+            go rs >>= \case
+              Just tt' -> nfT tt'
+              Nothing
+                | [tt'] <- nubTermT (map snd rs) -> nfT tt'
+                | otherwise -> pure tt
 
 
           TypeRestrictedT ty type_ (tope, term) -> do
@@ -1039,7 +1074,7 @@ inAllSubContexts :: TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
 inAllSubContexts handleSingle tc = do
   topeSubContexts <- asks localTopesNFUnion
   case topeSubContexts of
-    [] -> error "something went wrong?"
+    [] -> panicImpossible "empty set of alternative contexts"
     [_] -> handleSingle
     _:_:_ -> do
       forM_ topeSubContexts $ \topes' ->
@@ -1218,7 +1253,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                     unify Nothing x x'
                     unify Nothing y y'
                   _ -> err
-              ReflT{} -> error "impossible: refl with non-identity type!"
+              ReflT{} -> panicImpossible "refl with a non-identity type!"
 
               IdJT _ty a b c d e f ->
                 case actual' of
@@ -1231,7 +1266,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                     unify Nothing f f'
                   _ -> err
 
-              TypeAscT{} -> error "impossible: type ascription in WHNF!"
+              TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
 
               TypeRestrictedT _ty ty (tope, term) ->
                 case actual' of
@@ -1277,9 +1312,9 @@ localTope tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
         entailsBottom = (tope' : localTopes') `entail` topeBottomT
 
 universeT :: TermT var
-universeT = iterate f (error msg) !! 30
+universeT = iterate f (panicImpossible msg) !! 30
   where
-    msg = "something bad happened: going too deep into a universe type"
+    msg = "going too high up the universe levels"
     f t = UniverseT TypeInfo
       { infoType = t
       , infoNF = Just universeT
@@ -1611,6 +1646,15 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             return (reflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorOther "unexpected refl"
 
+        -- FIXME: this does not make typechecking faster, why?
+--      RecOr rs -> do
+--        rs' <- forM rs $ \(tope, rterm) -> do
+--          tope' <- typecheck tope topeT
+--          contextEntailedBy tope'
+--          localTope tope' $ do
+--            rterm' <- typecheck rterm ty
+--            return (tope', rterm')
+--        return (recOrT ty rs')
 
       _ -> do
         term' <- infer term
@@ -1708,6 +1752,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
+      contextEntailedBy tope'
       localTope tope' $ do
         term' <- inferAs universeT term
         ty <- typeOf term'
@@ -1843,6 +1888,10 @@ checkCoherence
 checkCoherence (ltope, lterm) (rtope, rterm) =
   performing (ActionCheckCoherence (ltope, lterm) (rtope, rterm)) $ do
     localTope (topeAndT ltope rtope) $ do
+      ltype <- stripTypeRestrictions <$> typeOf lterm   -- FIXME: why strip?
+      rtype <- stripTypeRestrictions <$> typeOf rterm   -- FIXME: why strip?
+      -- FIXME: do we need to unify types here or is it included in unification of terms?
+      unifyTerms ltype rtype
       unifyTerms lterm rterm
 
 inferStandalone :: Eq var => Term var -> Either (TypeErrorInScopedContext var) (TermT var)
