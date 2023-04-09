@@ -71,7 +71,7 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
 
 data TypeError var
   = TypeErrorOther String
-  | TypeErrorUnify (Term var) (TermT var) (TermT var)
+  | TypeErrorUnify (TermT var) (TermT var) (TermT var)
   | TypeErrorUnifyTerms (TermT var) (TermT var)
   | TypeErrorNotPair (TermT var) (TermT var)
   | TypeErrorNotFunction (TermT var) (TermT var)
@@ -107,7 +107,7 @@ ppTypeError' = \case
     , "with actual type"
     , "  " <> show (untyped actual)
     , "for term"
-    , "  " <> show term ]
+    , "  " <> show (untyped term) ]
   TypeErrorUnifyTerms expected actual -> unlines
     [ "cannot unify term"
     , "  " <> show (untyped expected)
@@ -233,7 +233,7 @@ panicImpossible msg = error $ unlines
 
 data Action var
   = ActionTypeCheck (Term var) (TermT var)
-  | ActionUnify (Term var) (TermT var) (TermT var)
+  | ActionUnify (TermT var) (TermT var) (TermT var)
   | ActionUnifyTerms (TermT var) (TermT var)
   | ActionInfer (Term var)
   | ActionContextEntailedBy (TermT var)
@@ -267,7 +267,7 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
     , "with actual type"
     , "  " <> show (untyped actual)
     , "for term"
-    , "  " <> show term ]
+    , "  " <> show (untyped term) ]
 
   ActionUnifyTerms expected actual ->
     [ "unifying term"
@@ -662,28 +662,28 @@ stripTypeRestrictions (TypeRestrictedT _ty ty _restriction) = stripTypeRestricti
 stripTypeRestrictions t = t
 
 -- | Perform at most one \(\eta\)-expansion at the top-level to assist unification.
-etaMatch :: Eq var => TermT var -> TermT var -> TypeCheck var (TermT var, TermT var)
+etaMatch :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var (TermT var, TermT var)
 -- FIXME: double check the next 3 rules
-etaMatch expected@TypeRestrictedT{} actual@TypeRestrictedT{} = pure (expected, actual)
-etaMatch expected (TypeRestrictedT _ty ty (_tope, _term)) = etaMatch expected ty
---etaMatch expected@TypeRestrictedT{} actual =
---  etaMatch expected (typeRestrictedT actual (topeBottomT, recBottomT))
+etaMatch _mterm expected@TypeRestrictedT{} actual@TypeRestrictedT{} = pure (expected, actual)
+etaMatch  mterm expected (TypeRestrictedT _ty ty (_tope, _term)) = etaMatch mterm expected ty
+etaMatch (Just term) expected@TypeRestrictedT{} actual =
+  etaMatch (Just term) expected (typeRestrictedT actual (topeTopT, term))
 -- ------------------------------------
-etaMatch expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
-etaMatch expected@PairT{}   actual@PairT{}   = pure (expected, actual)
-etaMatch expected@LambdaT{} actual = do
+etaMatch _mterm expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
+etaMatch _mterm expected@PairT{}   actual@PairT{}   = pure (expected, actual)
+etaMatch _mterm expected@LambdaT{} actual = do
   actual' <- etaExpand actual
   pure (expected, actual')
-etaMatch expected actual@LambdaT{} = do
+etaMatch _mterm expected actual@LambdaT{} = do
   expected' <- etaExpand expected
   pure (expected', actual)
-etaMatch expected@PairT{} actual = do
+etaMatch _mterm expected@PairT{} actual = do
   actual' <- etaExpand actual
   pure (expected, actual')
-etaMatch expected actual@PairT{} = do
+etaMatch _mterm expected actual@PairT{} = do
   expected' <- etaExpand expected
   pure (expected', actual)
-etaMatch expected actual = pure (expected, actual)
+etaMatch _mterm expected actual = pure (expected, actual)
 
 etaExpand :: Eq var => TermT var -> TypeCheck var (TermT var)
 etaExpand term@LambdaT{} = pure term
@@ -1097,10 +1097,8 @@ unifyTopes l r = do
   let equiv = and
         [ [l] `entail` r
         , [r] `entail` l ]
-  unless equiv $ do
-    l' <- nfT l
-    r' <- nfT r
-    issueTypeError (TypeErrorTopesNotEquivalent l' r')
+  unless equiv $
+    issueTypeError (TypeErrorTopesNotEquivalent l r)
 
 inAllSubContexts :: TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
 inAllSubContexts handleSingle tc = do
@@ -1117,18 +1115,18 @@ inAllSubContexts handleSingle tc = do
             , .. }) $
           tc
 
-unify :: Eq var => Maybe (Term var) -> TermT var -> TermT var -> TypeCheck var ()
+unify :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
 unify mterm expected actual = performUnification `catchError` \typeError -> do
   inAllSubContexts (throwError typeError) performUnification
   where
     performUnification = unifyInCurrentContext mterm expected actual 
 
-unifyInCurrentContext :: Eq var => Maybe (Term var) -> TermT var -> TermT var -> TypeCheck var ()
+unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
 unifyInCurrentContext mterm expected actual = performing action $
   unless (expected == actual) $ do      -- NOTE: this gives a small, but noticeable speedup
     expectedVal <- whnfT expected
     actualVal <- whnfT actual
-    (expected', actual') <- etaMatch expectedVal actualVal
+    (expected', actual') <- etaMatch mterm expectedVal actualVal
     unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
       case actual' of
         RecBottomT{} -> return ()
@@ -1169,15 +1167,15 @@ unifyInCurrentContext mterm expected actual = performing action $
               CubeProductT _ l r ->
                 case actual' of
                   CubeProductT _ l' r' -> do
-                    unify Nothing l l'
-                    unify Nothing r r'
+                    unifyTerms l l'
+                    unifyTerms r r'
                   _ -> err
 
               PairT _ty l r ->
                 case actual' of
                   PairT _ty' l' r' -> do
-                    unify Nothing l l'
-                    unify Nothing r r'
+                    unifyTerms l l'
+                    unifyTerms r r'
 
                   -- one part of eta-expansion for pairs
                   -- FIXME: add symmetric version!
@@ -1185,12 +1183,12 @@ unifyInCurrentContext mterm expected actual = performing action $
 
               FirstT _ty t ->
                 case actual' of
-                  FirstT _ty' t' -> unify Nothing t t'
+                  FirstT _ty' t' -> unifyTerms t t'
                   _ -> err
 
               SecondT _ty t ->
                 case actual' of
-                  SecondT _ty' t' -> unify Nothing t t'
+                  SecondT _ty' t' -> unifyTerms t t'
                   _ -> err
 
               TopeTopT{}    -> unifyTopes expected' actual'
@@ -1214,18 +1212,24 @@ unifyInCurrentContext mterm expected actual = performing action $
                   _ -> do
                     forM_ rs $ \(tope, term) ->
                       localTope tope $
-                        unify Nothing term actual'
+                        unifyTerms term actual'
 
               TypeFunT _ty _orig cube mtope ret ->
                 case actual' of
                   TypeFunT _ty' orig' cube' mtope' ret' -> do
-                    unify Nothing cube cube'
+                    unifyTerms cube cube' -- FIXME: unifyCubes
                     enterScope orig' cube $ do
                       case (mtope, mtope') of
-                        (Just tope, Just tope') -> unify Nothing tope tope'
-                        (Nothing, Nothing) -> return ()
-                        _ -> errS
-                      unify Nothing ret ret'
+                        (Just tope, Just tope') -> do
+                          topeNF <- nfT tope
+                          topeNF' <- nfT tope'
+                          unifyTopes topeNF topeNF'
+                        (Nothing, Nothing)      -> return ()
+                        (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
+                        (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
+                      case mterm of
+                        Nothing -> unifyTerms ret ret'
+                        Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
                   _ -> err
 
               TypeSigmaT _ty _orig a b ->
@@ -1296,8 +1300,8 @@ unifyInCurrentContext mterm expected actual = performing action $
                 case actual' of
                   TypeRestrictedT _ty' ty' (tope', term') -> do
                     unify mterm ty ty'
-                    unify Nothing tope tope'
-                    localTope tope $
+                    localTope tope $ do
+                      contextEntails tope' -- expected is less specified than actual
                       unify Nothing term term'
                   _ -> err    -- FIXME: need better unification for restrictions
 
@@ -1306,7 +1310,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                Nothing -> ActionUnifyTerms expected actual
                Just term -> ActionUnify term expected actual
 
-unifyTypes :: Eq var => Term var -> TermT var -> TermT var -> TypeCheck var ()
+unifyTypes :: Eq var => TermT var -> TermT var -> TermT var -> TypeCheck var ()
 unifyTypes = unify . Just
 
 unifyTerms :: Eq var => TermT var -> TermT var -> TypeCheck var ()
@@ -1684,7 +1688,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
       _ -> do
         term' <- infer term
         inferredType <- typeOf term'
-        unifyTypes term ty' inferredType
+        unifyTypes term' ty' inferredType
         return term'
 
 inferAs :: Eq var => TermT var -> Term var -> TypeCheck var (TermT var)
@@ -1692,7 +1696,7 @@ inferAs expectedKind term = do
   term' <- infer term
   ty <- typeOf term'
   kind <- typeOf ty
-  unifyTypes (untyped ty) expectedKind kind
+  unifyTypes ty expectedKind kind
   return term'
 
 infer :: Eq var => Term var -> TypeCheck var (TermT var)
