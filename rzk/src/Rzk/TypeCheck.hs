@@ -75,11 +75,15 @@ data TypeError var
   | TypeErrorUnifyTerms (TermT var) (TermT var)
   | TypeErrorNotPair (TermT var) (TermT var)
   | TypeErrorNotFunction (TermT var) (TermT var)
+  | TypeErrorUnexpectedLambda (Term var) (TermT var)
+  | TypeErrorUnexpectedPair (Term var) (TermT var)
+  | TypeErrorUnexpectedRefl (Term var) (TermT var)
   | TypeErrorCannotInferBareLambda (Term var)
   | TypeErrorCannotInferBareRefl (Term var)
   | TypeErrorUndefined var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
+  | TypeErrorInvalidArgumentType (Term var) (TermT var)
   deriving (Functor, Foldable)
 
 data TypeErrorInContext var = TypeErrorInContext
@@ -119,6 +123,26 @@ ppTypeError' = \case
         TypeFunT{} -> "\nPerhaps the term is applied to too few arguments?"
         _ -> ""
     ]
+
+  TypeErrorUnexpectedLambda term ty -> unlines
+    [ "unexpected lambda abstraction"
+    , "  " <> show term
+    , "when typechecking against a non-function type"
+    , "  " <> show ty
+    ]
+  TypeErrorUnexpectedPair term ty -> unlines
+    [ "unexpected pair"
+    , "  " <> show term
+    , "when typechecking against a type that is not a product or a dependent sum"
+    , "  " <> show ty
+    ]
+  TypeErrorUnexpectedRefl term ty -> unlines
+    [ "unexpected refl"
+    , "  " <> show term
+    , "when typechecking against a type that is not an identity type"
+    , "  " <> show ty
+    ]
+
   TypeErrorNotFunction term ty -> unlines
     [ "expected a function or extension type"
     , "but got type"
@@ -151,6 +175,14 @@ ppTypeError' = \case
     , "  " <> show (untyped expected)
     , "but got"
     , "  " <> show (untyped actual) ]
+
+  TypeErrorInvalidArgumentType argType argKind -> unlines
+    [ "invalid function parameter type"
+    , "  " <> show argType
+    , "function parameter can be a cube, a shape, or a type"
+    , "but given parameter type has type"
+    , "  " <> show (untyped argKind)
+    ]
 
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
 ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
@@ -620,7 +652,7 @@ enterScope orig ty action = do
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
   Context{..} <- ask
-  unless (length actionStack < 100) $
+  unless (length actionStack < 1000) $  -- FIXME: which depth is reasonable? factor out into a parameter
     issueTypeError $ TypeErrorOther "maximum depth reached"
   traceTypeCheck Debug (ppSomeAction (length actionStack) action) $
     local (const Context { actionStack = action : actionStack, .. }) $ tc
@@ -1616,7 +1648,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                 body' <- typecheck body ret
                 return (lambdaT ty' orig (Just (param', mtope')) body')
 
-          _ -> issueTypeError $ TypeErrorOther "unexpected lambda abstraction"
+          _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
 
       Pair l r ->
         case ty' of
@@ -1628,7 +1660,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             l' <- typecheck l a
             r' <- typecheck r (substituteT l' b)
             return (pairT ty' l' r')
-          _ -> issueTypeError $ TypeErrorOther "unexpected pair"
+          _ -> issueTypeError $ TypeErrorUnexpectedPair term ty
 
       Refl mx ->
         case ty' of
@@ -1644,7 +1676,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             when (isNothing mx) $
               unifyTerms y z
             return (reflT ty' (Just (y, Just tA)))
-          _ -> issueTypeError $ TypeErrorOther "unexpected refl"
+          _ -> issueTypeError $ TypeErrorUnexpectedRefl term ty
 
         -- FIXME: this does not make typechecking faster, why?
 --      RecOr rs -> do
@@ -1781,7 +1813,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
           localTope tope' $ do
             b' <- inferAs universeT b
             return (typeFunT orig cube (Just tope') b')
-      _ -> issueTypeError $ TypeErrorOther "invalid function argument type"
+      ty -> issueTypeError $ TypeErrorInvalidArgumentType a ty
 
   TypeFun orig cube (Just tope) ret -> do
     cube' <- typecheck cube cubeT
