@@ -520,15 +520,15 @@ solveRHS topes tope =
     _ -> untyped tope `elem` map untyped topes
 
 checkTope :: Eq var => TermT var -> TypeCheck var Bool
-checkTope tope = performing (ActionContextEntails tope) $ do
+checkTope tope = performingTrace (ActionContextEntails tope) $ do
   topes' <- asks localTopesNF
-  tope' <- nfT tope
+  tope' <- nfTope tope
   return (topes' `entail` tope')
 
 contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
-contextEntailedBy tope = performing (ActionContextEntailedBy tope) $ do
+contextEntailedBy tope = performingTrace (ActionContextEntailedBy tope) $ do
   contextTopes <- asks localTopesNF
-  restrictionTope <- nfT tope
+  restrictionTope <- nfTope tope
   let contextTopesRHS = foldr (TopeOrT topeT) topeBottomT contextTopes
   unless ([restrictionTope] `entail` contextTopesRHS) $
     issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
@@ -537,20 +537,19 @@ contextEntails :: Eq var => TermT var -> TypeCheck var ()
 contextEntails tope = performing (ActionContextEntails tope) $ do
   topeIsEntailed <- checkTope tope
   topes' <- asks localTopesNF
-  tope' <- nfT tope
   unless topeIsEntailed $
-    issueTypeError $ TypeErrorTopeNotSatisfied topes' tope'
+    issueTypeError $ TypeErrorTopeNotSatisfied topes' tope
 
 topesEquiv :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
-topesEquiv expected actual = do
+topesEquiv expected actual = performingTrace (ActionUnifyTerms expected actual) $ do
   expected' <- nfT expected
   actual' <- nfT actual
   return ([expected'] `entail` actual' && [actual'] `entail` expected')
 
 contextEquiv :: Eq var => [TermT var] -> TypeCheck var ()
-contextEquiv topes = performing (ActionContextEquiv topes) $ do
+contextEquiv topes = performingTrace (ActionContextEquiv topes) $ do
   contextTopes <- asks localTopesNF
-  recTopes <- mapM nfT topes
+  recTopes <- mapM nfTope topes
   let contextTopesRHS = foldr (TopeOrT topeT) topeBottomT contextTopes
       recTopesRHS     = foldr (TopeOrT topeT) topeBottomT recTopes
   unless (contextTopes `entail` recTopesRHS) $
@@ -575,6 +574,13 @@ enterScope orig ty action = do
   newContext <- asks (enterScopeContext orig ty)
   lift $ withExceptT (ScopedTypeError orig) $
     runReaderT action newContext
+
+performingTrace :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
+performingTrace = performing
+--performingTrace action tc = do
+--  Context{..} <- ask
+--  trace (ppSomeAction (length actionStack) action) $
+--    performing action tc
 
 performing :: Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
@@ -710,7 +716,7 @@ whnfT tt = case tt of
   UniverseTopeT{} -> pure tt
 
   -- cube layer (except vars, pairs, and applications)
-  CubeProductT{} -> nfT tt
+  CubeProductT{} -> nfTope tt
   CubeUnitT{} -> pure tt
   CubeUnitStarT{} -> pure tt
   Cube2T{} -> pure tt
@@ -720,10 +726,10 @@ whnfT tt = case tt of
   -- tope layer (except vars, pairs of points, and applications)
   TopeTopT{} -> pure tt
   TopeBottomT{} -> pure tt
-  TopeAndT{} -> nfT tt
-  TopeOrT{} -> nfT tt
-  TopeEQT{} -> nfT tt
-  TopeLEQT{} -> nfT tt
+  TopeAndT{} -> nfTope tt
+  TopeOrT{} -> nfTope tt
+  TopeEQT{} -> nfTope tt
+  TopeLEQT{} -> nfTope tt
 
   -- type layer terms that should not be evaluated further
   LambdaT{} -> pure tt
@@ -740,12 +746,12 @@ whnfT tt = case tt of
 
   -- check if we have cube or a tope term (if so, compute NF)
   _ -> typeOfUncomputed tt >>= \case
-    UniverseCubeT{} -> nfT tt
-    UniverseTopeT{} -> nfT tt
+    UniverseCubeT{} -> nfTope tt
+    UniverseTopeT{} -> nfTope tt
 
     -- check if we have cube point term (if so, compute NF)
     typeOf_tt -> typeOfUncomputed typeOf_tt >>= \case
-      UniverseCubeT{} -> nfT tt
+      UniverseCubeT{} -> nfTope tt
 
       -- now we are in the type layer
       _ -> do
@@ -787,9 +793,94 @@ whnfT tt = case tt of
                   p' -> pure (IdJT ty tA a tC d x p')
 
               TypeRestrictedT ty type_ (tope, term) -> do
-                nfT tope >>= \case
+                nfTope tope >>= \case
                   TopeBottomT{} -> whnfT type_  -- get rid of restrictions at BOT
                   tope' -> TypeRestrictedT ty <$> whnfT type_ <*> pure (tope', term)
+
+nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
+nfTope tt = case tt of
+  t@(Pure var) ->
+    valueOfVar var >>= \case
+      Nothing -> pure t
+      Just term -> nfTope term
+
+  -- universe constants
+  UniverseT{} -> pure tt
+  UniverseCubeT{} -> pure tt
+  UniverseTopeT{} -> pure tt
+
+  -- cube layer constants
+  CubeUnitT{} -> pure tt
+  CubeUnitStarT{} -> pure tt
+  Cube2T{} -> pure tt
+  Cube2_0T{} -> pure tt
+  Cube2_1T{} -> pure tt
+
+  -- cube layer with computation
+  CubeProductT ty l r -> CubeProductT ty <$> nfTope l <*> nfTope r
+
+  -- tope layer constants
+  TopeTopT{} -> pure tt
+  TopeBottomT{} -> pure tt
+
+  -- tope layer with computation
+  TopeAndT ty l r ->
+    nfTope l >>= \case
+      TopeBottomT{} -> pure topeBottomT
+      l' -> nfTope r >>= \case
+        TopeBottomT{} -> pure topeBottomT
+        r' -> pure (TopeAndT ty l' r')
+
+  TopeOrT  ty l r -> do
+    l' <- nfTope l
+    r' <- nfTope r
+    case (l', r') of
+      (TopeBottomT{}, _) -> pure r'
+      (_, TopeBottomT{}) -> pure l'
+      _ -> pure (TopeOrT ty l' r')
+
+  TopeEQT  ty l r -> TopeEQT  ty <$> nfTope l <*> nfTope r
+  TopeLEQT ty l r -> TopeLEQT ty <$> nfTope l <*> nfTope r
+
+  -- type ascriptions are ignored, since we already have a typechecked term
+  TypeAscT _ty term _ty' -> nfTope term
+  
+  PairT ty l r -> PairT ty <$> nfTope l <*> nfTope r
+
+  AppT ty f x ->
+    nfTope f >>= \case
+      LambdaT _ty _orig _arg body ->
+        nfTope (substitute x body)
+      f' -> typeOf f' >>= \case
+        TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
+          TopeAndT topeT
+            <$> (AppT ty f' <$> nfTope x)
+            <*> nfTope (substitute x tope)
+        _ -> AppT ty f' <$> nfTope x
+
+  FirstT ty t ->
+    nfTope t >>= \case
+      PairT _ty x _y -> pure x
+      t' -> pure (FirstT ty t')
+
+  SecondT ty t ->
+    nfTope t >>= \case
+      PairT _ty _x y -> pure y
+      t' -> pure (SecondT ty t')
+
+  LambdaT ty@(TypeFunT _ty _origF param mtope _ret) orig _mparam body ->
+    LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
+  LambdaT{} -> error "impossible"
+
+  TypeFunT{} -> error "impossible"
+  TypeSigmaT{} -> error "impossible"
+  TypeIdT{} -> error "impossible"
+  ReflT{} -> error "impossible"
+  IdJT{} -> error "impossible"
+  TypeRestrictedT{} -> error "impossible"
+
+  RecOrT{} -> error "impossible"
+  RecBottomT{} -> error "impossible"
 
 -- | Compute a typed term to its NF.
 --
@@ -809,13 +900,25 @@ nfT tt = case tt of
   Cube2_0T{} -> pure tt
   Cube2_1T{} -> pure tt
 
+  -- cube layer with computation
+  CubeProductT{} -> nfTope tt
+
   -- tope layer constants
   TopeTopT{} -> pure tt
   TopeBottomT{} -> pure tt
 
+  -- tope layer with computation
+  TopeAndT{} -> nfTope tt
+  TopeOrT{} -> nfTope tt
+  TopeEQT{} -> nfTope tt
+  TopeLEQT{} -> nfTope tt
+
   -- type layer constants
   ReflT{} -> pure tt
   RecBottomT{} -> pure tt
+
+  -- type ascriptions are ignored, since we already have a typechecked term
+  TypeAscT _ty term _ty' -> nfT term
 
   -- now we are in the type layer
   _ -> do
@@ -878,38 +981,16 @@ nfT tt = case tt of
               ReflT{} -> nfT d
               p' -> IdJT ty <$> nfT tA <*> nfT a <*> nfT tC <*> nfT d <*> nfT x <*> nfT p'
 
-          TypeAscT _ty t _ty' -> nfT t
-
           -- FIXME: not a proper NF
           RecOrT ty rs -> fmap (RecOrT ty) $
             forM rs $ \(tope, term) -> do
-              tope' <- nfT tope
+              tope' <- nfTope tope
               term' <- localTope tope' $ nfT term
               return (tope', term')
 
-          TopeAndT ty l r ->
-            nfT l >>= \case
-              TopeBottomT{} -> pure topeBottomT
-              l' -> nfT r >>= \case
-                TopeBottomT{} -> pure topeBottomT
-                r' -> pure (TopeAndT ty l' r')
-
-          TopeOrT  ty l r -> do
-            l' <- nfT l
-            r' <- nfT r
-            case (l', r') of
-              (TopeBottomT{}, _) -> pure r'
-              (_, TopeBottomT{}) -> pure l'
-              _ -> pure (TopeOrT ty l' r')
-
-          TopeEQT  ty l r -> TopeEQT  ty <$> nfT l <*> nfT r
-          TopeLEQT ty l r -> TopeLEQT ty <$> nfT l <*> nfT r
-
-          CubeProductT ty l r -> CubeProductT ty <$> nfT l <*> nfT r
-
 
           TypeRestrictedT ty type_ (tope, term) -> do
-            nfT tope >>= \case
+            nfTope tope >>= \case
               TopeBottomT{} -> nfT type_  -- get rid of restrictions at BOT
               tope' -> TypeRestrictedT ty <$> nfT type_ <*> do
                 term' <- localTope tope' $
@@ -1161,7 +1242,7 @@ unifyTerms = unify Nothing
 
 localTope :: Eq var => TermT var -> TypeCheck var a -> TypeCheck var a
 localTope tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
-  tope' <- nfT tope
+  tope' <- nfTope tope
   localTopes' <- asks localTopesNF
   local (f tope' localTopes') tc
   where
