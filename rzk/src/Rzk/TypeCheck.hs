@@ -7,7 +7,7 @@ module Rzk.TypeCheck where
 import Control.Monad.Reader
 import Control.Monad.Except
 import Data.List (tails, (\\), intercalate, nub)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isNothing)
 
 import Free.Scoped
 import Language.Rzk.Free.Syntax
@@ -46,9 +46,10 @@ typecheckModules = \case
       typecheckModules ms
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck Rzk.VarIdent [Decl']
-typecheckModuleWithLocation (path, module_) = trace ("Checking module from " <> path) $ do
-  withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
-    typecheckModule module_
+typecheckModuleWithLocation (path, module_) = do
+  traceTypeCheck Release ("Checking module from " <> path) $ do
+    withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
+      typecheckModule module_
 
 typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent [Decl']
 typecheckModule (Rzk.Module _lang commands) = go 1 commands
@@ -58,7 +59,7 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
     go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
     go _i [] = return []
     go  i (command@(Rzk.CommandDefine name ty term) : moreCommands) =
-      trace ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+      traceTypeCheck Release ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #def " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
           ty' <- typecheck (toTerm' ty) universeT
@@ -279,6 +280,25 @@ data LocationInfo = LocationInfo
   , locationLine      :: Maybe Int
   }
 
+data Verbosity
+  = Debug
+  | Release
+  | Silent
+  deriving (Eq, Ord)
+
+trace' :: Verbosity -> Verbosity -> String -> a -> a
+trace' msgLevel currentLevel
+  | currentLevel <= msgLevel = trace
+  | otherwise                = const id
+
+traceTypeCheck :: Verbosity -> String -> TypeCheck var a -> TypeCheck var a
+traceTypeCheck msgLevel msg tc = do
+  Context{..} <- ask
+  trace' msgLevel verbosity msg tc
+
+localVerbosity :: Verbosity -> TypeCheck var a -> TypeCheck var a
+localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
+
 data Context var = Context
   { varTypes          :: [(var, TermT var)]
   , varValues         :: [(var, Maybe (TermT var))]
@@ -290,6 +310,7 @@ data Context var = Context
   , actionStack       :: [Action var]
   , currentCommand    :: Maybe Rzk.Command
   , location          :: Maybe LocationInfo
+  , verbosity         :: Verbosity
   } deriving (Functor, Foldable)
 
 emptyContext :: Context var
@@ -304,6 +325,7 @@ emptyContext = Context
   , actionStack = []
   , currentCommand = Nothing
   , location = Nothing
+  , verbosity = Release
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -520,13 +542,13 @@ solveRHS topes tope =
     _ -> untyped tope `elem` map untyped topes
 
 checkTope :: Eq var => TermT var -> TypeCheck var Bool
-checkTope tope = performingTrace (ActionContextEntails tope) $ do
+checkTope tope = performing (ActionContextEntails tope) $ do
   topes' <- asks localTopesNF
   tope' <- nfTope tope
   return (topes' `entail` tope')
 
 contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
-contextEntailedBy tope = performingTrace (ActionContextEntailedBy tope) $ do
+contextEntailedBy tope = performing (ActionContextEntailedBy tope) $ do
   contextTopes <- asks localTopesNF
   restrictionTope <- nfTope tope
   let contextTopesRHS = foldr (TopeOrT topeT) topeBottomT contextTopes
@@ -541,13 +563,13 @@ contextEntails tope = performing (ActionContextEntails tope) $ do
     issueTypeError $ TypeErrorTopeNotSatisfied topes' tope
 
 topesEquiv :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
-topesEquiv expected actual = performingTrace (ActionUnifyTerms expected actual) $ do
+topesEquiv expected actual = performing (ActionUnifyTerms expected actual) $ do
   expected' <- nfT expected
   actual' <- nfT actual
   return ([expected'] `entail` actual' && [actual'] `entail` expected')
 
 contextEquiv :: Eq var => [TermT var] -> TypeCheck var ()
-contextEquiv topes = performingTrace (ActionContextEquiv topes) $ do
+contextEquiv topes = performing (ActionContextEquiv topes) $ do
   contextTopes <- asks localTopesNF
   recTopes <- mapM nfTope topes
   let contextTopesRHS = foldr (TopeOrT topeT) topeBottomT contextTopes
@@ -575,32 +597,12 @@ enterScope orig ty action = do
   lift $ withExceptT (ScopedTypeError orig) $
     runReaderT action newContext
 
-performingTrace :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
-performingTrace = performing
---performingTrace action tc = do
---  Context{..} <- ask
---  trace (ppSomeAction (length actionStack) action) $
---    performing action tc
-
-performing :: Action var -> TypeCheck var a -> TypeCheck var a
+performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
   Context{..} <- ask
   unless (length actionStack < 100) $
     issueTypeError $ TypeErrorOther "maximum depth reached"
-  -- unsafeTraceAction' (length actionStack) action $
---  let actionName =
---        case action of
---          ActionWHNF{}        -> "whnfT"
---          ActionNF{}          -> "nfT"
---          ActionTypeCheck{}   -> "typecheck"
---          ActionUnify{}       -> "unify"
---          ActionUnifyTerms{}  -> "unifyTerms"
---          ActionInfer{}       -> "infer"
---          ActionContextEntailedBy{} -> "context entailed by"
---          ActionContextEntails{}    -> "context entails"
---          ActionContextEquiv{}      -> "context equiv"
---          ActionCheckCoherence{}    -> "check coherence"
-  id $ -- trace (ppSomeAction (length actionStack) action) $
+  traceTypeCheck Debug (ppSomeAction (length actionStack) action) $
     local (const Context { actionStack = action : actionStack, .. }) $ tc
 
 stripTypeRestrictions :: TermT var -> TermT var
@@ -798,7 +800,7 @@ whnfT tt = case tt of
                   tope' -> TypeRestrictedT ty <$> whnfT type_ <*> pure (tope', term)
 
 nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
-nfTope tt = case tt of
+nfTope tt = performing (ActionNF tt) $ case tt of
   t@(Pure var) ->
     valueOfVar var >>= \case
       Nothing -> pure t
@@ -851,7 +853,7 @@ nfTope tt = case tt of
     nfTope f >>= \case
       LambdaT _ty _orig _arg body ->
         nfTope (substitute x body)
-      f' -> typeOf f' >>= \case
+      f' -> typeOfUncomputed f' >>= \case
         TypeFunT _ty _orig _param (Just tope) UniverseTopeT{} -> do
           TopeAndT topeT
             <$> (AppT ty f' <$> nfTope x)
@@ -1067,7 +1069,7 @@ unifyInCurrentContext mterm expected actual = performing action $
           _ -> do
             forM_ rs' $ \(tope, term) ->
               localTope tope $
-                unify Nothing expected term
+                unifyTerms expected term
       _ -> typeOf expected' >>= typeOf >>= \case
         UniverseCubeT{} -> contextEntails (TopeEQT topeT expected' actual')
         _ -> do
@@ -1243,8 +1245,13 @@ unifyTerms = unify Nothing
 localTope :: Eq var => TermT var -> TypeCheck var a -> TypeCheck var a
 localTope tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
   tope' <- nfTope tope
-  localTopes' <- asks localTopesNF
-  local (f tope' localTopes') tc
+  -- A small optimisation to help unify terms faster
+  let refine = case tope' of
+        TopeEQT _ x y | untyped x == untyped y -> const tc          -- no new information added!
+        _ -> id
+  refine $ do
+    localTopes' <- asks localTopesNF
+    local (f tope' localTopes') tc
   where
     f tope' localTopes' Context{..} = Context
       { localTopes = tope : localTopes
@@ -1347,6 +1354,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
               x' <- typecheck x tA
               unifyTerms x' y
               unifyTerms x' z
+            when (isNothing mx) $
+              unifyTerms y z
             return (ReflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorOther "unexpected refl"
 
