@@ -441,7 +441,7 @@ nubTermT [] = []
 nubTermT (t:ts) = t : nubTermT (filter (/= t) ts)
 
 saturateTopes :: Eq var => [TermT var] -> [TermT var] -> [TermT var]
-saturateTopes _points topes = {- trace ("saturateTopes " <> show (length topes)) $ -} saturateWith
+saturateTopes _points topes = saturateWith
   (\tope ts -> tope `elem` ts)
   generateTopes
   topes
@@ -495,38 +495,38 @@ generateTopes newTopes oldTopes
         , y == y'
         , x == x' ]
 
-       -- FIXME: special case of substitution of EQ
-       -- transitivity EQ-LEQ (1)
-     , [ topeLEQT x z
-       | TopeEQT  _ty y z : newTopes' <- tails newTopes
-       , TopeLEQT _ty x y' <- newTopes' <> oldTopes
-       , y == y' ]
+--       -- FIXME: special case of substitution of EQ
+--       -- transitivity EQ-LEQ (1)
+--     , [ topeLEQT x z
+--       | TopeEQT  _ty y z : newTopes' <- tails newTopes
+--       , TopeLEQT _ty x y' <- newTopes' <> oldTopes
+--       , y == y' ]
+--
+--       -- FIXME: special case of substitution of EQ
+--       -- transitivity EQ-LEQ (2)
+--     , [ topeLEQT x z
+--       | TopeEQT  _ty x y : newTopes' <- tails newTopes
+--       , TopeLEQT _ty y' z <- newTopes' <> oldTopes
+--       , y == y' ]
+--
+--       -- FIXME: special case of substitution of EQ
+--       -- transitivity EQ-LEQ (3)
+--     , [ topeLEQT x z
+--       | TopeLEQT  _ty y z : newTopes' <- tails newTopes
+--       , TopeEQT _ty x y' <- newTopes' <> oldTopes
+--       , y == y' ]
+--
+--       -- FIXME: special case of substitution of EQ
+--       -- transitivity EQ-LEQ (4)
+--     , [ topeLEQT x z
+--       | TopeLEQT  _ty x y : newTopes' <- tails newTopes
+--       , TopeEQT _ty y' z <- newTopes' <> oldTopes
+--       , y == y' ]
 
-       -- FIXME: special case of substitution of EQ
-       -- transitivity EQ-LEQ (2)
-     , [ topeLEQT x z
-       | TopeEQT  _ty x y : newTopes' <- tails newTopes
-       , TopeLEQT _ty y' z <- newTopes' <> oldTopes
-       , y == y' ]
-
-       -- FIXME: special case of substitution of EQ
-       -- transitivity EQ-LEQ (3)
-     , [ topeLEQT x z
-       | TopeLEQT  _ty y z : newTopes' <- tails newTopes
-       , TopeEQT _ty x y' <- newTopes' <> oldTopes
-       , y == y' ]
-
-       -- FIXME: special case of substitution of EQ
-       -- transitivity EQ-LEQ (4)
-     , [ topeLEQT x z
-       | TopeLEQT  _ty x y : newTopes' <- tails newTopes
-       , TopeEQT _ty y' z <- newTopes' <> oldTopes
-       , y == y' ]
-
-       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
-     , [ topeEQT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
-       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
-     , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
+--       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+--     , [ topeEQT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
+--       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+--     , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
       ]
 
 generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
@@ -560,7 +560,7 @@ subPoints = \case
   _ -> []
 
 simplifyLHS :: Eq var => [TermT var] -> [[TermT var]]
-simplifyLHS topes = {- trace ("simplifyLHS " <> show (fmap (untyped . (Rzk.VarIdent "_" <$)) topes)) $ -} map nubTermT $
+simplifyLHS topes = map nubTermT $
   case topes of
     [] -> [[]]
     TopeTopT{} : topes' -> simplifyLHS topes'
@@ -666,8 +666,8 @@ etaMatch :: Eq var => TermT var -> TermT var -> TypeCheck var (TermT var, TermT 
 -- FIXME: double check the next 3 rules
 etaMatch expected@TypeRestrictedT{} actual@TypeRestrictedT{} = pure (expected, actual)
 etaMatch expected (TypeRestrictedT _ty ty (_tope, _term)) = etaMatch expected ty
-etaMatch expected@TypeRestrictedT{} actual =
-  etaMatch expected (typeRestrictedT actual (topeBottomT, recBottomT))
+--etaMatch expected@TypeRestrictedT{} actual =
+--  etaMatch expected (typeRestrictedT actual (topeBottomT, recBottomT))
 -- ------------------------------------
 etaMatch expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
 etaMatch expected@PairT{}   actual@PairT{}   = pure (expected, actual)
@@ -1109,7 +1109,7 @@ inAllSubContexts handleSingle tc = do
     [] -> panicImpossible "empty set of alternative contexts"
     [_] -> handleSingle
     _:_:_ -> do
-      forM_ topeSubContexts $ \topes' ->
+      forM_ topeSubContexts $ \topes' -> do
         local (\Context{..} -> Context
             { localTopes = topes'
             , localTopesNF = topes'
@@ -1120,12 +1120,6 @@ inAllSubContexts handleSingle tc = do
 unify :: Eq var => Maybe (Term var) -> TermT var -> TermT var -> TypeCheck var ()
 unify mterm expected actual = performUnification `catchError` \typeError -> do
   inAllSubContexts (throwError typeError) performUnification
--- `catchError` \typeError -> trace "in all contexts" $ do
---   typeOf expected >>= \case
---     TypeRestrictedT{} -> inAllSubContexts (throwError typeError) performUnification
---     _ -> typeOf actual >>= \case
---       TypeRestrictedT{} -> inAllSubContexts (throwError typeError) performUnification
---       _ -> throwError typeError
   where
     performUnification = unifyInCurrentContext mterm expected actual 
 
@@ -1136,8 +1130,6 @@ unifyInCurrentContext mterm expected actual = performing action $
     actualVal <- whnfT actual
     (expected', actual') <- etaMatch expectedVal actualVal
     unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
-    --  expected'' <- nfT expected'
-    --  actual'' <- nfT actual'
       case actual' of
         RecBottomT{} -> return ()
         RecOrT _ty rs' ->
@@ -1321,20 +1313,21 @@ unifyTerms :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyTerms = unify Nothing
 
 localTope :: Eq var => TermT var -> TypeCheck var a -> TypeCheck var a
-localTope tope tc = {- trace ("[" <> tag <> "] localTope") $ -} do
+localTope tope tc = do
+  Context{..} <- ask
   tope' <- nfTope tope
   -- A small optimisation to help unify terms faster
   let refine = case tope' of
         TopeEQT _ x y | x == y -> const tc          -- no new information added!
-        _ -> id
+        _ | tope' `elem` localTopes -> const tc
+          | otherwise -> id
   refine $ do
-    localTopes' <- asks localTopesNF
-    local (f tope' localTopes') tc
+    local (f tope' localTopesNF) tc
   where
     f tope' localTopes' Context{..} = Context
       { localTopes = tope : localTopes
       , localTopesNF = tope' : localTopesNF
-      , localTopesNFUnion =
+      , localTopesNFUnion = map nubTermT
           [ new <> old
           | new <- simplifyLHS [tope']
           , old <- localTopesNFUnion ]
