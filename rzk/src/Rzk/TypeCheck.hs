@@ -47,7 +47,7 @@ typecheckModules = \case
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck Rzk.VarIdent [Decl']
 typecheckModuleWithLocation (path, module_) = do
-  traceTypeCheck Release ("Checking module from " <> path) $ do
+  traceTypeCheck Normal ("Checking module from " <> path) $ do
     withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
       typecheckModule module_
 
@@ -58,8 +58,20 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
 
     go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
     go _i [] = return []
+    go  i (command@(Rzk.CommandUnsetOption optionName) : moreCommands) = do
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Unsetting option " <> optionName) $ do
+        withCommand command $ do
+          unsetOption optionName $
+            go (i + 1) moreCommands
+    go  i (command@(Rzk.CommandSetOption optionName optionValue) : moreCommands) = do
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Setting option " <> optionName <> " = " <> optionValue ) $ do
+        withCommand command $ do
+          setOption optionName optionValue $
+            go (i + 1) moreCommands
     go  i (command@(Rzk.CommandDefine name params ty term) : moreCommands) =
-      traceTypeCheck Release ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #def " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
           paramDecls <- mapM paramToParamDecl params
@@ -69,6 +81,21 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
           fmap (decl :) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
+
+setOption :: String -> String -> TypeCheck var a -> TypeCheck var a
+setOption "verbosity" = \case
+  "debug"   -> localVerbosity Debug
+  "normal"  -> localVerbosity Normal
+  "silent"  -> localVerbosity Silent
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown verbosity level (use \"debug\", \"normal\", or \"silent\")"
+setOption optionName = const $ const $
+  issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
+
+unsetOption :: String -> TypeCheck var a -> TypeCheck var a
+unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
+unsetOption optionName = const $
+  issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 paramToParamDecl :: Rzk.Param -> TypeCheck var Rzk.ParamDecl
 paramToParamDecl (Rzk.ParamPatternShape pat cube tope) = pure (Rzk.ParamVarShape pat cube tope)
@@ -337,7 +364,7 @@ data LocationInfo = LocationInfo
 
 data Verbosity
   = Debug
-  | Release
+  | Normal
   | Silent
   deriving (Eq, Ord)
 
@@ -380,7 +407,7 @@ emptyContext = Context
   , actionStack = []
   , currentCommand = Nothing
   , location = Nothing
-  , verbosity = Release
+  , verbosity = Normal
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -401,6 +428,10 @@ ppContext' Context{..} = unlines
   , case currentCommand of
       Just (Rzk.CommandDefine name _params _ty _term) ->
         "  Error occurred when checking\n    #def " <> show (Pure name :: Term')
+      Just (Rzk.CommandSetOption optionName _optionValue) ->
+        "  Error occurred when trying to set option\n    #set-option " <> show optionName
+      Just (Rzk.CommandUnsetOption optionName) ->
+        "  Error occurred when trying to unset option\n    #unset-option " <> show optionName
       Nothing -> ""
 --  , "Local tope context (expanded):"
 --  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))

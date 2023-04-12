@@ -3,7 +3,7 @@ comment "{-" "-}" ;
 
 layout toplevel ;
 
-token VarIdent ((char - ["-?!.\\;,#][)(}{><| \t\n\r"]) (char - ["\\;,#][)(}{><| \t\n\r"])*) ;
+token VarIdent ((char - ["-?!.\\;,#\"][)(}{><| \t\n\r"]) (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
 
 token HoleIdent '?' ;
 
@@ -14,6 +14,8 @@ LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
 Rzk1. Language ::= "rzk-1" ;
 Rzk2. Language ::= "rzk-2" ;
 
+CommandSetOption. Command ::= "#set-option" String "=" String ";" ;
+CommandUnsetOption. Command ::= "#unset-option" String ";" ;
 CommandDefine. Command ::= "#def" VarIdent [Param] ":" Term ":=" Term ";" ;
 commandDefineNoParams. Command ::= "#def" VarIdent ":" Term ":=" Term ";" ;
 define commandDefineNoParams x ty term = CommandDefine x [] ty term ;

@@ -157,6 +157,8 @@ instance Print Language.Rzk.Syntax.Abs.Language where
 
 instance Print Language.Rzk.Syntax.Abs.Command where
   prt i = \case
+    Language.Rzk.Syntax.Abs.CommandSetOption str1 str2 -> prPrec i 0 (concatD [doc (showString "#set-option"), printString str1, doc (showString "="), printString str2, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandUnsetOption str -> prPrec i 0 (concatD [doc (showString "#unset-option"), printString str, doc (showString ";")])
     Language.Rzk.Syntax.Abs.CommandDefine varident params term1 term2 -> prPrec i 0 (concatD [doc (showString "#def"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2, doc (showString ";")])
 
 instance Print [Language.Rzk.Syntax.Abs.Command] where

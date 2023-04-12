@@ -38,6 +38,8 @@ transLanguage x = case x of
 
 transCommand :: Language.Rzk.Syntax.Abs.Command -> Result
 transCommand x = case x of
+  Language.Rzk.Syntax.Abs.CommandSetOption string1 string2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandUnsetOption string -> failure x
   Language.Rzk.Syntax.Abs.CommandDefine varident params term1 term2 -> failure x
 
 transPattern :: Language.Rzk.Syntax.Abs.Pattern -> Result

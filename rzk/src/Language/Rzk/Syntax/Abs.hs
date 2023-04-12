@@ -24,7 +24,10 @@ data LanguageDecl = LanguageDecl Language
 data Language = Rzk1 | Rzk2
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
-data Command = CommandDefine VarIdent [Param] Term Term
+data Command
+    = CommandSetOption String String
+    | CommandUnsetOption String
+    | CommandDefine VarIdent [Param] Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
 data Pattern
