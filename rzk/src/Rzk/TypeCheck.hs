@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Rzk.TypeCheck where
 
+import Control.Applicative ((<|>))
 import Control.Monad.Reader
 import Control.Monad.Except
 import Data.List (tails, (\\), intercalate, nub)
@@ -289,12 +290,13 @@ data Action var
 
 type Action' = Action Rzk.VarIdent
 
-ppSomeAction :: Eq var => Int -> Action var -> String
-ppSomeAction n action = ppAction n (toRzkVarIdent <$> action)
+ppSomeAction :: Eq var => [(var, Maybe Rzk.VarIdent)] -> Int -> Action var -> String
+ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
   where
     vars = nub (foldMap pure action)
     mapping = zip vars defaultVarIdents
-    toRzkVarIdent = fromMaybe (Rzk.VarIdent "_") . flip lookup mapping
+    toRzkVarIdent var = fromMaybe (Rzk.VarIdent "_") $
+      join (lookup var origs) <|> lookup var mapping
 
 ppAction :: Int -> Action' -> String
 ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
@@ -336,7 +338,7 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
 
   ActionWHNF term ->
     [ "computing WHNF for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> show term ]
 
   ActionNF term ->
     [ "computing normal form for term"
@@ -384,7 +386,7 @@ localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
 data Context var = Context
   { varTypes          :: [(var, TermT var)]
   , varValues         :: [(var, Maybe (TermT var))]
-  , varOrigs          :: [Maybe Rzk.VarIdent]
+  , varOrigs          :: [(var, Maybe Rzk.VarIdent)]
   , localTopes        :: [TermT var]
   , localTopesNF      :: [TermT var]
   , localTopesNFUnion :: [[TermT var]]
@@ -443,24 +445,25 @@ withLocation loc = local $ \Context{..} -> Context { location = Just loc, .. }
 withCommand :: Rzk.Command -> TypeCheck var a -> TypeCheck var a
 withCommand command = local $ \Context{..} -> Context { currentCommand = Just command, .. }
 
-localDecls :: Eq var => [Decl var] -> TypeCheck var a -> TypeCheck var a
+localDecls :: [Decl Rzk.VarIdent] -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
 localDecls [] = id
 localDecls (decl : decls) = localDecl decl . localDecls decls
 
-localDeclsPrepared :: [Decl var] -> TypeCheck var a -> TypeCheck var a
+localDeclsPrepared :: [Decl Rzk.VarIdent] -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
 localDeclsPrepared [] = id
 localDeclsPrepared (decl : decls) = localDeclPrepared decl . localDeclsPrepared decls
 
-localDecl :: Eq var => Decl var -> TypeCheck var a -> TypeCheck var a
+localDecl :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
 localDecl (Decl x ty term) tc = do
   ty' <- whnfT ty
   term' <- traverse whnfT term
   localDeclPrepared (Decl x ty' term') tc
 
-localDeclPrepared :: Decl var -> TypeCheck var a -> TypeCheck var a
+localDeclPrepared :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
 localDeclPrepared (Decl x ty term) = local $ \Context{..} -> Context
     { varTypes = (x, ty) : varTypes
     , varValues = (x, term) : varValues
+    , varOrigs = (x, Just x) : varOrigs
     , .. }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
@@ -682,7 +685,7 @@ enterScopeContext :: Maybe Rzk.VarIdent -> TermT var -> Context var -> Context (
 enterScopeContext orig ty Context{..} = Context
   { varTypes = (Z, S <$> ty) : [ (S x, fmap S t) | (x, t) <- varTypes ]
   , varValues = (Z, Nothing) : [ (S x, fmap S <$> t) | (x, t) <- varValues ]
-  , varOrigs = orig : varOrigs
+  , varOrigs = (Z, orig) : [ (S x, o) | (x, o) <- varOrigs ]
   , localTopes = map (fmap S) localTopes
   , localTopesNF = map (fmap S) localTopesNF
   , localTopesNFUnion = map (map (fmap S)) localTopesNFUnion
@@ -701,7 +704,7 @@ performing action tc = do
   Context{..} <- ask
   unless (length actionStack < 1000) $  -- FIXME: which depth is reasonable? factor out into a parameter
     issueTypeError $ TypeErrorOther "maximum depth reached"
-  traceTypeCheck Debug (ppSomeAction (length actionStack) action) $
+  traceTypeCheck Debug (ppSomeAction varOrigs (length actionStack) action) $
     local (const Context { actionStack = action : actionStack, .. }) $ tc
 
 stripTypeRestrictions :: TermT var -> TermT var
@@ -812,7 +815,7 @@ tryRestriction = \case
 -- >>> whnfT "(\\p -> first (second p)) (x, (y, z))" :: Term'
 -- y
 whnfT :: Eq var => TermT var -> TypeCheck var (TermT var)
-whnfT tt = case tt of
+whnfT tt = performing (ActionWHNF tt) $ case tt of
   -- universe constants
   UniverseT{} -> pure tt
   UniverseCubeT{} -> pure tt
@@ -1009,7 +1012,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
 -- >>> nfT "(\\p -> first (second p)) (x, (y, z))" :: Term'
 -- y
 nfT :: Eq var => TermT var -> TypeCheck var (TermT var)
-nfT tt = case tt of
+nfT tt = performing (ActionNF tt) $ case tt of
   -- universe constants
   UniverseT{} -> pure tt
   UniverseCubeT{} -> pure tt
