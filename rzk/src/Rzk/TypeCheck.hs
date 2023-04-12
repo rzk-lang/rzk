@@ -884,6 +884,16 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                       topeAndT
                         <$> (AppT ty <$> nfT f' <*> nfT x)
                         <*> nfT (substituteT x tope)
+                    -- FIXME: this seems to be a hack, and will not work in all situations!
+                    -- FIXME: need to check performance of this code thoroughly
+                    -- FIXME: for now, it seems to add ~2x slowdown
+                    TypeFunT info _orig _param _mtope ret@TypeRestrictedT{}
+                      | TypeRestrictedT{} <- infoType info -> pure (AppT ty f' x)
+                      | otherwise -> do
+                          let ret' = substituteT x ret
+                          tryRestriction ret' >>= \case -- FIXME: to many unnecessary checks?
+                            Nothing -> pure (AppT ty { infoType = ret' } f' x)
+                            Just tt' -> whnfT tt'
                     _ -> pure (AppT ty f' x)
 
               FirstT ty t ->
