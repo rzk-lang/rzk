@@ -137,7 +137,8 @@ Language
 
 Command :: { Language.Rzk.Syntax.Abs.Command }
 Command
-  : '#def' VarIdent ':' Term ':=' Term ';' { Language.Rzk.Syntax.Abs.CommandDefine $2 $4 $6 }
+  : '#def' VarIdent ListParam ':' Term ':=' Term ';' { Language.Rzk.Syntax.Abs.CommandDefine $2 $3 $5 $7 }
+  | '#def' VarIdent ':' Term ':=' Term ';' { Language.Rzk.Syntax.Abs.commandDefineNoParams $2 $4 $6 }
 
 ListCommand :: { [Language.Rzk.Syntax.Abs.Command] }
 ListCommand
@@ -162,7 +163,8 @@ ParamDecl :: { Language.Rzk.Syntax.Abs.ParamDecl }
 ParamDecl
   : Term6 { Language.Rzk.Syntax.Abs.ParamType $1 }
   | '(' '_' ':' Term ')' { Language.Rzk.Syntax.Abs.ParamWildcardType $4 }
-  | '(' VarIdent ':' Term ')' { Language.Rzk.Syntax.Abs.ParamVarType $2 $4 }
+  | '{' Pattern ':' Term '}' { Language.Rzk.Syntax.Abs.ParamVarType $2 $4 }
+  | '(' VarIdent ':' Term ')' { Language.Rzk.Syntax.Abs.paramVarType $2 $4 }
   | '{' '(' Pattern ':' Term ')' '|' Term '}' { Language.Rzk.Syntax.Abs.ParamVarShape $3 $5 $8 }
   | '{' Pattern ':' Term '|' Term '}' { Language.Rzk.Syntax.Abs.paramVarShape $2 $4 $6 }
 
@@ -235,7 +237,7 @@ Term1
 
 Term :: { Language.Rzk.Syntax.Abs.Term }
 Term
-  : Term1 '[' Restriction ']' { Language.Rzk.Syntax.Abs.TypeRestricted $1 $3 }
+  : Term1 '[' ListRestriction ']' { Language.Rzk.Syntax.Abs.TypeRestricted $1 $3 }
   | Term2 'as' Term1 { Language.Rzk.Syntax.Abs.TypeAsc $1 $3 }
   | Term1 { $1 }
 

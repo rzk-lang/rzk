@@ -24,7 +24,7 @@ data LanguageDecl = LanguageDecl Language
 data Language = Rzk1 | Rzk2
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
-data Command = CommandDefine VarIdent Term Term
+data Command = CommandDefine VarIdent [Param] Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
 data Pattern
@@ -42,7 +42,7 @@ data Param
 data ParamDecl
     = ParamType Term
     | ParamWildcardType Term
-    | ParamVarType VarIdent Term
+    | ParamVarType Pattern Term
     | ParamVarShape Pattern Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
@@ -71,7 +71,7 @@ data Term
     | TypeSigma Pattern Term Term
     | TypeId Term Term Term
     | TypeIdSimple Term Term
-    | TypeRestricted Term Restriction
+    | TypeRestricted Term [Restriction]
     | App Term Term
     | Lambda [Param] Term
     | Pair Term Term
@@ -85,6 +85,12 @@ data Term
     | Var VarIdent
     | TypeAsc Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+
+commandDefineNoParams :: VarIdent -> Term -> Term -> Command
+commandDefineNoParams = \ x ty term -> CommandDefine x [] ty term
+
+paramVarType :: VarIdent -> Term -> ParamDecl
+paramVarType = \ var cube -> ParamVarType (PatternVar var) cube
 
 paramVarShape :: Pattern -> Term -> Term -> ParamDecl
 paramVarShape = \ pat cube tope -> ParamVarShape pat cube tope

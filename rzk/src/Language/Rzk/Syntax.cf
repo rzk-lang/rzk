@@ -14,7 +14,9 @@ LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
 Rzk1. Language ::= "rzk-1" ;
 Rzk2. Language ::= "rzk-2" ;
 
-CommandDefine. Command ::= "#def" VarIdent ":" Term ":=" Term ";" ;
+CommandDefine. Command ::= "#def" VarIdent [Param] ":" Term ":=" Term ";" ;
+commandDefineNoParams. Command ::= "#def" VarIdent ":" Term ":=" Term ";" ;
+define commandDefineNoParams x ty term = CommandDefine x [] ty term ;
 separator Command "" ;
 
 -- Patterns
@@ -31,7 +33,9 @@ separator nonempty Param "" ;
 -- Parameter declaration for functions and extension types
 ParamType.          ParamDecl ::= Term6 ;
 ParamWildcardType.  ParamDecl ::= "(" "_" ":" Term ")" ;
-ParamVarType.       ParamDecl ::= "(" VarIdent ":" Term ")" ;
+ParamVarType.       ParamDecl ::= "{" Pattern ":" Term "}" ;
+paramVarType.       ParamDecl ::= "(" VarIdent ":" Term ")" ;
+define paramVarType var cube = ParamVarType (PatternVar var) cube ;
 ParamVarShape.      ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShape pat cube tope = ParamVarShape pat cube tope ;
@@ -69,7 +73,7 @@ TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
-TypeRestricted. Term  ::= Term1 "[" Restriction "]" ;
+TypeRestricted. Term  ::= Term1 "[" [Restriction] "]" ;
 typeExtension.  Term7 ::= "<" ParamDecl "->" Term ">" ;
 define typeExtension param ret = TypeFun param ret ;
 -- Terms

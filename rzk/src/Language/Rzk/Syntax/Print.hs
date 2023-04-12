@@ -43,9 +43,9 @@ render d = rend 0 False (map ($ "") $ d []) ""
   rend i p = \case
       "["      :ts -> char '[' . rend i False ts
       "("      :ts -> char '(' . rend i False ts
-      "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
-      "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
-      "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
+--       "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
+--       "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
+--       "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
       [";"]        -> char ';'
       ";"      :ts -> char ';' . new i ts
       t  : ts@(s:_) | closingOrPunctuation s
@@ -157,7 +157,7 @@ instance Print Language.Rzk.Syntax.Abs.Language where
 
 instance Print Language.Rzk.Syntax.Abs.Command where
   prt i = \case
-    Language.Rzk.Syntax.Abs.CommandDefine varident term1 term2 -> prPrec i 0 (concatD [doc (showString "#def"), prt 0 varident, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandDefine varident params term1 term2 -> prPrec i 0 (concatD [doc (showString "#def"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2, doc (showString ";")])
 
 instance Print [Language.Rzk.Syntax.Abs.Command] where
   prt _ [] = concatD []
@@ -184,7 +184,7 @@ instance Print Language.Rzk.Syntax.Abs.ParamDecl where
   prt i = \case
     Language.Rzk.Syntax.Abs.ParamType term -> prPrec i 0 (concatD [prt 6 term])
     Language.Rzk.Syntax.Abs.ParamWildcardType term -> prPrec i 0 (concatD [doc (showString "("), doc (showString "_"), doc (showString ":"), prt 0 term, doc (showString ")")])
-    Language.Rzk.Syntax.Abs.ParamVarType varident term -> prPrec i 0 (concatD [doc (showString "("), prt 0 varident, doc (showString ":"), prt 0 term, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.ParamVarType pattern_ term -> prPrec i 0 (concatD [doc (showString "{"), prt 0 pattern_, doc (showString ":"), prt 0 term, doc (showString "}")])
     Language.Rzk.Syntax.Abs.ParamVarShape pattern_ term1 term2 -> prPrec i 0 (concatD [doc (showString "{"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString "|"), prt 0 term2, doc (showString "}")])
 
 instance Print Language.Rzk.Syntax.Abs.Restriction where
@@ -219,7 +219,7 @@ instance Print Language.Rzk.Syntax.Abs.Term where
     Language.Rzk.Syntax.Abs.TypeSigma pattern_ term1 term2 -> prPrec i 1 (concatD [doc (showString "Sigma"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString ","), prt 1 term2])
     Language.Rzk.Syntax.Abs.TypeId term1 term2 term3 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "=_{"), prt 0 term2, doc (showString "}"), prt 2 term3])
     Language.Rzk.Syntax.Abs.TypeIdSimple term1 term2 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "="), prt 2 term2])
-    Language.Rzk.Syntax.Abs.TypeRestricted term restriction -> prPrec i 0 (concatD [prt 1 term, doc (showString "["), prt 0 restriction, doc (showString "]")])
+    Language.Rzk.Syntax.Abs.TypeRestricted term restrictions -> prPrec i 0 (concatD [prt 1 term, doc (showString "["), prt 0 restrictions, doc (showString "]")])
     Language.Rzk.Syntax.Abs.App term1 term2 -> prPrec i 6 (concatD [prt 6 term1, prt 7 term2])
     Language.Rzk.Syntax.Abs.Lambda params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "->"), prt 1 term])
     Language.Rzk.Syntax.Abs.Pair term1 term2 -> prPrec i 7 (concatD [doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ")")])

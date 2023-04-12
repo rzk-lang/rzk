@@ -50,7 +50,7 @@ data TermF scope term
     | ReflF (Maybe (term, Maybe term))
     | IdJF term term term term term term
     | TypeAscF term term
-    | TypeRestrictedF term (term, term)
+    | TypeRestrictedF term [(term, term)]
     deriving (Eq)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
@@ -145,8 +145,8 @@ toTerm bvars = go
       Rzk.IdJ a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc x t -> TypeAsc (go x) (go t)
 
-      Rzk.TypeFun (Rzk.ParamVarType x arg) ret ->
-        TypeFun (Just x) (go arg) Nothing (toScope x bvars ret)
+      Rzk.TypeFun (Rzk.ParamVarType pat arg) ret ->
+        TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
       Rzk.TypeFun (Rzk.ParamVarShape pat cube tope) ret ->
         TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun (Rzk.ParamWildcardType arg) ret ->
@@ -167,8 +167,8 @@ toTerm bvars = go
         Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
           (toScopePattern pat bvars (Rzk.Lambda params body))
 
-      Rzk.TypeRestricted ty (Rzk.Restriction tope term) ->
-        TypeRestricted (go ty) (go tope, go term)
+      Rzk.TypeRestricted ty rs ->
+        TypeRestricted (go ty) (map (\(Rzk.Restriction tope term) -> (go tope, go term)) rs)
 
       Rzk.Hole{} -> error "holes are not supported"
 
@@ -219,7 +219,7 @@ fromTermWith' used vars = go
       RecOr rs -> Rzk.RecOr [ Rzk.Restriction (go tope) (go term) | (tope, term) <- rs ]
 
       TypeFun z arg Nothing ret -> withFresh z $ \(x, xs) ->
-        Rzk.TypeFun (Rzk.ParamVarType x (go arg)) (fromScope' x used xs ret)
+        Rzk.TypeFun (Rzk.ParamVarType (Rzk.PatternVar x) (go arg)) (fromScope' x used xs ret)
       TypeFun z arg (Just tope) ret -> withFresh z $ \(x, xs) ->
         Rzk.TypeFun (Rzk.ParamVarShape (Rzk.PatternVar x) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
 
@@ -245,8 +245,8 @@ fromTermWith' used vars = go
       Refl (Just (t, Just ty)) -> Rzk.ReflTermType (go t) (go ty)
       IdJ a b c d e f -> Rzk.IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       TypeAsc l r -> Rzk.TypeAsc (go l) (go r)
-      TypeRestricted ty (tope, term) ->
-        Rzk.TypeRestricted (go ty) (Rzk.Restriction (go tope) (go term))
+      TypeRestricted ty rs ->
+        Rzk.TypeRestricted (go ty) (map (\(tope, term) -> (Rzk.Restriction (go tope) (go term))) rs)
 
 defaultVarIdents :: [Rzk.VarIdent]
 defaultVarIdents = coerce [ "x" <> map digitToSub (show n) | n <- [1..] ]

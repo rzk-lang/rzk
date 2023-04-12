@@ -7,7 +7,7 @@ module Rzk.TypeCheck where
 import Control.Monad.Reader
 import Control.Monad.Except
 import Data.List (tails, (\\), intercalate, nub)
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (fromMaybe, isNothing, catMaybes)
 
 import Free.Scoped
 import Language.Rzk.Free.Syntax
@@ -58,16 +58,32 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
 
     go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
     go _i [] = return []
-    go  i (command@(Rzk.CommandDefine name ty term) : moreCommands) =
+    go  i (command@(Rzk.CommandDefine name params ty term) : moreCommands) =
       traceTypeCheck Release ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #def " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
-          ty' <- typecheck (toTerm' ty) universeT >>= whnfT -- >>= pure . termIsWHNF
-          term' <- typecheck (toTerm' term) ty' >>= whnfT >>= pure . termIsWHNF
+          paramDecls <- mapM paramToParamDecl params
+          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
+          term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT >>= pure . termIsWHNF
           let decl = Decl name ty' (Just term')
           fmap (decl :) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
+
+paramToParamDecl :: Rzk.Param -> TypeCheck var Rzk.ParamDecl
+paramToParamDecl (Rzk.ParamPatternShape pat cube tope) = pure (Rzk.ParamVarShape pat cube tope)
+paramToParamDecl (Rzk.ParamPatternType pat ty) = pure (Rzk.ParamVarType pat ty)
+paramToParamDecl Rzk.ParamPattern{} = issueTypeError $
+  TypeErrorOther "untyped pattern in parameters"
+
+addParamDecls :: [Rzk.ParamDecl] -> Rzk.Term -> Rzk.Term
+addParamDecls [] = id
+addParamDecls (paramDecl : paramDecls)
+  = Rzk.TypeFun paramDecl . addParamDecls paramDecls
+
+addParams :: [Rzk.Param] -> Rzk.Term -> Rzk.Term
+addParams [] = id
+addParams params = Rzk.Lambda params
 
 data TypeError var
   = TypeErrorOther String
@@ -383,7 +399,7 @@ ppContext' Context{..} = unlines
       Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
       _ -> ""
   , case currentCommand of
-      Just (Rzk.CommandDefine name _ty _term) ->
+      Just (Rzk.CommandDefine name _params _ty _term) ->
         "  Error occurred when checking\n    #def " <> show (Pure name :: Term')
       Nothing -> ""
 --  , "Local tope context (expanded):"
@@ -665,9 +681,9 @@ stripTypeRestrictions t = t
 etaMatch :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var (TermT var, TermT var)
 -- FIXME: double check the next 3 rules
 etaMatch _mterm expected@TypeRestrictedT{} actual@TypeRestrictedT{} = pure (expected, actual)
-etaMatch  mterm expected (TypeRestrictedT _ty ty (_tope, _term)) = etaMatch mterm expected ty
+etaMatch  mterm expected (TypeRestrictedT _ty ty _rs) = etaMatch mterm expected ty
 etaMatch (Just term) expected@TypeRestrictedT{} actual =
-  etaMatch (Just term) expected (typeRestrictedT actual (topeTopT, term))
+  etaMatch (Just term) expected (typeRestrictedT actual [(topeTopT, term)])
 -- ------------------------------------
 etaMatch _mterm expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
 etaMatch _mterm expected@PairT{}   actual@PairT{}   = pure (expected, actual)
@@ -750,13 +766,15 @@ inTopeLayer = \case
   t -> typeOfUncomputed t >>= inTopeLayer
 
 tryRestriction :: Eq var => TermT var -> TypeCheck var (Maybe (TermT var))
-tryRestriction type_ =
-  case type_ of
-    TypeRestrictedT _ _ (tope, term') -> do
-      checkTope tope >>= \case
-        True -> pure (Just term')
-        False -> pure Nothing
-    _ -> pure Nothing
+tryRestriction = \case
+  TypeRestrictedT _ _ rs -> do
+    let go [] = pure Nothing
+        go ((tope, term') : rs') = do
+          checkTope tope >>= \case
+            True -> pure (Just term')
+            False -> go rs'
+    go rs
+  _ -> pure Nothing
 
 -- | Compute a typed term to its WHNF.
 --
@@ -801,12 +819,12 @@ whnfT tt = case tt of
     | Just tt' <- infoWHNF info -> pure tt'
 
   -- check if we have cube or a tope term (if so, compute NF)
-  _ -> typeOfUncomputed tt >>= \case
+  _ -> typeOf tt >>= \case
     UniverseCubeT{} -> nfTope tt
     UniverseTopeT{} -> nfTope tt
 
     -- check if we have cube point term (if so, compute NF)
-    typeOf_tt -> typeOfUncomputed typeOf_tt >>= \case
+    typeOf_tt -> typeOf typeOf_tt >>= \case
       UniverseCubeT{} -> nfTope tt
 
       -- now we are in the type layer
@@ -860,10 +878,11 @@ whnfT tt = case tt of
                     | [tt'] <- nubTermT (map snd rs) -> whnfT tt'
                     | otherwise -> pure tt
 
-              TypeRestrictedT ty type_ (tope, term) -> do
-                nfTope tope >>= \case
-                  TopeBottomT{} -> whnfT type_  -- get rid of restrictions at BOT
-                  tope' -> TypeRestrictedT ty <$> whnfT type_ <*> pure (tope', term)
+              TypeRestrictedT ty type_ rs -> do
+                rs' <- traverse (\(tope, term) -> (,) <$> nfT tope <*> pure term) rs
+                case filter ((/= topeBottomT) . fst) rs' of
+                  [] -> whnfT type_  -- get rid of restrictions at BOT
+                  rs'' -> TypeRestrictedT ty <$> whnfT type_ <*> pure rs''
 
 nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
@@ -1066,13 +1085,17 @@ nfT tt = case tt of
                 | otherwise -> pure tt
 
 
-          TypeRestrictedT ty type_ (tope, term) -> do
-            nfTope tope >>= \case
-              TopeBottomT{} -> nfT type_  -- get rid of restrictions at BOT
-              tope' -> TypeRestrictedT ty <$> nfT type_ <*> do
-                term' <- localTope tope' $
-                  nfT term
-                return (tope', term')
+          TypeRestrictedT ty type_ rs -> do
+            rs' <- forM rs $ \(tope, term) -> do
+              nfTope tope >>= \case
+                TopeBottomT{} -> pure Nothing
+                tope' -> do
+                  term' <- localTope tope' $
+                    nfT term
+                  return (Just (tope', term'))
+            case catMaybes rs' of
+              [] -> nfT type_
+              rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
 
 valueOfVar :: Eq var => var -> TypeCheck var (Maybe (TermT var))
 valueOfVar x = asks (lookup x . varValues) >>= \case
@@ -1296,13 +1319,16 @@ unifyInCurrentContext mterm expected actual = performing action $
 
               TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
 
-              TypeRestrictedT _ty ty (tope, term) ->
+              TypeRestrictedT _ty ty rs ->
                 case actual' of
-                  TypeRestrictedT _ty' ty' (tope', term') -> do
+                  TypeRestrictedT _ty' ty' rs' -> do
                     unify mterm ty ty'
-                    localTope tope $ do
-                      contextEntails tope' -- expected is less specified than actual
-                      unify Nothing term term'
+                    sequence_
+                      [ localTope tope $ do
+                          contextEntails tope' -- expected is less specified than actual
+                          unify Nothing term term'
+                      | (tope, term) <- rs
+                      , (tope', term') <- rs' ]
                   _ -> err    -- FIXME: need better unification for restrictions
 
   where
@@ -1455,10 +1481,10 @@ recBottomT = RecBottomT TypeInfo
   , infoNF = Just recBottomT
   , infoWHNF = Just recBottomT }
 
-typeRestrictedT :: TermT var -> (TermT var, TermT var) -> TermT var
-typeRestrictedT ty (tope, term) = t
+typeRestrictedT :: TermT var -> [(TermT var, TermT var)] -> TermT var
+typeRestrictedT ty rs = t
   where
-    t = TypeRestrictedT info ty (tope, term)
+    t = TypeRestrictedT info ty rs
     info = TypeInfo
       { infoType  = universeT
       , infoNF    = Nothing
@@ -1620,11 +1646,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
     RecBottomT{} -> do
       return recBottomT
 
-    TypeRestrictedT _ty ty' (tope, rterm) -> do
+    TypeRestrictedT _ty ty' rs -> do
       term' <- typecheck term ty'
-      contextEntailedBy tope
-      localTope tope $
-        unifyTerms rterm term'
+      forM_ rs $ \(tope, rterm) -> do
+        contextEntailedBy tope
+        localTope tope $
+          unifyTerms rterm term'
       return term'    -- FIXME: correct?
 
     ty' -> case term of
@@ -1903,11 +1930,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     term' <- typecheck term ty'
     return (typeAscT term' ty')
 
-  TypeRestricted ty (tope, term) -> do
+  TypeRestricted ty rs -> do
     ty' <- typecheck ty universeT
-    tope' <- typecheck tope topeT
-    term' <- localTope tope' $ typecheck term ty'
-    return (typeRestrictedT ty' (tope', term'))
+    rs' <- forM rs $ \(tope, term) -> do
+      tope' <- typecheck tope topeT
+      term' <- localTope tope' $ typecheck term ty'
+      return (tope', term')
+    return (typeRestrictedT ty' rs')
 
 checkCoherence
   :: Eq var
