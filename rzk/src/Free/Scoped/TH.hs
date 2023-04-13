@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP      #-}
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Free.Scoped.TH where
@@ -5,6 +6,13 @@ module Free.Scoped.TH where
 import           Control.Monad         (replicateM)
 import           Language.Haskell.TH
 import           Free.Scoped
+
+mkConP :: Name -> [Pat] -> Pat
+#if __GLASGOW_HASKELL__ >= 902
+mkConP name pats = ConP name [] pats
+#else
+mkConP name pats = ConP name pats
+#endif
 
 makePatternsAll :: Name -> Q [Dec]
 makePatternsAll ty = do
@@ -64,7 +72,7 @@ makePatternFor = \case
     let patName = mkName (removeF (nameBase name))
         patArgs = PrefixPatSyn args
         dir = ImplBidir
-    pat <- [p| Free $(pure (ConP name [] (VarP <$> args))) |]
+    pat <- [p| Free $(pure (mkConP name (VarP <$> args))) |]
     return [PatSynD patName patArgs dir pat]
   _ -> fail "Can only make patterns for NormalC constructors"
   where
@@ -77,7 +85,7 @@ makePatternEFor = \case
     let patName = mkName (removeF (nameBase name))
         patArgs = PrefixPatSyn args
         dir = ImplBidir
-    pat <- [p| Free (InL $(pure (ConP name [] (VarP <$> args)))) |]
+    pat <- [p| Free (InL $(pure (mkConP name (VarP <$> args)))) |]
     return [PatSynD patName patArgs dir pat]
   _ -> fail "Can only make patterns for NormalC constructors"
   where
@@ -91,7 +99,7 @@ makePatternTFor = \case
     let patName = mkName (removeF (nameBase name))
         patArgs = PrefixPatSyn (t : args)
         dir = ImplBidir
-    pat <- [p| Free (AnnF $(pure (VarP t)) $(pure (ConP name [] (VarP <$> args)))) |]
+    pat <- [p| Free (AnnF $(pure (VarP t)) $(pure (mkConP name (VarP <$> args)))) |]
     return [PatSynD patName patArgs dir pat]
   _ -> fail "Can only make patterns for NormalC constructors"
   where
@@ -105,7 +113,7 @@ makePatternTEFor = \case
     let patName = mkName (removeF (nameBase name))
         patArgs = PrefixPatSyn (t : args)
         dir = ImplBidir
-    pat <- [p| Free (InL (AnnF $(pure (VarP t)) $(pure (ConP name [] (VarP <$> args))))) |]
+    pat <- [p| Free (InL (AnnF $(pure (VarP t)) $(pure (mkConP name (VarP <$> args))))) |]
     return [PatSynD patName patArgs dir pat]
   _ -> fail "Can only make patterns for NormalC constructors"
   where
