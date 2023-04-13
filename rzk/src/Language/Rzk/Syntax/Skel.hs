@@ -51,7 +51,7 @@ transPattern x = case x of
 transParam :: Language.Rzk.Syntax.Abs.Param -> Result
 transParam x = case x of
   Language.Rzk.Syntax.Abs.ParamPattern pattern_ -> failure x
-  Language.Rzk.Syntax.Abs.ParamPatternType pattern_ term -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternType patterns term -> failure x
   Language.Rzk.Syntax.Abs.ParamPatternShape pattern_ term1 term2 -> failure x
 
 transParamDecl :: Language.Rzk.Syntax.Abs.ParamDecl -> Result

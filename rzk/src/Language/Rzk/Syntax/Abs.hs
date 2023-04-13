@@ -38,7 +38,7 @@ data Pattern
 
 data Param
     = ParamPattern Pattern
-    | ParamPatternType Pattern Term
+    | ParamPatternType [Pattern] Term
     | ParamPatternShape Pattern Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 

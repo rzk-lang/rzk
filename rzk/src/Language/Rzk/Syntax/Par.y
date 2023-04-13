@@ -14,6 +14,7 @@ module Language.Rzk.Syntax.Par
   , pCommand
   , pListCommand
   , pPattern
+  , pListPattern
   , pParam
   , pListParam
   , pParamDecl
@@ -25,8 +26,8 @@ module Language.Rzk.Syntax.Par
   , pTerm3
   , pTerm2
   , pTerm1
-  , pTerm
   , pTerm6
+  , pTerm
   , pListTerm
   ) where
 
@@ -43,6 +44,7 @@ import Language.Rzk.Syntax.Lex
 %name pCommand Command
 %name pListCommand ListCommand
 %name pPattern Pattern
+%name pListPattern ListPattern
 %name pParam Param
 %name pListParam ListParam
 %name pParamDecl ParamDecl
@@ -54,8 +56,8 @@ import Language.Rzk.Syntax.Lex
 %name pTerm3 Term3
 %name pTerm2 Term2
 %name pTerm1 Term1
-%name pTerm Term
 %name pTerm6 Term6
+%name pTerm Term
 %name pListTerm ListTerm
 -- no lexer declaration
 %monad { Err } { (>>=) } { return }
@@ -158,10 +160,14 @@ Pattern
   | VarIdent { Language.Rzk.Syntax.Abs.PatternVar $1 }
   | '(' Pattern ',' Pattern ')' { Language.Rzk.Syntax.Abs.PatternPair $2 $4 }
 
+ListPattern :: { [Language.Rzk.Syntax.Abs.Pattern] }
+ListPattern
+  : Pattern { (:[]) $1 } | Pattern ListPattern { (:) $1 $2 }
+
 Param :: { Language.Rzk.Syntax.Abs.Param }
 Param
   : Pattern { Language.Rzk.Syntax.Abs.ParamPattern $1 }
-  | '(' Pattern ':' Term ')' { Language.Rzk.Syntax.Abs.ParamPatternType $2 $4 }
+  | '(' ListPattern ':' Term ')' { Language.Rzk.Syntax.Abs.ParamPatternType $2 $4 }
   | '{' Pattern ':' Term '|' Term '}' { Language.Rzk.Syntax.Abs.ParamPatternShape $2 $4 $6 }
 
 ListParam :: { [Language.Rzk.Syntax.Abs.Param] }
@@ -243,18 +249,18 @@ Term1
   | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { Language.Rzk.Syntax.Abs.unicode_TypeSigma $3 $5 $8 }
   | '∑' '(' Pattern ':' Term ')' ',' Term1 { Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt $3 $5 $8 }
 
-Term :: { Language.Rzk.Syntax.Abs.Term }
-Term
-  : Term1 '[' ListRestriction ']' { Language.Rzk.Syntax.Abs.TypeRestricted $1 $3 }
-  | Term2 'as' Term1 { Language.Rzk.Syntax.Abs.TypeAsc $1 $3 }
-  | Term1 { $1 }
-
 Term6 :: { Language.Rzk.Syntax.Abs.Term }
 Term6
-  : Term6 Term7 { Language.Rzk.Syntax.Abs.App $1 $2 }
+  : Term6 '[' ListRestriction ']' { Language.Rzk.Syntax.Abs.TypeRestricted $1 $3 }
+  | Term6 Term7 { Language.Rzk.Syntax.Abs.App $1 $2 }
   | 'first' Term7 { Language.Rzk.Syntax.Abs.First $2 }
   | 'second' Term7 { Language.Rzk.Syntax.Abs.Second $2 }
   | Term7 { $1 }
+
+Term :: { Language.Rzk.Syntax.Abs.Term }
+Term
+  : Term2 'as' Term1 { Language.Rzk.Syntax.Abs.TypeAsc $1 $3 }
+  | Term1 { $1 }
 
 ListTerm :: { [Language.Rzk.Syntax.Abs.Term] }
 ListTerm : Term { (:[]) $1 } | Term ',' ListTerm { (:) $1 $3 }

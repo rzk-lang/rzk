@@ -76,7 +76,7 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #def " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
-          paramDecls <- mapM paramToParamDecl params
+          paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
           term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT >>= pure . termIsWHNF
           let decl = Decl name ty' (Just term')
@@ -99,9 +99,9 @@ unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
-paramToParamDecl :: Rzk.Param -> TypeCheck var Rzk.ParamDecl
-paramToParamDecl (Rzk.ParamPatternShape pat cube tope) = pure (Rzk.ParamVarShape pat cube tope)
-paramToParamDecl (Rzk.ParamPatternType pat ty) = pure (Rzk.ParamVarType pat ty)
+paramToParamDecl :: Rzk.Param -> TypeCheck var [Rzk.ParamDecl]
+paramToParamDecl (Rzk.ParamPatternShape pat cube tope) = pure [Rzk.ParamVarShape pat cube tope]
+paramToParamDecl (Rzk.ParamPatternType pats ty) = pure $ map (\pat -> Rzk.ParamVarType pat ty) pats
 paramToParamDecl Rzk.ParamPattern{} = issueTypeError $
   TypeErrorOther "untyped pattern in parameters"
 
@@ -1386,10 +1386,13 @@ unifyInCurrentContext mterm expected actual = performing action $
                     unify mterm ty ty'
                     sequence_
                       [ localTope tope $ do
-                          contextEntails tope' -- expected is less specified than actual
-                          unify Nothing term term'
+                          -- FIXME: can do less entails checks?
+                          contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
+                          forM_ rs' $ \(tope', term') -> do
+                            localTope tope' $
+                              unify Nothing term term'
                       | (tope, term) <- rs
-                      , (tope', term') <- rs' ]
+                      ]
                   _ -> err    -- FIXME: need better unification for restrictions
 
   where
@@ -1709,8 +1712,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
 
     TypeRestrictedT _ty ty' rs -> do
       term' <- typecheck term ty'
+      contextEntailedBy (foldr topeOrT topeBottomT (map fst rs))
       forM_ rs $ \(tope, rterm) -> do
-        contextEntailedBy tope
         localTope tope $
           unifyTerms rterm term'
       return term'    -- FIXME: correct?

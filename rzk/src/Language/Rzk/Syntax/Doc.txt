@@ -71,8 +71,10 @@ All other symbols are terminals.
   | //Pattern// | -> | ``_``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
+  | //[Pattern]// | -> | //Pattern//
+  |  |  **|**  | //Pattern// //[Pattern]//
   | //Param// | -> | //Pattern//
-  |  |  **|**  | ``(`` //Pattern// ``:`` //Term// ``)``
+  |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``)``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   | //[Param]// | -> | //Param//
   |  |  **|**  | //Param// //[Param]//
@@ -125,13 +127,13 @@ All other symbols are terminals.
   |  |  **|**  | //ParamDecl// ``→`` //Term1//
   |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
   |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  | //Term// | -> | //Term1// ``[`` //[Restriction]// ``]``
-  |  |  **|**  | //Term2// ``as`` //Term1//
-  |  |  **|**  | //Term1//
-  | //Term6// | -> | //Term6// //Term7//
+  | //Term6// | -> | //Term6// ``[`` //[Restriction]// ``]``
+  |  |  **|**  | //Term6// //Term7//
   |  |  **|**  | ``first`` //Term7//
   |  |  **|**  | ``second`` //Term7//
   |  |  **|**  | //Term7//
+  | //Term// | -> | //Term2// ``as`` //Term1//
+  |  |  **|**  | //Term1//
   | //[Term]// | -> | //Term//
   |  |  **|**  | //Term// ``,`` //[Term]//
 

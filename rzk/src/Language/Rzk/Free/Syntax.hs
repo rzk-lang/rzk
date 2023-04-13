@@ -160,9 +160,11 @@ toTerm bvars = go
       Rzk.Lambda [] body -> go body
       Rzk.Lambda (Rzk.ParamPattern pat : params) body ->
         Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda params body))
-      Rzk.Lambda (Rzk.ParamPatternType pat ty : params) body ->
+      Rzk.Lambda (Rzk.ParamPatternType [] _ty : params) body ->
+        go (Rzk.Lambda params body)
+      Rzk.Lambda (Rzk.ParamPatternType (pat:pats) ty : params) body ->
         Lambda (patternVar pat) (Just (go ty, Nothing))
-          (toScopePattern pat bvars (Rzk.Lambda params body))
+          (toScopePattern pat bvars (Rzk.Lambda (Rzk.ParamPatternType pats ty : params) body))
       Rzk.Lambda (Rzk.ParamPatternShape pat cube tope : params) body ->
         Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
           (toScopePattern pat bvars (Rzk.Lambda params body))
@@ -232,7 +234,7 @@ fromTermWith' used vars = go
       Lambda z Nothing scope -> withFresh z $ \(x, xs) ->
         Rzk.Lambda [Rzk.ParamPattern (Rzk.PatternVar x)] (fromScope' x used xs scope)
       Lambda z (Just (ty, Nothing)) scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda [Rzk.ParamPatternType (Rzk.PatternVar x) (go ty)] (fromScope' x used xs scope)
+        Rzk.Lambda [Rzk.ParamPatternType [Rzk.PatternVar x] (go ty)] (fromScope' x used xs scope)
       Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
         Rzk.Lambda [Rzk.ParamPatternShape (Rzk.PatternVar x) (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda (Maybe (term, Maybe scope)) scope
