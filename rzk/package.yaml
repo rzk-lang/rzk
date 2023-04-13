@@ -8,7 +8,7 @@ copyright:           "2023 Nikolai Kudasov"
 
 extra-source-files:
 - README.md
-- CHANGELOG.md
+- ChangeLog.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
