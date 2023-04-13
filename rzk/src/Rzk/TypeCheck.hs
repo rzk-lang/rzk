@@ -9,6 +9,7 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Data.List (tails, (\\), intercalate, nub)
 import Data.Maybe (fromMaybe, isNothing, catMaybes)
+import Data.Tuple (swap)
 
 import Free.Scoped
 import Language.Rzk.Free.Syntax
@@ -383,6 +384,10 @@ traceTypeCheck msgLevel msg tc = do
 localVerbosity :: Verbosity -> TypeCheck var a -> TypeCheck var a
 localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
 
+data Covariance
+  = Covariant     -- ^ Positive position.
+  | Contravariant -- ^ Negative position
+
 data Context var = Context
   { varTypes          :: [(var, TermT var)]
   , varValues         :: [(var, Maybe (TermT var))]
@@ -395,6 +400,7 @@ data Context var = Context
   , currentCommand    :: Maybe Rzk.Command
   , location          :: Maybe LocationInfo
   , verbosity         :: Verbosity
+  , covariance        :: Covariance
   } deriving (Functor, Foldable)
 
 emptyContext :: Context var
@@ -410,6 +416,7 @@ emptyContext = Context
   , currentCommand = Nothing
   , location = Nothing
   , verbosity = Normal
+  , covariance = Covariant
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -680,6 +687,13 @@ contextEquiv topes = performing (ActionContextEquiv topes) $ do
     issueTypeError $ TypeErrorTopeNotSatisfied contextTopes recTopesRHS
   unless (recTopes `entail` contextTopesRHS) $
     issueTypeError $ TypeErrorTopeNotSatisfied recTopes contextTopesRHS
+
+switchVariance :: TypeCheck var a -> TypeCheck var a
+switchVariance = local $ \Context{..} -> Context
+  { covariance = switch covariance, .. }
+    where
+      switch Covariant = Contravariant
+      switch Contravariant = Covariant
 
 enterScopeContext :: Maybe Rzk.VarIdent -> TermT var -> Context var -> Context (Inc var)
 enterScopeContext orig ty Context{..} = Context
@@ -1193,7 +1207,9 @@ unifyInCurrentContext mterm expected actual = performing action $
   unless (expected == actual) $ do      -- NOTE: this gives a small, but noticeable speedup
     expectedVal <- whnfT expected
     actualVal <- whnfT actual
-    (expected', actual') <- etaMatch mterm expectedVal actualVal
+    (expected', actual') <- asks covariance >>= \case
+      Covariant -> etaMatch mterm expectedVal actualVal
+      Contravariant -> swap <$> etaMatch mterm actualVal expectedVal
     unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
       case actual' of
         RecBottomT{} -> return ()
@@ -1284,7 +1300,8 @@ unifyInCurrentContext mterm expected actual = performing action $
               TypeFunT _ty _orig cube mtope ret ->
                 case actual' of
                   TypeFunT _ty' orig' cube' mtope' ret' -> do
-                    unifyTerms cube cube' -- FIXME: unifyCubes
+                    switchVariance $  -- unifying in the negative position!
+                      unifyTerms cube cube' -- FIXME: unifyCubes
                     enterScope orig' cube $ do
                       case (mtope, mtope') of
                         (Just tope, Just tope') -> do
