@@ -27,6 +27,11 @@ data Language = Rzk1 | Rzk2
 data Command
     = CommandSetOption String String
     | CommandUnsetOption String
+    | CommandCheck Term Term
+    | CommandCompute Term
+    | CommandComputeWHNF Term
+    | CommandComputeNF Term
+    | CommandPostulate VarIdent [Param] Term
     | CommandDefine VarIdent [Param] Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
@@ -89,8 +94,17 @@ data Term
     | TypeAsc Term Term
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
 
+commandPostulateNoParams :: VarIdent -> Term -> Command
+commandPostulateNoParams = \ x ty -> CommandPostulate x [] ty
+
 commandDefineNoParams :: VarIdent -> Term -> Term -> Command
 commandDefineNoParams = \ x ty term -> CommandDefine x [] ty term
+
+commandDef :: VarIdent -> [Param] -> Term -> Term -> Command
+commandDef = \ x params ty term -> CommandDefine x params ty term
+
+commandDefNoParams :: VarIdent -> Term -> Term -> Command
+commandDefNoParams = \ x ty term -> CommandDefine x [] ty term
 
 paramVarType :: VarIdent -> Term -> ParamDecl
 paramVarType = \ var cube -> ParamVarType (PatternVar var) cube

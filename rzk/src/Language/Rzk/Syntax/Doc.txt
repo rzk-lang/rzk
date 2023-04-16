@@ -39,15 +39,16 @@ The reserved words used in Syntax are the following:
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | rzk-2
-  | #set-option | = | #unset-option | #def
-  | : | := | _ | (
-  | , | ) | { | |
-  | } | |-> | 1 | *_1
-  | 2 | 0_2 | 1_2 | *
-  | === | <= | /\ | \/
-  | -> | =_{ | [ | ]
-  | < | > | \ | refl_{
-  | → | ∑ |  |
+  | #set-option | = | #unset-option | #check
+  | : | #compute | #compute-whnf | #compute-nf
+  | #postulate | #define | := | #def
+  | _ | ( | , | )
+  | { | | | } | |->
+  | 1 | *_1 | 2 | 0_2
+  | 1_2 | * | === | <=
+  | /\ | \/ | -> | =_{
+  | [ | ] | < | >
+  | \ | refl_{ | → | ∑
 
 ===Comments===
 Single-line comments begin with --.Multiple-line comments are  enclosed with {- and -}.
@@ -64,6 +65,14 @@ All other symbols are terminals.
   |  |  **|**  | ``rzk-2``
   | //Command// | -> | ``#set-option`` //String// ``=`` //String// ``;``
   |  |  **|**  | ``#unset-option`` //String// ``;``
+  |  |  **|**  | ``#check`` //Term// ``:`` //Term// ``;``
+  |  |  **|**  | ``#compute`` //Term// ``;``
+  |  |  **|**  | ``#compute-whnf`` //Term// ``;``
+  |  |  **|**  | ``#compute-nf`` //Term// ``;``
+  |  |  **|**  | ``#postulate`` //VarIdent// //[Param]// ``:`` //Term// ``;``
+  |  |  **|**  | ``#postulate`` //VarIdent// ``:`` //Term// ``;``
+  |  |  **|**  | ``#define`` //VarIdent// //[Param]// ``:`` //Term// ``:=`` //Term// ``;``
+  |  |  **|**  | ``#define`` //VarIdent// ``:`` //Term// ``:=`` //Term// ``;``
   |  |  **|**  | ``#def`` //VarIdent// //[Param]// ``:`` //Term// ``:=`` //Term// ``;``
   |  |  **|**  | ``#def`` //VarIdent// ``:`` //Term// ``:=`` //Term// ``;``
   | //[Command]// | -> | **eps**

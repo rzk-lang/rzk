@@ -60,21 +60,24 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
 
     go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
     go _i [] = return []
+
     go  i (command@(Rzk.CommandUnsetOption optionName) : moreCommands) = do
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Unsetting option " <> optionName) $ do
         withCommand command $ do
           unsetOption optionName $
             go (i + 1) moreCommands
+
     go  i (command@(Rzk.CommandSetOption optionName optionValue) : moreCommands) = do
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Setting option " <> optionName <> " = " <> optionValue ) $ do
         withCommand command $ do
           setOption optionName optionValue $
             go (i + 1) moreCommands
+
     go  i (command@(Rzk.CommandDefine name params ty term) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
-          <> " Checking #def " <> show (Pure name :: Term') ) $ do
+          <> " Checking #define " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
@@ -83,6 +86,44 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
           fmap (decl :) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
+
+    go  i (command@(Rzk.CommandPostulate name params ty) : moreCommands) =
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Checking #postulate " <> show (Pure name :: Term') ) $ do
+        withCommand command $ do
+          paramDecls <- concat <$> mapM paramToParamDecl params
+          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
+          let decl = Decl name ty' Nothing
+          fmap (decl :) $
+            localDeclPrepared decl $
+              go (i + 1) moreCommands
+
+    go  i (command@(Rzk.CommandCheck term ty) : moreCommands) =
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty ) $ do
+        withCommand command $ do
+          ty' <- typecheck (toTerm' ty) universeT >>= whnfT -- >>= pure . termIsWHNF
+          _term' <- typecheck (toTerm' term) ty'
+          go (i + 1) moreCommands
+
+    go  i (Rzk.CommandCompute term : moreCommands) =
+      go i (Rzk.CommandComputeWHNF term : moreCommands)
+
+    go  i (command@(Rzk.CommandComputeNF term) : moreCommands) =
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Computing NF for " <> Rzk.printTree term) $ do
+        withCommand command $ do
+          term' <- infer (toTerm' term) >>= nfT
+          traceTypeCheck Normal ("  " <> show (untyped term')) $ do
+            go (i + 1) moreCommands
+
+    go  i (command@(Rzk.CommandComputeWHNF term) : moreCommands) =
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Computing WHNF for " <> Rzk.printTree term) $ do
+        withCommand command $ do
+          term' <- infer (toTerm' term) >>= whnfT
+          traceTypeCheck Normal ("  " <> show (untyped term')) $ do
+            go (i + 1) moreCommands
 
 setOption :: String -> String -> TypeCheck var a -> TypeCheck var a
 setOption "verbosity" = \case
@@ -436,7 +477,17 @@ ppContext' Context{..} = unlines
       _ -> ""
   , case currentCommand of
       Just (Rzk.CommandDefine name _params _ty _term) ->
-        "  Error occurred when checking\n    #def " <> show (Pure name :: Term')
+        "  Error occurred when checking\n    #define " <> show (Pure name :: Term')
+      Just (Rzk.CommandPostulate name _params _ty ) ->
+        "  Error occurred when checking\n    #postulate " <> show (Pure name :: Term')
+      Just (Rzk.CommandCheck term ty) ->
+        "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
+      Just (Rzk.CommandCompute term) ->
+        "  Error occurred when computing\n    " <> Rzk.printTree term
+      Just (Rzk.CommandComputeNF term) ->
+        "  Error occurred when computing NF for\n    " <> Rzk.printTree term
+      Just (Rzk.CommandComputeWHNF term) ->
+        "  Error occurred when computing WHNF for\n    " <> Rzk.printTree term
       Just (Rzk.CommandSetOption optionName _optionValue) ->
         "  Error occurred when trying to set option\n    #set-option " <> show optionName
       Just (Rzk.CommandUnsetOption optionName) ->

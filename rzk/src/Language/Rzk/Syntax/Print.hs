@@ -159,7 +159,12 @@ instance Print Language.Rzk.Syntax.Abs.Command where
   prt i = \case
     Language.Rzk.Syntax.Abs.CommandSetOption str1 str2 -> prPrec i 0 (concatD [doc (showString "#set-option"), printString str1, doc (showString "="), printString str2, doc (showString ";")])
     Language.Rzk.Syntax.Abs.CommandUnsetOption str -> prPrec i 0 (concatD [doc (showString "#unset-option"), printString str, doc (showString ";")])
-    Language.Rzk.Syntax.Abs.CommandDefine varident params term1 term2 -> prPrec i 0 (concatD [doc (showString "#def"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandCheck term1 term2 -> prPrec i 0 (concatD [doc (showString "#check"), prt 0 term1, doc (showString ":"), prt 0 term2, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandCompute term -> prPrec i 0 (concatD [doc (showString "#compute"), prt 0 term, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandComputeWHNF term -> prPrec i 0 (concatD [doc (showString "#compute-whnf"), prt 0 term, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandComputeNF term -> prPrec i 0 (concatD [doc (showString "#compute-nf"), prt 0 term, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandPostulate varident params term -> prPrec i 0 (concatD [doc (showString "#postulate"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term, doc (showString ";")])
+    Language.Rzk.Syntax.Abs.CommandDefine varident params term1 term2 -> prPrec i 0 (concatD [doc (showString "#define"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2, doc (showString ";")])
 
 instance Print [Language.Rzk.Syntax.Abs.Command] where
   prt _ [] = concatD []
