@@ -1114,7 +1114,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
   TopeLEQT{} -> nfTope tt
 
   -- type layer constants
-  ReflT{} -> pure tt
+  ReflT ty _x -> pure (ReflT ty Nothing)
   RecBottomT{} -> pure tt
 
   -- type ascriptions are ignored, since we already have a typechecked term
@@ -1127,7 +1127,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
     if inBottom
        then pure recBottomT -- if so, reduce to recBOT
        else typeOf tt >>= tryRestriction >>= \case
-        Just tt' -> whnfT tt'
+        Just tt' -> nfT tt'
         Nothing -> case tt of
           t@(Pure var) ->
             valueOfVar var >>= \case
@@ -1175,7 +1175,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
               PairT _ _l r -> nfT r
               t' -> SecondT ty <$> nfT t'
 
-          TypeIdT ty x tA y -> TypeIdT ty <$> nfT x <*> traverse nfT tA <*> nfT y
+          TypeIdT ty x _tA y -> TypeIdT ty <$> nfT x <*> pure Nothing <*> nfT y
           IdJT ty tA a tC d x p ->
             whnfT p >>= \case
               ReflT{} -> nfT d
