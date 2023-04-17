@@ -603,38 +603,38 @@ generateTopes newTopes oldTopes
         , y == y'
         , x == x' ]
 
---       -- FIXME: special case of substitution of EQ
---       -- transitivity EQ-LEQ (1)
---     , [ topeLEQT x z
---       | TopeEQT  _ty y z : newTopes' <- tails newTopes
---       , TopeLEQT _ty x y' <- newTopes' <> oldTopes
---       , y == y' ]
---
---       -- FIXME: special case of substitution of EQ
---       -- transitivity EQ-LEQ (2)
---     , [ topeLEQT x z
---       | TopeEQT  _ty x y : newTopes' <- tails newTopes
---       , TopeLEQT _ty y' z <- newTopes' <> oldTopes
---       , y == y' ]
---
---       -- FIXME: special case of substitution of EQ
---       -- transitivity EQ-LEQ (3)
---     , [ topeLEQT x z
---       | TopeLEQT  _ty y z : newTopes' <- tails newTopes
---       , TopeEQT _ty x y' <- newTopes' <> oldTopes
---       , y == y' ]
---
---       -- FIXME: special case of substitution of EQ
---       -- transitivity EQ-LEQ (4)
---     , [ topeLEQT x z
---       | TopeLEQT  _ty x y : newTopes' <- tails newTopes
---       , TopeEQT _ty y' z <- newTopes' <> oldTopes
---       , y == y' ]
+        -- FIXME: special case of substitution of EQ
+        -- transitivity EQ-LEQ (1)
+      , [ topeLEQT x z
+        | TopeEQT  _ty y z : newTopes' <- tails newTopes
+        , TopeLEQT _ty x y' <- newTopes' <> oldTopes
+        , y == y' ]
+  
+        -- FIXME: special case of substitution of EQ
+        -- transitivity EQ-LEQ (2)
+      , [ topeLEQT x z
+        | TopeEQT  _ty x y : newTopes' <- tails newTopes
+        , TopeLEQT _ty y' z <- newTopes' <> oldTopes
+        , y == y' ]
+  
+        -- FIXME: special case of substitution of EQ
+        -- transitivity EQ-LEQ (3)
+      , [ topeLEQT x z
+        | TopeLEQT  _ty y z : newTopes' <- tails newTopes
+        , TopeEQT _ty x y' <- newTopes' <> oldTopes
+        , y == y' ]
+  
+        -- FIXME: special case of substitution of EQ
+        -- transitivity EQ-LEQ (4)
+      , [ topeLEQT x z
+        | TopeLEQT  _ty x y : newTopes' <- tails newTopes
+        , TopeEQT _ty y' z <- newTopes' <> oldTopes
+        , y == y' ]
 
---       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
---     , [ topeEQT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
---       -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
---     , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
+        -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+      , [ topeEQT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
+        -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+      , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
       ]
 
 generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
