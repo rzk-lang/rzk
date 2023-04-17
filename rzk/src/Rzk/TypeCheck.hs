@@ -1775,6 +1775,19 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
           TypeFunT _ty _orig' param' mtope' ret -> do
             case mparam of
               Nothing -> return ()
+              Just (param, Nothing) -> do
+                (paramType, mtope) <- do
+                  paramType <- infer param
+                  typeOf paramType >>= \case
+                    -- an argument can be a shape
+                    TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+                      enterScope orig cube $ do
+                        let tope' = appT topeT (S <$> paramType) (Pure Z)  -- eta expand ty'
+                        return (cube, Just tope')
+                    _kind -> return (paramType, Nothing)
+                unifyTerms param' paramType
+                enterScope orig param' $ do
+                  mapM_ (unifyTerms (fromMaybe topeTopT mtope')) mtope
               Just (param, mtope) -> do
                 param'' <- typecheck param =<< typeOf param'
                 unifyTerms param' param''
@@ -1938,9 +1951,14 @@ infer tt = performing (ActionInfer tt) $ case tt of
     a' <- infer a
     typeOf a' >>= \case
       -- an argument can be a type
-      UniverseT{} -> do
-        b' <- enterScope orig a' $ inferAs universeT b
-        return (typeFunT orig a' Nothing b')
+      UniverseT{} ->
+        case a' of
+          -- except if its a TOPE universe
+          UniverseTopeT{} ->
+            issueTypeError $ TypeErrorOther "tope params are illegal"
+          _ -> do
+            b' <- enterScope orig a' $ inferAs universeT b
+            return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         b' <- enterScope orig a' $ inferAs universeT b
@@ -1994,11 +2012,28 @@ infer tt = performing (ActionInfer tt) $ case tt of
   Lambda _orig Nothing _body -> do
     issueTypeError $ TypeErrorCannotInferBareLambda tt
   Lambda orig (Just (ty, Nothing)) body -> do
-    ty' <- typecheck ty universeT
+    ty' <- infer ty
+    mtope <- typeOf ty' >>= \case
+      -- an argument can be a type
+      UniverseT{} ->
+        case ty' of
+          -- except if its a TOPE universe
+          UniverseTopeT{} ->
+            issueTypeError $ TypeErrorOther "tope params are illegal"
+          _ -> return Nothing
+      -- an argument can be a cube
+      UniverseCubeT{} -> return Nothing
+      -- an argument can be a shape
+      TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+        enterScope orig cube $ do
+          let tope' = appT topeT (S <$> ty') (Pure Z)  -- eta expand ty'
+          return (Just tope')
+      kind -> issueTypeError $ TypeErrorInvalidArgumentType ty kind
     enterScope orig ty' $ do
-      body' <- infer body
-      ret <- typeOf body' 
-      return (lambdaT (typeFunT orig ty' Nothing ret) orig (Just (ty', Nothing)) body')
+      maybe id localTope mtope $ do
+        body' <- infer body
+        ret <- typeOf body' 
+        return (lambdaT (typeFunT orig ty' mtope ret) orig (Just (ty', mtope)) body')
   Lambda orig (Just (cube, Just tope)) body -> do
     cube' <- typecheck cube universeT
     enterScope orig cube' $ do
