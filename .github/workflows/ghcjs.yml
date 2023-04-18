@@ -1,36 +1,26 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Build with GHCJS and Deploy to GitHub Pages
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
+    tags: [ v* ]
     paths:
       - rzk/**
       - try-rzk/**
       - stack.yaml
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - rzk/**
       - try-rzk/**
       - stack.yaml
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+  workflow_dispatch:  # allow triggering this workflow manually
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  ghcjs:
-    # The type of runner that the job will run on
+  setup:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
@@ -46,6 +36,10 @@ jobs:
         with:
           name: miso-haskell
 
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix-build try-rzk/
@@ -54,9 +48,14 @@ jobs:
           chmod -R +w dist/
           cp try-rzk/index.html dist/.
 
+  deploy:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
       - name: "📘 Publish JS \"binaries\""
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
+          target-folder: ${{ GITHUB_REF_NAME }}
           clean: false
