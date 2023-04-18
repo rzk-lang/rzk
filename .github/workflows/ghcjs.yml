@@ -37,9 +37,18 @@ jobs:
         with:
           name: miso-haskell
 
+      - name: 🔨 Remove rzk.cabal, lexer and parser generator files
+        run: |
+          rm -f rzk/src/Language/Rzk/Syntax/Lex.x
+          rm -f rzk/src/Language/Rzk/Syntax/Par.y
+          rm -f rzk/rzk.cabal
+
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix-build try-rzk/
+
+      - name: 🔨 Collect build artifacts
+        run: |
           mkdir -p dist/result/bin
           cp -r ./result/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
