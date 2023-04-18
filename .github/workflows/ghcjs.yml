@@ -5,6 +5,7 @@ on:
     branches: [ main, develop ]
     tags: [ v* ]
     paths:
+      - .github/workflows/ghcjs.yml
       - rzk/**
       - try-rzk/**
       - stack.yaml
@@ -18,7 +19,7 @@ on:
   workflow_dispatch:  # allow triggering this workflow manually
 
 jobs:
-  setup:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
@@ -36,10 +37,6 @@ jobs:
         with:
           name: miso-haskell
 
-  build:
-    needs: setup
-    runs-on: ubuntu-latest
-    steps:
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix-build try-rzk/
@@ -49,7 +46,7 @@ jobs:
           cp try-rzk/index.html dist/.
 
   deploy:
-    needs: setup
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: "📘 Publish JS \"binaries\""
@@ -57,5 +54,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
-          target-folder: ${{ GITHUB_REF_NAME }}
+          target-folder: ${{ github.ref_name }}
           clean: false
