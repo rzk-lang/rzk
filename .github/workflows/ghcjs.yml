@@ -19,7 +19,7 @@ on:
   workflow_dispatch:  # allow triggering this workflow manually
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
@@ -54,10 +54,6 @@ jobs:
           chmod -R +w dist/
           cp try-rzk/index.html dist/.
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
       - name: "📘 Publish JS \"binaries\""
         uses: JamesIves/github-pages-deploy-action@v4
         with:
