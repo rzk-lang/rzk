@@ -54,28 +54,28 @@ typecheckModuleWithLocation (path, module_) = do
       typecheckModule module_
 
 typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent [Decl']
-typecheckModule (Rzk.Module _lang commands) = go 1 commands
+typecheckModule (Rzk.Module _loc _lang commands) = go 1 commands
   where
     totalCommands = length commands
 
     go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
     go _i [] = return []
 
-    go  i (command@(Rzk.CommandUnsetOption optionName) : moreCommands) = do
+    go  i (command@(Rzk.CommandUnsetOption _loc optionName) : moreCommands) = do
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Unsetting option " <> optionName) $ do
         withCommand command $ do
           unsetOption optionName $
             go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandSetOption optionName optionValue) : moreCommands) = do
+    go  i (command@(Rzk.CommandSetOption _loc optionName optionValue) : moreCommands) = do
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Setting option " <> optionName <> " = " <> optionValue ) $ do
         withCommand command $ do
           setOption optionName optionValue $
             go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandDefine name params ty term) : moreCommands) =
+    go  i (command@(Rzk.CommandDefine _loc name params ty term) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #define " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
@@ -87,7 +87,7 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
             localDeclPrepared decl $
               go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandPostulate name params ty) : moreCommands) =
+    go  i (command@(Rzk.CommandPostulate _loc name params ty) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #postulate " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
@@ -98,7 +98,7 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
             localDeclPrepared decl $
               go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandCheck term ty) : moreCommands) =
+    go  i (command@(Rzk.CommandCheck _loc term ty) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty ) $ do
         withCommand command $ do
@@ -106,10 +106,10 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
           _term' <- typecheck (toTerm' term) ty'
           go (i + 1) moreCommands
 
-    go  i (Rzk.CommandCompute term : moreCommands) =
-      go i (Rzk.CommandComputeWHNF term : moreCommands)
+    go  i (Rzk.CommandCompute loc term : moreCommands) =
+      go i (Rzk.CommandComputeWHNF loc term : moreCommands)
 
-    go  i (command@(Rzk.CommandComputeNF term) : moreCommands) =
+    go  i (command@(Rzk.CommandComputeNF _loc term) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Computing NF for " <> Rzk.printTree term) $ do
         withCommand command $ do
@@ -117,7 +117,7 @@ typecheckModule (Rzk.Module _lang commands) = go 1 commands
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandComputeWHNF term) : moreCommands) =
+    go  i (command@(Rzk.CommandComputeWHNF _loc term) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Computing WHNF for " <> Rzk.printTree term) $ do
         withCommand command $ do
@@ -141,19 +141,19 @@ unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 paramToParamDecl :: Rzk.Param -> TypeCheck var [Rzk.ParamDecl]
-paramToParamDecl (Rzk.ParamPatternShape pat cube tope) = pure [Rzk.ParamVarShape pat cube tope]
-paramToParamDecl (Rzk.ParamPatternType pats ty) = pure $ map (\pat -> Rzk.ParamVarType pat ty) pats
+paramToParamDecl (Rzk.ParamPatternShape loc pat cube tope) = pure [Rzk.ParamVarShape loc pat cube tope]
+paramToParamDecl (Rzk.ParamPatternType loc pats ty) = pure $ map (\pat -> Rzk.ParamVarType loc pat ty) pats
 paramToParamDecl Rzk.ParamPattern{} = issueTypeError $
   TypeErrorOther "untyped pattern in parameters"
 
 addParamDecls :: [Rzk.ParamDecl] -> Rzk.Term -> Rzk.Term
 addParamDecls [] = id
 addParamDecls (paramDecl : paramDecls)
-  = Rzk.TypeFun paramDecl . addParamDecls paramDecls
+  = Rzk.TypeFun Nothing paramDecl . addParamDecls paramDecls
 
 addParams :: [Rzk.Param] -> Rzk.Term -> Rzk.Term
 addParams [] = id
-addParams params = Rzk.Lambda params
+addParams params = Rzk.Lambda Nothing params
 
 data TypeError var
   = TypeErrorOther String
@@ -476,21 +476,21 @@ ppContext' Context{..} = unlines
       Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
       _ -> ""
   , case currentCommand of
-      Just (Rzk.CommandDefine name _params _ty _term) ->
+      Just (Rzk.CommandDefine _loc name _params _ty _term) ->
         "  Error occurred when checking\n    #define " <> show (Pure name :: Term')
-      Just (Rzk.CommandPostulate name _params _ty ) ->
+      Just (Rzk.CommandPostulate _loc name _params _ty ) ->
         "  Error occurred when checking\n    #postulate " <> show (Pure name :: Term')
-      Just (Rzk.CommandCheck term ty) ->
+      Just (Rzk.CommandCheck _loc term ty) ->
         "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
-      Just (Rzk.CommandCompute term) ->
+      Just (Rzk.CommandCompute _loc term) ->
         "  Error occurred when computing\n    " <> Rzk.printTree term
-      Just (Rzk.CommandComputeNF term) ->
+      Just (Rzk.CommandComputeNF _loc term) ->
         "  Error occurred when computing NF for\n    " <> Rzk.printTree term
-      Just (Rzk.CommandComputeWHNF term) ->
+      Just (Rzk.CommandComputeWHNF _loc term) ->
         "  Error occurred when computing WHNF for\n    " <> Rzk.printTree term
-      Just (Rzk.CommandSetOption optionName _optionValue) ->
+      Just (Rzk.CommandSetOption _loc optionName _optionValue) ->
         "  Error occurred when trying to set option\n    #set-option " <> show optionName
-      Just (Rzk.CommandUnsetOption optionName) ->
+      Just (Rzk.CommandUnsetOption _loc optionName) ->
         "  Error occurred when trying to unset option\n    #unset-option " <> show optionName
       Nothing -> ""
 --  , "Local tope context (expanded):"

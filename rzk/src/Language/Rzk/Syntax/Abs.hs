@@ -2,134 +2,250 @@
 
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | The abstract syntax of language Syntax.
 
 module Language.Rzk.Syntax.Abs where
 
 import Prelude (String)
-import qualified Prelude as C (Eq, Ord, Show, Read)
+import qualified Prelude as C
+  ( Eq, Ord, Show, Read
+  , Functor, Foldable, Traversable
+  , Int, Maybe(..)
+  )
 import qualified Data.String
 
 import qualified Data.Data    as C (Data, Typeable)
 import qualified GHC.Generics as C (Generic)
 
-data Module = Module LanguageDecl [Command]
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Module = Module' BNFC'Position
+data Module' a = Module a (LanguageDecl' a) [Command' a]
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data LanguageDecl = LanguageDecl Language
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type LanguageDecl = LanguageDecl' BNFC'Position
+data LanguageDecl' a = LanguageDecl a (Language' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data Language = Rzk1 | Rzk2
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Language = Language' BNFC'Position
+data Language' a = Rzk1 a | Rzk2 a
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data Command
-    = CommandSetOption String String
-    | CommandUnsetOption String
-    | CommandCheck Term Term
-    | CommandCompute Term
-    | CommandComputeWHNF Term
-    | CommandComputeNF Term
-    | CommandPostulate VarIdent [Param] Term
-    | CommandDefine VarIdent [Param] Term Term
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Command = Command' BNFC'Position
+data Command' a
+    = CommandSetOption a String String
+    | CommandUnsetOption a String
+    | CommandCheck a (Term' a) (Term' a)
+    | CommandCompute a (Term' a)
+    | CommandComputeWHNF a (Term' a)
+    | CommandComputeNF a (Term' a)
+    | CommandPostulate a VarIdent [Param' a] (Term' a)
+    | CommandDefine a VarIdent [Param' a] (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data Pattern
-    = PatternWildcard
-    | PatternVar VarIdent
-    | PatternPair Pattern Pattern
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Pattern = Pattern' BNFC'Position
+data Pattern' a
+    = PatternWildcard a
+    | PatternVar a VarIdent
+    | PatternPair a (Pattern' a) (Pattern' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data Param
-    = ParamPattern Pattern
-    | ParamPatternType [Pattern] Term
-    | ParamPatternShape Pattern Term Term
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Param = Param' BNFC'Position
+data Param' a
+    = ParamPattern a (Pattern' a)
+    | ParamPatternType a [Pattern' a] (Term' a)
+    | ParamPatternShape a (Pattern' a) (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data ParamDecl
-    = ParamType Term
-    | ParamWildcardType Term
-    | ParamVarType Pattern Term
-    | ParamVarShape Pattern Term Term
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type ParamDecl = ParamDecl' BNFC'Position
+data ParamDecl' a
+    = ParamType a (Term' a)
+    | ParamWildcardType a (Term' a)
+    | ParamVarType a (Pattern' a) (Term' a)
+    | ParamVarShape a (Pattern' a) (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data Restriction = Restriction Term Term
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Restriction = Restriction' BNFC'Position
+data Restriction' a = Restriction a (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-data Term
-    = Universe
-    | UniverseCube
-    | UniverseTope
-    | CubeUnit
-    | CubeUnitStar
-    | Cube2
-    | Cube2_0
-    | Cube2_1
-    | CubeProduct Term Term
-    | TopeTop
-    | TopeBottom
-    | TopeEQ Term Term
-    | TopeLEQ Term Term
-    | TopeAnd Term Term
-    | TopeOr Term Term
-    | RecBottom
-    | RecOr [Restriction]
-    | TypeFun ParamDecl Term
-    | TypeSigma Pattern Term Term
-    | TypeId Term Term Term
-    | TypeIdSimple Term Term
-    | TypeRestricted Term [Restriction]
-    | App Term Term
-    | Lambda [Param] Term
-    | Pair Term Term
-    | First Term
-    | Second Term
-    | Refl
-    | ReflTerm Term
-    | ReflTermType Term Term
-    | IdJ Term Term Term Term Term Term
-    | Hole HoleIdent
-    | Var VarIdent
-    | TypeAsc Term Term
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic)
+type Term = Term' BNFC'Position
+data Term' a
+    = Universe a
+    | UniverseCube a
+    | UniverseTope a
+    | CubeUnit a
+    | CubeUnitStar a
+    | Cube2 a
+    | Cube2_0 a
+    | Cube2_1 a
+    | CubeProduct a (Term' a) (Term' a)
+    | TopeTop a
+    | TopeBottom a
+    | TopeEQ a (Term' a) (Term' a)
+    | TopeLEQ a (Term' a) (Term' a)
+    | TopeAnd a (Term' a) (Term' a)
+    | TopeOr a (Term' a) (Term' a)
+    | RecBottom a
+    | RecOr a [Restriction' a]
+    | TypeFun a (ParamDecl' a) (Term' a)
+    | TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | TypeId a (Term' a) (Term' a) (Term' a)
+    | TypeIdSimple a (Term' a) (Term' a)
+    | TypeRestricted a (Term' a) [Restriction' a]
+    | App a (Term' a) (Term' a)
+    | Lambda a [Param' a] (Term' a)
+    | Pair a (Term' a) (Term' a)
+    | First a (Term' a)
+    | Second a (Term' a)
+    | Refl a
+    | ReflTerm a (Term' a)
+    | ReflTermType a (Term' a) (Term' a)
+    | IdJ a (Term' a) (Term' a) (Term' a) (Term' a) (Term' a) (Term' a)
+    | Hole a HoleIdent
+    | Var a VarIdent
+    | TypeAsc a (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-commandPostulateNoParams :: VarIdent -> Term -> Command
-commandPostulateNoParams = \ x ty -> CommandPostulate x [] ty
+commandPostulateNoParams :: a -> VarIdent -> Term' a -> Command' a
+commandPostulateNoParams = \ _a x ty -> CommandPostulate _a x [] ty
 
-commandDefineNoParams :: VarIdent -> Term -> Term -> Command
-commandDefineNoParams = \ x ty term -> CommandDefine x [] ty term
+commandDefineNoParams :: a -> VarIdent -> Term' a -> Term' a -> Command' a
+commandDefineNoParams = \ _a x ty term -> CommandDefine _a x [] ty term
 
-commandDef :: VarIdent -> [Param] -> Term -> Term -> Command
-commandDef = \ x params ty term -> CommandDefine x params ty term
+commandDef :: a -> VarIdent -> [Param' a] -> Term' a -> Term' a -> Command' a
+commandDef = \ _a x params ty term -> CommandDefine _a x params ty term
 
-commandDefNoParams :: VarIdent -> Term -> Term -> Command
-commandDefNoParams = \ x ty term -> CommandDefine x [] ty term
+commandDefNoParams :: a -> VarIdent -> Term' a -> Term' a -> Command' a
+commandDefNoParams = \ _a x ty term -> CommandDefine _a x [] ty term
 
-paramVarType :: VarIdent -> Term -> ParamDecl
-paramVarType = \ var cube -> ParamVarType (PatternVar var) cube
+paramVarType :: a -> VarIdent -> Term' a -> ParamDecl' a
+paramVarType = \ _a var cube -> ParamVarType _a (PatternVar _a var) cube
 
-paramVarShape :: Pattern -> Term -> Term -> ParamDecl
-paramVarShape = \ pat cube tope -> ParamVarShape pat cube tope
+paramVarShape :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
+paramVarShape = \ _a pat cube tope -> ParamVarShape _a pat cube tope
 
-recOr :: Term -> Term -> Term -> Term -> Term
-recOr = \ psi phi a b -> RecOr [Restriction psi a, Restriction phi b]
+recOr :: a -> Term' a -> Term' a -> Term' a -> Term' a -> Term' a
+recOr = \ _a psi phi a b -> RecOr _a [Restriction _a psi a, Restriction _a phi b]
 
-typeExtension :: ParamDecl -> Term -> Term
-typeExtension = \ param ret -> TypeFun param ret
+typeExtension :: a -> ParamDecl' a -> Term' a -> Term' a
+typeExtension = \ _a param ret -> TypeFun _a param ret
 
-unicode_TypeFun :: ParamDecl -> Term -> Term
-unicode_TypeFun = \ arg ret -> TypeFun arg ret
+unicode_TypeFun :: a -> ParamDecl' a -> Term' a -> Term' a
+unicode_TypeFun = \ _a arg ret -> TypeFun _a arg ret
 
-unicode_TypeSigma :: Pattern -> Term -> Term -> Term
-unicode_TypeSigma = \ pat fst snd -> TypeSigma pat fst snd
+unicode_TypeSigma :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
+unicode_TypeSigma = \ _a pat fst snd -> TypeSigma _a pat fst snd
 
-unicode_TypeSigmaAlt :: Pattern -> Term -> Term -> Term
-unicode_TypeSigmaAlt = \ pat fst snd -> TypeSigma pat fst snd
+unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
+unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
 
 newtype VarIdent = VarIdent String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
 
 newtype HoleIdent = HoleIdent String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
+
+-- | Start position (line, column) of something.
+
+type BNFC'Position = C.Maybe (C.Int, C.Int)
+
+pattern BNFC'NoPosition :: BNFC'Position
+pattern BNFC'NoPosition = C.Nothing
+
+pattern BNFC'Position :: C.Int -> C.Int -> BNFC'Position
+pattern BNFC'Position line col = C.Just (line, col)
+
+-- | Get the start position of something.
+
+class HasPosition a where
+  hasPosition :: a -> BNFC'Position
+
+instance HasPosition Module where
+  hasPosition = \case
+    Module p _ _ -> p
+
+instance HasPosition LanguageDecl where
+  hasPosition = \case
+    LanguageDecl p _ -> p
+
+instance HasPosition Language where
+  hasPosition = \case
+    Rzk1 p -> p
+    Rzk2 p -> p
+
+instance HasPosition Command where
+  hasPosition = \case
+    CommandSetOption p _ _ -> p
+    CommandUnsetOption p _ -> p
+    CommandCheck p _ _ -> p
+    CommandCompute p _ -> p
+    CommandComputeWHNF p _ -> p
+    CommandComputeNF p _ -> p
+    CommandPostulate p _ _ _ -> p
+    CommandDefine p _ _ _ _ -> p
+
+instance HasPosition Pattern where
+  hasPosition = \case
+    PatternWildcard p -> p
+    PatternVar p _ -> p
+    PatternPair p _ _ -> p
+
+instance HasPosition Param where
+  hasPosition = \case
+    ParamPattern p _ -> p
+    ParamPatternType p _ _ -> p
+    ParamPatternShape p _ _ _ -> p
+
+instance HasPosition ParamDecl where
+  hasPosition = \case
+    ParamType p _ -> p
+    ParamWildcardType p _ -> p
+    ParamVarType p _ _ -> p
+    ParamVarShape p _ _ _ -> p
+
+instance HasPosition Restriction where
+  hasPosition = \case
+    Restriction p _ _ -> p
+
+instance HasPosition Term where
+  hasPosition = \case
+    Universe p -> p
+    UniverseCube p -> p
+    UniverseTope p -> p
+    CubeUnit p -> p
+    CubeUnitStar p -> p
+    Cube2 p -> p
+    Cube2_0 p -> p
+    Cube2_1 p -> p
+    CubeProduct p _ _ -> p
+    TopeTop p -> p
+    TopeBottom p -> p
+    TopeEQ p _ _ -> p
+    TopeLEQ p _ _ -> p
+    TopeAnd p _ _ -> p
+    TopeOr p _ _ -> p
+    RecBottom p -> p
+    RecOr p _ -> p
+    TypeFun p _ _ -> p
+    TypeSigma p _ _ _ -> p
+    TypeId p _ _ _ -> p
+    TypeIdSimple p _ _ -> p
+    TypeRestricted p _ _ -> p
+    App p _ _ -> p
+    Lambda p _ _ -> p
+    Pair p _ _ -> p
+    First p _ -> p
+    Second p _ -> p
+    Refl p -> p
+    ReflTerm p _ -> p
+    ReflTermType p _ _ -> p
+    IdJ p _ _ _ _ _ _ -> p
+    Hole p _ -> p
+    Var p _ -> p
+    TypeAsc p _ _ -> p
 

@@ -50,169 +50,169 @@ type HappyAny = Happy_GHC_Exts.Any
 #else
 type HappyAny = forall a . a
 #endif
-newtype HappyWrap24 = HappyWrap24 (String)
-happyIn24 :: (String) -> (HappyAbsSyn )
+newtype HappyWrap24 = HappyWrap24 ((Language.Rzk.Syntax.Abs.BNFC'Position, String))
+happyIn24 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, String)) -> (HappyAbsSyn )
 happyIn24 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap24 x)
 {-# INLINE happyIn24 #-}
 happyOut24 :: (HappyAbsSyn ) -> HappyWrap24
 happyOut24 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut24 #-}
-newtype HappyWrap25 = HappyWrap25 (Language.Rzk.Syntax.Abs.VarIdent)
-happyIn25 :: (Language.Rzk.Syntax.Abs.VarIdent) -> (HappyAbsSyn )
+newtype HappyWrap25 = HappyWrap25 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.VarIdent))
+happyIn25 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.VarIdent)) -> (HappyAbsSyn )
 happyIn25 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap25 x)
 {-# INLINE happyIn25 #-}
 happyOut25 :: (HappyAbsSyn ) -> HappyWrap25
 happyOut25 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut25 #-}
-newtype HappyWrap26 = HappyWrap26 (Language.Rzk.Syntax.Abs.HoleIdent)
-happyIn26 :: (Language.Rzk.Syntax.Abs.HoleIdent) -> (HappyAbsSyn )
+newtype HappyWrap26 = HappyWrap26 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.HoleIdent))
+happyIn26 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.HoleIdent)) -> (HappyAbsSyn )
 happyIn26 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap26 x)
 {-# INLINE happyIn26 #-}
 happyOut26 :: (HappyAbsSyn ) -> HappyWrap26
 happyOut26 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut26 #-}
-newtype HappyWrap27 = HappyWrap27 (Language.Rzk.Syntax.Abs.Module)
-happyIn27 :: (Language.Rzk.Syntax.Abs.Module) -> (HappyAbsSyn )
+newtype HappyWrap27 = HappyWrap27 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Module))
+happyIn27 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Module)) -> (HappyAbsSyn )
 happyIn27 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap27 x)
 {-# INLINE happyIn27 #-}
 happyOut27 :: (HappyAbsSyn ) -> HappyWrap27
 happyOut27 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut27 #-}
-newtype HappyWrap28 = HappyWrap28 (Language.Rzk.Syntax.Abs.LanguageDecl)
-happyIn28 :: (Language.Rzk.Syntax.Abs.LanguageDecl) -> (HappyAbsSyn )
+newtype HappyWrap28 = HappyWrap28 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.LanguageDecl))
+happyIn28 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.LanguageDecl)) -> (HappyAbsSyn )
 happyIn28 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap28 x)
 {-# INLINE happyIn28 #-}
 happyOut28 :: (HappyAbsSyn ) -> HappyWrap28
 happyOut28 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut28 #-}
-newtype HappyWrap29 = HappyWrap29 (Language.Rzk.Syntax.Abs.Language)
-happyIn29 :: (Language.Rzk.Syntax.Abs.Language) -> (HappyAbsSyn )
+newtype HappyWrap29 = HappyWrap29 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Language))
+happyIn29 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Language)) -> (HappyAbsSyn )
 happyIn29 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap29 x)
 {-# INLINE happyIn29 #-}
 happyOut29 :: (HappyAbsSyn ) -> HappyWrap29
 happyOut29 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut29 #-}
-newtype HappyWrap30 = HappyWrap30 (Language.Rzk.Syntax.Abs.Command)
-happyIn30 :: (Language.Rzk.Syntax.Abs.Command) -> (HappyAbsSyn )
+newtype HappyWrap30 = HappyWrap30 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Command))
+happyIn30 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Command)) -> (HappyAbsSyn )
 happyIn30 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap30 x)
 {-# INLINE happyIn30 #-}
 happyOut30 :: (HappyAbsSyn ) -> HappyWrap30
 happyOut30 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut30 #-}
-newtype HappyWrap31 = HappyWrap31 ([Language.Rzk.Syntax.Abs.Command])
-happyIn31 :: ([Language.Rzk.Syntax.Abs.Command]) -> (HappyAbsSyn )
+newtype HappyWrap31 = HappyWrap31 ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Command]))
+happyIn31 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Command])) -> (HappyAbsSyn )
 happyIn31 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap31 x)
 {-# INLINE happyIn31 #-}
 happyOut31 :: (HappyAbsSyn ) -> HappyWrap31
 happyOut31 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut31 #-}
-newtype HappyWrap32 = HappyWrap32 (Language.Rzk.Syntax.Abs.Pattern)
-happyIn32 :: (Language.Rzk.Syntax.Abs.Pattern) -> (HappyAbsSyn )
+newtype HappyWrap32 = HappyWrap32 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Pattern))
+happyIn32 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Pattern)) -> (HappyAbsSyn )
 happyIn32 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap32 x)
 {-# INLINE happyIn32 #-}
 happyOut32 :: (HappyAbsSyn ) -> HappyWrap32
 happyOut32 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut32 #-}
-newtype HappyWrap33 = HappyWrap33 ([Language.Rzk.Syntax.Abs.Pattern])
-happyIn33 :: ([Language.Rzk.Syntax.Abs.Pattern]) -> (HappyAbsSyn )
+newtype HappyWrap33 = HappyWrap33 ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Pattern]))
+happyIn33 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Pattern])) -> (HappyAbsSyn )
 happyIn33 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap33 x)
 {-# INLINE happyIn33 #-}
 happyOut33 :: (HappyAbsSyn ) -> HappyWrap33
 happyOut33 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut33 #-}
-newtype HappyWrap34 = HappyWrap34 (Language.Rzk.Syntax.Abs.Param)
-happyIn34 :: (Language.Rzk.Syntax.Abs.Param) -> (HappyAbsSyn )
+newtype HappyWrap34 = HappyWrap34 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Param))
+happyIn34 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Param)) -> (HappyAbsSyn )
 happyIn34 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap34 x)
 {-# INLINE happyIn34 #-}
 happyOut34 :: (HappyAbsSyn ) -> HappyWrap34
 happyOut34 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut34 #-}
-newtype HappyWrap35 = HappyWrap35 ([Language.Rzk.Syntax.Abs.Param])
-happyIn35 :: ([Language.Rzk.Syntax.Abs.Param]) -> (HappyAbsSyn )
+newtype HappyWrap35 = HappyWrap35 ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Param]))
+happyIn35 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Param])) -> (HappyAbsSyn )
 happyIn35 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap35 x)
 {-# INLINE happyIn35 #-}
 happyOut35 :: (HappyAbsSyn ) -> HappyWrap35
 happyOut35 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut35 #-}
-newtype HappyWrap36 = HappyWrap36 (Language.Rzk.Syntax.Abs.ParamDecl)
-happyIn36 :: (Language.Rzk.Syntax.Abs.ParamDecl) -> (HappyAbsSyn )
+newtype HappyWrap36 = HappyWrap36 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.ParamDecl))
+happyIn36 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.ParamDecl)) -> (HappyAbsSyn )
 happyIn36 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap36 x)
 {-# INLINE happyIn36 #-}
 happyOut36 :: (HappyAbsSyn ) -> HappyWrap36
 happyOut36 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut36 #-}
-newtype HappyWrap37 = HappyWrap37 (Language.Rzk.Syntax.Abs.Restriction)
-happyIn37 :: (Language.Rzk.Syntax.Abs.Restriction) -> (HappyAbsSyn )
+newtype HappyWrap37 = HappyWrap37 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Restriction))
+happyIn37 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Restriction)) -> (HappyAbsSyn )
 happyIn37 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap37 x)
 {-# INLINE happyIn37 #-}
 happyOut37 :: (HappyAbsSyn ) -> HappyWrap37
 happyOut37 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut37 #-}
-newtype HappyWrap38 = HappyWrap38 ([Language.Rzk.Syntax.Abs.Restriction])
-happyIn38 :: ([Language.Rzk.Syntax.Abs.Restriction]) -> (HappyAbsSyn )
+newtype HappyWrap38 = HappyWrap38 ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Restriction]))
+happyIn38 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Restriction])) -> (HappyAbsSyn )
 happyIn38 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap38 x)
 {-# INLINE happyIn38 #-}
 happyOut38 :: (HappyAbsSyn ) -> HappyWrap38
 happyOut38 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut38 #-}
-newtype HappyWrap39 = HappyWrap39 (Language.Rzk.Syntax.Abs.Term)
-happyIn39 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap39 = HappyWrap39 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn39 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn39 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap39 x)
 {-# INLINE happyIn39 #-}
 happyOut39 :: (HappyAbsSyn ) -> HappyWrap39
 happyOut39 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut39 #-}
-newtype HappyWrap40 = HappyWrap40 (Language.Rzk.Syntax.Abs.Term)
-happyIn40 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap40 = HappyWrap40 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn40 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn40 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap40 x)
 {-# INLINE happyIn40 #-}
 happyOut40 :: (HappyAbsSyn ) -> HappyWrap40
 happyOut40 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut40 #-}
-newtype HappyWrap41 = HappyWrap41 (Language.Rzk.Syntax.Abs.Term)
-happyIn41 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap41 = HappyWrap41 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn41 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn41 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap41 x)
 {-# INLINE happyIn41 #-}
 happyOut41 :: (HappyAbsSyn ) -> HappyWrap41
 happyOut41 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut41 #-}
-newtype HappyWrap42 = HappyWrap42 (Language.Rzk.Syntax.Abs.Term)
-happyIn42 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap42 = HappyWrap42 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn42 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn42 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap42 x)
 {-# INLINE happyIn42 #-}
 happyOut42 :: (HappyAbsSyn ) -> HappyWrap42
 happyOut42 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut42 #-}
-newtype HappyWrap43 = HappyWrap43 (Language.Rzk.Syntax.Abs.Term)
-happyIn43 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap43 = HappyWrap43 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn43 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn43 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap43 x)
 {-# INLINE happyIn43 #-}
 happyOut43 :: (HappyAbsSyn ) -> HappyWrap43
 happyOut43 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut43 #-}
-newtype HappyWrap44 = HappyWrap44 (Language.Rzk.Syntax.Abs.Term)
-happyIn44 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap44 = HappyWrap44 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn44 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn44 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap44 x)
 {-# INLINE happyIn44 #-}
 happyOut44 :: (HappyAbsSyn ) -> HappyWrap44
 happyOut44 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut44 #-}
-newtype HappyWrap45 = HappyWrap45 (Language.Rzk.Syntax.Abs.Term)
-happyIn45 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap45 = HappyWrap45 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn45 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn45 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap45 x)
 {-# INLINE happyIn45 #-}
 happyOut45 :: (HappyAbsSyn ) -> HappyWrap45
 happyOut45 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut45 #-}
-newtype HappyWrap46 = HappyWrap46 (Language.Rzk.Syntax.Abs.Term)
-happyIn46 :: (Language.Rzk.Syntax.Abs.Term) -> (HappyAbsSyn )
+newtype HappyWrap46 = HappyWrap46 ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term))
+happyIn46 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)) -> (HappyAbsSyn )
 happyIn46 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap46 x)
 {-# INLINE happyIn46 #-}
 happyOut46 :: (HappyAbsSyn ) -> HappyWrap46
 happyOut46 x = Happy_GHC_Exts.unsafeCoerce# x
 {-# INLINE happyOut46 #-}
-newtype HappyWrap47 = HappyWrap47 ([Language.Rzk.Syntax.Abs.Term])
-happyIn47 :: ([Language.Rzk.Syntax.Abs.Term]) -> (HappyAbsSyn )
+newtype HappyWrap47 = HappyWrap47 ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Term]))
+happyIn47 :: ((Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Term])) -> (HappyAbsSyn )
 happyIn47 x = Happy_GHC_Exts.unsafeCoerce# (HappyWrap47 x)
 {-# INLINE happyIn47 #-}
 happyOut47 :: (HappyAbsSyn ) -> HappyWrap47
@@ -232,7 +232,7 @@ happyExpList = HappyA# "\x00\x00\x00\x00\x00\x00\x20\x00\x00\x00\x00\x00\x00\x00
 {-# NOINLINE happyExpListPerState #-}
 happyExpListPerState st =
     token_strs_expected
-  where token_strs = ["error","%dummy","%start_pModule","%start_pLanguageDecl","%start_pLanguage","%start_pCommand","%start_pListCommand","%start_pPattern","%start_pListPattern","%start_pParam","%start_pListParam","%start_pParamDecl","%start_pRestriction","%start_pListRestriction","%start_pTerm7","%start_pTerm5","%start_pTerm4","%start_pTerm3","%start_pTerm2","%start_pTerm1","%start_pTerm6","%start_pTerm","%start_pListTerm","String","VarIdent","HoleIdent","Module","LanguageDecl","Language","Command","ListCommand","Pattern","ListPattern","Param","ListParam","ParamDecl","Restriction","ListRestriction","Term7","Term5","Term4","Term3","Term2","Term1","Term6","Term","ListTerm","'#check'","'#compute'","'#compute-nf'","'#compute-whnf'","'#def'","'#define'","'#lang'","'#postulate'","'#set-option'","'#unset-option'","'('","')'","'*'","'*_1'","','","'->'","'/\\\\'","'0_2'","'1'","'1_2'","'2'","':'","':='","';'","'<'","'<='","'='","'==='","'=_{'","'>'","'BOT'","'CUBE'","'Sigma'","'TOP'","'TOPE'","'U'","'['","'\\\\'","'\\\\/'","']'","'_'","'as'","'first'","'idJ'","'recBOT'","'recOR'","'refl'","'refl_{'","'rzk-1'","'rzk-2'","'second'","'{'","'|'","'|->'","'}'","'\931'","'\8594'","'\8721'","L_quoted","L_VarIdent","L_HoleIdent","%eof"]
+  where token_strs = ["error","%dummy","%start_pModule_internal","%start_pLanguageDecl_internal","%start_pLanguage_internal","%start_pCommand_internal","%start_pListCommand_internal","%start_pPattern_internal","%start_pListPattern_internal","%start_pParam_internal","%start_pListParam_internal","%start_pParamDecl_internal","%start_pRestriction_internal","%start_pListRestriction_internal","%start_pTerm7_internal","%start_pTerm5_internal","%start_pTerm4_internal","%start_pTerm3_internal","%start_pTerm2_internal","%start_pTerm1_internal","%start_pTerm6_internal","%start_pTerm_internal","%start_pListTerm_internal","String","VarIdent","HoleIdent","Module","LanguageDecl","Language","Command","ListCommand","Pattern","ListPattern","Param","ListParam","ParamDecl","Restriction","ListRestriction","Term7","Term5","Term4","Term3","Term2","Term1","Term6","Term","ListTerm","'#check'","'#compute'","'#compute-nf'","'#compute-whnf'","'#def'","'#define'","'#lang'","'#postulate'","'#set-option'","'#unset-option'","'('","')'","'*'","'*_1'","','","'->'","'/\\\\'","'0_2'","'1'","'1_2'","'2'","':'","':='","';'","'<'","'<='","'='","'==='","'=_{'","'>'","'BOT'","'CUBE'","'Sigma'","'TOP'","'TOPE'","'U'","'['","'\\\\'","'\\\\/'","']'","'_'","'as'","'first'","'idJ'","'recBOT'","'recOR'","'refl'","'refl_{'","'rzk-1'","'rzk-2'","'second'","'{'","'|'","'|->'","'}'","'\931'","'\8594'","'\8721'","L_quoted","L_VarIdent","L_HoleIdent","%eof"]
         bit_start = st Prelude.* 109
         bit_end = (st Prelude.+ 1) Prelude.* 109
         read_bit = readArrayBit happyExpList
@@ -357,23 +357,23 @@ happy_n_nonterms = 24 :: Prelude.Int
 
 happyReduce_21 = happySpecReduce_1  0# happyReduction_21
 happyReduction_21 happy_x_1
-	 =  case happyOutTok happy_x_1 of { (PT _ (TL happy_var_1)) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
 	happyIn24
-		 (happy_var_1
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), ((\(PT _ (TL s)) -> s) happy_var_1))
 	)}
 
 happyReduce_22 = happySpecReduce_1  1# happyReduction_22
 happyReduction_22 happy_x_1
-	 =  case happyOutTok happy_x_1 of { (PT _ (T_VarIdent happy_var_1)) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
 	happyIn25
-		 (Language.Rzk.Syntax.Abs.VarIdent happy_var_1
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.VarIdent (tokenText happy_var_1))
 	)}
 
 happyReduce_23 = happySpecReduce_1  2# happyReduction_23
 happyReduction_23 happy_x_1
-	 =  case happyOutTok happy_x_1 of { (PT _ (T_HoleIdent happy_var_1)) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
 	happyIn26
-		 (Language.Rzk.Syntax.Abs.HoleIdent happy_var_1
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.HoleIdent (tokenText happy_var_1))
 	)}
 
 happyReduce_24 = happySpecReduce_2  3# happyReduction_24
@@ -382,29 +382,32 @@ happyReduction_24 happy_x_2
 	 =  case happyOut28 happy_x_1 of { (HappyWrap28 happy_var_1) -> 
 	case happyOut31 happy_x_2 of { (HappyWrap31 happy_var_2) -> 
 	happyIn27
-		 (Language.Rzk.Syntax.Abs.Module happy_var_1 happy_var_2
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.Module (fst happy_var_1) (snd happy_var_1) (snd happy_var_2))
 	)}}
 
 happyReduce_25 = happySpecReduce_3  4# happyReduction_25
 happyReduction_25 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut29 happy_x_2 of { (HappyWrap29 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut29 happy_x_2 of { (HappyWrap29 happy_var_2) -> 
 	happyIn28
-		 (Language.Rzk.Syntax.Abs.LanguageDecl happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LanguageDecl (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_26 = happySpecReduce_1  5# happyReduction_26
 happyReduction_26 happy_x_1
-	 =  happyIn29
-		 (Language.Rzk.Syntax.Abs.Rzk1
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn29
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Rzk1 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_27 = happySpecReduce_1  5# happyReduction_27
 happyReduction_27 happy_x_1
-	 =  happyIn29
-		 (Language.Rzk.Syntax.Abs.Rzk2
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn29
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Rzk2 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_28 = happyReduce 5# 6# happyReduction_28
 happyReduction_28 (happy_x_5 `HappyStk`
@@ -413,20 +416,22 @@ happyReduction_28 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut24 happy_x_2 of { (HappyWrap24 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut24 happy_x_2 of { (HappyWrap24 happy_var_2) -> 
 	case happyOut24 happy_x_4 of { (HappyWrap24 happy_var_4) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandSetOption happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandSetOption (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_29 = happySpecReduce_3  6# happyReduction_29
 happyReduction_29 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut24 happy_x_2 of { (HappyWrap24 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut24 happy_x_2 of { (HappyWrap24 happy_var_2) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandUnsetOption happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandUnsetOption (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_30 = happyReduce 5# 6# happyReduction_30
 happyReduction_30 (happy_x_5 `HappyStk`
@@ -435,38 +440,42 @@ happyReduction_30 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandCheck happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandCheck (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_31 = happySpecReduce_3  6# happyReduction_31
 happyReduction_31 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandCompute happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandCompute (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_32 = happySpecReduce_3  6# happyReduction_32
 happyReduction_32 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandComputeWHNF happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandComputeWHNF (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_33 = happySpecReduce_3  6# happyReduction_33
 happyReduction_33 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandComputeNF happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandComputeNF (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_34 = happyReduce 6# 6# happyReduction_34
 happyReduction_34 (happy_x_6 `HappyStk`
@@ -476,12 +485,13 @@ happyReduction_34 (happy_x_6 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut35 happy_x_3 of { (HappyWrap35 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandPostulate happy_var_2 happy_var_3 happy_var_5
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandPostulate (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_35 = happyReduce 5# 6# happyReduction_35
 happyReduction_35 (happy_x_5 `HappyStk`
@@ -490,11 +500,12 @@ happyReduction_35 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.commandPostulateNoParams happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.commandPostulateNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_36 = happyReduce 8# 6# happyReduction_36
 happyReduction_36 (happy_x_8 `HappyStk`
@@ -506,13 +517,14 @@ happyReduction_36 (happy_x_8 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut35 happy_x_3 of { (HappyWrap35 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut46 happy_x_7 of { (HappyWrap46 happy_var_7) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.CommandDefine happy_var_2 happy_var_3 happy_var_5 happy_var_7
-	) `HappyStk` happyRest}}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CommandDefine (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7))
+	) `HappyStk` happyRest}}}}}
 
 happyReduce_37 = happyReduce 7# 6# happyReduction_37
 happyReduction_37 (happy_x_7 `HappyStk`
@@ -523,12 +535,13 @@ happyReduction_37 (happy_x_7 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	case happyOut46 happy_x_6 of { (HappyWrap46 happy_var_6) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.commandDefineNoParams happy_var_2 happy_var_4 happy_var_6
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.commandDefineNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_6))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_38 = happyReduce 8# 6# happyReduction_38
 happyReduction_38 (happy_x_8 `HappyStk`
@@ -540,13 +553,14 @@ happyReduction_38 (happy_x_8 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut35 happy_x_3 of { (HappyWrap35 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut46 happy_x_7 of { (HappyWrap46 happy_var_7) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.commandDef happy_var_2 happy_var_3 happy_var_5 happy_var_7
-	) `HappyStk` happyRest}}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.commandDef (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7))
+	) `HappyStk` happyRest}}}}}
 
 happyReduce_39 = happyReduce 7# 6# happyReduction_39
 happyReduction_39 (happy_x_7 `HappyStk`
@@ -557,16 +571,17 @@ happyReduction_39 (happy_x_7 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	case happyOut46 happy_x_6 of { (HappyWrap46 happy_var_6) -> 
 	happyIn30
-		 (Language.Rzk.Syntax.Abs.commandDefNoParams happy_var_2 happy_var_4 happy_var_6
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.commandDefNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_6))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_40 = happySpecReduce_0  7# happyReduction_40
 happyReduction_40  =  happyIn31
-		 ([]
+		 ((Language.Rzk.Syntax.Abs.BNFC'NoPosition, [])
 	)
 
 happyReduce_41 = happySpecReduce_2  7# happyReduction_41
@@ -575,20 +590,21 @@ happyReduction_41 happy_x_2
 	 =  case happyOut30 happy_x_1 of { (HappyWrap30 happy_var_1) -> 
 	case happyOut31 happy_x_2 of { (HappyWrap31 happy_var_2) -> 
 	happyIn31
-		 ((:) happy_var_1 happy_var_2
+		 ((fst happy_var_1, (:) (snd happy_var_1) (snd happy_var_2))
 	)}}
 
 happyReduce_42 = happySpecReduce_1  8# happyReduction_42
 happyReduction_42 happy_x_1
-	 =  happyIn32
-		 (Language.Rzk.Syntax.Abs.PatternWildcard
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn32
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.PatternWildcard (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_43 = happySpecReduce_1  8# happyReduction_43
 happyReduction_43 happy_x_1
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	happyIn32
-		 (Language.Rzk.Syntax.Abs.PatternVar happy_var_1
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.PatternVar (fst happy_var_1) (snd happy_var_1))
 	)}
 
 happyReduce_44 = happyReduce 5# 8# happyReduction_44
@@ -598,17 +614,18 @@ happyReduction_44 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
 	case happyOut32 happy_x_4 of { (HappyWrap32 happy_var_4) -> 
 	happyIn32
-		 (Language.Rzk.Syntax.Abs.PatternPair happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.PatternPair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_45 = happySpecReduce_1  9# happyReduction_45
 happyReduction_45 happy_x_1
 	 =  case happyOut32 happy_x_1 of { (HappyWrap32 happy_var_1) -> 
 	happyIn33
-		 ((:[]) happy_var_1
+		 ((fst happy_var_1, (:[]) (snd happy_var_1))
 	)}
 
 happyReduce_46 = happySpecReduce_2  9# happyReduction_46
@@ -617,14 +634,14 @@ happyReduction_46 happy_x_2
 	 =  case happyOut32 happy_x_1 of { (HappyWrap32 happy_var_1) -> 
 	case happyOut33 happy_x_2 of { (HappyWrap33 happy_var_2) -> 
 	happyIn33
-		 ((:) happy_var_1 happy_var_2
+		 ((fst happy_var_1, (:) (snd happy_var_1) (snd happy_var_2))
 	)}}
 
 happyReduce_47 = happySpecReduce_1  10# happyReduction_47
 happyReduction_47 happy_x_1
 	 =  case happyOut32 happy_x_1 of { (HappyWrap32 happy_var_1) -> 
 	happyIn34
-		 (Language.Rzk.Syntax.Abs.ParamPattern happy_var_1
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.ParamPattern (fst happy_var_1) (snd happy_var_1))
 	)}
 
 happyReduce_48 = happyReduce 5# 10# happyReduction_48
@@ -634,11 +651,12 @@ happyReduction_48 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut33 happy_x_2 of { (HappyWrap33 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut33 happy_x_2 of { (HappyWrap33 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn34
-		 (Language.Rzk.Syntax.Abs.ParamPatternType happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ParamPatternType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_49 = happyReduce 7# 10# happyReduction_49
 happyReduction_49 (happy_x_7 `HappyStk`
@@ -649,18 +667,19 @@ happyReduction_49 (happy_x_7 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	case happyOut46 happy_x_6 of { (HappyWrap46 happy_var_6) -> 
 	happyIn34
-		 (Language.Rzk.Syntax.Abs.ParamPatternShape happy_var_2 happy_var_4 happy_var_6
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ParamPatternShape (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_6))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_50 = happySpecReduce_1  11# happyReduction_50
 happyReduction_50 happy_x_1
 	 =  case happyOut34 happy_x_1 of { (HappyWrap34 happy_var_1) -> 
 	happyIn35
-		 ((:[]) happy_var_1
+		 ((fst happy_var_1, (:[]) (snd happy_var_1))
 	)}
 
 happyReduce_51 = happySpecReduce_2  11# happyReduction_51
@@ -669,14 +688,14 @@ happyReduction_51 happy_x_2
 	 =  case happyOut34 happy_x_1 of { (HappyWrap34 happy_var_1) -> 
 	case happyOut35 happy_x_2 of { (HappyWrap35 happy_var_2) -> 
 	happyIn35
-		 ((:) happy_var_1 happy_var_2
+		 ((fst happy_var_1, (:) (snd happy_var_1) (snd happy_var_2))
 	)}}
 
 happyReduce_52 = happySpecReduce_1  12# happyReduction_52
 happyReduction_52 happy_x_1
 	 =  case happyOut45 happy_x_1 of { (HappyWrap45 happy_var_1) -> 
 	happyIn36
-		 (Language.Rzk.Syntax.Abs.ParamType happy_var_1
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.ParamType (fst happy_var_1) (snd happy_var_1))
 	)}
 
 happyReduce_53 = happyReduce 5# 12# happyReduction_53
@@ -686,10 +705,11 @@ happyReduction_53 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn36
-		 (Language.Rzk.Syntax.Abs.ParamWildcardType happy_var_4
-	) `HappyStk` happyRest}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ParamWildcardType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_4))
+	) `HappyStk` happyRest}}
 
 happyReduce_54 = happyReduce 5# 12# happyReduction_54
 happyReduction_54 (happy_x_5 `HappyStk`
@@ -698,11 +718,12 @@ happyReduction_54 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn36
-		 (Language.Rzk.Syntax.Abs.ParamVarType happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ParamVarType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_55 = happyReduce 5# 12# happyReduction_55
 happyReduction_55 (happy_x_5 `HappyStk`
@@ -711,11 +732,12 @@ happyReduction_55 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut25 happy_x_2 of { (HappyWrap25 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn36
-		 (Language.Rzk.Syntax.Abs.paramVarType happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.paramVarType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_56 = happyReduce 9# 12# happyReduction_56
 happyReduction_56 (happy_x_9 `HappyStk`
@@ -728,12 +750,13 @@ happyReduction_56 (happy_x_9 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut46 happy_x_8 of { (HappyWrap46 happy_var_8) -> 
 	happyIn36
-		 (Language.Rzk.Syntax.Abs.ParamVarShape happy_var_3 happy_var_5 happy_var_8
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ParamVarShape (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_5) (snd happy_var_8))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_57 = happyReduce 7# 12# happyReduction_57
 happyReduction_57 (happy_x_7 `HappyStk`
@@ -744,12 +767,13 @@ happyReduction_57 (happy_x_7 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_2 of { (HappyWrap32 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	case happyOut46 happy_x_6 of { (HappyWrap46 happy_var_6) -> 
 	happyIn36
-		 (Language.Rzk.Syntax.Abs.paramVarShape happy_var_2 happy_var_4 happy_var_6
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.paramVarShape (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_6))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_58 = happySpecReduce_3  13# happyReduction_58
 happyReduction_58 happy_x_3
@@ -758,14 +782,14 @@ happyReduction_58 happy_x_3
 	 =  case happyOut46 happy_x_1 of { (HappyWrap46 happy_var_1) -> 
 	case happyOut46 happy_x_3 of { (HappyWrap46 happy_var_3) -> 
 	happyIn37
-		 (Language.Rzk.Syntax.Abs.Restriction happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.Restriction (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_59 = happySpecReduce_1  14# happyReduction_59
 happyReduction_59 happy_x_1
 	 =  case happyOut37 happy_x_1 of { (HappyWrap37 happy_var_1) -> 
 	happyIn38
-		 ((:[]) happy_var_1
+		 ((fst happy_var_1, (:[]) (snd happy_var_1))
 	)}
 
 happyReduce_60 = happySpecReduce_3  14# happyReduction_60
@@ -775,74 +799,85 @@ happyReduction_60 happy_x_3
 	 =  case happyOut37 happy_x_1 of { (HappyWrap37 happy_var_1) -> 
 	case happyOut38 happy_x_3 of { (HappyWrap38 happy_var_3) -> 
 	happyIn38
-		 ((:) happy_var_1 happy_var_3
+		 ((fst happy_var_1, (:) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_61 = happySpecReduce_1  15# happyReduction_61
 happyReduction_61 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.Universe
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Universe (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_62 = happySpecReduce_1  15# happyReduction_62
 happyReduction_62 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.UniverseCube
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.UniverseCube (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_63 = happySpecReduce_1  15# happyReduction_63
 happyReduction_63 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.UniverseTope
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.UniverseTope (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_64 = happySpecReduce_1  15# happyReduction_64
 happyReduction_64 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.CubeUnit
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CubeUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_65 = happySpecReduce_1  15# happyReduction_65
 happyReduction_65 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.CubeUnitStar
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.CubeUnitStar (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_66 = happySpecReduce_1  15# happyReduction_66
 happyReduction_66 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.Cube2
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Cube2 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_67 = happySpecReduce_1  15# happyReduction_67
 happyReduction_67 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.Cube2_0
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Cube2_0 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_68 = happySpecReduce_1  15# happyReduction_68
 happyReduction_68 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.Cube2_1
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Cube2_1 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_69 = happySpecReduce_1  15# happyReduction_69
 happyReduction_69 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.TopeTop
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.TopeTop (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_70 = happySpecReduce_1  15# happyReduction_70
 happyReduction_70 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.TopeBottom
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.TopeBottom (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_71 = happySpecReduce_1  15# happyReduction_71
 happyReduction_71 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.RecBottom
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.RecBottom (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_72 = happyReduce 4# 15# happyReduction_72
 happyReduction_72 (happy_x_4 `HappyStk`
@@ -850,10 +885,11 @@ happyReduction_72 (happy_x_4 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut38 happy_x_3 of { (HappyWrap38 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut38 happy_x_3 of { (HappyWrap38 happy_var_3) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.RecOr happy_var_3
-	) `HappyStk` happyRest}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.RecOr (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3))
+	) `HappyStk` happyRest}}
 
 happyReduce_73 = happyReduce 10# 15# happyReduction_73
 happyReduction_73 (happy_x_10 `HappyStk`
@@ -867,13 +903,14 @@ happyReduction_73 (happy_x_10 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut46 happy_x_3 of { (HappyWrap46 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_3 of { (HappyWrap46 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut46 happy_x_7 of { (HappyWrap46 happy_var_7) -> 
 	case happyOut46 happy_x_9 of { (HappyWrap46 happy_var_9) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.recOr happy_var_3 happy_var_5 happy_var_7 happy_var_9
-	) `HappyStk` happyRest}}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.recOr (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9))
+	) `HappyStk` happyRest}}}}}
 
 happyReduce_74 = happyReduce 5# 15# happyReduction_74
 happyReduction_74 (happy_x_5 `HappyStk`
@@ -882,11 +919,12 @@ happyReduction_74 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut36 happy_x_2 of { (HappyWrap36 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut36 happy_x_2 of { (HappyWrap36 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.typeExtension happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.typeExtension (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_75 = happyReduce 5# 15# happyReduction_75
 happyReduction_75 (happy_x_5 `HappyStk`
@@ -895,26 +933,29 @@ happyReduction_75 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.Pair happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Pair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_76 = happySpecReduce_1  15# happyReduction_76
 happyReduction_76 happy_x_1
-	 =  happyIn39
-		 (Language.Rzk.Syntax.Abs.Refl
-	)
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	happyIn39
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Refl (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)))
+	)}
 
 happyReduce_77 = happySpecReduce_3  15# happyReduction_77
 happyReduction_77 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.ReflTerm happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ReflTerm (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_78 = happyReduce 5# 15# happyReduction_78
 happyReduction_78 (happy_x_5 `HappyStk`
@@ -923,11 +964,12 @@ happyReduction_78 (happy_x_5 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	case happyOut46 happy_x_4 of { (HappyWrap46 happy_var_4) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.ReflTermType happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.ReflTermType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_79 = happyReduce 14# 15# happyReduction_79
 happyReduction_79 (happy_x_14 `HappyStk`
@@ -945,38 +987,40 @@ happyReduction_79 (happy_x_14 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut46 happy_x_3 of { (HappyWrap46 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_3 of { (HappyWrap46 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut46 happy_x_7 of { (HappyWrap46 happy_var_7) -> 
 	case happyOut46 happy_x_9 of { (HappyWrap46 happy_var_9) -> 
 	case happyOut46 happy_x_11 of { (HappyWrap46 happy_var_11) -> 
 	case happyOut46 happy_x_13 of { (HappyWrap46 happy_var_13) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.IdJ happy_var_3 happy_var_5 happy_var_7 happy_var_9 happy_var_11 happy_var_13
-	) `HappyStk` happyRest}}}}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.IdJ (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9) (snd happy_var_11) (snd happy_var_13))
+	) `HappyStk` happyRest}}}}}}}
 
 happyReduce_80 = happySpecReduce_1  15# happyReduction_80
 happyReduction_80 happy_x_1
 	 =  case happyOut26 happy_x_1 of { (HappyWrap26 happy_var_1) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.Hole happy_var_1
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.Hole (fst happy_var_1) (snd happy_var_1))
 	)}
 
 happyReduce_81 = happySpecReduce_1  15# happyReduction_81
 happyReduction_81 happy_x_1
 	 =  case happyOut25 happy_x_1 of { (HappyWrap25 happy_var_1) -> 
 	happyIn39
-		 (Language.Rzk.Syntax.Abs.Var happy_var_1
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.Var (fst happy_var_1) (snd happy_var_1))
 	)}
 
 happyReduce_82 = happySpecReduce_3  15# happyReduction_82
 happyReduction_82 happy_x_3
 	happy_x_2
 	happy_x_1
-	 =  case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut46 happy_x_2 of { (HappyWrap46 happy_var_2) -> 
 	happyIn39
-		 (happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), (snd happy_var_2))
+	)}}
 
 happyReduce_83 = happySpecReduce_3  16# happyReduction_83
 happyReduction_83 happy_x_3
@@ -985,14 +1029,14 @@ happyReduction_83 happy_x_3
 	 =  case happyOut40 happy_x_1 of { (HappyWrap40 happy_var_1) -> 
 	case happyOut45 happy_x_3 of { (HappyWrap45 happy_var_3) -> 
 	happyIn40
-		 (Language.Rzk.Syntax.Abs.CubeProduct happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.CubeProduct (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_84 = happySpecReduce_1  16# happyReduction_84
 happyReduction_84 happy_x_1
 	 =  case happyOut45 happy_x_1 of { (HappyWrap45 happy_var_1) -> 
 	happyIn40
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_85 = happySpecReduce_3  17# happyReduction_85
@@ -1002,7 +1046,7 @@ happyReduction_85 happy_x_3
 	 =  case happyOut40 happy_x_1 of { (HappyWrap40 happy_var_1) -> 
 	case happyOut40 happy_x_3 of { (HappyWrap40 happy_var_3) -> 
 	happyIn41
-		 (Language.Rzk.Syntax.Abs.TopeEQ happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TopeEQ (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_86 = happySpecReduce_3  17# happyReduction_86
@@ -1012,14 +1056,14 @@ happyReduction_86 happy_x_3
 	 =  case happyOut40 happy_x_1 of { (HappyWrap40 happy_var_1) -> 
 	case happyOut40 happy_x_3 of { (HappyWrap40 happy_var_3) -> 
 	happyIn41
-		 (Language.Rzk.Syntax.Abs.TopeLEQ happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TopeLEQ (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_87 = happySpecReduce_1  17# happyReduction_87
 happyReduction_87 happy_x_1
 	 =  case happyOut40 happy_x_1 of { (HappyWrap40 happy_var_1) -> 
 	happyIn41
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_88 = happySpecReduce_3  18# happyReduction_88
@@ -1029,14 +1073,14 @@ happyReduction_88 happy_x_3
 	 =  case happyOut41 happy_x_1 of { (HappyWrap41 happy_var_1) -> 
 	case happyOut42 happy_x_3 of { (HappyWrap42 happy_var_3) -> 
 	happyIn42
-		 (Language.Rzk.Syntax.Abs.TopeAnd happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TopeAnd (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_89 = happySpecReduce_1  18# happyReduction_89
 happyReduction_89 happy_x_1
 	 =  case happyOut41 happy_x_1 of { (HappyWrap41 happy_var_1) -> 
 	happyIn42
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_90 = happySpecReduce_3  19# happyReduction_90
@@ -1046,14 +1090,14 @@ happyReduction_90 happy_x_3
 	 =  case happyOut42 happy_x_1 of { (HappyWrap42 happy_var_1) -> 
 	case happyOut43 happy_x_3 of { (HappyWrap43 happy_var_3) -> 
 	happyIn43
-		 (Language.Rzk.Syntax.Abs.TopeOr happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TopeOr (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_91 = happySpecReduce_1  19# happyReduction_91
 happyReduction_91 happy_x_1
 	 =  case happyOut42 happy_x_1 of { (HappyWrap42 happy_var_1) -> 
 	happyIn43
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_92 = happySpecReduce_3  20# happyReduction_92
@@ -1063,7 +1107,7 @@ happyReduction_92 happy_x_3
 	 =  case happyOut36 happy_x_1 of { (HappyWrap36 happy_var_1) -> 
 	case happyOut44 happy_x_3 of { (HappyWrap44 happy_var_3) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.TypeFun happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TypeFun (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_93 = happyReduce 8# 20# happyReduction_93
@@ -1076,12 +1120,13 @@ happyReduction_93 (happy_x_8 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut44 happy_x_8 of { (HappyWrap44 happy_var_8) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.TypeSigma happy_var_3 happy_var_5 happy_var_8
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_5) (snd happy_var_8))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_94 = happyReduce 5# 20# happyReduction_94
 happyReduction_94 (happy_x_5 `HappyStk`
@@ -1094,7 +1139,7 @@ happyReduction_94 (happy_x_5 `HappyStk`
 	case happyOut46 happy_x_3 of { (HappyWrap46 happy_var_3) -> 
 	case happyOut43 happy_x_5 of { (HappyWrap43 happy_var_5) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.TypeId happy_var_1 happy_var_3 happy_var_5
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TypeId (fst happy_var_1) (snd happy_var_1) (snd happy_var_3) (snd happy_var_5))
 	) `HappyStk` happyRest}}}
 
 happyReduce_95 = happySpecReduce_3  20# happyReduction_95
@@ -1104,7 +1149,7 @@ happyReduction_95 happy_x_3
 	 =  case happyOut43 happy_x_1 of { (HappyWrap43 happy_var_1) -> 
 	case happyOut43 happy_x_3 of { (HappyWrap43 happy_var_3) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.TypeIdSimple happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_96 = happyReduce 4# 20# happyReduction_96
@@ -1113,17 +1158,18 @@ happyReduction_96 (happy_x_4 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut35 happy_x_2 of { (HappyWrap35 happy_var_2) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut35 happy_x_2 of { (HappyWrap35 happy_var_2) -> 
 	case happyOut44 happy_x_4 of { (HappyWrap44 happy_var_4) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.Lambda happy_var_2 happy_var_4
-	) `HappyStk` happyRest}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4))
+	) `HappyStk` happyRest}}}
 
 happyReduce_97 = happySpecReduce_1  20# happyReduction_97
 happyReduction_97 happy_x_1
 	 =  case happyOut43 happy_x_1 of { (HappyWrap43 happy_var_1) -> 
 	happyIn44
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_98 = happySpecReduce_3  20# happyReduction_98
@@ -1133,7 +1179,7 @@ happyReduction_98 happy_x_3
 	 =  case happyOut36 happy_x_1 of { (HappyWrap36 happy_var_1) -> 
 	case happyOut44 happy_x_3 of { (HappyWrap44 happy_var_3) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.unicode_TypeFun happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.unicode_TypeFun (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_99 = happyReduce 8# 20# happyReduction_99
@@ -1146,12 +1192,13 @@ happyReduction_99 (happy_x_8 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut44 happy_x_8 of { (HappyWrap44 happy_var_8) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.unicode_TypeSigma happy_var_3 happy_var_5 happy_var_8
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.unicode_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_5) (snd happy_var_8))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_100 = happyReduce 8# 20# happyReduction_100
 happyReduction_100 (happy_x_8 `HappyStk`
@@ -1163,12 +1210,13 @@ happyReduction_100 (happy_x_8 `HappyStk`
 	happy_x_2 `HappyStk`
 	happy_x_1 `HappyStk`
 	happyRest)
-	 = case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
+	 = case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut32 happy_x_3 of { (HappyWrap32 happy_var_3) -> 
 	case happyOut46 happy_x_5 of { (HappyWrap46 happy_var_5) -> 
 	case happyOut44 happy_x_8 of { (HappyWrap44 happy_var_8) -> 
 	happyIn44
-		 (Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt happy_var_3 happy_var_5 happy_var_8
-	) `HappyStk` happyRest}}}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_5) (snd happy_var_8))
+	) `HappyStk` happyRest}}}}
 
 happyReduce_101 = happyReduce 4# 21# happyReduction_101
 happyReduction_101 (happy_x_4 `HappyStk`
@@ -1179,7 +1227,7 @@ happyReduction_101 (happy_x_4 `HappyStk`
 	 = case happyOut45 happy_x_1 of { (HappyWrap45 happy_var_1) -> 
 	case happyOut38 happy_x_3 of { (HappyWrap38 happy_var_3) -> 
 	happyIn45
-		 (Language.Rzk.Syntax.Abs.TypeRestricted happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TypeRestricted (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	) `HappyStk` happyRest}}
 
 happyReduce_102 = happySpecReduce_2  21# happyReduction_102
@@ -1188,30 +1236,32 @@ happyReduction_102 happy_x_2
 	 =  case happyOut45 happy_x_1 of { (HappyWrap45 happy_var_1) -> 
 	case happyOut39 happy_x_2 of { (HappyWrap39 happy_var_2) -> 
 	happyIn45
-		 (Language.Rzk.Syntax.Abs.App happy_var_1 happy_var_2
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.App (fst happy_var_1) (snd happy_var_1) (snd happy_var_2))
 	)}}
 
 happyReduce_103 = happySpecReduce_2  21# happyReduction_103
 happyReduction_103 happy_x_2
 	happy_x_1
-	 =  case happyOut39 happy_x_2 of { (HappyWrap39 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut39 happy_x_2 of { (HappyWrap39 happy_var_2) -> 
 	happyIn45
-		 (Language.Rzk.Syntax.Abs.First happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.First (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_104 = happySpecReduce_2  21# happyReduction_104
 happyReduction_104 happy_x_2
 	happy_x_1
-	 =  case happyOut39 happy_x_2 of { (HappyWrap39 happy_var_2) -> 
+	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
+	case happyOut39 happy_x_2 of { (HappyWrap39 happy_var_2) -> 
 	happyIn45
-		 (Language.Rzk.Syntax.Abs.Second happy_var_2
-	)}
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.Second (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2))
+	)}}
 
 happyReduce_105 = happySpecReduce_1  21# happyReduction_105
 happyReduction_105 happy_x_1
 	 =  case happyOut39 happy_x_1 of { (HappyWrap39 happy_var_1) -> 
 	happyIn45
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_106 = happySpecReduce_3  22# happyReduction_106
@@ -1221,21 +1271,21 @@ happyReduction_106 happy_x_3
 	 =  case happyOut43 happy_x_1 of { (HappyWrap43 happy_var_1) -> 
 	case happyOut44 happy_x_3 of { (HappyWrap44 happy_var_3) -> 
 	happyIn46
-		 (Language.Rzk.Syntax.Abs.TypeAsc happy_var_1 happy_var_3
+		 ((fst happy_var_1, Language.Rzk.Syntax.Abs.TypeAsc (fst happy_var_1) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyReduce_107 = happySpecReduce_1  22# happyReduction_107
 happyReduction_107 happy_x_1
 	 =  case happyOut44 happy_x_1 of { (HappyWrap44 happy_var_1) -> 
 	happyIn46
-		 (happy_var_1
+		 ((fst happy_var_1, (snd happy_var_1))
 	)}
 
 happyReduce_108 = happySpecReduce_1  23# happyReduction_108
 happyReduction_108 happy_x_1
 	 =  case happyOut46 happy_x_1 of { (HappyWrap46 happy_var_1) -> 
 	happyIn47
-		 ((:[]) happy_var_1
+		 ((fst happy_var_1, (:[]) (snd happy_var_1))
 	)}
 
 happyReduce_109 = happySpecReduce_3  23# happyReduction_109
@@ -1245,7 +1295,7 @@ happyReduction_109 happy_x_3
 	 =  case happyOut46 happy_x_1 of { (HappyWrap46 happy_var_1) -> 
 	case happyOut47 happy_x_3 of { (HappyWrap47 happy_var_3) -> 
 	happyIn47
-		 ((:) happy_var_1 happy_var_3
+		 ((fst happy_var_1, (:) (snd happy_var_1) (snd happy_var_3))
 	)}}
 
 happyNewToken action sts stk [] =
@@ -1312,9 +1362,9 @@ happyNewToken action sts stk (tk:tks) =
 	PT _ (TS _ 56) -> cont 56#;
 	PT _ (TS _ 57) -> cont 57#;
 	PT _ (TS _ 58) -> cont 58#;
-	PT _ (TL happy_dollar_dollar) -> cont 59#;
-	PT _ (T_VarIdent happy_dollar_dollar) -> cont 60#;
-	PT _ (T_HoleIdent happy_dollar_dollar) -> cont 61#;
+	PT _ (TL _) -> cont 59#;
+	PT _ (T_VarIdent _) -> cont 60#;
+	PT _ (T_HoleIdent _) -> cont 61#;
 	_ -> happyError' ((tk:tks), [])
 	}
 
@@ -1330,67 +1380,67 @@ happyReturn1 :: () => a -> b -> Err a
 happyReturn1 = \a tks -> (return) a
 happyError' :: () => ([(Token)], [Prelude.String]) -> Err a
 happyError' = (\(tokens, _) -> happyError tokens)
-pModule tks = happySomeParser where
+pModule_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 0# tks) (\x -> happyReturn (let {(HappyWrap27 x') = happyOut27 x} in x'))
 
-pLanguageDecl tks = happySomeParser where
+pLanguageDecl_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 1# tks) (\x -> happyReturn (let {(HappyWrap28 x') = happyOut28 x} in x'))
 
-pLanguage tks = happySomeParser where
+pLanguage_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 2# tks) (\x -> happyReturn (let {(HappyWrap29 x') = happyOut29 x} in x'))
 
-pCommand tks = happySomeParser where
+pCommand_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 3# tks) (\x -> happyReturn (let {(HappyWrap30 x') = happyOut30 x} in x'))
 
-pListCommand tks = happySomeParser where
+pListCommand_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 4# tks) (\x -> happyReturn (let {(HappyWrap31 x') = happyOut31 x} in x'))
 
-pPattern tks = happySomeParser where
+pPattern_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 5# tks) (\x -> happyReturn (let {(HappyWrap32 x') = happyOut32 x} in x'))
 
-pListPattern tks = happySomeParser where
+pListPattern_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 6# tks) (\x -> happyReturn (let {(HappyWrap33 x') = happyOut33 x} in x'))
 
-pParam tks = happySomeParser where
+pParam_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 7# tks) (\x -> happyReturn (let {(HappyWrap34 x') = happyOut34 x} in x'))
 
-pListParam tks = happySomeParser where
+pListParam_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 8# tks) (\x -> happyReturn (let {(HappyWrap35 x') = happyOut35 x} in x'))
 
-pParamDecl tks = happySomeParser where
+pParamDecl_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 9# tks) (\x -> happyReturn (let {(HappyWrap36 x') = happyOut36 x} in x'))
 
-pRestriction tks = happySomeParser where
+pRestriction_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 10# tks) (\x -> happyReturn (let {(HappyWrap37 x') = happyOut37 x} in x'))
 
-pListRestriction tks = happySomeParser where
+pListRestriction_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 11# tks) (\x -> happyReturn (let {(HappyWrap38 x') = happyOut38 x} in x'))
 
-pTerm7 tks = happySomeParser where
+pTerm7_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 12# tks) (\x -> happyReturn (let {(HappyWrap39 x') = happyOut39 x} in x'))
 
-pTerm5 tks = happySomeParser where
+pTerm5_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 13# tks) (\x -> happyReturn (let {(HappyWrap40 x') = happyOut40 x} in x'))
 
-pTerm4 tks = happySomeParser where
+pTerm4_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 14# tks) (\x -> happyReturn (let {(HappyWrap41 x') = happyOut41 x} in x'))
 
-pTerm3 tks = happySomeParser where
+pTerm3_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 15# tks) (\x -> happyReturn (let {(HappyWrap42 x') = happyOut42 x} in x'))
 
-pTerm2 tks = happySomeParser where
+pTerm2_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 16# tks) (\x -> happyReturn (let {(HappyWrap43 x') = happyOut43 x} in x'))
 
-pTerm1 tks = happySomeParser where
+pTerm1_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 17# tks) (\x -> happyReturn (let {(HappyWrap44 x') = happyOut44 x} in x'))
 
-pTerm6 tks = happySomeParser where
+pTerm6_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 18# tks) (\x -> happyReturn (let {(HappyWrap45 x') = happyOut45 x} in x'))
 
-pTerm tks = happySomeParser where
+pTerm_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 19# tks) (\x -> happyReturn (let {(HappyWrap46 x') = happyOut46 x} in x'))
 
-pListTerm tks = happySomeParser where
+pListTerm_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse 20# tks) (\x -> happyReturn (let {(HappyWrap47 x') = happyOut47 x} in x'))
 
 happySeq = happyDontSeq
@@ -1408,6 +1458,71 @@ happyError ts = Left $
 
 myLexer :: String -> [Token]
 myLexer = tokens
+
+-- Entrypoints
+
+pModule :: [Token] -> Err Language.Rzk.Syntax.Abs.Module
+pModule = fmap snd . pModule_internal
+
+pLanguageDecl :: [Token] -> Err Language.Rzk.Syntax.Abs.LanguageDecl
+pLanguageDecl = fmap snd . pLanguageDecl_internal
+
+pLanguage :: [Token] -> Err Language.Rzk.Syntax.Abs.Language
+pLanguage = fmap snd . pLanguage_internal
+
+pCommand :: [Token] -> Err Language.Rzk.Syntax.Abs.Command
+pCommand = fmap snd . pCommand_internal
+
+pListCommand :: [Token] -> Err [Language.Rzk.Syntax.Abs.Command]
+pListCommand = fmap snd . pListCommand_internal
+
+pPattern :: [Token] -> Err Language.Rzk.Syntax.Abs.Pattern
+pPattern = fmap snd . pPattern_internal
+
+pListPattern :: [Token] -> Err [Language.Rzk.Syntax.Abs.Pattern]
+pListPattern = fmap snd . pListPattern_internal
+
+pParam :: [Token] -> Err Language.Rzk.Syntax.Abs.Param
+pParam = fmap snd . pParam_internal
+
+pListParam :: [Token] -> Err [Language.Rzk.Syntax.Abs.Param]
+pListParam = fmap snd . pListParam_internal
+
+pParamDecl :: [Token] -> Err Language.Rzk.Syntax.Abs.ParamDecl
+pParamDecl = fmap snd . pParamDecl_internal
+
+pRestriction :: [Token] -> Err Language.Rzk.Syntax.Abs.Restriction
+pRestriction = fmap snd . pRestriction_internal
+
+pListRestriction :: [Token] -> Err [Language.Rzk.Syntax.Abs.Restriction]
+pListRestriction = fmap snd . pListRestriction_internal
+
+pTerm7 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm7 = fmap snd . pTerm7_internal
+
+pTerm5 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm5 = fmap snd . pTerm5_internal
+
+pTerm4 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm4 = fmap snd . pTerm4_internal
+
+pTerm3 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm3 = fmap snd . pTerm3_internal
+
+pTerm2 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm2 = fmap snd . pTerm2_internal
+
+pTerm1 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm1 = fmap snd . pTerm1_internal
+
+pTerm6 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm6 = fmap snd . pTerm6_internal
+
+pTerm :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm = fmap snd . pTerm_internal
+
+pListTerm :: [Token] -> Err [Language.Rzk.Syntax.Abs.Term]
+pListTerm = fmap snd . pListTerm_internal
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 -- $Id: GenericTemplate.hs,v 1.26 2005/01/14 14:47:22 simonmar Exp $
 

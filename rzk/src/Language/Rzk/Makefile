@@ -19,7 +19,7 @@ all : Language/Rzk/Syntax/Test
 # Rules for building the parser.
 
 Language/Rzk/Syntax/Abs.hs Language/Rzk/Syntax/Layout.hs Language/Rzk/Syntax/Lex.x Language/Rzk/Syntax/Par.y Language/Rzk/Syntax/Print.hs Language/Rzk/Syntax/Test.hs : Language/Rzk/Syntax.cf
-	bnfc --haskell -p Language.Rzk -d --generic Language/Rzk/Syntax.cf
+	bnfc --haskell -p Language.Rzk -d --functor --generic Language/Rzk/Syntax.cf
 
 %.hs : %.y
 	${HAPPY} ${HAPPY_OPTS} $<
