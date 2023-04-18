@@ -13,7 +13,7 @@ import qualified GHCJS.Foreign.Callback as GHCJS
 import           GHCJS.Marshal (fromJSVal)
 import           GHCJS.Prim (JSVal)
 
-import qualified Rzk.Polylingual as Rzk
+import qualified Rzk.Main as Rzk
 
 -- | Type synonym for an application model
 data Model = Model
@@ -60,9 +60,9 @@ updateModel (Check input) m = noEff m
   { response = responseStr }
   where
     responseStr = ms $
-      case Rzk.safeParseSomeModule (fromMisoString input) of
+      case Rzk.typecheckString (fromMisoString input) of
         Left err -> err
-        Right m  -> Rzk.compileSomeModule m
+        Right ok -> ok
 
 -- | Constructs a virtual DOM from a model
 viewModel :: Model -> View Action
