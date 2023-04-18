@@ -20,4 +20,5 @@ mkDerivation {
   prePatch = "hpack";
   homepage = "https://github.com/fizruk/rzk#readme";
   license = lib.licenses.bsd3;
+  doHaddock = false;
 }
