@@ -52,7 +52,7 @@ jobs:
           mkdir -p dist/result/bin
           cp -r ./result/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
-          cp try-rzk/index.html dist/.
+          cp try-rzk/playground.html dist/.
 
       - name: "📘 Publish JS \"binaries\""
         uses: JamesIves/github-pages-deploy-action@v4
