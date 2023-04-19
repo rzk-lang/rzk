@@ -112,8 +112,8 @@
   : {t : I | psi t \/ phi t} -> A t
   := \t -> recOR(
         psi t |-> transport
-          ({t : I | psi t /\ phi t} -> A t)
-          (\ra -> (t : psi) -> A t [ psi t /\ phi t |-> ra t])
+          ({s : I | psi s /\ phi s} -> A s)
+          (\ra -> (s : psi) -> A s [ psi s /\ phi s |-> ra s ])
           (restrict I psi phi A a_psi)
           (restrict I phi psi A a_phi)
           (restricts-path r I psi phi A a_psi a_phi e)
