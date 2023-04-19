@@ -8,7 +8,7 @@ import Control.Applicative ((<|>))
 import Control.Monad.Reader
 import Control.Monad.Except
 import Data.List (tails, (\\), intercalate, nub)
-import Data.Maybe (fromMaybe, isNothing, catMaybes)
+import Data.Maybe (fromMaybe, isNothing, catMaybes, mapMaybe)
 import Data.Tuple (swap)
 
 import Free.Scoped
@@ -170,6 +170,7 @@ data TypeError var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   | TypeErrorInvalidArgumentType (Term var) (TermT var)
+  | TypeErrorDuplicateTopLevel Rzk.VarIdent
   deriving (Functor, Foldable)
 
 data TypeErrorInContext var = TypeErrorInContext
@@ -268,6 +269,11 @@ ppTypeError' = \case
     , "function parameter can be a cube, a shape, or a type"
     , "but given parameter type has type"
     , "  " <> show (untyped argKind)
+    ]
+
+  TypeErrorDuplicateTopLevel name -> unlines
+    [ "duplicate top-level definition"
+    , "  " <> Rzk.printTree name
     ]
 
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
@@ -497,6 +503,24 @@ ppContext' Context{..} = unlines
 --  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
   ]
 
+doesShadowName :: Rzk.VarIdent -> TypeCheck var Bool
+doesShadowName name = asks $ \Context{..} ->
+  name `elem` mapMaybe snd varOrigs
+
+checkTopLevelDuplicate :: Rzk.VarIdent -> TypeCheck var ()
+checkTopLevelDuplicate name = do
+  doesShadowName name >>= \case
+    True -> issueTypeError (TypeErrorDuplicateTopLevel name)
+    False -> return ()
+
+checkNameShadowing :: Rzk.VarIdent -> TypeCheck var ()
+checkNameShadowing name = do
+  doesShadowName name >>= \case
+    True -> do
+      trace ("Warning: " <> Rzk.printTree name <> " shadows an existing definition") $
+        return ()
+    False -> return ()
+
 withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
 withLocation loc = local $ \Context{..} -> Context { location = Just loc, .. }
 
@@ -518,11 +542,15 @@ localDecl (Decl x ty term) tc = do
   localDeclPrepared (Decl x ty' term') tc
 
 localDeclPrepared :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
-localDeclPrepared (Decl x ty term) = local $ \Context{..} -> Context
-    { varTypes = (x, ty) : varTypes
-    , varValues = (x, term) : varValues
-    , varOrigs = (x, Just x) : varOrigs
-    , .. }
+localDeclPrepared (Decl x ty term) tc = do
+  checkTopLevelDuplicate x
+  local update tc
+  where
+    update Context{..} = Context
+      { varTypes = (x, ty) : varTypes
+      , varValues = (x, term) : varValues
+      , varOrigs = (x, Just x) : varOrigs
+      , .. }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
 
@@ -1781,20 +1809,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                   typeOf paramType >>= \case
                     -- an argument can be a shape
                     TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+                      mapM_ checkNameShadowing orig
                       enterScope orig cube $ do
                         let tope' = appT topeT (S <$> paramType) (Pure Z)  -- eta expand ty'
                         return (cube, Just tope')
                     _kind -> return (paramType, Nothing)
                 unifyTerms param' paramType
+                mapM_ checkNameShadowing orig
                 enterScope orig param' $ do
                   mapM_ (unifyTerms (fromMaybe topeTopT mtope')) mtope
               Just (param, mtope) -> do
                 param'' <- typecheck param =<< typeOf param'
                 unifyTerms param' param''
+                mapM_ checkNameShadowing orig
                 enterScope orig param' $ do
                   mtope'' <- typecheck (fromMaybe TopeTop mtope) topeT
                   unifyTerms (fromMaybe topeTopT mtope') mtope''
 
+            mapM_ checkNameShadowing orig
             enterScope orig param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
@@ -1957,14 +1989,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
           UniverseTopeT{} ->
             issueTypeError $ TypeErrorOther "tope params are illegal"
           _ -> do
+            mapM_ checkNameShadowing orig
             b' <- enterScope orig a' $ inferAs universeT b
             return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
+        mapM_ checkNameShadowing orig
         b' <- enterScope orig a' $ inferAs universeT b
         return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
       TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+        mapM_ checkNameShadowing orig
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
@@ -1974,6 +2009,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeFun orig cube (Just tope) ret -> do
     cube' <- typecheck cube cubeT
+    mapM_ checkNameShadowing orig
     enterScope orig cube' $ do
       tope' <- typecheck tope topeT
       localTope tope' $ do
@@ -1982,6 +2018,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeSigma orig a b -> do
     a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
+    mapM_ checkNameShadowing orig
     b' <- enterScope orig a' $ inferAs universeT b
     return (typeSigmaT orig a' b')
 
@@ -2025,10 +2062,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
       UniverseCubeT{} -> return Nothing
       -- an argument can be a shape
       TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+        mapM_ checkNameShadowing orig
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> ty') (Pure Z)  -- eta expand ty'
           return (Just tope')
       kind -> issueTypeError $ TypeErrorInvalidArgumentType ty kind
+    mapM_ checkNameShadowing orig
     enterScope orig ty' $ do
       maybe id localTope mtope $ do
         body' <- infer body
@@ -2036,6 +2075,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         return (lambdaT (typeFunT orig ty' mtope ret) orig (Just (ty', mtope)) body')
   Lambda orig (Just (cube, Just tope)) body -> do
     cube' <- typecheck cube universeT
+    mapM_ checkNameShadowing orig
     enterScope orig cube' $ do
       tope' <- infer tope
       body' <- localTope tope' $ infer body
