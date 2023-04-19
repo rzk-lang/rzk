@@ -8,6 +8,7 @@ on:
   push:
     branches: [ main ]
     paths:
+      - .github/workflows/haddock.yml
       - rzk/**
       - stack.yaml
 
@@ -38,6 +39,13 @@ jobs:
           path: |
             .stack
           key: ${{ runner.os }}-${{ hashFiles('stack.yaml.lock', 'rzk.cabal') }}-stack
+
+      - name: 🔨 Install BNFC, alex and happy (with Stack)
+        run: |
+          stack install alex happy BNFC
+      - name: 🔨 Generate Syntax files using BNFC
+        run: |
+          cd rzk/ && (make && make clean; cd ../)
 
       - name: 🔨 Build Haddock Documentation (with Stack)
         run: |
