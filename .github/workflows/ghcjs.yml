@@ -55,7 +55,7 @@ jobs:
           cp try-rzk/playground.html dist/.
 
       - name: "📘 Publish JS \"binaries\" (${{ github.ref_name }})"
-        if: github.ref_name != 'main'
+        if: ${{ github.ref_name != 'main' && github.event_type == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -64,7 +64,7 @@ jobs:
           clean: false
 
       - name: "📘 Publish JS \"binaries\""
-        if: github.ref_name == 'main'
+        if: ${{ github.ref_name == 'main' && github.event_type == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
