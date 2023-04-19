@@ -10,9 +10,8 @@ extra-source-files:
 - README.md
 - ChangeLog.md
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            General
+synopsis:            An experimental proof assistant for synthetic ∞-categories
+category:            Dependent Types  # same as Agda
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
@@ -51,7 +50,6 @@ executables:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
-    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N

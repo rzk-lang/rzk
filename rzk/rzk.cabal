@@ -6,7 +6,9 @@ cabal-version: 1.12
 
 name:           rzk
 version:        0.1.0
+synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
+category:       Dependent Types
 homepage:       https://github.com/fizruk/rzk#readme
 bug-reports:    https://github.com/fizruk/rzk/issues
 author:         Nikolai Kudasov
@@ -56,7 +58,7 @@ executable rzk
       Paths_rzk
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       array
     , base >=4.7 && <5
