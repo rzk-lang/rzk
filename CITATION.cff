@@ -6,4 +6,3 @@ authors:
 title: "rzk: a prototype proof assistant for synthetic $\\infty$-categories"
 version: 0.1.0.0
 url: "https://github.com/fizruk/rzk"
-message: "If you use this software, please consider citing both the article from preferred-citation and the software itself."

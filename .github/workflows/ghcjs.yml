@@ -1,36 +1,27 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Build with GHCJS and Deploy to GitHub Pages
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
+    tags: [ v* ]
     paths:
+      - .github/workflows/ghcjs.yml
       - rzk/**
       - try-rzk/**
       - stack.yaml
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - rzk/**
       - try-rzk/**
       - stack.yaml
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+  workflow_dispatch:  # allow triggering this workflow manually
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  ghcjs:
-    # The type of runner that the job will run on
+  build-and-deploy:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
@@ -46,15 +37,34 @@ jobs:
         with:
           name: miso-haskell
 
+      - name: 🔨 Remove rzk.cabal, lexer and parser generator files
+        run: |
+          rm -f rzk/src/Language/Rzk/Syntax/Lex.x
+          rm -f rzk/src/Language/Rzk/Syntax/Par.y
+          rm -f rzk/rzk.cabal
+
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix-build try-rzk/
+
+      - name: 🔨 Collect build artifacts
+        run: |
           mkdir -p dist/result/bin
           cp -r ./result/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
-          cp try-rzk/index.html dist/.
+          cp try-rzk/playground.html dist/.
+
+      - name: "📘 Publish JS \"binaries\" (${{ github.ref_name }})"
+        if: ${{ github.ref_name != 'main' && github.event_type == 'push' }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          folder: dist
+          target-folder: ${{ github.ref_name }}
+          clean: false
 
       - name: "📘 Publish JS \"binaries\""
+        if: ${{ github.ref_name == 'main' && github.event_type == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

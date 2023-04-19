@@ -1,3 +1,5 @@
 # rzk
 
-Prototype interactive proof assistant based on a type theory for synthetic ∞-categories.
+An experimental proof assistant for synthetic ∞-categories.
+
+See README at https://github.com/fizruk/rzk#readme.

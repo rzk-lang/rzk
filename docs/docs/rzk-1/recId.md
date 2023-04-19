@@ -1,3 +1,15 @@
+# Tope disjuction elimination along identity paths
+
+\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)\) (written `recOR(psi, phi, a_psi, a_phi)` in the code)
+is well-typed when \(a_\psi\) and \(a_\phi\) are _definitionally equal_ on \(\psi \land \phi\).
+Sometimes this is too strong since many terms are not _definitionally_ equal, but only equal up to a path.
+Luckily, assuming relative function extensionality, we can define a weaker version of \(rec_{\lor}\) (`recOR`), which we call `recId`, that can work in presence of a witness of type \(\prod_{t : I \mid \psi \land \phi} a_\psi = a_\phi\).
+
+## Prerequisites
+
+We begin by introducing common HoTT definitions:
+
+```rzk
 #lang rzk-1
 
 -- A is contractible there exists x : A such that for any y : A we have x = y.
@@ -35,7 +47,13 @@
     (p : x =_{A} y)
     : C x -> C y
   := \cx -> idJ(A, x, (\z q -> C z), cx, y, p)
+```
 
+## Relative function extensionality
+
+We can now define relative function extensionality. There are several formulations, we provide two, following Riehl and Shulman:
+
+```rzk
 -- [RS17, Axiom 4.6] Relative function extensionality.
 #def relfunext : U
   := (I : CUBE)
@@ -57,7 +75,15 @@
   -> (g : (t : psi) -> A t [ phi t |-> a t ])
   -> weq (f = g)
          ((t : psi) -> (f t =_{A t} g t) [ phi t |-> refl ])
+```
 
+## Construction of `recId`
+
+The idea is straightforward. We ask for a proof that `a = b` for all points in `psi /\ phi`. Then, by relative function extensionality (`relfunext2`), we can show that restrictions of `a` and `b` to `psi /\ phi` are equal. If we reformulate `a` as extension of its restriction, then we can `transport` such reformulation along the path connecting two restrictions and apply `recOR`.
+
+First, we define how to restrict an extension type to a subshape:
+
+```rzk
 -- Restrict extension type to a subshape.
 #def restrict
     (I : CUBE)
@@ -67,7 +93,11 @@
     (a : {t : I | psi t} -> A t)
   : {t : I | psi t /\ phi t} -> A t
   := \t -> a t
+```
 
+Then, how to reformulate an `a` (or `b`) as an extension of its restriction:
+
+```rzk
 -- Reformulate extension type as an extension of a restriction.
 #def ext-of-restrict
     (I : CUBE)
@@ -76,8 +106,12 @@
     (A : {t : I | psi t \/ phi t} -> U)
     (a : {t : I | psi t} -> A t)
   : (t : psi) -> A t [ psi t /\ phi t |-> restrict I psi phi A a t ]
-  := a
+  := a  -- type is coerced automatically here
+```
 
+Now, assuming relative function extensionality, we construct a path between restrictions:
+
+```rzk
 -- Transform extension of an identity into an identity of restrictions.
 #def restricts-path
     (r : relfunext2)
@@ -96,7 +130,11 @@
       (\t -> recBOT)
       (\t -> a_psi t)
       (\t -> a_phi t)))) e
+```
 
+Finally, we bring everything together into `recId`:
+
+```rzk
 -- A weaker version of recOR, demanding only a path between a and b:
 -- recOR(psi, phi, a, b) demands that for psi /\ phi we have a == b (definitionally)
 -- (recId psi phi a b e) demands that e is the proof that a = b (intensionally) for psi /\ phi
@@ -121,7 +159,14 @@
           t,
         phi t |-> ext-of-restrict I phi psi A a_phi t
       )
+```
 
+## Gluing extension types
+
+An application of of `recId` is gluing together extension types,
+whenever we can show that they are equal on the intersection of shapes:
+
+```rzk
 -- If two extension types are equal along two subshapes,
 -- then they are also equal along their union.
 #def id-along-border
@@ -139,3 +184,4 @@
         (\t -> a t = b t)
         e_psi e_phi
         (\t -> border-is-a-set t (a t) (b t) (e_psi t) (e_phi t))
+```

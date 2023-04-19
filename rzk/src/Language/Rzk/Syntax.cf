@@ -1,0 +1,156 @@
+comment "--" ;
+comment "{-" "-}" ;
+
+layout toplevel ;
+
+token VarIdent ((char - ["-?!.\\;,#\"][)(}{><| \t\n\r"]) (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
+
+token HoleIdent '?' ;
+
+Module. Module ::= LanguageDecl [Command] ;
+
+LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
+
+Rzk1. Language ::= "rzk-1" ;
+
+CommandSetOption.         Command ::= "#set-option" String "=" String ";" ;
+CommandUnsetOption.       Command ::= "#unset-option" String ";" ;
+CommandCheck.             Command ::= "#check" Term ":" Term ";" ;
+CommandCompute.           Command ::= "#compute" Term ";" ;
+CommandComputeWHNF.       Command ::= "#compute-whnf" Term ";" ;
+CommandComputeNF.         Command ::= "#compute-nf" Term ";" ;
+CommandPostulate.         Command ::= "#postulate" VarIdent [Param] ":" Term ";" ;
+commandPostulateNoParams. Command ::= "#postulate" VarIdent ":" Term ";" ;
+define commandPostulateNoParams x ty = CommandPostulate x [] ty ;
+CommandDefine.            Command ::= "#define" VarIdent [Param] ":" Term ":=" Term ";" ;
+commandDefineNoParams.    Command ::= "#define" VarIdent ":" Term ":=" Term ";" ;
+define commandDefineNoParams x ty term = CommandDefine x [] ty term ;
+commandDef.               Command ::= "#def" VarIdent [Param] ":" Term ":=" Term ";" ;
+define commandDef x params ty term = CommandDefine x params ty term ;
+commandDefNoParams.       Command ::= "#def" VarIdent ":" Term ":=" Term ";" ;
+define commandDefNoParams x ty term = CommandDefine x [] ty term ;
+separator Command "" ;
+
+-- Patterns
+PatternWildcard.  Pattern ::= "_" ;
+PatternVar.       Pattern ::= VarIdent ;
+PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
+separator nonempty Pattern "" ;
+
+-- Parameter introduction (for lambda abstractions)
+ParamPattern.      Param ::= Pattern ;
+ParamPatternType.  Param ::= "(" [Pattern] ":" Term ")" ;
+ParamPatternShape. Param ::= "{" Pattern ":" Term "|" Term "}" ;
+separator nonempty Param "" ;
+
+-- Parameter declaration for functions and extension types
+ParamType.          ParamDecl ::= Term6 ;
+ParamWildcardType.  ParamDecl ::= "(" "_" ":" Term ")" ;
+ParamVarType.       ParamDecl ::= "{" Pattern ":" Term "}" ;
+paramVarType.       ParamDecl ::= "(" VarIdent ":" Term ")" ;
+define paramVarType var cube = ParamVarType (PatternVar var) cube ;
+ParamVarShape.      ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
+paramVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
+define paramVarShape pat cube tope = ParamVarShape pat cube tope ;
+
+-- (x, y :) -> z
+
+Restriction. Restriction ::= Term "|->" Term ;
+separator nonempty Restriction "," ;
+
+-- Universes
+Universe.       Term7 ::= "U" ;
+UniverseCube.   Term7 ::= "CUBE" ;
+UniverseTope.   Term7 ::= "TOPE" ;
+-- Cubes
+CubeUnit.       Term7 ::= "1" ;
+CubeUnitStar.   Term7 ::= "*_1" ;
+Cube2.          Term7 ::= "2" ;
+Cube2_0.        Term7 ::= "0_2" ;
+Cube2_1.        Term7 ::= "1_2" ;
+CubeProduct.    Term5 ::= Term5 "*" Term6 ;
+-- Topes
+TopeTop.        Term7 ::= "TOP" ;
+TopeBottom.     Term7 ::= "BOT" ;
+TopeEQ.         Term4 ::= Term5 "===" Term5 ;
+TopeLEQ.        Term4 ::= Term5 "<=" Term5 ;
+TopeAnd.        Term3 ::= Term4 "/\\" Term3 ;
+TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
+-- Tope disjunction elimination
+RecBottom.      Term7 ::= "recBOT" ;
+RecOr.          Term7 ::= "recOR" "(" [Restriction] ")" ;
+recOr.          Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
+define recOr psi phi a b = RecOr [ Restriction psi a, Restriction phi b ] ;
+-- Types
+TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
+TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
+TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
+TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
+TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
+typeExtension.  Term7 ::= "<" ParamDecl "->" Term ">" ;
+define typeExtension param ret = TypeFun param ret ;
+-- Terms
+App.            Term6 ::= Term6 Term7 ;
+Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
+Pair.           Term7 ::= "(" Term "," Term ")" ;
+First.          Term6 ::= "first" Term7 ;
+Second.         Term6 ::= "second" Term7 ;
+Refl.           Term7 ::= "refl";
+ReflTerm.       Term7 ::= "refl_{" Term "}" ;
+ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;
+IdJ.            Term7 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
+-- Variables and holes
+Hole.           Term7 ::= HoleIdent;
+Var.            Term7 ::= VarIdent ;
+-- Miscellaneous
+TypeAsc.        Term ::= Term2 "as" Term1 ;
+
+separator nonempty Term "," ;
+coercions Term 7 ;
+
+-- Unicode syntax rules
+
+-- -- Universes
+-- unicode_Universe.       Term7 ::= "𝒰" ;
+-- define unicode_Universe x = Universe x ;
+-- -- Cubes
+-- unicode_CubeUnit.       Term7 ::= "𝟙" ;
+-- unicode_CubeUnitStar.   Term7 ::= "⋆" ;
+-- unicode_Cube2.          Term7 ::= "𝟚" ;
+-- unicode_CubeProduct.    Term5 ::= Term6 "×" Term6 ;
+-- define unicode_CubeUnit = CubeUnit ;
+-- define unicode_CubeUnitStar = CubeUnit ;
+-- define unicode_Cube2 = Cube2 ;
+-- define unicode_CubeProduct x y = CubeProduct x y ;
+-- -- Topes
+-- unicode_TopeTop.        Term7 ::= "⊤" ;
+-- unicode_TopeBottom.     Term7 ::= "⊥" ;
+-- unicode_TopeEQ.         Term4 ::= Term5 "≡" Term5 ;
+-- unicode_TopeLEQ.        Term4 ::= Term5 "≤" Term5 ;
+-- unicode_TopeAnd.        Term3 ::= Term4 "∧" Term3 ;
+-- unicode_TopeOr.         Term2 ::= Term3 "∨" Term2 ;
+-- define unicode_TopeTop = TopeTop ;
+-- define unicode_TopeBottom = TopeBottom ;
+-- define unicode_TopeEQ l r = TopeEQ l r ;
+-- define unicode_TopeLEQ l r = TopeLEQ l r ;
+-- define unicode_TopeAnd l r = TopeAnd l r ;
+-- define unicode_TopeOr l r = TopeOr l r ;
+-- -- Tope disjunction elimination
+-- unicode_RecBottom.      Term7 ::= "rec⊥" ;
+-- unicode_RecOr.          Term7 ::= "rec∨" "[" [Restriction] "]" ;
+-- define unicode_RecBottom = RecBottom ;
+-- define unicode_RecOr rs = RecOr rs ;
+-- Types
+unicode_TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
+unicode_TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;    -- \Sigma
+unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
+define unicode_TypeFun arg ret = TypeFun arg ret ;
+define unicode_TypeSigma pat fst snd = TypeSigma pat fst snd ;
+define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
+-- -- Terms
+-- unicode_Lambda.         Term1 ::= "λ" Param "→" Term1 ;
+-- unicode_First.          Term6 ::= "π₁" Term7 ;
+-- unicode_Second.         Term6 ::= "π₂" Term7 ;
+-- define unicode_Lambda param body = Lambda param body ;
+-- define unicode_First t = First t ;
+-- define unicode_Second t = Second t ;

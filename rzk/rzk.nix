@@ -1,38 +1,24 @@
-{ mkDerivation, ansi-terminal, base, bifunctors, bound, Cabal
-, cabal-doctest, deepseq, doctest, free, Glob, hashable, hpack
-, kan-extensions, lib, logict, mtl, parsers, prettyprinter
-, prettyprinter-ansi-terminal, profunctors, QuickCheck
-, template-haskell, text, transformers, trifecta
-, unordered-containers
+{ mkDerivation, array, base, bifunctors, hpack, lib, mtl
+, template-haskell
 }:
 mkDerivation {
   pname = "rzk";
-  version = "0.1.0.0";
+  version = "0.1.0";
   src = ./.;
   isLibrary = true;
-  isExecutable = false;
-  doHaddock = false;
-  setupHaskellDepends = [ base Cabal cabal-doctest ];
+  isExecutable = true;
   libraryHaskellDepends = [
-    ansi-terminal base bifunctors bound deepseq free hashable
-    kan-extensions logict mtl parsers prettyprinter
-    prettyprinter-ansi-terminal profunctors text transformers trifecta
-    unordered-containers
+    array base bifunctors mtl template-haskell
   ];
   libraryToolDepends = [ hpack ];
   executableHaskellDepends = [
-    ansi-terminal base bifunctors bound deepseq free hashable
-    kan-extensions logict mtl parsers prettyprinter
-    prettyprinter-ansi-terminal profunctors text transformers trifecta
-    unordered-containers
+    array base bifunctors mtl template-haskell
   ];
   testHaskellDepends = [
-    ansi-terminal base bifunctors bound deepseq doctest free Glob
-    hashable kan-extensions logict mtl parsers prettyprinter
-    prettyprinter-ansi-terminal profunctors QuickCheck template-haskell
-    text transformers trifecta unordered-containers
+    array base bifunctors mtl template-haskell
   ];
   prePatch = "hpack";
   homepage = "https://github.com/fizruk/rzk#readme";
   license = lib.licenses.bsd3;
+  doHaddock = false;
 }

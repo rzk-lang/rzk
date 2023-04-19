@@ -1,21 +1,24 @@
-cabal-version: 1.24
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c010e76cda7c9e84d825afc143052d245390b5714b10f9898abfde992549229f
+-- hash: e731bc697ba22a070995646c30c641e0805466b3cabb2fdf377ce74e07985a32
 
 name:           rzk
-version:        0.1.0.0
+version:        0.2.0
+synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
+category:       Dependent Types
 homepage:       https://github.com/fizruk/rzk#readme
 bug-reports:    https://github.com/fizruk/rzk/issues
 author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
-copyright:      2020-2021 Nikolai Kudasov
+copyright:      2023 Nikolai Kudasov
 license:        BSD3
-build-type:     Custom
+license-file:   LICENSE
+build-type:     Simple
 extra-source-files:
     README.md
     ChangeLog.md
@@ -24,49 +27,31 @@ source-repository head
   type: git
   location: https://github.com/fizruk/rzk
 
-custom-setup
-  setup-depends:
-      Cabal
-    , base
-    , cabal-doctest >=1.0.2 && <1.1
-
 library
   exposed-modules:
+      Free.Scoped
+      Free.Scoped.TH
+      Language.Rzk.Free.Syntax
+      Language.Rzk.Syntax
+      Language.Rzk.Syntax.Abs
+      Language.Rzk.Syntax.Layout
+      Language.Rzk.Syntax.Lex
+      Language.Rzk.Syntax.Par
+      Language.Rzk.Syntax.Print
       Rzk
-      Rzk.Debug.Trace
-      Rzk.Evaluator
-      Rzk.Parser.Text
-      Rzk.Polylingual
-      Rzk.Pretty.Text
-      Rzk.Syntax.Decl
-      Rzk.Syntax.Module
-      Rzk.Syntax.Term
-      Rzk.Syntax.Var
-      Rzk.TypeChecker
+      Rzk.Main
+      Rzk.TypeCheck
   other-modules:
       Paths_rzk
   hs-source-dirs:
       src
-  ghc-options: -Wall -fno-warn-type-defaults -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      ansi-terminal
+      array
     , base >=4.7 && <5
     , bifunctors
-    , bound
-    , deepseq
-    , free
-    , hashable
-    , kan-extensions
-    , logict
     , mtl
-    , parsers
-    , prettyprinter
-    , prettyprinter-ansi-terminal >=1.1.2
-    , profunctors
-    , text
-    , transformers
-    , trifecta >=2.1
-    , unordered-containers
+    , template-haskell
   default-language: Haskell2010
 
 executable rzk
@@ -75,58 +60,14 @@ executable rzk
       Paths_rzk
   hs-source-dirs:
       app
-  ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      ansi-terminal
+      array
     , base >=4.7 && <5
     , bifunctors
-    , bound
-    , deepseq
-    , free
-    , hashable
-    , kan-extensions
-    , logict
     , mtl
-    , parsers
-    , prettyprinter
-    , prettyprinter-ansi-terminal >=1.1.2
-    , profunctors
     , rzk
-    , text
-    , transformers
-    , trifecta >=2.1
-    , unordered-containers
-  default-language: Haskell2010
-
-test-suite doctests
-  type: exitcode-stdio-1.0
-  main-is: doctests.hs
-  hs-source-dirs:
-      test
-  ghc-options: -Wall -fno-warn-type-defaults -O2
-  build-depends:
-      Glob
-    , QuickCheck
-    , ansi-terminal
-    , base
-    , bifunctors
-    , bound
-    , deepseq
-    , doctest
-    , free
-    , hashable
-    , kan-extensions
-    , logict
-    , mtl
-    , parsers
-    , prettyprinter
-    , prettyprinter-ansi-terminal >=1.1.2
-    , profunctors
     , template-haskell
-    , text
-    , transformers
-    , trifecta >=2.1
-    , unordered-containers
   default-language: Haskell2010
 
 test-suite rzk-test
@@ -136,25 +77,12 @@ test-suite rzk-test
       Paths_rzk
   hs-source-dirs:
       test
-  ghc-options: -Wall -fno-warn-type-defaults -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      ansi-terminal
+      array
     , base >=4.7 && <5
     , bifunctors
-    , bound
-    , deepseq
-    , free
-    , hashable
-    , kan-extensions
-    , logict
     , mtl
-    , parsers
-    , prettyprinter
-    , prettyprinter-ansi-terminal >=1.1.2
-    , profunctors
     , rzk
-    , text
-    , transformers
-    , trifecta >=2.1
-    , unordered-containers
+    , template-haskell
   default-language: Haskell2010

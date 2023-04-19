@@ -1,55 +1,49 @@
 name:                rzk
-version:             0.1.0.0
+version:             0.2.0
 github:              "fizruk/rzk"
 license:             BSD3
 author:              "Nikolai Kudasov"
 maintainer:          "nickolay.kudasov@gmail.com"
-copyright:           "2020-2021 Nikolai Kudasov"
+copyright:           "2023 Nikolai Kudasov"
 
 extra-source-files:
 - README.md
 - ChangeLog.md
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
+synopsis:            An experimental proof assistant for synthetic ∞-categories
+category:            Dependent Types  # same as Agda
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
 description:         Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
 
-custom-setup:
-  dependencies:
-    - base
-    - Cabal
-    - cabal-doctest >=1.0.2 && <1.1
+dependencies:
+- array
+- base >= 4.7 && < 5
+- bifunctors
+- mtl
+- template-haskell
 
 ghc-options:
-- -Wall -fno-warn-type-defaults -O2
-
-dependencies:
-- base >= 4.7 && < 5
-- bound
-- mtl
-- text
-- parsers
-- trifecta >= 2.1
-- unordered-containers
-- prettyprinter
-- prettyprinter-ansi-terminal >= 1.1.2
-- hashable
-- free
-- bifunctors
-- profunctors
-- transformers
-- logict
-- deepseq
-- kan-extensions
-- ansi-terminal
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+# - -Wmissing-export-lists
+- -Wmissing-home-modules
+- -Wpartial-fields
+- -Wredundant-constraints
 
 library:
   source-dirs: src
+  when:
+  - condition: false
+    other-modules:
+    - Language.Rzk.Syntax.Test
+    - Language.Rzk.Syntax.ErrM
+    - Language.Rzk.Syntax.Skel
 
 executables:
   rzk:
@@ -72,15 +66,3 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - rzk
-
-  doctests:
-    source-dirs: test
-    main: doctests.hs
-    other-modules: []
-    dependencies:
-    - base
-    - doctest
-    - Glob
-    - QuickCheck
-    - template-haskell
-
