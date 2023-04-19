@@ -5,7 +5,7 @@
 [![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://fizruk.github.io/rzk/develop/haddock/index.html)
 [![GHCJS build](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml/badge.svg?branch=develop)](https://github.com/fizruk/rzk/actions/workflows/ghcjs.yml)
 
-An experimental proof assistant based on a type theory for synthetic ∞-categories by Emily Riehl and Michael Shulman [1].
+An experimental proof assistant for synthetic ∞-categories.
 
 [![Early prototype demo.](images/split-demo.png)](https://fizruk.github.io/rzk/develop/)
 
