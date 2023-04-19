@@ -54,10 +54,19 @@ jobs:
           chmod -R +w dist/
           cp try-rzk/playground.html dist/.
 
-      - name: "📘 Publish JS \"binaries\""
+      - name: "📘 Publish JS \"binaries\" (${{ github.ref_name }})"
+        if: github.ref_name != 'main'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           target-folder: ${{ github.ref_name }}
+          clean: false
+
+      - name: "📘 Publish JS \"binaries\""
+        if: github.ref_name == 'main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          folder: dist
           clean: false

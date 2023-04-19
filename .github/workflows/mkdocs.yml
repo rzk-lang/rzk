@@ -29,10 +29,19 @@ jobs:
         run: |
           mkdir -p dist/ && cp -r docs/root/* docs/site dist/.
 
-      - name: 📘 Publish Generated MkDocs
+      - name: 📘 Publish Generated MkDocs (${{ github.ref_name }})
+        if: github.ref_name != 'main'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           target-folder: ${{ github.ref_name }}
+          clean: false
+
+      - name: 📘 Publish Generated MkDocs
+        if: github.ref_name == 'main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          folder: dist
           clean: false
