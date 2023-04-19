@@ -112,15 +112,14 @@ import Language.Rzk.Syntax.Lex
   'refl'          { PT _ (TS _ 47)       }
   'refl_{'        { PT _ (TS _ 48)       }
   'rzk-1'         { PT _ (TS _ 49)       }
-  'rzk-2'         { PT _ (TS _ 50)       }
-  'second'        { PT _ (TS _ 51)       }
-  '{'             { PT _ (TS _ 52)       }
-  '|'             { PT _ (TS _ 53)       }
-  '|->'           { PT _ (TS _ 54)       }
-  '}'             { PT _ (TS _ 55)       }
-  'Σ'             { PT _ (TS _ 56)       }
-  '→'             { PT _ (TS _ 57)       }
-  '∑'             { PT _ (TS _ 58)       }
+  'second'        { PT _ (TS _ 50)       }
+  '{'             { PT _ (TS _ 51)       }
+  '|'             { PT _ (TS _ 52)       }
+  '|->'           { PT _ (TS _ 53)       }
+  '}'             { PT _ (TS _ 54)       }
+  'Σ'             { PT _ (TS _ 55)       }
+  '→'             { PT _ (TS _ 56)       }
+  '∑'             { PT _ (TS _ 57)       }
   L_quoted        { PT _ (TL _)          }
   L_VarIdent      { PT _ (T_VarIdent _)  }
   L_HoleIdent     { PT _ (T_HoleIdent _) }
@@ -147,7 +146,6 @@ LanguageDecl
 Language :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Language) }
 Language
   : 'rzk-1' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Rzk1 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | 'rzk-2' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Rzk2 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
 
 Command :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Command) }
 Command

@@ -34,7 +34,6 @@ transLanguageDecl x = case x of
 transLanguage :: Show a => Language.Rzk.Syntax.Abs.Language' a -> Result
 transLanguage x = case x of
   Language.Rzk.Syntax.Abs.Rzk1 _ -> failure x
-  Language.Rzk.Syntax.Abs.Rzk2 _ -> failure x
 
 transCommand :: Show a => Language.Rzk.Syntax.Abs.Command' a -> Result
 transCommand x = case x of

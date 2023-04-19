@@ -32,7 +32,7 @@ data LanguageDecl' a = LanguageDecl a (Language' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Language = Language' BNFC'Position
-data Language' a = Rzk1 a | Rzk2 a
+data Language' a = Rzk1 a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Command = Command' BNFC'Position
@@ -176,7 +176,6 @@ instance HasPosition LanguageDecl where
 instance HasPosition Language where
   hasPosition = \case
     Rzk1 p -> p
-    Rzk2 p -> p
 
 instance HasPosition Command where
   hasPosition = \case

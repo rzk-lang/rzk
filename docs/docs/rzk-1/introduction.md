@@ -2,7 +2,8 @@
 
 !!! warning "Work-in-progress"
     The documentation is not yet up-to-date with all
-    the changes introduced in `rzk-0.2.0`.
+    the changes introduced in `rzk-0.2.0`. <br>
+    See [`rzk` changelog](https://github.com/fizruk/rzk/blob/release-v0.2.0/rzk/ChangeLog.md#v020---2022-04-20) for more details.
 
 `rzk` is an experimental proof assistant for synthetic ∞-categories.
 `rzk-1` is an early version of the language supported by `rzk`.
@@ -150,8 +151,11 @@ Additionally, unlike RSTT, `rzk-1` does not prevent cubes or topes to depend on 
 
 ```rzk
 #def weird
-	: (A : U) -> (I : (x : A) -> CUBE) -> (x : A) -> (y : A) -> CUBE
-  := \A -> \I -> \x -> \y -> I x * I y
+	  (A : U)
+    (I : A -> CUBE)
+    (x y : A)
+  : CUBE
+  := I x * I y
 ```
 
 This likely leads to another inconsistency, but it will hardly lead to bugs in actual proofs of interest,

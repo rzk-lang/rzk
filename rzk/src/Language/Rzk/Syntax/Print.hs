@@ -43,9 +43,9 @@ render d = rend 0 False (map ($ "") $ d []) ""
   rend i p = \case
       "["      :ts -> char '[' . rend i False ts
       "("      :ts -> char '(' . rend i False ts
---       "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
---       "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
---       "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
+--      "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
+--      "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
+--      "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
       [";"]        -> char ';'
       ";"      :ts -> char ';' . new i ts
       t  : ts@(s:_) | closingOrPunctuation s
@@ -153,7 +153,6 @@ instance Print (Language.Rzk.Syntax.Abs.LanguageDecl' a) where
 instance Print (Language.Rzk.Syntax.Abs.Language' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.Rzk1 _ -> prPrec i 0 (concatD [doc (showString "rzk-1")])
-    Language.Rzk.Syntax.Abs.Rzk2 _ -> prPrec i 0 (concatD [doc (showString "rzk-2")])
 
 instance Print (Language.Rzk.Syntax.Abs.Command' a) where
   prt i = \case
