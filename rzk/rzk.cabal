@@ -3,9 +3,11 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: e731bc697ba22a070995646c30c641e0805466b3cabb2fdf377ce74e07985a32
 
 name:           rzk
-version:        0.1.0
+version:        0.2.0
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
 category:       Dependent Types

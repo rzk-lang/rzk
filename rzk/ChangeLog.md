@@ -6,13 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## v0.2.0
+## v0.2.0 - 2022-04-20
 
-This version was a complete rewrite of the proof assistant, using a new parser, a new internal representation, and a rewrite of the typechecking logic. This is still a prototype, but, arguably, more stable and manageable than version 0.1.0.
+This version was a complete rewrite of the proof assistant, using a new parser, a new internal representation, and a rewrite of the typechecking logic. This is still a prototype, but, arguably, significantly more stable and manageable than version 0.1.0.
 
-### Changes in syntax
+### Language
 
 Syntax is almost entirely backwards compatible with version 0.1.0.
+Typechecking has been fixed and improved.
+
+#### Breaking Changes
 
 The only known breaking changes are:
 
@@ -20,6 +23,10 @@ The only known breaking changes are:
   now are properly parsed as `(second x) y`.
 2. It is now necessary to have at least a minimal indentation in the definition of a term after a newline.
 3. Unicode syntax is temporarily disabled, except for dependent sums and arrows in function types.
+4. The restriction syntax `[ ... ]` now has a slightly different precedence, so some parentheses are required, e.g. in `(A -> B) [ phi |-> f]` or `(f t = g t) [ phi |-> f]`.
+5. Duplicate top-level definitions are no longer allowed.
+
+#### Syntax Relaxation
 
 Otherwise, syntax is now made more flexible:
 
@@ -28,25 +35,54 @@ Otherwise, syntax is now made more flexible:
 3. Nullary extension types are possible: `A t [ phi t |-> a t ]`
 4. Lambda abstractions can introduce multiple arguments:
 
-```rzk
-#def hom : (A : U) -> A -> A -> U
-  := \A x y ->
-    (t : Δ¹) -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]
-```
+    ```rzk
+    #def hom : (A : U) -> A -> A -> U
+      := \A x y ->
+        (t : Δ¹) -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]
+    ```
 
-5. There are now 3 syntactic versions of `refl` with different amount of explicit annotations:
+5. Parameters can be introduced simultaneously for the type and body. Moreover, multiple parameters can be introduced with the same type:
+
+    ```rzk
+    #def hom (A : U) (x y : A) : U
+      := (t : Δ¹) -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]
+    ```
+
+6. Restrictions can now support multiple subshapes, effectively internalising `recOR`:
+
+    ```rzk
+    #def hom (A : U) (x y : A) : U
+      := (t : Δ¹) -> A [ t === 0_2 |-> x, t === 1_2 |-> y ]
+    ```
+
+7. There are now 3 syntactic versions of `refl` with different amount of explicit annotations:
   `refl`, `refl_{x}` and `refl_{x : A}`
 
-6. There are now 2 syntactic versions of identity types (`=`): `x = y` and `x =_{A} y`.
+8. There are now 2 syntactic versions of identity types (`=`): `x = y` and `x =_{A} y`.
 
-7. `recOR` now supports alternative syntax with an arbitrary number of subshapes:
+9. `recOR` now supports alternative syntax with an arbitrary number of subshapes:
   `recOR( tope1 |-> term1, tope2 |-> term2, ..., topeN |-> termN )`
 
-8. Now it is possible to have type ascriptions: `t as T`. This can help with ensuring types of subexpressions in parts of formalisations.
+10. Now it is possible to have type ascriptions: `t as T`. This can help with ensuring types of subexpressions in parts of formalisations, or to upcast types.
 
-9. 
+11. New (better) commands are now supported:
 
-### Simple shape coercions
+    1. `#define <name> (<param>)* : <type> := <term>` — same as `#def`, but with full spelling of the word
+    2. `#postulate <name> (<param>)* : <type>` — postulate an axiom
+    3. `#check <term> : <type>` — typecheck an expression against a given type
+    4. `#compute-whnf <term>` — compute (WHNF) of a term
+    5. `#compute-nf <term>` — compute normal form of a term
+    6. `#compute <term>` — alias for `#compute-whnf`
+    7. `#set-option <option> = <value>` — set a (typechecker) option:
+    
+        - `#set-option "verbosity" = "silent"` — no log printing
+        - `#set-option "verbosity" = "normal"` — log typechecking progress
+        - `#set-option "verbosity" = "debug"` — log every intermediate action
+          (may be useful to debug when some definition does not typecheck)
+
+    8. `#unset-option <option>` — revert option's value to its default
+
+#### Simple Shape Coercions
 
 In some places, shapes (cube indexed tope families) can be used directly:
 
@@ -54,7 +90,7 @@ In some places, shapes (cube indexed tope families) can be used directly:
 
 2. In parameter types of lambda abstractions: `\((t, s) : Δ²) -> ...` is the same as `\{(t, s) : 2 * 2 | Δ² (t, s)} -> ...`
 
-### Better type inference
+#### Better Type Inference
 
 1. It is now not required to annotate point variables with tope restrictions, the typechecker is finally smart enough to figure them out from the context.
 
@@ -66,7 +102,7 @@ In some places, shapes (cube indexed tope families) can be used directly:
 
 The output and error messages have been slightly improved, but not in a major way.
 
-### Better internal representation
+### Internal representation
 
 A new internal representation (a version of second-order abstract syntax)
 allows to stop worrying about name captures in substitutions,
@@ -74,5 +110,3 @@ so the implementation is much more trustworthy.
 The new representation will also allow to bring in higher-order unification in the future, for better type inference, matching, etc.
 
 New representation also allowed annotating each (sub)term with its type to avoid recomputations and some other minor speedups. There are still some performance issues, which need to be debugged, but overall it is much faster than version 0.1.0 already.
-
-## 0.1.0 - YYYY-MM-DD
