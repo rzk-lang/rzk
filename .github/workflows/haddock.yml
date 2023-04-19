@@ -45,7 +45,7 @@ jobs:
           stack install alex happy BNFC
       - name: 🔨 Generate Syntax files using BNFC
         run: |
-          cd stella/ && (make syntax && make clean; cd ../)
+          cd rzk/ && (make && make clean; cd ../)
 
       - name: 🔨 Build Haddock Documentation (with Stack)
         run: |
