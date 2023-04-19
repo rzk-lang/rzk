@@ -26,6 +26,12 @@ The only known breaking changes are:
 4. The restriction syntax `[ ... ]` now has a slightly different precedence, so some parentheses are required, e.g. in `(A -> B) [ phi |-> f]` or `(f t = g t) [ phi |-> f]`.
 5. Duplicate top-level definitions are no longer allowed.
 
+#### Deprecated Syntax
+
+The angle brackets for extension types are supported, but deprecated,
+as they are completely unnecessary now: `<{t : I | psi t} -> A t [ phi t |-> a t ]>` can now be written as `{t : I | psi t} -> A t [ phi t |-> a t]`
+or even `(t : psi) -> A t [ phi t |-> a t ]`.
+
 #### Syntax Relaxation
 
 Otherwise, syntax is now made more flexible:
