@@ -12,7 +12,6 @@ Module. Module ::= LanguageDecl [Command] ;
 LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
 
 Rzk1. Language ::= "rzk-1" ;
-Rzk2. Language ::= "rzk-2" ;
 
 CommandSetOption.         Command ::= "#set-option" String "=" String ";" ;
 CommandUnsetOption.       Command ::= "#unset-option" String ";" ;
