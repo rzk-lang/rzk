@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -2197,74 +2198,321 @@ renderTermSVG t = whnfT t >>= \case
   LambdaT info orig _arg body
     | TypeFunT _ _orig arg mtope _ret <- infoType info -> enterScope orig arg $ do
         maybe id localTope mtope $ do
-          let labelOf tope f = do
+          let labelOf tope = do
                 checkTopeEntails tope >>= \case
-                  False -> pure ""
+                  False -> pure Nothing
                   True -> localTope tope $ do
                       body' <- whnfT body
                       bodyLabel <- ppTermInContext body'
                       let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                      pure (f bodyLabel')
+                      pure (Just bodyLabel')
           case arg of
-              -- render (2*2 -> A)
-              CubeProductT _ Cube2T{} Cube2T{} -> do
-                let pair' (t1, t2) = topeAndT (topeEQT (firstT cube2T (Pure Z)) t1) (topeEQT (secondT cube2T (Pure Z)) t2)
-                x <- labelOf (pair' (cube2_0T, cube2_0T)) $ \x ->
-                  "<text x=\"30\" y=\"30\">" <> x <> "</text>"
-                y <- labelOf (pair' (cube2_0T, cube2_1T)) $ \y ->
-                  "<text x=\"30\" y=\"170\">" <> y <> "</text>"
-                z <- labelOf (pair' (cube2_1T, cube2_1T)) $ \z ->
-                  "<text x=\"170\" y=\"170\">" <> z <> "</text>"
-                w <- labelOf (pair' (cube2_1T, cube2_0T)) $ \w ->
-                  "<text x=\"170\" y=\"30\">" <> w <> "</text>"
+            CubeProductT _ Cube2T{} Cube2T{} -> do
+              let t1 = firstT cube2T (Pure Z)
+                  t2 = secondT cube2T (Pure Z)
+                  (===) = topeEQT
+              x <- labelOf (topeAndT (t1 === cube2_0T) (t2 === cube2_0T))
+              y <- labelOf (topeAndT (t1 === cube2_0T) (t2 === cube2_1T))
+              z <- labelOf (topeAndT (t1 === cube2_1T) (t2 === cube2_0T))
+              w <- labelOf (topeAndT (t1 === cube2_1T) (t2 === cube2_1T))
+              f <- labelOf (t2 === cube2_0T)
+              g <- labelOf (t2 === cube2_1T)
+              h <- labelOf (t1 === cube2_0T)
+              k <- labelOf (t1 === cube2_1T)
+              d <- labelOf (t1 === t2)
+              tr1 <- labelOf (topeLEQT t2 t1)
+              tr2 <- labelOf (topeLEQT t1 t2)
+              return $ Just $ renderCube defaultCamera 0 $ \case
+                "000" -> x
+                "010" -> y
+                "100" -> z
+                "110" -> w
+                "000-100" -> f
+                "010-110" -> g
+                "000-010" -> h
+                "100-110" -> k
+                "000-110" -> d
+                "000-100-110" -> tr1
+                "000-010-110" -> tr2
+                _ -> Nothing
 
-                f <- labelOf (topeEQT (secondT cube2T (Pure Z)) cube2_0T) $ \f -> intercalate "\n"
-                  [ "<text x=\"100\" y=\"15\" fill=\"black\">" <> f <> "</text>"
-                  , "<polyline points=\"40,30 160,30\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
-                g <- labelOf (topeEQT (firstT cube2T (Pure Z)) cube2_1T) $ \g -> intercalate "\n"
-                  [ "<text x=\"185\" y=\"100\" fill=\"black\">" <> g <> "</text>"
-                  , "<polyline points=\"170,40 170,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
-                h <- labelOf (topeEQT (firstT cube2T (Pure Z)) cube2_0T) $ \h -> intercalate "\n"
-                  [ "<text x=\"15\" y=\"100\" fill=\"black\">" <> h <> "</text>"
-                  , "<polyline points=\"30,40 30,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
-                k <- labelOf (topeEQT (secondT cube2T (Pure Z)) cube2_1T) $ \k -> intercalate "\n"
-                  [ "<text x=\"100\" y=\"185\" fill=\"black\">" <> k <> "</text>"
-                  , "<polyline points=\"40,170 160,170\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
-                d <- labelOf (topeEQT (secondT cube2T (Pure Z)) (firstT cube2T (Pure Z))) $ \d -> intercalate "\n"
-                  [ "<text x=\"90\" y=\"110\" fill=\"black\" transform=\"rotate(45, 90, 110)\">" <> d <> "</text>"
-                  , "<polyline points=\"40,40 160,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
+            Cube2T{} -> do
+              x <- labelOf (topeEQT (Pure Z) cube2_0T)
+              y <- labelOf (topeEQT (Pure Z) cube2_1T)
+              f <- labelOf topeTopT
+              return $ Just $ renderCube defaultCamera 0 $ \case
+                "000" -> x
+                "100" -> y
+                "000-100" -> f
+                _ -> Nothing
 
-                tr1 <- labelOf (topeLEQT (secondT cube2T (Pure Z)) (firstT cube2T (Pure Z))) $ \tr1 -> intercalate "\n"
-                  [ "<path style=\"fill: rgb(255,128,0,0.5); stroke-cap: round;\" d=\"M 52 40 L 160 40 L 160 148 Z\"></path>"
-                  , "<text x=\"125\" y=\"75\" stroke=\"red\" fill=\"red\">" <> tr1 <> "</text>"]
-                tr2 <- labelOf (topeLEQT (firstT cube2T (Pure Z)) (secondT cube2T (Pure Z))) $ \tr2 -> intercalate "\n"
-                  [ "<path style=\"fill: rgb(255,128,0,0.5); stroke-cap: round;\" d=\"M 40 52 L 40 160 L 148 160 Z\"></path>"
-                  , "<text x=\"75\" y=\"125\" stroke=\"red\" fill=\"red\">" <> tr2 <> "</text>"]
-
-                return $ Just $ unlines $ filter (not . null)
-                  [ "<svg style=\"float: right\" viewBox=\"0 0 200 180\" width=\"150\" height=\"150\">"
-                  , tr1, tr2, f, g, h, k, d, x, y, z, w
-                  , "</svg>"
-                  ]
-
-              -- render an arrow
-              Cube2T{} -> do
-                x <- labelOf (topeEQT (Pure Z) cube2_0T) $ \x ->
-                  "<text x=\"30\" y=\"30\">" <> x <> "</text>"
-                y <- labelOf (topeEQT (Pure Z) cube2_1T) $ \y ->
-                  "<text x=\"170\" y=\"30\">" <> y <> "</text>"
-                f <- labelOf topeTopT $ \f -> intercalate "\n"
-                  [ "<text x=\"100\" y=\"15\" fill=\"black\">" <> f <> "</text>"
-                  , "<polyline points=\"40,30 160,30\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>"
-                  ]
-
-                return $ Just $ unlines $ filter (not . null)
-                  [ "<svg style=\"float: right\" viewBox=\"0 0 200 180\" width=\"150\" height=\"150\">"
-                  , f, x, y
-                  , "</svg>"
-                  ]
+            _ -> renderTermSVG body
+--              -- render (2*2 -> A)
+--              CubeProductT _ Cube2T{} Cube2T{} -> do
+--                let pair' (t1, t2) = topeAndT (topeEQT (firstT cube2T (Pure Z)) t1) (topeEQT (secondT cube2T (Pure Z)) t2)
+--                x <- labelOf (pair' (cube2_0T, cube2_0T)) $ \x ->
+--                  "<text x=\"30\" y=\"30\">" <> x <> "</text>"
+--                y <- labelOf (pair' (cube2_0T, cube2_1T)) $ \y ->
+--                  "<text x=\"30\" y=\"170\">" <> y <> "</text>"
+--                z <- labelOf (pair' (cube2_1T, cube2_1T)) $ \z ->
+--                  "<text x=\"170\" y=\"170\">" <> z <> "</text>"
+--                w <- labelOf (pair' (cube2_1T, cube2_0T)) $ \w ->
+--                  "<text x=\"170\" y=\"30\">" <> w <> "</text>"
+--
+--                f <- labelOf (topeEQT (secondT cube2T (Pure Z)) cube2_0T) $ \f -> intercalate "\n"
+--                  [ "<text x=\"100\" y=\"15\" fill=\"black\">" <> f <> "</text>"
+--                  , "<polyline points=\"40,30 160,30\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
+--                g <- labelOf (topeEQT (firstT cube2T (Pure Z)) cube2_1T) $ \g -> intercalate "\n"
+--                  [ "<text x=\"185\" y=\"100\" fill=\"black\">" <> g <> "</text>"
+--                  , "<polyline points=\"170,40 170,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
+--                h <- labelOf (topeEQT (firstT cube2T (Pure Z)) cube2_0T) $ \h -> intercalate "\n"
+--                  [ "<text x=\"15\" y=\"100\" fill=\"black\">" <> h <> "</text>"
+--                  , "<polyline points=\"30,40 30,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
+--                k <- labelOf (topeEQT (secondT cube2T (Pure Z)) cube2_1T) $ \k -> intercalate "\n"
+--                  [ "<text x=\"100\" y=\"185\" fill=\"black\">" <> k <> "</text>"
+--                  , "<polyline points=\"40,170 160,170\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
+--                d <- labelOf (topeEQT (secondT cube2T (Pure Z)) (firstT cube2T (Pure Z))) $ \d -> intercalate "\n"
+--                  [ "<text x=\"90\" y=\"110\" fill=\"black\" transform=\"rotate(45, 90, 110)\">" <> d <> "</text>"
+--                  , "<polyline points=\"40,40 160,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
+--
+--                tr1 <- labelOf (topeLEQT (secondT cube2T (Pure Z)) (firstT cube2T (Pure Z))) $ \tr1 -> intercalate "\n"
+--                  [ "<path style=\"fill: rgb(255,128,0,0.5); stroke-cap: round;\" d=\"M 52 40 L 160 40 L 160 148 Z\"></path>"
+--                  , "<text x=\"125\" y=\"75\" stroke=\"red\" fill=\"red\">" <> tr1 <> "</text>"]
+--                tr2 <- labelOf (topeLEQT (firstT cube2T (Pure Z)) (secondT cube2T (Pure Z))) $ \tr2 -> intercalate "\n"
+--                  [ "<path style=\"fill: rgb(255,128,0,0.5); stroke-cap: round;\" d=\"M 40 52 L 40 160 L 148 160 Z\"></path>"
+--                  , "<text x=\"75\" y=\"125\" stroke=\"red\" fill=\"red\">" <> tr2 <> "</text>"]
+--
+--                return $ Just $ unlines $ filter (not . null)
+--                  [ "<svg style=\"float: right\" viewBox=\"0 0 200 180\" width=\"150\" height=\"150\">"
+--                  , tr1, tr2, f, g, h, k, d, x, y, z, w
+--                  , "</svg>"
+--                  ]
+--
+--              -- render an arrow
+--              Cube2T{} -> do
+--                x <- labelOf (topeEQT (Pure Z) cube2_0T) $ \x ->
+--                  "<text x=\"30\" y=\"30\">" <> x <> "</text>"
+--                y <- labelOf (topeEQT (Pure Z) cube2_1T) $ \y ->
+--                  "<text x=\"170\" y=\"30\">" <> y <> "</text>"
+--                f <- labelOf topeTopT $ \f -> intercalate "\n"
+--                  [ "<text x=\"100\" y=\"15\" fill=\"black\">" <> f <> "</text>"
+--                  , "<polyline points=\"40,30 160,30\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>"
+--                  ]
+--
+--                return $ Just $ unlines $ filter (not . null)
+--                  [ "<svg style=\"float: right\" viewBox=\"0 0 200 180\" width=\"150\" height=\"150\">"
+--                  , f, x, y
+--                  , "</svg>"
+--                  ]
 
               -- render a parametrised term
-              _ -> renderTermSVG body
 
   _t' -> return Nothing
+
+type Point2D a = (a, a)
+type Point3D a = (a, a, a)
+type Edge3D a = (Point3D a, Point3D a)
+type Face3D a = (Point3D a, Point3D a, Point3D a)
+type Volume3D a = (Point3D a, Point3D a, Point3D a, Point3D a)
+
+data CubeCoords2D a b = CubeCoords2D
+  { vertices :: [(Point3D a, Point2D b)]
+  , edges :: [(Edge3D a, (Point2D b, Point2D b))]
+  , faces :: [(Face3D a, (Point2D b, Point2D b, Point2D b))]
+  , volumes :: [(Volume3D a, (Point2D b, Point2D b, Point2D b, Point2D b))]
+  }
+
+data Matrix3D a = Matrix3D
+  a a a
+  a a a
+  a a a
+
+data Matrix4D a = Matrix4D
+  a a a a
+  a a a a
+  a a a a
+  a a a a
+
+data Vector3D a = Vector3D a a a
+
+data Vector4D a = Vector4D a a a a
+
+rotateX :: Floating a => a -> Matrix3D a
+rotateX theta = Matrix3D
+  1 0 0
+  0 (cos theta) (- sin theta)
+  0 (sin theta) (cos theta)
+
+rotateY :: Floating a => a -> Matrix3D a
+rotateY theta = Matrix3D
+  (cos theta) 0 (sin theta)
+  0 1 0
+  (- sin theta) 0 (cos theta)
+
+rotateZ :: Floating a => a -> Matrix3D a
+rotateZ theta = Matrix3D
+  (cos theta) (- sin theta) 0
+  (sin theta) (cos theta) 0
+  0 0 1
+
+data Camera a = Camera
+  { cameraPos :: Point3D a
+  , cameraFoV :: a
+  , cameraAspectRatio :: a
+  , cameraAngleY :: a
+  , cameraAngleX :: a
+  }
+
+viewRotateX :: Floating a => Camera a -> Matrix4D a
+viewRotateX Camera{..} = matrix3Dto4D (rotateX cameraAngleX)
+
+viewRotateY :: Floating a => Camera a -> Matrix4D a
+viewRotateY Camera{..} = matrix3Dto4D (rotateY cameraAngleY)
+
+viewTranslate :: Num a => Camera a -> Matrix4D a
+viewTranslate Camera{..} = Matrix4D
+  1 0 0 0
+  0 1 0 0
+  0 0 1 0
+  (-x) (-y) (-z) 1
+  where
+    (x, y, z) = cameraPos
+
+project2D :: Floating a => Camera a -> Matrix4D a
+project2D Camera{..} = Matrix4D
+  (2 * n / (r - l)) 0 ((r + l) / (r - l)) 0
+  0 (2 * n / (t - b)) ((t + b) / (t - b)) 0
+  0 0 (- (f + n) / (f - n)) (- 2 * f * n / (f - n))
+  0 0 (-1) 0
+  where
+    n = 1
+    f = 2
+    r = n * tan (cameraFoV / 2)
+    l = -r
+    t = r * cameraAspectRatio
+    b = -t
+
+
+matrixVectorMult4D :: Num a => Matrix4D a -> Vector4D a -> Vector4D a
+matrixVectorMult4D
+  (Matrix4D
+    a1 a2 a3 a4
+    b1 b2 b3 b4
+    c1 c2 c3 c4
+    d1 d2 d3 d4)
+  (Vector4D a b c d)
+    = Vector4D a' b' c' d'
+  where
+    a' = sum (zipWith (*) [a1, b1, c1, d1] [a, b, c, d])
+    b' = sum (zipWith (*) [a2, b2, c2, d2] [a, b, c, d])
+    c' = sum (zipWith (*) [a3, b3, c3, d3] [a, b, c, d])
+    d' = sum (zipWith (*) [a4, b4, c4, d4] [a, b, c, d])
+
+matrix3Dto4D :: Num a => Matrix3D a -> Matrix4D a
+matrix3Dto4D
+  (Matrix3D
+    a1 b1 c1
+    a2 b2 c2
+    a3 b3 c3) = Matrix4D
+      a1 b1 c1 0
+      a2 b2 c2 0
+      a3 b3 c3 0
+      0 0 0 1
+
+fromAffine :: Fractional a => Vector4D a -> (Point2D a, a)
+fromAffine (Vector4D a b c d) = ((x, y), zIndex)
+  where
+    x = a / d
+    y = b / d
+    zIndex = c / d
+
+point3Dto2D :: Floating a => Camera a -> a -> Point3D a -> (Point2D a, a)
+point3Dto2D camera rotY (x, y, z) = fromAffine $
+  foldr matrixVectorMult4D (Vector4D x y z 1) $ reverse
+    [ matrix3Dto4D (rotateY rotY)
+    , viewTranslate camera
+    , viewRotateY camera
+    , viewRotateX camera
+    , project2D camera
+    ]
+
+renderCube
+  :: (Floating a, Show a)
+  => Camera a
+  -> a
+  -> (String -> Maybe String)
+  -> String
+renderCube camera rotY nameOf = unlines $ filter (not . null)
+  [ "<svg viewBox=\"-200 -200 400 400\" width=\"600\" height=\"600\">"
+  , intercalate "\n"
+      [ "  <path d=\"M " <> show x1 <> " " <> show y1
+                <> " L " <> show x2 <> " " <> show y2
+                <> " L " <> show x3 <> " " <> show y3
+                <> " Z\" style=\"fill: rgb(128,128,128,0.5);\"><title>" <> name <> "</title></path>"
+      | (faceId, (((x1, y1), (x2, y2), (x3, y3)), _)) <- faces
+      , Just name <- [nameOf faceId]]
+  , intercalate "\n"
+      [ "  <polyline points=\"" <> show x1 <> "," <> show y1 <> " " <> show x2 <> "," <> show y2
+        <> "\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> name <> "</title></polyline>"
+      | (edge, (((x1, y1), (x2, y2)), _)) <- edges
+      , Just name <- [nameOf edge]]
+  , intercalate "\n"
+      [ "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\">" <> name <> "</text>"
+      | (v, ((x, y), _)) <- vertices
+      , Just name <- [nameOf v]]
+  , "</svg>" ]
+  where
+    vertices =
+      [ (show x <> show y <> show z, ((500 * x'', 500 * y''), zIndex))
+      | x <- [0,1]
+      , y <- [0,1]
+      , z <- [0,1]
+      , let f c = 2 * fromInteger c - 1
+      , let x' = f x
+      , let y' = f (1-y)
+      , let z' = f z
+      , let ((x'', y''), zIndex) = point3Dto2D camera rotY (x', y', z') ]
+
+    radius = 20
+
+    mkEdge r (x1, y1) (x2, y2) = ((x1 + dx, y1 + dy), ((x2 - dx), (y2 - dy)))
+      where
+        d = sqrt ((x2 - x1)^2 + (y2 - y1)^2)
+        dx = r * (x2 - x1) / d
+        dy = r * (y2 - y1) / d
+
+    scaleAround (cx, cy) s (x, y) = (cx + s * (x - cx), cy + s * (y - cy))
+
+    mkFace (x1, y1) (x2, y2) (x3, y3) = (p1, p2, p3)
+      where
+        cx = (x1 + x2 + x3) / 3
+        cy = (y1 + y2 + y3) / 3
+        p1 = scaleAround (cx, cy) 0.85 (x1, y1)
+        p2 = scaleAround (cx, cy) 0.85 (x2, y2)
+        p3 = scaleAround (cx, cy) 0.85 (x3, y3)
+
+    edges =
+      [ (intercalate "-" [fromName, toName], (mkEdge radius from to, 0))
+      | (fromName, (from, _)) : vs <- tails vertices
+      , (toName, (to, _)) <- vs
+      , and (zipWith (<=) fromName toName)
+      ]
+
+    faces =
+      [ (intercalate "-" [name1, name2, name3], (mkFace v1 v2 v3, 0))
+      | (name1, (v1, _)) : vs <- tails vertices
+      , (name2, (v2, _)) : vs' <- tails vs
+      , and (zipWith (<=) name1 name2)
+      , (name3, (v3, _)) <- vs'
+      , and (zipWith (<=) name2 name3)
+      ]
+
+
+defaultCamera :: Floating a => Camera a
+defaultCamera = Camera
+  { cameraPos = (0, 7, 10)
+  , cameraAngleY = pi
+  , cameraAngleX = pi/5
+  , cameraFoV = pi/15
+  , cameraAspectRatio = 1
+  }
