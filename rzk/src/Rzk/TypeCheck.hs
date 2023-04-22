@@ -8,7 +8,7 @@ module Rzk.TypeCheck where
 import Control.Applicative ((<|>))
 import Control.Monad.Reader
 import Control.Monad.Except
-import Data.List (tails, (\\), intercalate, nub)
+import Data.List (tails, (\\), intercalate, nub, partition, zip4)
 import Data.Maybe (fromMaybe, isNothing, catMaybes, mapMaybe)
 import Data.Tuple (swap)
 
@@ -2207,6 +2207,53 @@ renderTermSVG t = whnfT t >>= \case
                       let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
                       pure (Just bodyLabel')
           case arg of
+            CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
+              let t1 = firstT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
+                  t2 = secondT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
+                  t3 = secondT cube2T (Pure Z)
+                  (===) = topeEQT
+                  allVertices = mconcat <$> replicateM 3 [("0", [cube2_0T]), ("1", [cube2_1T])]
+                  allEdges =
+                    [ (fromId <> "-" <> toId, (from, to))
+                    | (fromId, from) : vs <- tails allVertices
+                    , (toId, to) <- vs
+                    , and (zipWith (<=) fromId toId)
+                    ]
+                  allFaces =
+                    [ (v1_id <> "-" <> v2_id <> "-" <> v3_id, (v1, v2, v3))
+                    | (v1_id, v1) : vs <- tails allVertices
+                    , (v2_id, v2) : vs' <- tails vs
+                    , and (zipWith (<=) v1_id v2_id)
+                    , (v3_id, v3) <- vs'
+                    , and (zipWith (<=) v2_id v3_id)
+                    ]
+              vertices <- catMaybes <$> sequence
+                [ fmap ((,) vertexId) <$> labelOf (topeAndT (topeAndT (t1 === s1) (t2 === s2)) (t3 === s3))
+                | (vertexId, [s1, s2, s3]) <- allVertices ]
+              edges <- catMaybes <$> sequence
+                [ fmap ((,) edgeId) <$> labelOf (foldr topeAndT topeTopT $ concat [
+                    [ t' === f | (t', (f, _)) <- constant ],
+                    [ t' === t'' | (t', _):(t'', _):_ <- tails changing ]
+                  ])
+                | (edgeId, (fs, ss)) <- allEdges
+                , let (constant, changing) = partition (uncurry (==) . snd) (zip [t1, t2, t3] (zip fs ss)) ]
+              faces <- catMaybes <$> sequence
+                [ fmap ((,) faceId) <$> labelOf (foldr topeAndT topeTopT $ concat [
+                    [ t' === s | (t', s) <- constant ],
+                    [ t' === t'' | t':t'':_ <- tails changeFirst ],
+                    [ t' === t'' | t':t'':_ <- tails changeSecond ],
+                    [ topeLEQT t' t'' | t' <- changeSecond, t'' <- take 1 changeFirst ]
+                  ])
+                | (faceId, (v1, v2, v3)) <- allFaces
+                , let (constant, changeFirst, changeSecond) = mconcat $ flip map (zip4 [t1, t2, t3] v1 v2 v3) $ \case
+                        (t', s1, s2, s3)
+                          | s1 == s2 && s2 == s3 -> ([(t', s1)], [], [])
+                          | s1 /= s2 && s2 == s3 -> ([], [t'], [])
+                          | otherwise            -> ([], [], [t'])
+                ]
+              return $ Just $ renderCube defaultCamera (pi/7) $ \obj ->
+                lookup obj (vertices <> edges <> faces)
+
             CubeProductT _ Cube2T{} Cube2T{} -> do
               let t1 = firstT cube2T (Pure Z)
                   t2 = secondT cube2T (Pure Z)
