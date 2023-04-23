@@ -2193,71 +2193,114 @@ unsafeInferStandalone' t =
       ]
     Right tt -> tt
 
-renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
-renderTermSVG t = whnfT t >>= \case
-  LambdaT info orig _arg body
-    | TypeFunT _ _orig arg mtope _ret <- infoType info -> enterScope orig arg $ do
-        maybe id localTope mtope $ do
-          let labelOf tope = do
-                checkTopeEntails tope >>= \case
-                  False -> pure Nothing
-                  True -> localTope tope $ do
-                      body' <- whnfT body
-                      bodyLabel <- ppTermInContext body'
-                      let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                      pure (Just bodyLabel')
-          case arg of
-            CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
-              let t1 = firstT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
-                  t2 = secondT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
-                  t3 = secondT cube2T (Pure Z)
-                  (===) = topeEQT
-                  allVertices = mconcat <$> replicateM 3 [("0", [cube2_0T]), ("1", [cube2_1T])]
-                  allEdges =
-                    [ (fromId <> "-" <> toId, (from, to))
-                    | (fromId, from) : vs <- tails allVertices
-                    , (toId, to) <- vs
-                    , and (zipWith (<=) fromId toId)
-                    ]
-                  allFaces =
-                    [ (v1_id <> "-" <> v2_id <> "-" <> v3_id, (v1, v2, v3))
-                    | (v1_id, v1) : vs <- tails allVertices
-                    , (v2_id, v2) : vs' <- tails vs
-                    , and (zipWith (<=) v1_id v2_id)
-                    , (v3_id, v3) <- vs'
-                    , and (zipWith (<=) v2_id v3_id)
-                    ]
-              vertices <- catMaybes <$> sequence
-                [ fmap ((,) vertexId) <$> labelOf (topeAndT (topeAndT (t1 === s1) (t2 === s2)) (t3 === s3))
-                | (vertexId, [s1, s2, s3]) <- allVertices ]
-              edges <- catMaybes <$> sequence
-                [ fmap ((,) edgeId) <$> labelOf (foldr topeAndT topeTopT $ concat [
-                    [ t' === f | (t', (f, _)) <- constant ],
-                    [ t' === t'' | (t', _):(t'', _):_ <- tails changing ]
-                  ])
-                | (edgeId, (fs, ss)) <- allEdges
-                , let (constant, changing) = partition (uncurry (==) . snd) (zip [t1, t2, t3] (zip fs ss)) ]
-              faces <- catMaybes <$> sequence
-                [ fmap ((,) faceId) <$> labelOf (foldr topeAndT topeTopT $ concat [
-                    [ t' === s | (t', s) <- constant ],
-                    [ t' === t'' | t':t'':_ <- tails changeFirst ],
-                    [ t' === t'' | t':t'':_ <- tails changeSecond ],
-                    [ topeLEQT t' t'' | t' <- changeSecond, t'' <- take 1 changeFirst ]
-                  ])
-                | (faceId, (v1, v2, v3)) <- allFaces
-                , let (constant, changeFirst, changeSecond) = mconcat $ flip map (zip4 [t1, t2, t3] v1 v2 v3) $ \case
-                        (t', s1, s2, s3)
-                          | s1 == s2 && s2 == s3 -> ([(t', s1)], [], [])
-                          | s1 /= s2 && s2 == s3 -> ([], [t'], [])
-                          | otherwise            -> ([], [], [t'])
-                ]
-              return $ Just $ renderCube defaultCamera (pi/7) $ \obj ->
-                lookup obj (vertices <> edges <> faces)
+renderTermInCubeSVG
+  :: Eq var
+  => (TermT var, TermT var, TermT var)
+  -> (TermT var -> TypeCheck var' (Maybe String))
+  -> TypeCheck var' String
+renderTermInCubeSVG (t1, t2, t3) labelOf = do
+  let (===) = topeEQT
+      allVertices = mconcat <$> replicateM 3 [("0", [cube2_0T]), ("1", [cube2_1T])]
+      allEdges =
+        [ (fromId <> "-" <> toId, (from, to))
+        | (fromId, from) : vs <- tails allVertices
+        , (toId, to) <- vs
+        , and (zipWith (<=) fromId toId)
+        ]
+      allFaces =
+        [ (v1_id <> "-" <> v2_id <> "-" <> v3_id, (v1, v2, v3))
+        | (v1_id, v1) : vs <- tails allVertices
+        , (v2_id, v2) : vs' <- tails vs
+        , and (zipWith (<=) v1_id v2_id)
+        , (v3_id, v3) <- vs'
+        , and (zipWith (<=) v2_id v3_id)
+        ]
+  vertices <- catMaybes <$> sequence
+    [ fmap ((,) vertexId) <$> labelOf (topeAndT (topeAndT (t1 === s1) (t2 === s2)) (t3 === s3))
+    | (vertexId, [s1, s2, s3]) <- allVertices ]
+  edges <- catMaybes <$> sequence
+    [ fmap ((,) edgeId) <$> labelOf (foldr topeAndT topeTopT $ concat [
+        [ t' === f | (t', (f, _)) <- constant ],
+        [ t' === t'' | (t', _):(t'', _):_ <- tails changing ]
+      ])
+    | (edgeId, (fs, ss)) <- allEdges
+    , let (constant, changing) = partition (uncurry (==) . snd) (zip [t1, t2, t3] (zip fs ss)) ]
+  faces <- catMaybes <$> sequence
+    [ fmap ((,) faceId) <$> labelOf (foldr topeAndT topeTopT $ concat [
+        [ t' === s | (t', s) <- constant ],
+        [ t' === t'' | t':t'':_ <- tails changeFirst ],
+        [ t' === t'' | t':t'':_ <- tails changeSecond ],
+        [ topeLEQT t' t'' | t' <- changeSecond, t'' <- take 1 changeFirst ]
+      ])
+    | (faceId, (v1, v2, v3)) <- allFaces
+    , let (constant, changeFirst, changeSecond) = mconcat $ flip map (zip4 [t1, t2, t3] v1 v2 v3) $ \case
+            (t', s1, s2, s3)
+              | s1 == s2 && s2 == s3 -> ([(t', s1)], [], [])
+              | s1 /= s2 && s2 == s3 -> ([], [t'], [])
+              | otherwise            -> ([], [], [t'])
+    ]
+  return $ renderCube defaultCamera (pi/7) $ \obj ->
+    lookup obj (vertices <> edges <> faces)
 
-            CubeProductT _ Cube2T{} Cube2T{} -> do
-              let t1 = firstT cube2T (Pure Z)
-                  t2 = secondT cube2T (Pure Z)
-                  (===) = topeEQT
+renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
+renderTermSVG t = typeOf t >>= \case
+  TypeFunT _ orig arg mtope ret -> enterScope orig arg $ do
+    maybe id localTope mtope $ do
+      let labelOf tope = do
+            checkTopeEntails tope >>= \case
+              False -> pure Nothing
+              True -> localTope tope $ do
+                  body' <- whnfT (appT ret (S <$> t) (Pure Z))
+                  bodyLabel <- ppTermInContext body'
+                  let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
+                  pure (Just bodyLabel')
+      case arg of
+        CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
+          let t1 = firstT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
+              t2 = secondT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
+              t3 = secondT cube2T (Pure Z)
+          Just <$> renderTermInCubeSVG (t1, t2, t3) labelOf
+
+        CubeProductT _ Cube2T{} (CubeProductT _ Cube2T{} Cube2T{}) -> do
+          let t1 = firstT cube2T (Pure Z)
+              t2 = firstT cube2T (secondT (cubeProductT cube2T cube2T) (Pure Z))
+              t3 = secondT cube2T (secondT (cubeProductT cube2T cube2T) (Pure Z))
+          Just <$> renderTermInCubeSVG (t1, t2, t3) labelOf
+
+        CubeProductT _ Cube2T{} Cube2T{} -> do
+          let t1 = firstT cube2T (Pure Z)
+              t2 = secondT cube2T (Pure Z)
+          whnfT ret >>= \case
+            TypeRestrictedT _info (TypeFunT _ orig2 arg2@Cube2T{} mtope2 ret2) _rs -> enterScope orig2 arg2 $ do
+              maybe id localTope mtope2 $ do
+                let labelOf2 tope = do
+                      checkTopeEntails tope >>= \case
+                        False -> pure Nothing
+                        True -> localTope tope $ do
+                            body' <- whnfT (appT ret2 (S <$> (appT ret (S <$> t) (Pure Z))) (Pure Z))
+                            bodyLabel <- ppTermInContext body'
+                            let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
+                            pure (Just bodyLabel')
+                    t1' = S <$> t1
+                    t2' = S <$> t2
+                    t3 = Pure Z
+                Just <$> renderTermInCubeSVG (t1', t2', t3) labelOf2
+            TypeFunT _ orig2 arg2@Cube2T{} mtope2 ret2 -> enterScope orig2 arg2 $ do
+              maybe id localTope mtope2 $ do
+                let labelOf2 tope = do
+                      checkTopeEntails tope >>= \case
+                        False -> pure Nothing
+                        True -> localTope tope $ do
+                            body' <- whnfT (appT ret2 (S <$> (appT ret (S <$> t) (Pure Z))) (Pure Z))
+                            bodyLabel <- ppTermInContext body'
+                            let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
+                            pure (Just bodyLabel')
+                    t1' = S <$> t1
+                    t2' = S <$> t2
+                    t3 = Pure Z
+                Just <$> renderTermInCubeSVG (t1', t2', t3) labelOf2
+            _ret' -> do
+              let (===) = topeEQT
               x <- labelOf (topeAndT (t1 === cube2_0T) (t2 === cube2_0T))
               y <- labelOf (topeAndT (t1 === cube2_0T) (t2 === cube2_1T))
               z <- labelOf (topeAndT (t1 === cube2_1T) (t2 === cube2_0T))
@@ -2283,76 +2326,17 @@ renderTermSVG t = whnfT t >>= \case
                 "000-010-110" -> tr2
                 _ -> Nothing
 
-            Cube2T{} -> do
-              x <- labelOf (topeEQT (Pure Z) cube2_0T)
-              y <- labelOf (topeEQT (Pure Z) cube2_1T)
-              f <- labelOf topeTopT
-              return $ Just $ renderCube defaultCamera 0 $ \case
-                "000" -> x
-                "100" -> y
-                "000-100" -> f
-                _ -> Nothing
+        Cube2T{} -> do
+          x <- labelOf (topeEQT (Pure Z) cube2_0T)
+          y <- labelOf (topeEQT (Pure Z) cube2_1T)
+          f <- labelOf topeTopT
+          return $ Just $ renderCube defaultCamera 0 $ \case
+            "000" -> x
+            "100" -> y
+            "000-100" -> f
+            _ -> Nothing
 
-            _ -> renderTermSVG body
---              -- render (2*2 -> A)
---              CubeProductT _ Cube2T{} Cube2T{} -> do
---                let pair' (t1, t2) = topeAndT (topeEQT (firstT cube2T (Pure Z)) t1) (topeEQT (secondT cube2T (Pure Z)) t2)
---                x <- labelOf (pair' (cube2_0T, cube2_0T)) $ \x ->
---                  "<text x=\"30\" y=\"30\">" <> x <> "</text>"
---                y <- labelOf (pair' (cube2_0T, cube2_1T)) $ \y ->
---                  "<text x=\"30\" y=\"170\">" <> y <> "</text>"
---                z <- labelOf (pair' (cube2_1T, cube2_1T)) $ \z ->
---                  "<text x=\"170\" y=\"170\">" <> z <> "</text>"
---                w <- labelOf (pair' (cube2_1T, cube2_0T)) $ \w ->
---                  "<text x=\"170\" y=\"30\">" <> w <> "</text>"
---
---                f <- labelOf (topeEQT (secondT cube2T (Pure Z)) cube2_0T) $ \f -> intercalate "\n"
---                  [ "<text x=\"100\" y=\"15\" fill=\"black\">" <> f <> "</text>"
---                  , "<polyline points=\"40,30 160,30\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
---                g <- labelOf (topeEQT (firstT cube2T (Pure Z)) cube2_1T) $ \g -> intercalate "\n"
---                  [ "<text x=\"185\" y=\"100\" fill=\"black\">" <> g <> "</text>"
---                  , "<polyline points=\"170,40 170,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
---                h <- labelOf (topeEQT (firstT cube2T (Pure Z)) cube2_0T) $ \h -> intercalate "\n"
---                  [ "<text x=\"15\" y=\"100\" fill=\"black\">" <> h <> "</text>"
---                  , "<polyline points=\"30,40 30,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
---                k <- labelOf (topeEQT (secondT cube2T (Pure Z)) cube2_1T) $ \k -> intercalate "\n"
---                  [ "<text x=\"100\" y=\"185\" fill=\"black\">" <> k <> "</text>"
---                  , "<polyline points=\"40,170 160,170\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
---                d <- labelOf (topeEQT (secondT cube2T (Pure Z)) (firstT cube2T (Pure Z))) $ \d -> intercalate "\n"
---                  [ "<text x=\"90\" y=\"110\" fill=\"black\" transform=\"rotate(45, 90, 110)\">" <> d <> "</text>"
---                  , "<polyline points=\"40,40 160,160\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>" ]
---
---                tr1 <- labelOf (topeLEQT (secondT cube2T (Pure Z)) (firstT cube2T (Pure Z))) $ \tr1 -> intercalate "\n"
---                  [ "<path style=\"fill: rgb(255,128,0,0.5); stroke-cap: round;\" d=\"M 52 40 L 160 40 L 160 148 Z\"></path>"
---                  , "<text x=\"125\" y=\"75\" stroke=\"red\" fill=\"red\">" <> tr1 <> "</text>"]
---                tr2 <- labelOf (topeLEQT (firstT cube2T (Pure Z)) (secondT cube2T (Pure Z))) $ \tr2 -> intercalate "\n"
---                  [ "<path style=\"fill: rgb(255,128,0,0.5); stroke-cap: round;\" d=\"M 40 52 L 40 160 L 148 160 Z\"></path>"
---                  , "<text x=\"75\" y=\"125\" stroke=\"red\" fill=\"red\">" <> tr2 <> "</text>"]
---
---                return $ Just $ unlines $ filter (not . null)
---                  [ "<svg style=\"float: right\" viewBox=\"0 0 200 180\" width=\"150\" height=\"150\">"
---                  , tr1, tr2, f, g, h, k, d, x, y, z, w
---                  , "</svg>"
---                  ]
---
---              -- render an arrow
---              Cube2T{} -> do
---                x <- labelOf (topeEQT (Pure Z) cube2_0T) $ \x ->
---                  "<text x=\"30\" y=\"30\">" <> x <> "</text>"
---                y <- labelOf (topeEQT (Pure Z) cube2_1T) $ \y ->
---                  "<text x=\"170\" y=\"30\">" <> y <> "</text>"
---                f <- labelOf topeTopT $ \f -> intercalate "\n"
---                  [ "<text x=\"100\" y=\"15\" fill=\"black\">" <> f <> "</text>"
---                  , "<polyline points=\"40,30 160,30\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"></polyline>"
---                  ]
---
---                return $ Just $ unlines $ filter (not . null)
---                  [ "<svg style=\"float: right\" viewBox=\"0 0 200 180\" width=\"150\" height=\"150\">"
---                  , f, x, y
---                  , "</svg>"
---                  ]
-
-              -- render a parametrised term
+        _ -> renderTermSVG (appT ret (S <$> t) (Pure Z))
 
   _t' -> return Nothing
 
@@ -2490,7 +2474,7 @@ renderCube
   -> (String -> Maybe String)
   -> String
 renderCube camera rotY nameOf = unlines $ filter (not . null)
-  [ "<svg viewBox=\"-200 -200 400 400\" width=\"600\" height=\"600\">"
+  [ "<svg class=\"zoom\" style=\"float: right\" viewBox=\"-175 -200 350 375\" width=\"150\" height=\"150\">"
   , intercalate "\n"
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
                 <> " L " <> show x2 <> " " <> show y2
