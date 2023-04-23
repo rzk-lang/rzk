@@ -2193,10 +2193,18 @@ unsafeInferStandalone' t =
       ]
     Right tt -> tt
 
+mkRenderObjectEntry :: String -> String -> String -> (String, RenderObjectData)
+mkRenderObjectEntry objId objColor objLabel = (objId, objData)
+  where
+    objData = RenderObjectData
+      { renderObjectDataLabel = objLabel
+      , renderObjectDataColor = objColor
+      }
+
 renderTermInCubeSVG
   :: Eq var
   => (TermT var, TermT var, TermT var)
-  -> (TermT var -> TypeCheck var' (Maybe String))
+  -> (TermT var -> TypeCheck var' (Maybe RenderObjectData))
   -> TypeCheck var' String
 renderTermInCubeSVG (t1, t2, t3) labelOf = do
   let (===) = topeEQT
@@ -2216,22 +2224,23 @@ renderTermInCubeSVG (t1, t2, t3) labelOf = do
         , and (zipWith (<=) v2_id v3_id)
         ]
   vertices <- catMaybes <$> sequence
-    [ fmap ((,) vertexId) <$> labelOf (topeAndT (topeAndT (t1 === s1) (t2 === s2)) (t3 === s3))
+    [ fmap (vertexId,) <$>
+        labelOf (topeAndT (topeAndT (t1 === s1) (t2 === s2)) (t3 === s3))
     | (vertexId, [s1, s2, s3]) <- allVertices ]
   edges <- catMaybes <$> sequence
-    [ fmap ((,) edgeId) <$> labelOf (foldr topeAndT topeTopT $ concat [
-        [ t' === f | (t', (f, _)) <- constant ],
-        [ t' === t'' | (t', _):(t'', _):_ <- tails changing ]
-      ])
+    [ fmap (edgeId,) <$>
+        labelOf (foldr topeAndT topeTopT $ concat
+          [ [ t' === f | (t', (f, _)) <- constant ]
+          , [ t' === t'' | (t', _):(t'', _):_ <- tails changing ] ])
     | (edgeId, (fs, ss)) <- allEdges
     , let (constant, changing) = partition (uncurry (==) . snd) (zip [t1, t2, t3] (zip fs ss)) ]
   faces <- catMaybes <$> sequence
-    [ fmap ((,) faceId) <$> labelOf (foldr topeAndT topeTopT $ concat [
-        [ t' === s | (t', s) <- constant ],
-        [ t' === t'' | t':t'':_ <- tails changeFirst ],
-        [ t' === t'' | t':t'':_ <- tails changeSecond ],
-        [ topeLEQT t' t'' | t' <- changeSecond, t'' <- take 1 changeFirst ]
-      ])
+    [ fmap (faceId,) <$>
+        labelOf (foldr topeAndT topeTopT $ concat
+          [ [ t' === s | (t', s) <- constant ]
+          , [ t' === t'' | t':t'':_ <- tails changeFirst ]
+          , [ t' === t'' | t':t'':_ <- tails changeSecond ]
+          , [ topeLEQT t' t'' | t' <- changeSecond, t'' <- take 1 changeFirst ] ])
     | (faceId, (v1, v2, v3)) <- allFaces
     , let (constant, changeFirst, changeSecond) = mconcat $ flip map (zip4 [t1, t2, t3] v1 v2 v3) $ \case
             (t', s1, s2, s3)
@@ -2253,7 +2262,10 @@ renderTermSVG t = typeOf t >>= \case
                   body' <- whnfT (appT ret (S <$> t) (Pure Z))
                   bodyLabel <- ppTermInContext body'
                   let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                  pure (Just bodyLabel')
+                  pure $ Just RenderObjectData
+                    { renderObjectDataLabel = bodyLabel'
+                    , renderObjectDataColor = "black"
+                    }
       case arg of
         CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
           let t1 = firstT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
@@ -2280,7 +2292,10 @@ renderTermSVG t = typeOf t >>= \case
                             body' <- whnfT (appT ret2 (S <$> (appT ret (S <$> t) (Pure Z))) (Pure Z))
                             bodyLabel <- ppTermInContext body'
                             let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                            pure (Just bodyLabel')
+                            pure $ Just RenderObjectData
+                              { renderObjectDataLabel = bodyLabel'
+                              , renderObjectDataColor = "black"
+                              }
                     t1' = S <$> t1
                     t2' = S <$> t2
                     t3 = Pure Z
@@ -2294,7 +2309,10 @@ renderTermSVG t = typeOf t >>= \case
                             body' <- whnfT (appT ret2 (S <$> (appT ret (S <$> t) (Pure Z))) (Pure Z))
                             bodyLabel <- ppTermInContext body'
                             let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                            pure (Just bodyLabel')
+                            pure $ Just RenderObjectData
+                              { renderObjectDataLabel = bodyLabel'
+                              , renderObjectDataColor = "black"
+                              }
                     t1' = S <$> t1
                     t2' = S <$> t2
                     t3 = Pure Z
@@ -2467,30 +2485,35 @@ point3Dto2D camera rotY (x, y, z) = fromAffine $
     , project2D camera
     ]
 
+data RenderObjectData = RenderObjectData
+  { renderObjectDataLabel :: String
+  , renderObjectDataColor :: String
+  }
+
 renderCube
   :: (Floating a, Show a)
   => Camera a
   -> a
-  -> (String -> Maybe String)
+  -> (String -> Maybe RenderObjectData)
   -> String
-renderCube camera rotY nameOf = unlines $ filter (not . null)
+renderCube camera rotY renderDataOf = unlines $ filter (not . null)
   [ "<svg class=\"zoom\" style=\"float: right\" viewBox=\"-175 -200 350 375\" width=\"150\" height=\"150\">"
   , intercalate "\n"
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
                 <> " L " <> show x2 <> " " <> show y2
                 <> " L " <> show x3 <> " " <> show y3
-                <> " Z\" style=\"fill: rgb(128,128,128,0.5);\"><title>" <> name <> "</title></path>"
+                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.5\"><title>" <> renderObjectDataLabel <> "</title></path>"
       | (faceId, (((x1, y1), (x2, y2), (x3, y3)), _)) <- faces
-      , Just name <- [nameOf faceId]]
+      , Just RenderObjectData{..} <- [renderDataOf faceId]]
   , intercalate "\n"
       [ "  <polyline points=\"" <> show x1 <> "," <> show y1 <> " " <> show x2 <> "," <> show y2
-        <> "\" stroke=\"black\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> name <> "</title></polyline>"
+        <> "\" stroke=\"" <> renderObjectDataColor <> "\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> renderObjectDataLabel <> "</title></polyline>"
       | (edge, (((x1, y1), (x2, y2)), _)) <- edges
-      , Just name <- [nameOf edge]]
+      , Just RenderObjectData{..} <- [renderDataOf edge]]
   , intercalate "\n"
-      [ "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\">" <> name <> "</text>"
+      [ "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\">" <> renderObjectDataLabel <> "</text>"
       | (v, ((x, y), _)) <- vertices
-      , Just name <- [nameOf v]]
+      , Just RenderObjectData{..} <- [renderDataOf v]]
   , "</svg>" ]
   where
     vertices =
