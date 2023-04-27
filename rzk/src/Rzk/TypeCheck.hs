@@ -2324,11 +2324,12 @@ cubeSubTopes = subTopes2 3 (Pure Z)
 
 renderObjectsFor
   :: Eq var
-  => Int
+  => String
+  -> Int
   -> TermT var
   -> TermT var
   -> TypeCheck var [(ShapeId, RenderObjectData)]
-renderObjectsFor dim t term = fmap catMaybes $ do
+renderObjectsFor mainColor dim t term = fmap catMaybes $ do
   forM (subTopes2 dim t) $ \(shapeId, tope) -> do
     checkTopeEntails tope >>= \case
       False -> return Nothing
@@ -2340,10 +2341,23 @@ renderObjectsFor dim t term = fmap catMaybes $ do
             , renderObjectDataColor = "pink"  -- FIXME: pink for topes?
             })
         _ -> do
-          label <- localTope tope (whnfT term) >>= ppTermInContext
+          Context{..} <- ask
+          term' <- localTope tope $ whnfT term
+          label <-
+            case term of
+              AppT _ (Pure z) arg
+                | Just (Just "_") <- lookup z varOrigs -> ppTermInContext term'
+                | nub (foldMap pure arg) == nub (foldMap pure arg) -> ppTermInContext (Pure z)
+              _ -> ppTermInContext term'
           return $ Just (shapeId, RenderObjectData
             { renderObjectDataLabel = label
-            , renderObjectDataColor = "gray"
+            , renderObjectDataColor =
+                case term' of
+                  Pure{} -> "black"
+                  AppT _ (Pure x) arg
+                    | Just (Just "_") <- lookup x varOrigs -> mainColor
+                    | nub (foldMap pure t) == nub (foldMap pure arg) -> "black"
+                  _ -> mainColor
             })
 
 componentWiseEQT :: Int -> TermT var -> TermT var -> TermT var
@@ -2358,14 +2372,15 @@ componentWiseEQT dim _ _ = error ("cannot work with " <> show dim <> " dimension
 
 renderObjectsInSubShapeFor
   :: Eq var
-  => Int
+  => String
+  -> Int
   -> [var]
   -> var
   -> TermT var
   -> TermT var
   -> TermT var
   -> TypeCheck var [(ShapeId, RenderObjectData)]
-renderObjectsInSubShapeFor dim sub super retType f x = fmap catMaybes $ do
+renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes $ do
   let reduceContext
         = foldr topeOrT topeBottomT
         . map (foldr topeAndT topeTopT)
@@ -2378,11 +2393,24 @@ renderObjectsInSubShapeFor dim sub super retType f x = fmap catMaybes $ do
     checkEntails tope contextTopes >>= \case
       False -> return Nothing
       True -> do
-        label <- localTope tope (whnfT (appT retType f (Pure super))) >>= \term -> typeOf term >>= \case
+        Context{..} <- ask
+        term <- localTope tope (whnfT (appT retType f (Pure super)))
+        label <- typeOf term >>= \case
           UniverseTopeT{} -> return "•"
-          _ -> ppTermInContext term
+          _ -> do
+            case term of
+              AppT _ (Pure z) arg
+                | Just (Just "_") <- lookup z varOrigs -> ppTermInContext term
+                | [super] == nub (foldMap pure arg) -> ppTermInContext (Pure z)
+              _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
-          True -> return "red"
+          True -> do
+            case term of
+              Pure{} -> return "black"
+              AppT _ (Pure z) arg
+                | Just (Just "_") <- lookup z varOrigs -> return mainColor
+                | [super] == nub (foldMap pure arg) -> return "black"
+              _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData
           { renderObjectDataLabel = label
@@ -2391,15 +2419,16 @@ renderObjectsInSubShapeFor dim sub super retType f x = fmap catMaybes $ do
 
 renderForSubShapeSVG
   :: Eq var
-  => Int
+  => String
+  -> Int
   -> [var]
   -> var
   -> TermT var
   -> TermT var
   -> TermT var
   -> TypeCheck var String
-renderForSubShapeSVG dim sub super retType f x = do
-  objects <- renderObjectsInSubShapeFor dim sub super retType f x
+renderForSubShapeSVG mainColor dim sub super retType f x = do
+  objects <- renderObjectsInSubShapeFor mainColor dim sub super retType f x
   let objects' = map mk objects
   return $ renderCube defaultCamera (if dim > 2 then (pi/7) else 0) $ \obj ->
     lookup obj objects'
@@ -2407,9 +2436,9 @@ renderForSubShapeSVG dim sub super retType f x = do
     mk (shapeId, renderData) = (intercalate "-" (map fill shapeId), renderData)
     fill xs = xs <> replicate (3 - length xs) '1'
 
-renderForSVG :: Eq var => Int -> TermT var -> TermT var -> TypeCheck var String
-renderForSVG dim t term = do
-  objects <- renderObjectsFor dim t term
+renderForSVG :: Eq var => String -> Int -> TermT var -> TermT var -> TypeCheck var String
+renderForSVG mainColor dim t term = do
+  objects <- renderObjectsFor mainColor dim t term
   let objects' = map mk objects
   return $ renderCube defaultCamera (if dim > 2 then (pi/7) else 0) $ \obj ->
     lookup obj objects'
@@ -2419,31 +2448,32 @@ renderForSVG dim t term = do
 
 renderTermSVGFor
   :: Eq var
-  => Int
-  -> (Maybe (TermT var, TermT var), [var])
-  -> TermT var
+  => String -- ^ Main color.
+  -> Int    -- ^ Accumulated dimensions so far (from 0 to 3).
+  -> (Maybe (TermT var, TermT var), [var])  -- ^ Accumulated point term (and its time).
+  -> TermT var  -- ^ Term to render.
   -> TypeCheck var (Maybe String)
-renderTermSVGFor accDim (mp, xs) t = whnfT t >>= \t' -> typeOf t >>= \case
+renderTermSVGFor mainColor accDim (mp, xs) t = whnfT t >>= \t' -> typeOf t >>= \case
   TypeFunT _ orig arg mtope ret
     | Just dim <- dimOf arg, accDim + dim <= maxDim -> enterScope orig arg $ do
         maybe id localTope mtope $
-          renderTermSVGFor
+          renderTermSVGFor mainColor
             (accDim + dim)
             (join' (both (fmap S) <$> mp) (S <$> arg) (Pure Z), Z : map S xs)
             (appT ret (S <$> t') (Pure Z))
     | null xs -> enterScope orig arg $ do
         maybe id localTope mtope $
-          renderTermSVGFor accDim (both (fmap S) <$> mp, map S xs) (appT ret (S <$> t') (Pure Z))
+          renderTermSVGFor mainColor accDim (both (fmap S) <$> mp, map S xs) (appT ret (S <$> t') (Pure Z))
   _ -> case t' of
         AppT _info f x -> typeOf f >>= \case
           TypeFunT _ fOrig fArg mtopeArg ret | Just dim <- dimOf fArg, dim <= maxDim -> do
             enterScope fOrig fArg $ do
               maybe id localTope mtopeArg $ do
-                Just <$> renderForSubShapeSVG dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
-          _ -> traverse (\(p', _) -> renderForSVG accDim p' t) mp
+                Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
+          _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t) mp
         TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
-          renderTermSVGFor 0 (Nothing, []) (Pure Z)
-        _ -> traverse (\(p', _) -> renderForSVG accDim p' t) mp
+          renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
+        _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t) mp
   where
     maxDim = 3
 
@@ -2464,7 +2494,7 @@ renderTermSVGFor accDim (mp, xs) t = whnfT t >>= \t' -> typeOf t >>= \case
       _ -> Nothing
 
 renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
-renderTermSVG = renderTermSVGFor 0 (Nothing, [])
+renderTermSVG = renderTermSVGFor "red" 0 (Nothing, [])  -- use black for terms by default
 
 renderTermSVG' :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
@@ -2475,7 +2505,7 @@ renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
           TypeFunT _ fOrig fArg mtope2 _ret | Just dim <- dimOf fArg -> do
             enterScope fOrig fArg $ do
               maybe id localTope mtope2 $ do
-                Just <$> renderForSubShapeSVG dim [S Z] Z (S <$> ret) (S <$> f) (S <$> x)
+                Just <$> renderForSubShapeSVG "red" dim [S Z] Z (S <$> ret) (S <$> f) (S <$> x)
           _ -> defaultRenderTermSVG t' arg ret
       _ -> defaultRenderTermSVG t' arg ret
   _t' -> return Nothing
@@ -2488,7 +2518,7 @@ renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
     defaultRenderTermSVG t' arg ret =
       case dimOf arg of
         Just dim | dim <= 3 ->
-          Just <$> renderForSVG dim (Pure Z) (appT ret (S <$> t') (Pure Z))
+          Just <$> renderForSVG "red" dim (Pure Z) (appT ret (S <$> t') (Pure Z))
         _ -> renderTermSVG' (appT ret (S <$> t') (Pure Z))
 
 
