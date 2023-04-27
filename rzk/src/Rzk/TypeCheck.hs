@@ -486,7 +486,7 @@ emptyContext = Context
   , location = Nothing
   , verbosity = Normal
   , covariance = Covariant
-  , renderSVG = False -- FIXME: make false by default
+  , renderSVG = True -- FIXME: make false by default
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -2321,9 +2321,14 @@ subTopes2 dim _ = error (show dim <> " dimensions are not supported")
 cubeSubTopes :: [(ShapeId, TermT (Inc var))]
 cubeSubTopes = subTopes2 3 (Pure Z)
 
-renderObjectsFor :: Eq var => Int -> TermT (Inc var) -> TypeCheck (Inc var) [(ShapeId, RenderObjectData)]
-renderObjectsFor dim term = fmap catMaybes $ do
-  forM (subTopes2 dim (Pure Z)) $ \(shapeId, tope) -> do
+renderObjectsFor
+  :: Eq var
+  => Int
+  -> TermT var
+  -> TermT var
+  -> TypeCheck var [(ShapeId, RenderObjectData)]
+renderObjectsFor dim t term = fmap catMaybes $ do
+  forM (subTopes2 dim t) $ \(shapeId, tope) -> do
     checkTopeEntails tope >>= \case
       False -> return Nothing
       True -> do
@@ -2344,45 +2349,47 @@ componentWiseEQT 3 t s = topeAndT
 componentWiseEQT dim _ _ = error ("cannot work with " <> show dim <> " dimensions")
 
 renderObjectsInSubShapeFor
-  :: forall var . Eq var
-  => TermT (Inc var)
-  -> Maybe (TermT (Inc (Inc var)))
-  -> TermT (Inc var)
-  -> (Int, TermT (Inc var))
-  -> TypeCheck (Inc var) [(ShapeId, RenderObjectData)]
-renderObjectsInSubShapeFor retType mtope f (dim', x) = fmap catMaybes $ do
-  enterScope Nothing (cube2powerT dim') $ do
-    maybe id localTope mtope $ do
-      let reduceContext
-            = foldr topeOrT topeBottomT
-            . map (foldr topeAndT topeTopT)
-            . map (filter (S Z `notElem`))
-            . map (saturateTopes [])
-            . simplifyLHS
-      contextTopes  <- asks (reduceContext . localTopesNF)
-      contextTopes' <- localTope (componentWiseEQT dim' (Pure Z) (S <$> x)) $ asks (reduceContext . localTopesNF)
-      forM (subTopes2 dim' (Pure Z)) $ \(shapeId, tope) -> do
-        checkEntails tope contextTopes >>= \case
-          False -> return Nothing
-          True -> do
-            label <- localTope tope (whnfT (appT (S <$> retType) (S <$> f) (Pure Z))) >>= ppTermInContext
-            color <- checkEntails tope contextTopes' >>= \case
-              True -> return "red"
-              False -> return "gray"
-            return $ Just (shapeId, RenderObjectData
-              { renderObjectDataLabel = label
-              , renderObjectDataColor = color
-              })
+  :: Eq var
+  => Int
+  -> [var]
+  -> var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+  -> TypeCheck var [(ShapeId, RenderObjectData)]
+renderObjectsInSubShapeFor dim sub super retType f x = fmap catMaybes $ do
+  let reduceContext
+        = foldr topeOrT topeBottomT
+        . map (foldr topeAndT topeTopT)
+        . map (filter (\tope -> all (`notElem` tope) sub))
+        . map (saturateTopes [])
+        . simplifyLHS
+  contextTopes  <- asks (reduceContext . localTopesNF)
+  contextTopes' <- localTope (componentWiseEQT dim (Pure super) x) $ asks (reduceContext . localTopesNF)
+  forM (subTopes2 dim (Pure super)) $ \(shapeId, tope) -> do
+    checkEntails tope contextTopes >>= \case
+      False -> return Nothing
+      True -> do
+        label <- localTope tope (whnfT (appT retType f (Pure super))) >>= ppTermInContext
+        color <- checkEntails tope contextTopes' >>= \case
+          True -> return "red"
+          False -> return "gray"
+        return $ Just (shapeId, RenderObjectData
+          { renderObjectDataLabel = label
+          , renderObjectDataColor = color
+          })
 
 renderForSubShapeSVG
   :: Eq var
-  => TermT (Inc var)
-  -> Maybe (TermT (Inc (Inc var)))
-  -> TermT (Inc var)
-  -> (Int, TermT (Inc var))
-  -> TypeCheck (Inc var) String
-renderForSubShapeSVG retType mtope f (dim, x) = do
-  objects <- renderObjectsInSubShapeFor retType mtope f (dim, x)
+  => Int
+  -> [var]
+  -> var
+  -> TermT var
+  -> TermT var
+  -> TermT var
+  -> TypeCheck var String
+renderForSubShapeSVG dim sub super retType f x = do
+  objects <- renderObjectsInSubShapeFor dim sub super retType f x
   let objects' = map mk objects
   return $ renderCube defaultCamera (if dim > 2 then (pi/7) else 0) $ \obj ->
     lookup obj objects'
@@ -2390,52 +2397,88 @@ renderForSubShapeSVG retType mtope f (dim, x) = do
     mk (shapeId, renderData) = (intercalate "-" (map fill shapeId), renderData)
     fill xs = xs <> replicate (3 - length xs) '1'
 
-renderForSVG :: Eq var => Int -> TermT (Inc var) -> TypeCheck (Inc var) String
-renderForSVG dim term = do
-  objects <- renderObjectsFor dim term
+renderForSVG :: Eq var => Int -> TermT var -> TermT var -> TypeCheck var String
+renderForSVG dim t term = do
+  objects <- renderObjectsFor dim t term
   let objects' = map mk objects
   return $ renderCube defaultCamera (if dim > 2 then (pi/7) else 0) $ \obj ->
     lookup obj objects'
   where
     mk (shapeId, renderData) = (intercalate "-" (map fill shapeId), renderData)
     fill xs = xs <> replicate (3 - length xs) '1'
+
+renderTermSVGFor
+  :: Eq var
+  => Int
+  -> (Maybe (TermT var, TermT var), [var])
+  -> TermT var
+  -> TypeCheck var (Maybe String)
+renderTermSVGFor accDim (mp, xs) t = whnfT t >>= \t' -> typeOf t >>= \case
+  TypeFunT _ orig arg mtope ret
+    | Just dim <- dimOf arg, accDim + dim <= maxDim -> enterScope orig arg $ do
+        maybe id localTope mtope $
+          renderTermSVGFor
+            (accDim + dim)
+            (join' (both (fmap S) <$> mp) (S <$> arg) (Pure Z), Z : map S xs)
+            (appT ret (S <$> t') (Pure Z))
+    | null xs -> enterScope orig arg $ do
+        maybe id localTope mtope $
+          renderTermSVGFor accDim (both (fmap S) <$> mp, map S xs) (appT ret (S <$> t') (Pure Z))
+  _ -> case t' of
+        AppT _info f x -> typeOf f >>= \case
+          TypeFunT _ fOrig fArg mtopeArg ret | Just dim <- dimOf fArg, dim <= maxDim -> do
+            enterScope fOrig fArg $ do
+              maybe id localTope mtopeArg $ do
+                Just <$> renderForSubShapeSVG dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
+          _ -> traverse (\(p', _) -> renderForSVG accDim p' t) mp
+        _ -> traverse (\(p', _) -> renderForSVG accDim p' t) mp
+  where
+    maxDim = 3
+
+    both f (x, y) = (f x, f y)
+
+    join' Nothing Cube2T{} x = Just (x, cube2T)
+    join' (Just (p, pt)) Cube2T{} x = Just (p', pt')
+      where
+        pt' = cubeProductT pt cube2T
+        p' = pairT pt' p x
+    join' p (CubeProductT _ l r) x =
+      join' (join' p l (firstT l x)) r (secondT r x)
+    join' _ _ _ = Nothing -- FIXME: error?
+
+    dimOf = \case
+      Cube2T{}           -> Just 1
+      CubeProductT _ l r -> (+) <$> dimOf l <*> dimOf r
+      _ -> Nothing
 
 renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
-renderTermSVG t = whnfT t >>= \t' -> typeOf t >>= \case
+renderTermSVG = renderTermSVGFor 0 (Nothing, [])
+
+renderTermSVG' :: Eq var => TermT var -> TypeCheck var (Maybe String)
+renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
   TypeFunT _ orig arg mtope ret -> enterScope orig arg $ do
     maybe id localTope mtope $ case t' of
       LambdaT _ _orig _marg (AppT _info f x) ->
         typeOf f >>= \case
-          TypeFunT _ _ Cube2T{} mtope2 _ret -> do
-            Just <$> renderForSubShapeSVG ret mtope2 f (1, x)
-          TypeFunT _ _ (CubeProductT _ Cube2T{} Cube2T{}) mtope2 _ret -> do
-            Just <$> renderForSubShapeSVG ret mtope2 f (2, x)
-          TypeFunT _ _ (CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{}) mtope2 _ret -> do
-            Just <$> renderForSubShapeSVG ret mtope2 f (3, x)
-          -- TODO: remove code duplication
-          _ -> case arg of
-            CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
-              Just <$> renderForSVG 3 (appT ret (S <$> t') (Pure Z))
-            CubeProductT _ Cube2T{} (CubeProductT _ Cube2T{} Cube2T{}) -> do
-              return Nothing -- FIXME: support
-            CubeProductT _ Cube2T{} Cube2T{} -> do
-              Just <$> renderForSVG 2 (appT ret (S <$> t') (Pure Z))
-            Cube2T{} -> do
-              Just <$> renderForSVG 1 (appT ret (S <$> t') (Pure Z))
-            _ -> renderTermSVG (appT ret (S <$> t') (Pure Z))
-      -- TODO: remove code duplication
-      _ -> case arg of
-        CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
-          Just <$> renderForSVG 3 (appT ret (S <$> t') (Pure Z))
-        CubeProductT _ Cube2T{} (CubeProductT _ Cube2T{} Cube2T{}) -> do
-          return Nothing -- FIXME: support
-        CubeProductT _ Cube2T{} Cube2T{} -> do
-          Just <$> renderForSVG 2 (appT ret (S <$> t') (Pure Z))
-        Cube2T{} -> do
-          Just <$> renderForSVG 1 (appT ret (S <$> t') (Pure Z))
-        _ -> renderTermSVG (appT ret (S <$> t') (Pure Z))
-
+          TypeFunT _ fOrig fArg mtope2 _ret | Just dim <- dimOf fArg -> do
+            enterScope fOrig fArg $ do
+              maybe id localTope mtope2 $ do
+                Just <$> renderForSubShapeSVG dim [S Z] Z (S <$> ret) (S <$> f) (S <$> x)
+          _ -> defaultRenderTermSVG t' arg ret
+      _ -> defaultRenderTermSVG t' arg ret
   _t' -> return Nothing
+  where
+    dimOf = \case
+      Cube2T{}           -> Just 1
+      CubeProductT _ l r -> (+) <$> dimOf l <*> dimOf r -- WARNING: breaks for 2 * (2 * 2)
+      _ -> Nothing
+
+    defaultRenderTermSVG t' arg ret =
+      case dimOf arg of
+        Just dim | dim <= 3 ->
+          Just <$> renderForSVG dim (Pure Z) (appT ret (S <$> t') (Pure Z))
+        _ -> renderTermSVG' (appT ret (S <$> t') (Pure Z))
+
 
 type Point2D a = (a, a)
 type Point3D a = (a, a, a)
