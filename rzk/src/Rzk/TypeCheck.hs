@@ -2360,11 +2360,11 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
           label <-
             case term of
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z varOrigs -> ppTermInContext term'
+                | Just (Just "_") <- lookup z varOrigs -> return ""
                 | nub (foldMap pure arg) == nub (foldMap pure arg) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term'
           return $ Just (shapeId, RenderObjectData
-            { renderObjectDataLabel = limitLength 10 label
+            { renderObjectDataLabel = limitLength 20 label
             , renderObjectDataColor =
                 case term' of
                   Pure{} -> "black"
@@ -2414,7 +2414,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
           _ -> do
             case term of
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z varOrigs -> ppTermInContext term
+                | Just (Just "_") <- lookup z varOrigs -> return ""
                 | [super] == nub (foldMap pure arg) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
@@ -2427,7 +2427,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
               _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData
-          { renderObjectDataLabel = limitLength 10 label
+          { renderObjectDataLabel = limitLength 20 label
           , renderObjectDataColor = color
           })
 
@@ -2680,14 +2680,20 @@ renderCube camera rotY renderDataOf = unlines $ filter (not . null)
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
                 <> " L " <> show x2 <> " " <> show y2
                 <> " L " <> show x3 <> " " <> show y3
-                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.2\"><title>" <> renderObjectDataLabel <> "</title></path>"
+                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.2\"><title>" <> renderObjectDataLabel <> "</title></path>" <> "\n" <>
+        "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\" fill=\"" <> renderObjectDataColor <> "\">" <> renderObjectDataLabel <> "</text>"
       | (faceId, (((x1, y1), (x2, y2), (x3, y3)), _)) <- faces
-      , Just RenderObjectData{..} <- [renderDataOf faceId]]
+      , Just RenderObjectData{..} <- [renderDataOf faceId]
+      , let x = (x1 + x2 + x3) / 3
+      , let y = (y1 + y2 + y3) / 3 ]
   , intercalate "\n"
       [ "  <polyline points=\"" <> show x1 <> "," <> show y1 <> " " <> show x2 <> "," <> show y2
-        <> "\" stroke=\"" <> renderObjectDataColor <> "\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> renderObjectDataLabel <> "</title></polyline>"
+        <> "\" stroke=\"" <> renderObjectDataColor <> "\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> renderObjectDataLabel <> "</title></polyline>" <> "\n" <>
+        "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\" fill=\"" <> renderObjectDataColor <> "\" stroke=\"white\" stroke-width=\"10\" stroke-opacity=\".8\" paint-order=\"stroke\">" <> renderObjectDataLabel <> "</text>"
       | (edge, (((x1, y1), (x2, y2)), _)) <- edges
-      , Just RenderObjectData{..} <- [renderDataOf edge]]
+      , Just RenderObjectData{..} <- [renderDataOf edge]
+      , let x = (x1 + x2) / 2
+      , let y = (y1 + y2) / 2 ]
   , intercalate "\n"
       [ "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\" fill=\"" <> renderObjectDataColor <> "\">" <> renderObjectDataLabel <> "</text>"
       | (v, ((x, y), _)) <- vertices
