@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -2331,12 +2332,19 @@ renderObjectsFor dim t term = fmap catMaybes $ do
   forM (subTopes2 dim t) $ \(shapeId, tope) -> do
     checkTopeEntails tope >>= \case
       False -> return Nothing
-      True -> do
-        label <- localTope tope (whnfT term) >>= ppTermInContext
-        return $ Just (shapeId, RenderObjectData
-          { renderObjectDataLabel = label
-          , renderObjectDataColor = "gray"
-          })
+      True -> typeOf term >>= \case
+        UniverseTopeT{} -> localTope term $ checkTopeEntails tope >>= \case
+          False -> return Nothing
+          True -> return $ Just (shapeId, RenderObjectData
+            { renderObjectDataLabel = "•"
+            , renderObjectDataColor = "pink"  -- FIXME: pink for topes?
+            })
+        _ -> do
+          label <- localTope tope (whnfT term) >>= ppTermInContext
+          return $ Just (shapeId, RenderObjectData
+            { renderObjectDataLabel = label
+            , renderObjectDataColor = "gray"
+            })
 
 componentWiseEQT :: Int -> TermT var -> TermT var -> TermT var
 componentWiseEQT 1 t s = topeEQT t s
@@ -2370,7 +2378,9 @@ renderObjectsInSubShapeFor dim sub super retType f x = fmap catMaybes $ do
     checkEntails tope contextTopes >>= \case
       False -> return Nothing
       True -> do
-        label <- localTope tope (whnfT (appT retType f (Pure super))) >>= ppTermInContext
+        label <- localTope tope (whnfT (appT retType f (Pure super))) >>= \term -> typeOf term >>= \case
+          UniverseTopeT{} -> return "•"
+          _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
           True -> return "red"
           False -> return "gray"
@@ -2431,6 +2441,8 @@ renderTermSVGFor accDim (mp, xs) t = whnfT t >>= \t' -> typeOf t >>= \case
               maybe id localTope mtopeArg $ do
                 Just <$> renderForSubShapeSVG dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
           _ -> traverse (\(p', _) -> renderForSVG accDim p' t) mp
+        TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+          renderTermSVGFor 0 (Nothing, []) (Pure Z)
         _ -> traverse (\(p', _) -> renderForSVG accDim p' t) mp
   where
     maxDim = 3
