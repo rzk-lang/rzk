@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -8,7 +9,7 @@ module Rzk.TypeCheck where
 import Control.Applicative ((<|>))
 import Control.Monad.Reader
 import Control.Monad.Except
-import Data.List (tails, (\\), intercalate, nub, partition, zip4)
+import Data.List (tails, (\\), intercalate, nub)
 import Data.Maybe (fromMaybe, isNothing, catMaybes, mapMaybe)
 import Data.Tuple (swap)
 
@@ -485,7 +486,7 @@ emptyContext = Context
   , location = Nothing
   , verbosity = Normal
   , covariance = Covariant
-  , renderSVG = True -- FIXME: make false by default
+  , renderSVG = False -- FIXME: make false by default
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -767,6 +768,12 @@ checkTopeEntails tope = do
     restrictionTope <- nfTope tope
     let contextTopesRHS = foldr topeAndT topeTopT contextTopes
     return ([restrictionTope] `entail` contextTopesRHS)
+
+checkEntails :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
+checkEntails l r = do  -- FIXME: add action
+  l' <- nfTope l
+  r' <- nfTope r
+  return ([l'] `entail` r')
 
 contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
 contextEntailedBy tope = do
@@ -1531,7 +1538,7 @@ localTope tope tc = do
   -- A small optimisation to help unify terms faster
   let refine = case tope' of
         TopeEQT _ x y | x == y -> const tc          -- no new information added!
-        _ | tope' `elem` localTopes -> const tc
+        _ | tope' `elem` localTopes -> const tc     -- no new information added!
           | otherwise -> id
   refine $ do
     local (f tope' localTopesNF) tc
@@ -2201,160 +2208,232 @@ mkRenderObjectEntry objId objColor objLabel = (objId, objData)
       , renderObjectDataColor = objColor
       }
 
-renderTermInCubeSVG
+type PointId = String
+type ShapeId = [PointId]
+
+cube2powerT :: Int -> TermT var
+cube2powerT 1 = cube2T
+cube2powerT dim = cubeProductT (cube2powerT (dim - 1)) cube2T
+
+splits :: [a] -> [([a], [a])]
+splits [] = [([], [])]
+splits (x:xs) = ([], x:xs) : [ (x : before, after) | (before, after) <- splits xs ]
+
+verticesFrom :: [TermT var] -> [(ShapeId, TermT var)]
+verticesFrom ts = combine <$> mapM mk ts
+  where
+    mk t = [("0", topeEQT t cube2_0T), ("1", topeEQT t cube2_1T)]
+    combine xs = ([concat (map fst xs)], foldr1 topeAndT (map snd xs))
+
+subTopes2 :: Int -> TermT var -> [(ShapeId, TermT var)]
+-- 1-dim
+subTopes2 1 t =
+  [ (words "0", topeEQT t cube2_0T)
+  , (words "1", topeEQT t cube2_1T)
+  , (words "0 1", topeTopT) ]
+-- 2-dim
+subTopes2 2 ts =
+  -- vertices
+  [ (words "00", topeEQT t cube2_0T `topeAndT` topeEQT s cube2_0T)
+  , (words "01", topeEQT t cube2_0T `topeAndT` topeEQT s cube2_1T)
+  , (words "10", topeEQT t cube2_1T `topeAndT` topeEQT s cube2_0T)
+  , (words "11", topeEQT t cube2_1T `topeAndT` topeEQT s cube2_1T)
+  -- edges and the diagonal
+  , (words "00 01", topeEQT t cube2_0T)
+  , (words "10 11", topeEQT t cube2_1T)
+  , (words "00 10", topeEQT s cube2_0T)
+  , (words "01 11", topeEQT s cube2_1T)
+  , (words "00 11", topeEQT s t)
+  -- triangles
+  , (words "00 01 11", topeLEQT t s)
+  , (words "00 10 11", topeLEQT s t)
+  ]
+  where
+    t = firstT cube2T ts
+    s = secondT cube2T ts
+-- 3-dim
+subTopes2 3 t =
+  -- vertices
+  [ (words "000", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 cube2_0T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "001", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 cube2_0T `topeAndT` topeEQT t3 cube2_1T)
+  , (words "010", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 cube2_1T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "011", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 cube2_1T `topeAndT` topeEQT t3 cube2_1T)
+  , (words "100", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 cube2_0T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "101", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 cube2_0T `topeAndT` topeEQT t3 cube2_1T)
+  , (words "110", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 cube2_1T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "111", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 cube2_1T `topeAndT` topeEQT t3 cube2_1T)
+  -- edges
+  , (words "000 001", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 cube2_0T)
+  , (words "010 011", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 cube2_1T)
+  , (words "000 010", topeEQT t1 cube2_0T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "001 011", topeEQT t1 cube2_0T `topeAndT` topeEQT t3 cube2_1T)
+  , (words "100 101", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 cube2_0T)
+  , (words "110 111", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 cube2_1T)
+  , (words "100 110", topeEQT t1 cube2_1T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "101 111", topeEQT t1 cube2_1T `topeAndT` topeEQT t3 cube2_1T)
+  , (words "000 100", topeEQT t2 cube2_0T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "001 101", topeEQT t2 cube2_0T `topeAndT` topeEQT t3 cube2_1T)
+  , (words "010 110", topeEQT t2 cube2_1T `topeAndT` topeEQT t3 cube2_0T)
+  , (words "011 111", topeEQT t2 cube2_1T `topeAndT` topeEQT t3 cube2_1T)
+  -- face diagonals
+  , (words "000 011", topeEQT t1 cube2_0T `topeAndT` topeEQT t2 t3)
+  , (words "100 111", topeEQT t1 cube2_1T `topeAndT` topeEQT t2 t3)
+  , (words "000 101", topeEQT t2 cube2_0T `topeAndT` topeEQT t1 t3)
+  , (words "010 111", topeEQT t2 cube2_1T `topeAndT` topeEQT t1 t3)
+  , (words "000 110", topeEQT t3 cube2_0T `topeAndT` topeEQT t1 t2)
+  , (words "001 111", topeEQT t3 cube2_1T `topeAndT` topeEQT t1 t2)
+  -- the long diagonal
+  , (words "000 111", topeEQT t3 t2 `topeAndT` topeEQT t2 t1)
+  -- face triangles
+  , (words "000 001 011", topeEQT t1 cube2_0T `topeAndT` topeLEQT t2 t3)
+  , (words "000 010 011", topeEQT t1 cube2_0T `topeAndT` topeLEQT t3 t2)
+  , (words "100 101 111", topeEQT t1 cube2_1T `topeAndT` topeLEQT t2 t3)
+  , (words "100 110 111", topeEQT t1 cube2_1T `topeAndT` topeLEQT t3 t2)
+  , (words "000 001 101", topeEQT t2 cube2_0T `topeAndT` topeLEQT t1 t3)
+  , (words "000 100 101", topeEQT t2 cube2_0T `topeAndT` topeLEQT t3 t1)
+  , (words "010 011 111", topeEQT t2 cube2_1T `topeAndT` topeLEQT t1 t3)
+  , (words "010 110 111", topeEQT t2 cube2_1T `topeAndT` topeLEQT t3 t1)
+  , (words "000 010 110", topeEQT t3 cube2_0T `topeAndT` topeLEQT t1 t2)
+  , (words "000 100 110", topeEQT t3 cube2_0T `topeAndT` topeLEQT t2 t1)
+  , (words "001 011 111", topeEQT t3 cube2_1T `topeAndT` topeLEQT t1 t2)
+  , (words "001 101 111", topeEQT t3 cube2_1T `topeAndT` topeLEQT t2 t1)
+  -- diagonal triangles
+  , (words "000 001 111", topeEQT t1 t2 `topeAndT` topeLEQT t2 t3)
+  , (words "000 010 111", topeEQT t1 t3 `topeAndT` topeLEQT t1 t2)
+  , (words "000 100 111", topeEQT t2 t3 `topeAndT` topeLEQT t2 t1)
+  , (words "000 011 111", topeLEQT t1 t2 `topeAndT` topeEQT t2 t3)
+  , (words "000 101 111", topeLEQT t2 t1 `topeAndT` topeEQT t1 t3)
+  , (words "000 110 111", topeLEQT t3 t1 `topeAndT` topeEQT t1 t2)
+  -- tetrahedra
+  , (words "000 001 011 111", topeLEQT t1 t2 `topeAndT` topeLEQT t2 t3)
+  , (words "000 010 011 111", topeLEQT t1 t3 `topeAndT` topeLEQT t3 t2)
+  , (words "000 001 101 111", topeLEQT t2 t1 `topeAndT` topeLEQT t1 t3)
+  , (words "000 100 101 111", topeLEQT t2 t3 `topeAndT` topeLEQT t3 t1)
+  , (words "000 010 110 111", topeLEQT t3 t1 `topeAndT` topeLEQT t1 t2)
+  , (words "000 100 110 111", topeLEQT t3 t2 `topeAndT` topeLEQT t2 t1)
+  ]
+  where
+    t1 = firstT  cube2T (firstT (cube2powerT 2) t)
+    t2 = secondT cube2T (firstT (cube2powerT 2) t)
+    t3 = secondT cube2T t
+subTopes2 dim _ = error (show dim <> " dimensions are not supported")
+
+cubeSubTopes :: [(ShapeId, TermT (Inc var))]
+cubeSubTopes = subTopes2 3 (Pure Z)
+
+renderObjectsFor :: Eq var => Int -> TermT (Inc var) -> TypeCheck (Inc var) [(ShapeId, RenderObjectData)]
+renderObjectsFor dim term = fmap catMaybes $ do
+  forM (subTopes2 dim (Pure Z)) $ \(shapeId, tope) -> do
+    checkTopeEntails tope >>= \case
+      False -> return Nothing
+      True -> do
+        label <- localTope tope (whnfT term) >>= ppTermInContext
+        return $ Just (shapeId, RenderObjectData
+          { renderObjectDataLabel = label
+          , renderObjectDataColor = "gray"
+          })
+
+componentWiseEQT :: Int -> TermT var -> TermT var -> TermT var
+componentWiseEQT 1 t s = topeEQT t s
+componentWiseEQT 2 t s = topeAndT
+  (componentWiseEQT 1 (firstT  cube2T t) (firstT  cube2T s))
+  (componentWiseEQT 1 (secondT cube2T t) (secondT cube2T s))
+componentWiseEQT 3 t s = topeAndT
+  (componentWiseEQT 2 (firstT  (cube2powerT 2) t) (firstT (cube2powerT 2) s))
+  (componentWiseEQT 1 (secondT cube2T t) (secondT cube2T s))
+componentWiseEQT dim _ _ = error ("cannot work with " <> show dim <> " dimensions")
+
+renderObjectsInSubShapeFor
+  :: forall var . Eq var
+  => TermT (Inc var)
+  -> Maybe (TermT (Inc (Inc var)))
+  -> TermT (Inc var)
+  -> (Int, TermT (Inc var))
+  -> TypeCheck (Inc var) [(ShapeId, RenderObjectData)]
+renderObjectsInSubShapeFor retType mtope f (dim', x) = fmap catMaybes $ do
+  enterScope Nothing (cube2powerT dim') $ do
+    maybe id localTope mtope $ do
+      let reduceContext
+            = foldr topeOrT topeBottomT
+            . map (foldr topeAndT topeTopT)
+            . map (filter (S Z `notElem`))
+            . map (saturateTopes [])
+            . simplifyLHS
+      contextTopes  <- asks (reduceContext . localTopesNF)
+      contextTopes' <- localTope (componentWiseEQT dim' (Pure Z) (S <$> x)) $ asks (reduceContext . localTopesNF)
+      forM (subTopes2 dim' (Pure Z)) $ \(shapeId, tope) -> do
+        checkEntails tope contextTopes >>= \case
+          False -> return Nothing
+          True -> do
+            label <- localTope tope (whnfT (appT (S <$> retType) (S <$> f) (Pure Z))) >>= ppTermInContext
+            color <- checkEntails tope contextTopes' >>= \case
+              True -> return "red"
+              False -> return "gray"
+            return $ Just (shapeId, RenderObjectData
+              { renderObjectDataLabel = label
+              , renderObjectDataColor = color
+              })
+
+renderForSubShapeSVG
   :: Eq var
-  => (TermT var, TermT var, TermT var)
-  -> (TermT var -> TypeCheck var' (Maybe RenderObjectData))
-  -> TypeCheck var' String
-renderTermInCubeSVG (t1, t2, t3) labelOf = do
-  let (===) = topeEQT
-      allVertices = mconcat <$> replicateM 3 [("0", [cube2_0T]), ("1", [cube2_1T])]
-      allEdges =
-        [ (fromId <> "-" <> toId, (from, to))
-        | (fromId, from) : vs <- tails allVertices
-        , (toId, to) <- vs
-        , and (zipWith (<=) fromId toId)
-        ]
-      allFaces =
-        [ (v1_id <> "-" <> v2_id <> "-" <> v3_id, (v1, v2, v3))
-        | (v1_id, v1) : vs <- tails allVertices
-        , (v2_id, v2) : vs' <- tails vs
-        , and (zipWith (<=) v1_id v2_id)
-        , (v3_id, v3) <- vs'
-        , and (zipWith (<=) v2_id v3_id)
-        ]
-  vertices <- catMaybes <$> sequence
-    [ fmap (vertexId,) <$>
-        labelOf (topeAndT (topeAndT (t1 === s1) (t2 === s2)) (t3 === s3))
-    | (vertexId, [s1, s2, s3]) <- allVertices ]
-  edges <- catMaybes <$> sequence
-    [ fmap (edgeId,) <$>
-        labelOf (foldr topeAndT topeTopT $ concat
-          [ [ t' === f | (t', (f, _)) <- constant ]
-          , [ t' === t'' | (t', _):(t'', _):_ <- tails changing ] ])
-    | (edgeId, (fs, ss)) <- allEdges
-    , let (constant, changing) = partition (uncurry (==) . snd) (zip [t1, t2, t3] (zip fs ss)) ]
-  faces <- catMaybes <$> sequence
-    [ fmap (faceId,) <$>
-        labelOf (foldr topeAndT topeTopT $ concat
-          [ [ t' === s | (t', s) <- constant ]
-          , [ t' === t'' | t':t'':_ <- tails changeFirst ]
-          , [ t' === t'' | t':t'':_ <- tails changeSecond ]
-          , [ topeLEQT t' t'' | t' <- changeSecond, t'' <- take 1 changeFirst ] ])
-    | (faceId, (v1, v2, v3)) <- allFaces
-    , let (constant, changeFirst, changeSecond) = mconcat $ flip map (zip4 [t1, t2, t3] v1 v2 v3) $ \case
-            (t', s1, s2, s3)
-              | s1 == s2 && s2 == s3 -> ([(t', s1)], [], [])
-              | s1 /= s2 && s2 == s3 -> ([], [t'], [])
-              | otherwise            -> ([], [], [t'])
-    ]
-  return $ renderCube defaultCamera (pi/7) $ \obj ->
-    lookup obj (vertices <> edges <> faces)
+  => TermT (Inc var)
+  -> Maybe (TermT (Inc (Inc var)))
+  -> TermT (Inc var)
+  -> (Int, TermT (Inc var))
+  -> TypeCheck (Inc var) String
+renderForSubShapeSVG retType mtope f (dim, x) = do
+  objects <- renderObjectsInSubShapeFor retType mtope f (dim, x)
+  let objects' = map mk objects
+  return $ renderCube defaultCamera (if dim > 2 then (pi/7) else 0) $ \obj ->
+    lookup obj objects'
+  where
+    mk (shapeId, renderData) = (intercalate "-" (map fill shapeId), renderData)
+    fill xs = xs <> replicate (3 - length xs) '1'
+
+renderForSVG :: Eq var => Int -> TermT (Inc var) -> TypeCheck (Inc var) String
+renderForSVG dim term = do
+  objects <- renderObjectsFor dim term
+  let objects' = map mk objects
+  return $ renderCube defaultCamera (if dim > 2 then (pi/7) else 0) $ \obj ->
+    lookup obj objects'
+  where
+    mk (shapeId, renderData) = (intercalate "-" (map fill shapeId), renderData)
+    fill xs = xs <> replicate (3 - length xs) '1'
 
 renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
-renderTermSVG t = typeOf t >>= \case
+renderTermSVG t = whnfT t >>= \t' -> typeOf t >>= \case
   TypeFunT _ orig arg mtope ret -> enterScope orig arg $ do
-    maybe id localTope mtope $ do
-      let labelOf tope = do
-            checkTopeEntails tope >>= \case
-              False -> pure Nothing
-              True -> localTope tope $ do
-                  body' <- whnfT (appT ret (S <$> t) (Pure Z))
-                  bodyLabel <- ppTermInContext body'
-                  let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                  pure $ Just RenderObjectData
-                    { renderObjectDataLabel = bodyLabel'
-                    , renderObjectDataColor = "black"
-                    }
-      case arg of
+    maybe id localTope mtope $ case t' of
+      LambdaT _ _orig _marg (AppT _info f x) ->
+        typeOf f >>= \case
+          TypeFunT _ _ Cube2T{} mtope2 _ret -> do
+            Just <$> renderForSubShapeSVG ret mtope2 f (1, x)
+          TypeFunT _ _ (CubeProductT _ Cube2T{} Cube2T{}) mtope2 _ret -> do
+            Just <$> renderForSubShapeSVG ret mtope2 f (2, x)
+          TypeFunT _ _ (CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{}) mtope2 _ret -> do
+            Just <$> renderForSubShapeSVG ret mtope2 f (3, x)
+          -- TODO: remove code duplication
+          _ -> case arg of
+            CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
+              Just <$> renderForSVG 3 (appT ret (S <$> t') (Pure Z))
+            CubeProductT _ Cube2T{} (CubeProductT _ Cube2T{} Cube2T{}) -> do
+              return Nothing -- FIXME: support
+            CubeProductT _ Cube2T{} Cube2T{} -> do
+              Just <$> renderForSVG 2 (appT ret (S <$> t') (Pure Z))
+            Cube2T{} -> do
+              Just <$> renderForSVG 1 (appT ret (S <$> t') (Pure Z))
+            _ -> renderTermSVG (appT ret (S <$> t') (Pure Z))
+      -- TODO: remove code duplication
+      _ -> case arg of
         CubeProductT _ (CubeProductT _ Cube2T{} Cube2T{}) Cube2T{} -> do
-          let t1 = firstT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
-              t2 = secondT cube2T (firstT (cubeProductT cube2T cube2T) (Pure Z))
-              t3 = secondT cube2T (Pure Z)
-          Just <$> renderTermInCubeSVG (t1, t2, t3) labelOf
-
+          Just <$> renderForSVG 3 (appT ret (S <$> t') (Pure Z))
         CubeProductT _ Cube2T{} (CubeProductT _ Cube2T{} Cube2T{}) -> do
-          let t1 = firstT cube2T (Pure Z)
-              t2 = firstT cube2T (secondT (cubeProductT cube2T cube2T) (Pure Z))
-              t3 = secondT cube2T (secondT (cubeProductT cube2T cube2T) (Pure Z))
-          Just <$> renderTermInCubeSVG (t1, t2, t3) labelOf
-
+          return Nothing -- FIXME: support
         CubeProductT _ Cube2T{} Cube2T{} -> do
-          let t1 = firstT cube2T (Pure Z)
-              t2 = secondT cube2T (Pure Z)
-          whnfT ret >>= \case
-            TypeRestrictedT _info (TypeFunT _ orig2 arg2@Cube2T{} mtope2 ret2) _rs -> enterScope orig2 arg2 $ do
-              maybe id localTope mtope2 $ do
-                let labelOf2 tope = do
-                      checkTopeEntails tope >>= \case
-                        False -> pure Nothing
-                        True -> localTope tope $ do
-                            body' <- whnfT (appT ret2 (S <$> (appT ret (S <$> t) (Pure Z))) (Pure Z))
-                            bodyLabel <- ppTermInContext body'
-                            let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                            pure $ Just RenderObjectData
-                              { renderObjectDataLabel = bodyLabel'
-                              , renderObjectDataColor = "black"
-                              }
-                    t1' = S <$> t1
-                    t2' = S <$> t2
-                    t3 = Pure Z
-                Just <$> renderTermInCubeSVG (t1', t2', t3) labelOf2
-            TypeFunT _ orig2 arg2@Cube2T{} mtope2 ret2 -> enterScope orig2 arg2 $ do
-              maybe id localTope mtope2 $ do
-                let labelOf2 tope = do
-                      checkTopeEntails tope >>= \case
-                        False -> pure Nothing
-                        True -> localTope tope $ do
-                            body' <- whnfT (appT ret2 (S <$> (appT ret (S <$> t) (Pure Z))) (Pure Z))
-                            bodyLabel <- ppTermInContext body'
-                            let bodyLabel' = if length bodyLabel > 10 then take 7 bodyLabel <> "..." else bodyLabel
-                            pure $ Just RenderObjectData
-                              { renderObjectDataLabel = bodyLabel'
-                              , renderObjectDataColor = "black"
-                              }
-                    t1' = S <$> t1
-                    t2' = S <$> t2
-                    t3 = Pure Z
-                Just <$> renderTermInCubeSVG (t1', t2', t3) labelOf2
-            _ret' -> do
-              let (===) = topeEQT
-              x <- labelOf (topeAndT (t1 === cube2_0T) (t2 === cube2_0T))
-              y <- labelOf (topeAndT (t1 === cube2_0T) (t2 === cube2_1T))
-              z <- labelOf (topeAndT (t1 === cube2_1T) (t2 === cube2_0T))
-              w <- labelOf (topeAndT (t1 === cube2_1T) (t2 === cube2_1T))
-              f <- labelOf (t2 === cube2_0T)
-              g <- labelOf (t2 === cube2_1T)
-              h <- labelOf (t1 === cube2_0T)
-              k <- labelOf (t1 === cube2_1T)
-              d <- labelOf (t1 === t2)
-              tr1 <- labelOf (topeLEQT t2 t1)
-              tr2 <- labelOf (topeLEQT t1 t2)
-              return $ Just $ renderCube defaultCamera 0 $ \case
-                "000" -> x
-                "010" -> y
-                "100" -> z
-                "110" -> w
-                "000-100" -> f
-                "010-110" -> g
-                "000-010" -> h
-                "100-110" -> k
-                "000-110" -> d
-                "000-100-110" -> tr1
-                "000-010-110" -> tr2
-                _ -> Nothing
-
+          Just <$> renderForSVG 2 (appT ret (S <$> t') (Pure Z))
         Cube2T{} -> do
-          x <- labelOf (topeEQT (Pure Z) cube2_0T)
-          y <- labelOf (topeEQT (Pure Z) cube2_1T)
-          f <- labelOf topeTopT
-          return $ Just $ renderCube defaultCamera 0 $ \case
-            "000" -> x
-            "100" -> y
-            "000-100" -> f
-            _ -> Nothing
-
-        _ -> renderTermSVG (appT ret (S <$> t) (Pure Z))
+          Just <$> renderForSVG 1 (appT ret (S <$> t') (Pure Z))
+        _ -> renderTermSVG (appT ret (S <$> t') (Pure Z))
 
   _t' -> return Nothing
 
@@ -2502,7 +2581,7 @@ renderCube camera rotY renderDataOf = unlines $ filter (not . null)
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
                 <> " L " <> show x2 <> " " <> show y2
                 <> " L " <> show x3 <> " " <> show y3
-                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.5\"><title>" <> renderObjectDataLabel <> "</title></path>"
+                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.2\"><title>" <> renderObjectDataLabel <> "</title></path>"
       | (faceId, (((x1, y1), (x2, y2), (x3, y3)), _)) <- faces
       , Just RenderObjectData{..} <- [renderDataOf faceId]]
   , intercalate "\n"
@@ -2511,7 +2590,7 @@ renderCube camera rotY renderDataOf = unlines $ filter (not . null)
       | (edge, (((x1, y1), (x2, y2)), _)) <- edges
       , Just RenderObjectData{..} <- [renderDataOf edge]]
   , intercalate "\n"
-      [ "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\">" <> renderObjectDataLabel <> "</text>"
+      [ "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\" fill=\"" <> renderObjectDataColor <> "\">" <> renderObjectDataLabel <> "</text>"
       | (v, ((x, y), _)) <- vertices
       , Just RenderObjectData{..} <- [renderDataOf v]]
   , "</svg>" ]
