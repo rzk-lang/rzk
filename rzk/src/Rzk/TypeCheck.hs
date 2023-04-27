@@ -89,7 +89,11 @@ typecheckModule (Rzk.Module _loc _lang commands) = go 1 commands
           fmap (decl :) $
             localDeclPrepared decl $ do
               Context{..} <- ask
-              termSVG <- if renderSVG then renderTermSVG (Pure name) else pure Nothing
+              termSVG <-
+                case renderBackend of
+                  Just RenderSVG -> renderTermSVG (Pure name)
+                  Just RenderLaTeX -> issueTypeError $ TypeErrorOther "\"latex\" rendering is not yet supported"
+                  Nothing -> pure Nothing
               maybe id trace termSVG $ do
                 go (i + 1) moreCommands
 
@@ -138,6 +142,12 @@ setOption "verbosity" = \case
   "silent"  -> localVerbosity Silent
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown verbosity level (use \"debug\", \"normal\", or \"silent\")"
+setOption "render" = \case
+  "svg"   -> localRenderBackend (Just RenderSVG)
+  "latex" -> localRenderBackend (Just RenderLaTeX)
+  "none"  -> localRenderBackend Nothing
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown render backend (use \"svg\", \"latex\", or \"none\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -453,9 +463,16 @@ traceTypeCheck msgLevel msg tc = do
 localVerbosity :: Verbosity -> TypeCheck var a -> TypeCheck var a
 localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
 
+localRenderBackend :: Maybe RenderBackend -> TypeCheck var a -> TypeCheck var a
+localRenderBackend v = local $ \Context{..} -> Context { renderBackend = v, .. }
+
 data Covariance
   = Covariant     -- ^ Positive position.
   | Contravariant -- ^ Negative position
+
+data RenderBackend
+  = RenderSVG
+  | RenderLaTeX
 
 data Context var = Context
   { varTypes          :: [(var, TermT var)]
@@ -470,7 +487,7 @@ data Context var = Context
   , location          :: Maybe LocationInfo
   , verbosity         :: Verbosity
   , covariance        :: Covariance
-  , renderSVG         :: Bool
+  , renderBackend     :: Maybe RenderBackend
   } deriving (Functor, Foldable)
 
 emptyContext :: Context var
@@ -487,7 +504,7 @@ emptyContext = Context
   , location = Nothing
   , verbosity = Normal
   , covariance = Covariant
-  , renderSVG = True -- FIXME: make false by default
+  , renderBackend = Nothing
   }
 
 ppContext' :: Context Rzk.VarIdent -> String
@@ -2201,14 +2218,6 @@ unsafeInferStandalone' t =
       ]
     Right tt -> tt
 
-mkRenderObjectEntry :: String -> String -> String -> (String, RenderObjectData)
-mkRenderObjectEntry objId objColor objLabel = (objId, objData)
-  where
-    objData = RenderObjectData
-      { renderObjectDataLabel = objLabel
-      , renderObjectDataColor = objColor
-      }
-
 type PointId = String
 type ShapeId = [PointId]
 
@@ -2322,6 +2331,11 @@ subTopes2 dim _ = error (show dim <> " dimensions are not supported")
 cubeSubTopes :: [(ShapeId, TermT (Inc var))]
 cubeSubTopes = subTopes2 3 (Pure Z)
 
+limitLength :: Int -> String -> String
+limitLength n s
+  | length s > n = take (n - 3) s <> "..."
+  | otherwise    = s
+
 renderObjectsFor
   :: Eq var
   => String
@@ -2350,7 +2364,7 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
                 | nub (foldMap pure arg) == nub (foldMap pure arg) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term'
           return $ Just (shapeId, RenderObjectData
-            { renderObjectDataLabel = label
+            { renderObjectDataLabel = limitLength 10 label
             , renderObjectDataColor =
                 case term' of
                   Pure{} -> "black"
@@ -2413,7 +2427,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
               _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData
-          { renderObjectDataLabel = label
+          { renderObjectDataLabel = limitLength 10 label
           , renderObjectDataColor = color
           })
 
