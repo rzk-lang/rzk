@@ -2190,6 +2190,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       tope' <- typecheck tope topeT
       term' <- localTope tope' $ typecheck term ty'
       return (tope', term')
+    sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
     return (typeRestrictedT ty' rs')
 
 checkCoherence
@@ -2727,7 +2728,10 @@ renderCube camera rotY renderDataOf' = unlines $ filter (not . null)
       case renderDataOf' shapeId of
         Nothing -> Nothing
         Just RenderObjectData{..} -> Just RenderObjectData
-          { renderObjectDataLabel = hideWhenLargerThan shapeId 5 renderObjectDataLabel , .. }
+          -- FIXME: move constants to configurable parameters
+          { renderObjectDataLabel = hideWhenLargerThan shapeId 5 renderObjectDataLabel
+          , renderObjectDataFullLabel = limitLength 30 renderObjectDataFullLabel
+          , .. }
 
     hideWhenLargerThan shapeId n s
       | null s || length s > n = if '-' `elem` shapeId then "" else "•"
