@@ -2351,26 +2351,28 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
         UniverseTopeT{} -> localTope term $ checkTopeEntails tope >>= \case
           False -> return Nothing
           True -> return $ Just (shapeId, RenderObjectData
-            { renderObjectDataLabel = "•"
+            { renderObjectDataLabel = ""
+            , renderObjectDataFullLabel = ""
             , renderObjectDataColor = "pink"  -- FIXME: pink for topes?
             })
         _ -> do
           Context{..} <- ask
           term' <- localTope tope $ whnfT term
           label <-
-            case term of
+            case term' of
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z varOrigs -> return ""
-                | nub (foldMap pure arg) == nub (foldMap pure arg) -> ppTermInContext (Pure z)
+                | null (nub (foldMap pure arg) \\ nub (foldMap pure t)) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term'
           return $ Just (shapeId, RenderObjectData
-            { renderObjectDataLabel = limitLength 20 label
+            { renderObjectDataLabel = label
+            , renderObjectDataFullLabel = label
             , renderObjectDataColor =
                 case term' of
                   Pure{} -> "black"
                   AppT _ (Pure x) arg
                     | Just (Just "_") <- lookup x varOrigs -> mainColor
-                    | nub (foldMap pure t) == nub (foldMap pure arg) -> "black"
+                    | null (nub (foldMap pure arg) \\ nub (foldMap pure t))  -> "black"
                   _ -> mainColor
             })
 
@@ -2410,12 +2412,12 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
         Context{..} <- ask
         term <- localTope tope (whnfT (appT retType f (Pure super)))
         label <- typeOf term >>= \case
-          UniverseTopeT{} -> return "•"
+          UniverseTopeT{} -> return ""
           _ -> do
             case term of
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z varOrigs -> return ""
-                | [super] == nub (foldMap pure arg) -> ppTermInContext (Pure z)
+                | null (nub (foldMap pure arg) \\ [super]) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
           True -> do
@@ -2423,11 +2425,12 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
               Pure{} -> return "black"
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z varOrigs -> return mainColor
-                | [super] == nub (foldMap pure arg) -> return "black"
+                | null (nub (foldMap pure arg) \\ [super]) -> return "black"
               _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData
-          { renderObjectDataLabel = limitLength 20 label
+          { renderObjectDataLabel = label
+          , renderObjectDataFullLabel = label
           , renderObjectDataColor = color
           })
 
@@ -2683,8 +2686,9 @@ point3Dto2D camera rotY (x, y, z) = fromAffine $
     ]
 
 data RenderObjectData = RenderObjectData
-  { renderObjectDataLabel :: String
-  , renderObjectDataColor :: String
+  { renderObjectDataLabel     :: String
+  , renderObjectDataFullLabel :: String
+  , renderObjectDataColor     :: String
   }
 
 renderCube
@@ -2699,7 +2703,7 @@ renderCube camera rotY renderDataOf' = unlines $ filter (not . null)
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
                 <> " L " <> show x2 <> " " <> show y2
                 <> " L " <> show x3 <> " " <> show y3
-                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.2\"><title>" <> renderObjectDataLabel <> "</title></path>" <> "\n" <>
+                <> " Z\" style=\"fill: " <> renderObjectDataColor <> "; opacity: 0.2\"><title>" <> renderObjectDataFullLabel <> "</title></path>" <> "\n" <>
         "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\" fill=\"" <> renderObjectDataColor <> "\">" <> renderObjectDataLabel <> "</text>"
       | (faceId, (((x1, y1), (x2, y2), (x3, y3)), _)) <- faces
       , Just RenderObjectData{..} <- [renderDataOf faceId]
@@ -2707,7 +2711,7 @@ renderCube camera rotY renderDataOf' = unlines $ filter (not . null)
       , let y = (y1 + y2 + y3) / 3 ]
   , intercalate "\n"
       [ "  <polyline points=\"" <> show x1 <> "," <> show y1 <> " " <> show x2 <> "," <> show y2
-        <> "\" stroke=\"" <> renderObjectDataColor <> "\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> renderObjectDataLabel <> "</title></polyline>" <> "\n" <>
+        <> "\" stroke=\"" <> renderObjectDataColor <> "\" stroke-width=\"3\" marker-end=\"url(#arrow)\"><title>" <> renderObjectDataFullLabel <> "</title></polyline>" <> "\n" <>
         "  <text x=\"" <> show x <> "\" y=\"" <> show y <> "\" fill=\"" <> renderObjectDataColor <> "\" stroke=\"white\" stroke-width=\"10\" stroke-opacity=\".8\" paint-order=\"stroke\">" <> renderObjectDataLabel <> "</text>"
       | (edge, (((x1, y1), (x2, y2)), _)) <- edges
       , Just RenderObjectData{..} <- [renderDataOf edge]
@@ -2726,7 +2730,7 @@ renderCube camera rotY renderDataOf' = unlines $ filter (not . null)
           { renderObjectDataLabel = hideWhenLargerThan shapeId 5 renderObjectDataLabel , .. }
 
     hideWhenLargerThan shapeId n s
-      | length s > n = if '-' `elem` shapeId then "" else "•"
+      | null s || length s > n = if '-' `elem` shapeId then "" else "•"
       | otherwise = s
 
     vertices =
