@@ -2333,7 +2333,7 @@ cubeSubTopes = subTopes2 3 (Pure Z)
 
 limitLength :: Int -> String -> String
 limitLength n s
-  | length s > n = take (n - 3) s <> "..."
+  | length s > n = take (n - 1) s <> "…"
   | otherwise    = s
 
 renderObjectsFor
@@ -2467,27 +2467,46 @@ renderTermSVGFor
   -> (Maybe (TermT var, TermT var), [var])  -- ^ Accumulated point term (and its time).
   -> TermT var  -- ^ Term to render.
   -> TypeCheck var (Maybe String)
-renderTermSVGFor mainColor accDim (mp, xs) t = whnfT t >>= \t' -> typeOf t >>= \case
-  TypeFunT _ orig arg mtope ret
-    | Just dim <- dimOf arg, accDim + dim <= maxDim -> enterScope orig arg $ do
-        maybe id localTope mtope $
-          renderTermSVGFor mainColor
-            (accDim + dim)
-            (join' (both (fmap S) <$> mp) (S <$> arg) (Pure Z), Z : map S xs)
-            (appT ret (S <$> t') (Pure Z))
-    | null xs -> enterScope orig arg $ do
-        maybe id localTope mtope $
-          renderTermSVGFor mainColor accDim (both (fmap S) <$> mp, map S xs) (appT ret (S <$> t') (Pure Z))
-  _ -> case t' of
-        AppT _info f x -> typeOf f >>= \case
-          TypeFunT _ fOrig fArg mtopeArg ret | Just dim <- dimOf fArg, dim <= maxDim -> do
-            enterScope fOrig fArg $ do
-              maybe id localTope mtopeArg $ do
-                Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
-          _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t) mp
-        TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
-          renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
-        _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t) mp
+renderTermSVGFor mainColor accDim (mp, xs) t = do
+  t' <- whnfT t
+  ty <- typeOf t'
+  case t of -- check unevaluated term
+    AppT _info f x -> typeOf f >>= \case
+      TypeFunT _ fOrig fArg mtopeArg ret | Just dim <- dimOf fArg, dim <= maxDim -> do
+        enterScope fOrig fArg $ do
+          maybe id localTope mtopeArg $ do
+            Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
+      _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
+    TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+      renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
+
+    _ -> case t' of -- check evaluated term
+      AppT _info f x -> typeOf f >>= \case
+        TypeFunT _ fOrig fArg mtopeArg ret | Just dim <- dimOf fArg, dim <= maxDim -> do
+          enterScope fOrig fArg $ do
+            maybe id localTope mtopeArg $ do
+              Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
+        _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
+      TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+        renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
+
+      _ -> case ty of -- check type of the term
+        TypeFunT _ orig arg mtope ret
+          | Just dim <- dimOf arg, accDim + dim <= maxDim -> enterScope orig arg $ do
+              maybe id localTope mtope $
+                renderTermSVGFor mainColor (accDim + dim)
+                  (join' (both (fmap S) <$> mp) (S <$> arg) (Pure Z), Z : map S xs) $
+                    case t' of
+                      LambdaT _ _orig _marg body -> body
+                      _ -> appT ret (S <$> t') (Pure Z)
+          | null xs -> enterScope orig arg $ do
+              maybe id localTope mtope $
+                renderTermSVGFor mainColor accDim
+                  (both (fmap S) <$> mp, map S xs) $
+                    case t' of
+                      LambdaT _ _orig _marg body -> body
+                      _ -> appT ret (S <$> t') (Pure Z)
+        _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
   where
     maxDim = 3
 
@@ -2674,7 +2693,7 @@ renderCube
   -> a
   -> (String -> Maybe RenderObjectData)
   -> String
-renderCube camera rotY renderDataOf = unlines $ filter (not . null)
+renderCube camera rotY renderDataOf' = unlines $ filter (not . null)
   [ "<svg class=\"zoom\" style=\"float: right\" viewBox=\"-175 -200 350 375\" width=\"150\" height=\"150\">"
   , intercalate "\n"
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
@@ -2700,6 +2719,16 @@ renderCube camera rotY renderDataOf = unlines $ filter (not . null)
       , Just RenderObjectData{..} <- [renderDataOf v]]
   , "</svg>" ]
   where
+    renderDataOf shapeId =
+      case renderDataOf' shapeId of
+        Nothing -> Nothing
+        Just RenderObjectData{..} -> Just RenderObjectData
+          { renderObjectDataLabel = hideWhenLargerThan shapeId 5 renderObjectDataLabel , .. }
+
+    hideWhenLargerThan shapeId n s
+      | length s > n = if '-' `elem` shapeId then "" else "•"
+      | otherwise = s
+
     vertices =
       [ (show x <> show y <> show z, ((500 * x'', 500 * y''), zIndex))
       | x <- [0,1]
