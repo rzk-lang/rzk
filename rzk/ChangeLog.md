@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## Unreleased
+## v0.3.0 — 2022-04-28
 
 This version introduces an experimental feature for generating visualisations for simplicial terms in SVG.
 To enable rendering, enable option `"render" = "svg"` (to disable, `"render" = "none"`):
