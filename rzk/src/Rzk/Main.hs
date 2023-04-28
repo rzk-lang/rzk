@@ -1,5 +1,6 @@
 module Rzk.Main where
 
+import System.Exit (exitFailure)
 import System.Environment (getArgs)
 import Control.Monad (forM)
 
@@ -22,11 +23,11 @@ main = do
       case defaultTypeCheck (typecheckModulesWithLocation modules) of
         Left err -> do
           putStrLn "An error occurred when typechecking!"
-          putStrLn "Rendering type error... (this may take a few seconds)"
           putStrLn $ unlines
             [ "Type Error:"
             , ppTypeErrorInScopedContext' err
             ]
+          exitFailure
         Right () -> putStrLn "Everything is ok!"
     _ -> ppUsage
 

@@ -6,7 +6,7 @@
 
 An experimental proof assistant for synthetic ∞-categories.
 
-[![Early prototype demo.](images/split-demo.png)](https://fizruk.github.io/rzk/)
+[![Early prototype demo.](images/split-demo-render.png)](https://fizruk.github.io/rzk/)
 
 ## About this project
 

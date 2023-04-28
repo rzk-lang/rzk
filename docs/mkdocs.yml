@@ -4,6 +4,7 @@ nav:
     - About: index.md
   - rzk-1 Language:
     - Introduction: rzk-1/introduction.md
+    - Rendering Diagrams: rzk-1/render.md
     - Weak tope disjunction elimination: rzk-1/recId.md
   - Tools:
     - IDE support: tools/ide.md

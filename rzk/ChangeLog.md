@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.3.0 — 2022-04-28
+
+This version introduces an experimental feature for generating visualisations for simplicial terms in SVG.
+To enable rendering, enable option `"render" = "svg"` (to disable, `"render" = "none"`):
+
+```rzk
+#set-option "render" = "svg"  -- enable rendering in SVG
+```
+
+Minor changes:
+
+- Exit with non-zero code upon a type error (see b135c4fb)
+- Fix external links and some typos in the documentation
+
+Fixes:
+
+- Fixed an issue with tope solver when context was empty (see 6196af9e);
+- Fixed #33 (missing coherence check for restricted types).
+
 ## v0.2.0 - 2022-04-20
 
 This version was a complete rewrite of the proof assistant, using a new parser, a new internal representation, and a rewrite of the typechecking logic. This is still a prototype, but, arguably, significantly more stable and manageable than version 0.1.0.
