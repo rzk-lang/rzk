@@ -33,7 +33,7 @@ The SVG pictures can be inserted directly into `.md` files before a correspondin
 ```html
 <style>
 .zoom { transition: transform .2s; /* Animation */ }
-.zoom:hover { transform: scale(2); /* (200% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+.zoom:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
 </style>
 
 <!-- Definitions for the SVG images above -->
@@ -392,7 +392,7 @@ If a term is extracted as a part of a larger shape, generally, the whole shape w
 <!-- Style for the SVG images above -->
 <style>
 .zoom { transition: transform .2s; /* Animation */ }
-.zoom:hover { transform: scale(2); /* (200% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+.zoom:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
 </style>
 
 <!-- Definitions for the SVG images above -->
