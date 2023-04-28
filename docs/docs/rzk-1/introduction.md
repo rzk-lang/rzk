@@ -3,7 +3,7 @@
 !!! warning "Work-in-progress"
     The documentation is not yet up-to-date with all
     the changes introduced in `rzk-0.2.0`. <br>
-    See [`rzk` changelog](https://github.com/fizruk/rzk/blob/release-v0.2.0/rzk/ChangeLog.md#v020---2022-04-20) for more details.
+    See [`rzk` changelog](https://github.com/fizruk/rzk/blob/release-v0.3.0/rzk/ChangeLog.md#v020---2022-04-20) for more details.
 
 `rzk` is an experimental proof assistant for synthetic ∞-categories.
 `rzk-1` is an early version of the language supported by `rzk`.
