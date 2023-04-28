@@ -15,20 +15,6 @@ To enable rendering, enable option `"render" = "svg"` (to disable, `"render" = "
 #set-option "render" = "svg"  -- enable rendering in SVG
 ```
 
-Rendering is completely automatic, and works in the following situations:
-
-1. Mapping from a shape (including curried mappings), up to 3 dimensions, only in products of `2` cubes;
-2. Type of mapping from a shape (including curried mappings), up to 3 dimensions, only in products of `2` cubes.
-3. Mappings from a shape that is a section of an existing shape.
-
-The rendering assigns the following colors:
-
-- black is assigned for parameters (context) variables;
-- blue is used for fillings for types (e.g. for `hom` and `hom2`);
-- red is used for terms (e.g. `Segal-comp-witness`);
-- pink is used for shapes in the tope layer;
-- grey is used for discarded parts of a (larger) mapping (e.g. when extracting a diagonal/face from a larger shape).
-
 Minor changes:
 
 - Exit with non-zero code upon a type error (see b135c4fb)
