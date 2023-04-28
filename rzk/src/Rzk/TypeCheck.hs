@@ -495,9 +495,9 @@ emptyContext = Context
   { varTypes = []
   , varValues = []
   , varOrigs = []
-  , localTopes = []
-  , localTopesNF = []
-  , localTopesNFUnion = [[]]
+  , localTopes = [topeTopT]
+  , localTopesNF = [topeTopT]
+  , localTopesNFUnion = [[topeTopT]]
   , localTopesEntailBottom = False
   , actionStack = []
   , currentCommand = Nothing
@@ -2353,7 +2353,7 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
           True -> return $ Just (shapeId, RenderObjectData
             { renderObjectDataLabel = ""
             , renderObjectDataFullLabel = ""
-            , renderObjectDataColor = "pink"  -- FIXME: pink for topes?
+            , renderObjectDataColor = "orange"  -- FIXME: orange for topes?
             })
         _ -> do
           Context{..} <- ask
@@ -2369,10 +2369,10 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
             , renderObjectDataFullLabel = label
             , renderObjectDataColor =
                 case term' of
-                  Pure{} -> "black"
+                  Pure{} -> "purple"
                   AppT _ (Pure x) arg
                     | Just (Just "_") <- lookup x varOrigs -> mainColor
-                    | null (nub (foldMap pure arg) \\ nub (foldMap pure t))  -> "black"
+                    | null (nub (foldMap pure arg) \\ nub (foldMap pure t))  -> "purple"
                   _ -> mainColor
             })
 
@@ -2422,10 +2422,10 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
         color <- checkEntails tope contextTopes' >>= \case
           True -> do
             case term of
-              Pure{} -> return "black"
+              Pure{} -> return "purple"
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z varOrigs -> return mainColor
-                | null (nub (foldMap pure arg) \\ [super]) -> return "black"
+                | null (nub (foldMap pure arg) \\ [super]) -> return "purple"
               _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData
@@ -2530,7 +2530,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
       _ -> Nothing
 
 renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
-renderTermSVG = renderTermSVGFor "red" 0 (Nothing, [])  -- use black for terms by default
+renderTermSVG = renderTermSVGFor "red" 0 (Nothing, [])  -- use red for terms by default
 
 renderTermSVG' :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
