@@ -20,6 +20,11 @@ Minor changes:
 - Exit with non-zero code upon a type error (see b135c4fb)
 - Fix external links and some typos in the documentation
 
+Fixes:
+
+- Fixed an issue with tope solver when context was empty (see 6196af9e);
+- Fixed #33 (missing coherence check for restricted types).
+
 ## v0.2.0 - 2022-04-20
 
 This version was a complete rewrite of the proof assistant, using a new parser, a new internal representation, and a rewrite of the typechecking logic. This is still a prototype, but, arguably, significantly more stable and manageable than version 0.1.0.
