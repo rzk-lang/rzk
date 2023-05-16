@@ -44,6 +44,8 @@ data Command' a
     | CommandComputeWHNF a (Term' a)
     | CommandComputeNF a (Term' a)
     | CommandPostulate a VarIdent [Param' a] (Term' a)
+    | CommandAssume a [VarIdent] (Term' a)
+    | CommandSection a VarIdent [Command' a] VarIdent
     | CommandDefine a VarIdent [Param' a] (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
@@ -110,6 +112,12 @@ data Term' a
     | Var a VarIdent
     | TypeAsc a (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
+commandVariable :: a -> VarIdent -> Term' a -> Command' a
+commandVariable = \ _a name term -> CommandAssume _a [name] term
+
+commandVariables :: a -> [VarIdent] -> Term' a -> Command' a
+commandVariables = \ _a names term -> CommandAssume _a names term
 
 commandPostulateNoParams :: a -> VarIdent -> Term' a -> Command' a
 commandPostulateNoParams = \ _a x ty -> CommandPostulate _a x [] ty
@@ -186,6 +194,8 @@ instance HasPosition Command where
     CommandComputeWHNF p _ -> p
     CommandComputeNF p _ -> p
     CommandPostulate p _ _ _ -> p
+    CommandAssume p _ _ -> p
+    CommandSection p _ _ _ -> p
     CommandDefine p _ _ _ _ -> p
 
 instance HasPosition Pattern where
