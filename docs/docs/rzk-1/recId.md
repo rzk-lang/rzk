@@ -84,12 +84,21 @@ The idea is straightforward. We ask for a proof that `a = b` for all points in `
 First, we define how to restrict an extension type to a subshape:
 
 ```rzk
+#section construction-of-recId
+
+#variable r : relfunext2
+#variable I : CUBE
+#variables psi phi : I -> TOPE
+#variable A : {t : I | psi t \/ phi t} -> U
+
 -- Restrict extension type to a subshape.
-#def restrict
-    (I : CUBE)
-    (psi : I -> TOPE)
-    (phi : I -> TOPE)
-    (A : {t : I | psi t \/ phi t} -> U)
+#def restrict_phi
+    (a : {t : I | phi t} -> A t)
+  : {t : I | psi t /\ phi t} -> A t
+  := \t -> a t
+
+-- Restrict extension type to a subshape.
+#def restrict_psi
     (a : {t : I | psi t} -> A t)
   : {t : I | psi t /\ phi t} -> A t
   := \t -> a t
@@ -99,13 +108,15 @@ Then, how to reformulate an `a` (or `b`) as an extension of its restriction:
 
 ```rzk
 -- Reformulate extension type as an extension of a restriction.
-#def ext-of-restrict
-    (I : CUBE)
-    (psi : I -> TOPE)
-    (phi : I -> TOPE)
-    (A : {t : I | psi t \/ phi t} -> U)
+#def ext-of-restrict_psi
     (a : {t : I | psi t} -> A t)
-  : (t : psi) -> A t [ psi t /\ phi t |-> restrict I psi phi A a t ]
+  : (t : psi) -> A t [ psi t /\ phi t |-> restrict_psi a t ]
+  := a  -- type is coerced automatically here
+
+-- Reformulate extension type as an extension of a restriction.
+#def ext-of-restrict_phi
+    (a : {t : I | phi t} -> A t)
+  : (t : phi) -> A t [ psi t /\ phi t |-> restrict_phi a t ]
   := a  -- type is coerced automatically here
 ```
 
@@ -114,15 +125,10 @@ Now, assuming relative function extensionality, we construct a path between rest
 ```rzk
 -- Transform extension of an identity into an identity of restrictions.
 #def restricts-path
-    (r : relfunext2)
-    (I : CUBE)
-    (psi : I -> TOPE)
-    (phi : I -> TOPE)
-    (A : {t : I | psi t \/ phi t} -> U)
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
     (e : {t : I | psi t /\ phi t} -> a_psi t = a_phi t)
-  : restrict I psi phi A a_psi = restrict I phi psi A a_phi
+  : restrict_psi a_psi = restrict_phi a_phi
   := (first (second (r I
       (\t -> psi t /\ phi t)
       (\t -> BOT)
@@ -139,11 +145,6 @@ Finally, we bring everything together into `recId`:
 -- recOR(psi, phi, a, b) demands that for psi /\ phi we have a == b (definitionally)
 -- (recId psi phi a b e) demands that e is the proof that a = b (intensionally) for psi /\ phi
 #def recId
-    (r : relfunext2)
-    (I : CUBE)
-    (psi : I -> TOPE)
-    (phi : I -> TOPE)
-    (A : {t : I | psi t \/ phi t} -> U)
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
     (e : {t : I | psi t /\ phi t} -> a_psi t = a_phi t)
@@ -152,13 +153,15 @@ Finally, we bring everything together into `recId`:
         psi t |-> transport
           ({s : I | psi s /\ phi s} -> A s)
           (\ra -> (s : psi) -> A s [ psi s /\ phi s |-> ra s ])
-          (restrict I psi phi A a_psi)
-          (restrict I phi psi A a_phi)
-          (restricts-path r I psi phi A a_psi a_phi e)
-          (ext-of-restrict I psi phi A a_psi)
+          (restrict_psi a_psi)
+          (restrict_phi a_phi)
+          (restricts-path a_psi a_phi e)
+          (ext-of-restrict_psi a_psi)
           t,
-        phi t |-> ext-of-restrict I phi psi A a_phi t
+        phi t |-> ext-of-restrict_phi a_phi t
       )
+
+#end construction-of-recId
 ```
 
 ## Gluing extension types
