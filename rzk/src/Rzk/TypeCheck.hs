@@ -216,6 +216,7 @@ data TypeError var
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   | TypeErrorInvalidArgumentType (Term var) (TermT var)
   | TypeErrorDuplicateTopLevel Rzk.VarIdent
+  | TypeErrorUnusedVariable var (TermT var)
   deriving (Functor, Foldable)
 
 data TypeErrorInContext var = TypeErrorInContext
@@ -319,6 +320,11 @@ ppTypeError' = \case
   TypeErrorDuplicateTopLevel name -> unlines
     [ "duplicate top-level definition"
     , "  " <> Rzk.printTree name
+    ]
+
+  TypeErrorUnusedVariable name type_ -> unlines
+    [ "unused variable"
+    , "  " <> Rzk.printTree name <> " : " <> show (untyped type_)
     ]
 
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
@@ -616,13 +622,19 @@ insertExplicitAssumptionFor' a decl VarInfo{..}
       }
 
 makeAssumptionExplicit
-  :: Eq var => (var, VarInfo var) -> [(var, VarInfo var)] -> TypeCheck var [(var, VarInfo var)]
-makeAssumptionExplicit _ [] = pure []
-makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
+  :: Eq var
+  => (Bool, (var, VarInfo var))
+  -> [(var, VarInfo var)]
+  -> TypeCheck var [(var, VarInfo var)]
+makeAssumptionExplicit (used, (x, VarInfo{..})) [] = do
+  when (not used) $
+    issueTypeError (TypeErrorUnusedVariable x varType)
+  pure []
+makeAssumptionExplicit assumption@(_, (a, aInfo)) ((x, xInfo) : xs) = do
   xFreeVars <- concat <$> traverse freeVarsT_ (Pure <$> toList xInfo)
   let hasAssumption = a `elem` xFreeVars
   if hasAssumption
-     then ((x, xInfo') :) <$> makeAssumptionExplicit assumption xs'
+     then ((x, xInfo') :) <$> makeAssumptionExplicit (True {- USED -}, (a, aInfo)) xs'
      else ((x, xInfo) :) <$> makeAssumptionExplicit assumption xs
   where
     xType' = typeFunT (varOrig aInfo) (varType aInfo) Nothing (abstract a (varType xInfo))
@@ -637,7 +649,7 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
 collectScopeDecls :: Eq var => [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var [Decl var]
 collectScopeDecls recentVars (decl@(_var, VarInfo{..}) : vars)
   | varIsAssumption = do
-      recentVars' <- makeAssumptionExplicit decl recentVars
+      recentVars' <- makeAssumptionExplicit (False {- UNUSED -}, decl) recentVars
       collectScopeDecls recentVars' vars
   | otherwise       = collectScopeDecls (decl : recentVars) vars
 collectScopeDecls recentVars [] = return (toDecl <$> recentVars)
