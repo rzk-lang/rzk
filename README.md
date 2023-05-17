@@ -132,7 +132,73 @@ nix-build
 
 Now open `playground.html` to see the result. Note that if local GHCJS build is unavailable, `playground.html` will use the [JS file from GitHub Pages](https://fizruk.github.io/rzk/v0.1.0/result/bin/try-rzk.jsexe/all.js) as a fallback.
 
-# References
+##### Flake
+
+The flake in this repository allows to build `try-rzk` incrementally and reproducibly.
+
+1. Install `Nix` via single-user [installation](https://nixos.org/download.html#download-nix):
+
+   1. Run script
+
+     ```sh
+     sh <(curl -L https://nixos.org/nix/install) --no-daemon
+     ```
+
+   1. Permanently [enable](https://nixos.wiki/wiki/Flakes#Permanent) flakes
+
+1. Enter the `devShell` with `GHC` (not `GHCJS`). Answer `y` to `Nix` prompts to use binary caches.
+
+    ```sh
+    nix develop
+    ```
+
+1. The shell provides `ghc`, `haskell-language-server`, `cabal-install`, `hpack`.
+
+1. (Optionally) Install [direnv](https://direnv.net/) to start the `devShell` when you enter the repository directory.
+
+1. Build `rzk`.
+
+    ```sh
+    cabal build
+    ```
+
+1. Enter the `devShell` with `GHCJS`.
+
+    ```sh
+    nix develop .#ghcjs
+    ```
+
+1. Build `try-rzk`. This may require ~10 GB of RAM.
+
+    ```sh
+    cabal build --ghcjs
+    ```
+
+1. (Optionally) Build `rzk` via `Nix`. The resulting executable will be in `result/bin/rzk`.
+
+    ```sh
+    nix build .#rzk
+    ```
+
+1. (Optionally) Run `rzk` via `Nix`.
+
+    ```sh
+    nix run .#rzk
+    ```
+
+1. (Optionally) Build `try-rzk` via `Nix`. This may require ~10 GB of RAM. The resulting executable will be in `try-rzk/result/bin/try-rzk.jsexe`.
+
+    ```sh
+    nix build .#try-rzk --out-link try-rzk/result
+    ```
+
+1. Open the app in a browser.
+
+    ```sh
+    firefox try-rzk/playground.html
+    ```
+
+## References
 
 1. Emily Riehl & Michael Shulman. A type theory for synthetic ∞-categories. Higher Structures 1(1), 147-224. 2017. https://arxiv.org/abs/1705.07442
 2. Nikolai Kudasov. E-unification for Second-Order Abstract Syntax. 2023. https://arxiv.org/abs/2302.05815
