@@ -14,6 +14,7 @@ module Language.Rzk.Syntax.Par
   , pLanguage
   , pCommand
   , pListCommand
+  , pSectionName
   , pPattern
   , pListPattern
   , pParam
@@ -45,6 +46,7 @@ import Language.Rzk.Syntax.Lex
 %name pLanguage_internal Language
 %name pCommand_internal Command
 %name pListCommand_internal ListCommand
+%name pSectionName_internal SectionName
 %name pPattern_internal Pattern
 %name pListPattern_internal ListPattern
 %name pParam_internal Param
@@ -172,7 +174,7 @@ Command
   | '#assume' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandAssume (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#variable' VarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandVariable (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#variables' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandVariables (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
-  | '#section' VarIdent ';' ListCommand '#end' VarIdent { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandSection (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '#section' SectionName ';' ListCommand '#end' SectionName { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandSection (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
   | '#define' VarIdent ListParam ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandDefine (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5) (snd $7)) }
   | '#define' VarIdent ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefineNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
   | '#def' VarIdent ListParam ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDef (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5) (snd $7)) }
@@ -182,6 +184,11 @@ ListCommand :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Ab
 ListCommand
   : {- empty -} { (Language.Rzk.Syntax.Abs.BNFC'NoPosition, []) }
   | Command ';' ListCommand { (fst $1, (:) (snd $1) (snd $3)) }
+
+SectionName :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.SectionName) }
+SectionName
+  : {- empty -} { (Language.Rzk.Syntax.Abs.BNFC'NoPosition, Language.Rzk.Syntax.Abs.NoSectionName Language.Rzk.Syntax.Abs.BNFC'NoPosition) }
+  | VarIdent { (fst $1, Language.Rzk.Syntax.Abs.SomeSectionName (fst $1) (snd $1)) }
 
 Pattern :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Pattern) }
 Pattern
@@ -333,6 +340,9 @@ pCommand = fmap snd . pCommand_internal
 
 pListCommand :: [Token] -> Err [Language.Rzk.Syntax.Abs.Command]
 pListCommand = fmap snd . pListCommand_internal
+
+pSectionName :: [Token] -> Err Language.Rzk.Syntax.Abs.SectionName
+pSectionName = fmap snd . pSectionName_internal
 
 pPattern :: [Token] -> Err Language.Rzk.Syntax.Abs.Pattern
 pPattern = fmap snd . pPattern_internal

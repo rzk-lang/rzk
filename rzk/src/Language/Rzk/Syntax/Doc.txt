@@ -76,13 +76,15 @@ All other symbols are terminals.
   |  |  **|**  | ``#assume`` //[VarIdent]// ``:`` //Term//
   |  |  **|**  | ``#variable`` //VarIdent// ``:`` //Term//
   |  |  **|**  | ``#variables`` //[VarIdent]// ``:`` //Term//
-  |  |  **|**  | ``#section`` //VarIdent// ``;`` //[Command]// ``#end`` //VarIdent//
+  |  |  **|**  | ``#section`` //SectionName// ``;`` //[Command]// ``#end`` //SectionName//
   |  |  **|**  | ``#define`` //VarIdent// //[Param]// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#define`` //VarIdent// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// //[Param]// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// ``:`` //Term// ``:=`` //Term//
   | //[Command]// | -> | **eps**
   |  |  **|**  | //Command// ``;`` //[Command]//
+  | //SectionName// | -> | **eps**
+  |  |  **|**  | //VarIdent//
   | //Pattern// | -> | ``_``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``

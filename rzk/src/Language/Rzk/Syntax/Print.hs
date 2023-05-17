@@ -166,12 +166,17 @@ instance Print (Language.Rzk.Syntax.Abs.Command' a) where
     Language.Rzk.Syntax.Abs.CommandComputeNF _ term -> prPrec i 0 (concatD [doc (showString "#compute-nf"), prt 0 term])
     Language.Rzk.Syntax.Abs.CommandPostulate _ varident params term -> prPrec i 0 (concatD [doc (showString "#postulate"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term])
     Language.Rzk.Syntax.Abs.CommandAssume _ varidents term -> prPrec i 0 (concatD [doc (showString "#assume"), prt 0 varidents, doc (showString ":"), prt 0 term])
-    Language.Rzk.Syntax.Abs.CommandSection _ varident1 commands varident2 -> prPrec i 0 (concatD [doc (showString "#section"), prt 0 varident1, doc (showString ";"), prt 0 commands, doc (showString "#end"), prt 0 varident2])
+    Language.Rzk.Syntax.Abs.CommandSection _ sectionname1 commands sectionname2 -> prPrec i 0 (concatD [doc (showString "#section"), prt 0 sectionname1, doc (showString ";"), prt 0 commands, doc (showString "#end"), prt 0 sectionname2])
     Language.Rzk.Syntax.Abs.CommandDefine _ varident params term1 term2 -> prPrec i 0 (concatD [doc (showString "#define"), prt 0 varident, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2])
 
 instance Print [Language.Rzk.Syntax.Abs.Command' a] where
   prt _ []     = concatD []
   prt _ (x:xs) = concatD [prt 0 x, doc (showString ";"), prt 0 xs]
+
+instance Print (Language.Rzk.Syntax.Abs.SectionName' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.NoSectionName _ -> prPrec i 0 (concatD [])
+    Language.Rzk.Syntax.Abs.SomeSectionName _ varident -> prPrec i 0 (concatD [prt 0 varident])
 
 instance Print (Language.Rzk.Syntax.Abs.Pattern' a) where
   prt i = \case

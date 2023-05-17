@@ -67,8 +67,8 @@ countCommands (Rzk.CommandSection _loc _name sectionCommands _name2 : commands) 
 countCommands (_ : commands) = 1 + countCommands commands
 
 typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent [Decl']
-typecheckModule (Rzk.Module _loc _lang commands) =
-  withSection "module" (go 1 commands) $ -- FIXME: use module name? or anonymous section?
+typecheckModule (Rzk.Module moduleLoc _lang commands) =
+  withSection (Rzk.NoSectionName moduleLoc) (go 1 commands) $ -- FIXME: use module name? or anonymous section?
     return []
   where
     totalCommands = countCommands commands
@@ -158,7 +158,7 @@ typecheckModule (Rzk.Module _loc _lang commands) =
               go (i + 1) moreCommands
 
     go  i (Rzk.CommandSection _loc name sectionCommands endName : moreCommands) = do
-      when (name /= endName) $
+      when (Rzk.printTree name /= Rzk.printTree endName) $
         issueTypeError $ TypeErrorOther $
           "unexpected #end " <> Rzk.printTree endName <> ", expecting #end " <> Rzk.printTree name
       withSection name (go i sectionCommands) $ do
@@ -514,7 +514,7 @@ data RenderBackend
   | RenderLaTeX
 
 data ScopeInfo var = ScopeInfo
-  { scopeName :: Maybe Rzk.VarIdent
+  { scopeName :: Maybe Rzk.SectionName
   , scopeVars :: [(var, VarInfo var)]
   } deriving (Functor, Foldable)
 
@@ -584,7 +584,7 @@ varOrigs :: Context var -> [(var, Maybe Rzk.VarIdent)]
 varOrigs = map (fmap varOrig) . varInfos
 
 withSection
-  :: Rzk.VarIdent
+  :: Rzk.SectionName
   -> TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
   -> TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
   -> TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
@@ -597,7 +597,7 @@ withSection name sectionBody next = do
     localDeclsPrepared sectionDecls $
       next
 
-startSection :: Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
+startSection :: Rzk.SectionName -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
 startSection name = local $ \Context{..} -> Context
   { localScopes = ScopeInfo { scopeName = Just name, scopeVars = [] } : localScopes
   , .. }

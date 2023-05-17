@@ -45,8 +45,12 @@ data Command' a
     | CommandComputeNF a (Term' a)
     | CommandPostulate a VarIdent [Param' a] (Term' a)
     | CommandAssume a [VarIdent] (Term' a)
-    | CommandSection a VarIdent [Command' a] VarIdent
+    | CommandSection a (SectionName' a) [Command' a] (SectionName' a)
     | CommandDefine a VarIdent [Param' a] (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
+type SectionName = SectionName' BNFC'Position
+data SectionName' a = NoSectionName a | SomeSectionName a VarIdent
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Pattern = Pattern' BNFC'Position
@@ -197,6 +201,11 @@ instance HasPosition Command where
     CommandAssume p _ _ -> p
     CommandSection p _ _ _ -> p
     CommandDefine p _ _ _ _ -> p
+
+instance HasPosition SectionName where
+  hasPosition = \case
+    NoSectionName p -> p
+    SomeSectionName p _ -> p
 
 instance HasPosition Pattern where
   hasPosition = \case

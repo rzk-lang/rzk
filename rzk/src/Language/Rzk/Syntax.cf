@@ -33,7 +33,7 @@ define commandVariable name term = CommandAssume [name] term ;
 commandVariables.         Command ::= "#variables" [VarIdent] ":" Term ;
 define commandVariables names term = CommandAssume names term ;
 
-CommandSection.           Command ::= "#section" VarIdent ";" [Command] "#end" VarIdent ;
+CommandSection.           Command ::= "#section" SectionName ";" [Command] "#end" SectionName ;
 define commandPostulateNoParams x ty = CommandPostulate x [] ty ;
 
 CommandDefine.            Command ::= "#define" VarIdent [Param] ":" Term ":=" Term ;
@@ -44,6 +44,9 @@ define commandDef x params ty term = CommandDefine x params ty term ;
 commandDefNoParams.       Command ::= "#def" VarIdent ":" Term ":=" Term ;
 define commandDefNoParams x ty term = CommandDefine x [] ty term ;
 terminator Command ";" ;
+
+NoSectionName.    SectionName ::= ;
+SomeSectionName.  SectionName ::= VarIdent ;
 
 -- Patterns
 PatternWildcard.  Pattern ::= "_" ;
