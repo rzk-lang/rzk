@@ -13,7 +13,7 @@ module Language.Rzk.Free.Syntax where
 import           Data.Bifunctor.TH
 import           Data.Char           (chr, ord)
 import           Data.Coerce
-import           Data.List           ((\\))
+import           Data.List           (nub, (\\))
 import           Data.String
 
 import           Free.Scoped
@@ -51,7 +51,7 @@ data TermF scope term
     | IdJF term term term term term term
     | TypeAscF term term
     | TypeRestrictedF term [(term, term)]
-    deriving (Eq)
+    deriving (Eq, Functor, Foldable)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
 deriveBitraversable ''TermF
@@ -93,6 +93,25 @@ type TermT' = TermT Rzk.VarIdent
 
 freeVars :: Term a -> [a]
 freeVars = foldMap pure
+
+-- FIXME: should be cached in TypeInfo?
+partialFreeVarsT :: TermT a -> [a]
+partialFreeVarsT (Pure x)             = [x]
+partialFreeVarsT UniverseT{}          = []
+partialFreeVarsT (Free (AnnF info t)) =
+  partialFreeVarsT (infoType info) <> foldMap partialFreeVarsT t
+
+-- FIXME: should be cached in TypeInfo?
+freeVarsT :: Eq a => (a -> TermT a) -> TermT a -> [a]
+freeVarsT typeOfVar t = go [] (partialFreeVarsT t)
+  where
+    go vars latest
+      | null new = vars
+      | otherwise =
+          go (new <> vars)
+             (foldMap (partialFreeVarsT . typeOfVar) new)
+      where
+        new = nub latest \\ vars
 
 toTerm' :: Rzk.Term -> Term'
 toTerm' = toTerm Pure

@@ -10,6 +10,7 @@ module Rzk.TypeCheck where
 import           Control.Applicative      ((<|>))
 import           Control.Monad.Except
 import           Control.Monad.Reader
+import           Data.Foldable            (toList)
 import           Data.List                (intercalate, nub, tails, (\\))
 import           Data.Maybe               (catMaybes, fromMaybe, isNothing,
                                            mapMaybe)
@@ -384,13 +385,12 @@ type Action' = Action Rzk.VarIdent
 
 ppTermInContext :: Eq var => TermT var -> TypeCheck var String
 ppTermInContext term =  do
+  vars <- freeVarsT_ term
+  let mapping = zip vars defaultVarIdents
+      toRzkVarIdent origs var = fromMaybe (Rzk.VarIdent "_") $
+        join (lookup var origs) <|> lookup var mapping
   origs <- asks varOrigs
   return (show (untyped (toRzkVarIdent origs <$> term)))
-  where
-    vars = nub (foldMap pure term)
-    mapping = zip vars defaultVarIdents
-    toRzkVarIdent origs var = fromMaybe (Rzk.VarIdent "_") $
-      join (lookup var origs) <|> lookup var mapping
 
 ppSomeAction :: Eq var => [(var, Maybe Rzk.VarIdent)] -> Int -> Action var -> String
 ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
@@ -592,10 +592,10 @@ startSection name = local $ \Context{..} -> Context
   , .. }
 
 endSection :: TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
-endSection = scopeToDecls' <$> askCurrentScope
+endSection = askCurrentScope >>= scopeToDecls
 
-scopeToDecls' :: Eq var => ScopeInfo var -> [Decl var]
-scopeToDecls' ScopeInfo{..} = collectScopeDecls [] scopeVars
+scopeToDecls :: Eq var => ScopeInfo var -> TypeCheck var [Decl var]
+scopeToDecls ScopeInfo{..} = collectScopeDecls [] scopeVars
 
 insertExplicitAssumptionFor
   :: Eq var => var -> (var, VarInfo var) -> TermT var -> TermT var
@@ -615,13 +615,16 @@ insertExplicitAssumptionFor' a decl VarInfo{..}
       , varOrig = varOrig
       }
 
-makeAssumptionExplicit :: Eq var => (var, VarInfo var) -> [(var, VarInfo var)] -> [(var, VarInfo var)]
-makeAssumptionExplicit _ [] = []
-makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs)
-  | hasAssumption = (x, xInfo') : makeAssumptionExplicit assumption xs'
-  | otherwise     = (x, xInfo) : makeAssumptionExplicit assumption xs
+makeAssumptionExplicit
+  :: Eq var => (var, VarInfo var) -> [(var, VarInfo var)] -> TypeCheck var [(var, VarInfo var)]
+makeAssumptionExplicit _ [] = pure []
+makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
+  xFreeVars <- concat <$> traverse freeVarsT_ (Pure <$> toList xInfo)
+  let hasAssumption = a `elem` xFreeVars
+  if hasAssumption
+     then ((x, xInfo') :) <$> makeAssumptionExplicit assumption xs'
+     else ((x, xInfo) :) <$> makeAssumptionExplicit assumption xs
   where
-    hasAssumption = a `elem` foldMap (:[]) xInfo
     xType' = typeFunT (varOrig aInfo) (varType aInfo) Nothing (abstract a (varType xInfo))
     xInfo' = VarInfo
       { varType = xType'
@@ -631,11 +634,13 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs)
       }
     xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
 
-collectScopeDecls :: Eq var => [(var, VarInfo var)] -> [(var, VarInfo var)] -> [Decl var]
+collectScopeDecls :: Eq var => [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var [Decl var]
 collectScopeDecls recentVars (decl@(_var, VarInfo{..}) : vars)
-  | varIsAssumption = collectScopeDecls (makeAssumptionExplicit decl recentVars) vars
+  | varIsAssumption = do
+      recentVars' <- makeAssumptionExplicit decl recentVars
+      collectScopeDecls recentVars' vars
   | otherwise       = collectScopeDecls (decl : recentVars) vars
-collectScopeDecls recentVars [] = toDecl <$> recentVars
+collectScopeDecls recentVars [] = return (toDecl <$> recentVars)
   where
     toDecl (var, VarInfo{..}) = Decl
       { declName = var
@@ -653,28 +658,6 @@ abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
   }
   where
     newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
-
-abstractAssumptionsInScope :: Eq var => ScopeInfo var -> Decl var -> Decl var
-abstractAssumptionsInScope ScopeInfo{..} decl@Decl{..} =
-  foldr abstractAssumption decl (reverse assumptions)
-  where
-    vars = nub (foldMap pure declType <> foldMap (foldMap pure) declValue)
-    assumptions =
-      [ (var, info)
-      | (var, info) <- scopeVars
-      , var `elem` vars
-      , varIsAssumption info ]
-
-scopeToDecls :: Eq var => ScopeInfo var -> [Decl var]
-scopeToDecls scope@ScopeInfo{..} = map (abstractAssumptionsInScope scope) decls
-  where
-    decls = filter (not . declIsAssumption) allDecls
-    allDecls = map toDecl scopeVars
-    toDecl (var, VarInfo{..}) = Decl
-      { declName = var
-      , declType = varType
-      , declValue = varValue
-      , declIsAssumption = varIsAssumption }
 
 ppContext' :: Context Rzk.VarIdent -> String
 ppContext' ctx@Context{..} = unlines
@@ -769,10 +752,19 @@ localDeclPrepared (Decl x ty term isAssumption) tc = do
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
 
+freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
+freeVarsT_ term = do
+  types <- asks varTypes
+  let typeOfVar' x =
+        case lookup x types of
+          Nothing -> panicImpossible "undefined variable"
+          Just ty -> ty
+  return (freeVarsT typeOfVar' term)
+
 showSomeTermTs :: Eq var => [TermT var] -> String
 showSomeTermTs terms = show [ untyped (rename <$> term) | term <- terms ]
   where
-    vars = nub (foldMap (foldMap pure) terms)
+    vars = nub (foldMap partialFreeVarsT terms)
     mapping = zip vars defaultVarIdents
     rename x = fromMaybe (Rzk.VarIdent "?") (lookup x mapping)
 
@@ -2535,7 +2527,8 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
             case term' of
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z origs -> return ""
-                | null (nub (foldMap pure arg) \\ nub (foldMap pure t)) -> ppTermInContext (Pure z)
+                | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t))) ->
+                    ppTermInContext (Pure z)
               _ -> ppTermInContext term'
           return $ Just (shapeId, RenderObjectData
             { renderObjectDataLabel = label
@@ -2545,7 +2538,7 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
                   Pure{} -> "purple"
                   AppT _ (Pure x) arg
                     | Just (Just "_") <- lookup x origs -> mainColor
-                    | null (nub (foldMap pure arg) \\ nub (foldMap pure t))  -> "purple"
+                    | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t)))  -> "purple"
                   _ -> mainColor
             })
 
@@ -2590,7 +2583,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
             case term of
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z origs -> return ""
-                | null (nub (foldMap pure arg) \\ [super]) -> ppTermInContext (Pure z)
+                | null (nub (freeVars (untyped arg)) \\ [super]) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
           True -> do
@@ -2598,7 +2591,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
               Pure{} -> return "purple"
               AppT _ (Pure z) arg
                 | Just (Just "_") <- lookup z origs -> return mainColor
-                | null (nub (foldMap pure arg) \\ [super]) -> return "purple"
+                | null (nub (freeVars (untyped arg)) \\ [super]) -> return "purple"
               _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData
