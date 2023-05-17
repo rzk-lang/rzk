@@ -359,6 +359,11 @@ ppTypeErrorInScopedContext' err = ppTypeErrorInScopedContextWith' vars (defaultV
   where
     vars = nub (foldMap pure err)
 
+issueWarning :: String -> TypeCheck var ()
+issueWarning message = do
+  trace ("Warning: " <> message) $
+    return ()
+
 issueTypeError :: TypeError var -> TypeCheck var a
 issueTypeError err = do
   context <- ask
@@ -633,8 +638,23 @@ makeAssumptionExplicit (used, (x, VarInfo{..})) [] = do
 makeAssumptionExplicit assumption@(_, (a, aInfo)) ((x, xInfo) : xs) = do
   xFreeVars <- concat <$> traverse freeVarsT_ (Pure <$> toList xInfo)
   let hasAssumption = a `elem` xFreeVars
+  aType <- typeOfVar x
+  aValue <- valueOfVar x
+  let assumptionInType = a `elem` freeVars (untyped aType)
+      assumptionInBody = a `elem` foldMap (freeVars . untyped) aValue
   if hasAssumption
-     then ((x, xInfo') :) <$> makeAssumptionExplicit (True {- USED -}, (a, aInfo)) xs'
+     then do
+       when (not (assumptionInType || assumptionInBody)) $ do
+         a' <- ppTermInContext (Pure a)
+         x' <- ppTermInContext (Pure x)
+         aType' <- ppTermInContext (varType aInfo)
+         issueWarning $ unlines
+           [ "implicit assumption"
+           , "  " <> a' <> " : " <> aType'
+           , "used in definition of"
+           , "  " <> x'
+           ]
+       ((x, xInfo') :) <$> makeAssumptionExplicit (True {- USED -}, (a, aInfo)) xs'
      else ((x, xInfo) :) <$> makeAssumptionExplicit assumption xs
   where
     xType' = typeFunT (varOrig aInfo) (varType aInfo) Nothing (abstract a (varType xInfo))
@@ -725,9 +745,8 @@ checkTopLevelDuplicate name = do
 checkNameShadowing :: Rzk.VarIdent -> TypeCheck var ()
 checkNameShadowing name = do
   doesShadowName name >>= \case
-    True -> do
-      trace ("Warning: " <> Rzk.printTree name <> " shadows an existing definition") $
-        return ()
+    True -> issueWarning $
+      Rzk.printTree name <> " shadows an existing definition"
     False -> return ()
 
 withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
@@ -772,13 +791,6 @@ freeVarsT_ term = do
           Nothing -> panicImpossible "undefined variable"
           Just ty -> ty
   return (freeVarsT typeOfVar' term)
-
-showSomeTermTs :: Eq var => [TermT var] -> String
-showSomeTermTs terms = show [ untyped (rename <$> term) | term <- terms ]
-  where
-    vars = nub (foldMap partialFreeVarsT terms)
-    mapping = zip vars defaultVarIdents
-    rename x = fromMaybe (Rzk.VarIdent "?") (lookup x mapping)
 
 traceStartAndFinish :: Show a => String -> a -> a
 traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
