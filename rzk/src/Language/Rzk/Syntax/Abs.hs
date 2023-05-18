@@ -43,8 +43,18 @@ data Command' a
     | CommandCompute a (Term' a)
     | CommandComputeWHNF a (Term' a)
     | CommandComputeNF a (Term' a)
-    | CommandPostulate a VarIdent [Param' a] (Term' a)
-    | CommandDefine a VarIdent [Param' a] (Term' a) (Term' a)
+    | CommandPostulate a VarIdent (DeclUsedVars' a) [Param' a] (Term' a)
+    | CommandAssume a [VarIdent] (Term' a)
+    | CommandSection a (SectionName' a) [Command' a] (SectionName' a)
+    | CommandDefine a VarIdent (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
+type DeclUsedVars = DeclUsedVars' BNFC'Position
+data DeclUsedVars' a = DeclUsedVars a [VarIdent]
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
+type SectionName = SectionName' BNFC'Position
+data SectionName' a = NoSectionName a | SomeSectionName a VarIdent
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Pattern = Pattern' BNFC'Position
@@ -111,17 +121,26 @@ data Term' a
     | TypeAsc a (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-commandPostulateNoParams :: a -> VarIdent -> Term' a -> Command' a
-commandPostulateNoParams = \ _a x ty -> CommandPostulate _a x [] ty
+commandPostulateNoParams :: a -> VarIdent -> DeclUsedVars' a -> Term' a -> Command' a
+commandPostulateNoParams = \ _a x vars ty -> CommandPostulate _a x vars [] ty
 
-commandDefineNoParams :: a -> VarIdent -> Term' a -> Term' a -> Command' a
-commandDefineNoParams = \ _a x ty term -> CommandDefine _a x [] ty term
+commandVariable :: a -> VarIdent -> Term' a -> Command' a
+commandVariable = \ _a name term -> CommandAssume _a [name] term
 
-commandDef :: a -> VarIdent -> [Param' a] -> Term' a -> Term' a -> Command' a
-commandDef = \ _a x params ty term -> CommandDefine _a x params ty term
+commandVariables :: a -> [VarIdent] -> Term' a -> Command' a
+commandVariables = \ _a names term -> CommandAssume _a names term
 
-commandDefNoParams :: a -> VarIdent -> Term' a -> Term' a -> Command' a
-commandDefNoParams = \ _a x ty term -> CommandDefine _a x [] ty term
+commandDefineNoParams :: a -> VarIdent -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
+commandDefineNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
+
+commandDef :: a -> VarIdent -> DeclUsedVars' a -> [Param' a] -> Term' a -> Term' a -> Command' a
+commandDef = \ _a x vars params ty term -> CommandDefine _a x vars params ty term
+
+commandDefNoParams :: a -> VarIdent -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
+commandDefNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
+
+noDeclUsedVars :: a -> DeclUsedVars' a
+noDeclUsedVars = \ _a -> DeclUsedVars _a []
 
 paramVarType :: a -> VarIdent -> Term' a -> ParamDecl' a
 paramVarType = \ _a var cube -> ParamVarType _a (PatternVar _a var) cube
@@ -185,8 +204,19 @@ instance HasPosition Command where
     CommandCompute p _ -> p
     CommandComputeWHNF p _ -> p
     CommandComputeNF p _ -> p
-    CommandPostulate p _ _ _ -> p
-    CommandDefine p _ _ _ _ -> p
+    CommandPostulate p _ _ _ _ -> p
+    CommandAssume p _ _ -> p
+    CommandSection p _ _ _ -> p
+    CommandDefine p _ _ _ _ _ -> p
+
+instance HasPosition DeclUsedVars where
+  hasPosition = \case
+    DeclUsedVars p _ -> p
+
+instance HasPosition SectionName where
+  hasPosition = \case
+    NoSectionName p -> p
+    SomeSectionName p _ -> p
 
 instance HasPosition Pattern where
   hasPosition = \case

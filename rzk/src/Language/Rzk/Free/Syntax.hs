@@ -13,7 +13,7 @@ module Language.Rzk.Free.Syntax where
 import           Data.Bifunctor.TH
 import           Data.Char           (chr, ord)
 import           Data.Coerce
-import           Data.List           ((\\))
+import           Data.List           (nub, (\\))
 import           Data.String
 
 import           Free.Scoped
@@ -93,6 +93,26 @@ type TermT' = TermT Rzk.VarIdent
 
 freeVars :: Term a -> [a]
 freeVars = foldMap pure
+
+-- FIXME: should be cached in TypeInfo?
+partialFreeVarsT :: TermT a -> [a]
+partialFreeVarsT (Pure x)             = [x]
+partialFreeVarsT UniverseT{}          = []
+partialFreeVarsT term@(Free (AnnF info _)) =
+  -- FIXME: check correctness (is it ok to use untyped here?)
+  foldMap (freeVars . untyped) [term, infoType info]
+
+-- FIXME: should be cached in TypeInfo?
+freeVarsT :: Eq a => (a -> TermT a) -> TermT a -> [a]
+freeVarsT typeOfVar t = go [] (partialFreeVarsT t)
+  where
+    go vars latest
+      | null new = vars
+      | otherwise =
+          go (new <> vars)
+             (foldMap (partialFreeVarsT . typeOfVar) new)
+      where
+        new = nub latest \\ vars
 
 toTerm' :: Rzk.Term -> Term'
 toTerm' = toTerm Pure

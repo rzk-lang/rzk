@@ -31,6 +31,12 @@ instantiate e f = f >>= g
     g Z     = e
     g (S x) = return x
 
+abstract :: (Eq a, Functor f) => a -> f a -> f (Inc a)
+abstract x e = k <$> e
+  where
+    k y | x == y    = Z
+        | otherwise = S y
+
 data FS t a
   = Pure a
   | Free (t (Scope (FS t) a) (FS t a))

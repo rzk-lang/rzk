@@ -10,7 +10,8 @@ module Rzk.TypeCheck where
 import           Control.Applicative      ((<|>))
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Data.List                (intercalate, nub, tails, (\\))
+import           Data.List                (intercalate, intersect, nub, tails,
+                                           (\\))
 import           Data.Maybe               (catMaybes, fromMaybe, isNothing,
                                            mapMaybe)
 import           Data.Tuple               (swap)
@@ -27,10 +28,13 @@ defaultTypeCheck
   -> Either (TypeErrorInScopedContext Rzk.VarIdent) a
 defaultTypeCheck tc = runExcept (runReaderT tc emptyContext)
 
+-- FIXME: merge with VarInfo
 data Decl var = Decl
-  { declName  :: var
-  , declType  :: TermT var
-  , declValue :: Maybe (TermT var)
+  { declName         :: var
+  , declType         :: TermT var
+  , declValue        :: Maybe (TermT var)
+  , declIsAssumption :: Bool
+  , declUsedVars     :: [var]
   }
 
 type Decl' = Decl Rzk.VarIdent
@@ -57,10 +61,18 @@ typecheckModuleWithLocation (path, module_) = do
     withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
       typecheckModule module_
 
+countCommands :: Integral a => [Rzk.Command] -> a
+countCommands [] = 0
+countCommands (Rzk.CommandSection _loc _name sectionCommands _name2 : commands) =
+  countCommands sectionCommands + countCommands commands
+countCommands (_ : commands) = 1 + countCommands commands
+
 typecheckModule :: Rzk.Module -> TypeCheck Rzk.VarIdent [Decl']
-typecheckModule (Rzk.Module _loc _lang commands) = go 1 commands
+typecheckModule (Rzk.Module _moduleLoc _lang commands) =
+  withSection Nothing (go 1 commands) $ -- FIXME: use module name? or anonymous section?
+    return []
   where
-    totalCommands = length commands
+    totalCommands = countCommands commands
 
     go :: Integer -> [Rzk.Command] -> TypeCheck Rzk.VarIdent [Decl']
     go _i [] = return []
@@ -79,14 +91,15 @@ typecheckModule (Rzk.Module _loc _lang commands) = go 1 commands
           setOption optionName optionValue $
             go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandDefine _loc name params ty term) : moreCommands) =
+    go  i (command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #define " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
+          mapM_ checkDefinedVar vars
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
           term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT >>= pure . termIsWHNF
-          let decl = Decl name ty' (Just term')
+          let decl = Decl name ty' (Just term') False vars
           fmap (decl :) $
             localDeclPrepared decl $ do
               Context{..} <- ask
@@ -98,13 +111,14 @@ typecheckModule (Rzk.Module _loc _lang commands) = go 1 commands
               maybe id trace termSVG $ do
                 go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandPostulate _loc name params ty) : moreCommands) =
+    go  i (command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #postulate " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
+          mapM_ checkDefinedVar vars
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
-          let decl = Decl name ty' Nothing
+          let decl = Decl name ty' Nothing False vars
           fmap (decl :) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
@@ -135,6 +149,24 @@ typecheckModule (Rzk.Module _loc _lang commands) = go 1 commands
           term' <- infer (toTerm' term) >>= whnfT
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
+
+    go  i (command@(Rzk.CommandAssume _loc names ty) : moreCommands) =
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Checking #assume " <> intercalate " " [ show (Pure name :: Term') | name <- names ] ) $ do
+        withCommand command $ do
+          ty' <- typecheck (toTerm' ty) universeT
+          let decls = [ Decl name ty' Nothing True [] | name <- names ]
+          fmap (decls <>) $
+            localDeclsPrepared decls $
+              go (i + 1) moreCommands
+
+    go  i (command@(Rzk.CommandSection _loc name sectionCommands endName) : moreCommands) = do
+      withCommand command $ do
+        when (Rzk.printTree name /= Rzk.printTree endName) $
+          issueTypeError $ TypeErrorOther $
+            "unexpected #end " <> Rzk.printTree endName <> ", expecting #end " <> Rzk.printTree name
+        withSection (Just name) (go i sectionCommands) $ do
+          go (i + countCommands sectionCommands) moreCommands
 
 setOption :: String -> String -> TypeCheck var a -> TypeCheck var a
 setOption "verbosity" = \case
@@ -188,6 +220,9 @@ data TypeError var
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   | TypeErrorInvalidArgumentType (Term var) (TermT var)
   | TypeErrorDuplicateTopLevel Rzk.VarIdent
+  | TypeErrorUnusedVariable var (TermT var)
+  | TypeErrorUnusedUsedVariables [var] var
+  | TypeErrorImplicitAssumption (var, TermT var) var
   deriving (Functor, Foldable)
 
 data TypeErrorInContext var = TypeErrorInContext
@@ -293,6 +328,25 @@ ppTypeError' = \case
     , "  " <> Rzk.printTree name
     ]
 
+  TypeErrorUnusedVariable name type_ -> unlines
+    [ "unused variable"
+    , "  " <> Rzk.printTree name <> " : " <> show (untyped type_)
+    ]
+
+  TypeErrorUnusedUsedVariables vars name -> unlines
+    [ "unused variables"
+    , "  " <> intercalate " " (map Rzk.printTree vars)
+    , "declared as used in definition of"
+    , "  " <> Rzk.printTree name
+    ]
+
+  TypeErrorImplicitAssumption (a, aType) name -> unlines
+    [ "implicit assumption"
+    , "  " <> Rzk.printTree a <> " : " <> show (untyped aType)
+    , "used in definition of"
+    , "  " <> Rzk.printTree name
+    ]
+
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
 ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
   [ ppContext' typeErrorContext
@@ -325,6 +379,11 @@ ppTypeErrorInScopedContext' err = ppTypeErrorInScopedContextWith' vars (defaultV
   where
     vars = nub (foldMap pure err)
 
+issueWarning :: String -> TypeCheck var ()
+issueWarning message = do
+  trace ("Warning: " <> message) $
+    return ()
+
 issueTypeError :: TypeError var -> TypeCheck var a
 issueTypeError err = do
   context <- ask
@@ -351,19 +410,19 @@ data Action var
   | ActionWHNF (TermT var)
   | ActionNF (TermT var)
   | ActionCheckCoherence (TermT var, TermT var) (TermT var, TermT var)
+  | ActionCloseSection (Maybe Rzk.SectionName)
   deriving (Functor, Foldable)
 
 type Action' = Action Rzk.VarIdent
 
 ppTermInContext :: Eq var => TermT var -> TypeCheck var String
 ppTermInContext term =  do
-  Context{..} <- ask
-  return (show (untyped (toRzkVarIdent varOrigs <$> term)))
-  where
-    vars = nub (foldMap pure term)
-    mapping = zip vars defaultVarIdents
-    toRzkVarIdent origs var = fromMaybe (Rzk.VarIdent "_") $
-      join (lookup var origs) <|> lookup var mapping
+  vars <- freeVarsT_ term
+  let mapping = zip vars defaultVarIdents
+      toRzkVarIdent origs var = fromMaybe (Rzk.VarIdent "_") $
+        join (lookup var origs) <|> lookup var mapping
+  origs <- asks varOrigs
+  return (show (untyped (toRzkVarIdent origs <$> term)))
 
 ppSomeAction :: Eq var => [(var, Maybe Rzk.VarIdent)] -> Int -> Action var -> String
 ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
@@ -433,6 +492,13 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
     , "  " <> show (untyped rtope)
     , "  |-> " <> show (untyped rterm) ]
 
+  ActionCloseSection Nothing ->
+    [ "closing the file"
+    , "and collecting assumptions (variables)" ]
+  ActionCloseSection (Just sectionName) ->
+    [ "closing #section " <> Rzk.printTree sectionName
+    , "and collecting assumptions (variables)"]
+
 
 traceAction' :: Int -> Action' -> a -> a
 traceAction' n action = trace ("[debug]\n" <> ppAction n action)
@@ -475,10 +541,25 @@ data RenderBackend
   = RenderSVG
   | RenderLaTeX
 
+data ScopeInfo var = ScopeInfo
+  { scopeName :: Maybe Rzk.SectionName
+  , scopeVars :: [(var, VarInfo var)]
+  } deriving (Functor, Foldable)
+
+addVarToScope :: var -> VarInfo var -> ScopeInfo var -> ScopeInfo var
+addVarToScope var info ScopeInfo{..} = ScopeInfo
+  { scopeVars = (var, info) : scopeVars, .. }
+
+data VarInfo var = VarInfo
+  { varType                :: TermT var
+  , varValue               :: Maybe (TermT var)
+  , varOrig                :: Maybe Rzk.VarIdent
+  , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
+  , varDeclaredAssumptions :: [var]
+  } deriving (Functor, Foldable)
+
 data Context var = Context
-  { varTypes               :: [(var, TermT var)]
-  , varValues              :: [(var, Maybe (TermT var))]
-  , varOrigs               :: [(var, Maybe Rzk.VarIdent)]
+  { localScopes            :: [ScopeInfo var]
   , localTopes             :: [TermT var]
   , localTopesNF           :: [TermT var]
   , localTopesNFUnion      :: [[TermT var]]
@@ -491,11 +572,17 @@ data Context var = Context
   , renderBackend          :: Maybe RenderBackend
   } deriving (Functor, Foldable)
 
+addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
+addVarInCurrentScope var info Context{..} = Context
+  { localScopes =
+      case localScopes of
+        []             -> [ScopeInfo Nothing [(var, info)]]
+        scope : scopes -> addVarToScope var info scope : scopes
+  , .. }
+
 emptyContext :: Context var
 emptyContext = Context
-  { varTypes = []
-  , varValues = []
-  , varOrigs = []
+  { localScopes = [ScopeInfo Nothing []]
   , localTopes = [topeTopT]
   , localTopesNF = [topeTopT]
   , localTopesNFUnion = [[topeTopT]]
@@ -508,12 +595,149 @@ emptyContext = Context
   , renderBackend = Nothing
   }
 
+askCurrentScope :: TypeCheck var (ScopeInfo var)
+askCurrentScope = asks localScopes >>= \case
+  []              -> panicImpossible "no current scope available"
+  scope : _scopes -> pure scope
+
+varInfos :: Context var -> [(var, VarInfo var)]
+varInfos Context{..} = concatMap scopeVars localScopes
+
+varTypes :: Context var -> [(var, TermT var)]
+varTypes = map (fmap varType) . varInfos
+
+varValues :: Context var -> [(var, Maybe (TermT var))]
+varValues = map (fmap varValue) . varInfos
+
+varOrigs :: Context var -> [(var, Maybe Rzk.VarIdent)]
+varOrigs = map (fmap varOrig) . varInfos
+
+withSection
+  :: Maybe Rzk.SectionName
+  -> TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
+  -> TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
+  -> TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
+withSection name sectionBody next = do
+  sectionDecls <- startSection name $ do
+    decls <- sectionBody
+    localDeclsPrepared decls $
+      performing (ActionCloseSection name) $ do
+        endSection
+  fmap (sectionDecls <>) $
+    localDeclsPrepared sectionDecls $
+      next
+
+startSection :: Maybe Rzk.SectionName -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
+startSection name = local $ \Context{..} -> Context
+  { localScopes = ScopeInfo { scopeName = name, scopeVars = [] } : localScopes
+  , .. }
+
+endSection :: TypeCheck Rzk.VarIdent [Decl Rzk.VarIdent]
+endSection = askCurrentScope >>= scopeToDecls
+
+scopeToDecls :: Eq var => ScopeInfo var -> TypeCheck var [Decl var]
+scopeToDecls ScopeInfo{..} = do
+  decls <- collectScopeDecls [] scopeVars
+  forM_ decls $ \Decl{..} -> do
+    let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
+    when (not (null unusedUsedVars)) $
+      issueTypeError $ TypeErrorUnusedUsedVariables unusedUsedVars declName
+  return decls
+
+insertExplicitAssumptionFor
+  :: Eq var => var -> (var, VarInfo var) -> TermT var -> TermT var
+insertExplicitAssumptionFor a (declName, VarInfo{..}) term =
+  term >>= \case
+    y | y == declName -> appT varType (Pure declName) (Pure a)
+      | otherwise     -> Pure y
+
+insertExplicitAssumptionFor'
+  :: Eq var => var -> (var, VarInfo var) -> VarInfo var -> VarInfo var
+insertExplicitAssumptionFor' a decl VarInfo{..}
+  | varIsAssumption = VarInfo{..}
+  | otherwise = VarInfo
+      { varType = insertExplicitAssumptionFor a decl varType
+      , varValue = insertExplicitAssumptionFor a decl <$> varValue
+      , varIsAssumption = varIsAssumption
+      , varOrig = varOrig
+      , varDeclaredAssumptions = varDeclaredAssumptions
+      }
+
+makeAssumptionExplicit
+  :: Eq var
+  => (var, VarInfo var)
+  -> [(var, VarInfo var)]
+  -> TypeCheck var (Bool, [(var, VarInfo var)])
+makeAssumptionExplicit _ [] = pure (False {- UNUSED -}, [])
+makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
+  varsInType <- freeVarsT_ (varType xInfo)
+  varsInBody <- concat <$> traverse freeVarsT_ (varValue xInfo)
+  let xFreeVars = varsInBody <> varsInType
+  let hasAssumption = a `elem` xFreeVars
+  xType <- typeOfVar x
+  xValue <- valueOfVar x
+  let assumptionInType = a `elem` freeVars (untyped xType)
+      assumptionInBody = a `elem` foldMap (freeVars . untyped) xValue
+      implicitAssumption = and
+        [ hasAssumption
+        , not (assumptionInType || assumptionInBody)
+        , a `notElem` varDeclaredAssumptions xInfo ]
+  if hasAssumption
+     then do
+       when implicitAssumption $ do
+         issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
+       (_used, xs'') <- makeAssumptionExplicit (a, aInfo) xs'
+       return (True {- USED -}, (x, xInfo') : xs'')
+     else do
+       (used, xs'') <- makeAssumptionExplicit assumption xs
+       return (used, (x, xInfo) : xs'')
+  where
+    xType' = typeFunT (varOrig aInfo) (varType aInfo) Nothing (abstract a (varType xInfo))
+    xInfo' = VarInfo
+      { varType = xType'
+      , varValue = fmap (lambdaT xType' (varOrig aInfo) Nothing . abstract a) (varValue xInfo)
+      , varIsAssumption = varIsAssumption xInfo
+      , varOrig = varOrig xInfo
+      , varDeclaredAssumptions = varDeclaredAssumptions xInfo \\ [a]
+      }
+    xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
+
+collectScopeDecls :: Eq var => [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var [Decl var]
+collectScopeDecls recentVars (decl@(var, VarInfo{..}) : vars)
+  | varIsAssumption = do
+      (used, recentVars') <- makeAssumptionExplicit decl recentVars
+      when (not used) $ do
+        issueTypeError $ TypeErrorUnusedVariable var varType
+      collectScopeDecls recentVars' vars
+  | otherwise = do
+      collectScopeDecls (decl : recentVars) vars
+collectScopeDecls recentVars [] = return (toDecl <$> recentVars)
+  where
+    toDecl (var, VarInfo{..}) = Decl
+      { declName = var
+      , declType = varType
+      , declValue = varValue
+      , declIsAssumption = varIsAssumption
+      , declUsedVars = varDeclaredAssumptions
+      }
+
+abstractAssumption :: Eq var => (var, VarInfo var) -> Decl var -> Decl var
+abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
+  { declName = declName
+  , declType = typeFunT varOrig varType Nothing (abstract var declType)
+  , declValue = (\body -> lambdaT newDeclType varOrig Nothing (abstract var body)) <$> declValue
+  , declIsAssumption = declIsAssumption
+  , declUsedVars = declUsedVars
+  }
+  where
+    newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
+
 ppContext' :: Context Rzk.VarIdent -> String
-ppContext' Context{..} = unlines
+ppContext' ctx@Context{..} = unlines
   [ "Definitions in context:"
   , unlines
       [ show (Pure x :: Term') <> " : " <> show (untyped ty)
-      | (x, ty) <- reverse varTypes ]
+      | (x, ty) <- reverse (varTypes ctx) ]
 --  , unlines
 --      [ show (Pure x :: Term') <> " = " <> show (untyped term)
 --      | (x, Just term) <- reverse varValues ]
@@ -524,9 +748,9 @@ ppContext' Context{..} = unlines
       Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
       _                                 -> ""
   , case currentCommand of
-      Just (Rzk.CommandDefine _loc name _params _ty _term) ->
+      Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
         "  Error occurred when checking\n    #define " <> show (Pure name :: Term')
-      Just (Rzk.CommandPostulate _loc name _params _ty ) ->
+      Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
         "  Error occurred when checking\n    #postulate " <> show (Pure name :: Term')
       Just (Rzk.CommandCheck _loc term ty) ->
         "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
@@ -538,16 +762,20 @@ ppContext' Context{..} = unlines
         "  Error occurred when computing WHNF for\n    " <> Rzk.printTree term
       Just (Rzk.CommandSetOption _loc optionName _optionValue) ->
         "  Error occurred when trying to set option\n    #set-option " <> show optionName
-      Just (Rzk.CommandUnsetOption _loc optionName) ->
-        "  Error occurred when trying to unset option\n    #unset-option " <> show optionName
-      Nothing -> ""
+      Just command@Rzk.CommandUnsetOption{} ->
+        "  Error occurred when trying to unset option\n    " <> Rzk.printTree command
+      Just command@Rzk.CommandAssume{} ->
+        "  Error occurred when checking assumption\n    " <> Rzk.printTree command
+      Just (Rzk.CommandSection _loc name _commands _endName) ->
+        "  Error occurred when checking\n    #section " <> Rzk.printTree name
+      Nothing -> "  Error occurred"
 --  , "Local tope context (expanded):"
 --  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
   ]
 
 doesShadowName :: Rzk.VarIdent -> TypeCheck var Bool
-doesShadowName name = asks $ \Context{..} ->
-  name `elem` mapMaybe snd varOrigs
+doesShadowName name = asks $ \ctx ->
+  name `elem` mapMaybe snd (varOrigs ctx)
 
 checkTopLevelDuplicate :: Rzk.VarIdent -> TypeCheck var ()
 checkTopLevelDuplicate name = do
@@ -558,9 +786,8 @@ checkTopLevelDuplicate name = do
 checkNameShadowing :: Rzk.VarIdent -> TypeCheck var ()
 checkNameShadowing name = do
   doesShadowName name >>= \case
-    True -> do
-      trace ("Warning: " <> Rzk.printTree name <> " shadows an existing definition") $
-        return ()
+    True -> issueWarning $
+      Rzk.printTree name <> " shadows an existing definition"
     False -> return ()
 
 withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
@@ -578,30 +805,34 @@ localDeclsPrepared [] = id
 localDeclsPrepared (decl : decls) = localDeclPrepared decl . localDeclsPrepared decls
 
 localDecl :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
-localDecl (Decl x ty term) tc = do
+localDecl (Decl x ty term isAssumption vars) tc = do
   ty' <- whnfT ty
   term' <- traverse whnfT term
-  localDeclPrepared (Decl x ty' term') tc
+  localDeclPrepared (Decl x ty' term' isAssumption vars) tc
 
 localDeclPrepared :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
-localDeclPrepared (Decl x ty term) tc = do
+localDeclPrepared (Decl x ty term isAssumption vars) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
-    update Context{..} = Context
-      { varTypes = (x, ty) : varTypes
-      , varValues = (x, term) : varValues
-      , varOrigs = (x, Just x) : varOrigs
-      , .. }
+    update  = addVarInCurrentScope x VarInfo
+      { varType = ty
+      , varValue = term
+      , varOrig = Just x
+      , varIsAssumption = isAssumption
+      , varDeclaredAssumptions = vars
+      }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
 
-showSomeTermTs :: Eq var => [TermT var] -> String
-showSomeTermTs terms = show [ untyped (rename <$> term) | term <- terms ]
-  where
-    vars = nub (foldMap (foldMap pure) terms)
-    mapping = zip vars defaultVarIdents
-    rename x = fromMaybe (Rzk.VarIdent "?") (lookup x mapping)
+freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
+freeVarsT_ term = do
+  types <- asks varTypes
+  let typeOfVar' x =
+        case lookup x types of
+          Nothing -> panicImpossible "undefined variable"
+          Just ty -> ty
+  return (freeVarsT typeOfVar' term)
 
 traceStartAndFinish :: Show a => String -> a -> a
 traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
@@ -840,16 +1071,15 @@ switchVariance = local $ \Context{..} -> Context
       switch Contravariant = Covariant
 
 enterScopeContext :: Maybe Rzk.VarIdent -> TermT var -> Context var -> Context (Inc var)
-enterScopeContext orig ty Context{..} = Context
-  { varTypes = (Z, S <$> ty) : [ (S x, fmap S t) | (x, t) <- varTypes ]
-  , varValues = (Z, Nothing) : [ (S x, fmap S <$> t) | (x, t) <- varValues ]
-  , varOrigs = (Z, orig) : [ (S x, o) | (x, o) <- varOrigs ]
-  , localTopes = map (fmap S) localTopes
-  , localTopesNF = map (fmap S) localTopesNF
-  , localTopesNFUnion = map (map (fmap S)) localTopesNFUnion
-  , actionStack = map (fmap S) actionStack
-  , ..
-  }
+enterScopeContext orig ty =
+  addVarInCurrentScope Z VarInfo
+    { varType   = S <$> ty
+    , varValue  = Nothing
+    , varOrig   = orig
+    , varIsAssumption = False
+    , varDeclaredAssumptions = []
+    }
+  . fmap S
 
 enterScope :: Maybe Rzk.VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig ty action = do
@@ -859,10 +1089,10 @@ enterScope orig ty action = do
 
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
-  Context{..} <- ask
+  ctx@Context{..} <- ask
   unless (length actionStack < 1000) $  -- FIXME: which depth is reasonable? factor out into a parameter
     issueTypeError $ TypeErrorOther "maximum depth reached"
-  traceTypeCheck Debug (ppSomeAction varOrigs (length actionStack) action) $
+  traceTypeCheck Debug (ppSomeAction (varOrigs ctx) (length actionStack) action) $
     local (const Context { actionStack = action : actionStack, .. }) $ tc
 
 stripTypeRestrictions :: TermT var -> TermT var
@@ -1298,6 +1528,11 @@ nfT tt = performing (ActionNF tt) $ case tt of
             case catMaybes rs' of
               []   -> nfT type_
               rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
+
+checkDefinedVar :: Eq var => var -> TypeCheck var ()
+checkDefinedVar x = asks (lookup x . varInfos) >>= \case
+  Nothing  -> issueTypeError $ TypeErrorUndefined x
+  Just _ty -> return ()
 
 valueOfVar :: Eq var => var -> TypeCheck var (Maybe (TermT var))
 valueOfVar x = asks (lookup x . varValues) >>= \case
@@ -2358,13 +2593,14 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
             , renderObjectDataColor = "orange"  -- FIXME: orange for topes?
             })
         _ -> do
-          Context{..} <- ask
+          origs <- asks varOrigs
           term' <- localTope tope $ whnfT term
           label <-
             case term' of
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z varOrigs -> return ""
-                | null (nub (foldMap pure arg) \\ nub (foldMap pure t)) -> ppTermInContext (Pure z)
+                | Just (Just "_") <- lookup z origs -> return ""
+                | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t))) ->
+                    ppTermInContext (Pure z)
               _ -> ppTermInContext term'
           return $ Just (shapeId, RenderObjectData
             { renderObjectDataLabel = label
@@ -2373,8 +2609,8 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
                 case term' of
                   Pure{} -> "purple"
                   AppT _ (Pure x) arg
-                    | Just (Just "_") <- lookup x varOrigs -> mainColor
-                    | null (nub (foldMap pure arg) \\ nub (foldMap pure t))  -> "purple"
+                    | Just (Just "_") <- lookup x origs -> mainColor
+                    | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t)))  -> "purple"
                   _ -> mainColor
             })
 
@@ -2411,23 +2647,23 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
     checkEntails tope contextTopes >>= \case
       False -> return Nothing
       True -> do
-        Context{..} <- ask
+        origs <- asks varOrigs
         term <- localTope tope (whnfT (appT retType f (Pure super)))
         label <- typeOf term >>= \case
           UniverseTopeT{} -> return ""
           _ -> do
             case term of
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z varOrigs -> return ""
-                | null (nub (foldMap pure arg) \\ [super]) -> ppTermInContext (Pure z)
+                | Just (Just "_") <- lookup z origs -> return ""
+                | null (nub (freeVars (untyped arg)) \\ [super]) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
           True -> do
             case term of
               Pure{} -> return "purple"
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z varOrigs -> return mainColor
-                | null (nub (foldMap pure arg) \\ [super]) -> return "purple"
+                | Just (Just "_") <- lookup z origs -> return mainColor
+                | null (nub (freeVars (untyped arg)) \\ [super]) -> return "purple"
               _ -> return mainColor
           False -> return "gray"
         return $ Just (shapeId, RenderObjectData

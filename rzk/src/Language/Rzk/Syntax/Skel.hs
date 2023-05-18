@@ -43,8 +43,19 @@ transCommand x = case x of
   Language.Rzk.Syntax.Abs.CommandCompute _ term -> failure x
   Language.Rzk.Syntax.Abs.CommandComputeWHNF _ term -> failure x
   Language.Rzk.Syntax.Abs.CommandComputeNF _ term -> failure x
-  Language.Rzk.Syntax.Abs.CommandPostulate _ varident params term -> failure x
-  Language.Rzk.Syntax.Abs.CommandDefine _ varident params term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandPostulate _ varident declusedvars params term -> failure x
+  Language.Rzk.Syntax.Abs.CommandAssume _ varidents term -> failure x
+  Language.Rzk.Syntax.Abs.CommandSection _ sectionname1 commands sectionname2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> failure x
+
+transDeclUsedVars :: Show a => Language.Rzk.Syntax.Abs.DeclUsedVars' a -> Result
+transDeclUsedVars x = case x of
+  Language.Rzk.Syntax.Abs.DeclUsedVars _ varidents -> failure x
+
+transSectionName :: Show a => Language.Rzk.Syntax.Abs.SectionName' a -> Result
+transSectionName x = case x of
+  Language.Rzk.Syntax.Abs.NoSectionName _ -> failure x
+  Language.Rzk.Syntax.Abs.SomeSectionName _ varident -> failure x
 
 transPattern :: Show a => Language.Rzk.Syntax.Abs.Pattern' a -> Result
 transPattern x = case x of
