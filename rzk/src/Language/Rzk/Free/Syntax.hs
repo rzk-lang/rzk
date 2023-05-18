@@ -51,7 +51,7 @@ data TermF scope term
     | IdJF term term term term term term
     | TypeAscF term term
     | TypeRestrictedF term [(term, term)]
-    deriving (Eq, Functor, Foldable)
+    deriving (Eq)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
 deriveBitraversable ''TermF
@@ -98,8 +98,9 @@ freeVars = foldMap pure
 partialFreeVarsT :: TermT a -> [a]
 partialFreeVarsT (Pure x)             = [x]
 partialFreeVarsT UniverseT{}          = []
-partialFreeVarsT (Free (AnnF info t)) =
-  partialFreeVarsT (infoType info) <> foldMap partialFreeVarsT t
+partialFreeVarsT term@(Free (AnnF info _)) =
+  -- FIXME: check correctness (is it ok to use untyped here?)
+  foldMap (freeVars . untyped) [term, infoType info]
 
 -- FIXME: should be cached in TypeInfo?
 freeVarsT :: Eq a => (a -> TermT a) -> TermT a -> [a]
