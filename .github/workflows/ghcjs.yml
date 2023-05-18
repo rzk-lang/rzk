@@ -18,6 +18,12 @@ on:
 
   workflow_dispatch:  # allow triggering this workflow manually
 
+env:
+  store: /home/runner/nix
+
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -25,17 +31,22 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🧰 Setup nix (cache)
-        uses: cachix/install-nix-action@v13
+      - name: 🧰 Setup nix
+        uses: cachix/install-nix-action@v20
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          nix_path: nixpkgs=channel:nixpkgs-unstable
+          extra_nix_config: "store = ${{ env.store }}\nsubstituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org \ntrusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8="
           # pinning Nix version
-          install_url: https://releases.nixos.org/nix/nix-2.13.3/install
-
-      - name: 💾 Setup cachix (miso-haskell)
-        uses: cachix/cachix-action@v10
+          install_url: https://releases.nixos.org/nix/nix-2.14.1/install
+      
+      - name: Restore and cache Nix store
+        uses: actions/cache@v3.3.0
         with:
-          name: miso-haskell
+          key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock') }}
+          path: ${{ env.store }}
+          restore-keys: |
+            ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock') }}
+            ${{ runner.os }}-nix-
 
       - name: 🔨 Remove rzk.cabal, lexer and parser generator files
         run: |
@@ -45,12 +56,12 @@ jobs:
 
       - name: 🔨 Build GHCJS version with Nix
         run: |
-          nix-build try-rzk/
+          nix build .#try-rzk
 
       - name: 🔨 Collect build artifacts
         run: |
           mkdir -p dist/result/bin
-          cp -r ./result/bin/try-rzk.jsexe/ dist/result/bin/.
+          cp -r ${{ env.store }}$(realpath result)/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
           cp try-rzk/playground.html dist/.
 
@@ -58,7 +69,7 @@ jobs:
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           target-folder: ${{ github.ref_name }}
           clean: false
@@ -67,6 +78,6 @@ jobs:
         if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           clean: false

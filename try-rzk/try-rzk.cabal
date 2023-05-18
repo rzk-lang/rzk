@@ -9,5 +9,8 @@ executable try-rzk
   main-is:             Main.hs
   ghcjs-options:
     -dedupe
-  build-depends:       base, miso, rzk, ghcjs-base, ghcjs-prim
+  build-depends:       base, miso, rzk
+  if impl(ghcjs)
+    build-depends:
+      ghcjs-base, ghcjs-prim
   default-language:    Haskell2010

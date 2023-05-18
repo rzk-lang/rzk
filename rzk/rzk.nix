@@ -1,5 +1,5 @@
 { mkDerivation, array, base, bifunctors, hpack, lib, mtl
-, template-haskell
+, template-haskell, alex, happy
 }:
 mkDerivation {
   pname = "rzk";
@@ -8,7 +8,7 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    array base bifunctors mtl template-haskell
+    array base bifunctors mtl template-haskell alex happy
   ];
   libraryToolDepends = [ hpack ];
   executableHaskellDepends = [
