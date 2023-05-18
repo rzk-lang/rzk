@@ -1,11 +1,11 @@
 module Rzk.Main where
 
-import System.Exit (exitFailure)
-import System.Environment (getArgs)
-import Control.Monad (forM)
+import           Control.Monad       (forM)
+import           System.Environment  (getArgs)
+import           System.Exit         (exitFailure)
 
 import qualified Language.Rzk.Syntax as Rzk
-import Rzk.TypeCheck
+import           Rzk.TypeCheck
 
 main :: IO ()
 main = do

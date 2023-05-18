@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Rzk.Syntax (
   module Language.Rzk.Syntax.Abs,
@@ -12,15 +12,15 @@ module Language.Rzk.Syntax (
   extractMarkdownCodeBlocks,
 ) where
 
-import qualified Data.List as List
-import Data.Char (isSpace)
+import           Data.Char                  (isSpace)
+import qualified Data.List                  as List
 
-import Language.Rzk.Syntax.Abs
-import Language.Rzk.Syntax.Print (printTree)
+import           Language.Rzk.Syntax.Abs
+import           Language.Rzk.Syntax.Print  (printTree)
 
-import Language.Rzk.Syntax.Lex (tokens)
-import Language.Rzk.Syntax.Par (pModule, pTerm)
-import Language.Rzk.Syntax.Layout (resolveLayout)
+import           Language.Rzk.Syntax.Layout (resolveLayout)
+import           Language.Rzk.Syntax.Lex    (tokens)
+import           Language.Rzk.Syntax.Par    (pModule, pTerm)
 
 parseModule :: String -> Either String Module
 parseModule = pModule . resolveLayout True . tokens . tryExtractMarkdownCodeBlocks "rzk"

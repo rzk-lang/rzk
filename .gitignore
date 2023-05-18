@@ -24,3 +24,5 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 docs/site
+result
+.direnv

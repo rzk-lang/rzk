@@ -1,11 +1,11 @@
-{-# LANGUAGE CPP      #-}
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Free.Scoped.TH where
 
-import           Control.Monad         (replicateM)
-import           Language.Haskell.TH
+import           Control.Monad       (replicateM)
 import           Free.Scoped
+import           Language.Haskell.TH
 
 mkConP :: Name -> [Pat] -> Pat
 #if __GLASGOW_HASKELL__ >= 902

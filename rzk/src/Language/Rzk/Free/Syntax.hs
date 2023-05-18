@@ -1,23 +1,23 @@
 {-# OPTIONS_GHC -fno-warn-missing-pattern-synonym-signatures -fno-warn-missing-signatures -fno-warn-type-defaults #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeSynonymInstances    #-}
+{-# LANGUAGE DeriveFoldable       #-}
+{-# LANGUAGE DeriveFunctor        #-}
+{-# LANGUAGE DeriveTraversable    #-}
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE PatternSynonyms      #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Language.Rzk.Free.Syntax where
 
-import Data.String
-import Data.Char (chr, ord)
-import Data.Coerce
-import Data.List ((\\))
-import Data.Bifunctor.TH
+import           Data.Bifunctor.TH
+import           Data.Char           (chr, ord)
+import           Data.Coerce
+import           Data.List           (nub, (\\))
+import           Data.String
 
-import Free.Scoped
-import Free.Scoped.TH
+import           Free.Scoped
+import           Free.Scoped.TH
 
 import qualified Language.Rzk.Syntax as Rzk
 
@@ -94,6 +94,26 @@ type TermT' = TermT Rzk.VarIdent
 freeVars :: Term a -> [a]
 freeVars = foldMap pure
 
+-- FIXME: should be cached in TypeInfo?
+partialFreeVarsT :: TermT a -> [a]
+partialFreeVarsT (Pure x)             = [x]
+partialFreeVarsT UniverseT{}          = []
+partialFreeVarsT term@(Free (AnnF info _)) =
+  -- FIXME: check correctness (is it ok to use untyped here?)
+  foldMap (freeVars . untyped) [term, infoType info]
+
+-- FIXME: should be cached in TypeInfo?
+freeVarsT :: Eq a => (a -> TermT a) -> TermT a -> [a]
+freeVarsT typeOfVar t = go [] (partialFreeVarsT t)
+  where
+    go vars latest
+      | null new = vars
+      | otherwise =
+          go (new <> vars)
+             (foldMap (partialFreeVarsT . typeOfVar) new)
+      where
+        new = nub latest \\ vars
+
 toTerm' :: Rzk.Term -> Term'
 toTerm' = toTerm Pure
 
@@ -103,7 +123,7 @@ toScope x bvars = toTerm $ \z -> if x == z then Pure Z else S <$> bvars z
 toScopePattern :: Rzk.Pattern -> (Rzk.VarIdent -> Term a) -> Rzk.Term -> Scope Term a
 toScopePattern pat bvars = toTerm $ \z ->
   case lookup z (bindings pat (Pure Z)) of
-    Just t -> t
+    Just t  -> t
     Nothing -> S <$> bvars z
   where
     bindings (Rzk.PatternWildcard _loc)   _ = []
@@ -176,7 +196,7 @@ toTerm bvars = go
 
 
     patternVar (Rzk.PatternVar _loc x) = Just x
-    patternVar _ = Nothing
+    patternVar _                       = Nothing
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
@@ -185,7 +205,7 @@ fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
 fromScope' :: Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.VarIdent] -> Scope Term Rzk.VarIdent -> Rzk.Term
 fromScope' x used xs = fromTermWith' (x : used) xs . (>>= f)
   where
-    f Z = Pure x
+    f Z     = Pure x
     f (S z) = Pure z
 
 fromTermWith' :: [Rzk.VarIdent] -> [Rzk.VarIdent] -> Term' -> Rzk.Term
@@ -194,7 +214,7 @@ fromTermWith' used vars = go
     withFresh Nothing f =
       case vars of
         x:xs -> f (x, xs)
-        _ -> error "not enough fresh variables!"
+        _    -> error "not enough fresh variables!"
     withFresh (Just z) f = f (z', filter (/= z') vars)    -- FIXME: very inefficient filter
       where
         z' = refreshVar used z
@@ -290,7 +310,7 @@ instance IsString Term' where
   fromString = toTerm' . fromRight . Rzk.parseTerm
     where
       fromRight (Left err) = error ("Parse error: " <> err)
-      fromRight (Right t) = t
+      fromRight (Right t)  = t
 
 instance Show TermT' where
   show var@Pure{} = Rzk.printTree (fromTerm' (untyped var))

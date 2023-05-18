@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.4.0 — 2022-05-18
+
+This version introduces sections and variables. The feature is similar to <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>. An important difference, however, is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.
+
+- Variables and sections (Coq-style) (see [#38]( https://github.com/fizruk/rzk/pull/38 ));
+
+Minor improvements:
+
+- Add flake, set up nix and cabal builds, cache nix store on CI (see [#39]( https://github.com/fizruk/rzk/pull/39 ));
+- Apply stylish-haskell (see [7d42ef62]( https://github.com/fizruk/rzk/commit/7d42ef62 ));
+
 ## v0.3.0 — 2022-04-28
 
 This version introduces an experimental feature for generating visualisations for simplicial terms in SVG.

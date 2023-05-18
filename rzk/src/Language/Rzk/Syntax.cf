@@ -9,27 +9,48 @@ token HoleIdent '?' ;
 
 Module. Module ::= LanguageDecl [Command] ;
 
+separator nonempty VarIdent "" ;
+
 LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
 
 Rzk1. Language ::= "rzk-1" ;
 
-CommandSetOption.         Command ::= "#set-option" String "=" String ";" ;
-CommandUnsetOption.       Command ::= "#unset-option" String ";" ;
-CommandCheck.             Command ::= "#check" Term ":" Term ";" ;
-CommandCompute.           Command ::= "#compute" Term ";" ;
-CommandComputeWHNF.       Command ::= "#compute-whnf" Term ";" ;
-CommandComputeNF.         Command ::= "#compute-nf" Term ";" ;
-CommandPostulate.         Command ::= "#postulate" VarIdent [Param] ":" Term ";" ;
-commandPostulateNoParams. Command ::= "#postulate" VarIdent ":" Term ";" ;
-define commandPostulateNoParams x ty = CommandPostulate x [] ty ;
-CommandDefine.            Command ::= "#define" VarIdent [Param] ":" Term ":=" Term ";" ;
-commandDefineNoParams.    Command ::= "#define" VarIdent ":" Term ":=" Term ";" ;
-define commandDefineNoParams x ty term = CommandDefine x [] ty term ;
-commandDef.               Command ::= "#def" VarIdent [Param] ":" Term ":=" Term ";" ;
-define commandDef x params ty term = CommandDefine x params ty term ;
-commandDefNoParams.       Command ::= "#def" VarIdent ":" Term ":=" Term ";" ;
-define commandDefNoParams x ty term = CommandDefine x [] ty term ;
-separator Command "" ;
+CommandSetOption.         Command ::= "#set-option" String "=" String ;
+CommandUnsetOption.       Command ::= "#unset-option" String ;
+
+CommandCheck.             Command ::= "#check" Term ":" Term ;
+
+CommandCompute.           Command ::= "#compute" Term ;
+CommandComputeWHNF.       Command ::= "#compute-whnf" Term ;
+CommandComputeNF.         Command ::= "#compute-nf" Term ;
+
+CommandPostulate.         Command ::= "#postulate" VarIdent DeclUsedVars [Param] ":" Term ;
+commandPostulateNoParams. Command ::= "#postulate" VarIdent DeclUsedVars ":" Term ;
+define commandPostulateNoParams x vars ty = CommandPostulate x vars [] ty ;
+
+CommandAssume.            Command ::= "#assume" [VarIdent] ":" Term ;
+commandVariable.          Command ::= "#variable" VarIdent ":" Term ;
+define commandVariable name term = CommandAssume [name] term ;
+commandVariables.         Command ::= "#variables" [VarIdent] ":" Term ;
+define commandVariables names term = CommandAssume names term ;
+
+CommandSection.           Command ::= "#section" SectionName ";" [Command] "#end" SectionName ;
+
+CommandDefine.            Command ::= "#define" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
+commandDefineNoParams.    Command ::= "#define" VarIdent DeclUsedVars ":" Term ":=" Term ;
+define commandDefineNoParams x vars ty term = CommandDefine x vars [] ty term ;
+commandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
+define commandDef x vars params ty term = CommandDefine x vars params ty term ;
+commandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ":" Term ":=" Term ;
+define commandDefNoParams x vars ty term = CommandDefine x vars [] ty term ;
+terminator Command ";" ;
+
+DeclUsedVars. DeclUsedVars ::= "uses" "(" [VarIdent] ")" ;
+noDeclUsedVars. DeclUsedVars ::= ;
+define noDeclUsedVars = DeclUsedVars [] ;
+
+NoSectionName.    SectionName ::= ;
+SomeSectionName.  SectionName ::= VarIdent ;
 
 -- Patterns
 PatternWildcard.  Pattern ::= "_" ;
@@ -52,8 +73,6 @@ define paramVarType var cube = ParamVarType (PatternVar var) cube ;
 ParamVarShape.      ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShape pat cube tope = ParamVarShape pat cube tope ;
-
--- (x, y :) -> z
 
 Restriction. Restriction ::= Term "|->" Term ;
 separator nonempty Restriction "," ;

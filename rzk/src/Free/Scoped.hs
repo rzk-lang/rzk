@@ -1,23 +1,23 @@
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE QuantifiedConstraints    #-}
-{-# LANGUAGE UndecidableInstances    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 module Free.Scoped where
 
 import           Control.Monad      (ap)
-import           Data.Function      (on)
 import           Data.Bifoldable
 import           Data.Bifunctor
 import           Data.Bifunctor.TH
 import           Data.Bitraversable
+import           Data.Function      (on)
 import qualified GHC.Generics       as GHC
 
 data Inc var = Z | S var
@@ -30,6 +30,12 @@ instantiate e f = f >>= g
   where
     g Z     = e
     g (S x) = return x
+
+abstract :: (Eq a, Functor f) => a -> f a -> f (Inc a)
+abstract x e = k <$> e
+  where
+    k y | x == y    = Z
+        | otherwise = S y
 
 data FS t a
   = Pure a
@@ -78,7 +84,7 @@ deriveBifoldable ''Empty
 deriveBitraversable ''Empty
 
 data AnnF ann term scope typedTerm = AnnF
-  { annF :: ann typedTerm
+  { annF  :: ann typedTerm
   , termF :: term scope typedTerm
   } deriving (Show, Functor)
 
@@ -113,5 +119,5 @@ pattern ExtE t = Free (InR t)
 substitute :: Bifunctor t => FS t a -> Scope (FS t) a -> FS t a
 substitute t = (>>= f)
   where
-    f Z = t
+    f Z     = t
     f (S y) = Pure y
