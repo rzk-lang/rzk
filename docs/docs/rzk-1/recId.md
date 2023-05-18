@@ -144,7 +144,7 @@ Finally, we bring everything together into `recId`:
 -- A weaker version of recOR, demanding only a path between a and b:
 -- recOR(psi, phi, a, b) demands that for psi /\ phi we have a == b (definitionally)
 -- (recId psi phi a b e) demands that e is the proof that a = b (intensionally) for psi /\ phi
-#def recId
+#def recId uses (r) -- we declare that recId is using r on purpose
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
     (e : {t : I | psi t /\ phi t} -> a_psi t = a_phi t)
