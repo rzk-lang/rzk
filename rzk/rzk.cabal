@@ -7,7 +7,7 @@ cabal-version: 1.12
 -- hash: 7855530fcdfd2a28c4ea3654677ed2d18f83d419f5d1c173f4bb44a915464c06
 
 name:           rzk
-version:        0.3.0
+version:        0.4.0
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
 category:       Dependent Types
