@@ -24,8 +24,9 @@ CommandCompute.           Command ::= "#compute" Term ;
 CommandComputeWHNF.       Command ::= "#compute-whnf" Term ;
 CommandComputeNF.         Command ::= "#compute-nf" Term ;
 
-CommandPostulate.         Command ::= "#postulate" VarIdent [Param] ":" Term ;
-commandPostulateNoParams. Command ::= "#postulate" VarIdent ":" Term ;
+CommandPostulate.         Command ::= "#postulate" VarIdent DeclUsedVars [Param] ":" Term ;
+commandPostulateNoParams. Command ::= "#postulate" VarIdent DeclUsedVars ":" Term ;
+define commandPostulateNoParams x vars ty = CommandPostulate x vars [] ty ;
 
 CommandAssume.            Command ::= "#assume" [VarIdent] ":" Term ;
 commandVariable.          Command ::= "#variable" VarIdent ":" Term ;
@@ -34,16 +35,19 @@ commandVariables.         Command ::= "#variables" [VarIdent] ":" Term ;
 define commandVariables names term = CommandAssume names term ;
 
 CommandSection.           Command ::= "#section" SectionName ";" [Command] "#end" SectionName ;
-define commandPostulateNoParams x ty = CommandPostulate x [] ty ;
 
-CommandDefine.            Command ::= "#define" VarIdent [Param] ":" Term ":=" Term ;
-commandDefineNoParams.    Command ::= "#define" VarIdent ":" Term ":=" Term ;
-define commandDefineNoParams x ty term = CommandDefine x [] ty term ;
-commandDef.               Command ::= "#def" VarIdent [Param] ":" Term ":=" Term ;
-define commandDef x params ty term = CommandDefine x params ty term ;
-commandDefNoParams.       Command ::= "#def" VarIdent ":" Term ":=" Term ;
-define commandDefNoParams x ty term = CommandDefine x [] ty term ;
+CommandDefine.            Command ::= "#define" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
+commandDefineNoParams.    Command ::= "#define" VarIdent DeclUsedVars ":" Term ":=" Term ;
+define commandDefineNoParams x vars ty term = CommandDefine x vars [] ty term ;
+commandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
+define commandDef x vars params ty term = CommandDefine x vars params ty term ;
+commandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ":" Term ":=" Term ;
+define commandDefNoParams x vars ty term = CommandDefine x vars [] ty term ;
 terminator Command ";" ;
+
+DeclUsedVars. DeclUsedVars ::= "uses" "(" [VarIdent] ")" ;
+noDeclUsedVars. DeclUsedVars ::= ;
+define noDeclUsedVars = DeclUsedVars [] ;
 
 NoSectionName.    SectionName ::= ;
 SomeSectionName.  SectionName ::= VarIdent ;

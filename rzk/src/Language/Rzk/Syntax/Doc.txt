@@ -35,7 +35,7 @@ The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``Sigma`` | ``TOP``
   | ``TOPE`` | ``U`` | ``as`` | ``first``
   | ``idJ`` | ``recBOT`` | ``recOR`` | ``refl``
-  | ``second`` | ``Σ`` |  |
+  | ``second`` | ``uses`` | ``Σ`` |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -43,7 +43,7 @@ The symbols used in Syntax are the following:
   | #compute | #compute-whnf | #compute-nf | #postulate
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
-  | _ | ( | , | )
+  | ( | ) | _ | ,
   | { | | | } | |->
   | 1 | *_1 | 2 | 0_2
   | 1_2 | * | === | <=
@@ -71,18 +71,20 @@ All other symbols are terminals.
   |  |  **|**  | ``#compute`` //Term//
   |  |  **|**  | ``#compute-whnf`` //Term//
   |  |  **|**  | ``#compute-nf`` //Term//
-  |  |  **|**  | ``#postulate`` //VarIdent// //[Param]// ``:`` //Term//
-  |  |  **|**  | ``#postulate`` //VarIdent// ``:`` //Term//
+  |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term//
+  |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// ``:`` //Term//
   |  |  **|**  | ``#assume`` //[VarIdent]// ``:`` //Term//
   |  |  **|**  | ``#variable`` //VarIdent// ``:`` //Term//
   |  |  **|**  | ``#variables`` //[VarIdent]// ``:`` //Term//
   |  |  **|**  | ``#section`` //SectionName// ``;`` //[Command]// ``#end`` //SectionName//
-  |  |  **|**  | ``#define`` //VarIdent// //[Param]// ``:`` //Term// ``:=`` //Term//
-  |  |  **|**  | ``#define`` //VarIdent// ``:`` //Term// ``:=`` //Term//
-  |  |  **|**  | ``#def`` //VarIdent// //[Param]// ``:`` //Term// ``:=`` //Term//
-  |  |  **|**  | ``#def`` //VarIdent// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
   | //[Command]// | -> | **eps**
   |  |  **|**  | //Command// ``;`` //[Command]//
+  | //DeclUsedVars// | -> | ``uses`` ``(`` //[VarIdent]// ``)``
+  |  |  **|**  | **eps**
   | //SectionName// | -> | **eps**
   |  |  **|**  | //VarIdent//
   | //Pattern// | -> | ``_``

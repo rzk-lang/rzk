@@ -28,7 +28,7 @@ $u = [. \n]          -- universal: any character
 
 -- Symbols and non-identifier-like reserved words
 
-@rsyms = \Σ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \_ | \( | \, | \) | \{ | \| | \} | \| \- \> | "1" | \* \_ "1" | "2" | "0" \_ "2" | "1" \_ "2" | \* | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \= \_ \{ | \[ | \] | \< | \> | \\ | "refl" \_ \{ | \→ | \∑
+@rsyms = \Σ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \_ | \, | \{ | \| | \} | \| \- \> | "1" | \* \_ "1" | "2" | "0" \_ "2" | "1" \_ "2" | \* | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \= \_ \{ | \[ | \] | \< | \> | \\ | "refl" \_ \{ | \→ | \∑
 
 :-
 
@@ -191,13 +191,13 @@ resWords =
           (b "\\/" 44
              (b "[" 42 (b "U" 41 N N) (b "\\" 43 N N))
              (b "_" 46 (b "]" 45 N N) (b "as" 47 N N))))
-       (b "{" 56
+       (b "uses" 56
           (b "refl" 52
              (b "recBOT" 50 (b "idJ" 49 N N) (b "recOR" 51 N N))
              (b "rzk-1" 54 (b "refl_{" 53 N N) (b "second" 55 N N)))
-          (b "\931" 60
-             (b "|->" 58 (b "|" 57 N N) (b "}" 59 N N))
-             (b "\8721" 62 (b "\8594" 61 N N) N))))
+          (b "}" 60
+             (b "|" 58 (b "{" 57 N N) (b "|->" 59 N N))
+             (b "\8594" 62 (b "\931" 61 N N) (b "\8721" 63 N N)))))
   where
   b s n = B bs (TS bs n)
     where

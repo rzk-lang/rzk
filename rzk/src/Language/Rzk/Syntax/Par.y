@@ -14,6 +14,7 @@ module Language.Rzk.Syntax.Par
   , pLanguage
   , pCommand
   , pListCommand
+  , pDeclUsedVars
   , pSectionName
   , pPattern
   , pListPattern
@@ -46,6 +47,7 @@ import Language.Rzk.Syntax.Lex
 %name pLanguage_internal Language
 %name pCommand_internal Command
 %name pListCommand_internal ListCommand
+%name pDeclUsedVars_internal DeclUsedVars
 %name pSectionName_internal SectionName
 %name pPattern_internal Pattern
 %name pListPattern_internal ListPattern
@@ -122,13 +124,14 @@ import Language.Rzk.Syntax.Lex
   'refl_{'        { PT _ (TS _ 53)       }
   'rzk-1'         { PT _ (TS _ 54)       }
   'second'        { PT _ (TS _ 55)       }
-  '{'             { PT _ (TS _ 56)       }
-  '|'             { PT _ (TS _ 57)       }
-  '|->'           { PT _ (TS _ 58)       }
-  '}'             { PT _ (TS _ 59)       }
-  'Σ'             { PT _ (TS _ 60)       }
-  '→'             { PT _ (TS _ 61)       }
-  '∑'             { PT _ (TS _ 62)       }
+  'uses'          { PT _ (TS _ 56)       }
+  '{'             { PT _ (TS _ 57)       }
+  '|'             { PT _ (TS _ 58)       }
+  '|->'           { PT _ (TS _ 59)       }
+  '}'             { PT _ (TS _ 60)       }
+  'Σ'             { PT _ (TS _ 61)       }
+  '→'             { PT _ (TS _ 62)       }
+  '∑'             { PT _ (TS _ 63)       }
   L_quoted        { PT _ (TL _)          }
   L_VarIdent      { PT _ (T_VarIdent _)  }
   L_HoleIdent     { PT _ (T_HoleIdent _) }
@@ -169,21 +172,26 @@ Command
   | '#compute' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandCompute (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | '#compute-whnf' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandComputeWHNF (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | '#compute-nf' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandComputeNF (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
-  | '#postulate' VarIdent ListParam ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandPostulate (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5)) }
-  | '#postulate' VarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandPostulateNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '#postulate' VarIdent DeclUsedVars ListParam ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandPostulate (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $4) (snd $6)) }
+  | '#postulate' VarIdent DeclUsedVars ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandPostulateNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5)) }
   | '#assume' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandAssume (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#variable' VarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandVariable (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#variables' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandVariables (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#section' SectionName ';' ListCommand '#end' SectionName { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandSection (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
-  | '#define' VarIdent ListParam ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandDefine (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5) (snd $7)) }
-  | '#define' VarIdent ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefineNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
-  | '#def' VarIdent ListParam ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDef (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5) (snd $7)) }
-  | '#def' VarIdent ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '#define' VarIdent DeclUsedVars ListParam ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandDefine (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $4) (snd $6) (snd $8)) }
+  | '#define' VarIdent DeclUsedVars ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefineNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5) (snd $7)) }
+  | '#def' VarIdent DeclUsedVars ListParam ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDef (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $4) (snd $6) (snd $8)) }
+  | '#def' VarIdent DeclUsedVars ':' Term ':=' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5) (snd $7)) }
 
 ListCommand :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Command]) }
 ListCommand
   : {- empty -} { (Language.Rzk.Syntax.Abs.BNFC'NoPosition, []) }
   | Command ';' ListCommand { (fst $1, (:) (snd $1) (snd $3)) }
+
+DeclUsedVars :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.DeclUsedVars) }
+DeclUsedVars
+  : 'uses' '(' ListVarIdent ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.DeclUsedVars (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3)) }
+  | {- empty -} { (Language.Rzk.Syntax.Abs.BNFC'NoPosition, Language.Rzk.Syntax.Abs.noDeclUsedVars Language.Rzk.Syntax.Abs.BNFC'NoPosition) }
 
 SectionName :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.SectionName) }
 SectionName
@@ -340,6 +348,9 @@ pCommand = fmap snd . pCommand_internal
 
 pListCommand :: [Token] -> Err [Language.Rzk.Syntax.Abs.Command]
 pListCommand = fmap snd . pListCommand_internal
+
+pDeclUsedVars :: [Token] -> Err Language.Rzk.Syntax.Abs.DeclUsedVars
+pDeclUsedVars = fmap snd . pDeclUsedVars_internal
 
 pSectionName :: [Token] -> Err Language.Rzk.Syntax.Abs.SectionName
 pSectionName = fmap snd . pSectionName_internal

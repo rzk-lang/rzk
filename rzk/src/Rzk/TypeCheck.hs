@@ -34,6 +34,7 @@ data Decl var = Decl
   , declType         :: TermT var
   , declValue        :: Maybe (TermT var)
   , declIsAssumption :: Bool
+  , declUsedVars     :: [var]
   }
 
 type Decl' = Decl Rzk.VarIdent
@@ -90,14 +91,14 @@ typecheckModule (Rzk.Module moduleLoc _lang commands) =
           setOption optionName optionValue $
             go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandDefine _loc name params ty term) : moreCommands) =
+    go  i (command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #define " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
           term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT >>= pure . termIsWHNF
-          let decl = Decl name ty' (Just term') False
+          let decl = Decl name ty' (Just term') False vars
           fmap (decl :) $
             localDeclPrepared decl $ do
               Context{..} <- ask
@@ -109,13 +110,13 @@ typecheckModule (Rzk.Module moduleLoc _lang commands) =
               maybe id trace termSVG $ do
                 go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandPostulate _loc name params ty) : moreCommands) =
+    go  i (command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : moreCommands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking #postulate " <> show (Pure name :: Term') ) $ do
         withCommand command $ do
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
-          let decl = Decl name ty' Nothing False
+          let decl = Decl name ty' Nothing False vars
           fmap (decl :) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
@@ -152,7 +153,7 @@ typecheckModule (Rzk.Module moduleLoc _lang commands) =
           <> " Checking #assume " <> intercalate " " [ show (Pure name :: Term') | name <- names ] ) $ do
         withCommand command $ do
           ty' <- typecheck (toTerm' ty) universeT
-          let decls = [ Decl name ty' Nothing True | name <- names ]
+          let decls = [ Decl name ty' Nothing True [] | name <- names ]
           fmap (decls <>) $
             localDeclsPrepared decls $
               go (i + 1) moreCommands
@@ -523,10 +524,11 @@ addVarToScope var info ScopeInfo{..} = ScopeInfo
   { scopeVars = (var, info) : scopeVars, .. }
 
 data VarInfo var = VarInfo
-  { varType         :: TermT var
-  , varValue        :: Maybe (TermT var)
-  , varOrig         :: Maybe Rzk.VarIdent
-  , varIsAssumption :: Bool -- FIXME: perhaps, introduce something like decl kind?
+  { varType                :: TermT var
+  , varValue               :: Maybe (TermT var)
+  , varOrig                :: Maybe Rzk.VarIdent
+  , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
+  , varDeclaredAssumptions :: [var]
   } deriving (Functor, Foldable)
 
 data Context var = Context
@@ -624,6 +626,7 @@ insertExplicitAssumptionFor' a decl VarInfo{..}
       , varValue = insertExplicitAssumptionFor a decl <$> varValue
       , varIsAssumption = varIsAssumption
       , varOrig = varOrig
+      , varDeclaredAssumptions = varDeclaredAssumptions
       }
 
 makeAssumptionExplicit
@@ -642,9 +645,13 @@ makeAssumptionExplicit assumption@(_, (a, aInfo)) ((x, xInfo) : xs) = do
   aValue <- valueOfVar x
   let assumptionInType = a `elem` freeVars (untyped aType)
       assumptionInBody = a `elem` foldMap (freeVars . untyped) aValue
+      implicitAssumption = and
+        [ hasAssumption
+        , not (assumptionInType || assumptionInBody)
+        , a `notElem` varDeclaredAssumptions xInfo ]
   if hasAssumption
      then do
-       when (not (assumptionInType || assumptionInBody)) $ do
+       when implicitAssumption $ do
          a' <- ppTermInContext (Pure a)
          x' <- ppTermInContext (Pure x)
          aType' <- ppTermInContext (varType aInfo)
@@ -663,6 +670,7 @@ makeAssumptionExplicit assumption@(_, (a, aInfo)) ((x, xInfo) : xs) = do
       , varValue = fmap (lambdaT xType' (varOrig aInfo) Nothing . abstract a) (varValue xInfo)
       , varIsAssumption = varIsAssumption xInfo
       , varOrig = varOrig xInfo
+      , varDeclaredAssumptions = varDeclaredAssumptions xInfo
       }
     xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
 
@@ -679,6 +687,7 @@ collectScopeDecls recentVars [] = return (toDecl <$> recentVars)
       , declType = varType
       , declValue = varValue
       , declIsAssumption = varIsAssumption
+      , declUsedVars = varDeclaredAssumptions
       }
 
 abstractAssumption :: Eq var => (var, VarInfo var) -> Decl var -> Decl var
@@ -687,6 +696,7 @@ abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
   , declType = typeFunT varOrig varType Nothing (abstract var declType)
   , declValue = (\body -> lambdaT newDeclType varOrig Nothing (abstract var body)) <$> declValue
   , declIsAssumption = declIsAssumption
+  , declUsedVars = declUsedVars
   }
   where
     newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
@@ -707,9 +717,9 @@ ppContext' ctx@Context{..} = unlines
       Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
       _                                 -> ""
   , case currentCommand of
-      Just (Rzk.CommandDefine _loc name _params _ty _term) ->
+      Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
         "  Error occurred when checking\n    #define " <> show (Pure name :: Term')
-      Just (Rzk.CommandPostulate _loc name _params _ty ) ->
+      Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
         "  Error occurred when checking\n    #postulate " <> show (Pure name :: Term')
       Just (Rzk.CommandCheck _loc term ty) ->
         "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
@@ -764,13 +774,13 @@ localDeclsPrepared [] = id
 localDeclsPrepared (decl : decls) = localDeclPrepared decl . localDeclsPrepared decls
 
 localDecl :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
-localDecl (Decl x ty term isAssumption) tc = do
+localDecl (Decl x ty term isAssumption vars) tc = do
   ty' <- whnfT ty
   term' <- traverse whnfT term
-  localDeclPrepared (Decl x ty' term' isAssumption) tc
+  localDeclPrepared (Decl x ty' term' isAssumption vars) tc
 
 localDeclPrepared :: Decl Rzk.VarIdent -> TypeCheck Rzk.VarIdent a -> TypeCheck Rzk.VarIdent a
-localDeclPrepared (Decl x ty term isAssumption) tc = do
+localDeclPrepared (Decl x ty term isAssumption vars) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
@@ -779,6 +789,7 @@ localDeclPrepared (Decl x ty term isAssumption) tc = do
       , varValue = term
       , varOrig = Just x
       , varIsAssumption = isAssumption
+      , varDeclaredAssumptions = vars
       }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
@@ -1035,6 +1046,7 @@ enterScopeContext orig ty =
     , varValue  = Nothing
     , varOrig   = orig
     , varIsAssumption = False
+    , varDeclaredAssumptions = []
     }
   . fmap S
 
