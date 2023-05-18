@@ -222,6 +222,7 @@ data TypeError var
   | TypeErrorDuplicateTopLevel Rzk.VarIdent
   | TypeErrorUnusedVariable var (TermT var)
   | TypeErrorUnusedUsedVariables [var] var
+  | TypeErrorImplicitAssumption (var, TermT var) var
   deriving (Functor, Foldable)
 
 data TypeErrorInContext var = TypeErrorInContext
@@ -339,6 +340,12 @@ ppTypeError' = \case
     , "  " <> Rzk.printTree name
     ]
 
+  TypeErrorImplicitAssumption (a, aType) name -> unlines
+    [ "implicit assumption"
+    , "  " <> Rzk.printTree a <> " : " <> show (untyped aType)
+    , "used in definition of"
+    , "  " <> Rzk.printTree name
+    ]
 
 ppTypeErrorInContext :: TypeErrorInContext Rzk.VarIdent -> String
 ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
@@ -678,15 +685,7 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
   if hasAssumption
      then do
        when implicitAssumption $ do
-         a' <- ppTermInContext (Pure a)
-         x' <- ppTermInContext (Pure x)
-         aType' <- ppTermInContext (varType aInfo)
-         issueWarning $ unlines
-           [ "implicit assumption"
-           , "  " <> a' <> " : " <> aType'
-           , "used in definition of"
-           , "  " <> x'
-           ]
+         issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
        (_used, xs'') <- makeAssumptionExplicit (a, aInfo) xs'
        return (True {- USED -}, (x, xInfo') : xs'')
      else do
@@ -769,7 +768,7 @@ ppContext' ctx@Context{..} = unlines
         "  Error occurred when checking assumption\n    " <> Rzk.printTree command
       Just (Rzk.CommandSection _loc name _commands _endName) ->
         "  Error occurred when checking\n    #section " <> Rzk.printTree name
-      Nothing -> ""
+      Nothing -> "  Error occurred"
 --  , "Local tope context (expanded):"
 --  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
   ]
