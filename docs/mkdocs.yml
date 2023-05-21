@@ -8,6 +8,7 @@ nav:
     - Rendering Diagrams: rzk-1/render.md
     - Weak tope disjunction elimination: rzk-1/recId.md
   - Tools:
+    - Syntax Highlighting: tools/highlight.md
     - IDE support: tools/ide.md
     - Continuous Verification: tools/continuous.md
   - Related Projects:
