@@ -3,6 +3,7 @@ docs/out/
 dist
 dist-*
 cabal-dev
+build
 *.o
 *.hi
 *.hie
