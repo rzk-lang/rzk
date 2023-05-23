@@ -26,7 +26,7 @@ class RzkLexer(pygments.lexer.RegexLexer):
                 bygroups(Name.Decorator, Name.Entity)),
             (r'(\(\s+)([^\t\n\r !"#\(\),-\.;:<>\?\[\\\]\{\|\}][^!"#\(\),\.;:<>\?\[\\\]\{\|\}]*)(:)',
                 bygroups(Punctuation, Name.Variable, Punctuation)),
-            (r'(\\)(([^\t\n\r !"#\(\),-\.;:<>\?\[\\\]\{\|\}][^\t\n\r !"#\(\),\.;:<>\?\[\\\]\{\|\}]*)\s*)*',
+            (r'(\\\s*)((([^\t\n\r !"#\(\),-\.;:<>\?\[\\\]\{\|\}][^\t\n\r !"#\(\),\.;:<>\?\[\\\]\{\|\}]*)\s*)*)',
                 bygroups(Punctuation, Name.Variable)),
             (r';|:|:=|\(|\)|_|,|\{|\||\}|\|\[|\]|<|>|\\|->', Punctuation),
             (r' = | \* | === | <= | /\\ | \\/ ', Operator),
