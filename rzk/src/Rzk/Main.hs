@@ -12,14 +12,24 @@ main = do
   args <- getArgs
   case args of
     "typecheck" : paths -> do
-      modules <- forM paths $ \path -> do
-        putStrLn ("Loading file " <> path)
-        result <- Rzk.parseModule <$> readFile path
-        case result of
-          Left err -> do
-            putStrLn ("An error occurred when parsing file " <> path)
-            error err
-          Right rzkModule -> return (path, rzkModule)
+      modules <- case paths of
+        -- if no paths are given — read from stdin
+        [] -> do
+          result <- Rzk.parseModule <$> getContents
+          case result of
+            Left err -> do
+              putStrLn ("An error occurred when parsing stdin")
+              error err
+            Right rzkModule -> return [("<stdin>", rzkModule)]
+        -- otherwise — parse all given files in given order
+        _ -> forM paths $ \path -> do
+          putStrLn ("Loading file " <> path)
+          result <- Rzk.parseModule <$> readFile path
+          case result of
+            Left err -> do
+              putStrLn ("An error occurred when parsing file " <> path)
+              error err
+            Right rzkModule -> return (path, rzkModule)
       case defaultTypeCheck (typecheckModulesWithLocation modules) of
         Left err -> do
           putStrLn "An error occurred when typechecking!"
