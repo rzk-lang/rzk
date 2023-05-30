@@ -73,6 +73,7 @@ jobs:
           folder: dist
           target-folder: ${{ github.ref_name }}
           clean: false
+          single-commit: true
 
       - name: "📘 Publish JS \"binaries\""
         if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
@@ -81,3 +82,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           clean: false
+          single-commit: true

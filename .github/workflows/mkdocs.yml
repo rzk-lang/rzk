@@ -44,6 +44,7 @@ jobs:
           folder: dist
           target-folder: ${{ github.ref_name }}
           clean: false
+          single-commit: true
 
       - name: 📘 Publish Generated MkDocs
         if: ${{ github.ref_name == 'main' }}
@@ -52,3 +53,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           clean: false
+          single-commit: true
