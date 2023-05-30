@@ -27,3 +27,5 @@ cabal.project.local~
 docs/site
 result
 .direnv
+venv
+__pycache__
