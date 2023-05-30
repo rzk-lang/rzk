@@ -2936,7 +2936,7 @@ renderCube
   -> (String -> Maybe RenderObjectData)
   -> String
 renderCube camera rotY renderDataOf' = unlines $ filter (not . null)
-  [ "<svg class=\"zoom\" style=\"float: right\" viewBox=\"-175 -200 350 375\" width=\"150\" height=\"150\">"
+  [ "<svg class=\"zoom tope\" viewBox=\"-175 -200 350 375\" width=\"150\" height=\"150\">"
   , intercalate "\n"
       [ "  <path d=\"M " <> show x1 <> " " <> show y1
                 <> " L " <> show x2 <> " " <> show y2
