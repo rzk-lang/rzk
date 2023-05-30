@@ -25,3 +25,6 @@ theme:
   custom_dir: custom_theme/
 extra_css:
   - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
+
+hooks:
+  - generate_svgs.py
