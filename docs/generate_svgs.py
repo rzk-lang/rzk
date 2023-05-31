@@ -21,6 +21,7 @@ except FileNotFoundError:
 
 
 def on_page_markdown(md: str, page: Page, config: MkDocsConfig, files: Files) -> str:
+    if not page.file.src_uri.endswith('.rzk.md'): return md
     if not rzk_installed: return md
     # Some snippets can depend on terms defined in previous snippets, so we need to store them all
     previous_snippets = ['#lang rzk-1\n#set-option "render" = "svg"\n\n']
