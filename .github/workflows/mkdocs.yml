@@ -21,7 +21,6 @@ jobs:
         uses: jaxxstorm/action-install-gh-release@v1.10.0
         with:
           repo: fizruk/rzk
-          tag: v0.4.1
           rename-to: rzk
 
       - name: 🔨 Build MkDocs
