@@ -17,6 +17,12 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
+      - name: 🔨 Install rzk proof assistant
+        uses: jaxxstorm/action-install-gh-release@v1.10.0
+        with:
+          repo: fizruk/rzk
+          rename-to: rzk
+
       - name: 🔨 Build MkDocs
         uses: Tiryoh/actions-mkdocs@v0
         with:
@@ -37,6 +43,7 @@ jobs:
           folder: dist
           target-folder: ${{ github.ref_name }}
           clean: false
+          single-commit: true
 
       - name: 📘 Publish Generated MkDocs
         if: ${{ github.ref_name == 'main' }}
@@ -45,3 +52,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           clean: false
+          single-commit: true
