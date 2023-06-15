@@ -8,6 +8,7 @@ nav:
     - Rendering Diagrams: rzk-1/render.md
     - Weak tope disjunction elimination: rzk-1/recId.md
   - Tools:
+    - Syntax Highlighting: tools/highlight.md
     - IDE support: tools/ide.md
     - Continuous Verification: tools/continuous.md
   - Related Projects:
@@ -24,3 +25,6 @@ theme:
   custom_dir: custom_theme/
 extra_css:
   - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
+
+hooks:
+  - generate_svgs.py

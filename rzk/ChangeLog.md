@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.4.1 — 2022-06-16
+
+This is version contains minor changes, primarily in tools around rzk:
+
+- Add `rzk version` command (see [f1709dc7]( https://github.com/fizruk/rzk/commit/f1709dc7 ));
+- Add action to release binaries (see [9286afae]( https://github.com/fizruk/rzk/commit/9286afae ));
+- Automate SVG rendering in MkDocs (see [#49]( https://github.com/fizruk/rzk/pull/49 ));
+- Read `stdin` when no filepaths are given (see [936c15a3]( https://github.com/fizruk/rzk/commit/936c15a3 ));
+- Add Pygments highlighting (see [01c2a017]( https://github.com/fizruk/rzk/commit/01c2a017 ), [cbd656cc]( https://github.com/fizruk/rzk/commit/cbd656cc ), [5220ddf9]( https://github.com/fizruk/rzk/commit/5220ddf9 ), [142ec003]( https://github.com/fizruk/rzk/commit/142ec003 ), [5c7425f2]( https://github.com/fizruk/rzk/commit/5c7425f2 ));
+- Update HighlightJS config for rzk v0.4.0 (see [171ee63f]( https://github.com/fizruk/rzk/commit/171ee63f ));
+
 ## v0.4.0 — 2022-05-18
 
 This version introduces sections and variables. The feature is similar to <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>. An important difference, however, is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.

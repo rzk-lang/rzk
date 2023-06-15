@@ -3,6 +3,7 @@ docs/out/
 dist
 dist-*
 cabal-dev
+build
 *.o
 *.hi
 *.hie
@@ -26,3 +27,5 @@ cabal.project.local~
 docs/site
 result
 .direnv
+venv
+__pycache__
