@@ -27,7 +27,15 @@ jobs:
           ${{ runner.os }}-ca-
           ${{ runner.os }}-
 
-    - name: Build the project
+    - name: 🔨 Install BNFC, alex and happy (with Stack)
+      run: |
+        stack install alex happy BNFC
+
+    - name: 🔨 Generate Syntax files using BNFC
+      run: |
+        cd rzk/ && (make && make clean; cd ../)
+
+    - name: 🔨 Build the project
       run: stack build
 
     - name: Tar and strip the binary
