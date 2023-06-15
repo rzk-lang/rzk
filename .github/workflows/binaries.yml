@@ -1,0 +1,48 @@
+# Inspired by https://github.com/JustusAdam/create-haskell-binaries-with-actions
+
+name: Create Release Binaries
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Cache Stack files
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-tools-and-libraries
+      with:
+        path: ~/.stack
+        key: ${{ runner.os }}-ca-${{ env.cache-name }}-${{ hashFiles('**/stack.yaml.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-ca-${{ env.cache-name }}-
+          ${{ runner.os }}-ca-
+          ${{ runner.os }}-
+
+    - name: Build the project
+      run: stack build
+
+    - name: Tar and strip the binary
+      run: |
+        export PROGRAM=program
+        cp `stack exec -- which $PROGRAM` $PROGRAM
+        tar -cavf program.tar.gz $PROGRAM
+
+    - name: Upload assets
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./program.tar.gz
+        asset_name: rzk-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.tar.gz
+        asset_content_type: application/tar.gz
