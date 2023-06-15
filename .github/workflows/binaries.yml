@@ -27,13 +27,19 @@ jobs:
           ${{ runner.os }}-ca-
           ${{ runner.os }}-
 
-    - name: 🔨 Install BNFC, alex and happy (with Stack)
-      run: |
-        stack install alex happy BNFC
+#    - name: 🔨 Install BNFC, alex and happy (with Stack)
+#      run: |
+#        stack install alex happy BNFC
+#
+#    - name: 🔨 Generate Syntax files using BNFC
+#      run: |
+#        cd rzk/ && (make && make clean; cd ../)
 
-    - name: 🔨 Generate Syntax files using BNFC
+    - name: 🔨 Remove rzk.cabal, lexer and parser generator files
       run: |
-        cd rzk/ && (make && make clean; cd ../)
+        rm -f rzk/src/Language/Rzk/Syntax/Lex.x
+        rm -f rzk/src/Language/Rzk/Syntax/Par.y
+        rm -f rzk/rzk.cabal
 
     - name: 🔨 Build the project
       run: stack build
