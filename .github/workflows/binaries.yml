@@ -37,9 +37,9 @@ jobs:
 
     - name: 🔨 Remove rzk.cabal, lexer and parser generator files
       run: |
-        rm -f rzk/src/Language/Rzk/Syntax/Lex.x
-        rm -f rzk/src/Language/Rzk/Syntax/Par.y
-        rm -f rzk/rzk.cabal
+        rm rzk/src/Language/Rzk/Syntax/Lex.x
+        rm rzk/src/Language/Rzk/Syntax/Par.y
+        rm rzk/rzk.cabal
 
     - name: 🔨 Build the project
       run: stack build
