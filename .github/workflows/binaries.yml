@@ -40,9 +40,11 @@ jobs:
 
     - name: Tar and strip the binary
       run: |
-        export PROGRAM=program
-        cp `stack exec -- which $PROGRAM` $PROGRAM
-        tar -cavf program.tar.gz $PROGRAM
+        mkdir -p prepared_binaries/
+        cd prepared_binaries/
+        export PROGRAM=rzk
+        cp `stack exec -- which $PROGRAM` .
+        tar -cavf program.tar.gz *
 
     - name: Upload assets
       id: upload-release-asset
@@ -51,6 +53,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./program.tar.gz
+        asset_path: ./prepared_binaries/program.tar.gz
         asset_name: rzk-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.tar.gz
         asset_content_type: application/tar.gz
