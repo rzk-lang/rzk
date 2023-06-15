@@ -24,6 +24,7 @@ dependencies:
 - bifunctors
 - mtl
 - template-haskell
+- optparse-generic
 
 ghc-options:
 - -Wall

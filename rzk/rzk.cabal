@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 7855530fcdfd2a28c4ea3654677ed2d18f83d419f5d1c173f4bb44a915464c06
 
 name:           rzk
 version:        0.4.0
@@ -51,6 +49,7 @@ library
     , base >=4.7 && <5
     , bifunctors
     , mtl
+    , optparse-generic
     , template-haskell
   default-language: Haskell2010
 
@@ -66,6 +65,7 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , mtl
+    , optparse-generic
     , rzk
     , template-haskell
   default-language: Haskell2010
@@ -83,6 +83,7 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , mtl
+    , optparse-generic
     , rzk
     , template-haskell
   default-language: Haskell2010
