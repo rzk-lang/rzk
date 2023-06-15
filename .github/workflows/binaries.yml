@@ -51,6 +51,7 @@ jobs:
         export PROGRAM=rzk
         cp `stack exec -- which $PROGRAM` .
         tar -cavf program.tar.gz *
+      shell: bash
 
     - name: Upload assets
       id: upload-release-asset
