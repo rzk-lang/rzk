@@ -20,10 +20,13 @@ description:         Please see the README on GitHub at <https://github.com/fizr
 
 dependencies:
 - array
+- aeson
 - base >= 4.7 && < 5
 - bifunctors
+- bytestring
 - mtl
 - template-haskell
+- text
 - optparse-generic
 
 ghc-options:

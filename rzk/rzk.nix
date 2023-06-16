@@ -1,5 +1,5 @@
-{ mkDerivation, array, base, bifunctors, hpack, lib, mtl
-, optparse-generic, template-haskell
+{ mkDerivation, aeson, array, base, bifunctors, bytestring, hpack
+, lib, mtl, optparse-generic, template-haskell, text
 }:
 mkDerivation {
   pname = "rzk";
@@ -8,14 +8,17 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    array base bifunctors mtl optparse-generic template-haskell
+    aeson array base bifunctors bytestring mtl optparse-generic
+    template-haskell text
   ];
   libraryToolDepends = [ hpack ];
   executableHaskellDepends = [
-    array base bifunctors mtl optparse-generic template-haskell
+    aeson array base bifunctors bytestring mtl optparse-generic
+    template-haskell text
   ];
   testHaskellDepends = [
-    array base bifunctors mtl optparse-generic template-haskell
+    aeson array base bifunctors bytestring mtl optparse-generic
+    template-haskell text
   ];
   prePatch = "hpack";
   homepage = "https://github.com/fizruk/rzk#readme";
