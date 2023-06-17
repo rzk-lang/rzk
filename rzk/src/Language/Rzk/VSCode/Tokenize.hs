@@ -5,7 +5,6 @@ module Language.Rzk.VSCode.Tokenize where
 import           Language.Rzk.Syntax
 import           Language.Rzk.Syntax.Print
 import           Language.Rzk.VSCode.Tokens
-import           Language.Rzk.VSCode.Tokens.Standard
 
 tokenizeModule :: Module -> [VSToken]
 tokenizeModule (Module _loc langDecl commands) = concat
