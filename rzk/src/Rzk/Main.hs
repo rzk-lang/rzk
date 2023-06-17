@@ -4,16 +4,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Rzk.Main where
 
-import           Control.Monad              (forM)
-import qualified Data.Aeson                 as JSON
-import qualified Data.ByteString.Lazy.Char8 as ByteString
-import           Data.Version               (showVersion)
+import           Control.Monad                (forM)
+import qualified Data.Aeson                   as JSON
+import qualified Data.ByteString.Lazy.Char8   as ByteString
+import           Data.Version                 (showVersion)
 import           Options.Generic
-import           System.Exit                (exitFailure)
+import           System.Exit                  (exitFailure)
 
-import qualified Language.Rzk.Syntax        as Rzk
-import           Language.Rzk.VSCode.Tokens (tokenizeModule)
-import           Paths_rzk                  (version)
+import qualified Language.Rzk.Syntax          as Rzk
+import           Language.Rzk.VSCode.Tokenize (tokenizeModule)
+import           Paths_rzk                    (version)
 import           Rzk.TypeCheck
 
 data Command
