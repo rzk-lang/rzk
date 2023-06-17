@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveTraversable    #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE PatternSynonyms      #-}
 {-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE TemplateHaskell      #-}
@@ -272,7 +273,10 @@ fromTermWith' used vars = go
         Rzk.TypeRestricted loc (go ty) (map (\(tope, term) -> (Rzk.Restriction loc (go tope) (go term))) rs)
 
 defaultVarIdents :: [Rzk.VarIdent]
-defaultVarIdents = coerce [ "x" <> map digitToSub (show n) | n <- [1..] ]
+defaultVarIdents =
+  [ Rzk.VarIdent Nothing (Rzk.VarIdentToken name)
+  | n <- [1..]
+  , let name = "x" <> map digitToSub (show n) ]
   where
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
 
@@ -283,8 +287,12 @@ defaultVarIdents = coerce [ "x" <> map digitToSub (show n) | n <- [1..] ]
 -- x₂
 refreshVar :: [Rzk.VarIdent] -> Rzk.VarIdent -> Rzk.VarIdent
 refreshVar vars x
-  | x `elem` vars = refreshVar vars (coerce incIndex x)
+  | x `elem` vars = refreshVar vars (incVarIdentIndex x)
   | otherwise     = x
+
+incVarIdentIndex :: Rzk.VarIdent -> Rzk.VarIdent
+incVarIdentIndex (Rzk.VarIdent loc token) =
+  Rzk.VarIdent loc (coerce incIndex token)
 
 -- | Increment the subscript number at the end of the indentifier.
 --
