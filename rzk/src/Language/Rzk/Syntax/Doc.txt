@@ -19,12 +19,12 @@ except ``"`` unless preceded by ``\``.
 
 
 
-VarIdent literals are recognized by the regular expression
+VarIdentToken literals are recognized by the regular expression
 `````(char - ["
  !"#(),-.;<>?[\]{|}"]) (char - ["
  "#(),;<>[\]{|}"])*`````
 
-HoleIdent literals are recognized by the regular expression
+HoleIdentToken literals are recognized by the regular expression
 `````'?'`````
 
 
@@ -61,6 +61,8 @@ and **eps** (empty rule) belong to the BNF notation.
 All other symbols are terminals.
 
   | //Module// | -> | //LanguageDecl// //[Command]//
+  | //HoleIdent// | -> | //HoleIdentToken//
+  | //VarIdent// | -> | //VarIdentToken//
   | //[VarIdent]// | -> | //VarIdent//
   |  |  **|**  | //VarIdent// //[VarIdent]//
   | //LanguageDecl// | -> | ``#lang`` //Language// ``;``

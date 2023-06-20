@@ -419,7 +419,7 @@ ppTermInContext :: Eq var => TermT var -> TypeCheck var String
 ppTermInContext term =  do
   vars <- freeVarsT_ term
   let mapping = zip vars defaultVarIdents
-      toRzkVarIdent origs var = fromMaybe (Rzk.VarIdent "_") $
+      toRzkVarIdent origs var = fromMaybe (Rzk.VarIdent Nothing "_") $
         join (lookup var origs) <|> lookup var mapping
   origs <- asks varOrigs
   return (show (untyped (toRzkVarIdent origs <$> term)))
@@ -429,7 +429,7 @@ ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
   where
     vars = nub (foldMap pure action)
     mapping = zip vars defaultVarIdents
-    toRzkVarIdent var = fromMaybe (Rzk.VarIdent "_") $
+    toRzkVarIdent var = fromMaybe (Rzk.VarIdent Nothing "_") $
       join (lookup var origs) <|> lookup var mapping
 
 ppAction :: Int -> Action' -> String
@@ -2598,7 +2598,7 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
           label <-
             case term' of
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z origs -> return ""
+                | Just (Just (Rzk.VarIdent _loc "_")) <- lookup z origs -> return ""
                 | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t))) ->
                     ppTermInContext (Pure z)
               _ -> ppTermInContext term'
@@ -2609,7 +2609,7 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
                 case term' of
                   Pure{} -> "purple"
                   AppT _ (Pure x) arg
-                    | Just (Just "_") <- lookup x origs -> mainColor
+                    | Just (Just (Rzk.VarIdent _loc "_")) <- lookup x origs -> mainColor
                     | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t)))  -> "purple"
                   _ -> mainColor
             })
@@ -2654,7 +2654,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
           _ -> do
             case term of
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z origs -> return ""
+                | Just (Just (Rzk.VarIdent _loc "_")) <- lookup z origs -> return ""
                 | null (nub (freeVars (untyped arg)) \\ [super]) -> ppTermInContext (Pure z)
               _ -> ppTermInContext term
         color <- checkEntails tope contextTopes' >>= \case
@@ -2662,7 +2662,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
             case term of
               Pure{} -> return "purple"
               AppT _ (Pure z) arg
-                | Just (Just "_") <- lookup z origs -> return mainColor
+                | Just (Just (Rzk.VarIdent _loc "_")) <- lookup z origs -> return mainColor
                 | null (nub (freeVars (untyped arg)) \\ [super]) -> return "purple"
               _ -> return mainColor
           False -> return "gray"
@@ -2718,7 +2718,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
           maybe id localTope mtopeArg $ do
             Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
       _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
-    TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+    TypeFunT{} | null xs -> enterScope (Just (Rzk.VarIdent Nothing "_")) t' $ do
       renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
 
     _ -> case t' of -- check evaluated term
@@ -2728,7 +2728,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
             maybe id localTope mtopeArg $ do
               Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
         _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
-      TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+      TypeFunT{} | null xs -> enterScope (Just (Rzk.VarIdent Nothing "_")) t' $ do
         renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
 
       _ -> case ty of -- check type of the term

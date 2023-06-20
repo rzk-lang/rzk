@@ -1,0 +1,2 @@
+[pygments.lexers]
+rzklexer = rzklexer:RzkLexer

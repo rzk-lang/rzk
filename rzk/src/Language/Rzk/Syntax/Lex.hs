@@ -229,8 +229,8 @@ data Tok
   | TV !String                    -- ^ Identifier.
   | TD !String                    -- ^ Float literal.
   | TC !String                    -- ^ Character literal.
-  | T_VarIdent !String
-  | T_HoleIdent !String
+  | T_VarIdentToken !String
+  | T_HoleIdentToken !String
   deriving (Eq, Show, Ord)
 
 -- | Smart constructor for 'Tok' for the sake of backwards compatibility.
@@ -293,8 +293,8 @@ tokenText t = case t of
   PT _ (TD s)   -> s
   PT _ (TC s)   -> s
   Err _         -> "#error"
-  PT _ (T_VarIdent s) -> s
-  PT _ (T_HoleIdent s) -> s
+  PT _ (T_VarIdentToken s) -> s
+  PT _ (T_HoleIdentToken s) -> s
 
 -- | Convert a token to a string.
 prToken :: Token -> String
@@ -440,8 +440,8 @@ utf8Encode = map fromIntegral . go . ord
                         , 0x80 + oc Data.Bits..&. 0x3f
                         ]
 alex_action_3 = tok (eitherResIdent TV)
-alex_action_4 = tok (eitherResIdent T_VarIdent)
-alex_action_5 = tok (eitherResIdent T_HoleIdent)
+alex_action_4 = tok (eitherResIdent T_VarIdentToken)
+alex_action_5 = tok (eitherResIdent T_HoleIdentToken)
 alex_action_6 = tok (eitherResIdent TV)
 alex_action_7 = tok (TL . unescapeInitTail)
 
