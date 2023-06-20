@@ -18,22 +18,30 @@ tokenizeLanguageDecl _ = []
 
 tokenizeCommand :: Command -> [VSToken]
 tokenizeCommand command = case command of
-  CommandSetOption{}   -> []    -- FIXME: tokenize
-  CommandUnsetOption{} -> []    -- FIXME: tokenize
-  CommandCheck{}       -> []    -- FIXME: tokenize
-  CommandCompute{}     -> []    -- FIXME: tokenize
-  CommandComputeNF{}   -> []    -- FIXME: tokenize
-  CommandComputeWHNF{} -> []    -- FIXME: tokenize
+  CommandSetOption{}   -> []    -- NOTE: fallback to TextMate
+  CommandUnsetOption{} -> []    -- NOTE: fallback to TextMate
+  CommandCheck        _loc term type_ -> foldMap tokenizeTerm [term, type_]
+  CommandCompute      _loc term -> tokenizeTerm term
+  CommandComputeNF    _loc term -> tokenizeTerm term
+  CommandComputeWHNF  _loc term -> tokenizeTerm term
 
-  CommandPostulate{}   -> []    -- FIXME: tokenize
+  CommandPostulate _loc name _declUsedVars params type_ -> concat
+    [ mkToken name vs_function [vs_declaration]
+    , foldMap tokenizeParam params
+    , tokenizeTerm type_
+    ]
   CommandDefine _loc name _declUsedVars params type_ term -> concat
     [ mkToken name vs_function [vs_declaration]
     , foldMap tokenizeParam params
     , foldMap tokenizeTerm [type_, term]
     ]
 
-  CommandAssume{}      -> []    -- FIXME: tokenize
-  CommandSection{}     -> []    -- FIXME: tokenize
+  CommandAssume _loc vars type_ -> concat
+    [ foldMap (\var -> mkToken var vs_parameter [vs_declaration]) vars
+    , tokenizeTerm type_
+    ]
+  CommandSection _loc _nameStart commands _nameEnd ->
+    foldMap tokenizeCommand commands
 
 tokenizeParam :: Param -> [VSToken]
 tokenizeParam = \case
@@ -53,17 +61,19 @@ tokenizePattern = \case
   PatternPair _loc l r -> foldMap tokenizePattern [l, r]
 
 tokenizeTope :: Term -> [VSToken]
-tokenizeTope = tokenizeTerm' vs_label
+tokenizeTope = tokenizeTerm' (Just vs_string)
 
 tokenizeTerm :: Term -> [VSToken]
-tokenizeTerm = tokenizeTerm' vs_variable
+tokenizeTerm = tokenizeTerm' Nothing
 
-tokenizeTerm' :: VSTokenType -> Term -> [VSToken]
+tokenizeTerm' :: Maybe VSTokenType -> Term -> [VSToken]
 tokenizeTerm' varTokenType = go
   where
     go term = case term of
       Hole{} -> [] -- FIXME
-      Var{} -> mkToken term varTokenType []
+      Var{} -> case varTokenType of
+                 Nothing         -> []
+                 Just token_type -> mkToken term token_type []
 
       Universe{}           -> mkToken term vs_class [vs_defaultLibrary]
       UniverseCube{}       -> mkToken term vs_class [vs_defaultLibrary]
@@ -107,8 +117,12 @@ tokenizeTerm' varTokenType = go
         , go body ]
 
       Pair _loc l r -> foldMap go [l, r]
-      First _loc t -> go t
-      Second _loc t -> go t
+      First loc t -> concat
+        [ mkToken (VarIdent loc "first") vs_function [vs_defaultLibrary]
+        , go t ]
+      Second loc t -> concat
+        [ mkToken (VarIdent loc "second") vs_function [vs_defaultLibrary]
+        , go t ]
 
       Refl{} -> mkToken term vs_function [vs_defaultLibrary]
       ReflTerm loc x -> concat
