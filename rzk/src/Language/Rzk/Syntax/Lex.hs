@@ -229,8 +229,8 @@ data Tok
   | TV !String                    -- ^ Identifier.
   | TD !String                    -- ^ Float literal.
   | TC !String                    -- ^ Character literal.
-  | T_VarIdent !String
-  | T_HoleIdent !String
+  | T_VarIdentToken !String
+  | T_HoleIdentToken !String
   deriving (Eq, Show, Ord)
 
 -- | Smart constructor for 'Tok' for the sake of backwards compatibility.
@@ -293,8 +293,8 @@ tokenText t = case t of
   PT _ (TD s)   -> s
   PT _ (TC s)   -> s
   Err _         -> "#error"
-  PT _ (T_VarIdent s) -> s
-  PT _ (T_HoleIdent s) -> s
+  PT _ (T_VarIdentToken s) -> s
+  PT _ (T_HoleIdentToken s) -> s
 
 -- | Convert a token to a string.
 prToken :: Token -> String
@@ -321,38 +321,38 @@ eitherResIdent tv s = treeFind resWords
 -- | The keywords and symbols of the language organized as binary search tree.
 resWords :: BTree
 resWords =
-  b "=" 32
-    (b "(" 16
-       (b "#end" 8
-          (b "#compute-nf" 4
-             (b "#check" 2 (b "#assume" 1 N N) (b "#compute" 3 N N))
-             (b "#def" 6 (b "#compute-whnf" 5 N N) (b "#define" 7 N N)))
-          (b "#set-option" 12
-             (b "#postulate" 10 (b "#lang" 9 N N) (b "#section" 11 N N))
-             (b "#variable" 14
-                (b "#unset-option" 13 N N) (b "#variables" 15 N N))))
-       (b "1" 24
-          (b "," 20
-             (b "*" 18 (b ")" 17 N N) (b "*_1" 19 N N))
-             (b "/\\" 22 (b "->" 21 N N) (b "0_2" 23 N N)))
-          (b ":=" 28
-             (b "2" 26 (b "1_2" 25 N N) (b ":" 27 N N))
-             (b "<" 30 (b ";" 29 N N) (b "<=" 31 N N)))))
-    (b "first" 48
-       (b "TOPE" 40
-          (b "BOT" 36
-             (b "=_{" 34 (b "===" 33 N N) (b ">" 35 N N))
-             (b "Sigma" 38 (b "CUBE" 37 N N) (b "TOP" 39 N N)))
-          (b "\\/" 44
-             (b "[" 42 (b "U" 41 N N) (b "\\" 43 N N))
-             (b "_" 46 (b "]" 45 N N) (b "as" 47 N N))))
-       (b "uses" 56
-          (b "refl" 52
-             (b "recBOT" 50 (b "idJ" 49 N N) (b "recOR" 51 N N))
-             (b "rzk-1" 54 (b "refl_{" 53 N N) (b "second" 55 N N)))
-          (b "}" 60
-             (b "|" 58 (b "{" 57 N N) (b "|->" 59 N N))
-             (b "\8594" 62 (b "\931" 61 N N) (b "\8721" 63 N N)))))
+  b "===" 33
+    (b ")" 17
+       (b "#lang" 9
+          (b "#compute-whnf" 5
+             (b "#compute" 3
+                (b "#check" 2 (b "#assume" 1 N N) N) (b "#compute-nf" 4 N N))
+             (b "#define" 7 (b "#def" 6 N N) (b "#end" 8 N N)))
+          (b "#unset-option" 13
+             (b "#section" 11 (b "#postulate" 10 N N) (b "#set-option" 12 N N))
+             (b "#variables" 15 (b "#variable" 14 N N) (b "(" 16 N N))))
+       (b "1_2" 25
+          (b "->" 21
+             (b "*_1" 19 (b "*" 18 N N) (b "," 20 N N))
+             (b "0_2" 23 (b "/\\" 22 N N) (b "1" 24 N N)))
+          (b ";" 29
+             (b ":" 27 (b "2" 26 N N) (b ":=" 28 N N))
+             (b "<=" 31 (b "<" 30 N N) (b "=" 32 N N)))))
+    (b "idJ" 50
+       (b "Unit" 42
+          (b "Sigma" 38
+             (b "BOT" 36 (b ">" 35 (b "=_{" 34 N N) N) (b "CUBE" 37 N N))
+             (b "TOPE" 40 (b "TOP" 39 N N) (b "U" 41 N N)))
+          (b "]" 46
+             (b "\\" 44 (b "[" 43 N N) (b "\\/" 45 N N))
+             (b "as" 48 (b "_" 47 N N) (b "first" 49 N N))))
+       (b "uses" 58
+          (b "refl_{" 54
+             (b "recOR" 52 (b "recBOT" 51 N N) (b "refl" 53 N N))
+             (b "second" 56 (b "rzk-1" 55 N N) (b "unit" 57 N N)))
+          (b "}" 62
+             (b "|" 60 (b "{" 59 N N) (b "|->" 61 N N))
+             (b "\8594" 64 (b "\931" 63 N N) (b "\8721" 65 N N)))))
   where
   b s n = B bs (TS bs n)
     where
@@ -440,8 +440,8 @@ utf8Encode = map fromIntegral . go . ord
                         , 0x80 + oc Data.Bits..&. 0x3f
                         ]
 alex_action_3 = tok (eitherResIdent TV)
-alex_action_4 = tok (eitherResIdent T_VarIdent)
-alex_action_5 = tok (eitherResIdent T_HoleIdent)
+alex_action_4 = tok (eitherResIdent T_VarIdentToken)
+alex_action_5 = tok (eitherResIdent T_HoleIdentToken)
 alex_action_6 = tok (eitherResIdent TV)
 alex_action_7 = tok (TL . unescapeInitTail)
 

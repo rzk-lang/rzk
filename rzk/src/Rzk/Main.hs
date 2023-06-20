@@ -4,41 +4,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Rzk.Main where
 
-import           Control.Monad       (forM)
-import           Data.Version        (showVersion)
+import           Control.Monad                (forM)
+import qualified Data.Aeson                   as JSON
+import qualified Data.ByteString.Lazy.Char8   as ByteString
+import           Data.Version                 (showVersion)
 import           Options.Generic
-import           System.Exit         (exitFailure)
+import           System.Exit                  (exitFailure)
 
-import qualified Language.Rzk.Syntax as Rzk
-import           Paths_rzk           (version)
+import qualified Language.Rzk.Syntax          as Rzk
+import           Language.Rzk.VSCode.Tokenize (tokenizeModule)
+import           Paths_rzk                    (version)
 import           Rzk.TypeCheck
 
 data Command
   = Typecheck [FilePath]
+  | Tokenize
   | Version
   deriving (Generic, Show, ParseRecord)
 
 main :: IO ()
 main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
   Typecheck paths -> do
-    modules <- case paths of
-      -- if no paths are given — read from stdin
-      [] -> do
-        result <- Rzk.parseModule <$> getContents
-        case result of
-          Left err -> do
-            putStrLn ("An error occurred when parsing stdin")
-            error err
-          Right rzkModule -> return [("<stdin>", rzkModule)]
-      -- otherwise — parse all given files in given order
-      _ -> forM paths $ \path -> do
-        putStrLn ("Loading file " <> path)
-        result <- Rzk.parseModule <$> readFile path
-        case result of
-          Left err -> do
-            putStrLn ("An error occurred when parsing file " <> path)
-            error err
-          Right rzkModule -> return (path, rzkModule)
+    modules <- parseRzkFilesOrStdin paths
     case defaultTypeCheck (typecheckModulesWithLocation modules) of
       Left err -> do
         putStrLn "An error occurred when typechecking!"
@@ -49,12 +36,41 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
         exitFailure
       Right () -> putStrLn "Everything is ok!"
 
+  Tokenize -> do
+    rzkModule <- parseStdin
+    ByteString.putStrLn (JSON.encode (tokenizeModule rzkModule))
+
   Version -> putStrLn (showVersion version)
+
+parseStdin :: IO Rzk.Module
+parseStdin = do
+  result <- Rzk.parseModule <$> getContents
+  case result of
+    Left err -> do
+      putStrLn ("An error occurred when parsing stdin")
+      error err
+    Right rzkModule -> return rzkModule
+
+parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
+parseRzkFilesOrStdin = \case
+  -- if no paths are given — read from stdin
+  [] -> do
+    rzkModule <- parseStdin
+    return [("<stdin>", rzkModule)]
+  -- otherwise — parse all given files in given order
+  paths -> forM paths $ \path -> do
+    putStrLn ("Loading file " <> path)
+    result <- Rzk.parseModule <$> readFile path
+    case result of
+      Left err -> do
+        putStrLn ("An error occurred when parsing file " <> path)
+        error err
+      Right rzkModule -> return (path, rzkModule)
 
 typecheckString :: String -> Either String String
 typecheckString moduleString = do
   rzkModule <- Rzk.parseModule moduleString
-  case defaultTypeCheck (typecheckModule rzkModule) of
+  case defaultTypeCheck (typecheckModule Nothing rzkModule) of
     Left err -> Left $ unlines
       [ "An error occurred when typechecking!"
       , "Rendering type error... (this may take a few seconds)"

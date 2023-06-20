@@ -15,17 +15,25 @@ type Result = Err String
 failure :: Show a => a -> Result
 failure x = Left $ "Undefined case: " ++ show x
 
-transVarIdent :: Language.Rzk.Syntax.Abs.VarIdent -> Result
-transVarIdent x = case x of
-  Language.Rzk.Syntax.Abs.VarIdent string -> failure x
+transVarIdentToken :: Language.Rzk.Syntax.Abs.VarIdentToken -> Result
+transVarIdentToken x = case x of
+  Language.Rzk.Syntax.Abs.VarIdentToken string -> failure x
 
-transHoleIdent :: Language.Rzk.Syntax.Abs.HoleIdent -> Result
-transHoleIdent x = case x of
-  Language.Rzk.Syntax.Abs.HoleIdent string -> failure x
+transHoleIdentToken :: Language.Rzk.Syntax.Abs.HoleIdentToken -> Result
+transHoleIdentToken x = case x of
+  Language.Rzk.Syntax.Abs.HoleIdentToken string -> failure x
 
 transModule :: Show a => Language.Rzk.Syntax.Abs.Module' a -> Result
 transModule x = case x of
   Language.Rzk.Syntax.Abs.Module _ languagedecl commands -> failure x
+
+transHoleIdent :: Show a => Language.Rzk.Syntax.Abs.HoleIdent' a -> Result
+transHoleIdent x = case x of
+  Language.Rzk.Syntax.Abs.HoleIdent _ holeidenttoken -> failure x
+
+transVarIdent :: Show a => Language.Rzk.Syntax.Abs.VarIdent' a -> Result
+transVarIdent x = case x of
+  Language.Rzk.Syntax.Abs.VarIdent _ varidenttoken -> failure x
 
 transLanguageDecl :: Show a => Language.Rzk.Syntax.Abs.LanguageDecl' a -> Result
 transLanguageDecl x = case x of
@@ -60,6 +68,7 @@ transSectionName x = case x of
 transPattern :: Show a => Language.Rzk.Syntax.Abs.Pattern' a -> Result
 transPattern x = case x of
   Language.Rzk.Syntax.Abs.PatternWildcard _ -> failure x
+  Language.Rzk.Syntax.Abs.PatternUnit _ -> failure x
   Language.Rzk.Syntax.Abs.PatternVar _ varident -> failure x
   Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> failure x
 
@@ -101,6 +110,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.RecOr _ restrictions -> failure x
   Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
   Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> failure x
@@ -109,6 +119,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
+  Language.Rzk.Syntax.Abs.Unit _ -> failure x
   Language.Rzk.Syntax.Abs.Refl _ -> failure x
   Language.Rzk.Syntax.Abs.ReflTerm _ term -> failure x
   Language.Rzk.Syntax.Abs.ReflTermType _ term1 term2 -> failure x

@@ -3,12 +3,15 @@ comment "{-" "-}" ;
 
 layout toplevel ;
 
-token VarIdent ((char - ["-?!.\\;,#\"][)(}{><| \t\n\r"]) (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
+token VarIdentToken ((char - ["-?!.\\;,#\"][)(}{><| \t\n\r"]) (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
 
-token HoleIdent '?' ;
+token HoleIdentToken '?' ;
 
 Module. Module ::= LanguageDecl [Command] ;
 
+HoleIdent. HoleIdent ::= HoleIdentToken ;
+
+VarIdent. VarIdent ::= VarIdentToken ;
 separator nonempty VarIdent "" ;
 
 LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
@@ -54,6 +57,7 @@ SomeSectionName.  SectionName ::= VarIdent ;
 
 -- Patterns
 PatternWildcard.  Pattern ::= "_" ;
+PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
 PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
 separator nonempty Pattern "" ;
@@ -103,6 +107,7 @@ define recOr psi phi a b = RecOr [ Restriction psi a, Restriction phi b ] ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
+TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
@@ -114,6 +119,7 @@ Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
 First.          Term6 ::= "first" Term7 ;
 Second.         Term6 ::= "second" Term7 ;
+Unit.           Term7 ::= "unit" ;
 Refl.           Term7 ::= "refl";
 ReflTerm.       Term7 ::= "refl_{" Term "}" ;
 ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;

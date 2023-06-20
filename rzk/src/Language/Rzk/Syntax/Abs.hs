@@ -27,6 +27,14 @@ type Module = Module' BNFC'Position
 data Module' a = Module a (LanguageDecl' a) [Command' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
+type HoleIdent = HoleIdent' BNFC'Position
+data HoleIdent' a = HoleIdent a HoleIdentToken
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
+type VarIdent = VarIdent' BNFC'Position
+data VarIdent' a = VarIdent a VarIdentToken
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
 type LanguageDecl = LanguageDecl' BNFC'Position
 data LanguageDecl' a = LanguageDecl a (Language' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
@@ -43,24 +51,26 @@ data Command' a
     | CommandCompute a (Term' a)
     | CommandComputeWHNF a (Term' a)
     | CommandComputeNF a (Term' a)
-    | CommandPostulate a VarIdent (DeclUsedVars' a) [Param' a] (Term' a)
-    | CommandAssume a [VarIdent] (Term' a)
+    | CommandPostulate a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a)
+    | CommandAssume a [VarIdent' a] (Term' a)
     | CommandSection a (SectionName' a) [Command' a] (SectionName' a)
-    | CommandDefine a VarIdent (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
+    | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type DeclUsedVars = DeclUsedVars' BNFC'Position
-data DeclUsedVars' a = DeclUsedVars a [VarIdent]
+data DeclUsedVars' a = DeclUsedVars a [VarIdent' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type SectionName = SectionName' BNFC'Position
-data SectionName' a = NoSectionName a | SomeSectionName a VarIdent
+data SectionName' a
+    = NoSectionName a | SomeSectionName a (VarIdent' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Pattern = Pattern' BNFC'Position
 data Pattern' a
     = PatternWildcard a
-    | PatternVar a VarIdent
+    | PatternUnit a
+    | PatternVar a (VarIdent' a)
     | PatternPair a (Pattern' a) (Pattern' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
@@ -104,6 +114,7 @@ data Term' a
     | RecOr a [Restriction' a]
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
     | TypeRestricted a (Term' a) [Restriction' a]
@@ -112,37 +123,38 @@ data Term' a
     | Pair a (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
+    | Unit a
     | Refl a
     | ReflTerm a (Term' a)
     | ReflTermType a (Term' a) (Term' a)
     | IdJ a (Term' a) (Term' a) (Term' a) (Term' a) (Term' a) (Term' a)
-    | Hole a HoleIdent
-    | Var a VarIdent
+    | Hole a (HoleIdent' a)
+    | Var a (VarIdent' a)
     | TypeAsc a (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-commandPostulateNoParams :: a -> VarIdent -> DeclUsedVars' a -> Term' a -> Command' a
+commandPostulateNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Command' a
 commandPostulateNoParams = \ _a x vars ty -> CommandPostulate _a x vars [] ty
 
-commandVariable :: a -> VarIdent -> Term' a -> Command' a
+commandVariable :: a -> VarIdent' a -> Term' a -> Command' a
 commandVariable = \ _a name term -> CommandAssume _a [name] term
 
-commandVariables :: a -> [VarIdent] -> Term' a -> Command' a
+commandVariables :: a -> [VarIdent' a] -> Term' a -> Command' a
 commandVariables = \ _a names term -> CommandAssume _a names term
 
-commandDefineNoParams :: a -> VarIdent -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
+commandDefineNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
 commandDefineNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
 
-commandDef :: a -> VarIdent -> DeclUsedVars' a -> [Param' a] -> Term' a -> Term' a -> Command' a
+commandDef :: a -> VarIdent' a -> DeclUsedVars' a -> [Param' a] -> Term' a -> Term' a -> Command' a
 commandDef = \ _a x vars params ty term -> CommandDefine _a x vars params ty term
 
-commandDefNoParams :: a -> VarIdent -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
+commandDefNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
 commandDefNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
 
 noDeclUsedVars :: a -> DeclUsedVars' a
 noDeclUsedVars = \ _a -> DeclUsedVars _a []
 
-paramVarType :: a -> VarIdent -> Term' a -> ParamDecl' a
+paramVarType :: a -> VarIdent' a -> Term' a -> ParamDecl' a
 paramVarType = \ _a var cube -> ParamVarType _a (PatternVar _a var) cube
 
 paramVarShape :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
@@ -163,10 +175,10 @@ unicode_TypeSigma = \ _a pat fst snd -> TypeSigma _a pat fst snd
 unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
 unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
 
-newtype VarIdent = VarIdent String
+newtype VarIdentToken = VarIdentToken String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
 
-newtype HoleIdent = HoleIdent String
+newtype HoleIdentToken = HoleIdentToken String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
 
 -- | Start position (line, column) of something.
@@ -187,6 +199,14 @@ class HasPosition a where
 instance HasPosition Module where
   hasPosition = \case
     Module p _ _ -> p
+
+instance HasPosition HoleIdent where
+  hasPosition = \case
+    HoleIdent p _ -> p
+
+instance HasPosition VarIdent where
+  hasPosition = \case
+    VarIdent p _ -> p
 
 instance HasPosition LanguageDecl where
   hasPosition = \case
@@ -221,6 +241,7 @@ instance HasPosition SectionName where
 instance HasPosition Pattern where
   hasPosition = \case
     PatternWildcard p -> p
+    PatternUnit p -> p
     PatternVar p _ -> p
     PatternPair p _ _ -> p
 
@@ -262,6 +283,7 @@ instance HasPosition Term where
     RecOr p _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
+    TypeUnit p -> p
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p
     TypeRestricted p _ _ -> p
@@ -270,6 +292,7 @@ instance HasPosition Term where
     Pair p _ _ -> p
     First p _ -> p
     Second p _ -> p
+    Unit p -> p
     Refl p -> p
     ReflTerm p _ -> p
     ReflTermType p _ _ -> p

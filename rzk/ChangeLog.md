@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.5 — 2022-06-20
+
+This version contains the following changes:
+
+- `Unit` type (with `unit` value) (see [ede02611]( https://github.com/fizruk/rzk/commit/ede02611 ) and [bf9d6cd9]( https://github.com/fizruk/rzk/commit/bf9d6cd9 );
+- Add basic tokenizer support via `rzk tokenize` (see [#53]( https://github.com/fizruk/rzk/pull/53 ));
+- Add location information for shadowing warnings and duplicate definition errors (see [bf9d6cd9]( https://github.com/fizruk/rzk/commit/bf9d6cd9 )).
+
 ## v0.4.1 — 2022-06-16
 
 This is version contains minor changes, primarily in tools around rzk:
