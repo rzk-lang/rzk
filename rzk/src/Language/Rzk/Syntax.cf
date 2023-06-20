@@ -107,7 +107,7 @@ define recOr psi phi a b = RecOr [ Restriction psi a, Restriction phi b ] ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
-TypeUnit.       Term1 ::= "Unit" ;
+TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;

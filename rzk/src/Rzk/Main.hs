@@ -70,7 +70,7 @@ parseRzkFilesOrStdin = \case
 typecheckString :: String -> Either String String
 typecheckString moduleString = do
   rzkModule <- Rzk.parseModule moduleString
-  case defaultTypeCheck (typecheckModule rzkModule) of
+  case defaultTypeCheck (typecheckModule Nothing rzkModule) of
     Left err -> Left $ unlines
       [ "An error occurred when typechecking!"
       , "Rendering type error... (this may take a few seconds)"

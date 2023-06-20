@@ -97,28 +97,28 @@ Grammar
 	Term7 -> 'recBOT'                                  (88)
 	Term7 -> 'recOR' '(' ListRestriction ')'           (89)
 	Term7 -> 'recOR' '(' Term ',' Term ',' Term ',' Term ')'   (90)
-	Term7 -> '<' ParamDecl '->' Term '>'               (91)
-	Term7 -> '(' Term ',' Term ')'                     (92)
-	Term7 -> 'unit'                                    (93)
-	Term7 -> 'refl'                                    (94)
-	Term7 -> 'refl_{' Term '}'                         (95)
-	Term7 -> 'refl_{' Term ':' Term '}'                (96)
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'   (97)
-	Term7 -> HoleIdent                                 (98)
-	Term7 -> VarIdent                                  (99)
-	Term7 -> '(' Term ')'                              (100)
-	Term5 -> Term5 '*' Term6                           (101)
-	Term5 -> Term6                                     (102)
-	Term4 -> Term5 '===' Term5                         (103)
-	Term4 -> Term5 '<=' Term5                          (104)
-	Term4 -> Term5                                     (105)
-	Term3 -> Term4 '/\\' Term3                         (106)
-	Term3 -> Term4                                     (107)
-	Term2 -> Term3 '\\/' Term2                         (108)
-	Term2 -> Term3                                     (109)
-	Term1 -> ParamDecl '->' Term1                      (110)
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1   (111)
-	Term1 -> 'Unit'                                    (112)
+	Term7 -> 'Unit'                                    (91)
+	Term7 -> '<' ParamDecl '->' Term '>'               (92)
+	Term7 -> '(' Term ',' Term ')'                     (93)
+	Term7 -> 'unit'                                    (94)
+	Term7 -> 'refl'                                    (95)
+	Term7 -> 'refl_{' Term '}'                         (96)
+	Term7 -> 'refl_{' Term ':' Term '}'                (97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'   (98)
+	Term7 -> HoleIdent                                 (99)
+	Term7 -> VarIdent                                  (100)
+	Term7 -> '(' Term ')'                              (101)
+	Term5 -> Term5 '*' Term6                           (102)
+	Term5 -> Term6                                     (103)
+	Term4 -> Term5 '===' Term5                         (104)
+	Term4 -> Term5 '<=' Term5                          (105)
+	Term4 -> Term5                                     (106)
+	Term3 -> Term4 '/\\' Term3                         (107)
+	Term3 -> Term4                                     (108)
+	Term2 -> Term3 '\\/' Term2                         (109)
+	Term2 -> Term3                                     (110)
+	Term1 -> ParamDecl '->' Term1                      (111)
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1   (112)
 	Term1 -> Term2 '=_{' Term '}' Term2                (113)
 	Term1 -> Term2 '=' Term2                           (114)
 	Term1 -> '\\' ListParam '->' Term1                 (115)
@@ -257,12 +257,12 @@ Non-terminals
 	ParamDecl       rules 69, 70, 71, 72, 73, 74
 	Restriction     rule  75
 	ListRestriction rules 76, 77
-	Term7           rules 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100
-	Term5           rules 101, 102
-	Term4           rules 103, 104, 105
-	Term3           rules 106, 107
-	Term2           rules 108, 109
-	Term1           rules 110, 111, 112, 113, 114, 115, 116, 117, 118, 119
+	Term7           rules 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101
+	Term5           rules 102, 103
+	Term4           rules 104, 105, 106
+	Term3           rules 107, 108
+	Term2           rules 109, 110
+	Term1           rules 111, 112, 113, 114, 115, 116, 117, 118, 119
 	Term6           rules 120, 121, 122, 123, 124
 	Term            rules 125, 126
 	ListTerm        rules 127, 128
@@ -459,6 +459,7 @@ State 14
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -592,6 +593,7 @@ State 17
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
 	'recOR'        shift, and enter state 60
@@ -623,6 +625,7 @@ State 18
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -658,6 +661,7 @@ State 19
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -694,6 +698,7 @@ State 20
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -731,6 +736,7 @@ State 21
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -815,6 +821,7 @@ State 23
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -973,6 +980,7 @@ State 28
 	'TOP'          reduce using rule 31
 	'TOPE'         reduce using rule 31
 	'U'            reduce using rule 31
+	'Unit'         reduce using rule 31
 	'['            reduce using rule 31
 	'\\/'          reduce using rule 31
 	']'            reduce using rule 31
@@ -1024,6 +1032,7 @@ State 29
 	'TOP'          reduce using rule 30
 	'TOPE'         reduce using rule 30
 	'U'            reduce using rule 30
+	'Unit'         reduce using rule 30
 	'['            reduce using rule 30
 	'\\/'          reduce using rule 30
 	']'            reduce using rule 30
@@ -1045,55 +1054,7 @@ State 29
 
 State 30
 
-	Term7 -> HoleIdent .                                (rule 98)
-
-	'('            reduce using rule 98
-	')'            reduce using rule 98
-	'*'            reduce using rule 98
-	'*_1'          reduce using rule 98
-	','            reduce using rule 98
-	'->'           reduce using rule 98
-	'/\\'          reduce using rule 98
-	'0_2'          reduce using rule 98
-	'1'            reduce using rule 98
-	'1_2'          reduce using rule 98
-	'2'            reduce using rule 98
-	':'            reduce using rule 98
-	':='           reduce using rule 98
-	';'            reduce using rule 98
-	'<'            reduce using rule 98
-	'<='           reduce using rule 98
-	'='            reduce using rule 98
-	'==='          reduce using rule 98
-	'=_{'          reduce using rule 98
-	'>'            reduce using rule 98
-	'BOT'          reduce using rule 98
-	'CUBE'         reduce using rule 98
-	'TOP'          reduce using rule 98
-	'TOPE'         reduce using rule 98
-	'U'            reduce using rule 98
-	'['            reduce using rule 98
-	'\\/'          reduce using rule 98
-	']'            reduce using rule 98
-	'as'           reduce using rule 98
-	'idJ'          reduce using rule 98
-	'recBOT'       reduce using rule 98
-	'recOR'        reduce using rule 98
-	'refl'         reduce using rule 98
-	'refl_{'       reduce using rule 98
-	'unit'         reduce using rule 98
-	'|'            reduce using rule 98
-	'|->'          reduce using rule 98
-	'}'            reduce using rule 98
-	'→'            reduce using rule 98
-	L_VarIdentTokenreduce using rule 98
-	L_HoleIdentTokenreduce using rule 98
-	%eof           reduce using rule 98
-
-
-State 31
-
-	Term7 -> VarIdent .                                 (rule 99)
+	Term7 -> HoleIdent .                                (rule 99)
 
 	'('            reduce using rule 99
 	')'            reduce using rule 99
@@ -1120,6 +1081,7 @@ State 31
 	'TOP'          reduce using rule 99
 	'TOPE'         reduce using rule 99
 	'U'            reduce using rule 99
+	'Unit'         reduce using rule 99
 	'['            reduce using rule 99
 	'\\/'          reduce using rule 99
 	']'            reduce using rule 99
@@ -1139,9 +1101,58 @@ State 31
 	%eof           reduce using rule 99
 
 
+State 31
+
+	Term7 -> VarIdent .                                 (rule 100)
+
+	'('            reduce using rule 100
+	')'            reduce using rule 100
+	'*'            reduce using rule 100
+	'*_1'          reduce using rule 100
+	','            reduce using rule 100
+	'->'           reduce using rule 100
+	'/\\'          reduce using rule 100
+	'0_2'          reduce using rule 100
+	'1'            reduce using rule 100
+	'1_2'          reduce using rule 100
+	'2'            reduce using rule 100
+	':'            reduce using rule 100
+	':='           reduce using rule 100
+	';'            reduce using rule 100
+	'<'            reduce using rule 100
+	'<='           reduce using rule 100
+	'='            reduce using rule 100
+	'==='          reduce using rule 100
+	'=_{'          reduce using rule 100
+	'>'            reduce using rule 100
+	'BOT'          reduce using rule 100
+	'CUBE'         reduce using rule 100
+	'TOP'          reduce using rule 100
+	'TOPE'         reduce using rule 100
+	'U'            reduce using rule 100
+	'Unit'         reduce using rule 100
+	'['            reduce using rule 100
+	'\\/'          reduce using rule 100
+	']'            reduce using rule 100
+	'as'           reduce using rule 100
+	'idJ'          reduce using rule 100
+	'recBOT'       reduce using rule 100
+	'recOR'        reduce using rule 100
+	'refl'         reduce using rule 100
+	'refl_{'       reduce using rule 100
+	'unit'         reduce using rule 100
+	'|'            reduce using rule 100
+	'|->'          reduce using rule 100
+	'}'            reduce using rule 100
+	'→'            reduce using rule 100
+	L_VarIdentTokenreduce using rule 100
+	L_HoleIdentTokenreduce using rule 100
+	%eof           reduce using rule 100
+
+
 State 32
 
-	Term1 -> ParamDecl . '->' Term1                     (rule 110)
+	Term1 -> ParamDecl . '->' Term1                     (rule 111)
 	Term1 -> ParamDecl . '→' Term1                      (rule 117)
 
 	'->'           shift, and enter state 182
@@ -1177,6 +1188,7 @@ State 33
 	'TOP'          reduce using rule 124
 	'TOPE'         reduce using rule 124
 	'U'            reduce using rule 124
+	'Unit'         reduce using rule 124
 	'['            reduce using rule 124
 	'\\/'          reduce using rule 124
 	']'            reduce using rule 124
@@ -1198,75 +1210,75 @@ State 33
 
 State 34
 
-	Term5 -> Term5 . '*' Term6                          (rule 101)
-	Term4 -> Term5 . '===' Term5                        (rule 103)
-	Term4 -> Term5 . '<=' Term5                         (rule 104)
-	Term4 -> Term5 .                                    (rule 105)
+	Term5 -> Term5 . '*' Term6                          (rule 102)
+	Term4 -> Term5 . '===' Term5                        (rule 104)
+	Term4 -> Term5 . '<=' Term5                         (rule 105)
+	Term4 -> Term5 .                                    (rule 106)
 
-	')'            reduce using rule 105
+	')'            reduce using rule 106
 	'*'            shift, and enter state 158
-	','            reduce using rule 105
-	'/\\'          reduce using rule 105
-	':'            reduce using rule 105
-	':='           reduce using rule 105
-	';'            reduce using rule 105
+	','            reduce using rule 106
+	'/\\'          reduce using rule 106
+	':'            reduce using rule 106
+	':='           reduce using rule 106
+	';'            reduce using rule 106
 	'<='           shift, and enter state 180
-	'='            reduce using rule 105
+	'='            reduce using rule 106
 	'==='          shift, and enter state 181
-	'=_{'          reduce using rule 105
-	'>'            reduce using rule 105
-	'\\/'          reduce using rule 105
-	']'            reduce using rule 105
-	'as'           reduce using rule 105
-	'|'            reduce using rule 105
-	'|->'          reduce using rule 105
-	'}'            reduce using rule 105
-	%eof           reduce using rule 105
+	'=_{'          reduce using rule 106
+	'>'            reduce using rule 106
+	'\\/'          reduce using rule 106
+	']'            reduce using rule 106
+	'as'           reduce using rule 106
+	'|'            reduce using rule 106
+	'|->'          reduce using rule 106
+	'}'            reduce using rule 106
+	%eof           reduce using rule 106
 
 
 State 35
 
-	Term3 -> Term4 . '/\\' Term3                        (rule 106)
-	Term3 -> Term4 .                                    (rule 107)
+	Term3 -> Term4 . '/\\' Term3                        (rule 107)
+	Term3 -> Term4 .                                    (rule 108)
 
-	')'            reduce using rule 107
-	','            reduce using rule 107
+	')'            reduce using rule 108
+	','            reduce using rule 108
 	'/\\'          shift, and enter state 179
-	':'            reduce using rule 107
-	':='           reduce using rule 107
-	';'            reduce using rule 107
-	'='            reduce using rule 107
-	'=_{'          reduce using rule 107
-	'>'            reduce using rule 107
-	'\\/'          reduce using rule 107
-	']'            reduce using rule 107
-	'as'           reduce using rule 107
-	'|'            reduce using rule 107
-	'|->'          reduce using rule 107
-	'}'            reduce using rule 107
-	%eof           reduce using rule 107
+	':'            reduce using rule 108
+	':='           reduce using rule 108
+	';'            reduce using rule 108
+	'='            reduce using rule 108
+	'=_{'          reduce using rule 108
+	'>'            reduce using rule 108
+	'\\/'          reduce using rule 108
+	']'            reduce using rule 108
+	'as'           reduce using rule 108
+	'|'            reduce using rule 108
+	'|->'          reduce using rule 108
+	'}'            reduce using rule 108
+	%eof           reduce using rule 108
 
 
 State 36
 
-	Term2 -> Term3 . '\\/' Term2                        (rule 108)
-	Term2 -> Term3 .                                    (rule 109)
+	Term2 -> Term3 . '\\/' Term2                        (rule 109)
+	Term2 -> Term3 .                                    (rule 110)
 
-	')'            reduce using rule 109
-	','            reduce using rule 109
-	':'            reduce using rule 109
-	':='           reduce using rule 109
-	';'            reduce using rule 109
-	'='            reduce using rule 109
-	'=_{'          reduce using rule 109
-	'>'            reduce using rule 109
+	')'            reduce using rule 110
+	','            reduce using rule 110
+	':'            reduce using rule 110
+	':='           reduce using rule 110
+	';'            reduce using rule 110
+	'='            reduce using rule 110
+	'=_{'          reduce using rule 110
+	'>'            reduce using rule 110
 	'\\/'          shift, and enter state 178
-	']'            reduce using rule 109
-	'as'           reduce using rule 109
-	'|'            reduce using rule 109
-	'|->'          reduce using rule 109
-	'}'            reduce using rule 109
-	%eof           reduce using rule 109
+	']'            reduce using rule 110
+	'as'           reduce using rule 110
+	'|'            reduce using rule 110
+	'|->'          reduce using rule 110
+	'}'            reduce using rule 110
+	%eof           reduce using rule 110
 
 
 State 37
@@ -1312,52 +1324,53 @@ State 38
 State 39
 
 	ParamDecl -> Term6 .                                (rule 69)
-	Term5 -> Term6 .                                    (rule 102)
+	Term5 -> Term6 .                                    (rule 103)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 120)
 	Term6 -> Term6 . Term7                              (rule 121)
 
 	'('            shift, and enter state 72
-	')'            reduce using rule 102
-	'*'            reduce using rule 102
+	')'            reduce using rule 103
+	'*'            reduce using rule 103
 	'*_1'          shift, and enter state 43
-	','            reduce using rule 102
+	','            reduce using rule 103
 	'->'           reduce using rule 69
-	'/\\'          reduce using rule 102
+	'/\\'          reduce using rule 103
 	'0_2'          shift, and enter state 44
 	'1'            shift, and enter state 45
 	'1_2'          shift, and enter state 46
 	'2'            shift, and enter state 47
-	':'            reduce using rule 102
-	':='           reduce using rule 102
-	';'            reduce using rule 102
+	':'            reduce using rule 103
+	':='           reduce using rule 103
+	';'            reduce using rule 103
 	'<'            shift, and enter state 48
-	'<='           reduce using rule 102
-	'='            reduce using rule 102
-	'==='          reduce using rule 102
-	'=_{'          reduce using rule 102
-	'>'            reduce using rule 102
+	'<='           reduce using rule 103
+	'='            reduce using rule 103
+	'==='          reduce using rule 103
+	'=_{'          reduce using rule 103
+	'>'            reduce using rule 103
 	'BOT'          shift, and enter state 49
 	'CUBE'         shift, and enter state 50
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'['            shift, and enter state 155
-	'\\/'          reduce using rule 102
-	']'            reduce using rule 102
-	'as'           reduce using rule 102
+	'\\/'          reduce using rule 103
+	']'            reduce using rule 103
+	'as'           reduce using rule 103
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
 	'recOR'        shift, and enter state 60
 	'refl'         shift, and enter state 61
 	'refl_{'       shift, and enter state 62
 	'unit'         shift, and enter state 64
-	'|'            reduce using rule 102
-	'|->'          reduce using rule 102
-	'}'            reduce using rule 102
+	'|'            reduce using rule 103
+	'|->'          reduce using rule 103
+	'}'            reduce using rule 103
 	'→'            reduce using rule 69
 	L_VarIdentTokenshift, and enter state 68
 	L_HoleIdentTokenshift, and enter state 69
-	%eof           reduce using rule 102
+	%eof           reduce using rule 103
 
 	VarIdentToken  goto state 28
 	HoleIdentToken goto state 29
@@ -1385,8 +1398,8 @@ State 42
 
 	ParamDecl -> '(' . '_' ':' Term ')'                 (rule 70)
 	ParamDecl -> '(' . VarIdent ':' Term ')'            (rule 72)
-	Term7 -> '(' . Term ',' Term ')'                    (rule 92)
-	Term7 -> '(' . Term ')'                             (rule 100)
+	Term7 -> '(' . Term ',' Term ')'                    (rule 93)
+	Term7 -> '(' . Term ')'                             (rule 101)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -1461,6 +1474,7 @@ State 43
 	'TOP'          reduce using rule 82
 	'TOPE'         reduce using rule 82
 	'U'            reduce using rule 82
+	'Unit'         reduce using rule 82
 	'['            reduce using rule 82
 	'\\/'          reduce using rule 82
 	']'            reduce using rule 82
@@ -1509,6 +1523,7 @@ State 44
 	'TOP'          reduce using rule 84
 	'TOPE'         reduce using rule 84
 	'U'            reduce using rule 84
+	'Unit'         reduce using rule 84
 	'['            reduce using rule 84
 	'\\/'          reduce using rule 84
 	']'            reduce using rule 84
@@ -1557,6 +1572,7 @@ State 45
 	'TOP'          reduce using rule 81
 	'TOPE'         reduce using rule 81
 	'U'            reduce using rule 81
+	'Unit'         reduce using rule 81
 	'['            reduce using rule 81
 	'\\/'          reduce using rule 81
 	']'            reduce using rule 81
@@ -1605,6 +1621,7 @@ State 46
 	'TOP'          reduce using rule 85
 	'TOPE'         reduce using rule 85
 	'U'            reduce using rule 85
+	'Unit'         reduce using rule 85
 	'['            reduce using rule 85
 	'\\/'          reduce using rule 85
 	']'            reduce using rule 85
@@ -1653,6 +1670,7 @@ State 47
 	'TOP'          reduce using rule 83
 	'TOPE'         reduce using rule 83
 	'U'            reduce using rule 83
+	'Unit'         reduce using rule 83
 	'['            reduce using rule 83
 	'\\/'          reduce using rule 83
 	']'            reduce using rule 83
@@ -1674,7 +1692,7 @@ State 47
 
 State 48
 
-	Term7 -> '<' . ParamDecl '->' Term '>'              (rule 91)
+	Term7 -> '<' . ParamDecl '->' Term '>'              (rule 92)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -1688,6 +1706,7 @@ State 48
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -1737,6 +1756,7 @@ State 49
 	'TOP'          reduce using rule 87
 	'TOPE'         reduce using rule 87
 	'U'            reduce using rule 87
+	'Unit'         reduce using rule 87
 	'['            reduce using rule 87
 	'\\/'          reduce using rule 87
 	']'            reduce using rule 87
@@ -1785,6 +1805,7 @@ State 50
 	'TOP'          reduce using rule 79
 	'TOPE'         reduce using rule 79
 	'U'            reduce using rule 79
+	'Unit'         reduce using rule 79
 	'['            reduce using rule 79
 	'\\/'          reduce using rule 79
 	']'            reduce using rule 79
@@ -1806,7 +1827,7 @@ State 50
 
 State 51
 
-	Term1 -> 'Sigma' . '(' Pattern ':' Term ')' ',' Term1    (rule 111)
+	Term1 -> 'Sigma' . '(' Pattern ':' Term ')' ',' Term1    (rule 112)
 
 	'('            shift, and enter state 172
 
@@ -1840,6 +1861,7 @@ State 52
 	'TOP'          reduce using rule 86
 	'TOPE'         reduce using rule 86
 	'U'            reduce using rule 86
+	'Unit'         reduce using rule 86
 	'['            reduce using rule 86
 	'\\/'          reduce using rule 86
 	']'            reduce using rule 86
@@ -1888,6 +1910,7 @@ State 53
 	'TOP'          reduce using rule 80
 	'TOPE'         reduce using rule 80
 	'U'            reduce using rule 80
+	'Unit'         reduce using rule 80
 	'['            reduce using rule 80
 	'\\/'          reduce using rule 80
 	']'            reduce using rule 80
@@ -1936,6 +1959,7 @@ State 54
 	'TOP'          reduce using rule 78
 	'TOPE'         reduce using rule 78
 	'U'            reduce using rule 78
+	'Unit'         reduce using rule 78
 	'['            reduce using rule 78
 	'\\/'          reduce using rule 78
 	']'            reduce using rule 78
@@ -1957,19 +1981,51 @@ State 54
 
 State 55
 
-	Term1 -> 'Unit' .                                   (rule 112)
+	Term7 -> 'Unit' .                                   (rule 91)
 
-	')'            reduce using rule 112
-	','            reduce using rule 112
-	':'            reduce using rule 112
-	':='           reduce using rule 112
-	';'            reduce using rule 112
-	'>'            reduce using rule 112
-	']'            reduce using rule 112
-	'|'            reduce using rule 112
-	'|->'          reduce using rule 112
-	'}'            reduce using rule 112
-	%eof           reduce using rule 112
+	'('            reduce using rule 91
+	')'            reduce using rule 91
+	'*'            reduce using rule 91
+	'*_1'          reduce using rule 91
+	','            reduce using rule 91
+	'->'           reduce using rule 91
+	'/\\'          reduce using rule 91
+	'0_2'          reduce using rule 91
+	'1'            reduce using rule 91
+	'1_2'          reduce using rule 91
+	'2'            reduce using rule 91
+	':'            reduce using rule 91
+	':='           reduce using rule 91
+	';'            reduce using rule 91
+	'<'            reduce using rule 91
+	'<='           reduce using rule 91
+	'='            reduce using rule 91
+	'==='          reduce using rule 91
+	'=_{'          reduce using rule 91
+	'>'            reduce using rule 91
+	'BOT'          reduce using rule 91
+	'CUBE'         reduce using rule 91
+	'TOP'          reduce using rule 91
+	'TOPE'         reduce using rule 91
+	'U'            reduce using rule 91
+	'Unit'         reduce using rule 91
+	'['            reduce using rule 91
+	'\\/'          reduce using rule 91
+	']'            reduce using rule 91
+	'as'           reduce using rule 91
+	'idJ'          reduce using rule 91
+	'recBOT'       reduce using rule 91
+	'recOR'        reduce using rule 91
+	'refl'         reduce using rule 91
+	'refl_{'       reduce using rule 91
+	'unit'         reduce using rule 91
+	'|'            reduce using rule 91
+	'|->'          reduce using rule 91
+	'}'            reduce using rule 91
+	'→'            reduce using rule 91
+	L_VarIdentTokenreduce using rule 91
+	L_HoleIdentTokenreduce using rule 91
+	%eof           reduce using rule 91
 
 
 State 56
@@ -2004,6 +2060,7 @@ State 57
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
 	'recOR'        shift, and enter state 60
@@ -2021,7 +2078,7 @@ State 57
 
 State 58
 
-	Term7 -> 'idJ' . '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' . '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	'('            shift, and enter state 169
 
@@ -2055,6 +2112,7 @@ State 59
 	'TOP'          reduce using rule 88
 	'TOPE'         reduce using rule 88
 	'U'            reduce using rule 88
+	'Unit'         reduce using rule 88
 	'['            reduce using rule 88
 	'\\/'          reduce using rule 88
 	']'            reduce using rule 88
@@ -2084,56 +2142,57 @@ State 60
 
 State 61
 
-	Term7 -> 'refl' .                                   (rule 94)
+	Term7 -> 'refl' .                                   (rule 95)
 
-	'('            reduce using rule 94
-	')'            reduce using rule 94
-	'*'            reduce using rule 94
-	'*_1'          reduce using rule 94
-	','            reduce using rule 94
-	'->'           reduce using rule 94
-	'/\\'          reduce using rule 94
-	'0_2'          reduce using rule 94
-	'1'            reduce using rule 94
-	'1_2'          reduce using rule 94
-	'2'            reduce using rule 94
-	':'            reduce using rule 94
-	':='           reduce using rule 94
-	';'            reduce using rule 94
-	'<'            reduce using rule 94
-	'<='           reduce using rule 94
-	'='            reduce using rule 94
-	'==='          reduce using rule 94
-	'=_{'          reduce using rule 94
-	'>'            reduce using rule 94
-	'BOT'          reduce using rule 94
-	'CUBE'         reduce using rule 94
-	'TOP'          reduce using rule 94
-	'TOPE'         reduce using rule 94
-	'U'            reduce using rule 94
-	'['            reduce using rule 94
-	'\\/'          reduce using rule 94
-	']'            reduce using rule 94
-	'as'           reduce using rule 94
-	'idJ'          reduce using rule 94
-	'recBOT'       reduce using rule 94
-	'recOR'        reduce using rule 94
-	'refl'         reduce using rule 94
-	'refl_{'       reduce using rule 94
-	'unit'         reduce using rule 94
-	'|'            reduce using rule 94
-	'|->'          reduce using rule 94
-	'}'            reduce using rule 94
-	'→'            reduce using rule 94
-	L_VarIdentTokenreduce using rule 94
-	L_HoleIdentTokenreduce using rule 94
-	%eof           reduce using rule 94
+	'('            reduce using rule 95
+	')'            reduce using rule 95
+	'*'            reduce using rule 95
+	'*_1'          reduce using rule 95
+	','            reduce using rule 95
+	'->'           reduce using rule 95
+	'/\\'          reduce using rule 95
+	'0_2'          reduce using rule 95
+	'1'            reduce using rule 95
+	'1_2'          reduce using rule 95
+	'2'            reduce using rule 95
+	':'            reduce using rule 95
+	':='           reduce using rule 95
+	';'            reduce using rule 95
+	'<'            reduce using rule 95
+	'<='           reduce using rule 95
+	'='            reduce using rule 95
+	'==='          reduce using rule 95
+	'=_{'          reduce using rule 95
+	'>'            reduce using rule 95
+	'BOT'          reduce using rule 95
+	'CUBE'         reduce using rule 95
+	'TOP'          reduce using rule 95
+	'TOPE'         reduce using rule 95
+	'U'            reduce using rule 95
+	'Unit'         reduce using rule 95
+	'['            reduce using rule 95
+	'\\/'          reduce using rule 95
+	']'            reduce using rule 95
+	'as'           reduce using rule 95
+	'idJ'          reduce using rule 95
+	'recBOT'       reduce using rule 95
+	'recOR'        reduce using rule 95
+	'refl'         reduce using rule 95
+	'refl_{'       reduce using rule 95
+	'unit'         reduce using rule 95
+	'|'            reduce using rule 95
+	'|->'          reduce using rule 95
+	'}'            reduce using rule 95
+	'→'            reduce using rule 95
+	L_VarIdentTokenreduce using rule 95
+	L_HoleIdentTokenreduce using rule 95
+	%eof           reduce using rule 95
 
 
 State 62
 
-	Term7 -> 'refl_{' . Term '}'                        (rule 95)
-	Term7 -> 'refl_{' . Term ':' Term '}'               (rule 96)
+	Term7 -> 'refl_{' . Term '}'                        (rule 96)
+	Term7 -> 'refl_{' . Term ':' Term '}'               (rule 97)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -2194,6 +2253,7 @@ State 63
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
 	'recOR'        shift, and enter state 60
@@ -2211,50 +2271,51 @@ State 63
 
 State 64
 
-	Term7 -> 'unit' .                                   (rule 93)
+	Term7 -> 'unit' .                                   (rule 94)
 
-	'('            reduce using rule 93
-	')'            reduce using rule 93
-	'*'            reduce using rule 93
-	'*_1'          reduce using rule 93
-	','            reduce using rule 93
-	'->'           reduce using rule 93
-	'/\\'          reduce using rule 93
-	'0_2'          reduce using rule 93
-	'1'            reduce using rule 93
-	'1_2'          reduce using rule 93
-	'2'            reduce using rule 93
-	':'            reduce using rule 93
-	':='           reduce using rule 93
-	';'            reduce using rule 93
-	'<'            reduce using rule 93
-	'<='           reduce using rule 93
-	'='            reduce using rule 93
-	'==='          reduce using rule 93
-	'=_{'          reduce using rule 93
-	'>'            reduce using rule 93
-	'BOT'          reduce using rule 93
-	'CUBE'         reduce using rule 93
-	'TOP'          reduce using rule 93
-	'TOPE'         reduce using rule 93
-	'U'            reduce using rule 93
-	'['            reduce using rule 93
-	'\\/'          reduce using rule 93
-	']'            reduce using rule 93
-	'as'           reduce using rule 93
-	'idJ'          reduce using rule 93
-	'recBOT'       reduce using rule 93
-	'recOR'        reduce using rule 93
-	'refl'         reduce using rule 93
-	'refl_{'       reduce using rule 93
-	'unit'         reduce using rule 93
-	'|'            reduce using rule 93
-	'|->'          reduce using rule 93
-	'}'            reduce using rule 93
-	'→'            reduce using rule 93
-	L_VarIdentTokenreduce using rule 93
-	L_HoleIdentTokenreduce using rule 93
-	%eof           reduce using rule 93
+	'('            reduce using rule 94
+	')'            reduce using rule 94
+	'*'            reduce using rule 94
+	'*_1'          reduce using rule 94
+	','            reduce using rule 94
+	'->'           reduce using rule 94
+	'/\\'          reduce using rule 94
+	'0_2'          reduce using rule 94
+	'1'            reduce using rule 94
+	'1_2'          reduce using rule 94
+	'2'            reduce using rule 94
+	':'            reduce using rule 94
+	':='           reduce using rule 94
+	';'            reduce using rule 94
+	'<'            reduce using rule 94
+	'<='           reduce using rule 94
+	'='            reduce using rule 94
+	'==='          reduce using rule 94
+	'=_{'          reduce using rule 94
+	'>'            reduce using rule 94
+	'BOT'          reduce using rule 94
+	'CUBE'         reduce using rule 94
+	'TOP'          reduce using rule 94
+	'TOPE'         reduce using rule 94
+	'U'            reduce using rule 94
+	'Unit'         reduce using rule 94
+	'['            reduce using rule 94
+	'\\/'          reduce using rule 94
+	']'            reduce using rule 94
+	'as'           reduce using rule 94
+	'idJ'          reduce using rule 94
+	'recBOT'       reduce using rule 94
+	'recOR'        reduce using rule 94
+	'refl'         reduce using rule 94
+	'refl_{'       reduce using rule 94
+	'unit'         reduce using rule 94
+	'|'            reduce using rule 94
+	'|->'          reduce using rule 94
+	'}'            reduce using rule 94
+	'→'            reduce using rule 94
+	L_VarIdentTokenreduce using rule 94
+	L_HoleIdentTokenreduce using rule 94
+	%eof           reduce using rule 94
 
 
 State 65
@@ -2315,6 +2376,7 @@ State 68
 	'TOP'          reduce using rule 27
 	'TOPE'         reduce using rule 27
 	'U'            reduce using rule 27
+	'Unit'         reduce using rule 27
 	'['            reduce using rule 27
 	'\\/'          reduce using rule 27
 	']'            reduce using rule 27
@@ -2366,6 +2428,7 @@ State 69
 	'TOP'          reduce using rule 28
 	'TOPE'         reduce using rule 28
 	'U'            reduce using rule 28
+	'Unit'         reduce using rule 28
 	'['            reduce using rule 28
 	'\\/'          reduce using rule 28
 	']'            reduce using rule 28
@@ -2410,6 +2473,7 @@ State 71
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'['            shift, and enter state 155
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -2429,8 +2493,8 @@ State 71
 
 State 72
 
-	Term7 -> '(' . Term ',' Term ')'                    (rule 92)
-	Term7 -> '(' . Term ')'                             (rule 100)
+	Term7 -> '(' . Term ',' Term ')'                    (rule 93)
+	Term7 -> '(' . Term ')'                             (rule 101)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -2512,50 +2576,51 @@ State 75
 
 State 76
 
-	Term5 -> Term6 .                                    (rule 102)
+	Term5 -> Term6 .                                    (rule 103)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 120)
 	Term6 -> Term6 . Term7                              (rule 121)
 
 	'('            shift, and enter state 72
-	')'            reduce using rule 102
-	'*'            reduce using rule 102
+	')'            reduce using rule 103
+	'*'            reduce using rule 103
 	'*_1'          shift, and enter state 43
-	','            reduce using rule 102
-	'/\\'          reduce using rule 102
+	','            reduce using rule 103
+	'/\\'          reduce using rule 103
 	'0_2'          shift, and enter state 44
 	'1'            shift, and enter state 45
 	'1_2'          shift, and enter state 46
 	'2'            shift, and enter state 47
-	':'            reduce using rule 102
-	':='           reduce using rule 102
-	';'            reduce using rule 102
+	':'            reduce using rule 103
+	':='           reduce using rule 103
+	';'            reduce using rule 103
 	'<'            shift, and enter state 48
-	'<='           reduce using rule 102
-	'='            reduce using rule 102
-	'==='          reduce using rule 102
-	'=_{'          reduce using rule 102
-	'>'            reduce using rule 102
+	'<='           reduce using rule 103
+	'='            reduce using rule 103
+	'==='          reduce using rule 103
+	'=_{'          reduce using rule 103
+	'>'            reduce using rule 103
 	'BOT'          shift, and enter state 49
 	'CUBE'         shift, and enter state 50
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'['            shift, and enter state 155
-	'\\/'          reduce using rule 102
-	']'            reduce using rule 102
-	'as'           reduce using rule 102
+	'\\/'          reduce using rule 103
+	']'            reduce using rule 103
+	'as'           reduce using rule 103
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
 	'recOR'        shift, and enter state 60
 	'refl'         shift, and enter state 61
 	'refl_{'       shift, and enter state 62
 	'unit'         shift, and enter state 64
-	'|'            reduce using rule 102
-	'|->'          reduce using rule 102
-	'}'            reduce using rule 102
+	'|'            reduce using rule 103
+	'|->'          reduce using rule 103
+	'}'            reduce using rule 103
 	L_VarIdentTokenshift, and enter state 68
 	L_HoleIdentTokenshift, and enter state 69
-	%eof           reduce using rule 102
+	%eof           reduce using rule 103
 
 	VarIdentToken  goto state 28
 	HoleIdentToken goto state 29
@@ -2580,7 +2645,7 @@ State 78
 State 79
 
 	%start_pTerm5_internal -> Term5 .                   (rule 18)
-	Term5 -> Term5 . '*' Term6                          (rule 101)
+	Term5 -> Term5 . '*' Term6                          (rule 102)
 
 	'*'            shift, and enter state 158
 	%eof           accept
@@ -2651,6 +2716,7 @@ State 86
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'['            shift, and enter state 155
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -3514,6 +3580,7 @@ State 154
 	'TOP'          reduce using rule 121
 	'TOPE'         reduce using rule 121
 	'U'            reduce using rule 121
+	'Unit'         reduce using rule 121
 	'['            reduce using rule 121
 	'\\/'          reduce using rule 121
 	']'            reduce using rule 121
@@ -3680,7 +3747,7 @@ State 157
 
 State 158
 
-	Term5 -> Term5 '*' . Term6                          (rule 101)
+	Term5 -> Term5 '*' . Term6                          (rule 102)
 
 	'('            shift, and enter state 72
 	'*_1'          shift, and enter state 43
@@ -3694,6 +3761,7 @@ State 158
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -3728,6 +3796,7 @@ State 159
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -3799,8 +3868,8 @@ State 160
 
 State 161
 
-	Term7 -> '(' Term . ',' Term ')'                    (rule 92)
-	Term7 -> '(' Term . ')'                             (rule 100)
+	Term7 -> '(' Term . ',' Term ')'                    (rule 93)
+	Term7 -> '(' Term . ')'                             (rule 101)
 
 	')'            shift, and enter state 206
 	','            shift, and enter state 207
@@ -3883,6 +3952,7 @@ State 166
 	'TOP'          reduce using rule 123
 	'TOPE'         reduce using rule 123
 	'U'            reduce using rule 123
+	'Unit'         reduce using rule 123
 	'['            reduce using rule 123
 	'\\/'          reduce using rule 123
 	']'            reduce using rule 123
@@ -3904,8 +3974,8 @@ State 166
 
 State 167
 
-	Term7 -> 'refl_{' Term . '}'                        (rule 95)
-	Term7 -> 'refl_{' Term . ':' Term '}'               (rule 96)
+	Term7 -> 'refl_{' Term . '}'                        (rule 96)
+	Term7 -> 'refl_{' Term . ':' Term '}'               (rule 97)
 
 	':'            shift, and enter state 200
 	'}'            shift, and enter state 201
@@ -3963,7 +4033,7 @@ State 168
 
 State 169
 
-	Term7 -> 'idJ' '(' . Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' . Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -4037,6 +4107,7 @@ State 170
 	'TOP'          reduce using rule 122
 	'TOPE'         reduce using rule 122
 	'U'            reduce using rule 122
+	'Unit'         reduce using rule 122
 	'['            reduce using rule 122
 	'\\/'          reduce using rule 122
 	']'            reduce using rule 122
@@ -4065,7 +4136,7 @@ State 171
 
 State 172
 
-	Term1 -> 'Sigma' '(' . Pattern ':' Term ')' ',' Term1    (rule 111)
+	Term1 -> 'Sigma' '(' . Pattern ':' Term ')' ',' Term1    (rule 112)
 
 	'('            shift, and enter state 98
 	'_'            shift, and enter state 92
@@ -4078,7 +4149,7 @@ State 172
 
 State 173
 
-	Term7 -> '<' ParamDecl . '->' Term '>'              (rule 91)
+	Term7 -> '<' ParamDecl . '->' Term '>'              (rule 92)
 
 	'->'           shift, and enter state 194
 
@@ -4086,42 +4157,43 @@ State 173
 State 174
 
 	ParamDecl -> '(' VarIdent . ':' Term ')'            (rule 72)
-	Term7 -> VarIdent .                                 (rule 99)
+	Term7 -> VarIdent .                                 (rule 100)
 
-	'('            reduce using rule 99
-	')'            reduce using rule 99
-	'*'            reduce using rule 99
-	'*_1'          reduce using rule 99
-	','            reduce using rule 99
-	'->'           reduce using rule 99
-	'/\\'          reduce using rule 99
-	'0_2'          reduce using rule 99
-	'1'            reduce using rule 99
-	'1_2'          reduce using rule 99
-	'2'            reduce using rule 99
+	'('            reduce using rule 100
+	')'            reduce using rule 100
+	'*'            reduce using rule 100
+	'*_1'          reduce using rule 100
+	','            reduce using rule 100
+	'->'           reduce using rule 100
+	'/\\'          reduce using rule 100
+	'0_2'          reduce using rule 100
+	'1'            reduce using rule 100
+	'1_2'          reduce using rule 100
+	'2'            reduce using rule 100
 	':'            shift, and enter state 193
-	'<'            reduce using rule 99
-	'<='           reduce using rule 99
-	'='            reduce using rule 99
-	'==='          reduce using rule 99
-	'=_{'          reduce using rule 99
-	'BOT'          reduce using rule 99
-	'CUBE'         reduce using rule 99
-	'TOP'          reduce using rule 99
-	'TOPE'         reduce using rule 99
-	'U'            reduce using rule 99
-	'['            reduce using rule 99
-	'\\/'          reduce using rule 99
-	'as'           reduce using rule 99
-	'idJ'          reduce using rule 99
-	'recBOT'       reduce using rule 99
-	'recOR'        reduce using rule 99
-	'refl'         reduce using rule 99
-	'refl_{'       reduce using rule 99
-	'unit'         reduce using rule 99
-	'→'            reduce using rule 99
-	L_VarIdentTokenreduce using rule 99
-	L_HoleIdentTokenreduce using rule 99
+	'<'            reduce using rule 100
+	'<='           reduce using rule 100
+	'='            reduce using rule 100
+	'==='          reduce using rule 100
+	'=_{'          reduce using rule 100
+	'BOT'          reduce using rule 100
+	'CUBE'         reduce using rule 100
+	'TOP'          reduce using rule 100
+	'TOPE'         reduce using rule 100
+	'U'            reduce using rule 100
+	'Unit'         reduce using rule 100
+	'['            reduce using rule 100
+	'\\/'          reduce using rule 100
+	'as'           reduce using rule 100
+	'idJ'          reduce using rule 100
+	'recBOT'       reduce using rule 100
+	'recOR'        reduce using rule 100
+	'refl'         reduce using rule 100
+	'refl_{'       reduce using rule 100
+	'unit'         reduce using rule 100
+	'→'            reduce using rule 100
+	L_VarIdentTokenreduce using rule 100
+	L_HoleIdentTokenreduce using rule 100
 
 
 State 175
@@ -4227,7 +4299,7 @@ State 177
 
 State 178
 
-	Term2 -> Term3 '\\/' . Term2                        (rule 108)
+	Term2 -> Term3 '\\/' . Term2                        (rule 109)
 
 	'('            shift, and enter state 72
 	'*_1'          shift, and enter state 43
@@ -4241,6 +4313,7 @@ State 178
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -4265,7 +4338,7 @@ State 178
 
 State 179
 
-	Term3 -> Term4 '/\\' . Term3                        (rule 106)
+	Term3 -> Term4 '/\\' . Term3                        (rule 107)
 
 	'('            shift, and enter state 72
 	'*_1'          shift, and enter state 43
@@ -4279,6 +4352,7 @@ State 179
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -4302,7 +4376,7 @@ State 179
 
 State 180
 
-	Term4 -> Term5 '<=' . Term5                         (rule 104)
+	Term4 -> Term5 '<=' . Term5                         (rule 105)
 
 	'('            shift, and enter state 72
 	'*_1'          shift, and enter state 43
@@ -4316,6 +4390,7 @@ State 180
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -4337,7 +4412,7 @@ State 180
 
 State 181
 
-	Term4 -> Term5 '===' . Term5                        (rule 103)
+	Term4 -> Term5 '===' . Term5                        (rule 104)
 
 	'('            shift, and enter state 72
 	'*_1'          shift, and enter state 43
@@ -4351,6 +4426,7 @@ State 181
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -4372,7 +4448,7 @@ State 181
 
 State 182
 
-	Term1 -> ParamDecl '->' . Term1                     (rule 110)
+	Term1 -> ParamDecl '->' . Term1                     (rule 111)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -4481,49 +4557,25 @@ State 184
 
 State 185
 
-	Term1 -> ParamDecl '->' Term1 .                     (rule 110)
+	Term1 -> ParamDecl '->' Term1 .                     (rule 111)
 
-	')'            reduce using rule 110
-	','            reduce using rule 110
-	':'            reduce using rule 110
-	':='           reduce using rule 110
-	';'            reduce using rule 110
-	'>'            reduce using rule 110
-	']'            reduce using rule 110
-	'|'            reduce using rule 110
-	'|->'          reduce using rule 110
-	'}'            reduce using rule 110
-	%eof           reduce using rule 110
+	')'            reduce using rule 111
+	','            reduce using rule 111
+	':'            reduce using rule 111
+	':='           reduce using rule 111
+	';'            reduce using rule 111
+	'>'            reduce using rule 111
+	']'            reduce using rule 111
+	'|'            reduce using rule 111
+	'|->'          reduce using rule 111
+	'}'            reduce using rule 111
+	%eof           reduce using rule 111
 
 
 State 186
 
-	Term5 -> Term5 . '*' Term6                          (rule 101)
-	Term4 -> Term5 '===' Term5 .                        (rule 103)
-
-	')'            reduce using rule 103
-	'*'            shift, and enter state 158
-	','            reduce using rule 103
-	'/\\'          reduce using rule 103
-	':'            reduce using rule 103
-	':='           reduce using rule 103
-	';'            reduce using rule 103
-	'='            reduce using rule 103
-	'=_{'          reduce using rule 103
-	'>'            reduce using rule 103
-	'\\/'          reduce using rule 103
-	']'            reduce using rule 103
-	'as'           reduce using rule 103
-	'|'            reduce using rule 103
-	'|->'          reduce using rule 103
-	'}'            reduce using rule 103
-	%eof           reduce using rule 103
-
-
-State 187
-
-	Term5 -> Term5 . '*' Term6                          (rule 101)
-	Term4 -> Term5 '<=' Term5 .                         (rule 104)
+	Term5 -> Term5 . '*' Term6                          (rule 102)
+	Term4 -> Term5 '===' Term5 .                        (rule 104)
 
 	')'            reduce using rule 104
 	'*'            shift, and enter state 158
@@ -4544,45 +4596,69 @@ State 187
 	%eof           reduce using rule 104
 
 
+State 187
+
+	Term5 -> Term5 . '*' Term6                          (rule 102)
+	Term4 -> Term5 '<=' Term5 .                         (rule 105)
+
+	')'            reduce using rule 105
+	'*'            shift, and enter state 158
+	','            reduce using rule 105
+	'/\\'          reduce using rule 105
+	':'            reduce using rule 105
+	':='           reduce using rule 105
+	';'            reduce using rule 105
+	'='            reduce using rule 105
+	'=_{'          reduce using rule 105
+	'>'            reduce using rule 105
+	'\\/'          reduce using rule 105
+	']'            reduce using rule 105
+	'as'           reduce using rule 105
+	'|'            reduce using rule 105
+	'|->'          reduce using rule 105
+	'}'            reduce using rule 105
+	%eof           reduce using rule 105
+
+
 State 188
 
-	Term3 -> Term4 '/\\' Term3 .                        (rule 106)
+	Term3 -> Term4 '/\\' Term3 .                        (rule 107)
 
-	')'            reduce using rule 106
-	','            reduce using rule 106
-	':'            reduce using rule 106
-	':='           reduce using rule 106
-	';'            reduce using rule 106
-	'='            reduce using rule 106
-	'=_{'          reduce using rule 106
-	'>'            reduce using rule 106
-	'\\/'          reduce using rule 106
-	']'            reduce using rule 106
-	'as'           reduce using rule 106
-	'|'            reduce using rule 106
-	'|->'          reduce using rule 106
-	'}'            reduce using rule 106
-	%eof           reduce using rule 106
+	')'            reduce using rule 107
+	','            reduce using rule 107
+	':'            reduce using rule 107
+	':='           reduce using rule 107
+	';'            reduce using rule 107
+	'='            reduce using rule 107
+	'=_{'          reduce using rule 107
+	'>'            reduce using rule 107
+	'\\/'          reduce using rule 107
+	']'            reduce using rule 107
+	'as'           reduce using rule 107
+	'|'            reduce using rule 107
+	'|->'          reduce using rule 107
+	'}'            reduce using rule 107
+	%eof           reduce using rule 107
 
 
 State 189
 
-	Term2 -> Term3 '\\/' Term2 .                        (rule 108)
+	Term2 -> Term3 '\\/' Term2 .                        (rule 109)
 
-	')'            reduce using rule 108
-	','            reduce using rule 108
-	':'            reduce using rule 108
-	':='           reduce using rule 108
-	';'            reduce using rule 108
-	'='            reduce using rule 108
-	'=_{'          reduce using rule 108
-	'>'            reduce using rule 108
-	']'            reduce using rule 108
-	'as'           reduce using rule 108
-	'|'            reduce using rule 108
-	'|->'          reduce using rule 108
-	'}'            reduce using rule 108
-	%eof           reduce using rule 108
+	')'            reduce using rule 109
+	','            reduce using rule 109
+	':'            reduce using rule 109
+	':='           reduce using rule 109
+	';'            reduce using rule 109
+	'='            reduce using rule 109
+	'=_{'          reduce using rule 109
+	'>'            reduce using rule 109
+	']'            reduce using rule 109
+	'as'           reduce using rule 109
+	'|'            reduce using rule 109
+	'|->'          reduce using rule 109
+	'}'            reduce using rule 109
+	%eof           reduce using rule 109
 
 
 State 190
@@ -4705,7 +4781,7 @@ State 193
 
 State 194
 
-	Term7 -> '<' ParamDecl '->' . Term '>'              (rule 91)
+	Term7 -> '<' ParamDecl '->' . Term '>'              (rule 92)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -4752,7 +4828,7 @@ State 194
 
 State 195
 
-	Term1 -> 'Sigma' '(' Pattern . ':' Term ')' ',' Term1    (rule 111)
+	Term1 -> 'Sigma' '(' Pattern . ':' Term ')' ',' Term1    (rule 112)
 
 	':'            shift, and enter state 257
 
@@ -4805,7 +4881,7 @@ State 196
 
 State 197
 
-	Term7 -> 'idJ' '(' Term . ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term . ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	','            shift, and enter state 255
 
@@ -4828,7 +4904,7 @@ State 199
 
 State 200
 
-	Term7 -> 'refl_{' Term ':' . Term '}'               (rule 96)
+	Term7 -> 'refl_{' Term ':' . Term '}'               (rule 97)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -4875,50 +4951,51 @@ State 200
 
 State 201
 
-	Term7 -> 'refl_{' Term '}' .                        (rule 95)
+	Term7 -> 'refl_{' Term '}' .                        (rule 96)
 
-	'('            reduce using rule 95
-	')'            reduce using rule 95
-	'*'            reduce using rule 95
-	'*_1'          reduce using rule 95
-	','            reduce using rule 95
-	'->'           reduce using rule 95
-	'/\\'          reduce using rule 95
-	'0_2'          reduce using rule 95
-	'1'            reduce using rule 95
-	'1_2'          reduce using rule 95
-	'2'            reduce using rule 95
-	':'            reduce using rule 95
-	':='           reduce using rule 95
-	';'            reduce using rule 95
-	'<'            reduce using rule 95
-	'<='           reduce using rule 95
-	'='            reduce using rule 95
-	'==='          reduce using rule 95
-	'=_{'          reduce using rule 95
-	'>'            reduce using rule 95
-	'BOT'          reduce using rule 95
-	'CUBE'         reduce using rule 95
-	'TOP'          reduce using rule 95
-	'TOPE'         reduce using rule 95
-	'U'            reduce using rule 95
-	'['            reduce using rule 95
-	'\\/'          reduce using rule 95
-	']'            reduce using rule 95
-	'as'           reduce using rule 95
-	'idJ'          reduce using rule 95
-	'recBOT'       reduce using rule 95
-	'recOR'        reduce using rule 95
-	'refl'         reduce using rule 95
-	'refl_{'       reduce using rule 95
-	'unit'         reduce using rule 95
-	'|'            reduce using rule 95
-	'|->'          reduce using rule 95
-	'}'            reduce using rule 95
-	'→'            reduce using rule 95
-	L_VarIdentTokenreduce using rule 95
-	L_HoleIdentTokenreduce using rule 95
-	%eof           reduce using rule 95
+	'('            reduce using rule 96
+	')'            reduce using rule 96
+	'*'            reduce using rule 96
+	'*_1'          reduce using rule 96
+	','            reduce using rule 96
+	'->'           reduce using rule 96
+	'/\\'          reduce using rule 96
+	'0_2'          reduce using rule 96
+	'1'            reduce using rule 96
+	'1_2'          reduce using rule 96
+	'2'            reduce using rule 96
+	':'            reduce using rule 96
+	':='           reduce using rule 96
+	';'            reduce using rule 96
+	'<'            reduce using rule 96
+	'<='           reduce using rule 96
+	'='            reduce using rule 96
+	'==='          reduce using rule 96
+	'=_{'          reduce using rule 96
+	'>'            reduce using rule 96
+	'BOT'          reduce using rule 96
+	'CUBE'         reduce using rule 96
+	'TOP'          reduce using rule 96
+	'TOPE'         reduce using rule 96
+	'U'            reduce using rule 96
+	'Unit'         reduce using rule 96
+	'['            reduce using rule 96
+	'\\/'          reduce using rule 96
+	']'            reduce using rule 96
+	'as'           reduce using rule 96
+	'idJ'          reduce using rule 96
+	'recBOT'       reduce using rule 96
+	'recOR'        reduce using rule 96
+	'refl'         reduce using rule 96
+	'refl_{'       reduce using rule 96
+	'unit'         reduce using rule 96
+	'|'            reduce using rule 96
+	'|->'          reduce using rule 96
+	'}'            reduce using rule 96
+	'→'            reduce using rule 96
+	L_VarIdentTokenreduce using rule 96
+	L_HoleIdentTokenreduce using rule 96
+	%eof           reduce using rule 96
 
 
 State 202
@@ -4994,55 +5071,56 @@ State 205
 
 State 206
 
-	Term7 -> '(' Term ')' .                             (rule 100)
+	Term7 -> '(' Term ')' .                             (rule 101)
 
-	'('            reduce using rule 100
-	')'            reduce using rule 100
-	'*'            reduce using rule 100
-	'*_1'          reduce using rule 100
-	','            reduce using rule 100
-	'->'           reduce using rule 100
-	'/\\'          reduce using rule 100
-	'0_2'          reduce using rule 100
-	'1'            reduce using rule 100
-	'1_2'          reduce using rule 100
-	'2'            reduce using rule 100
-	':'            reduce using rule 100
-	':='           reduce using rule 100
-	';'            reduce using rule 100
-	'<'            reduce using rule 100
-	'<='           reduce using rule 100
-	'='            reduce using rule 100
-	'==='          reduce using rule 100
-	'=_{'          reduce using rule 100
-	'>'            reduce using rule 100
-	'BOT'          reduce using rule 100
-	'CUBE'         reduce using rule 100
-	'TOP'          reduce using rule 100
-	'TOPE'         reduce using rule 100
-	'U'            reduce using rule 100
-	'['            reduce using rule 100
-	'\\/'          reduce using rule 100
-	']'            reduce using rule 100
-	'as'           reduce using rule 100
-	'idJ'          reduce using rule 100
-	'recBOT'       reduce using rule 100
-	'recOR'        reduce using rule 100
-	'refl'         reduce using rule 100
-	'refl_{'       reduce using rule 100
-	'unit'         reduce using rule 100
-	'|'            reduce using rule 100
-	'|->'          reduce using rule 100
-	'}'            reduce using rule 100
-	'→'            reduce using rule 100
-	L_VarIdentTokenreduce using rule 100
-	L_HoleIdentTokenreduce using rule 100
-	%eof           reduce using rule 100
+	'('            reduce using rule 101
+	')'            reduce using rule 101
+	'*'            reduce using rule 101
+	'*_1'          reduce using rule 101
+	','            reduce using rule 101
+	'->'           reduce using rule 101
+	'/\\'          reduce using rule 101
+	'0_2'          reduce using rule 101
+	'1'            reduce using rule 101
+	'1_2'          reduce using rule 101
+	'2'            reduce using rule 101
+	':'            reduce using rule 101
+	':='           reduce using rule 101
+	';'            reduce using rule 101
+	'<'            reduce using rule 101
+	'<='           reduce using rule 101
+	'='            reduce using rule 101
+	'==='          reduce using rule 101
+	'=_{'          reduce using rule 101
+	'>'            reduce using rule 101
+	'BOT'          reduce using rule 101
+	'CUBE'         reduce using rule 101
+	'TOP'          reduce using rule 101
+	'TOPE'         reduce using rule 101
+	'U'            reduce using rule 101
+	'Unit'         reduce using rule 101
+	'['            reduce using rule 101
+	'\\/'          reduce using rule 101
+	']'            reduce using rule 101
+	'as'           reduce using rule 101
+	'idJ'          reduce using rule 101
+	'recBOT'       reduce using rule 101
+	'recOR'        reduce using rule 101
+	'refl'         reduce using rule 101
+	'refl_{'       reduce using rule 101
+	'unit'         reduce using rule 101
+	'|'            reduce using rule 101
+	'|->'          reduce using rule 101
+	'}'            reduce using rule 101
+	'→'            reduce using rule 101
+	L_VarIdentTokenreduce using rule 101
+	L_HoleIdentTokenreduce using rule 101
+	%eof           reduce using rule 101
 
 
 State 207
 
-	Term7 -> '(' Term ',' . Term ')'                    (rule 92)
+	Term7 -> '(' Term ',' . Term ')'                    (rule 93)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -5113,50 +5191,51 @@ State 209
 
 State 210
 
-	Term5 -> Term5 '*' Term6 .                          (rule 101)
+	Term5 -> Term5 '*' Term6 .                          (rule 102)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 120)
 	Term6 -> Term6 . Term7                              (rule 121)
 
 	'('            shift, and enter state 72
-	')'            reduce using rule 101
-	'*'            reduce using rule 101
+	')'            reduce using rule 102
+	'*'            reduce using rule 102
 	'*_1'          shift, and enter state 43
-	','            reduce using rule 101
-	'/\\'          reduce using rule 101
+	','            reduce using rule 102
+	'/\\'          reduce using rule 102
 	'0_2'          shift, and enter state 44
 	'1'            shift, and enter state 45
 	'1_2'          shift, and enter state 46
 	'2'            shift, and enter state 47
-	':'            reduce using rule 101
-	':='           reduce using rule 101
-	';'            reduce using rule 101
+	':'            reduce using rule 102
+	':='           reduce using rule 102
+	';'            reduce using rule 102
 	'<'            shift, and enter state 48
-	'<='           reduce using rule 101
-	'='            reduce using rule 101
-	'==='          reduce using rule 101
-	'=_{'          reduce using rule 101
-	'>'            reduce using rule 101
+	'<='           reduce using rule 102
+	'='            reduce using rule 102
+	'==='          reduce using rule 102
+	'=_{'          reduce using rule 102
+	'>'            reduce using rule 102
 	'BOT'          shift, and enter state 49
 	'CUBE'         shift, and enter state 50
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'['            shift, and enter state 155
-	'\\/'          reduce using rule 101
-	']'            reduce using rule 101
-	'as'           reduce using rule 101
+	'\\/'          reduce using rule 102
+	']'            reduce using rule 102
+	'as'           reduce using rule 102
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
 	'recOR'        shift, and enter state 60
 	'refl'         shift, and enter state 61
 	'refl_{'       shift, and enter state 62
 	'unit'         shift, and enter state 64
-	'|'            reduce using rule 101
-	'|->'          reduce using rule 101
-	'}'            reduce using rule 101
+	'|'            reduce using rule 102
+	'|->'          reduce using rule 102
+	'}'            reduce using rule 102
 	L_VarIdentTokenshift, and enter state 68
 	L_HoleIdentTokenshift, and enter state 69
-	%eof           reduce using rule 101
+	%eof           reduce using rule 102
 
 	VarIdentToken  goto state 28
 	HoleIdentToken goto state 29
@@ -5876,6 +5955,7 @@ State 245
 	'TOP'          reduce using rule 120
 	'TOPE'         reduce using rule 120
 	'U'            reduce using rule 120
+	'Unit'         reduce using rule 120
 	'['            reduce using rule 120
 	'\\/'          reduce using rule 120
 	']'            reduce using rule 120
@@ -5911,6 +5991,7 @@ State 246
 	'TOP'          shift, and enter state 52
 	'TOPE'         shift, and enter state 53
 	'U'            shift, and enter state 54
+	'Unit'         shift, and enter state 55
 	'first'        shift, and enter state 57
 	'idJ'          shift, and enter state 58
 	'recBOT'       shift, and enter state 59
@@ -5935,7 +6016,7 @@ State 246
 
 State 247
 
-	Term7 -> '(' Term ',' Term . ')'                    (rule 92)
+	Term7 -> '(' Term ',' Term . ')'                    (rule 93)
 
 	')'            shift, and enter state 273
 
@@ -6092,7 +6173,7 @@ State 251
 
 State 252
 
-	Term7 -> 'refl_{' Term ':' Term . '}'               (rule 96)
+	Term7 -> 'refl_{' Term ':' Term . '}'               (rule 97)
 
 	'}'            shift, and enter state 267
 
@@ -6173,6 +6254,7 @@ State 254
 	'TOP'          reduce using rule 89
 	'TOPE'         reduce using rule 89
 	'U'            reduce using rule 89
+	'Unit'         reduce using rule 89
 	'['            reduce using rule 89
 	'\\/'          reduce using rule 89
 	']'            reduce using rule 89
@@ -6194,7 +6276,7 @@ State 254
 
 State 255
 
-	Term7 -> 'idJ' '(' Term ',' . Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' . Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -6258,7 +6340,7 @@ State 256
 
 State 257
 
-	Term1 -> 'Sigma' '(' Pattern ':' . Term ')' ',' Term1    (rule 111)
+	Term1 -> 'Sigma' '(' Pattern ':' . Term ')' ',' Term1    (rule 112)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -6305,7 +6387,7 @@ State 257
 
 State 258
 
-	Term7 -> '<' ParamDecl '->' Term . '>'              (rule 91)
+	Term7 -> '<' ParamDecl '->' Term . '>'              (rule 92)
 
 	'>'            shift, and enter state 263
 
@@ -6344,62 +6426,63 @@ State 262
 
 State 263
 
-	Term7 -> '<' ParamDecl '->' Term '>' .              (rule 91)
+	Term7 -> '<' ParamDecl '->' Term '>' .              (rule 92)
 
-	'('            reduce using rule 91
-	')'            reduce using rule 91
-	'*'            reduce using rule 91
-	'*_1'          reduce using rule 91
-	','            reduce using rule 91
-	'->'           reduce using rule 91
-	'/\\'          reduce using rule 91
-	'0_2'          reduce using rule 91
-	'1'            reduce using rule 91
-	'1_2'          reduce using rule 91
-	'2'            reduce using rule 91
-	':'            reduce using rule 91
-	':='           reduce using rule 91
-	';'            reduce using rule 91
-	'<'            reduce using rule 91
-	'<='           reduce using rule 91
-	'='            reduce using rule 91
-	'==='          reduce using rule 91
-	'=_{'          reduce using rule 91
-	'>'            reduce using rule 91
-	'BOT'          reduce using rule 91
-	'CUBE'         reduce using rule 91
-	'TOP'          reduce using rule 91
-	'TOPE'         reduce using rule 91
-	'U'            reduce using rule 91
-	'['            reduce using rule 91
-	'\\/'          reduce using rule 91
-	']'            reduce using rule 91
-	'as'           reduce using rule 91
-	'idJ'          reduce using rule 91
-	'recBOT'       reduce using rule 91
-	'recOR'        reduce using rule 91
-	'refl'         reduce using rule 91
-	'refl_{'       reduce using rule 91
-	'unit'         reduce using rule 91
-	'|'            reduce using rule 91
-	'|->'          reduce using rule 91
-	'}'            reduce using rule 91
-	'→'            reduce using rule 91
-	L_VarIdentTokenreduce using rule 91
-	L_HoleIdentTokenreduce using rule 91
-	%eof           reduce using rule 91
+	'('            reduce using rule 92
+	')'            reduce using rule 92
+	'*'            reduce using rule 92
+	'*_1'          reduce using rule 92
+	','            reduce using rule 92
+	'->'           reduce using rule 92
+	'/\\'          reduce using rule 92
+	'0_2'          reduce using rule 92
+	'1'            reduce using rule 92
+	'1_2'          reduce using rule 92
+	'2'            reduce using rule 92
+	':'            reduce using rule 92
+	':='           reduce using rule 92
+	';'            reduce using rule 92
+	'<'            reduce using rule 92
+	'<='           reduce using rule 92
+	'='            reduce using rule 92
+	'==='          reduce using rule 92
+	'=_{'          reduce using rule 92
+	'>'            reduce using rule 92
+	'BOT'          reduce using rule 92
+	'CUBE'         reduce using rule 92
+	'TOP'          reduce using rule 92
+	'TOPE'         reduce using rule 92
+	'U'            reduce using rule 92
+	'Unit'         reduce using rule 92
+	'['            reduce using rule 92
+	'\\/'          reduce using rule 92
+	']'            reduce using rule 92
+	'as'           reduce using rule 92
+	'idJ'          reduce using rule 92
+	'recBOT'       reduce using rule 92
+	'recOR'        reduce using rule 92
+	'refl'         reduce using rule 92
+	'refl_{'       reduce using rule 92
+	'unit'         reduce using rule 92
+	'|'            reduce using rule 92
+	'|->'          reduce using rule 92
+	'}'            reduce using rule 92
+	'→'            reduce using rule 92
+	L_VarIdentTokenreduce using rule 92
+	L_HoleIdentTokenreduce using rule 92
+	%eof           reduce using rule 92
 
 
 State 264
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term . ')' ',' Term1    (rule 111)
+	Term1 -> 'Sigma' '(' Pattern ':' Term . ')' ',' Term1    (rule 112)
 
 	')'            shift, and enter state 298
 
 
 State 265
 
-	Term7 -> 'idJ' '(' Term ',' Term . ',' Term ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term . ',' Term ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	','            shift, and enter state 297
 
@@ -6413,50 +6496,51 @@ State 266
 
 State 267
 
-	Term7 -> 'refl_{' Term ':' Term '}' .               (rule 96)
+	Term7 -> 'refl_{' Term ':' Term '}' .               (rule 97)
 
-	'('            reduce using rule 96
-	')'            reduce using rule 96
-	'*'            reduce using rule 96
-	'*_1'          reduce using rule 96
-	','            reduce using rule 96
-	'->'           reduce using rule 96
-	'/\\'          reduce using rule 96
-	'0_2'          reduce using rule 96
-	'1'            reduce using rule 96
-	'1_2'          reduce using rule 96
-	'2'            reduce using rule 96
-	':'            reduce using rule 96
-	':='           reduce using rule 96
-	';'            reduce using rule 96
-	'<'            reduce using rule 96
-	'<='           reduce using rule 96
-	'='            reduce using rule 96
-	'==='          reduce using rule 96
-	'=_{'          reduce using rule 96
-	'>'            reduce using rule 96
-	'BOT'          reduce using rule 96
-	'CUBE'         reduce using rule 96
-	'TOP'          reduce using rule 96
-	'TOPE'         reduce using rule 96
-	'U'            reduce using rule 96
-	'['            reduce using rule 96
-	'\\/'          reduce using rule 96
-	']'            reduce using rule 96
-	'as'           reduce using rule 96
-	'idJ'          reduce using rule 96
-	'recBOT'       reduce using rule 96
-	'recOR'        reduce using rule 96
-	'refl'         reduce using rule 96
-	'refl_{'       reduce using rule 96
-	'unit'         reduce using rule 96
-	'|'            reduce using rule 96
-	'|->'          reduce using rule 96
-	'}'            reduce using rule 96
-	'→'            reduce using rule 96
-	L_VarIdentTokenreduce using rule 96
-	L_HoleIdentTokenreduce using rule 96
-	%eof           reduce using rule 96
+	'('            reduce using rule 97
+	')'            reduce using rule 97
+	'*'            reduce using rule 97
+	'*_1'          reduce using rule 97
+	','            reduce using rule 97
+	'->'           reduce using rule 97
+	'/\\'          reduce using rule 97
+	'0_2'          reduce using rule 97
+	'1'            reduce using rule 97
+	'1_2'          reduce using rule 97
+	'2'            reduce using rule 97
+	':'            reduce using rule 97
+	':='           reduce using rule 97
+	';'            reduce using rule 97
+	'<'            reduce using rule 97
+	'<='           reduce using rule 97
+	'='            reduce using rule 97
+	'==='          reduce using rule 97
+	'=_{'          reduce using rule 97
+	'>'            reduce using rule 97
+	'BOT'          reduce using rule 97
+	'CUBE'         reduce using rule 97
+	'TOP'          reduce using rule 97
+	'TOPE'         reduce using rule 97
+	'U'            reduce using rule 97
+	'Unit'         reduce using rule 97
+	'['            reduce using rule 97
+	'\\/'          reduce using rule 97
+	']'            reduce using rule 97
+	'as'           reduce using rule 97
+	'idJ'          reduce using rule 97
+	'recBOT'       reduce using rule 97
+	'recOR'        reduce using rule 97
+	'refl'         reduce using rule 97
+	'refl_{'       reduce using rule 97
+	'unit'         reduce using rule 97
+	'|'            reduce using rule 97
+	'|->'          reduce using rule 97
+	'}'            reduce using rule 97
+	'→'            reduce using rule 97
+	L_VarIdentTokenreduce using rule 97
+	L_HoleIdentTokenreduce using rule 97
+	%eof           reduce using rule 97
 
 
 State 268
@@ -6538,50 +6622,51 @@ State 272
 
 State 273
 
-	Term7 -> '(' Term ',' Term ')' .                    (rule 92)
+	Term7 -> '(' Term ',' Term ')' .                    (rule 93)
 
-	'('            reduce using rule 92
-	')'            reduce using rule 92
-	'*'            reduce using rule 92
-	'*_1'          reduce using rule 92
-	','            reduce using rule 92
-	'->'           reduce using rule 92
-	'/\\'          reduce using rule 92
-	'0_2'          reduce using rule 92
-	'1'            reduce using rule 92
-	'1_2'          reduce using rule 92
-	'2'            reduce using rule 92
-	':'            reduce using rule 92
-	':='           reduce using rule 92
-	';'            reduce using rule 92
-	'<'            reduce using rule 92
-	'<='           reduce using rule 92
-	'='            reduce using rule 92
-	'==='          reduce using rule 92
-	'=_{'          reduce using rule 92
-	'>'            reduce using rule 92
-	'BOT'          reduce using rule 92
-	'CUBE'         reduce using rule 92
-	'TOP'          reduce using rule 92
-	'TOPE'         reduce using rule 92
-	'U'            reduce using rule 92
-	'['            reduce using rule 92
-	'\\/'          reduce using rule 92
-	']'            reduce using rule 92
-	'as'           reduce using rule 92
-	'idJ'          reduce using rule 92
-	'recBOT'       reduce using rule 92
-	'recOR'        reduce using rule 92
-	'refl'         reduce using rule 92
-	'refl_{'       reduce using rule 92
-	'unit'         reduce using rule 92
-	'|'            reduce using rule 92
-	'|->'          reduce using rule 92
-	'}'            reduce using rule 92
-	'→'            reduce using rule 92
-	L_VarIdentTokenreduce using rule 92
-	L_HoleIdentTokenreduce using rule 92
-	%eof           reduce using rule 92
+	'('            reduce using rule 93
+	')'            reduce using rule 93
+	'*'            reduce using rule 93
+	'*_1'          reduce using rule 93
+	','            reduce using rule 93
+	'->'           reduce using rule 93
+	'/\\'          reduce using rule 93
+	'0_2'          reduce using rule 93
+	'1'            reduce using rule 93
+	'1_2'          reduce using rule 93
+	'2'            reduce using rule 93
+	':'            reduce using rule 93
+	':='           reduce using rule 93
+	';'            reduce using rule 93
+	'<'            reduce using rule 93
+	'<='           reduce using rule 93
+	'='            reduce using rule 93
+	'==='          reduce using rule 93
+	'=_{'          reduce using rule 93
+	'>'            reduce using rule 93
+	'BOT'          reduce using rule 93
+	'CUBE'         reduce using rule 93
+	'TOP'          reduce using rule 93
+	'TOPE'         reduce using rule 93
+	'U'            reduce using rule 93
+	'Unit'         reduce using rule 93
+	'['            reduce using rule 93
+	'\\/'          reduce using rule 93
+	']'            reduce using rule 93
+	'as'           reduce using rule 93
+	'idJ'          reduce using rule 93
+	'recBOT'       reduce using rule 93
+	'recOR'        reduce using rule 93
+	'refl'         reduce using rule 93
+	'refl_{'       reduce using rule 93
+	'unit'         reduce using rule 93
+	'|'            reduce using rule 93
+	'|->'          reduce using rule 93
+	'}'            reduce using rule 93
+	'→'            reduce using rule 93
+	L_VarIdentTokenreduce using rule 93
+	L_HoleIdentTokenreduce using rule 93
+	%eof           reduce using rule 93
 
 
 State 274
@@ -7061,7 +7146,7 @@ State 296
 
 State 297
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' . Term ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' . Term ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -7108,14 +7193,14 @@ State 297
 
 State 298
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' . ',' Term1    (rule 111)
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' . ',' Term1    (rule 112)
 
 	','            shift, and enter state 299
 
 
 State 299
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' . Term1    (rule 111)
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' . Term1    (rule 112)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -7161,7 +7246,7 @@ State 299
 
 State 300
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term . ',' Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term . ',' Term ',' Term ',' Term ')'    (rule 98)
 
 	','            shift, and enter state 317
 
@@ -7551,7 +7636,7 @@ State 316
 
 State 317
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' . Term ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' . Term ',' Term ',' Term ')'    (rule 98)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -7598,24 +7683,24 @@ State 317
 
 State 318
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1 .    (rule 111)
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1 .    (rule 112)
 
-	')'            reduce using rule 111
-	','            reduce using rule 111
-	':'            reduce using rule 111
-	':='           reduce using rule 111
-	';'            reduce using rule 111
-	'>'            reduce using rule 111
-	']'            reduce using rule 111
-	'|'            reduce using rule 111
-	'|->'          reduce using rule 111
-	'}'            reduce using rule 111
-	%eof           reduce using rule 111
+	')'            reduce using rule 112
+	','            reduce using rule 112
+	':'            reduce using rule 112
+	':='           reduce using rule 112
+	';'            reduce using rule 112
+	'>'            reduce using rule 112
+	']'            reduce using rule 112
+	'|'            reduce using rule 112
+	'|->'          reduce using rule 112
+	'}'            reduce using rule 112
+	%eof           reduce using rule 112
 
 
 State 319
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term . ',' Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term . ',' Term ',' Term ')'    (rule 98)
 
 	','            shift, and enter state 323
 
@@ -7665,6 +7750,7 @@ State 322
 	'TOP'          reduce using rule 90
 	'TOPE'         reduce using rule 90
 	'U'            reduce using rule 90
+	'Unit'         reduce using rule 90
 	'['            reduce using rule 90
 	'\\/'          reduce using rule 90
 	']'            reduce using rule 90
@@ -7686,7 +7772,7 @@ State 322
 
 State 323
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' . Term ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' . Term ',' Term ')'    (rule 98)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -7733,14 +7819,14 @@ State 323
 
 State 324
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term . ',' Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term . ',' Term ')'    (rule 98)
 
 	','            shift, and enter state 325
 
 
 State 325
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' . Term ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' . Term ')'    (rule 98)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -7787,57 +7873,58 @@ State 325
 
 State 326
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term . ')'    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term . ')'    (rule 98)
 
 	')'            shift, and enter state 327
 
 
 State 327
 
-	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')' .    (rule 97)
+	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')' .    (rule 98)
 
-	'('            reduce using rule 97
-	')'            reduce using rule 97
-	'*'            reduce using rule 97
-	'*_1'          reduce using rule 97
-	','            reduce using rule 97
-	'->'           reduce using rule 97
-	'/\\'          reduce using rule 97
-	'0_2'          reduce using rule 97
-	'1'            reduce using rule 97
-	'1_2'          reduce using rule 97
-	'2'            reduce using rule 97
-	':'            reduce using rule 97
-	':='           reduce using rule 97
-	';'            reduce using rule 97
-	'<'            reduce using rule 97
-	'<='           reduce using rule 97
-	'='            reduce using rule 97
-	'==='          reduce using rule 97
-	'=_{'          reduce using rule 97
-	'>'            reduce using rule 97
-	'BOT'          reduce using rule 97
-	'CUBE'         reduce using rule 97
-	'TOP'          reduce using rule 97
-	'TOPE'         reduce using rule 97
-	'U'            reduce using rule 97
-	'['            reduce using rule 97
-	'\\/'          reduce using rule 97
-	']'            reduce using rule 97
-	'as'           reduce using rule 97
-	'idJ'          reduce using rule 97
-	'recBOT'       reduce using rule 97
-	'recOR'        reduce using rule 97
-	'refl'         reduce using rule 97
-	'refl_{'       reduce using rule 97
-	'unit'         reduce using rule 97
-	'|'            reduce using rule 97
-	'|->'          reduce using rule 97
-	'}'            reduce using rule 97
-	'→'            reduce using rule 97
-	L_VarIdentTokenreduce using rule 97
-	L_HoleIdentTokenreduce using rule 97
-	%eof           reduce using rule 97
+	'('            reduce using rule 98
+	')'            reduce using rule 98
+	'*'            reduce using rule 98
+	'*_1'          reduce using rule 98
+	','            reduce using rule 98
+	'->'           reduce using rule 98
+	'/\\'          reduce using rule 98
+	'0_2'          reduce using rule 98
+	'1'            reduce using rule 98
+	'1_2'          reduce using rule 98
+	'2'            reduce using rule 98
+	':'            reduce using rule 98
+	':='           reduce using rule 98
+	';'            reduce using rule 98
+	'<'            reduce using rule 98
+	'<='           reduce using rule 98
+	'='            reduce using rule 98
+	'==='          reduce using rule 98
+	'=_{'          reduce using rule 98
+	'>'            reduce using rule 98
+	'BOT'          reduce using rule 98
+	'CUBE'         reduce using rule 98
+	'TOP'          reduce using rule 98
+	'TOPE'         reduce using rule 98
+	'U'            reduce using rule 98
+	'Unit'         reduce using rule 98
+	'['            reduce using rule 98
+	'\\/'          reduce using rule 98
+	']'            reduce using rule 98
+	'as'           reduce using rule 98
+	'idJ'          reduce using rule 98
+	'recBOT'       reduce using rule 98
+	'recOR'        reduce using rule 98
+	'refl'         reduce using rule 98
+	'refl_{'       reduce using rule 98
+	'unit'         reduce using rule 98
+	'|'            reduce using rule 98
+	'|->'          reduce using rule 98
+	'}'            reduce using rule 98
+	'→'            reduce using rule 98
+	L_VarIdentTokenreduce using rule 98
+	L_HoleIdentTokenreduce using rule 98
+	%eof           reduce using rule 98
 
 
 -----------------------------------------------------------------------------

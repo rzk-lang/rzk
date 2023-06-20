@@ -16,7 +16,8 @@ import           Data.Char           (chr, ord)
 import           Data.Coerce
 import           Data.Function       (on)
 import           Data.Functor        (void)
-import           Data.List           (nub, (\\))
+import           Data.List           (intercalate, nub, (\\))
+import           Data.Maybe          (fromMaybe)
 import           Data.String
 
 import           Free.Scoped
@@ -24,13 +25,36 @@ import           Free.Scoped.TH
 
 import qualified Language.Rzk.Syntax as Rzk
 
-newtype VarIdent = VarIdent { getVarIdent :: Rzk.VarIdent }
+data RzkPosition = RzkPosition
+  { rzkFilePath :: Maybe FilePath
+  , rzkLineCol  :: Rzk.BNFC'Position
+  }
+
+ppRzkPosition :: RzkPosition -> String
+ppRzkPosition RzkPosition{..} = intercalate ":" $ concat
+  [ [fromMaybe "<stdin>" rzkFilePath]
+  , foldMap (\(row, col) -> map show [row, col]) rzkLineCol]
+
+newtype VarIdent = VarIdent { getVarIdent :: Rzk.VarIdent' RzkPosition }
 
 instance Eq VarIdent where
   (==) = (==) `on` (void . getVarIdent)
 
 instance IsString VarIdent where
-  fromString s = VarIdent (Rzk.VarIdent Nothing (fromString s))
+  fromString s = VarIdent (Rzk.VarIdent (RzkPosition Nothing Nothing) (fromString s))
+
+ppVarIdentWithLocation :: VarIdent -> String
+ppVarIdentWithLocation (VarIdent var@(Rzk.VarIdent pos _ident)) =
+  Rzk.printTree var <> " (" <> ppRzkPosition pos <> ")"
+
+varIdent :: Rzk.VarIdent -> VarIdent
+varIdent = varIdentAt Nothing
+
+varIdentAt :: Maybe FilePath -> Rzk.VarIdent -> VarIdent
+varIdentAt path (Rzk.VarIdent pos ident) = VarIdent (Rzk.VarIdent (RzkPosition path pos) ident)
+
+fromVarIdent :: VarIdent -> Rzk.VarIdent
+fromVarIdent (VarIdent (Rzk.VarIdent (RzkPosition _file pos) ident)) = Rzk.VarIdent pos ident
 
 data TermF scope term
     = UniverseF
@@ -141,14 +165,14 @@ toScopePattern pat bvars = toTerm $ \z ->
   where
     bindings (Rzk.PatternWildcard _loc) _ = []
     bindings (Rzk.PatternUnit _loc)     _ = []
-    bindings (Rzk.PatternVar _loc x)    t = [(VarIdent x, t)]
+    bindings (Rzk.PatternVar _loc x)    t = [(varIdent x, t)]
     bindings (Rzk.PatternPair _loc l r) t = bindings l (First t) <> bindings r (Second t)
 
 toTerm :: (VarIdent -> Term a) -> Rzk.Term -> Term a
 toTerm bvars = go
   where
     go = \case
-      Rzk.Var _loc x -> bvars (VarIdent x)
+      Rzk.Var _loc x -> bvars (varIdent x)
       Rzk.Universe _loc -> Universe
 
       Rzk.UniverseCube _loc -> UniverseCube
@@ -211,15 +235,15 @@ toTerm bvars = go
       Rzk.Hole _loc _ident -> error "holes are not supported"
 
 
-    patternVar (Rzk.PatternVar _loc x) = Just (VarIdent x)
+    patternVar (Rzk.PatternVar _loc x) = Just (varIdent x)
     patternVar _                       = Nothing
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
   where vars = freeVars t
 
-fromScope' :: Rzk.VarIdent -> [VarIdent] -> [VarIdent] -> Scope Term VarIdent -> Rzk.Term
-fromScope' x used xs = fromTermWith' (VarIdent x : used) xs . (>>= fmap VarIdent . f . fmap getVarIdent)
+fromScope' :: VarIdent -> [VarIdent] -> [VarIdent] -> Scope Term VarIdent -> Rzk.Term
+fromScope' x used xs = fromTermWith' (x : used) xs . (>>= f)
   where
     f Z     = Pure x
     f (S z) = Pure z
@@ -239,7 +263,7 @@ fromTermWith' used vars = go
 
     go :: Term' -> Rzk.Term
     go = \case
-      Pure z -> Rzk.Var loc (getVarIdent z)
+      Pure z -> Rzk.Var loc (fromVarIdent z)
 
       Universe -> Rzk.Universe loc
       UniverseCube -> Rzk.UniverseCube loc
@@ -259,23 +283,23 @@ fromTermWith' used vars = go
       RecBottom -> Rzk.RecBottom loc
       RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
 
-      TypeFun z arg Nothing ret -> withFresh z $ \(VarIdent x, xs) ->
-        Rzk.TypeFun loc (Rzk.ParamVarType loc (Rzk.PatternVar loc x) (go arg)) (fromScope' x used xs ret)
-      TypeFun z arg (Just tope) ret -> withFresh z $ \(VarIdent x, xs) ->
-        Rzk.TypeFun loc (Rzk.ParamVarShape loc (Rzk.PatternVar loc x) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
+      TypeFun z arg Nothing ret -> withFresh z $ \(x, xs) ->
+        Rzk.TypeFun loc (Rzk.ParamVarType loc (Rzk.PatternVar loc (fromVarIdent x)) (go arg)) (fromScope' x used xs ret)
+      TypeFun z arg (Just tope) ret -> withFresh z $ \(x, xs) ->
+        Rzk.TypeFun loc (Rzk.ParamVarShape loc (Rzk.PatternVar loc (fromVarIdent x)) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
 
-      TypeSigma z a b -> withFresh z $ \(VarIdent x, xs) ->
-        Rzk.TypeSigma loc (Rzk.PatternVar loc x) (go a) (fromScope' x used xs b)
+      TypeSigma z a b -> withFresh z $ \(x, xs) ->
+        Rzk.TypeSigma loc (Rzk.PatternVar loc (fromVarIdent x)) (go a) (fromScope' x used xs b)
       TypeId l (Just tA) r -> Rzk.TypeId loc (go l) (go tA) (go r)
       TypeId l Nothing r -> Rzk.TypeIdSimple loc (go l) (go r)
       App l r -> Rzk.App loc (go l) (go r)
 
-      Lambda z Nothing scope -> withFresh z $ \(VarIdent x, xs) ->
-        Rzk.Lambda loc [Rzk.ParamPattern loc (Rzk.PatternVar loc x)] (fromScope' x used xs scope)
-      Lambda z (Just (ty, Nothing)) scope -> withFresh z $ \(VarIdent x, xs) ->
-        Rzk.Lambda loc [Rzk.ParamPatternType loc [Rzk.PatternVar loc x] (go ty)] (fromScope' x used xs scope)
-      Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(VarIdent x, xs) ->
-        Rzk.Lambda loc [Rzk.ParamPatternShape loc (Rzk.PatternVar loc x) (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
+      Lambda z Nothing scope -> withFresh z $ \(x, xs) ->
+        Rzk.Lambda loc [Rzk.ParamPattern loc (Rzk.PatternVar loc (fromVarIdent x))] (fromScope' x used xs scope)
+      Lambda z (Just (ty, Nothing)) scope -> withFresh z $ \(x, xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternType loc [Rzk.PatternVar loc (fromVarIdent x)] (go ty)] (fromScope' x used xs scope)
+      Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternShape loc (Rzk.PatternVar loc (fromVarIdent x)) (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda loc (Maybe (term, Maybe scope)) scope
 
       Pair l r -> Rzk.Pair loc (go l) (go r)
@@ -293,7 +317,7 @@ fromTermWith' used vars = go
 
 defaultVarIdents :: [VarIdent]
 defaultVarIdents =
-  [ VarIdent (Rzk.VarIdent Nothing (Rzk.VarIdentToken name))
+  [ fromString name
   | n <- [1..]
   , let name = "x" <> map digitToSub (show n) ]
   where
