@@ -101,8 +101,9 @@ tokenizeTerm' varTokenType = go
       TypeFun _loc paramDecl ret -> concat
         [ tokenizeParamDecl paramDecl
         , go ret ]
-      TypeSigma _loc pat a b -> concat
-        [ tokenizePattern pat
+      TypeSigma loc pat a b -> concat
+        [ mkToken (VarIdent loc "∑") vs_class [vs_defaultLibrary]
+        , tokenizePattern pat
         , foldMap go [a, b] ]
       TypeId _loc x a y -> foldMap go [x, a, y]
       TypeIdSimple _loc x y -> foldMap go [x, y]
