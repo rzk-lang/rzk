@@ -68,6 +68,7 @@ transSectionName x = case x of
 transPattern :: Show a => Language.Rzk.Syntax.Abs.Pattern' a -> Result
 transPattern x = case x of
   Language.Rzk.Syntax.Abs.PatternWildcard _ -> failure x
+  Language.Rzk.Syntax.Abs.PatternUnit _ -> failure x
   Language.Rzk.Syntax.Abs.PatternVar _ varident -> failure x
   Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> failure x
 
@@ -109,6 +110,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.RecOr _ restrictions -> failure x
   Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
   Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> failure x
@@ -117,6 +119,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
+  Language.Rzk.Syntax.Abs.Unit _ -> failure x
   Language.Rzk.Syntax.Abs.Refl _ -> failure x
   Language.Rzk.Syntax.Abs.ReflTerm _ term -> failure x
   Language.Rzk.Syntax.Abs.ReflTermType _ term1 term2 -> failure x

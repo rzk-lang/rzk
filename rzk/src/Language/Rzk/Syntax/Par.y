@@ -114,28 +114,30 @@ import Language.Rzk.Syntax.Lex
   'TOP'            { PT _ (TS _ 39)            }
   'TOPE'           { PT _ (TS _ 40)            }
   'U'              { PT _ (TS _ 41)            }
-  '['              { PT _ (TS _ 42)            }
-  '\\'             { PT _ (TS _ 43)            }
-  '\\/'            { PT _ (TS _ 44)            }
-  ']'              { PT _ (TS _ 45)            }
-  '_'              { PT _ (TS _ 46)            }
-  'as'             { PT _ (TS _ 47)            }
-  'first'          { PT _ (TS _ 48)            }
-  'idJ'            { PT _ (TS _ 49)            }
-  'recBOT'         { PT _ (TS _ 50)            }
-  'recOR'          { PT _ (TS _ 51)            }
-  'refl'           { PT _ (TS _ 52)            }
-  'refl_{'         { PT _ (TS _ 53)            }
-  'rzk-1'          { PT _ (TS _ 54)            }
-  'second'         { PT _ (TS _ 55)            }
-  'uses'           { PT _ (TS _ 56)            }
-  '{'              { PT _ (TS _ 57)            }
-  '|'              { PT _ (TS _ 58)            }
-  '|->'            { PT _ (TS _ 59)            }
-  '}'              { PT _ (TS _ 60)            }
-  'Σ'              { PT _ (TS _ 61)            }
-  '→'              { PT _ (TS _ 62)            }
-  '∑'              { PT _ (TS _ 63)            }
+  'Unit'           { PT _ (TS _ 42)            }
+  '['              { PT _ (TS _ 43)            }
+  '\\'             { PT _ (TS _ 44)            }
+  '\\/'            { PT _ (TS _ 45)            }
+  ']'              { PT _ (TS _ 46)            }
+  '_'              { PT _ (TS _ 47)            }
+  'as'             { PT _ (TS _ 48)            }
+  'first'          { PT _ (TS _ 49)            }
+  'idJ'            { PT _ (TS _ 50)            }
+  'recBOT'         { PT _ (TS _ 51)            }
+  'recOR'          { PT _ (TS _ 52)            }
+  'refl'           { PT _ (TS _ 53)            }
+  'refl_{'         { PT _ (TS _ 54)            }
+  'rzk-1'          { PT _ (TS _ 55)            }
+  'second'         { PT _ (TS _ 56)            }
+  'unit'           { PT _ (TS _ 57)            }
+  'uses'           { PT _ (TS _ 58)            }
+  '{'              { PT _ (TS _ 59)            }
+  '|'              { PT _ (TS _ 60)            }
+  '|->'            { PT _ (TS _ 61)            }
+  '}'              { PT _ (TS _ 62)            }
+  'Σ'              { PT _ (TS _ 63)            }
+  '→'              { PT _ (TS _ 64)            }
+  '∑'              { PT _ (TS _ 65)            }
   L_quoted         { PT _ (TL _)               }
   L_VarIdentToken  { PT _ (T_VarIdentToken _)  }
   L_HoleIdentToken { PT _ (T_HoleIdentToken _) }
@@ -213,6 +215,7 @@ SectionName
 Pattern :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Pattern) }
 Pattern
   : '_' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.PatternWildcard (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | 'unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.PatternUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | VarIdent { (fst $1, Language.Rzk.Syntax.Abs.PatternVar (fst $1) (snd $1)) }
   | '(' Pattern ',' Pattern ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.PatternPair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
 
@@ -267,6 +270,7 @@ Term7
   | 'recOR' '(' Term ',' Term ',' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.recOr (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $7) (snd $9)) }
   | '<' ParamDecl '->' Term '>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.typeExtension (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '(' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Pair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | 'unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Unit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Refl (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl_{' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ReflTerm (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | 'refl_{' Term ':' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ReflTermType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
@@ -300,6 +304,7 @@ Term1 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)
 Term1
   : ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.TypeFun (fst $1) (snd $1) (snd $3)) }
   | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | 'Unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
   | '\\' ListParam '->' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }

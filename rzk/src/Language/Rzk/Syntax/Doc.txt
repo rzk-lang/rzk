@@ -33,9 +33,10 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 
 The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``Sigma`` | ``TOP``
-  | ``TOPE`` | ``U`` | ``as`` | ``first``
-  | ``idJ`` | ``recBOT`` | ``recOR`` | ``refl``
-  | ``second`` | ``uses`` | ``Σ`` |
+  | ``TOPE`` | ``U`` | ``Unit`` | ``as``
+  | ``first`` | ``idJ`` | ``recBOT`` | ``recOR``
+  | ``refl`` | ``second`` | ``unit`` | ``uses``
+  | ``Σ`` |  |  |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -90,6 +91,7 @@ All other symbols are terminals.
   | //SectionName// | -> | **eps**
   |  |  **|**  | //VarIdent//
   | //Pattern// | -> | ``_``
+  |  |  **|**  | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
   | //[Pattern]// | -> | //Pattern//
@@ -123,6 +125,7 @@ All other symbols are terminals.
   |  |  **|**  | ``recOR`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``
   |  |  **|**  | ``refl_{`` //Term// ``:`` //Term// ``}``
@@ -141,6 +144,7 @@ All other symbols are terminals.
   |  |  **|**  | //Term3//
   | //Term1// | -> | //ParamDecl// ``->`` //Term1//
   |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Unit``
   |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
   |  |  **|**  | //Term2// ``=`` //Term2//
   |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//

@@ -69,6 +69,7 @@ data SectionName' a
 type Pattern = Pattern' BNFC'Position
 data Pattern' a
     = PatternWildcard a
+    | PatternUnit a
     | PatternVar a (VarIdent' a)
     | PatternPair a (Pattern' a) (Pattern' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
@@ -113,6 +114,7 @@ data Term' a
     | RecOr a [Restriction' a]
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
     | TypeRestricted a (Term' a) [Restriction' a]
@@ -121,6 +123,7 @@ data Term' a
     | Pair a (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
+    | Unit a
     | Refl a
     | ReflTerm a (Term' a)
     | ReflTermType a (Term' a) (Term' a)
@@ -238,6 +241,7 @@ instance HasPosition SectionName where
 instance HasPosition Pattern where
   hasPosition = \case
     PatternWildcard p -> p
+    PatternUnit p -> p
     PatternVar p _ -> p
     PatternPair p _ _ -> p
 
@@ -279,6 +283,7 @@ instance HasPosition Term where
     RecOr p _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
+    TypeUnit p -> p
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p
     TypeRestricted p _ _ -> p
@@ -287,6 +292,7 @@ instance HasPosition Term where
     Pair p _ _ -> p
     First p _ -> p
     Second p _ -> p
+    Unit p -> p
     Refl p -> p
     ReflTerm p _ -> p
     ReflTermType p _ _ -> p

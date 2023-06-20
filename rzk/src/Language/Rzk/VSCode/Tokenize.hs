@@ -56,9 +56,10 @@ tokenizeParam = \case
 
 tokenizePattern :: Pattern -> [VSToken]
 tokenizePattern = \case
-  PatternWildcard _loc -> []
-  PatternVar _loc var  -> mkToken var vs_parameter [vs_declaration]
-  PatternPair _loc l r -> foldMap tokenizePattern [l, r]
+  PatternWildcard _loc   -> []
+  PatternVar _loc var    -> mkToken var vs_parameter [vs_declaration]
+  PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
+  pat@(PatternUnit _loc) -> mkToken pat vs_enumMember [vs_declaration]
 
 tokenizeTope :: Term -> [VSToken]
 tokenizeTope = tokenizeTerm' (Just vs_string)
@@ -124,6 +125,9 @@ tokenizeTerm' varTokenType = go
       Second loc t -> concat
         [ mkToken (VarIdent loc "second") vs_function [vs_defaultLibrary]
         , go t ]
+
+      TypeUnit _loc -> mkToken term vs_enum [vs_defaultLibrary]
+      Unit _loc -> mkToken term vs_enumMember [vs_defaultLibrary]
 
       Refl{} -> mkToken term vs_function [vs_defaultLibrary]
       ReflTerm loc x -> concat
