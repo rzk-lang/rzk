@@ -12,17 +12,19 @@ rzk_code_block = re.compile(r'(^```\s*rzk[^\n]*\s+(.*?)\s+^```)', flags=re.MULTI
 svg_element = re.compile(r'^(<svg.*?</svg>)', flags=re.MULTILINE | re.DOTALL)
 rzk_installed = True
 
+logger.info('Checking if rzk is available (to render SVG diagrams)')
 try:
     # Capture output to prevent logging usage
     subprocess.run('rzk', capture_output=True)
 except FileNotFoundError:
-    logger.warn('Rzk executable not found')
+    logger.warning('rzk executable not found (will not generate diagrams)')
     rzk_installed = False
 
 
 def on_page_markdown(md: str, page: Page, config: MkDocsConfig, files: Files) -> str:
     if not page.file.src_uri.endswith('.rzk.md'): return md
     if not rzk_installed: return md
+    logger.info('Inserting SVG diagrams in ' + page.file.src_uri)
     # Some snippets can depend on terms defined in previous snippets, so we need to store them all
     previous_snippets = ['#lang rzk-1\n#set-option "render" = "svg"\n\n']
     # Since each snippet will contain previous ones, the previously printed SVGs should not be repeated
