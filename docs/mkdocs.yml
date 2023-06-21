@@ -1,4 +1,8 @@
 site_name: "rzk: an experimental proof assistant for syntheric ∞-categories"
+repo_url: https://github.com/fizruk/rzk
+repo_name: fizruk/rzk
+edit_uri: edit/develop/docs/docs/
+
 nav:
   - General:
     - About: index.md
@@ -17,14 +21,58 @@ nav:
 
 markdown_extensions:
   - admonition
+  - pymdownx.details
   - mdx_math
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - toc:
+      permalink: true
 
 theme:
-  name: readthedocs
-  highlightjs: false  # we override default hightlightjs in custom_theme/
-  custom_dir: custom_theme/
+  name: material
+  custom_dir: overrides
+  favicon: assets/images/favicon.png
+  logo: assets/images/favicon-32x32.png
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+  features:
+    - content.code.copy
+    - content.action.edit
+    - navigation.footer
+    - toc.integrate
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: white
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: black
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
 extra_css:
   - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
+  - assets/css/rzk-render.css
+
+extra:
+  version:
+    provider: mike
+
+plugins:
+  - mike
 
 hooks:
   - generate_svgs.py

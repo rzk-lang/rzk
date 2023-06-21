@@ -2,7 +2,7 @@
 
 Sections and variables allow to simplify definitions by factoring out common assumptions.
 
-!!! hint "Coq-style variables"
+!!! info "Coq-style variables"
     `rzk` implements variables similarly to
     <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>.
     An important difference is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.
