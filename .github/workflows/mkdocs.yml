@@ -19,6 +19,9 @@ jobs:
 
       - name: 🧰 Set up Python
         uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip' # caching pip dependencies
 
       - name: 🔨 Install rzk proof assistant
         uses: jaxxstorm/action-install-gh-release@v1.10.0
@@ -31,13 +34,11 @@ jobs:
       - name: 🔨 Install Pygments lexer for rzk
         run: pip install rzk/RzkLexer
 
+      - name: 🔨 Install MkDocs Material and mike
+        run: pip install -r docs/requirements.txt
+
       - name: 🔨 Build MkDocs
-        uses: Tiryoh/actions-mkdocs@v0
-        with:
-          mkdocs_version: 'latest' # option
-          #mkdocs_version: '1.1' # option
-          requirements: 'docs/requirements.txt' # option
-          configfile: 'docs/mkdocs.yml' # option
+        run: mkdocs build --config-file docs/mkdocs.yml
 
       - name: 🔨 Copy MkDocs files
         run: |
@@ -47,7 +48,7 @@ jobs:
         if: ${{ github.ref_name != 'main' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           target-folder: ${{ github.ref_name }}
           clean: false
@@ -57,7 +58,7 @@ jobs:
         if: ${{ github.ref_name == 'main' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
           clean: false
           single-commit: true
