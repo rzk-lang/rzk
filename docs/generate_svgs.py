@@ -31,7 +31,7 @@ def on_page_markdown(md: str, page: Page, config: MkDocsConfig, files: Files) ->
     for (fenced_block, code) in code_blocks:
         previous_snippets.append(code.replace('#lang rzk-1', ''))
         full_code = '\n'.join(previous_snippets).encode()
-        process = subprocess.run('rzk typecheck', capture_output=True, input=full_code)
+        process = subprocess.run(['rzk', 'typecheck'], capture_output=True, input=full_code)
         if process.returncode != 0: continue
 
         output = process.stderr.decode()
