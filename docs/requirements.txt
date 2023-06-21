@@ -1,2 +1,3 @@
 mkdocs-material
+mike
 python-markdown-math

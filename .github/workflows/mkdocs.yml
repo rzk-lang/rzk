@@ -10,19 +10,6 @@ on:
 
   workflow_dispatch:
 
-        with:
-          python-version: 3.x
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV 
-      - uses: actions/cache@v3
-        with:
-          key: mkdocs-material-${{ env.cache_id }}
-          path: .cache
-          restore-keys: |
-            mkdocs-material-
-      - run: pip install mkdocs-material 
-      - run: mkdocs gh-deploy --force
-
-
 jobs:
   mkdocs:
     runs-on: ubuntu-latest
@@ -31,13 +18,15 @@ jobs:
         uses: actions/checkout@v3
 
       - name: 🧰 Set up Python
-      - uses: actions/setup-python@v4
+        uses: actions/setup-python@v4
 
       - name: 🔨 Install rzk proof assistant
         uses: jaxxstorm/action-install-gh-release@v1.10.0
         with:
           repo: fizruk/rzk
+          tag: latest # FIXME: should use the version from the same Git commit
           rename-to: rzk
+          chmod: 0755
 
       - name: 🔨 Install Pygments lexer for rzk
         run: pip install rzk/RzkLexer
