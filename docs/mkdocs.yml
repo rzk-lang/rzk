@@ -37,7 +37,7 @@ theme:
   name: material
   custom_dir: overrides
   favicon: assets/images/favicon.png
-  logo: assets/images/favicon-32x32.png
+  logo: assets/images/logo-1000x1000.png
   icon:
     repo: fontawesome/brands/github
     edit: material/pencil
@@ -46,6 +46,10 @@ theme:
     - content.code.copy
     - content.action.edit
     - navigation.footer
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.path
     - toc.integrate
   palette:
     # Palette toggle for light mode
