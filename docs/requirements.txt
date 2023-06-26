@@ -1,3 +1,4 @@
 mkdocs-material
 mike
 python-markdown-math
+mkdocs-plugin-rzk==0.1.2

@@ -77,6 +77,4 @@ extra:
 
 plugins:
   - mike
-
-hooks:
-  - generate_svgs.py
+  - rzk
