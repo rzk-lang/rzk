@@ -13,18 +13,21 @@ nav:
     - Introduction: rzk-1/introduction.rzk.md
     - Sections and Variables: rzk-1/sections.rzk.md
     - Rendering Diagrams: rzk-1/render.rzk.md
-    - Weak tope disjunction elimination: rzk-1/recId.rzk.md
+  - Examples:
+    - Weak tope disjunction elimination: examples/recId.rzk.md
   - Tools:
     - Syntax Highlighting: tools/highlight.md
     - IDE support: tools/ide.md
     - Continuous Verification: tools/continuous.md
   - Related Projects:
+    - Yoneda lemma for ∞-categories: related/yoneda.md
     - sHoTT: related/sHoTT.md
     - simple-topes: related/simple-topes.md
   - Playground: playground/
 
 markdown_extensions:
   - admonition
+  - footnotes
   - pymdownx.details
   - mdx_math
   - pymdownx.highlight:
@@ -36,6 +39,8 @@ markdown_extensions:
   - pymdownx.superfences
   - toc:
       permalink: true
+  - pymdownx.arithmatex:
+      generic: true
 
 theme:
   name: material
@@ -54,7 +59,6 @@ theme:
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.path
-    - toc.integrate
   palette:
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
@@ -71,7 +75,13 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
 
+extra_javascript:
+  - javascript/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
 extra_css:
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
   - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
   - assets/css/rzk-render.css
 
