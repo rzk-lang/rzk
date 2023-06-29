@@ -6,7 +6,10 @@ edit_uri: edit/develop/docs/docs/
 nav:
   - General:
     - About: index.md
-  - rzk-1 Language:
+  - Getting Started:
+    - Install: getting-started/install.md
+    - Quickstart: getting-started/quickstart.rzk.md
+  - Reference:
     - Introduction: rzk-1/introduction.rzk.md
     - Sections and Variables: rzk-1/sections.rzk.md
     - Rendering Diagrams: rzk-1/render.rzk.md
@@ -18,6 +21,7 @@ nav:
   - Related Projects:
     - sHoTT: related/sHoTT.md
     - simple-topes: related/simple-topes.md
+  - Playground: playground/
 
 markdown_extensions:
   - admonition

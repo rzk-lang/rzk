@@ -37,28 +37,18 @@ jobs:
       - name: 🔨 Install MkDocs Material and mike
         run: pip install -r docs/requirements.txt
 
-      - name: 🔨 Build MkDocs
-        run: mkdocs build --config-file docs/mkdocs.yml
-
-      - name: 🔨 Copy MkDocs files
+      - name: ⚙️  Configure Git user
         run: |
-          mkdir -p dist/ && cp -r docs/root/* docs/site dist/.
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
-      - name: 📘 Publish Generated MkDocs (${{ github.ref_name }})
+      - name: 🚀 Deploy with mike (${{ github.ref_name }})
         if: ${{ github.ref_name != 'main' }}
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          folder: dist
-          target-folder: ${{ github.ref_name }}
-          clean: false
-          single-commit: true
+        run: |
+          mike deploy --rebase --force --push --config-file docs/mkdocs.yml ${{ github.ref_name }}
 
-      - name: 📘 Publish Generated MkDocs
+      - name: 🚀 Deploy with mike (latest)
         if: ${{ github.ref_name == 'main' }}
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          folder: dist
-          clean: false
-          single-commit: true
+        run: |
+          mike deploy --rebase --force --push --config-file docs/mkdocs.yml latest
+
