@@ -33,9 +33,6 @@ jobs:
           rename-to: rzk
           chmod: 0755
 
-      - name: 🔨 Install Pygments lexer for rzk
-        run: pip install rzk/RzkLexer
-
       - name: 🔨 Install MkDocs Material and mike
         run: pip install -r docs/requirements.txt
 
