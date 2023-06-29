@@ -53,7 +53,7 @@ jobs:
           mkdir -p dist/haddock
           mv $(stack path --local-doc-root)/* dist/haddock
 
-      - name: 📘 Publish Haddock Documentation
+      - name: 🚀 Publish Haddock Documentation
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

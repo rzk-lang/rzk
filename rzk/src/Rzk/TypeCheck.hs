@@ -1257,6 +1257,11 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
     UniverseCubeT{} -> nfTope tt
     UniverseTopeT{} -> nfTope tt
 
+    -- CubeUnitT{} -> pure cubeUnitStarT -- compute an expression of 1 cube to its only point
+    TypeUnitT{} -> pure unitT -- compute an expression of Unit type to unit
+    -- FIXME: next line is ad hoc, should be improved!
+    TypeRestrictedT _info TypeUnitT{} _rs -> pure unitT -- compute an expression of Unit type to unit
+
     -- check if we have cube point term (if so, compute NF)
     typeOf_tt -> typeOf typeOf_tt >>= \case
       UniverseCubeT{} -> nfTope tt

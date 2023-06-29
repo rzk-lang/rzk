@@ -63,23 +63,24 @@ jobs:
           mkdir -p dist/result/bin
           cp -r ${{ env.store }}$(realpath result)/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
-          cp try-rzk/playground.html dist/.
+          cp try-rzk/index.html dist/.
 
-      - name: "📘 Publish JS \"binaries\" (${{ github.ref_name }})"
+      - name: "🚀 Publish JS \"binaries\" (${{ github.ref_name }})"
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
-          target-folder: ${{ github.ref_name }}
+          target-folder: ${{ github.ref_name }}/playground
           clean: false
           single-commit: true
 
-      - name: "📘 Publish JS \"binaries\""
+      - name: "🚀 Publish JS \"binaries\""
         if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: dist
+          target-folder: playground
           clean: false
           single-commit: true

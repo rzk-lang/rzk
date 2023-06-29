@@ -2,7 +2,7 @@ name: Build and Deploy MkDocs to GitHub Pages
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ develop ]
     tags: [ v* ]
     paths:
       - .github/workflows/mkdocs.yml
@@ -16,40 +16,41 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 🧰 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip' # caching pip dependencies
 
       - name: 🔨 Install rzk proof assistant
         uses: jaxxstorm/action-install-gh-release@v1.10.0
         with:
           repo: fizruk/rzk
+          tag: latest # FIXME: should use the version from the same Git commit
           rename-to: rzk
+          chmod: 0755
 
-      - name: 🔨 Build MkDocs
-        uses: Tiryoh/actions-mkdocs@v0
-        with:
-          mkdocs_version: 'latest' # option
-          #mkdocs_version: '1.1' # option
-          requirements: 'docs/requirements.txt' # option
-          configfile: 'docs/mkdocs.yml' # option
+      - name: 🔨 Install Pygments lexer for rzk
+        run: pip install rzk/RzkLexer
 
-      - name: 🔨 Copy MkDocs files
+      - name: 🔨 Install MkDocs Material and mike
+        run: pip install -r docs/requirements.txt
+
+      - name: ⚙️  Configure Git user
         run: |
-          mkdir -p dist/ && cp -r docs/root/* docs/site dist/.
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
-      - name: 📘 Publish Generated MkDocs (${{ github.ref_name }})
-        if: ${{ github.ref_name != 'main' }}
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          folder: dist
-          target-folder: ${{ github.ref_name }}
-          clean: false
-          single-commit: true
+      - name: 🚀 Deploy with mike (${{ github.ref_name }}, latest)
+        if: ${{ github.ref_name != 'develop' }}
+        run: |
+          mike deploy --rebase --push --config-file docs/mkdocs.yml ${{ github.ref_name }} latest
 
-      - name: 📘 Publish Generated MkDocs
-        if: ${{ github.ref_name == 'main' }}
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          folder: dist
-          clean: false
-          single-commit: true
+      - name: 🚀 Deploy with mike (${{ github.ref_name }})
+        if: ${{ github.ref_name == 'develop' }}
+        run: |
+          mike deploy --rebase --push --config-file docs/mkdocs.yml ${{ github.ref_name }}
+

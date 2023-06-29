@@ -1,6 +1,5 @@
 # Continuous Verification with `rzk`
 
-## GitHub Actions
+## GitHub Action
 
-!!! warning "Work-in-progress"
-    GitHub Actions for rzk is in under development and will be released soon.
+See <https://github.com/fizruk/rzk-action>. See also <https://github.com/emilyriehl/yoneda> for an example usage of the action.

@@ -1,30 +1,95 @@
 site_name: "rzk: an experimental proof assistant for syntheric ∞-categories"
+repo_url: https://github.com/fizruk/rzk
+repo_name: fizruk/rzk
+edit_uri: edit/develop/docs/docs/
+
 nav:
   - General:
     - About: index.md
-  - rzk-1 Language:
-    - Introduction: rzk-1/introduction.md
-    - Sections and Variables: rzk-1/sections.md
-    - Rendering Diagrams: rzk-1/render.md
-    - Weak tope disjunction elimination: rzk-1/recId.md
+  - Getting Started:
+    - Install: getting-started/install.md
+    - Quickstart: getting-started/quickstart.rzk.md
+    - Changelog: getting-started/changelog.md
+  - Reference:
+    - Introduction: rzk-1/introduction.rzk.md
+    - Sections and Variables: rzk-1/sections.rzk.md
+    - Rendering Diagrams: rzk-1/render.rzk.md
+  - Examples:
+    - Weak tope disjunction elimination: examples/recId.rzk.md
   - Tools:
     - Syntax Highlighting: tools/highlight.md
     - IDE support: tools/ide.md
     - Continuous Verification: tools/continuous.md
   - Related Projects:
+    - Yoneda lemma for ∞-categories: related/yoneda.md
     - sHoTT: related/sHoTT.md
     - simple-topes: related/simple-topes.md
+  - Playground: playground/
 
 markdown_extensions:
   - admonition
+  - footnotes
+  - pymdownx.details
   - mdx_math
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
 
 theme:
-  name: readthedocs
-  highlightjs: false  # we override default hightlightjs in custom_theme/
-  custom_dir: custom_theme/
-extra_css:
-  - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
+  name: material
+  custom_dir: overrides
+  favicon: assets/images/favicon.png
+  logo: assets/images/logo-1000x1000.png
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+  features:
+    - content.code.copy
+    - content.action.edit
+    - navigation.footer
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.path
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: white
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: black
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 
-hooks:
-  - generate_svgs.py
+extra_javascript:
+  - javascript/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
+  - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css
+  - assets/css/rzk-render.css
+
+extra:
+  version:
+    provider: mike
+
+plugins:
+  - mike
+  - rzk
