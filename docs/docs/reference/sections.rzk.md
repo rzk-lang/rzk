@@ -19,14 +19,14 @@ This is a literate `rzk` file:
 Consider the following definitions:
 
 ```rzk
-#def compose₁
+#define compose₁
   (A B C : U)
   (g : B -> C)
   (f : A -> B)
   : A -> C
   := \x -> g (f x)
 
-#def twice₁
+#define twice₁
   (A : U)
   (h : A -> A)
   : A -> A
@@ -38,13 +38,13 @@ Since it might be common to introduce types `A`, `B`, and `C`, we can declare th
 ```rzk
 #variables A B C : U
 
-#def compose₂
+#define compose₂
   (g : B -> C)
   (f : A -> B)
   : A -> C
   := \x -> g (f x)
 
-#def twice₂
+#define twice₂
   (h : A -> A)
   : A -> A
   := \x -> h (h x)
@@ -62,8 +62,8 @@ We can try going even further and declare variables `f`, `g`, `h`, and `x`:
 #variable h : A -> A
 #variable x : A
 
--- #def bad-compose₃ : C := g (f x)  -- ERROR: implicit assumptions A and B
-#def twice₃ : A := h (h x)
+-- #define bad-compose₃ : C := g (f x)  -- ERROR: implicit assumptions A and B
+#define twice₃ : A := h (h x)
 ```
 
 Note how this definition of `bad-compose₃` is implicitly dependent on the types `A` and `B`, which is promptly noted by `rzk`, which issues an error (if we uncomment the corresponding line):
@@ -78,7 +78,7 @@ used in definition of
 To let `rzk` know that this is not accidental, we can add `uses (...)` annotation to specify a list of variables implicitly used in the definition:
 
 ```rzk
-#def compose₃ uses (A B) : C := g (f x)
+#define compose₃ uses (A B) : C := g (f x)
 ```
 
 ## Sections
@@ -92,13 +92,13 @@ To introduce assumption variables temporarily inside of one file, you can use se
 #variable k : X -> X
 #variable x' : X
 
-#def compose₄
+#define compose₄
   (g : Y -> Z)
   (f : X -> Y)
   : X -> Z
   := \x -> g (f x)
 
-#def twice₄ : X := k (k x')
+#define twice₄ : X := k (k x')
 
 #end example-1
 ```
@@ -110,13 +110,13 @@ Now, once outside of the section, `compose₄` and `twice₄` obtain correspondi
 -- compose₄ : (X : U) -> (Y : U) -> (Z : U) -> (g : Y -> Z) -> (f : X -> Y) -> (X -> Z)
 -- twice₄ : (X : U) -> (k : X -> X) -> (x' : X) -> X
 
-#def twice₅
+#define twice₅
   (T : U)
   (e : T -> T)
   : T -> T
   := compose₄ T T T e e
 
-#def identity
+#define identity
   (T : U)
   : T -> T
   := twice₄ T (\t -> t)
