@@ -9,6 +9,7 @@ nav:
   - Getting Started:
     - Install: getting-started/install.md
     - Quickstart: getting-started/quickstart.rzk.md
+    - Publishing with MkDocs: getting-started/publishing-with-mkdocs.md
     - Changelog: getting-started/changelog.md
   - Reference:
     - Introduction: rzk-1/introduction.rzk.md
