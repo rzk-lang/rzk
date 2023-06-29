@@ -94,3 +94,4 @@ extra:
 plugins:
   - mike
   - rzk
+  - search
