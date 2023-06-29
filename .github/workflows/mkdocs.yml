@@ -47,7 +47,7 @@ jobs:
       - name: 🚀 Deploy with mike (${{ github.ref_name }}, latest)
         if: ${{ github.ref_name != 'develop' }}
         run: |
-          mike deploy --rebase --push --config-file docs/mkdocs.yml ${{ github.ref_name }} latest
+          mike deploy --rebase --push --update-aliases --config-file docs/mkdocs.yml ${{ github.ref_name }} latest
 
       - name: 🚀 Deploy with mike (${{ github.ref_name }})
         if: ${{ github.ref_name == 'develop' }}
