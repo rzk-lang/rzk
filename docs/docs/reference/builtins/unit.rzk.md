@@ -7,7 +7,7 @@ Since [:octicons-tag-24: v0.5.1][Unit support]
 ```
 
 In the syntax, only `Unit` (the type) and `unit` (the only inhabitant) are provided. Everything else should be available from computation rules.
-More specifically, `rzk` takes the uniqueness property of the `Unit` type (see Section 1.5 of the HoTT book[^1]) as the computation rule, meaning that any (well-typed) term of type Unit reduces to unit.
+More specifically, `rzk` takes the uniqueness property of the `Unit` type (see Section 1.5 of the HoTT book[^1]) as the computation rule, meaning that any (well-typed) term of type `Unit` reduces to `unit`.
 This means in particular, that induction and uniqueness can be defined very easily:
 
 ```rzk
