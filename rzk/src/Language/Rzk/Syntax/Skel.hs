@@ -88,6 +88,7 @@ transParamDecl x = case x of
 transRestriction :: Show a => Language.Rzk.Syntax.Abs.Restriction' a -> Result
 transRestriction x = case x of
   Language.Rzk.Syntax.Abs.Restriction _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Restriction _ term1 term2 -> failure x
 
 transTerm :: Show a => Language.Rzk.Syntax.Abs.Term' a -> Result
 transTerm x = case x of
@@ -108,12 +109,14 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.TopeOr _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.RecBottom _ -> failure x
   Language.Rzk.Syntax.Abs.RecOr _ restrictions -> failure x
+  Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 term2 term3 term4 -> failure x
   Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
   Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> failure x
+  Language.Rzk.Syntax.Abs.TypeExtensionDeprecated _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.App _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.Lambda _ params term -> failure x
   Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x
@@ -127,3 +130,18 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.Hole _ holeident -> failure x
   Language.Rzk.Syntax.Abs.Var _ varident -> failure x
   Language.Rzk.Syntax.Abs.TypeAsc _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_CubeUnitStar _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Cube2_0 _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Cube2_1 _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeTop _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeBottom _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeEQ _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeLEQ _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeAnd _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Lambda _ params term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_First _ term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Second _ term -> failure x

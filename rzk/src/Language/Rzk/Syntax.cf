@@ -78,7 +78,7 @@ ParamVarShape.      ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShape pat cube tope = ParamVarShape pat cube tope ;
 
-Restriction. Restriction ::= Term "|->" Term ;
+Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
 
 -- Universes
@@ -87,38 +87,36 @@ UniverseCube.   Term7 ::= "CUBE" ;
 UniverseTope.   Term7 ::= "TOPE" ;
 -- Cubes
 CubeUnit.       Term7 ::= "1" ;
-CubeUnitStar.   Term7 ::= "*_1" ;
+CubeUnitStar.   Term7 ::= "*₁" ;
 Cube2.          Term7 ::= "2" ;
-Cube2_0.        Term7 ::= "0_2" ;
-Cube2_1.        Term7 ::= "1_2" ;
-CubeProduct.    Term5 ::= Term5 "*" Term6 ;
+Cube2_0.        Term7 ::= "0₂" ;
+Cube2_1.        Term7 ::= "1₂" ;
+CubeProduct.    Term5 ::= Term5 "×" Term6 ;
 -- Topes
-TopeTop.        Term7 ::= "TOP" ;
-TopeBottom.     Term7 ::= "BOT" ;
-TopeEQ.         Term4 ::= Term5 "===" Term5 ;
-TopeLEQ.        Term4 ::= Term5 "<=" Term5 ;
-TopeAnd.        Term3 ::= Term4 "/\\" Term3 ;
-TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
+TopeTop.        Term7 ::= "⊤" ;
+TopeBottom.     Term7 ::= "⊥" ;
+TopeEQ.         Term4 ::= Term5 "≡" Term5 ;
+TopeLEQ.        Term4 ::= Term5 "≤" Term5 ;
+TopeAnd.        Term3 ::= Term4 "∧" Term3 ;
+TopeOr.         Term2 ::= Term3 "∨" Term2 ;
 -- Tope disjunction elimination
-RecBottom.      Term7 ::= "recBOT" ;
-RecOr.          Term7 ::= "recOR" "(" [Restriction] ")" ;
-recOr.          Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
-define recOr psi phi a b = RecOr [ Restriction psi a, Restriction phi b ] ;
+RecBottom.        Term7 ::= "recBOT" ;
+RecOr.            Term7 ::= "recOR" "(" [Restriction] ")" ;
+RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
-TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
-TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
+TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
+TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
-typeExtension.  Term7 ::= "<" ParamDecl "->" Term ">" ;
-define typeExtension param ret = TypeFun param ret ;
+TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 -- Terms
 App.            Term6 ::= Term6 Term7 ;
-Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
+Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
-First.          Term6 ::= "first" Term7 ;
-Second.         Term6 ::= "second" Term7 ;
+First.          Term6 ::= "π₁" Term7 ;
+Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;
 Refl.           Term7 ::= "refl";
 ReflTerm.       Term7 ::= "refl_{" Term "}" ;
@@ -133,7 +131,37 @@ TypeAsc.        Term ::= Term2 "as" Term1 ;
 separator nonempty Term "," ;
 coercions Term 7 ;
 
--- Unicode syntax rules
+-- ASCII version of some rules above
+
+ascii_CubeProduct.    Term5 ::= Term5 "*" Term6 ;
+define ascii_CubeProduct l r = CubeProduct l r ;
+
+ASCII_CubeUnitStar.   Term7 ::= "*_1" ;
+ASCII_Cube2_0.        Term7 ::= "0_2" ;
+ASCII_Cube2_1.        Term7 ::= "1_2" ;
+
+ASCII_TopeTop.        Term7 ::= "TOP" ;
+ASCII_TopeBottom.     Term7 ::= "BOT" ;
+ASCII_TopeEQ.         Term4 ::= Term5 "===" Term5 ;
+ASCII_TopeLEQ.        Term4 ::= Term5 "<=" Term5 ;
+ASCII_TopeAnd.        Term3 ::= Term4 "/\\" Term3 ;
+ASCII_TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
+
+ASCII_TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
+ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
+
+ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
+ASCII_Restriction. Restriction ::= Term "|->" Term ;
+
+ASCII_TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "->" Term ">" ;
+
+ASCII_First.          Term6 ::= "first" Term7 ;
+ASCII_Second.         Term6 ::= "second" Term7 ;
+
+-- Alternative Unicode syntax rules
+
+unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
+define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
 
 -- -- Universes
 -- unicode_Universe.       Term7 ::= "𝒰" ;
@@ -166,12 +194,6 @@ coercions Term 7 ;
 -- define unicode_RecBottom = RecBottom ;
 -- define unicode_RecOr rs = RecOr rs ;
 -- Types
-unicode_TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
-unicode_TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;    -- \Sigma
-unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
-define unicode_TypeFun arg ret = TypeFun arg ret ;
-define unicode_TypeSigma pat fst snd = TypeSigma pat fst snd ;
-define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
 -- -- Terms
 -- unicode_Lambda.         Term1 ::= "λ" Param "→" Term1 ;
 -- unicode_First.          Term6 ::= "π₁" Term7 ;

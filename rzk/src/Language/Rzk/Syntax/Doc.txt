@@ -36,7 +36,7 @@ The reserved words used in Syntax are the following:
   | ``TOPE`` | ``U`` | ``Unit`` | ``as``
   | ``first`` | ``idJ`` | ``recBOT`` | ``recOR``
   | ``refl`` | ``second`` | ``unit`` | ``uses``
-  | ``Σ`` |  |  |
+  | ``Σ`` | ``π₁`` | ``π₂`` |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -45,12 +45,15 @@ The symbols used in Syntax are the following:
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
   | ( | ) | _ | ,
-  | { | | | } | |->
-  | 1 | *_1 | 2 | 0_2
-  | 1_2 | * | === | <=
-  | /\ | \/ | -> | =_{
-  | [ | ] | < | >
-  | \ | refl_{ | → | ∑
+  | { | | | } | ↦
+  | 1 | *₁ | 2 | 0₂
+  | 1₂ | × | ⊤ | ⊥
+  | ≡ | ≤ | ∧ | ∨
+  | → | =_{ | [ | ]
+  | < | > | \ | refl_{
+  | * | *_1 | 0_2 | 1_2
+  | === | <= | /\ | \/
+  | -> | |-> | ∑ |
 
 ===Comments===
 Single-line comments begin with --.Multiple-line comments are  enclosed with {- and -}.
@@ -107,24 +110,25 @@ All other symbols are terminals.
   |  |  **|**  | ``(`` //VarIdent// ``:`` //Term// ``)``
   |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
-  | //Restriction// | -> | //Term// ``|->`` //Term//
+  | //Restriction// | -> | //Term// ``↦`` //Term//
+  |  |  **|**  | //Term// ``|->`` //Term//
   | //[Restriction]// | -> | //Restriction//
   |  |  **|**  | //Restriction// ``,`` //[Restriction]//
   | //Term7// | -> | ``U``
   |  |  **|**  | ``CUBE``
   |  |  **|**  | ``TOPE``
   |  |  **|**  | ``1``
-  |  |  **|**  | ``*_1``
+  |  |  **|**  | ``*₁``
   |  |  **|**  | ``2``
-  |  |  **|**  | ``0_2``
-  |  |  **|**  | ``1_2``
-  |  |  **|**  | ``TOP``
-  |  |  **|**  | ``BOT``
+  |  |  **|**  | ``0₂``
+  |  |  **|**  | ``1₂``
+  |  |  **|**  | ``⊤``
+  |  |  **|**  | ``⊥``
   |  |  **|**  | ``recBOT``
   |  |  **|**  | ``recOR`` ``(`` //[Restriction]// ``)``
   |  |  **|**  | ``recOR`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``Unit``
-  |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
+  |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
@@ -134,29 +138,43 @@ All other symbols are terminals.
   |  |  **|**  | //HoleIdent//
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Term// ``)``
-  | //Term5// | -> | //Term5// ``*`` //Term6//
+  |  |  **|**  | ``*_1``
+  |  |  **|**  | ``0_2``
+  |  |  **|**  | ``1_2``
+  |  |  **|**  | ``TOP``
+  |  |  **|**  | ``BOT``
+  |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
+  | //Term5// | -> | //Term5// ``×`` //Term6//
   |  |  **|**  | //Term6//
-  | //Term4// | -> | //Term5// ``===`` //Term5//
-  |  |  **|**  | //Term5// ``<=`` //Term5//
+  |  |  **|**  | //Term5// ``*`` //Term6//
+  | //Term4// | -> | //Term5// ``≡`` //Term5//
+  |  |  **|**  | //Term5// ``≤`` //Term5//
   |  |  **|**  | //Term5//
-  | //Term3// | -> | //Term4// ``/\`` //Term3//
+  |  |  **|**  | //Term5// ``===`` //Term5//
+  |  |  **|**  | //Term5// ``<=`` //Term5//
+  | //Term3// | -> | //Term4// ``∧`` //Term3//
   |  |  **|**  | //Term4//
-  | //Term2// | -> | //Term3// ``\/`` //Term2//
+  |  |  **|**  | //Term4// ``/\`` //Term3//
+  | //Term2// | -> | //Term3// ``∨`` //Term2//
   |  |  **|**  | //Term3//
-  | //Term1// | -> | //ParamDecl// ``->`` //Term1//
-  |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | //Term3// ``\/`` //Term2//
+  | //Term1// | -> | //ParamDecl// ``→`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
   |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
   |  |  **|**  | //Term2// ``=`` //Term2//
-  |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
+  |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
   |  |  **|**  | //Term2//
-  |  |  **|**  | //ParamDecl// ``→`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | //ParamDecl// ``->`` //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
   |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
   | //Term6// | -> | //Term6// ``[`` //[Restriction]// ``]``
   |  |  **|**  | //Term6// //Term7//
+  |  |  **|**  | ``π₁`` //Term7//
+  |  |  **|**  | ``π₂`` //Term7//
+  |  |  **|**  | //Term7//
   |  |  **|**  | ``first`` //Term7//
   |  |  **|**  | ``second`` //Term7//
-  |  |  **|**  | //Term7//
   | //Term// | -> | //Term2// ``as`` //Term1//
   |  |  **|**  | //Term1//
   | //[Term]// | -> | //Term//

@@ -82,19 +82,28 @@ tokenizeTerm' varTokenType = go
 
       CubeUnit{}           -> mkToken term vs_enum [vs_defaultLibrary]
       CubeUnitStar{}       -> mkToken term vs_enumMember [vs_defaultLibrary]
+      ASCII_CubeUnitStar{} -> mkToken term vs_enumMember [vs_defaultLibrary]
 
       Cube2{}              -> mkToken term vs_enum [vs_defaultLibrary]
       Cube2_0{}            -> mkToken term vs_enumMember [vs_defaultLibrary]
+      ASCII_Cube2_0{}      -> mkToken term vs_enumMember [vs_defaultLibrary]
       Cube2_1{}            -> mkToken term vs_enumMember [vs_defaultLibrary]
+      ASCII_Cube2_1{}      -> mkToken term vs_enumMember [vs_defaultLibrary]
 
       CubeProduct _loc l r -> foldMap go [l, r]
 
       TopeTop{}            -> mkToken term vs_string [vs_defaultLibrary]
+      ASCII_TopeTop{}            -> mkToken term vs_string [vs_defaultLibrary]
       TopeBottom{}         -> mkToken term vs_string [vs_defaultLibrary]
+      ASCII_TopeBottom{}         -> mkToken term vs_string [vs_defaultLibrary]
       TopeAnd _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeAnd _loc l r     -> foldMap tokenizeTope [l, r]
       TopeOr  _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeOr  _loc l r     -> foldMap tokenizeTope [l, r]
       TopeEQ  _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeEQ  _loc l r     -> foldMap tokenizeTope [l, r]
       TopeLEQ _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeLEQ _loc l r     -> foldMap tokenizeTope [l, r]
 
       RecBottom{}          -> mkToken term vs_function [vs_defaultLibrary]
       RecOr _loc rs -> foldMap tokenizeRestriction rs
@@ -102,8 +111,15 @@ tokenizeTerm' varTokenType = go
       TypeFun _loc paramDecl ret -> concat
         [ tokenizeParamDecl paramDecl
         , go ret ]
+      ASCII_TypeFun _loc paramDecl ret -> concat
+        [ tokenizeParamDecl paramDecl
+        , go ret ]
       TypeSigma loc pat a b -> concat
         [ mkToken (VarIdent loc "∑") vs_class [vs_defaultLibrary]
+        , tokenizePattern pat
+        , foldMap go [a, b] ]
+      ASCII_TypeSigma loc pat a b -> concat
+        [ mkToken (VarIdent loc "Sigma") vs_class [vs_defaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
       TypeId _loc x a y -> foldMap go [x, a, y]
@@ -117,12 +133,19 @@ tokenizeTerm' varTokenType = go
       Lambda _loc params body -> concat
         [ foldMap tokenizeParam params
         , go body ]
+      ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]
       First loc t -> concat
+        [ mkToken (VarIdent loc "π₁") vs_function [vs_defaultLibrary]
+        , go t ]
+      ASCII_First loc t -> concat
         [ mkToken (VarIdent loc "first") vs_function [vs_defaultLibrary]
         , go t ]
       Second loc t -> concat
+        [ mkToken (VarIdent loc "π₂") vs_function [vs_defaultLibrary]
+        , go t ]
+      ASCII_Second loc t -> concat
         [ mkToken (VarIdent loc "second") vs_function [vs_defaultLibrary]
         , go t ]
 
@@ -143,8 +166,15 @@ tokenizeTerm' varTokenType = go
 
       TypeAsc _loc t type_ -> foldMap go [t, type_]
 
+      RecOrDeprecated{} -> mkToken term vs_regexp [vs_deprecated]
+      TypeExtensionDeprecated{} -> mkToken term vs_regexp [vs_deprecated]
+      ASCII_TypeExtensionDeprecated{} -> mkToken term vs_regexp [vs_deprecated]
+
 tokenizeRestriction :: Restriction -> [VSToken]
 tokenizeRestriction (Restriction _loc tope term) = concat
+  [ tokenizeTope tope
+  , tokenizeTerm term ]
+tokenizeRestriction (ASCII_Restriction _loc tope term) = concat
   [ tokenizeTope tope
   , tokenizeTerm term ]
 

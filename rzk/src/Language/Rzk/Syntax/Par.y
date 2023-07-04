@@ -92,52 +92,65 @@ import Language.Rzk.Syntax.Lex
   ')'              { PT _ (TS _ 17)            }
   '*'              { PT _ (TS _ 18)            }
   '*_1'            { PT _ (TS _ 19)            }
-  ','              { PT _ (TS _ 20)            }
-  '->'             { PT _ (TS _ 21)            }
-  '/\\'            { PT _ (TS _ 22)            }
-  '0_2'            { PT _ (TS _ 23)            }
-  '1'              { PT _ (TS _ 24)            }
-  '1_2'            { PT _ (TS _ 25)            }
-  '2'              { PT _ (TS _ 26)            }
-  ':'              { PT _ (TS _ 27)            }
-  ':='             { PT _ (TS _ 28)            }
-  ';'              { PT _ (TS _ 29)            }
-  '<'              { PT _ (TS _ 30)            }
-  '<='             { PT _ (TS _ 31)            }
-  '='              { PT _ (TS _ 32)            }
-  '==='            { PT _ (TS _ 33)            }
-  '=_{'            { PT _ (TS _ 34)            }
-  '>'              { PT _ (TS _ 35)            }
-  'BOT'            { PT _ (TS _ 36)            }
-  'CUBE'           { PT _ (TS _ 37)            }
-  'Sigma'          { PT _ (TS _ 38)            }
-  'TOP'            { PT _ (TS _ 39)            }
-  'TOPE'           { PT _ (TS _ 40)            }
-  'U'              { PT _ (TS _ 41)            }
-  'Unit'           { PT _ (TS _ 42)            }
-  '['              { PT _ (TS _ 43)            }
-  '\\'             { PT _ (TS _ 44)            }
-  '\\/'            { PT _ (TS _ 45)            }
-  ']'              { PT _ (TS _ 46)            }
-  '_'              { PT _ (TS _ 47)            }
-  'as'             { PT _ (TS _ 48)            }
-  'first'          { PT _ (TS _ 49)            }
-  'idJ'            { PT _ (TS _ 50)            }
-  'recBOT'         { PT _ (TS _ 51)            }
-  'recOR'          { PT _ (TS _ 52)            }
-  'refl'           { PT _ (TS _ 53)            }
-  'refl_{'         { PT _ (TS _ 54)            }
-  'rzk-1'          { PT _ (TS _ 55)            }
-  'second'         { PT _ (TS _ 56)            }
-  'unit'           { PT _ (TS _ 57)            }
-  'uses'           { PT _ (TS _ 58)            }
-  '{'              { PT _ (TS _ 59)            }
-  '|'              { PT _ (TS _ 60)            }
-  '|->'            { PT _ (TS _ 61)            }
-  '}'              { PT _ (TS _ 62)            }
-  'Σ'              { PT _ (TS _ 63)            }
-  '→'              { PT _ (TS _ 64)            }
-  '∑'              { PT _ (TS _ 65)            }
+  '*₁'             { PT _ (TS _ 20)            }
+  ','              { PT _ (TS _ 21)            }
+  '->'             { PT _ (TS _ 22)            }
+  '/\\'            { PT _ (TS _ 23)            }
+  '0_2'            { PT _ (TS _ 24)            }
+  '0₂'             { PT _ (TS _ 25)            }
+  '1'              { PT _ (TS _ 26)            }
+  '1_2'            { PT _ (TS _ 27)            }
+  '1₂'             { PT _ (TS _ 28)            }
+  '2'              { PT _ (TS _ 29)            }
+  ':'              { PT _ (TS _ 30)            }
+  ':='             { PT _ (TS _ 31)            }
+  ';'              { PT _ (TS _ 32)            }
+  '<'              { PT _ (TS _ 33)            }
+  '<='             { PT _ (TS _ 34)            }
+  '='              { PT _ (TS _ 35)            }
+  '==='            { PT _ (TS _ 36)            }
+  '=_{'            { PT _ (TS _ 37)            }
+  '>'              { PT _ (TS _ 38)            }
+  'BOT'            { PT _ (TS _ 39)            }
+  'CUBE'           { PT _ (TS _ 40)            }
+  'Sigma'          { PT _ (TS _ 41)            }
+  'TOP'            { PT _ (TS _ 42)            }
+  'TOPE'           { PT _ (TS _ 43)            }
+  'U'              { PT _ (TS _ 44)            }
+  'Unit'           { PT _ (TS _ 45)            }
+  '['              { PT _ (TS _ 46)            }
+  '\\'             { PT _ (TS _ 47)            }
+  '\\/'            { PT _ (TS _ 48)            }
+  ']'              { PT _ (TS _ 49)            }
+  '_'              { PT _ (TS _ 50)            }
+  'as'             { PT _ (TS _ 51)            }
+  'first'          { PT _ (TS _ 52)            }
+  'idJ'            { PT _ (TS _ 53)            }
+  'recBOT'         { PT _ (TS _ 54)            }
+  'recOR'          { PT _ (TS _ 55)            }
+  'refl'           { PT _ (TS _ 56)            }
+  'refl_{'         { PT _ (TS _ 57)            }
+  'rzk-1'          { PT _ (TS _ 58)            }
+  'second'         { PT _ (TS _ 59)            }
+  'unit'           { PT _ (TS _ 60)            }
+  'uses'           { PT _ (TS _ 61)            }
+  '{'              { PT _ (TS _ 62)            }
+  '|'              { PT _ (TS _ 63)            }
+  '|->'            { PT _ (TS _ 64)            }
+  '}'              { PT _ (TS _ 65)            }
+  '×'              { PT _ (TS _ 66)            }
+  'Σ'              { PT _ (TS _ 67)            }
+  'π₁'             { PT _ (TS _ 68)            }
+  'π₂'             { PT _ (TS _ 69)            }
+  '→'              { PT _ (TS _ 70)            }
+  '↦'              { PT _ (TS _ 71)            }
+  '∑'              { PT _ (TS _ 72)            }
+  '∧'              { PT _ (TS _ 73)            }
+  '∨'              { PT _ (TS _ 74)            }
+  '≡'              { PT _ (TS _ 75)            }
+  '≤'              { PT _ (TS _ 76)            }
+  '⊤'              { PT _ (TS _ 77)            }
+  '⊥'              { PT _ (TS _ 78)            }
   L_quoted         { PT _ (TL _)               }
   L_VarIdentToken  { PT _ (T_VarIdentToken _)  }
   L_HoleIdentToken { PT _ (T_HoleIdentToken _) }
@@ -246,7 +259,8 @@ ParamDecl
 
 Restriction :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Restriction) }
 Restriction
-  : Term '|->' Term { (fst $1, Language.Rzk.Syntax.Abs.Restriction (fst $1) (snd $1) (snd $3)) }
+  : Term '↦' Term { (fst $1, Language.Rzk.Syntax.Abs.Restriction (fst $1) (snd $1) (snd $3)) }
+  | Term '|->' Term { (fst $1, Language.Rzk.Syntax.Abs.ASCII_Restriction (fst $1) (snd $1) (snd $3)) }
 
 ListRestriction :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Restriction]) }
 ListRestriction
@@ -259,17 +273,17 @@ Term7
   | 'CUBE' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.UniverseCube (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'TOPE' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.UniverseTope (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | '1' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CubeUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | '*_1' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CubeUnitStar (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '*₁' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CubeUnitStar (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | '2' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Cube2 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | '0_2' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Cube2_0 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | '1_2' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Cube2_1 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | 'TOP' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TopeTop (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | 'BOT' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TopeBottom (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '0₂' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Cube2_0 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '1₂' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Cube2_1 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '⊤' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TopeTop (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '⊥' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TopeBottom (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'recBOT' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.RecBottom (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'recOR' '(' ListRestriction ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.RecOr (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3)) }
-  | 'recOR' '(' Term ',' Term ',' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.recOr (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $7) (snd $9)) }
+  | 'recOR' '(' Term ',' Term ',' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.RecOrDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $7) (snd $9)) }
   | 'Unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
-  | '<' ParamDecl '->' Term '>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.typeExtension (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '<' ParamDecl '→' Term '>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeExtensionDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '(' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Pair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | 'unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Unit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Refl (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
@@ -279,47 +293,61 @@ Term7
   | HoleIdent { (fst $1, Language.Rzk.Syntax.Abs.Hole (fst $1) (snd $1)) }
   | VarIdent { (fst $1, Language.Rzk.Syntax.Abs.Var (fst $1) (snd $1)) }
   | '(' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), (snd $2)) }
+  | '*_1' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_CubeUnitStar (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '0_2' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Cube2_0 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '1_2' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Cube2_1 (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | 'TOP' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TopeTop (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | 'BOT' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TopeBottom (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '<' ParamDecl '->' Term '>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
 
 Term5 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term5
-  : Term5 '*' Term6 { (fst $1, Language.Rzk.Syntax.Abs.CubeProduct (fst $1) (snd $1) (snd $3)) }
+  : Term5 '×' Term6 { (fst $1, Language.Rzk.Syntax.Abs.CubeProduct (fst $1) (snd $1) (snd $3)) }
   | Term6 { (fst $1, (snd $1)) }
+  | Term5 '*' Term6 { (fst $1, Language.Rzk.Syntax.Abs.ascii_CubeProduct (fst $1) (snd $1) (snd $3)) }
 
 Term4 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term4
-  : Term5 '===' Term5 { (fst $1, Language.Rzk.Syntax.Abs.TopeEQ (fst $1) (snd $1) (snd $3)) }
-  | Term5 '<=' Term5 { (fst $1, Language.Rzk.Syntax.Abs.TopeLEQ (fst $1) (snd $1) (snd $3)) }
+  : Term5 '≡' Term5 { (fst $1, Language.Rzk.Syntax.Abs.TopeEQ (fst $1) (snd $1) (snd $3)) }
+  | Term5 '≤' Term5 { (fst $1, Language.Rzk.Syntax.Abs.TopeLEQ (fst $1) (snd $1) (snd $3)) }
   | Term5 { (fst $1, (snd $1)) }
+  | Term5 '===' Term5 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TopeEQ (fst $1) (snd $1) (snd $3)) }
+  | Term5 '<=' Term5 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TopeLEQ (fst $1) (snd $1) (snd $3)) }
 
 Term3 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term3
-  : Term4 '/\\' Term3 { (fst $1, Language.Rzk.Syntax.Abs.TopeAnd (fst $1) (snd $1) (snd $3)) }
+  : Term4 '∧' Term3 { (fst $1, Language.Rzk.Syntax.Abs.TopeAnd (fst $1) (snd $1) (snd $3)) }
   | Term4 { (fst $1, (snd $1)) }
+  | Term4 '/\\' Term3 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TopeAnd (fst $1) (snd $1) (snd $3)) }
 
 Term2 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term2
-  : Term3 '\\/' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TopeOr (fst $1) (snd $1) (snd $3)) }
+  : Term3 '∨' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TopeOr (fst $1) (snd $1) (snd $3)) }
   | Term3 { (fst $1, (snd $1)) }
+  | Term3 '\\/' Term2 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TopeOr (fst $1) (snd $1) (snd $3)) }
 
 Term1 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term1
-  : ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.TypeFun (fst $1) (snd $1) (snd $3)) }
-  | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  : ParamDecl '→' Term1 { (fst $1, Language.Rzk.Syntax.Abs.TypeFun (fst $1) (snd $1) (snd $3)) }
+  | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
   | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
-  | '\\' ListParam '->' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '\\' ListParam '→' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | Term2 { (fst $1, (snd $1)) }
-  | ParamDecl '→' Term1 { (fst $1, Language.Rzk.Syntax.Abs.unicode_TypeFun (fst $1) (snd $1) (snd $3)) }
-  | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TypeFun (fst $1) (snd $1) (snd $3)) }
+  | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | '\\' ListParam '->' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '∑' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
 
 Term6 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term6
   : Term6 '[' ListRestriction ']' { (fst $1, Language.Rzk.Syntax.Abs.TypeRestricted (fst $1) (snd $1) (snd $3)) }
   | Term6 Term7 { (fst $1, Language.Rzk.Syntax.Abs.App (fst $1) (snd $1) (snd $2)) }
-  | 'first' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.First (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
-  | 'second' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Second (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'π₁' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.First (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'π₂' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Second (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | Term7 { (fst $1, (snd $1)) }
+  | 'first' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_First (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'second' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Second (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
 
 Term :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term
