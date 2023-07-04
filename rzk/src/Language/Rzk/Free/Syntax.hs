@@ -23,6 +23,9 @@ import           Data.String
 import           Free.Scoped
 import           Free.Scoped.TH
 
+-- FIXME: use proper mechanisms for warnings
+import           Debug.Trace
+
 import qualified Language.Rzk.Syntax as Rzk
 
 data RzkPosition = RzkPosition
@@ -171,7 +174,41 @@ toScopePattern pat bvars = toTerm $ \z ->
 toTerm :: (VarIdent -> Term a) -> Rzk.Term -> Term a
 toTerm bvars = go
   where
+    deprecated t t' = trace msg (go t')
+      where
+        msg = unlines
+          [ "[DEPRECATED]: the following notation is deprecated and will be removed from future version of rzk:"
+          , "  " <> Rzk.printTree t
+          , "instead consider using the following notation:"
+          , "  " <> Rzk.printTree t'
+          ]
+
     go = \case
+      -- Depracations
+      t@(Rzk.RecOrDeprecated loc psi phi a_psi a_phi) -> deprecated t
+        (Rzk.RecOr loc [Rzk.Restriction loc psi a_psi, Rzk.Restriction loc phi a_phi])
+      t@(Rzk.TypeExtensionDeprecated loc shape type_) -> deprecated t
+        (Rzk.TypeFun loc shape type_)
+
+      -- ASCII versions
+      Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
+      Rzk.ASCII_Cube2_0 loc -> go (Rzk.Cube2_0 loc)
+      Rzk.ASCII_Cube2_1 loc -> go (Rzk.Cube2_1 loc)
+      Rzk.ASCII_TopeTop loc -> go (Rzk.TopeTop loc)
+      Rzk.ASCII_TopeBottom loc -> go (Rzk.TopeBottom loc)
+      Rzk.ASCII_TopeEQ loc l r -> go (Rzk.TopeEQ loc l r)
+      Rzk.ASCII_TopeLEQ loc l r -> go (Rzk.TopeLEQ loc l r)
+      Rzk.ASCII_TopeAnd loc l r -> go (Rzk.TopeAnd loc l r)
+      Rzk.ASCII_TopeOr loc l r -> go (Rzk.TopeOr loc l r)
+
+      Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
+      Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
+      Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
+      Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
+      Rzk.ASCII_First loc term -> go (Rzk.First loc term)
+      Rzk.ASCII_Second loc term -> go (Rzk.Second loc term)
+
+
       Rzk.Var _loc x -> bvars (varIdent x)
       Rzk.Universe _loc -> Universe
 
@@ -190,7 +227,9 @@ toTerm bvars = go
       Rzk.TopeAnd _loc l r -> TopeAnd (go l) (go r)
       Rzk.TopeOr _loc l r -> TopeOr (go l) (go r)
       Rzk.RecBottom _loc -> RecBottom
-      Rzk.RecOr _loc rs -> RecOr [ (go tope, go term) | Rzk.Restriction _loc tope term <- rs ]
+      Rzk.RecOr _loc rs -> RecOr $ flip map rs $ \case
+        Rzk.Restriction _loc tope term       -> (go tope, go term)
+        Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
       Rzk.TypeId _loc x tA y -> TypeId (go x) (Just (go tA)) (go y)
       Rzk.TypeIdSimple _loc x y -> TypeId (go x) Nothing (go y)
       Rzk.TypeUnit _loc -> TypeUnit
@@ -230,7 +269,9 @@ toTerm bvars = go
           (toScopePattern pat bvars (Rzk.Lambda _loc params body))
 
       Rzk.TypeRestricted _loc ty rs ->
-        TypeRestricted (go ty) (map (\(Rzk.Restriction _loc tope term) -> (go tope, go term)) rs)
+        TypeRestricted (go ty) $ flip map rs $ \case
+          Rzk.Restriction _loc tope term       -> (go tope, go term)
+          Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
 
       Rzk.Hole _loc _ident -> error "holes are not supported"
 

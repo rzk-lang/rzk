@@ -40,9 +40,9 @@ render d = rend 0 False (map ($ "") $ d []) ""
   rend i p = \case
       "["      :ts -> char '[' . rend i False ts
       "("      :ts -> char '(' . rend i False ts
---      "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
---      "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
---      "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
+--       "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
+--       "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
+--       "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
       [";"]        -> char ';'
       ";"      :ts -> char ';' . new i ts
       t  : ts@(s:_) | closingOrPunctuation s
@@ -222,7 +222,8 @@ instance Print (Language.Rzk.Syntax.Abs.ParamDecl' a) where
 
 instance Print (Language.Rzk.Syntax.Abs.Restriction' a) where
   prt i = \case
-    Language.Rzk.Syntax.Abs.Restriction _ term1 term2 -> prPrec i 0 (concatD [prt 0 term1, doc (showString "|->"), prt 0 term2])
+    Language.Rzk.Syntax.Abs.Restriction _ term1 term2 -> prPrec i 0 (concatD [prt 0 term1, doc (showString "\8614"), prt 0 term2])
+    Language.Rzk.Syntax.Abs.ASCII_Restriction _ term1 term2 -> prPrec i 0 (concatD [prt 0 term1, doc (showString "|->"), prt 0 term2])
 
 instance Print [Language.Rzk.Syntax.Abs.Restriction' a] where
   prt _ []     = concatD []
@@ -235,30 +236,32 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.UniverseCube _ -> prPrec i 7 (concatD [doc (showString "CUBE")])
     Language.Rzk.Syntax.Abs.UniverseTope _ -> prPrec i 7 (concatD [doc (showString "TOPE")])
     Language.Rzk.Syntax.Abs.CubeUnit _ -> prPrec i 7 (concatD [doc (showString "1")])
-    Language.Rzk.Syntax.Abs.CubeUnitStar _ -> prPrec i 7 (concatD [doc (showString "*_1")])
+    Language.Rzk.Syntax.Abs.CubeUnitStar _ -> prPrec i 7 (concatD [doc (showString "*\8321")])
     Language.Rzk.Syntax.Abs.Cube2 _ -> prPrec i 7 (concatD [doc (showString "2")])
-    Language.Rzk.Syntax.Abs.Cube2_0 _ -> prPrec i 7 (concatD [doc (showString "0_2")])
-    Language.Rzk.Syntax.Abs.Cube2_1 _ -> prPrec i 7 (concatD [doc (showString "1_2")])
-    Language.Rzk.Syntax.Abs.CubeProduct _ term1 term2 -> prPrec i 5 (concatD [prt 5 term1, doc (showString "*"), prt 6 term2])
-    Language.Rzk.Syntax.Abs.TopeTop _ -> prPrec i 7 (concatD [doc (showString "TOP")])
-    Language.Rzk.Syntax.Abs.TopeBottom _ -> prPrec i 7 (concatD [doc (showString "BOT")])
-    Language.Rzk.Syntax.Abs.TopeEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "==="), prt 5 term2])
-    Language.Rzk.Syntax.Abs.TopeLEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "<="), prt 5 term2])
-    Language.Rzk.Syntax.Abs.TopeAnd _ term1 term2 -> prPrec i 3 (concatD [prt 4 term1, doc (showString "/\\"), prt 3 term2])
-    Language.Rzk.Syntax.Abs.TopeOr _ term1 term2 -> prPrec i 2 (concatD [prt 3 term1, doc (showString "\\/"), prt 2 term2])
+    Language.Rzk.Syntax.Abs.Cube2_0 _ -> prPrec i 7 (concatD [doc (showString "0\8322")])
+    Language.Rzk.Syntax.Abs.Cube2_1 _ -> prPrec i 7 (concatD [doc (showString "1\8322")])
+    Language.Rzk.Syntax.Abs.CubeProduct _ term1 term2 -> prPrec i 5 (concatD [prt 5 term1, doc (showString "\215"), prt 6 term2])
+    Language.Rzk.Syntax.Abs.TopeTop _ -> prPrec i 7 (concatD [doc (showString "\8868")])
+    Language.Rzk.Syntax.Abs.TopeBottom _ -> prPrec i 7 (concatD [doc (showString "\8869")])
+    Language.Rzk.Syntax.Abs.TopeEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "\8801"), prt 5 term2])
+    Language.Rzk.Syntax.Abs.TopeLEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "\8804"), prt 5 term2])
+    Language.Rzk.Syntax.Abs.TopeAnd _ term1 term2 -> prPrec i 3 (concatD [prt 4 term1, doc (showString "\8743"), prt 3 term2])
+    Language.Rzk.Syntax.Abs.TopeOr _ term1 term2 -> prPrec i 2 (concatD [prt 3 term1, doc (showString "\8744"), prt 2 term2])
     Language.Rzk.Syntax.Abs.RecBottom _ -> prPrec i 7 (concatD [doc (showString "recBOT")])
     Language.Rzk.Syntax.Abs.RecOr _ restrictions -> prPrec i 7 (concatD [doc (showString "recOR"), doc (showString "("), prt 0 restrictions, doc (showString ")")])
-    Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> prPrec i 1 (concatD [prt 0 paramdecl, doc (showString "->"), prt 1 term])
-    Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> prPrec i 1 (concatD [doc (showString "Sigma"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString ","), prt 1 term2])
+    Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 term2 term3 term4 -> prPrec i 7 (concatD [doc (showString "recOR"), doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ","), prt 0 term3, doc (showString ","), prt 0 term4, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> prPrec i 1 (concatD [prt 0 paramdecl, doc (showString "\8594"), prt 1 term])
+    Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> prPrec i 1 (concatD [doc (showString "\931"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString ","), prt 1 term2])
     Language.Rzk.Syntax.Abs.TypeUnit _ -> prPrec i 7 (concatD [doc (showString "Unit")])
     Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "=_{"), prt 0 term2, doc (showString "}"), prt 2 term3])
     Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "="), prt 2 term2])
     Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> prPrec i 6 (concatD [prt 6 term, doc (showString "["), prt 0 restrictions, doc (showString "]")])
+    Language.Rzk.Syntax.Abs.TypeExtensionDeprecated _ paramdecl term -> prPrec i 7 (concatD [doc (showString "<"), prt 0 paramdecl, doc (showString "\8594"), prt 0 term, doc (showString ">")])
     Language.Rzk.Syntax.Abs.App _ term1 term2 -> prPrec i 6 (concatD [prt 6 term1, prt 7 term2])
-    Language.Rzk.Syntax.Abs.Lambda _ params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "->"), prt 1 term])
+    Language.Rzk.Syntax.Abs.Lambda _ params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "\8594"), prt 1 term])
     Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> prPrec i 7 (concatD [doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ")")])
-    Language.Rzk.Syntax.Abs.First _ term -> prPrec i 6 (concatD [doc (showString "first"), prt 7 term])
-    Language.Rzk.Syntax.Abs.Second _ term -> prPrec i 6 (concatD [doc (showString "second"), prt 7 term])
+    Language.Rzk.Syntax.Abs.First _ term -> prPrec i 6 (concatD [doc (showString "\960\8321"), prt 7 term])
+    Language.Rzk.Syntax.Abs.Second _ term -> prPrec i 6 (concatD [doc (showString "\960\8322"), prt 7 term])
     Language.Rzk.Syntax.Abs.Unit _ -> prPrec i 7 (concatD [doc (showString "unit")])
     Language.Rzk.Syntax.Abs.Refl _ -> prPrec i 7 (concatD [doc (showString "refl")])
     Language.Rzk.Syntax.Abs.ReflTerm _ term -> prPrec i 7 (concatD [doc (showString "refl_{"), prt 0 term, doc (showString "}")])
@@ -267,6 +270,21 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.Hole _ holeident -> prPrec i 7 (concatD [prt 0 holeident])
     Language.Rzk.Syntax.Abs.Var _ varident -> prPrec i 7 (concatD [prt 0 varident])
     Language.Rzk.Syntax.Abs.TypeAsc _ term1 term2 -> prPrec i 0 (concatD [prt 2 term1, doc (showString "as"), prt 1 term2])
+    Language.Rzk.Syntax.Abs.ASCII_CubeUnitStar _ -> prPrec i 7 (concatD [doc (showString "*_1")])
+    Language.Rzk.Syntax.Abs.ASCII_Cube2_0 _ -> prPrec i 7 (concatD [doc (showString "0_2")])
+    Language.Rzk.Syntax.Abs.ASCII_Cube2_1 _ -> prPrec i 7 (concatD [doc (showString "1_2")])
+    Language.Rzk.Syntax.Abs.ASCII_TopeTop _ -> prPrec i 7 (concatD [doc (showString "TOP")])
+    Language.Rzk.Syntax.Abs.ASCII_TopeBottom _ -> prPrec i 7 (concatD [doc (showString "BOT")])
+    Language.Rzk.Syntax.Abs.ASCII_TopeEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "==="), prt 5 term2])
+    Language.Rzk.Syntax.Abs.ASCII_TopeLEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "<="), prt 5 term2])
+    Language.Rzk.Syntax.Abs.ASCII_TopeAnd _ term1 term2 -> prPrec i 3 (concatD [prt 4 term1, doc (showString "/\\"), prt 3 term2])
+    Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 term2 -> prPrec i 2 (concatD [prt 3 term1, doc (showString "\\/"), prt 2 term2])
+    Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl term -> prPrec i 1 (concatD [prt 0 paramdecl, doc (showString "->"), prt 1 term])
+    Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ term1 term2 -> prPrec i 1 (concatD [doc (showString "Sigma"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString ","), prt 1 term2])
+    Language.Rzk.Syntax.Abs.ASCII_Lambda _ params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "->"), prt 1 term])
+    Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl term -> prPrec i 7 (concatD [doc (showString "<"), prt 0 paramdecl, doc (showString "->"), prt 0 term, doc (showString ">")])
+    Language.Rzk.Syntax.Abs.ASCII_First _ term -> prPrec i 6 (concatD [doc (showString "first"), prt 7 term])
+    Language.Rzk.Syntax.Abs.ASCII_Second _ term -> prPrec i 6 (concatD [doc (showString "second"), prt 7 term])
 
 instance Print [Language.Rzk.Syntax.Abs.Term' a] where
   prt _ []     = concatD []
