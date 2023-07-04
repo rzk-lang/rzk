@@ -18,9 +18,6 @@ on:
 
   workflow_dispatch:  # allow triggering this workflow manually
 
-env:
-  store: /home/runner/nix
-
 permissions:
   contents: write
 
@@ -34,16 +31,15 @@ jobs:
       - name: 🧰 Setup nix
         uses: cachix/install-nix-action@v20
         with:
-          nix_path: nixpkgs=channel:nixpkgs-unstable
-          extra_nix_config: "store = ${{ env.store }}\nsubstituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org \ntrusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8="
-          # pinning Nix version
-          install_url: https://releases.nixos.org/nix/nix-2.14.1/install
+          extra_nix_config: |
+            substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8=
+          install_url: https://releases.nixos.org/nix/nix-2.16.1/install
       
       - name: Restore and cache Nix store
-        uses: actions/cache@v3.3.0
+        uses: deemp/cache-nix-too@v1
         with:
           key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock') }}
-          path: ${{ env.store }}
           restore-keys: |
             ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock') }}
             ${{ runner.os }}-nix-
@@ -61,7 +57,7 @@ jobs:
       - name: 🔨 Collect build artifacts
         run: |
           mkdir -p dist/result/bin
-          cp -r ${{ env.store }}$(realpath result)/bin/try-rzk.jsexe/ dist/result/bin/.
+          cp -r result/bin/try-rzk.jsexe/ dist/result/bin/.
           chmod -R +w dist/
           cp try-rzk/index.html dist/.
 
