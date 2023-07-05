@@ -64,7 +64,7 @@ Topes are visualised with <span style="color: orange">**orange**</span> color:
 
 ```rzk
 -- 2-simplex
-#def Δ² : (2 * 2) -> TOPE
+#define Δ² : (2 * 2) -> TOPE
   := \(t, s) -> s <= t
 ```
 <br><br>
@@ -72,7 +72,7 @@ Boundary of a tope:
 
 ```rzk
 -- boundary of a 2-simplex
-#def ∂Δ² : Δ² -> TOPE
+#define ∂Δ² : Δ² -> TOPE
   := \(t, s) -> s === 0_2 \/ t === 1_2 \/ s === t
 ```
 
@@ -81,14 +81,14 @@ The busiest tope diagram involves the entire 3D cube:
 
 ```rzk
 -- 3-dim cube
-#def 2³ : (2 * 2 * 2) -> TOPE
+#define 2³ : (2 * 2 * 2) -> TOPE
   := \_ -> TOP
 ```
 <br><br><br>
 
 ```rzk
 -- 3-simplex
-#def Δ³ : (2 * 2 * 2) -> TOPE
+#define Δ³ : (2 * 2 * 2) -> TOPE
   := \((t1, t2), t3) -> t3 <= t2 /\ t2 <= t1
 ```
 
@@ -100,7 +100,7 @@ Types are visualised with <span style="color: blue">**blue**</span> color. Recog
 ```rzk
 -- [RS17, Definition 5.1]
 -- The type of arrows in A from x to y.
-#def hom
+#define hom
   (A : U)   -- A type.
   (x y : A) -- Two points in A.
   : U                   -- (hom A x y) is a 1-simplex (an arrow)
@@ -113,7 +113,7 @@ Types are visualised with <span style="color: blue">**blue**</span> color. Recog
 ```rzk
 -- [RS17, Definition 5.2]
 -- the type of commutative triangles in A
-#def hom2
+#define hom2
   (A : U)           -- A type.
   (x y z : A)       -- Three points in A.
   (f : hom A x y)   -- An arrow in A from x to y.
@@ -134,7 +134,7 @@ Terms (with non-trivial labels) are visualised with <span style="color: red">**r
 We can visualise terms that fill a shape:
 
 ```rzk
-#def square
+#define square
   (A : U)
   (x y z : A)
   (f : hom A x y)
@@ -148,7 +148,7 @@ We can visualise terms that fill a shape:
 If a term is extracted as a part of a larger shape, generally, the whole shape will be shown (in gray):
 
 ```rzk
-#def face
+#define face
   (A : U)
   (x y z : A)
   (f : hom A x y)

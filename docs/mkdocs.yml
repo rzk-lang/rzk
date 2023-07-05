@@ -9,11 +9,27 @@ nav:
   - Getting Started:
     - Install: getting-started/install.md
     - Quickstart: getting-started/quickstart.rzk.md
+    - Publishing with MkDocs: getting-started/publishing-with-mkdocs.md
     - Changelog: getting-started/changelog.md
   - Reference:
-    - Introduction: rzk-1/introduction.rzk.md
-    - Sections and Variables: rzk-1/sections.rzk.md
-    - Rendering Diagrams: rzk-1/render.rzk.md
+    - Introduction: reference/introduction.rzk.md
+    - Cube layer: reference/cube-layer.rzk.md
+    - Tope layer: reference/tope-layer.rzk.md
+    - Dependent types: reference/type-layer.rzk.md
+    - Tope disjunction elimination: reference/tope-disjunction-elimination.rzk.md
+    - Extension types: reference/extension-types.rzk.md
+    - Organizational features:
+      - Sections and Variables: reference/sections.rzk.md
+    - Builtins:
+      - Directed interval: reference/builtins/directed-interval.rzk.md
+      - Unit type: reference/builtins/unit.rzk.md
+    - Commands:
+      - Define and Postulate: reference/commands/define-postulate.rzk.md
+      - Compute: reference/commands/compute.rzk.md
+      - Check: reference/commands/check.rzk.md
+      - Options: reference/commands/options.rzk.md
+    - Other:
+      - Rendering Diagrams: reference/render.rzk.md
   - Examples:
     - Weak tope disjunction elimination: examples/recId.rzk.md
   - Tools:
@@ -42,6 +58,11 @@ markdown_extensions:
       permalink: true
   - pymdownx.arithmatex:
       generic: true
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+
 
 theme:
   name: material
@@ -93,3 +114,4 @@ extra:
 plugins:
   - mike
   - rzk
+  - search

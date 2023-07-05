@@ -13,34 +13,34 @@ We begin by introducing common HoTT definitions:
 #lang rzk-1
 
 -- A is contractible there exists x : A such that for any y : A we have x = y.
-#def iscontr (A : U) : U
+#define iscontr (A : U) : U
   := ∑ (a : A), (x : A) -> a =_{A} x
 
 -- A is a proposition if for any x, y : A we have x = y
-#def isaprop (A : U) : U
+#define isaprop (A : U) : U
   := (x : A) -> (y : A) -> x =_{A} y
 
 -- A is a set if for any x, y : A the type x =_{A} y is a proposition
-#def isaset (A : U) : U
+#define isaset (A : U) : U
   := (x : A) -> (y : A) -> isaprop (x =_{A} y)
 
 -- Non-dependent product of A and B
-#def prod (A : U) (B : U) : U
+#define prod (A : U) (B : U) : U
   := ∑ (x : A), B
 
 -- A function f : A -> B is an equivalence
 -- if there exists g : B -> A
 -- such that for all x : A we have g (f x) = x
 -- and for all y : B we have f (g y) = y
-#def isweq (A : U) (B : U) (f : A -> B) : U
+#define isweq (A : U) (B : U) (f : A -> B) : U
   := ∑ (g : B -> A), prod ((x : A) -> g (f x) =_{A} x) ((y : B) -> f (g y) =_{B} y)
 
 -- Equivalence of types A and B
-#def weq (A : U) (B : U) : U
+#define weq (A : U) (B : U) : U
   := ∑ (f : A -> B), isweq A B f
 
 -- Transport along a path
-#def transport
+#define transport
     (A : U)
     (C : A -> U)
     (x y : A)
@@ -55,7 +55,7 @@ We can now define relative function extensionality. There are several formulatio
 
 ```rzk
 -- [RS17, Axiom 4.6] Relative function extensionality.
-#def relfunext : U
+#define relfunext : U
   := (I : CUBE)
   -> (psi : I -> TOPE)
   -> (phi : psi -> TOPE)
@@ -65,7 +65,7 @@ We can now define relative function extensionality. There are several formulatio
   -> (t : psi) -> A t [ phi t |-> a t]
 
 -- [RS17, Proposition 4.8] A (weaker) formulation of function extensionality.
-#def relfunext2 : U
+#define relfunext2 : U
   := (I : CUBE)
   -> (psi : I -> TOPE)
   -> (phi : psi -> TOPE)
@@ -92,13 +92,13 @@ First, we define how to restrict an extension type to a subshape:
 #variable A : {t : I | psi t \/ phi t} -> U
 
 -- Restrict extension type to a subshape.
-#def restrict_phi
+#define restrict_phi
     (a : {t : I | phi t} -> A t)
   : {t : I | psi t /\ phi t} -> A t
   := \t -> a t
 
 -- Restrict extension type to a subshape.
-#def restrict_psi
+#define restrict_psi
     (a : {t : I | psi t} -> A t)
   : {t : I | psi t /\ phi t} -> A t
   := \t -> a t
@@ -108,13 +108,13 @@ Then, how to reformulate an `a` (or `b`) as an extension of its restriction:
 
 ```rzk
 -- Reformulate extension type as an extension of a restriction.
-#def ext-of-restrict_psi
+#define ext-of-restrict_psi
     (a : {t : I | psi t} -> A t)
   : (t : psi) -> A t [ psi t /\ phi t |-> restrict_psi a t ]
   := a  -- type is coerced automatically here
 
 -- Reformulate extension type as an extension of a restriction.
-#def ext-of-restrict_phi
+#define ext-of-restrict_phi
     (a : {t : I | phi t} -> A t)
   : (t : phi) -> A t [ psi t /\ phi t |-> restrict_phi a t ]
   := a  -- type is coerced automatically here
@@ -124,7 +124,7 @@ Now, assuming relative function extensionality, we construct a path between rest
 
 ```rzk
 -- Transform extension of an identity into an identity of restrictions.
-#def restricts-path
+#define restricts-path
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
     (e : {t : I | psi t /\ phi t} -> a_psi t = a_phi t)
@@ -144,7 +144,7 @@ Finally, we bring everything together into `recId`:
 -- A weaker version of recOR, demanding only a path between a and b:
 -- recOR(psi, phi, a, b) demands that for psi /\ phi we have a == b (definitionally)
 -- (recId psi phi a b e) demands that e is the proof that a = b (intensionally) for psi /\ phi
-#def recId uses (r) -- we declare that recId is using r on purpose
+#define recId uses (r) -- we declare that recId is using r on purpose
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
     (e : {t : I | psi t /\ phi t} -> a_psi t = a_phi t)
@@ -172,7 +172,7 @@ whenever we can show that they are equal on the intersection of shapes:
 ```rzk
 -- If two extension types are equal along two subshapes,
 -- then they are also equal along their union.
-#def id-along-border
+#define id-along-border
     (r : relfunext2)
     (I : CUBE)
     (psi : I -> TOPE)

@@ -1,8 +1,0 @@
-README.md
-setup.py
-rzklexer/__init__.py
-rzklexer.egg-info/PKG-INFO
-rzklexer.egg-info/SOURCES.txt
-rzklexer.egg-info/dependency_links.txt
-rzklexer.egg-info/entry_points.txt
-rzklexer.egg-info/top_level.txt

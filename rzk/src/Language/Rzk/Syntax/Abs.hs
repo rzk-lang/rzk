@@ -90,7 +90,9 @@ data ParamDecl' a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Restriction = Restriction' BNFC'Position
-data Restriction' a = Restriction a (Term' a) (Term' a)
+data Restriction' a
+    = Restriction a (Term' a) (Term' a)
+    | ASCII_Restriction a (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Term = Term' BNFC'Position
@@ -112,12 +114,14 @@ data Term' a
     | TopeOr a (Term' a) (Term' a)
     | RecBottom a
     | RecOr a [Restriction' a]
+    | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
     | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
     | TypeRestricted a (Term' a) [Restriction' a]
+    | TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | App a (Term' a) (Term' a)
     | Lambda a [Param' a] (Term' a)
     | Pair a (Term' a) (Term' a)
@@ -131,6 +135,21 @@ data Term' a
     | Hole a (HoleIdent' a)
     | Var a (VarIdent' a)
     | TypeAsc a (Term' a) (Term' a)
+    | ASCII_CubeUnitStar a
+    | ASCII_Cube2_0 a
+    | ASCII_Cube2_1 a
+    | ASCII_TopeTop a
+    | ASCII_TopeBottom a
+    | ASCII_TopeEQ a (Term' a) (Term' a)
+    | ASCII_TopeLEQ a (Term' a) (Term' a)
+    | ASCII_TopeAnd a (Term' a) (Term' a)
+    | ASCII_TopeOr a (Term' a) (Term' a)
+    | ASCII_TypeFun a (ParamDecl' a) (Term' a)
+    | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | ASCII_Lambda a [Param' a] (Term' a)
+    | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
+    | ASCII_First a (Term' a)
+    | ASCII_Second a (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 commandPostulateNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Command' a
@@ -160,17 +179,8 @@ paramVarType = \ _a var cube -> ParamVarType _a (PatternVar _a var) cube
 paramVarShape :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
 paramVarShape = \ _a pat cube tope -> ParamVarShape _a pat cube tope
 
-recOr :: a -> Term' a -> Term' a -> Term' a -> Term' a -> Term' a
-recOr = \ _a psi phi a b -> RecOr _a [Restriction _a psi a, Restriction _a phi b]
-
-typeExtension :: a -> ParamDecl' a -> Term' a -> Term' a
-typeExtension = \ _a param ret -> TypeFun _a param ret
-
-unicode_TypeFun :: a -> ParamDecl' a -> Term' a -> Term' a
-unicode_TypeFun = \ _a arg ret -> TypeFun _a arg ret
-
-unicode_TypeSigma :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
-unicode_TypeSigma = \ _a pat fst snd -> TypeSigma _a pat fst snd
+ascii_CubeProduct :: a -> Term' a -> Term' a -> Term' a
+ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
 
 unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
 unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
@@ -261,6 +271,7 @@ instance HasPosition ParamDecl where
 instance HasPosition Restriction where
   hasPosition = \case
     Restriction p _ _ -> p
+    ASCII_Restriction p _ _ -> p
 
 instance HasPosition Term where
   hasPosition = \case
@@ -281,12 +292,14 @@ instance HasPosition Term where
     TopeOr p _ _ -> p
     RecBottom p -> p
     RecOr p _ -> p
+    RecOrDeprecated p _ _ _ _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
     TypeUnit p -> p
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p
     TypeRestricted p _ _ -> p
+    TypeExtensionDeprecated p _ _ -> p
     App p _ _ -> p
     Lambda p _ _ -> p
     Pair p _ _ -> p
@@ -300,4 +313,19 @@ instance HasPosition Term where
     Hole p _ -> p
     Var p _ -> p
     TypeAsc p _ _ -> p
+    ASCII_CubeUnitStar p -> p
+    ASCII_Cube2_0 p -> p
+    ASCII_Cube2_1 p -> p
+    ASCII_TopeTop p -> p
+    ASCII_TopeBottom p -> p
+    ASCII_TopeEQ p _ _ -> p
+    ASCII_TopeLEQ p _ _ -> p
+    ASCII_TopeAnd p _ _ -> p
+    ASCII_TopeOr p _ _ -> p
+    ASCII_TypeFun p _ _ -> p
+    ASCII_TypeSigma p _ _ _ -> p
+    ASCII_Lambda p _ _ -> p
+    ASCII_TypeExtensionDeprecated p _ _ -> p
+    ASCII_First p _ -> p
+    ASCII_Second p _ -> p
 
