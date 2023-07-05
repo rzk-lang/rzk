@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.5.2 — 2022-07-05
+
+This version introduces support for Unicode syntax, better recognition of Markdown code blocks and improves documentation a bit:
+
+- Support some Unicode syntax (see [#61](https://github.com/fizruk/rzk/pull/61));
+- Support curly braces syntax for code blocks (see [#64](https://github.com/fizruk/rzk/pull/64));
+- Update documentation a bit (see [07b520a6](https://github.com/fizruk/rzk/commit/07b520a67eb432105fad908202949c93a1639ca8) and [7cc7f383](https://github.com/fizruk/rzk/commit/7cc7f383b1785130277ed79d123c1dd357162d9d));
+- Factor out Pygments highlighting to https://github.com/fizruk/pygments-rzk;
+- Use new cache action for Nix (see [#60](https://github.com/fizruk/rzk/pull/60)).
+
 ## v0.5.1 — 2022-06-29
 
 This version fixes `Unit` type and makes some changes to documentation:
