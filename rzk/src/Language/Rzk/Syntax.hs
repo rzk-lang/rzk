@@ -40,21 +40,41 @@ tryExtractMarkdownCodeBlocks alias input
   | ("```" <> alias <> "\n") `List.isInfixOf` input = extractMarkdownCodeBlocks alias input
   | otherwise = input
 
+data LineType = NonCode | CodeOf String
+
 -- | Extract rzk code from a Markdown file
 --
--- >>> putStrLn $ detectMarkdownCodeBlocks "\n```rzk\n#lang rzk-1\n```\nasd asd\n```rzk\n#def x : U\n  := U\n``` asda"
+-- >>> putStrLn $ extractMarkdownCodeBlocks "rzk" "\n```rzk\n#lang rzk-1\n```\nasd asd\n```rzk\n#def x : U\n  := U\n``` \nasda"
+-- <BLANKLINE>
+-- <BLANKLINE>
 -- #lang rzk-1
+-- <BLANKLINE>
+-- <BLANKLINE>
+-- <BLANKLINE>
 -- #def x : U
 --   := U
+-- <BLANKLINE>
+-- <BLANKLINE>
 extractMarkdownCodeBlocks :: String -> String -> String
-extractMarkdownCodeBlocks alias = unlines . blankNonCode True . map trim . lines
+extractMarkdownCodeBlocks alias = unlines . blankNonCode NonCode . map trim . lines
   where
-    blankNonCode _toBlank [] = []
-    blankNonCode True (line : lines_)
-      | line == "```" <> alias  = "" : blankNonCode False lines_
-      | otherwise               = "" : blankNonCode True  lines_
-    blankNonCode False (line : lines_)
-      | line == "```"           = "" : blankNonCode True lines_
-      | otherwise               = line : blankNonCode False lines_
+    blankNonCode _prevType [] = []
+    blankNonCode prevType (line : lines_) =
+      case prevType of
+        CodeOf lang
+          | line == "```" -> "" : blankNonCode NonCode lines_
+          | lang == alias -> line : blankNonCode prevType lines_
+          | otherwise     -> ""   : blankNonCode prevType lines_
+        NonCode -> "" : blankNonCode (identifyCodeBlockStart line) lines_
 
     trim = List.dropWhileEnd isSpace
+
+identifyCodeBlockStart :: String -> LineType
+identifyCodeBlockStart line
+  | prefix == "```" =
+      case words suffix of
+        []              -> CodeOf "text" -- default to text
+        lang : _options -> CodeOf lang
+  | otherwise = NonCode
+  where
+    (prefix, suffix) = List.splitAt 3 line
