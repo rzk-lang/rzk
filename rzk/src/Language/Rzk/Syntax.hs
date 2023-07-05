@@ -42,9 +42,29 @@ tryExtractMarkdownCodeBlocks alias input
 
 data LineType = NonCode | CodeOf String
 
--- | Extract rzk code from a Markdown file
+-- | Extract code for a given alias (e.g. "rzk" or "haskell") from a Markdown file
+-- by replacing any lines that do not belong to the code in that language with blank lines.
+-- This way the line numbers are preserved correctly from the original file.
 --
--- >>> putStrLn $ extractMarkdownCodeBlocks "rzk" "\n```rzk\n#lang rzk-1\n```\nasd asd\n```rzk\n#def x : U\n  := U\n``` \nasda"
+-- All of the following notations are supported to start a code block:
+--
+-- * @```rzk@
+-- * @```{.rzk title=\"Example\"}@
+-- * @``` { .rzk title=\"Example\" }@
+--
+-- >>> example = "Example:\n```rzk\n#lang rzk-1\n```\nasd asd\n```rzk\n#def x : U\n  := U\n``` \nasda"
+-- >>> putStrLn example
+-- Example:
+-- ```rzk
+-- #lang rzk-1
+-- ```
+-- asd asd
+-- ```rzk
+-- #def x : U
+--   := U
+-- ```
+-- asda
+-- >>> putStrLn $ extractMarkdownCodeBlocks "rzk" example
 -- <BLANKLINE>
 -- <BLANKLINE>
 -- #lang rzk-1
@@ -73,8 +93,10 @@ identifyCodeBlockStart :: String -> LineType
 identifyCodeBlockStart line
   | prefix == "```" =
       case words suffix of
-        []              -> CodeOf "text" -- default to text
-        lang : _options -> CodeOf lang
+        []                          -> CodeOf "text" -- default to text
+        ('{':'.':lang) : _options   -> CodeOf lang   -- ``` {.rzk ...
+        "{" : ('.':lang) : _options -> CodeOf lang   -- ``` { .rzk ...
+        lang : _options             -> CodeOf lang   -- ```rzk ...
   | otherwise = NonCode
   where
     (prefix, suffix) = List.splitAt 3 line
