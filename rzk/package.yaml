@@ -1,6 +1,6 @@
 name:                rzk
 version:             0.5.2
-github:              "fizruk/rzk"
+github:              "rzk-lang/rzk"
 license:             BSD3
 author:              "Nikolai Kudasov"
 maintainer:          "nickolay.kudasov@gmail.com"
@@ -16,7 +16,7 @@ category:            Dependent Types  # same as Agda
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
+description:         Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 
 dependencies:
 - array

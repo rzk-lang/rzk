@@ -7,10 +7,10 @@ cabal-version: 1.12
 name:           rzk
 version:        0.5.2
 synopsis:       An experimental proof assistant for synthetic ∞-categories
-description:    Please see the README on GitHub at <https://github.com/fizruk/rzk#readme>
+description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
-homepage:       https://github.com/fizruk/rzk#readme
-bug-reports:    https://github.com/fizruk/rzk/issues
+homepage:       https://github.com/rzk-lang/rzk#readme
+bug-reports:    https://github.com/rzk-lang/rzk/issues
 author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
 copyright:      2023 Nikolai Kudasov
@@ -23,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/fizruk/rzk
+  location: https://github.com/rzk-lang/rzk
 
 library
   exposed-modules:

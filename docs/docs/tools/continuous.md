@@ -2,4 +2,4 @@
 
 ## GitHub Action
 
-See <https://github.com/fizruk/rzk-action>. See also <https://github.com/emilyriehl/yoneda> for an example usage of the action.
+See <https://github.com/rzk-lang/rzk-action>. See also <https://github.com/emilyriehl/yoneda> for an example usage of the action.

@@ -10,52 +10,52 @@ and this project adheres to the
 
 This version introduces support for Unicode syntax, better recognition of Markdown code blocks and improves documentation a bit:
 
-- Support some Unicode syntax (see [#61](https://github.com/fizruk/rzk/pull/61));
-- Support curly braces syntax for code blocks (see [#64](https://github.com/fizruk/rzk/pull/64));
-- Update documentation a bit (see [07b520a6](https://github.com/fizruk/rzk/commit/07b520a67eb432105fad908202949c93a1639ca8) and [7cc7f383](https://github.com/fizruk/rzk/commit/7cc7f383b1785130277ed79d123c1dd357162d9d));
-- Factor out Pygments highlighting to https://github.com/fizruk/pygments-rzk;
-- Use new cache action for Nix (see [#60](https://github.com/fizruk/rzk/pull/60)).
+- Support some Unicode syntax (see [#61](https://github.com/rzk-lang/rzk/pull/61));
+- Support curly braces syntax for code blocks (see [#64](https://github.com/rzk-lang/rzk/pull/64));
+- Update documentation a bit (see [07b520a6](https://github.com/rzk-lang/rzk/commit/07b520a67eb432105fad908202949c93a1639ca8) and [7cc7f383](https://github.com/rzk-lang/rzk/commit/7cc7f383b1785130277ed79d123c1dd357162d9d));
+- Factor out Pygments highlighting to https://github.com/rzk-lang/pygments-rzk;
+- Use new cache action for Nix (see [#60](https://github.com/rzk-lang/rzk/pull/60)).
 
 ## v0.5.1 — 2022-06-29
 
 This version fixes `Unit` type and makes some changes to documentation:
 
-- Fix computation for `Unit` (see [2f7d6295]( https://github.com/fizruk/rzk/commit/2f7d6295 ));
-- Update documentation (see [ea2d176b]( https://github.com/fizruk/rzk/commit/ea2d176b ));
-- Use mike to deploy versioned docs (see [99cf721a]( https://github.com/fizruk/rzk/commit/99cf721a ));
-- Replace MkDocs hook with the published plugin (see [#58]( https://github.com/fizruk/rzk/pull/58 ));
-- Switch to Material theme for MkDocs (see [#57]( https://github.com/fizruk/rzk/pull/57 ));
-- Fix links to `*.rzk.md` in `mkdocs.yml` (see [8ba1c55b]( https://github.com/fizruk/rzk/commit/8ba1c55b ));
+- Fix computation for `Unit` (see [2f7d6295]( https://github.com/rzk-lang/rzk/commit/2f7d6295 ));
+- Update documentation (see [ea2d176b]( https://github.com/rzk-lang/rzk/commit/ea2d176b ));
+- Use mike to deploy versioned docs (see [99cf721a]( https://github.com/rzk-lang/rzk/commit/99cf721a ));
+- Replace MkDocs hook with the published plugin (see [#58]( https://github.com/rzk-lang/rzk/pull/58 ));
+- Switch to Material theme for MkDocs (see [#57]( https://github.com/rzk-lang/rzk/pull/57 ));
+- Fix links to `*.rzk.md` in `mkdocs.yml` (see [8ba1c55b]( https://github.com/rzk-lang/rzk/commit/8ba1c55b ));
 
 ## v0.5 — 2022-06-20
 
 This version contains the following changes:
 
-- `Unit` type (with `unit` value) (see [ede02611]( https://github.com/fizruk/rzk/commit/ede02611 ) and [bf9d6cd9]( https://github.com/fizruk/rzk/commit/bf9d6cd9 );
-- Add basic tokenizer support via `rzk tokenize` (see [#53]( https://github.com/fizruk/rzk/pull/53 ));
-- Add location information for shadowing warnings and duplicate definition errors (see [bf9d6cd9]( https://github.com/fizruk/rzk/commit/bf9d6cd9 )).
+- `Unit` type (with `unit` value) (see [ede02611]( https://github.com/rzk-lang/rzk/commit/ede02611 ) and [bf9d6cd9]( https://github.com/rzk-lang/rzk/commit/bf9d6cd9 );
+- Add basic tokenizer support via `rzk tokenize` (see [#53]( https://github.com/rzk-lang/rzk/pull/53 ));
+- Add location information for shadowing warnings and duplicate definition errors (see [bf9d6cd9]( https://github.com/rzk-lang/rzk/commit/bf9d6cd9 )).
 
 ## v0.4.1 — 2022-06-16
 
 This is version contains minor changes, primarily in tools around rzk:
 
-- Add `rzk version` command (see [f1709dc7]( https://github.com/fizruk/rzk/commit/f1709dc7 ));
-- Add action to release binaries (see [9286afae]( https://github.com/fizruk/rzk/commit/9286afae ));
-- Automate SVG rendering in MkDocs (see [#49]( https://github.com/fizruk/rzk/pull/49 ));
-- Read `stdin` when no filepaths are given (see [936c15a3]( https://github.com/fizruk/rzk/commit/936c15a3 ));
-- Add Pygments highlighting (see [01c2a017]( https://github.com/fizruk/rzk/commit/01c2a017 ), [cbd656cc]( https://github.com/fizruk/rzk/commit/cbd656cc ), [5220ddf9]( https://github.com/fizruk/rzk/commit/5220ddf9 ), [142ec003]( https://github.com/fizruk/rzk/commit/142ec003 ), [5c7425f2]( https://github.com/fizruk/rzk/commit/5c7425f2 ));
-- Update HighlightJS config for rzk v0.4.0 (see [171ee63f]( https://github.com/fizruk/rzk/commit/171ee63f ));
+- Add `rzk version` command (see [f1709dc7]( https://github.com/rzk-lang/rzk/commit/f1709dc7 ));
+- Add action to release binaries (see [9286afae]( https://github.com/rzk-lang/rzk/commit/9286afae ));
+- Automate SVG rendering in MkDocs (see [#49]( https://github.com/rzk-lang/rzk/pull/49 ));
+- Read `stdin` when no filepaths are given (see [936c15a3]( https://github.com/rzk-lang/rzk/commit/936c15a3 ));
+- Add Pygments highlighting (see [01c2a017]( https://github.com/rzk-lang/rzk/commit/01c2a017 ), [cbd656cc]( https://github.com/rzk-lang/rzk/commit/cbd656cc ), [5220ddf9]( https://github.com/rzk-lang/rzk/commit/5220ddf9 ), [142ec003]( https://github.com/rzk-lang/rzk/commit/142ec003 ), [5c7425f2]( https://github.com/rzk-lang/rzk/commit/5c7425f2 ));
+- Update HighlightJS config for rzk v0.4.0 (see [171ee63f]( https://github.com/rzk-lang/rzk/commit/171ee63f ));
 
 ## v0.4.0 — 2022-05-18
 
 This version introduces sections and variables. The feature is similar to <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>. An important difference, however, is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.
 
-- Variables and sections (Coq-style) (see [#38]( https://github.com/fizruk/rzk/pull/38 ));
+- Variables and sections (Coq-style) (see [#38]( https://github.com/rzk-lang/rzk/pull/38 ));
 
 Minor improvements:
 
-- Add flake, set up nix and cabal builds, cache nix store on CI (see [#39]( https://github.com/fizruk/rzk/pull/39 ));
-- Apply stylish-haskell (see [7d42ef62]( https://github.com/fizruk/rzk/commit/7d42ef62 ));
+- Add flake, set up nix and cabal builds, cache nix store on CI (see [#39]( https://github.com/rzk-lang/rzk/pull/39 ));
+- Apply stylish-haskell (see [7d42ef62]( https://github.com/rzk-lang/rzk/commit/7d42ef62 ));
 
 ## v0.3.0 — 2022-04-28
 

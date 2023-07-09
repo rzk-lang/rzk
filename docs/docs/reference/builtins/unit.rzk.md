@@ -59,6 +59,6 @@ As a non-trivial example, here is a proof that `Unit` is a Segal type:
 #end isSegal-Unit
 ```
 
-[Unit support]: https://github.com/fizruk/rzk/releases/tag/v0.5.1
+[Unit support]: https://github.com/rzk-lang/rzk/releases/tag/v0.5.1
 
 [^1]: The Univalent Foundations Program (2013). _Homotopy Type Theory: Univalent Foundations of Mathematics._ <https://homotopytypetheory.org/book>

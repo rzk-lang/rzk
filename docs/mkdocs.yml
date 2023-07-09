@@ -1,6 +1,6 @@
 site_name: "rzk: an experimental proof assistant for syntheric ∞-categories"
-repo_url: https://github.com/fizruk/rzk
-repo_name: fizruk/rzk
+repo_url: https://github.com/rzk-lang/rzk
+repo_name: rzk-lang/rzk
 edit_uri: edit/develop/docs/docs/
 
 nav:

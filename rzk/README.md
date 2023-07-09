@@ -2,4 +2,4 @@
 
 An experimental proof assistant for synthetic ∞-categories.
 
-See README at https://github.com/fizruk/rzk#readme.
+See README at https://github.com/rzk-lang/rzk#readme.

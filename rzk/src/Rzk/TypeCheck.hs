@@ -399,7 +399,7 @@ issueTypeError err = do
 panicImpossible :: String -> a
 panicImpossible msg = error $ unlines
   [ "PANIC! Impossible happened (" <> msg <> ")!"
-  , "Please, report a bug at https://github.com/fizruk/rzk/issues"
+  , "Please, report a bug at https://github.com/rzk-lang/rzk/issues"
     -- TODO: add details and/or instructions how to produce an artifact for reproducing
   ]
 

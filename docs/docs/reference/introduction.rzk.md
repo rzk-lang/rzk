@@ -69,4 +69,4 @@ so current version embraces this lax treatment of universes.
 
 [^1]: Emily Riehl & Michael Shulman. _A type theory for synthetic ∞-categories._ Higher Structures 1(1), 147-224. 2017. <https://arxiv.org/abs/1705.07442>
 
-[^2]: In version [:octicons-tag-24: v0.1.0](https://github.com/fizruk/rzk/releases/tag/v0.1.0), `rzk` has supported simply typed lambda calculus, PCF, and MLTT. However, those languages have been removed.
+[^2]: In version [:octicons-tag-24: v0.1.0](https://github.com/rzk-lang/rzk/releases/tag/v0.1.0), `rzk` has supported simply typed lambda calculus, PCF, and MLTT. However, those languages have been removed.
