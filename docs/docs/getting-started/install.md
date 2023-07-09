@@ -30,7 +30,9 @@ These instructions will walk you through setting up Rzk using the "basic" setup 
 8. Click "Reload button".
 9. Save your file as `example.rzk.md`.
 10. Open local Terminal (<kbd>Ctrl+`</kbd>).
+
     <!-- ` -->
+
 11. In the terminal, run
 
     ```sh
