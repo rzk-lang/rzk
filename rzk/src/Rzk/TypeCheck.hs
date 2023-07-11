@@ -1,10 +1,12 @@
-{-# OPTIONS_GHC -fno-warn-type-defaults #-}
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults -fno-warn-orphans #-}
+{-# LANGUAGE DeriveFoldable       #-}
+{-# LANGUAGE DeriveFunctor        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Rzk.TypeCheck where
 
 import           Control.Applicative      ((<|>))
@@ -14,6 +16,7 @@ import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
 import           Data.Maybe               (catMaybes, fromMaybe, isNothing,
                                            mapMaybe)
+import           Data.String              (IsString (..))
 import           Data.Tuple               (swap)
 
 import           Free.Scoped
@@ -23,9 +26,16 @@ import qualified Language.Rzk.Syntax      as Rzk
 import           Debug.Trace
 import           Unsafe.Coerce
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+
+-- | Parse and 'unsafeInferStandalone''.
+instance IsString TermT' where
+  fromString = unsafeInferStandalone' . fromString
+
 defaultTypeCheck
-  :: TypeCheck VarIdent a
-  -> Either (TypeErrorInScopedContext VarIdent) a
+  :: TypeCheck var a
+  -> Either (TypeErrorInScopedContext var) a
 defaultTypeCheck tc = runExcept (runReaderT tc emptyContext)
 
 -- FIXME: merge with VarInfo
@@ -1214,8 +1224,8 @@ tryRestriction = \case
 
 -- | Compute a typed term to its WHNF.
 --
--- >>> whnfT "(\\p -> first (second p)) (x, (y, z))" :: Term'
--- y
+-- >>> unsafeTypeCheck' $ whnfT "(\\ (x : Unit) -> x) unit"
+-- unit : Unit
 whnfT :: Eq var => TermT var -> TypeCheck var (TermT var)
 whnfT tt = performing (ActionWHNF tt) $ case tt of
   -- universe constants
@@ -1432,8 +1442,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
 
 -- | Compute a typed term to its NF.
 --
--- >>> nfT "(\\p -> first (second p)) (x, (y, z))" :: Term'
--- y
+-- >>> unsafeTypeCheck' $ nfT "(\\ (x : Unit) -> x) unit"
+-- unit : Unit
 nfT :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfT tt = performing (ActionNF tt) $ case tt of
   -- universe constants
@@ -2489,16 +2499,19 @@ checkCoherence (ltope, lterm) (rtope, rterm) =
       unifyTerms lterm rterm
 
 inferStandalone :: Eq var => Term var -> Either (TypeErrorInScopedContext var) (TermT var)
-inferStandalone term = runExcept (runReaderT (infer term) emptyContext)
+inferStandalone term = defaultTypeCheck (infer term)
 
 unsafeInferStandalone' :: Term' -> TermT'
-unsafeInferStandalone' t =
-  case inferStandalone t of
+unsafeInferStandalone' term = unsafeTypeCheck' (infer term)
+
+unsafeTypeCheck' :: TypeCheck VarIdent a -> a
+unsafeTypeCheck' tc =
+  case defaultTypeCheck tc of
     Left err -> error $ intercalate "\n"
       [ "Type Error:"
       , ppTypeErrorInScopedContext' err
       ]
-    Right tt -> tt
+    Right result -> result
 
 type PointId = String
 type ShapeId = [PointId]

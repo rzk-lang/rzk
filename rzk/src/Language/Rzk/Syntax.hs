@@ -75,6 +75,7 @@ data LineType = NonCode | CodeOf String
 --   := U
 -- <BLANKLINE>
 -- <BLANKLINE>
+-- <BLANKLINE>
 extractMarkdownCodeBlocks :: String -> String -> String
 extractMarkdownCodeBlocks alias = unlines . blankNonCode NonCode . map trim . lines
   where

@@ -78,6 +78,27 @@ executable rzk
     , text
   default-language: Haskell2010
 
+test-suite doctests
+  type: exitcode-stdio-1.0
+  main-is: doctests.hs
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      Glob
+    , QuickCheck
+    , aeson
+    , array
+    , base
+    , bifunctors
+    , bytestring
+    , doctest
+    , mtl
+    , optparse-generic
+    , template-haskell
+    , text
+  default-language: Haskell2010
+
 test-suite rzk-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
