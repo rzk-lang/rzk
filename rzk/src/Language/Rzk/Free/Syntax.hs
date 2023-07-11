@@ -183,6 +183,13 @@ toTerm bvars = go
           , "  " <> Rzk.printTree t'
           ]
 
+    lint orig suggestion = trace $ unlines
+      [ "[LINT]: consider replacing"
+      , "  " <> Rzk.printTree orig
+      , "with the following"
+      , "  " <> Rzk.printTree suggestion
+      ]
+
     go = \case
       -- Depracations
       t@(Rzk.RecOrDeprecated loc psi phi a_psi a_phi) -> deprecated t
@@ -251,9 +258,13 @@ toTerm bvars = go
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = unsafeTermToPattern patTerm
          in TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
-      Rzk.TypeFun _loc (Rzk.ParamTermShape _ patTerm cube tope) ret ->
-        let pat = unsafeTermToPattern patTerm
-         in TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
+      t@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm cube tope) ret) ->
+        let lint' = case tope of
+              Rzk.App _loc fun arg | void arg == void patTerm ->
+                lint t (Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)
+              _ -> id
+            pat = unsafeTermToPattern patTerm
+         in lint' $ TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
         TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
 
