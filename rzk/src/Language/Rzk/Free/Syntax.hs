@@ -184,7 +184,7 @@ toTerm bvars = go
           ]
 
     lint orig suggestion = trace $ unlines
-      [ "[LINT]: consider replacing"
+      [ "[HINT]: consider replacing"
       , "  " <> Rzk.printTree orig
       , "with the following"
       , "  " <> Rzk.printTree suggestion
@@ -283,9 +283,14 @@ toTerm bvars = go
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
       Rzk.Lambda _loc (Rzk.ParamPatternShape _ [] _cube _tope : params) body ->
         go (Rzk.Lambda _loc params body)
-      Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' (pat:pats) cube tope : params) body ->
-        Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
-          (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' pats cube tope : params) body))
+      t@(Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' (pat:pats) cube tope : params) body) ->
+        let lint' = case tope of
+              Rzk.App _loc fun arg
+                | null pats && void arg == void (patternToTerm pat) ->
+                    lint t (Rzk.Lambda _loc (Rzk.ParamPatternType _loc' [pat] fun : params) body)
+              _ -> id
+         in lint' $ Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
+              (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' pats cube tope : params) body))
 
       Rzk.TypeRestricted _loc ty rs ->
         TypeRestricted (go ty) $ flip map rs $ \case
