@@ -40,9 +40,9 @@ render d = rend 0 False (map ($ "") $ d []) ""
   rend i p = \case
       "["      :ts -> char '[' . rend i False ts
       "("      :ts -> char '(' . rend i False ts
---       "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
---       "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
---       "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
+--      "{"      :ts -> onNewLine i     p . showChar   '{'  . new (i+1) ts
+--      "}" : ";":ts -> onNewLine (i-1) p . showString "};" . new (i-1) ts
+--      "}"      :ts -> onNewLine (i-1) p . showChar   '}'  . new (i-1) ts
       [";"]        -> char ';'
       ";"      :ts -> char ';' . new i ts
       t  : ts@(s:_) | closingOrPunctuation s
@@ -192,7 +192,6 @@ instance Print (Language.Rzk.Syntax.Abs.SectionName' a) where
 
 instance Print (Language.Rzk.Syntax.Abs.Pattern' a) where
   prt i = \case
-    Language.Rzk.Syntax.Abs.PatternWildcard _ -> prPrec i 0 (concatD [doc (showString "_")])
     Language.Rzk.Syntax.Abs.PatternUnit _ -> prPrec i 0 (concatD [doc (showString "unit")])
     Language.Rzk.Syntax.Abs.PatternVar _ varident -> prPrec i 0 (concatD [prt 0 varident])
     Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> prPrec i 0 (concatD [doc (showString "("), prt 0 pattern_1, doc (showString ","), prt 0 pattern_2, doc (showString ")")])
@@ -216,9 +215,10 @@ instance Print [Language.Rzk.Syntax.Abs.Param' a] where
 instance Print (Language.Rzk.Syntax.Abs.ParamDecl' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.ParamType _ term -> prPrec i 0 (concatD [prt 6 term])
-    Language.Rzk.Syntax.Abs.ParamWildcardType _ term -> prPrec i 0 (concatD [doc (showString "("), doc (showString "_"), doc (showString ":"), prt 0 term, doc (showString ")")])
-    Language.Rzk.Syntax.Abs.ParamVarType _ pattern_ term -> prPrec i 0 (concatD [doc (showString "{"), prt 0 pattern_, doc (showString ":"), prt 0 term, doc (showString "}")])
-    Language.Rzk.Syntax.Abs.ParamVarShape _ pattern_ term1 term2 -> prPrec i 0 (concatD [doc (showString "{"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString "|"), prt 0 term2, doc (showString "}")])
+    Language.Rzk.Syntax.Abs.ParamTermType _ term1 term2 -> prPrec i 0 (concatD [doc (showString "("), prt 0 term1, doc (showString ":"), prt 0 term2, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.ParamTermShape _ term1 term2 term3 -> prPrec i 0 (concatD [doc (showString "("), prt 0 term1, doc (showString ":"), prt 0 term2, doc (showString "|"), prt 0 term3, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.ParamTermTypeDeprecated _ pattern_ term -> prPrec i 0 (concatD [doc (showString "{"), prt 0 pattern_, doc (showString ":"), prt 0 term, doc (showString "}")])
+    Language.Rzk.Syntax.Abs.ParamVarShapeDeprecated _ pattern_ term1 term2 -> prPrec i 0 (concatD [doc (showString "{"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString "|"), prt 0 term2, doc (showString "}")])
 
 instance Print (Language.Rzk.Syntax.Abs.Restriction' a) where
   prt i = \case

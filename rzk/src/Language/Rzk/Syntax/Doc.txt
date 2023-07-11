@@ -44,16 +44,16 @@ The symbols used in Syntax are the following:
   | #compute | #compute-whnf | #compute-nf | #postulate
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
-  | ( | ) | _ | ,
-  | { | | | } | ↦
-  | 1 | *₁ | 2 | 0₂
-  | 1₂ | × | ⊤ | ⊥
-  | ≡ | ≤ | ∧ | ∨
-  | → | =_{ | [ | ]
-  | < | > | \ | refl_{
-  | * | *_1 | 0_2 | 1_2
-  | === | <= | /\ | \/
-  | -> | |-> | ∑ |
+  | ( | ) | , | {
+  | | | } | ↦ | 1
+  | *₁ | 2 | 0₂ | 1₂
+  | × | ⊤ | ⊥ | ≡
+  | ≤ | ∧ | ∨ | →
+  | =_{ | [ | ] | <
+  | > | \ | refl_{ | *
+  | *_1 | 0_2 | 1_2 | ===
+  | <= | /\ | \/ | ->
+  | |-> | ∑ |  |
 
 ===Comments===
 Single-line comments begin with --.Multiple-line comments are  enclosed with {- and -}.
@@ -93,8 +93,7 @@ All other symbols are terminals.
   |  |  **|**  | **eps**
   | //SectionName// | -> | **eps**
   |  |  **|**  | //VarIdent//
-  | //Pattern// | -> | ``_``
-  |  |  **|**  | ``unit``
+  | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
   | //[Pattern]// | -> | //Pattern//
@@ -105,9 +104,9 @@ All other symbols are terminals.
   | //[Param]// | -> | //Param//
   |  |  **|**  | //Param// //[Param]//
   | //ParamDecl// | -> | //Term6//
-  |  |  **|**  | ``(`` ``_`` ``:`` //Term// ``)``
+  |  |  **|**  | ``(`` //Term// ``:`` //Term// ``)``
+  |  |  **|**  | ``(`` //Term// ``:`` //Term// ``|`` //Term// ``)``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
-  |  |  **|**  | ``(`` //VarIdent// ``:`` //Term// ``)``
   |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   | //Restriction// | -> | //Term// ``↦`` //Term//

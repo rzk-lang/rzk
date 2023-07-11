@@ -56,7 +56,6 @@ NoSectionName.    SectionName ::= ;
 SomeSectionName.  SectionName ::= VarIdent ;
 
 -- Patterns
-PatternWildcard.  Pattern ::= "_" ;
 PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
 PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
@@ -70,13 +69,12 @@ separator nonempty Param "" ;
 
 -- Parameter declaration for functions and extension types
 ParamType.          ParamDecl ::= Term6 ;
-ParamWildcardType.  ParamDecl ::= "(" "_" ":" Term ")" ;
-ParamVarType.       ParamDecl ::= "{" Pattern ":" Term "}" ;
-paramVarType.       ParamDecl ::= "(" VarIdent ":" Term ")" ;
-define paramVarType var cube = ParamVarType (PatternVar var) cube ;
-ParamVarShape.      ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
-paramVarShape.      ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
-define paramVarShape pat cube tope = ParamVarShape pat cube tope ;
+ParamTermType.      ParamDecl ::= "(" Term ":" Term ")" ;
+ParamTermShape.     ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
+ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ; 
+ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
+paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
+define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
 
 Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
@@ -162,42 +160,3 @@ ASCII_Second.         Term6 ::= "second" Term7 ;
 
 unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
 define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
-
--- -- Universes
--- unicode_Universe.       Term7 ::= "𝒰" ;
--- define unicode_Universe x = Universe x ;
--- -- Cubes
--- unicode_CubeUnit.       Term7 ::= "𝟙" ;
--- unicode_CubeUnitStar.   Term7 ::= "⋆" ;
--- unicode_Cube2.          Term7 ::= "𝟚" ;
--- unicode_CubeProduct.    Term5 ::= Term6 "×" Term6 ;
--- define unicode_CubeUnit = CubeUnit ;
--- define unicode_CubeUnitStar = CubeUnit ;
--- define unicode_Cube2 = Cube2 ;
--- define unicode_CubeProduct x y = CubeProduct x y ;
--- -- Topes
--- unicode_TopeTop.        Term7 ::= "⊤" ;
--- unicode_TopeBottom.     Term7 ::= "⊥" ;
--- unicode_TopeEQ.         Term4 ::= Term5 "≡" Term5 ;
--- unicode_TopeLEQ.        Term4 ::= Term5 "≤" Term5 ;
--- unicode_TopeAnd.        Term3 ::= Term4 "∧" Term3 ;
--- unicode_TopeOr.         Term2 ::= Term3 "∨" Term2 ;
--- define unicode_TopeTop = TopeTop ;
--- define unicode_TopeBottom = TopeBottom ;
--- define unicode_TopeEQ l r = TopeEQ l r ;
--- define unicode_TopeLEQ l r = TopeLEQ l r ;
--- define unicode_TopeAnd l r = TopeAnd l r ;
--- define unicode_TopeOr l r = TopeOr l r ;
--- -- Tope disjunction elimination
--- unicode_RecBottom.      Term7 ::= "rec⊥" ;
--- unicode_RecOr.          Term7 ::= "rec∨" "[" [Restriction] "]" ;
--- define unicode_RecBottom = RecBottom ;
--- define unicode_RecOr rs = RecOr rs ;
--- Types
--- -- Terms
--- unicode_Lambda.         Term1 ::= "λ" Param "→" Term1 ;
--- unicode_First.          Term6 ::= "π₁" Term7 ;
--- unicode_Second.         Term6 ::= "π₂" Term7 ;
--- define unicode_Lambda param body = Lambda param body ;
--- define unicode_First t = First t ;
--- define unicode_Second t = Second t ;

@@ -166,8 +166,8 @@ toScopePattern pat bvars = toTerm $ \z ->
     Just t  -> t
     Nothing -> S <$> bvars z
   where
-    bindings (Rzk.PatternWildcard _loc) _ = []
     bindings (Rzk.PatternUnit _loc)     _ = []
+    bindings (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) _ = []
     bindings (Rzk.PatternVar _loc x)    t = [(varIdent x, t)]
     bindings (Rzk.PatternPair _loc l r) t = bindings l (First t) <> bindings r (Second t)
 
@@ -189,6 +189,10 @@ toTerm bvars = go
         (Rzk.RecOr loc [Rzk.Restriction loc psi a_psi, Rzk.Restriction loc phi a_phi])
       t@(Rzk.TypeExtensionDeprecated loc shape type_) -> deprecated t
         (Rzk.TypeFun loc shape type_)
+      t@(Rzk.TypeFun loc (Rzk.ParamTermTypeDeprecated loc' pat type_) ret) -> deprecated t
+        (Rzk.TypeFun loc (Rzk.ParamTermType loc' (patternToTerm pat) type_) ret)
+      t@(Rzk.TypeFun loc (Rzk.ParamVarShapeDeprecated loc' pat cube tope) ret) -> deprecated t
+        (Rzk.TypeFun loc (Rzk.ParamTermShape loc' (patternToTerm pat) cube tope) ret)
 
       -- ASCII versions
       Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
@@ -244,12 +248,12 @@ toTerm bvars = go
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
 
-      Rzk.TypeFun _loc (Rzk.ParamVarType _ pat arg) ret ->
-        TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
-      Rzk.TypeFun _loc (Rzk.ParamVarShape _ pat cube tope) ret ->
-        TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
-      Rzk.TypeFun _loc (Rzk.ParamWildcardType _ arg) ret ->
-        TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
+      Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
+        let pat = unsafeTermToPattern patTerm
+         in TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
+      Rzk.TypeFun _loc (Rzk.ParamTermShape _ patTerm cube tope) ret ->
+        let pat = unsafeTermToPattern patTerm
+         in TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
         TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
 
@@ -275,9 +279,26 @@ toTerm bvars = go
 
       Rzk.Hole _loc _ident -> error "holes are not supported"
 
+    patternVar (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) = Nothing
+    patternVar (Rzk.PatternVar _loc x)                    = Just (varIdent x)
+    patternVar _                                          = Nothing
 
-    patternVar (Rzk.PatternVar _loc x) = Just (varIdent x)
-    patternVar _                       = Nothing
+patternToTerm :: Rzk.Pattern -> Rzk.Term
+patternToTerm = ptt
+  where
+    ptt = \case
+      Rzk.PatternVar loc x    -> Rzk.Var loc x
+      Rzk.PatternPair loc l r -> Rzk.Pair loc (ptt l) (ptt r)
+      Rzk.PatternUnit loc     -> Rzk.Unit loc
+
+unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
+unsafeTermToPattern = ttp
+  where
+    ttp = \case
+      Rzk.Unit loc                        -> Rzk.PatternUnit loc
+      Rzk.Var loc x                       -> Rzk.PatternVar loc x
+      Rzk.Pair loc l r                    -> Rzk.PatternPair loc (ttp l) (ttp r)
+      term -> error ("ERROR: expected a pattern but got\n  " ++ Rzk.printTree term)
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
@@ -325,9 +346,9 @@ fromTermWith' used vars = go
       RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
 
       TypeFun z arg Nothing ret -> withFresh z $ \(x, xs) ->
-        Rzk.TypeFun loc (Rzk.ParamVarType loc (Rzk.PatternVar loc (fromVarIdent x)) (go arg)) (fromScope' x used xs ret)
+        Rzk.TypeFun loc (Rzk.ParamTermType loc (Rzk.Var loc (fromVarIdent x)) (go arg)) (fromScope' x used xs ret)
       TypeFun z arg (Just tope) ret -> withFresh z $ \(x, xs) ->
-        Rzk.TypeFun loc (Rzk.ParamVarShape loc (Rzk.PatternVar loc (fromVarIdent x)) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
+        Rzk.TypeFun loc (Rzk.ParamTermShape loc (Rzk.Var loc (fromVarIdent x)) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
 
       TypeSigma z a b -> withFresh z $ \(x, xs) ->
         Rzk.TypeSigma loc (Rzk.PatternVar loc (fromVarIdent x)) (go a) (fromScope' x used xs b)
