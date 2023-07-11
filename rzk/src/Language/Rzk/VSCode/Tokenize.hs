@@ -49,7 +49,11 @@ tokenizeParam = \case
   ParamPatternType _loc pats type_ -> concat
     [ foldMap tokenizePattern pats
     , tokenizeTerm type_ ]
-  ParamPatternShape _loc pat cube tope -> concat
+  ParamPatternShape _loc pats cube tope -> concat
+    [ foldMap tokenizePattern pats
+    , tokenizeTerm cube
+    , tokenizeTope tope ]
+  ParamPatternShapeDeprecated _loc pat cube tope -> concat
     [ tokenizePattern pat
     , tokenizeTerm cube
     , tokenizeTope tope ]

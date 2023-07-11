@@ -77,7 +77,8 @@ type Param = Param' BNFC'Position
 data Param' a
     = ParamPattern a (Pattern' a)
     | ParamPatternType a [Pattern' a] (Term' a)
-    | ParamPatternShape a (Pattern' a) (Term' a) (Term' a)
+    | ParamPatternShape a [Pattern' a] (Term' a) (Term' a)
+    | ParamPatternShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type ParamDecl = ParamDecl' BNFC'Position
@@ -256,6 +257,7 @@ instance HasPosition Param where
     ParamPattern p _ -> p
     ParamPatternType p _ _ -> p
     ParamPatternShape p _ _ _ -> p
+    ParamPatternShapeDeprecated p _ _ _ -> p
 
 instance HasPosition ParamDecl where
   hasPosition = \case

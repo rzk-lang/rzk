@@ -64,7 +64,8 @@ separator nonempty Pattern "" ;
 -- Parameter introduction (for lambda abstractions)
 ParamPattern.      Param ::= Pattern ;
 ParamPatternType.  Param ::= "(" [Pattern] ":" Term ")" ;
-ParamPatternShape. Param ::= "{" Pattern ":" Term "|" Term "}" ;
+ParamPatternShape. Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
+ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
 separator nonempty Param "" ;
 
 -- Parameter declaration for functions and extension types

@@ -44,8 +44,8 @@ The symbols used in Syntax are the following:
   | #compute | #compute-whnf | #compute-nf | #postulate
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
-  | ( | ) | , | {
-  | | | } | ↦ | 1
+  | ( | ) | , | |
+  | { | } | ↦ | 1
   | *₁ | 2 | 0₂ | 1₂
   | × | ⊤ | ⊥ | ≡
   | ≤ | ∧ | ∨ | →
@@ -100,6 +100,7 @@ All other symbols are terminals.
   |  |  **|**  | //Pattern// //[Pattern]//
   | //Param// | -> | //Pattern//
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``)``
+  |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``|`` //Term// ``)``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   | //[Param]// | -> | //Param//
   |  |  **|**  | //Param// //[Param]//

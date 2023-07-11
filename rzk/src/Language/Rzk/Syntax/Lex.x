@@ -28,7 +28,7 @@ $u = [. \n]          -- universal: any character
 
 -- Symbols and non-identifier-like reserved words
 
-@rsyms = \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \{ | \| | \} | \↦ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
+@rsyms = \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
 
 :-
 

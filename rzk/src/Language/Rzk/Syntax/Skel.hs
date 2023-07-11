@@ -75,7 +75,8 @@ transParam :: Show a => Language.Rzk.Syntax.Abs.Param' a -> Result
 transParam x = case x of
   Language.Rzk.Syntax.Abs.ParamPattern _ pattern_ -> failure x
   Language.Rzk.Syntax.Abs.ParamPatternType _ patterns term -> failure x
-  Language.Rzk.Syntax.Abs.ParamPatternShape _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternShape _ patterns term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated _ pattern_ term1 term2 -> failure x
 
 transParamDecl :: Show a => Language.Rzk.Syntax.Abs.ParamDecl' a -> Result
 transParamDecl x = case x of

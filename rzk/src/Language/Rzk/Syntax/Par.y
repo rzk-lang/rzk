@@ -239,7 +239,8 @@ Param :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Param
 Param
   : Pattern { (fst $1, Language.Rzk.Syntax.Abs.ParamPattern (fst $1) (snd $1)) }
   | '(' ListPattern ':' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
-  | '{' Pattern ':' Term '|' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternShape (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '(' ListPattern ':' Term '|' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternShape (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '{' Pattern ':' Term '|' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
 
 ListParam :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Param]) }
 ListParam

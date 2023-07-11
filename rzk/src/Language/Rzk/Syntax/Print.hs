@@ -205,7 +205,8 @@ instance Print (Language.Rzk.Syntax.Abs.Param' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.ParamPattern _ pattern_ -> prPrec i 0 (concatD [prt 0 pattern_])
     Language.Rzk.Syntax.Abs.ParamPatternType _ patterns term -> prPrec i 0 (concatD [doc (showString "("), prt 0 patterns, doc (showString ":"), prt 0 term, doc (showString ")")])
-    Language.Rzk.Syntax.Abs.ParamPatternShape _ pattern_ term1 term2 -> prPrec i 0 (concatD [doc (showString "{"), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString "|"), prt 0 term2, doc (showString "}")])
+    Language.Rzk.Syntax.Abs.ParamPatternShape _ patterns term1 term2 -> prPrec i 0 (concatD [doc (showString "("), prt 0 patterns, doc (showString ":"), prt 0 term1, doc (showString "|"), prt 0 term2, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated _ pattern_ term1 term2 -> prPrec i 0 (concatD [doc (showString "{"), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString "|"), prt 0 term2, doc (showString "}")])
 
 instance Print [Language.Rzk.Syntax.Abs.Param' a] where
   prt _ []     = concatD []
