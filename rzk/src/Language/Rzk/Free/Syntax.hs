@@ -177,14 +177,18 @@ toTerm bvars = go
     deprecated t t' = trace msg (go t')
       where
         msg = unlines
-          [ "[DEPRECATED]: the following notation is deprecated and will be removed from future version of rzk:"
+          [ "[DEPRECATED]:" <> ppBNFC'Position (Rzk.hasPosition t)
+          , "the following notation is deprecated and will be removed from future version of rzk:"
           , "  " <> Rzk.printTree t
           , "instead consider using the following notation:"
           , "  " <> Rzk.printTree t'
           ]
 
+    ppBNFC'Position Nothing = ""
+    ppBNFC'Position (Just (line_, col)) = " at line " <> show line_ <> " column " <> show col
+
     lint orig suggestion = trace $ unlines
-      [ "[HINT]: consider replacing"
+      [ "[HINT]:" <> ppBNFC'Position (Rzk.hasPosition orig) <> " consider replacing"
       , "  " <> Rzk.printTree orig
       , "with the following"
       , "  " <> Rzk.printTree suggestion
