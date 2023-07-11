@@ -40,6 +40,9 @@ ppRzkPosition RzkPosition{..} = intercalate ":" $ concat
 
 newtype VarIdent = VarIdent { getVarIdent :: Rzk.VarIdent' RzkPosition }
 
+instance Show VarIdent where
+  show = Rzk.printTree . getVarIdent
+
 instance Eq VarIdent where
   (==) = (==) `on` (void . getVarIdent)
 
@@ -412,7 +415,7 @@ defaultVarIdents =
 -- | Given a list of used variable names in the current context,
 -- generate a unique fresh name based on a given one.
 --
--- >>> refreshVar ["x", "y", "x₁", "z"] "x"
+-- >>> print $ refreshVar ["x", "y", "x₁", "z"] "x"
 -- x₂
 refreshVar :: [VarIdent] -> VarIdent -> VarIdent
 refreshVar vars x
@@ -425,9 +428,9 @@ incVarIdentIndex (VarIdent (Rzk.VarIdent loc token)) =
 
 -- | Increment the subscript number at the end of the indentifier.
 --
--- >>> incIndex "x"
+-- >>> putStrLn $ incIndex "x"
 -- x₁
--- >>> incIndex "x₁₉"
+-- >>> putStrLn $ incIndex "x₁₉"
 -- x₂₀
 incIndex :: String -> String
 incIndex s = name <> newIndex
