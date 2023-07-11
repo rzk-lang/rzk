@@ -31,3 +31,5 @@ venv
 __pycache__
 *.fdb_latexmk
 *.fls
+*.log
+rzk/doc/
