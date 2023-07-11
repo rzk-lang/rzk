@@ -68,8 +68,7 @@ data SectionName' a
 
 type Pattern = Pattern' BNFC'Position
 data Pattern' a
-    = PatternWildcard a
-    | PatternUnit a
+    = PatternUnit a
     | PatternVar a (VarIdent' a)
     | PatternPair a (Pattern' a) (Pattern' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
@@ -78,15 +77,17 @@ type Param = Param' BNFC'Position
 data Param' a
     = ParamPattern a (Pattern' a)
     | ParamPatternType a [Pattern' a] (Term' a)
-    | ParamPatternShape a (Pattern' a) (Term' a) (Term' a)
+    | ParamPatternShape a [Pattern' a] (Term' a) (Term' a)
+    | ParamPatternShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type ParamDecl = ParamDecl' BNFC'Position
 data ParamDecl' a
     = ParamType a (Term' a)
-    | ParamWildcardType a (Term' a)
-    | ParamVarType a (Pattern' a) (Term' a)
-    | ParamVarShape a (Pattern' a) (Term' a) (Term' a)
+    | ParamTermType a (Term' a) (Term' a)
+    | ParamTermShape a (Term' a) (Term' a) (Term' a)
+    | ParamTermTypeDeprecated a (Pattern' a) (Term' a)
+    | ParamVarShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Restriction = Restriction' BNFC'Position
@@ -173,11 +174,8 @@ commandDefNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
 noDeclUsedVars :: a -> DeclUsedVars' a
 noDeclUsedVars = \ _a -> DeclUsedVars _a []
 
-paramVarType :: a -> VarIdent' a -> Term' a -> ParamDecl' a
-paramVarType = \ _a var cube -> ParamVarType _a (PatternVar _a var) cube
-
-paramVarShape :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
-paramVarShape = \ _a pat cube tope -> ParamVarShape _a pat cube tope
+paramVarShapeDeprecated :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
+paramVarShapeDeprecated = \ _a pat cube tope -> ParamVarShapeDeprecated _a pat cube tope
 
 ascii_CubeProduct :: a -> Term' a -> Term' a -> Term' a
 ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
@@ -250,7 +248,6 @@ instance HasPosition SectionName where
 
 instance HasPosition Pattern where
   hasPosition = \case
-    PatternWildcard p -> p
     PatternUnit p -> p
     PatternVar p _ -> p
     PatternPair p _ _ -> p
@@ -260,13 +257,15 @@ instance HasPosition Param where
     ParamPattern p _ -> p
     ParamPatternType p _ _ -> p
     ParamPatternShape p _ _ _ -> p
+    ParamPatternShapeDeprecated p _ _ _ -> p
 
 instance HasPosition ParamDecl where
   hasPosition = \case
     ParamType p _ -> p
-    ParamWildcardType p _ -> p
-    ParamVarType p _ _ -> p
-    ParamVarShape p _ _ _ -> p
+    ParamTermType p _ _ -> p
+    ParamTermShape p _ _ _ -> p
+    ParamTermTypeDeprecated p _ _ -> p
+    ParamVarShapeDeprecated p _ _ _ -> p
 
 instance HasPosition Restriction where
   hasPosition = \case

@@ -190,8 +190,12 @@ unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 paramToParamDecl :: Rzk.Param -> TypeCheck var [Rzk.ParamDecl]
-paramToParamDecl (Rzk.ParamPatternShape loc pat cube tope) = pure [Rzk.ParamVarShape loc pat cube tope]
-paramToParamDecl (Rzk.ParamPatternType loc pats ty) = pure $ map (\pat -> Rzk.ParamVarType loc pat ty) pats
+paramToParamDecl (Rzk.ParamPatternShapeDeprecated loc pat cube tope) = pure
+  [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope ]
+paramToParamDecl (Rzk.ParamPatternShape loc pats cube tope) = pure
+  [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope | pat <- pats]
+paramToParamDecl (Rzk.ParamPatternType loc pats ty) = pure
+  [ Rzk.ParamTermType loc (patternToTerm pat) ty | pat <- pats ]
 paramToParamDecl Rzk.ParamPattern{} = issueTypeError $
   TypeErrorOther "untyped pattern in parameters"
 
