@@ -31,6 +31,12 @@ CommandPostulate.         Command ::= "#postulate" VarIdent DeclUsedVars [Param]
 commandPostulateNoParams. Command ::= "#postulate" VarIdent DeclUsedVars ":" Term ;
 define commandPostulateNoParams x vars ty = CommandPostulate x vars [] ty ;
 
+CommandDefineAssume.            Command ::= "#define-assumption" [VarIdent] ":" Term ;
+commandDefineVariable.          Command ::= "#define-variable" VarIdent ":" Term ;
+define commandDefineVariable name term = CommandDefineAssume [name] term ;
+commandDefineVariables.         Command ::= "#define-variables" [VarIdent] ":" Term ;
+define commandDefineVariables names term = CommandDefineAssume names term ;
+
 CommandAssume.            Command ::= "#assume" [VarIdent] ":" Term ;
 commandVariable.          Command ::= "#variable" VarIdent ":" Term ;
 define commandVariable name term = CommandAssume [name] term ;

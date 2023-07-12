@@ -173,6 +173,7 @@ instance Print (Language.Rzk.Syntax.Abs.Command' a) where
     Language.Rzk.Syntax.Abs.CommandComputeWHNF _ term -> prPrec i 0 (concatD [doc (showString "#compute-whnf"), prt 0 term])
     Language.Rzk.Syntax.Abs.CommandComputeNF _ term -> prPrec i 0 (concatD [doc (showString "#compute-nf"), prt 0 term])
     Language.Rzk.Syntax.Abs.CommandPostulate _ varident declusedvars params term -> prPrec i 0 (concatD [doc (showString "#postulate"), prt 0 varident, prt 0 declusedvars, prt 0 params, doc (showString ":"), prt 0 term])
+    Language.Rzk.Syntax.Abs.CommandDefineAssume _ varidents term -> prPrec i 0 (concatD [doc (showString "#define-assumption"), prt 0 varidents, doc (showString ":"), prt 0 term])
     Language.Rzk.Syntax.Abs.CommandAssume _ varidents term -> prPrec i 0 (concatD [doc (showString "#assume"), prt 0 varidents, doc (showString ":"), prt 0 term])
     Language.Rzk.Syntax.Abs.CommandSection _ sectionname1 commands sectionname2 -> prPrec i 0 (concatD [doc (showString "#section"), prt 0 sectionname1, doc (showString ";"), prt 0 commands, doc (showString "#end"), prt 0 sectionname2])
     Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> prPrec i 0 (concatD [doc (showString "#define"), prt 0 varident, prt 0 declusedvars, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2])

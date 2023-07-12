@@ -36,6 +36,10 @@ tokenizeCommand command = case command of
     , foldMap tokenizeTerm [type_, term]
     ]
 
+  CommandDefineAssume _loc vars type_ -> concat
+    [ foldMap (\var -> mkToken var vs_parameter [vs_declaration]) vars
+    , tokenizeTerm type_
+    ]
   CommandAssume _loc vars type_ -> concat
     [ foldMap (\var -> mkToken var vs_parameter [vs_declaration]) vars
     , tokenizeTerm type_
