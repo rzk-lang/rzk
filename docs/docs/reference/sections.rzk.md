@@ -3,6 +3,7 @@
 Sections and variables allow to simplify definitions by factoring out common assumptions.
 
 !!! info "Coq-style variables"
+
     `rzk` implements variables similarly to
     <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>.
     An important difference is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.
@@ -123,4 +124,5 @@ Now, once outside of the section, `compose₄` and `twice₄` obtain correspondi
 ```
 
 !!! warning "Lack of indentation"
+
     `rzk` currently does not support indentation, so all definitions and commands inside a section (including nested sections) have to start at the beginning of a line.

@@ -1,9 +1,9 @@
 # Tope disjuction elimination along identity paths
 
-\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)\) (written `recOR(psi, phi, a_psi, a_phi)` in the code)
-is well-typed when \(a_\psi\) and \(a_\phi\) are _definitionally equal_ on \(\psi \land \phi\).
+\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a*\phi)\) (written `recOR(psi, phi, a_psi, a_phi)` in the code)
+is well-typed when \(a*\psi\) and \(a*\phi\) are \_definitionally equal* on \(\psi \land \phi\).
 Sometimes this is too strong since many terms are not _definitionally_ equal, but only equal up to a path.
-Luckily, assuming relative function extensionality, we can define a weaker version of \(rec_{\lor}\) (`recOR`), which we call `recId`, that can work in presence of a witness of type \(\prod_{t : I \mid \psi \land \phi} a_\psi = a_\phi\).
+Luckily, assuming relative function extensionality, we can define a weaker version of \(rec*{\lor}\) (`recOR`), which we call `recId`, that can work in presence of a witness of type \(\prod*{t : I \mid \psi \land \phi} a*\psi = a*\phi\).
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ We begin by introducing common HoTT definitions:
   := ∑ (f : A -> B), isweq A B f
 
 -- Transport along a path
-#define transport
+#define transport'
     (A : U)
     (C : A -> U)
     (x y : A)
@@ -79,7 +79,7 @@ We can now define relative function extensionality. There are several formulatio
 
 ## Construction of `recId`
 
-The idea is straightforward. We ask for a proof that `a = b` for all points in `psi /\ phi`. Then, by relative function extensionality (`relfunext2`), we can show that restrictions of `a` and `b` to `psi /\ phi` are equal. If we reformulate `a` as extension of its restriction, then we can `transport` such reformulation along the path connecting two restrictions and apply `recOR`.
+The idea is straightforward. We ask for a proof that `a = b` for all points in `psi /\ phi`. Then, by relative function extensionality (`relfunext2`), we can show that restrictions of `a` and `b` to `psi /\ phi` are equal. If we reformulate `a` as extension of its restriction, then we can `transport'` such reformulation along the path connecting two restrictions and apply `recOR`.
 
 First, we define how to restrict an extension type to a subshape:
 
@@ -150,7 +150,7 @@ Finally, we bring everything together into `recId`:
     (e : {t : I | psi t /\ phi t} -> a_psi t = a_phi t)
   : {t : I | psi t \/ phi t} -> A t
   := \t -> recOR(
-        psi t |-> transport
+        psi t |-> transport'
           ({s : I | psi s /\ phi s} -> A s)
           (\ra -> (s : psi) -> A s [ psi s /\ phi s |-> ra s ])
           (restrict_psi a_psi)

@@ -34,13 +34,23 @@ As a non-trivial example, here is a proof that `Unit` is a Segal type:
 ```rzk
 #section isSegal-Unit
 
+#require-file "docs/docs/_prelude/hott/00-common.rzk.md"
+#require-file "docs/docs/_prelude/hott/01-paths.rzk.md"
+#require-file "docs/docs/_prelude/hott/02-homotopies.rzk.md"
+#require-file "docs/docs/_prelude/hott/03-equivalences.rzk.md"
+#require-file "docs/docs/_prelude/hott/06-contractible.rzk.md"
+
+#require-file "docs/docs/_prelude/simplicial-hott/03-simplicial-type-theory.rzk.md"
+#require-file "docs/docs/_prelude/simplicial-hott/04-extension-types.rzk.md"
+#require-file "docs/docs/_prelude/simplicial-hott/05-segal-types.rzk.md"
+
 #variable extext : ExtExt
 
-#define iscontr-Unit : isContr Unit
+#define is-contr-Unit : is-contr Unit
   := (unit, \_ -> refl)
 
-#define isContr-Δ²→Unit uses (extext)
-  : isContr (Δ² -> Unit)
+#define is-contr-Δ²→Unit uses (extext)
+  : is-contr (Δ² -> Unit)
   := (\_ -> unit, \k -> eq-ext-htpy extext
     (2 * 2) Δ² (\_ -> BOT)
     (\_ -> Unit) (\_ -> recBOT)
@@ -48,13 +58,13 @@ As a non-trivial example, here is a proof that `Unit` is a Segal type:
     (\_ -> refl)
     )
 
-#define isSegal-Unit uses (extext)
-  : isSegal Unit
-  := \x y z f g -> isRetract-ofContr-isContr
+#define is-segal-Unit uses (extext)
+  : is-segal Unit
+  := \x y z f g -> is-retract-of-is-contr-is-contr
     (∑ (h : hom Unit x z), hom2 Unit x y z f g h)
     (Δ² -> Unit)
     (\(_, k) -> k, (\k -> (\t -> k (t, t), k), \_ -> refl))
-    isContr-Δ²→Unit
+    is-contr-Δ²→Unit
 
 #end isSegal-Unit
 ```
