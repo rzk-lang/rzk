@@ -28,7 +28,7 @@ $u = [. \n]          -- universal: any character
 
 -- Symbols and non-identifier-like reserved words
 
-@rsyms = \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
+@rsyms = \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "define" \- "assumption" | \# "define" \- "variable" | \# "define" \- "variables" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
 
 :-
 
@@ -166,43 +166,47 @@ eitherResIdent tv s = treeFind resWords
 -- | The keywords and symbols of the language organized as binary search tree.
 resWords :: BTree
 resWords =
-  b "BOT" 39
-    (b "*\8321" 20
-       (b "#postulate" 10
-          (b "#compute-whnf" 5
+  b ">" 41
+    (b "*" 21
+       (b "#end" 11
+          (b "#def" 6
              (b "#compute" 3
-                (b "#check" 2 (b "#assume" 1 N N) N) (b "#compute-nf" 4 N N))
-             (b "#end" 8 (b "#define" 7 (b "#def" 6 N N) N) (b "#lang" 9 N N)))
-          (b "#variables" 15
-             (b "#unset-option" 13
-                (b "#set-option" 12 (b "#section" 11 N N) N)
-                (b "#variable" 14 N N))
-             (b "*" 18 (b ")" 17 (b "(" 16 N N) N) (b "*_1" 19 N N))))
-       (b ":" 30
-          (b "0\8322" 25
-             (b "/\\" 23 (b "->" 22 (b "," 21 N N) N) (b "0_2" 24 N N))
-             (b "1\8322" 28 (b "1_2" 27 (b "1" 26 N N) N) (b "2" 29 N N)))
-          (b "=" 35
-             (b "<" 33 (b ";" 32 (b ":=" 31 N N) N) (b "<=" 34 N N))
-             (b "=_{" 37 (b "===" 36 N N) (b ">" 38 N N)))))
-    (b "unit" 59
-       (b "]" 49
-          (b "U" 44
-             (b "TOP" 42 (b "Sigma" 41 (b "CUBE" 40 N N) N) (b "TOPE" 43 N N))
-             (b "\\" 47 (b "[" 46 (b "Unit" 45 N N) N) (b "\\/" 48 N N)))
-          (b "recOR" 54
-             (b "idJ" 52 (b "first" 51 (b "as" 50 N N) N) (b "recBOT" 53 N N))
-             (b "rzk-1" 57
-                (b "refl_{" 56 (b "refl" 55 N N) N) (b "second" 58 N N))))
-       (b "\8594" 69
-          (b "}" 64
-             (b "|" 62 (b "{" 61 (b "uses" 60 N N) N) (b "|->" 63 N N))
-             (b "\960\8321" 67
-                (b "\931" 66 (b "\215" 65 N N) N) (b "\960\8322" 68 N N)))
-          (b "\8801" 74
-             (b "\8743" 72
-                (b "\8721" 71 (b "\8614" 70 N N) N) (b "\8744" 73 N N))
-             (b "\8868" 76 (b "\8804" 75 N N) (b "\8869" 77 N N)))))
+                (b "#check" 2 (b "#assume" 1 N N) N)
+                (b "#compute-whnf" 5 (b "#compute-nf" 4 N N) N))
+             (b "#define-variable" 9
+                (b "#define-assumption" 8 (b "#define" 7 N N) N)
+                (b "#define-variables" 10 N N)))
+          (b "#unset-option" 16
+             (b "#section" 14
+                (b "#postulate" 13 (b "#lang" 12 N N) N) (b "#set-option" 15 N N))
+             (b "(" 19
+                (b "#variables" 18 (b "#variable" 17 N N) N) (b ")" 20 N N))))
+       (b "1\8322" 31
+          (b "/\\" 26
+             (b "," 24 (b "*\8321" 23 (b "*_1" 22 N N) N) (b "->" 25 N N))
+             (b "1" 29 (b "0\8322" 28 (b "0_2" 27 N N) N) (b "1_2" 30 N N)))
+          (b "<" 36
+             (b ":=" 34 (b ":" 33 (b "2" 32 N N) N) (b ";" 35 N N))
+             (b "===" 39 (b "=" 38 (b "<=" 37 N N) N) (b "=_{" 40 N N)))))
+    (b "second" 61
+       (b "\\/" 51
+          (b "TOPE" 46
+             (b "Sigma" 44 (b "CUBE" 43 (b "BOT" 42 N N) N) (b "TOP" 45 N N))
+             (b "[" 49 (b "Unit" 48 (b "U" 47 N N) N) (b "\\" 50 N N)))
+          (b "recBOT" 56
+             (b "first" 54 (b "as" 53 (b "]" 52 N N) N) (b "idJ" 55 N N))
+             (b "refl_{" 59
+                (b "refl" 58 (b "recOR" 57 N N) N) (b "rzk-1" 60 N N))))
+       (b "\960\8322" 71
+          (b "|->" 66
+             (b "{" 64 (b "uses" 63 (b "unit" 62 N N) N) (b "|" 65 N N))
+             (b "\931" 69
+                (b "\215" 68 (b "}" 67 N N) N) (b "\960\8321" 70 N N)))
+          (b "\8744" 76
+             (b "\8721" 74
+                (b "\8614" 73 (b "\8594" 72 N N) N) (b "\8743" 75 N N))
+             (b "\8868" 79
+                (b "\8804" 78 (b "\8801" 77 N N) N) (b "\8869" 80 N N)))))
   where
   b s n = B bs (TS bs n)
     where

@@ -37,16 +37,16 @@ layoutStopWords = []
 layoutOpen, layoutClose, layoutSep :: [TokSymbol]
 layoutOpen  = List.nub $ mapMaybe (delimOpen  . snd) layoutWords
 layoutClose = List.nub $ mapMaybe (delimClose . snd) layoutWords
-layoutSep   = List.nub $ TokSymbol ";" 32 : map (delimSep . snd) layoutWords
+layoutSep   = List.nub $ TokSymbol ";" 35 : map (delimSep . snd) layoutWords
 
 parenOpen, parenClose :: [TokSymbol]
 parenOpen  =
-  [ TokSymbol "(" 16
-  , TokSymbol "[" 46
+  [ TokSymbol "(" 19
+  , TokSymbol "[" 49
   ]
 parenClose =
-  [ TokSymbol ")" 17
-  , TokSymbol "]" 49
+  [ TokSymbol ")" 20
+  , TokSymbol "]" 52
   ]
 
 -- | Report an error during layout resolution.
@@ -74,7 +74,7 @@ resolveLayout topLayout =
   res Nothing [if topLayout then Implicit topDelim Definitive 1 else Explicit]
   where
   topDelim :: LayoutDelimiters
-  topDelim = LayoutDelimiters (TokSymbol ";" 32) Nothing Nothing
+  topDelim = LayoutDelimiters (TokSymbol ";" 35) Nothing Nothing
 
   res :: Maybe Token -- ^ The previous token, if any.
       -> [Block]     -- ^ A stack of layout blocks.

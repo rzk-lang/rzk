@@ -73,86 +73,89 @@ import Language.Rzk.Syntax.Lex
 %monad { Err } { (>>=) } { return }
 %tokentype {Token}
 %token
-  '#assume'        { PT _ (TS _ 1)             }
-  '#check'         { PT _ (TS _ 2)             }
-  '#compute'       { PT _ (TS _ 3)             }
-  '#compute-nf'    { PT _ (TS _ 4)             }
-  '#compute-whnf'  { PT _ (TS _ 5)             }
-  '#def'           { PT _ (TS _ 6)             }
-  '#define'        { PT _ (TS _ 7)             }
-  '#end'           { PT _ (TS _ 8)             }
-  '#lang'          { PT _ (TS _ 9)             }
-  '#postulate'     { PT _ (TS _ 10)            }
-  '#section'       { PT _ (TS _ 11)            }
-  '#set-option'    { PT _ (TS _ 12)            }
-  '#unset-option'  { PT _ (TS _ 13)            }
-  '#variable'      { PT _ (TS _ 14)            }
-  '#variables'     { PT _ (TS _ 15)            }
-  '('              { PT _ (TS _ 16)            }
-  ')'              { PT _ (TS _ 17)            }
-  '*'              { PT _ (TS _ 18)            }
-  '*_1'            { PT _ (TS _ 19)            }
-  '*₁'             { PT _ (TS _ 20)            }
-  ','              { PT _ (TS _ 21)            }
-  '->'             { PT _ (TS _ 22)            }
-  '/\\'            { PT _ (TS _ 23)            }
-  '0_2'            { PT _ (TS _ 24)            }
-  '0₂'             { PT _ (TS _ 25)            }
-  '1'              { PT _ (TS _ 26)            }
-  '1_2'            { PT _ (TS _ 27)            }
-  '1₂'             { PT _ (TS _ 28)            }
-  '2'              { PT _ (TS _ 29)            }
-  ':'              { PT _ (TS _ 30)            }
-  ':='             { PT _ (TS _ 31)            }
-  ';'              { PT _ (TS _ 32)            }
-  '<'              { PT _ (TS _ 33)            }
-  '<='             { PT _ (TS _ 34)            }
-  '='              { PT _ (TS _ 35)            }
-  '==='            { PT _ (TS _ 36)            }
-  '=_{'            { PT _ (TS _ 37)            }
-  '>'              { PT _ (TS _ 38)            }
-  'BOT'            { PT _ (TS _ 39)            }
-  'CUBE'           { PT _ (TS _ 40)            }
-  'Sigma'          { PT _ (TS _ 41)            }
-  'TOP'            { PT _ (TS _ 42)            }
-  'TOPE'           { PT _ (TS _ 43)            }
-  'U'              { PT _ (TS _ 44)            }
-  'Unit'           { PT _ (TS _ 45)            }
-  '['              { PT _ (TS _ 46)            }
-  '\\'             { PT _ (TS _ 47)            }
-  '\\/'            { PT _ (TS _ 48)            }
-  ']'              { PT _ (TS _ 49)            }
-  'as'             { PT _ (TS _ 50)            }
-  'first'          { PT _ (TS _ 51)            }
-  'idJ'            { PT _ (TS _ 52)            }
-  'recBOT'         { PT _ (TS _ 53)            }
-  'recOR'          { PT _ (TS _ 54)            }
-  'refl'           { PT _ (TS _ 55)            }
-  'refl_{'         { PT _ (TS _ 56)            }
-  'rzk-1'          { PT _ (TS _ 57)            }
-  'second'         { PT _ (TS _ 58)            }
-  'unit'           { PT _ (TS _ 59)            }
-  'uses'           { PT _ (TS _ 60)            }
-  '{'              { PT _ (TS _ 61)            }
-  '|'              { PT _ (TS _ 62)            }
-  '|->'            { PT _ (TS _ 63)            }
-  '}'              { PT _ (TS _ 64)            }
-  '×'              { PT _ (TS _ 65)            }
-  'Σ'              { PT _ (TS _ 66)            }
-  'π₁'             { PT _ (TS _ 67)            }
-  'π₂'             { PT _ (TS _ 68)            }
-  '→'              { PT _ (TS _ 69)            }
-  '↦'              { PT _ (TS _ 70)            }
-  '∑'              { PT _ (TS _ 71)            }
-  '∧'              { PT _ (TS _ 72)            }
-  '∨'              { PT _ (TS _ 73)            }
-  '≡'              { PT _ (TS _ 74)            }
-  '≤'              { PT _ (TS _ 75)            }
-  '⊤'              { PT _ (TS _ 76)            }
-  '⊥'              { PT _ (TS _ 77)            }
-  L_quoted         { PT _ (TL _)               }
-  L_VarIdentToken  { PT _ (T_VarIdentToken _)  }
-  L_HoleIdentToken { PT _ (T_HoleIdentToken _) }
+  '#assume'            { PT _ (TS _ 1)             }
+  '#check'             { PT _ (TS _ 2)             }
+  '#compute'           { PT _ (TS _ 3)             }
+  '#compute-nf'        { PT _ (TS _ 4)             }
+  '#compute-whnf'      { PT _ (TS _ 5)             }
+  '#def'               { PT _ (TS _ 6)             }
+  '#define'            { PT _ (TS _ 7)             }
+  '#define-assumption' { PT _ (TS _ 8)             }
+  '#define-variable'   { PT _ (TS _ 9)             }
+  '#define-variables'  { PT _ (TS _ 10)            }
+  '#end'               { PT _ (TS _ 11)            }
+  '#lang'              { PT _ (TS _ 12)            }
+  '#postulate'         { PT _ (TS _ 13)            }
+  '#section'           { PT _ (TS _ 14)            }
+  '#set-option'        { PT _ (TS _ 15)            }
+  '#unset-option'      { PT _ (TS _ 16)            }
+  '#variable'          { PT _ (TS _ 17)            }
+  '#variables'         { PT _ (TS _ 18)            }
+  '('                  { PT _ (TS _ 19)            }
+  ')'                  { PT _ (TS _ 20)            }
+  '*'                  { PT _ (TS _ 21)            }
+  '*_1'                { PT _ (TS _ 22)            }
+  '*₁'                 { PT _ (TS _ 23)            }
+  ','                  { PT _ (TS _ 24)            }
+  '->'                 { PT _ (TS _ 25)            }
+  '/\\'                { PT _ (TS _ 26)            }
+  '0_2'                { PT _ (TS _ 27)            }
+  '0₂'                 { PT _ (TS _ 28)            }
+  '1'                  { PT _ (TS _ 29)            }
+  '1_2'                { PT _ (TS _ 30)            }
+  '1₂'                 { PT _ (TS _ 31)            }
+  '2'                  { PT _ (TS _ 32)            }
+  ':'                  { PT _ (TS _ 33)            }
+  ':='                 { PT _ (TS _ 34)            }
+  ';'                  { PT _ (TS _ 35)            }
+  '<'                  { PT _ (TS _ 36)            }
+  '<='                 { PT _ (TS _ 37)            }
+  '='                  { PT _ (TS _ 38)            }
+  '==='                { PT _ (TS _ 39)            }
+  '=_{'                { PT _ (TS _ 40)            }
+  '>'                  { PT _ (TS _ 41)            }
+  'BOT'                { PT _ (TS _ 42)            }
+  'CUBE'               { PT _ (TS _ 43)            }
+  'Sigma'              { PT _ (TS _ 44)            }
+  'TOP'                { PT _ (TS _ 45)            }
+  'TOPE'               { PT _ (TS _ 46)            }
+  'U'                  { PT _ (TS _ 47)            }
+  'Unit'               { PT _ (TS _ 48)            }
+  '['                  { PT _ (TS _ 49)            }
+  '\\'                 { PT _ (TS _ 50)            }
+  '\\/'                { PT _ (TS _ 51)            }
+  ']'                  { PT _ (TS _ 52)            }
+  'as'                 { PT _ (TS _ 53)            }
+  'first'              { PT _ (TS _ 54)            }
+  'idJ'                { PT _ (TS _ 55)            }
+  'recBOT'             { PT _ (TS _ 56)            }
+  'recOR'              { PT _ (TS _ 57)            }
+  'refl'               { PT _ (TS _ 58)            }
+  'refl_{'             { PT _ (TS _ 59)            }
+  'rzk-1'              { PT _ (TS _ 60)            }
+  'second'             { PT _ (TS _ 61)            }
+  'unit'               { PT _ (TS _ 62)            }
+  'uses'               { PT _ (TS _ 63)            }
+  '{'                  { PT _ (TS _ 64)            }
+  '|'                  { PT _ (TS _ 65)            }
+  '|->'                { PT _ (TS _ 66)            }
+  '}'                  { PT _ (TS _ 67)            }
+  '×'                  { PT _ (TS _ 68)            }
+  'Σ'                  { PT _ (TS _ 69)            }
+  'π₁'                 { PT _ (TS _ 70)            }
+  'π₂'                 { PT _ (TS _ 71)            }
+  '→'                  { PT _ (TS _ 72)            }
+  '↦'                  { PT _ (TS _ 73)            }
+  '∑'                  { PT _ (TS _ 74)            }
+  '∧'                  { PT _ (TS _ 75)            }
+  '∨'                  { PT _ (TS _ 76)            }
+  '≡'                  { PT _ (TS _ 77)            }
+  '≤'                  { PT _ (TS _ 78)            }
+  '⊤'                  { PT _ (TS _ 79)            }
+  '⊥'                  { PT _ (TS _ 80)            }
+  L_quoted             { PT _ (TL _)               }
+  L_VarIdentToken      { PT _ (T_VarIdentToken _)  }
+  L_HoleIdentToken     { PT _ (T_HoleIdentToken _) }
 
 %%
 
@@ -200,6 +203,9 @@ Command
   | '#compute-nf' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandComputeNF (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | '#postulate' VarIdent DeclUsedVars ListParam ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandPostulate (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $4) (snd $6)) }
   | '#postulate' VarIdent DeclUsedVars ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandPostulateNoParams (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3) (snd $5)) }
+  | '#define-assumption' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandDefineAssume (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '#define-variable' VarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefineVariable (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '#define-variables' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandDefineVariables (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#assume' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandAssume (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#variable' VarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandVariable (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#variables' ListVarIdent ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.commandVariables (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }

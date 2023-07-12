@@ -42,18 +42,19 @@ The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
   | = | #unset-option | #check | :
   | #compute | #compute-whnf | #compute-nf | #postulate
-  | #assume | #variable | #variables | #section
-  | #end | #define | := | #def
-  | ( | ) | , | |
-  | { | } | ↦ | 1
-  | *₁ | 2 | 0₂ | 1₂
-  | × | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | [ | ] | <
-  | > | \ | refl_{ | *
-  | *_1 | 0_2 | 1_2 | ===
-  | <= | /\ | \/ | ->
-  | |-> | ∑ |  |
+  | #define-assumption | #define-variable | #define-variables | #assume
+  | #variable | #variables | #section | #end
+  | #define | := | #def | (
+  | ) | , | | | {
+  | } | ↦ | 1 | *₁
+  | 2 | 0₂ | 1₂ | ×
+  | ⊤ | ⊥ | ≡ | ≤
+  | ∧ | ∨ | → | =_{
+  | [ | ] | < | >
+  | \ | refl_{ | * | *_1
+  | 0_2 | 1_2 | === | <=
+  | /\ | \/ | -> | |->
+  | ∑ |  |  |
 
 ===Comments===
 Single-line comments begin with --.Multiple-line comments are  enclosed with {- and -}.
@@ -79,6 +80,9 @@ All other symbols are terminals.
   |  |  **|**  | ``#compute-nf`` //Term//
   |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term//
   |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// ``:`` //Term//
+  |  |  **|**  | ``#define-assumption`` //[VarIdent]// ``:`` //Term//
+  |  |  **|**  | ``#define-variable`` //VarIdent// ``:`` //Term//
+  |  |  **|**  | ``#define-variables`` //[VarIdent]// ``:`` //Term//
   |  |  **|**  | ``#assume`` //[VarIdent]// ``:`` //Term//
   |  |  **|**  | ``#variable`` //VarIdent// ``:`` //Term//
   |  |  **|**  | ``#variables`` //[VarIdent]// ``:`` //Term//

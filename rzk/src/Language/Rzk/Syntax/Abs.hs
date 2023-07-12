@@ -52,6 +52,7 @@ data Command' a
     | CommandComputeWHNF a (Term' a)
     | CommandComputeNF a (Term' a)
     | CommandPostulate a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a)
+    | CommandDefineAssume a [VarIdent' a] (Term' a)
     | CommandAssume a [VarIdent' a] (Term' a)
     | CommandSection a (SectionName' a) [Command' a] (SectionName' a)
     | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
@@ -156,6 +157,12 @@ data Term' a
 commandPostulateNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Command' a
 commandPostulateNoParams = \ _a x vars ty -> CommandPostulate _a x vars [] ty
 
+commandDefineVariable :: a -> VarIdent' a -> Term' a -> Command' a
+commandDefineVariable = \ _a name term -> CommandDefineAssume _a [name] term
+
+commandDefineVariables :: a -> [VarIdent' a] -> Term' a -> Command' a
+commandDefineVariables = \ _a names term -> CommandDefineAssume _a names term
+
 commandVariable :: a -> VarIdent' a -> Term' a -> Command' a
 commandVariable = \ _a name term -> CommandAssume _a [name] term
 
@@ -233,6 +240,7 @@ instance HasPosition Command where
     CommandComputeWHNF p _ -> p
     CommandComputeNF p _ -> p
     CommandPostulate p _ _ _ _ -> p
+    CommandDefineAssume p _ _ -> p
     CommandAssume p _ _ -> p
     CommandSection p _ _ _ -> p
     CommandDefine p _ _ _ _ _ -> p
