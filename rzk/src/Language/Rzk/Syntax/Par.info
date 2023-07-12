@@ -64,21 +64,21 @@ Grammar
 	DeclUsedVars ->                                    (55)
 	SectionName ->                                     (56)
 	SectionName -> VarIdent                            (57)
-	Pattern -> '_'                                     (58)
-	Pattern -> 'unit'                                  (59)
-	Pattern -> VarIdent                                (60)
-	Pattern -> '(' Pattern ',' Pattern ')'             (61)
-	ListPattern -> Pattern                             (62)
-	ListPattern -> Pattern ListPattern                 (63)
-	Param -> Pattern                                   (64)
-	Param -> '(' ListPattern ':' Term ')'              (65)
+	Pattern -> 'unit'                                  (58)
+	Pattern -> VarIdent                                (59)
+	Pattern -> '(' Pattern ',' Pattern ')'             (60)
+	ListPattern -> Pattern                             (61)
+	ListPattern -> Pattern ListPattern                 (62)
+	Param -> Pattern                                   (63)
+	Param -> '(' ListPattern ':' Term ')'              (64)
+	Param -> '(' ListPattern ':' Term '|' Term ')'     (65)
 	Param -> '{' Pattern ':' Term '|' Term '}'         (66)
 	ListParam -> Param                                 (67)
 	ListParam -> Param ListParam                       (68)
 	ParamDecl -> Term6                                 (69)
-	ParamDecl -> '(' '_' ':' Term ')'                  (70)
-	ParamDecl -> '{' Pattern ':' Term '}'              (71)
-	ParamDecl -> '(' VarIdent ':' Term ')'             (72)
+	ParamDecl -> '(' Term ':' Term ')'                 (70)
+	ParamDecl -> '(' Term ':' Term '|' Term ')'        (71)
+	ParamDecl -> '{' Pattern ':' Term '}'              (72)
 	ParamDecl -> '{' '(' Pattern ':' Term ')' '|' Term '}'   (73)
 	ParamDecl -> '{' Pattern ':' Term '|' Term '}'     (74)
 	Restriction -> Term '↦' Term                       (75)
@@ -203,35 +203,34 @@ Terminals
 	'\\'           { PT _ (TS _ 47) }
 	'\\/'          { PT _ (TS _ 48) }
 	']'            { PT _ (TS _ 49) }
-	'_'            { PT _ (TS _ 50) }
-	'as'           { PT _ (TS _ 51) }
-	'first'        { PT _ (TS _ 52) }
-	'idJ'          { PT _ (TS _ 53) }
-	'recBOT'       { PT _ (TS _ 54) }
-	'recOR'        { PT _ (TS _ 55) }
-	'refl'         { PT _ (TS _ 56) }
-	'refl_{'       { PT _ (TS _ 57) }
-	'rzk-1'        { PT _ (TS _ 58) }
-	'second'       { PT _ (TS _ 59) }
-	'unit'         { PT _ (TS _ 60) }
-	'uses'         { PT _ (TS _ 61) }
-	'{'            { PT _ (TS _ 62) }
-	'|'            { PT _ (TS _ 63) }
-	'|->'          { PT _ (TS _ 64) }
-	'}'            { PT _ (TS _ 65) }
-	'×'            { PT _ (TS _ 66) }
-	'Σ'            { PT _ (TS _ 67) }
-	'π₁'           { PT _ (TS _ 68) }
-	'π₂'           { PT _ (TS _ 69) }
-	'→'            { PT _ (TS _ 70) }
-	'↦'            { PT _ (TS _ 71) }
-	'∑'            { PT _ (TS _ 72) }
-	'∧'            { PT _ (TS _ 73) }
-	'∨'            { PT _ (TS _ 74) }
-	'≡'            { PT _ (TS _ 75) }
-	'≤'            { PT _ (TS _ 76) }
-	'⊤'            { PT _ (TS _ 77) }
-	'⊥'            { PT _ (TS _ 78) }
+	'as'           { PT _ (TS _ 50) }
+	'first'        { PT _ (TS _ 51) }
+	'idJ'          { PT _ (TS _ 52) }
+	'recBOT'       { PT _ (TS _ 53) }
+	'recOR'        { PT _ (TS _ 54) }
+	'refl'         { PT _ (TS _ 55) }
+	'refl_{'       { PT _ (TS _ 56) }
+	'rzk-1'        { PT _ (TS _ 57) }
+	'second'       { PT _ (TS _ 58) }
+	'unit'         { PT _ (TS _ 59) }
+	'uses'         { PT _ (TS _ 60) }
+	'{'            { PT _ (TS _ 61) }
+	'|'            { PT _ (TS _ 62) }
+	'|->'          { PT _ (TS _ 63) }
+	'}'            { PT _ (TS _ 64) }
+	'×'            { PT _ (TS _ 65) }
+	'Σ'            { PT _ (TS _ 66) }
+	'π₁'           { PT _ (TS _ 67) }
+	'π₂'           { PT _ (TS _ 68) }
+	'→'            { PT _ (TS _ 69) }
+	'↦'            { PT _ (TS _ 70) }
+	'∑'            { PT _ (TS _ 71) }
+	'∧'            { PT _ (TS _ 72) }
+	'∨'            { PT _ (TS _ 73) }
+	'≡'            { PT _ (TS _ 74) }
+	'≤'            { PT _ (TS _ 75) }
+	'⊤'            { PT _ (TS _ 76) }
+	'⊥'            { PT _ (TS _ 77) }
 	L_quoted       { PT _ (TL _) }
 	L_VarIdentToken{ PT _ (T_VarIdentToken _) }
 	L_HoleIdentToken{ PT _ (T_HoleIdentToken _) }
@@ -278,9 +277,9 @@ Non-terminals
 	ListCommand     rules 52, 53
 	DeclUsedVars    rules 54, 55
 	SectionName     rules 56, 57
-	Pattern         rules 58, 59, 60, 61
-	ListPattern     rules 62, 63
-	Param           rules 64, 65, 66
+	Pattern         rules 58, 59, 60
+	ListPattern     rules 61, 62
+	Param           rules 63, 64, 65, 66
 	ListParam       rules 67, 68
 	ParamDecl       rules 69, 70, 71, 72, 73, 74
 	Restriction     rules 75, 76
@@ -302,10 +301,10 @@ State 0
 
 	%start_pModule_internal -> . Module                 (rule 0)
 
-	'#lang'        shift, and enter state 130
+	'#lang'        shift, and enter state 129
 
-	Module         goto state 135
-	LanguageDecl   goto state 136
+	Module         goto state 134
+	LanguageDecl   goto state 135
 
 State 1
 
@@ -314,7 +313,7 @@ State 1
 	L_HoleIdentTokenshift, and enter state 76
 
 	HoleIdentToken goto state 29
-	HoleIdent      goto state 134
+	HoleIdent      goto state 133
 
 State 2
 
@@ -323,7 +322,7 @@ State 2
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 133
+	VarIdent       goto state 132
 
 State 3
 
@@ -332,75 +331,75 @@ State 3
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 131
-	ListVarIdent   goto state 132
+	VarIdent       goto state 130
+	ListVarIdent   goto state 131
 
 State 4
 
 	%start_pLanguageDecl_internal -> . LanguageDecl     (rule 4)
 
-	'#lang'        shift, and enter state 130
+	'#lang'        shift, and enter state 129
 
-	LanguageDecl   goto state 129
+	LanguageDecl   goto state 128
 
 State 5
 
 	%start_pLanguage_internal -> . Language             (rule 5)
 
-	'rzk-1'        shift, and enter state 128
+	'rzk-1'        shift, and enter state 127
 
-	Language       goto state 127
+	Language       goto state 126
 
 State 6
 
 	%start_pCommand_internal -> . Command               (rule 6)
 
-	'#assume'      shift, and enter state 113
-	'#check'       shift, and enter state 114
-	'#compute'     shift, and enter state 115
-	'#compute-nf'  shift, and enter state 116
-	'#compute-whnf'shift, and enter state 117
-	'#def'         shift, and enter state 118
-	'#define'      shift, and enter state 119
-	'#postulate'   shift, and enter state 120
-	'#section'     shift, and enter state 121
-	'#set-option'  shift, and enter state 122
-	'#unset-option'shift, and enter state 123
-	'#variable'    shift, and enter state 124
-	'#variables'   shift, and enter state 125
+	'#assume'      shift, and enter state 112
+	'#check'       shift, and enter state 113
+	'#compute'     shift, and enter state 114
+	'#compute-nf'  shift, and enter state 115
+	'#compute-whnf'shift, and enter state 116
+	'#def'         shift, and enter state 117
+	'#define'      shift, and enter state 118
+	'#postulate'   shift, and enter state 119
+	'#section'     shift, and enter state 120
+	'#set-option'  shift, and enter state 121
+	'#unset-option'shift, and enter state 122
+	'#variable'    shift, and enter state 123
+	'#variables'   shift, and enter state 124
 
-	Command        goto state 126
+	Command        goto state 125
 
 State 7
 
 	%start_pListCommand_internal -> . ListCommand       (rule 7)
 
-	'#assume'      shift, and enter state 113
-	'#check'       shift, and enter state 114
-	'#compute'     shift, and enter state 115
-	'#compute-nf'  shift, and enter state 116
-	'#compute-whnf'shift, and enter state 117
-	'#def'         shift, and enter state 118
-	'#define'      shift, and enter state 119
-	'#postulate'   shift, and enter state 120
-	'#section'     shift, and enter state 121
-	'#set-option'  shift, and enter state 122
-	'#unset-option'shift, and enter state 123
-	'#variable'    shift, and enter state 124
-	'#variables'   shift, and enter state 125
+	'#assume'      shift, and enter state 112
+	'#check'       shift, and enter state 113
+	'#compute'     shift, and enter state 114
+	'#compute-nf'  shift, and enter state 115
+	'#compute-whnf'shift, and enter state 116
+	'#def'         shift, and enter state 117
+	'#define'      shift, and enter state 118
+	'#postulate'   shift, and enter state 119
+	'#section'     shift, and enter state 120
+	'#set-option'  shift, and enter state 121
+	'#unset-option'shift, and enter state 122
+	'#variable'    shift, and enter state 123
+	'#variables'   shift, and enter state 124
 	%eof           reduce using rule 52
 
-	Command        goto state 111
-	ListCommand    goto state 112
+	Command        goto state 110
+	ListCommand    goto state 111
 
 State 8
 
 	%start_pDeclUsedVars_internal -> . DeclUsedVars     (rule 8)
 
-	'uses'         shift, and enter state 110
+	'uses'         shift, and enter state 109
 	%eof           reduce using rule 55
 
-	DeclUsedVars   goto state 109
+	DeclUsedVars   goto state 108
 
 State 9
 
@@ -410,59 +409,55 @@ State 9
 	%eof           reduce using rule 56
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 107
-	SectionName    goto state 108
+	VarIdent       goto state 106
+	SectionName    goto state 107
 
 State 10
 
 	%start_pPattern_internal -> . Pattern               (rule 10)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 106
+	Pattern        goto state 105
 
 State 11
 
 	%start_pListPattern_internal -> . ListPattern       (rule 11)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 103
-	ListPattern    goto state 104
+	Pattern        goto state 102
+	ListPattern    goto state 103
 
 State 12
 
 	%start_pParam_internal -> . Param                   (rule 12)
 
 	'('            shift, and enter state 98
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
 	Pattern        goto state 95
-	Param          goto state 102
+	Param          goto state 101
 
 State 13
 
 	%start_pListParam_internal -> . ListParam           (rule 13)
 
 	'('            shift, and enter state 98
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
@@ -1097,7 +1092,6 @@ State 28
 	'['            reduce using rule 31
 	'\\/'          reduce using rule 31
 	']'            reduce using rule 31
-	'_'            reduce using rule 31
 	'as'           reduce using rule 31
 	'idJ'          reduce using rule 31
 	'recBOT'       reduce using rule 31
@@ -1309,8 +1303,8 @@ State 32
 	Term1 -> ParamDecl . '→' Term1                      (rule 123)
 	Term1 -> ParamDecl . '->' Term1                     (rule 129)
 
-	'->'           shift, and enter state 197
-	'→'            shift, and enter state 198
+	'->'           shift, and enter state 195
+	'→'            shift, and enter state 196
 
 
 State 33
@@ -1384,15 +1378,15 @@ State 34
 	Term4 -> Term5 . '<=' Term5                         (rule 116)
 
 	')'            reduce using rule 114
-	'*'            shift, and enter state 166
+	'*'            shift, and enter state 165
 	','            reduce using rule 114
 	'/\\'          reduce using rule 114
 	':'            reduce using rule 114
 	':='           reduce using rule 114
 	';'            reduce using rule 114
-	'<='           shift, and enter state 193
+	'<='           shift, and enter state 191
 	'='            reduce using rule 114
-	'==='          shift, and enter state 194
+	'==='          shift, and enter state 192
 	'=_{'          reduce using rule 114
 	'>'            reduce using rule 114
 	'\\/'          reduce using rule 114
@@ -1401,12 +1395,12 @@ State 34
 	'|'            reduce using rule 114
 	'|->'          reduce using rule 114
 	'}'            reduce using rule 114
-	'×'            shift, and enter state 167
+	'×'            shift, and enter state 166
 	'↦'            reduce using rule 114
 	'∧'            reduce using rule 114
 	'∨'            reduce using rule 114
-	'≡'            shift, and enter state 195
-	'≤'            shift, and enter state 196
+	'≡'            shift, and enter state 193
+	'≤'            shift, and enter state 194
 	%eof           reduce using rule 114
 
 
@@ -1418,7 +1412,7 @@ State 35
 
 	')'            reduce using rule 118
 	','            reduce using rule 118
-	'/\\'          shift, and enter state 191
+	'/\\'          shift, and enter state 189
 	':'            reduce using rule 118
 	':='           reduce using rule 118
 	';'            reduce using rule 118
@@ -1432,7 +1426,7 @@ State 35
 	'|->'          reduce using rule 118
 	'}'            reduce using rule 118
 	'↦'            reduce using rule 118
-	'∧'            shift, and enter state 192
+	'∧'            shift, and enter state 190
 	'∨'            reduce using rule 118
 	%eof           reduce using rule 118
 
@@ -1451,14 +1445,14 @@ State 36
 	'='            reduce using rule 121
 	'=_{'          reduce using rule 121
 	'>'            reduce using rule 121
-	'\\/'          shift, and enter state 189
+	'\\/'          shift, and enter state 187
 	']'            reduce using rule 121
 	'as'           reduce using rule 121
 	'|'            reduce using rule 121
 	'|->'          reduce using rule 121
 	'}'            reduce using rule 121
 	'↦'            reduce using rule 121
-	'∨'            shift, and enter state 190
+	'∨'            shift, and enter state 188
 	%eof           reduce using rule 121
 
 
@@ -1474,11 +1468,11 @@ State 37
 	':'            reduce using rule 128
 	':='           reduce using rule 128
 	';'            reduce using rule 128
-	'='            shift, and enter state 168
-	'=_{'          shift, and enter state 169
+	'='            shift, and enter state 167
+	'=_{'          shift, and enter state 168
 	'>'            reduce using rule 128
 	']'            reduce using rule 128
-	'as'           shift, and enter state 188
+	'as'           shift, and enter state 186
 	'|'            reduce using rule 128
 	'|->'          reduce using rule 128
 	'}'            reduce using rule 128
@@ -1540,7 +1534,7 @@ State 39
 	'TOPE'         shift, and enter state 56
 	'U'            shift, and enter state 57
 	'Unit'         shift, and enter state 58
-	'['            shift, and enter state 162
+	'['            shift, and enter state 161
 	'\\/'          reduce using rule 110
 	']'            reduce using rule 110
 	'as'           reduce using rule 110
@@ -1570,14 +1564,14 @@ State 39
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 161
+	Term7          goto state 160
 
 State 40
 
 	ListTerm -> Term .                                  (rule 142)
 	ListTerm -> Term . ',' ListTerm                     (rule 143)
 
-	','            shift, and enter state 187
+	','            shift, and enter state 185
 	%eof           reduce using rule 142
 
 
@@ -1590,8 +1584,8 @@ State 41
 
 State 42
 
-	ParamDecl -> '(' . '_' ':' Term ')'                 (rule 70)
-	ParamDecl -> '(' . VarIdent ':' Term ')'            (rule 72)
+	ParamDecl -> '(' . Term ':' Term ')'                (rule 70)
+	ParamDecl -> '(' . Term ':' Term '|' Term ')'       (rule 71)
 	Term7 -> '(' . Term ',' Term ')'                    (rule 94)
 	Term7 -> '(' . Term ')'                             (rule 102)
 
@@ -1613,7 +1607,6 @@ State 42
 	'U'            shift, and enter state 57
 	'Unit'         shift, and enter state 58
 	'\\'           shift, and enter state 59
-	'_'            shift, and enter state 186
 	'first'        shift, and enter state 60
 	'idJ'          shift, and enter state 61
 	'recBOT'       shift, and enter state 62
@@ -1635,7 +1628,7 @@ State 42
 	VarIdentToken  goto state 28
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
-	VarIdent       goto state 185
+	VarIdent       goto state 31
 	ParamDecl      goto state 32
 	Term7          goto state 33
 	Term5          goto state 34
@@ -1644,7 +1637,7 @@ State 42
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 170
+	Term           goto state 184
 
 State 43
 
@@ -2167,7 +2160,7 @@ State 51
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	ParamDecl      goto state 184
+	ParamDecl      goto state 183
 	Term7          goto state 33
 	Term6          goto state 93
 
@@ -2295,7 +2288,7 @@ State 54
 
 	Term1 -> 'Sigma' . '(' Pattern ':' Term ')' ',' Term1    (rule 130)
 
-	'('            shift, and enter state 183
+	'('            shift, and enter state 182
 
 
 State 55
@@ -2544,16 +2537,15 @@ State 59
 	Term1 -> '\\' . ListParam '->' Term1                (rule 131)
 
 	'('            shift, and enter state 98
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
 	Pattern        goto state 95
 	Param          goto state 96
-	ListParam      goto state 182
+	ListParam      goto state 181
 
 State 60
 
@@ -2590,13 +2582,13 @@ State 60
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 181
+	Term7          goto state 180
 
 State 61
 
 	Term7 -> 'idJ' . '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
 
-	'('            shift, and enter state 180
+	'('            shift, and enter state 179
 
 
 State 62
@@ -2664,7 +2656,7 @@ State 63
 	Term7 -> 'recOR' . '(' ListRestriction ')'          (rule 90)
 	Term7 -> 'recOR' . '(' Term ',' Term ',' Term ',' Term ')'    (rule 91)
 
-	'('            shift, and enter state 179
+	'('            shift, and enter state 178
 
 
 State 64
@@ -2780,7 +2772,7 @@ State 65
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 178
+	Term           goto state 177
 
 State 66
 
@@ -2817,7 +2809,7 @@ State 66
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 177
+	Term7          goto state 176
 
 State 67
 
@@ -2881,24 +2873,23 @@ State 67
 
 State 68
 
-	ParamDecl -> '{' . Pattern ':' Term '}'             (rule 71)
+	ParamDecl -> '{' . Pattern ':' Term '}'             (rule 72)
 	ParamDecl -> '{' . '(' Pattern ':' Term ')' '|' Term '}'    (rule 73)
 	ParamDecl -> '{' . Pattern ':' Term '|' Term '}'    (rule 74)
 
-	'('            shift, and enter state 176
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 175
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 175
+	Pattern        goto state 174
 
 State 69
 
 	Term1 -> 'Σ' . '(' Pattern ':' Term ')' ',' Term1    (rule 124)
 
-	'('            shift, and enter state 174
+	'('            shift, and enter state 173
 
 
 State 70
@@ -2936,7 +2927,7 @@ State 70
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 173
+	Term7          goto state 172
 
 State 71
 
@@ -2973,13 +2964,13 @@ State 71
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 172
+	Term7          goto state 171
 
 State 72
 
 	Term1 -> '∑' . '(' Pattern ':' Term ')' ',' Term1    (rule 132)
 
-	'('            shift, and enter state 171
+	'('            shift, and enter state 170
 
 
 State 73
@@ -3138,7 +3129,6 @@ State 75
 	'['            reduce using rule 27
 	'\\/'          reduce using rule 27
 	']'            reduce using rule 27
-	'_'            reduce using rule 27
 	'as'           reduce using rule 27
 	'idJ'          reduce using rule 27
 	'recBOT'       reduce using rule 27
@@ -3254,7 +3244,7 @@ State 78
 	'TOPE'         shift, and enter state 56
 	'U'            shift, and enter state 57
 	'Unit'         shift, and enter state 58
-	'['            shift, and enter state 162
+	'['            shift, and enter state 161
 	'idJ'          shift, and enter state 61
 	'recBOT'       shift, and enter state 62
 	'recOR'        shift, and enter state 63
@@ -3271,7 +3261,7 @@ State 78
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 161
+	Term7          goto state 160
 
 State 79
 
@@ -3326,7 +3316,7 @@ State 79
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 170
+	Term           goto state 169
 
 State 80
 
@@ -3339,8 +3329,8 @@ State 80
 	':'            reduce using rule 128
 	':='           reduce using rule 128
 	';'            reduce using rule 128
-	'='            shift, and enter state 168
-	'=_{'          shift, and enter state 169
+	'='            shift, and enter state 167
+	'=_{'          shift, and enter state 168
 	'>'            reduce using rule 128
 	']'            reduce using rule 128
 	'|'            reduce using rule 128
@@ -3398,7 +3388,7 @@ State 83
 	'TOPE'         shift, and enter state 56
 	'U'            shift, and enter state 57
 	'Unit'         shift, and enter state 58
-	'['            shift, and enter state 162
+	'['            shift, and enter state 161
 	'\\/'          reduce using rule 110
 	']'            reduce using rule 110
 	'as'           reduce using rule 110
@@ -3427,7 +3417,7 @@ State 83
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 161
+	Term7          goto state 160
 
 State 84
 
@@ -3449,8 +3439,8 @@ State 86
 	Term5 -> Term5 . '×' Term6                          (rule 109)
 	Term5 -> Term5 . '*' Term6                          (rule 111)
 
-	'*'            shift, and enter state 166
-	'×'            shift, and enter state 167
+	'*'            shift, and enter state 165
+	'×'            shift, and enter state 166
 	%eof           accept
 
 
@@ -3467,7 +3457,7 @@ State 88
 	ListRestriction -> Restriction . ',' ListRestriction    (rule 78)
 
 	')'            reduce using rule 77
-	','            shift, and enter state 165
+	','            shift, and enter state 164
 	']'            reduce using rule 77
 	%eof           reduce using rule 77
 
@@ -3484,8 +3474,8 @@ State 90
 	Restriction -> Term . '↦' Term                      (rule 75)
 	Restriction -> Term . '|->' Term                    (rule 76)
 
-	'|->'          shift, and enter state 163
-	'↦'            shift, and enter state 164
+	'|->'          shift, and enter state 162
+	'↦'            shift, and enter state 163
 
 
 State 91
@@ -3525,7 +3515,7 @@ State 93
 	'TOPE'         shift, and enter state 56
 	'U'            shift, and enter state 57
 	'Unit'         shift, and enter state 58
-	'['            shift, and enter state 162
+	'['            shift, and enter state 161
 	'idJ'          shift, and enter state 61
 	'recBOT'       shift, and enter state 62
 	'recOR'        shift, and enter state 63
@@ -3543,38 +3533,36 @@ State 93
 	HoleIdentToken goto state 29
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
-	Term7          goto state 161
+	Term7          goto state 160
 
 State 94
 
-	Pattern -> VarIdent .                               (rule 60)
+	Pattern -> VarIdent .                               (rule 59)
 
-	'('            reduce using rule 60
-	')'            reduce using rule 60
-	','            reduce using rule 60
-	'->'           reduce using rule 60
-	':'            reduce using rule 60
-	'_'            reduce using rule 60
-	'unit'         reduce using rule 60
-	'{'            reduce using rule 60
-	'→'            reduce using rule 60
-	L_VarIdentTokenreduce using rule 60
-	%eof           reduce using rule 60
+	'('            reduce using rule 59
+	')'            reduce using rule 59
+	','            reduce using rule 59
+	'->'           reduce using rule 59
+	':'            reduce using rule 59
+	'unit'         reduce using rule 59
+	'{'            reduce using rule 59
+	'→'            reduce using rule 59
+	L_VarIdentTokenreduce using rule 59
+	%eof           reduce using rule 59
 
 
 State 95
 
-	Param -> Pattern .                                  (rule 64)
+	Param -> Pattern .                                  (rule 63)
 
-	'('            reduce using rule 64
-	'->'           reduce using rule 64
-	':'            reduce using rule 64
-	'_'            reduce using rule 64
-	'unit'         reduce using rule 64
-	'{'            reduce using rule 64
-	'→'            reduce using rule 64
-	L_VarIdentTokenreduce using rule 64
-	%eof           reduce using rule 64
+	'('            reduce using rule 63
+	'->'           reduce using rule 63
+	':'            reduce using rule 63
+	'unit'         reduce using rule 63
+	'{'            reduce using rule 63
+	'→'            reduce using rule 63
+	L_VarIdentTokenreduce using rule 63
+	%eof           reduce using rule 63
 
 
 State 96
@@ -3585,9 +3573,8 @@ State 96
 	'('            shift, and enter state 98
 	'->'           reduce using rule 67
 	':'            reduce using rule 67
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	'→'            reduce using rule 67
 	L_VarIdentTokenshift, and enter state 75
 	%eof           reduce using rule 67
@@ -3596,7 +3583,7 @@ State 96
 	VarIdent       goto state 94
 	Pattern        goto state 95
 	Param          goto state 96
-	ListParam      goto state 160
+	ListParam      goto state 159
 
 State 97
 
@@ -3607,29 +3594,28 @@ State 97
 
 State 98
 
-	Pattern -> '(' . Pattern ',' Pattern ')'            (rule 61)
-	Param -> '(' . ListPattern ':' Term ')'             (rule 65)
+	Pattern -> '(' . Pattern ',' Pattern ')'            (rule 60)
+	Param -> '(' . ListPattern ':' Term ')'             (rule 64)
+	Param -> '(' . ListPattern ':' Term '|' Term ')'    (rule 65)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 158
-	ListPattern    goto state 159
+	Pattern        goto state 157
+	ListPattern    goto state 158
 
 State 99
 
-	Pattern -> '_' .                                    (rule 58)
+	Pattern -> 'unit' .                                 (rule 58)
 
 	'('            reduce using rule 58
 	')'            reduce using rule 58
 	','            reduce using rule 58
 	'->'           reduce using rule 58
 	':'            reduce using rule 58
-	'_'            reduce using rule 58
 	'unit'         reduce using rule 58
 	'{'            reduce using rule 58
 	'→'            reduce using rule 58
@@ -3639,86 +3625,66 @@ State 99
 
 State 100
 
-	Pattern -> 'unit' .                                 (rule 59)
-
-	'('            reduce using rule 59
-	')'            reduce using rule 59
-	','            reduce using rule 59
-	'->'           reduce using rule 59
-	':'            reduce using rule 59
-	'_'            reduce using rule 59
-	'unit'         reduce using rule 59
-	'{'            reduce using rule 59
-	'→'            reduce using rule 59
-	L_VarIdentTokenreduce using rule 59
-	%eof           reduce using rule 59
-
-
-State 101
-
 	Param -> '{' . Pattern ':' Term '|' Term '}'        (rule 66)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 157
+	Pattern        goto state 156
 
-State 102
+State 101
 
 	%start_pParam_internal -> Param .                   (rule 12)
 
 	%eof           accept
 
 
-State 103
+State 102
 
-	ListPattern -> Pattern .                            (rule 62)
-	ListPattern -> Pattern . ListPattern                (rule 63)
+	ListPattern -> Pattern .                            (rule 61)
+	ListPattern -> Pattern . ListPattern                (rule 62)
 
-	'('            shift, and enter state 105
-	':'            reduce using rule 62
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	':'            reduce using rule 61
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
-	%eof           reduce using rule 62
+	%eof           reduce using rule 61
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 103
-	ListPattern    goto state 156
+	Pattern        goto state 102
+	ListPattern    goto state 155
 
-State 104
+State 103
 
 	%start_pListPattern_internal -> ListPattern .       (rule 11)
 
 	%eof           accept
 
 
-State 105
+State 104
 
-	Pattern -> '(' . Pattern ',' Pattern ')'            (rule 61)
+	Pattern -> '(' . Pattern ',' Pattern ')'            (rule 60)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 155
+	Pattern        goto state 154
 
-State 106
+State 105
 
 	%start_pPattern_internal -> Pattern .               (rule 10)
 
 	%eof           accept
 
 
-State 107
+State 106
 
 	SectionName -> VarIdent .                           (rule 57)
 
@@ -3726,52 +3692,52 @@ State 107
 	%eof           reduce using rule 57
 
 
-State 108
+State 107
 
 	%start_pSectionName_internal -> SectionName .       (rule 9)
 
 	%eof           accept
 
 
-State 109
+State 108
 
 	%start_pDeclUsedVars_internal -> DeclUsedVars .     (rule 8)
 
 	%eof           accept
 
 
-State 110
+State 109
 
 	DeclUsedVars -> 'uses' . '(' ListVarIdent ')'       (rule 54)
 
-	'('            shift, and enter state 154
+	'('            shift, and enter state 153
 
 
-State 111
+State 110
 
 	ListCommand -> Command . ';' ListCommand            (rule 53)
 
-	';'            shift, and enter state 153
+	';'            shift, and enter state 152
 
 
-State 112
+State 111
 
 	%start_pListCommand_internal -> ListCommand .       (rule 7)
 
 	%eof           accept
 
 
-State 113
+State 112
 
 	Command -> '#assume' . ListVarIdent ':' Term        (rule 44)
 
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 131
-	ListVarIdent   goto state 152
+	VarIdent       goto state 130
+	ListVarIdent   goto state 151
 
-State 114
+State 113
 
 	Command -> '#check' . Term ':' Term                 (rule 38)
 
@@ -3823,9 +3789,9 @@ State 114
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 151
+	Term           goto state 150
 
-State 115
+State 114
 
 	Command -> '#compute' . Term                        (rule 39)
 
@@ -3877,9 +3843,9 @@ State 115
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 150
+	Term           goto state 149
 
-State 116
+State 115
 
 	Command -> '#compute-nf' . Term                     (rule 41)
 
@@ -3931,9 +3897,9 @@ State 116
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 149
+	Term           goto state 148
 
-State 117
+State 116
 
 	Command -> '#compute-whnf' . Term                   (rule 40)
 
@@ -3985,9 +3951,9 @@ State 117
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 148
+	Term           goto state 147
 
-State 118
+State 117
 
 	Command -> '#def' . VarIdent DeclUsedVars ListParam ':' Term ':=' Term    (rule 50)
 	Command -> '#def' . VarIdent DeclUsedVars ':' Term ':=' Term    (rule 51)
@@ -3995,9 +3961,9 @@ State 118
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 147
+	VarIdent       goto state 146
 
-State 119
+State 118
 
 	Command -> '#define' . VarIdent DeclUsedVars ListParam ':' Term ':=' Term    (rule 48)
 	Command -> '#define' . VarIdent DeclUsedVars ':' Term ':=' Term    (rule 49)
@@ -4005,9 +3971,9 @@ State 119
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 146
+	VarIdent       goto state 145
 
-State 120
+State 119
 
 	Command -> '#postulate' . VarIdent DeclUsedVars ListParam ':' Term    (rule 42)
 	Command -> '#postulate' . VarIdent DeclUsedVars ':' Term    (rule 43)
@@ -4015,9 +3981,9 @@ State 120
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 145
+	VarIdent       goto state 144
 
-State 121
+State 120
 
 	Command -> '#section' . SectionName ';' ListCommand '#end' SectionName    (rule 47)
 
@@ -4025,59 +3991,59 @@ State 121
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 107
-	SectionName    goto state 144
+	VarIdent       goto state 106
+	SectionName    goto state 143
 
-State 122
+State 121
 
 	Command -> '#set-option' . String '=' String        (rule 36)
 
 	L_quoted       shift, and enter state 27
 
-	String         goto state 143
+	String         goto state 142
 
-State 123
+State 122
 
 	Command -> '#unset-option' . String                 (rule 37)
 
 	L_quoted       shift, and enter state 27
 
-	String         goto state 142
+	String         goto state 141
 
-State 124
+State 123
 
 	Command -> '#variable' . VarIdent ':' Term          (rule 45)
 
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 141
+	VarIdent       goto state 140
 
-State 125
+State 124
 
 	Command -> '#variables' . ListVarIdent ':' Term     (rule 46)
 
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 131
-	ListVarIdent   goto state 140
+	VarIdent       goto state 130
+	ListVarIdent   goto state 139
 
-State 126
+State 125
 
 	%start_pCommand_internal -> Command .               (rule 6)
 
 	%eof           accept
 
 
-State 127
+State 126
 
 	%start_pLanguage_internal -> Language .             (rule 5)
 
 	%eof           accept
 
 
-State 128
+State 127
 
 	Language -> 'rzk-1' .                               (rule 35)
 
@@ -4085,22 +4051,22 @@ State 128
 	%eof           reduce using rule 35
 
 
-State 129
+State 128
 
 	%start_pLanguageDecl_internal -> LanguageDecl .     (rule 4)
 
 	%eof           accept
 
 
-State 130
+State 129
 
 	LanguageDecl -> '#lang' . Language ';'              (rule 34)
 
-	'rzk-1'        shift, and enter state 128
+	'rzk-1'        shift, and enter state 127
 
-	Language       goto state 139
+	Language       goto state 138
 
-State 131
+State 130
 
 	ListVarIdent -> VarIdent .                          (rule 32)
 	ListVarIdent -> VarIdent . ListVarIdent             (rule 33)
@@ -4111,67 +4077,67 @@ State 131
 	%eof           reduce using rule 32
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 131
-	ListVarIdent   goto state 138
+	VarIdent       goto state 130
+	ListVarIdent   goto state 137
 
-State 132
+State 131
 
 	%start_pListVarIdent_internal -> ListVarIdent .     (rule 3)
 
 	%eof           accept
 
 
-State 133
+State 132
 
 	%start_pVarIdent_internal -> VarIdent .             (rule 2)
 
 	%eof           accept
 
 
-State 134
+State 133
 
 	%start_pHoleIdent_internal -> HoleIdent .           (rule 1)
 
 	%eof           accept
 
 
-State 135
+State 134
 
 	%start_pModule_internal -> Module .                 (rule 0)
 
 	%eof           accept
 
 
-State 136
+State 135
 
 	Module -> LanguageDecl . ListCommand                (rule 29)
 
-	'#assume'      shift, and enter state 113
-	'#check'       shift, and enter state 114
-	'#compute'     shift, and enter state 115
-	'#compute-nf'  shift, and enter state 116
-	'#compute-whnf'shift, and enter state 117
-	'#def'         shift, and enter state 118
-	'#define'      shift, and enter state 119
-	'#postulate'   shift, and enter state 120
-	'#section'     shift, and enter state 121
-	'#set-option'  shift, and enter state 122
-	'#unset-option'shift, and enter state 123
-	'#variable'    shift, and enter state 124
-	'#variables'   shift, and enter state 125
+	'#assume'      shift, and enter state 112
+	'#check'       shift, and enter state 113
+	'#compute'     shift, and enter state 114
+	'#compute-nf'  shift, and enter state 115
+	'#compute-whnf'shift, and enter state 116
+	'#def'         shift, and enter state 117
+	'#define'      shift, and enter state 118
+	'#postulate'   shift, and enter state 119
+	'#section'     shift, and enter state 120
+	'#set-option'  shift, and enter state 121
+	'#unset-option'shift, and enter state 122
+	'#variable'    shift, and enter state 123
+	'#variables'   shift, and enter state 124
 	%eof           reduce using rule 52
 
-	Command        goto state 111
-	ListCommand    goto state 137
+	Command        goto state 110
+	ListCommand    goto state 136
 
-State 137
+State 136
 
 	Module -> LanguageDecl ListCommand .                (rule 29)
 
 	%eof           reduce using rule 29
 
 
-State 138
+State 137
 
 	ListVarIdent -> VarIdent ListVarIdent .             (rule 33)
 
@@ -4180,28 +4146,28 @@ State 138
 	%eof           reduce using rule 33
 
 
-State 139
+State 138
 
 	LanguageDecl -> '#lang' Language . ';'              (rule 34)
 
-	';'            shift, and enter state 251
+	';'            shift, and enter state 248
+
+
+State 139
+
+	Command -> '#variables' ListVarIdent . ':' Term     (rule 46)
+
+	':'            shift, and enter state 247
 
 
 State 140
 
-	Command -> '#variables' ListVarIdent . ':' Term     (rule 46)
+	Command -> '#variable' VarIdent . ':' Term          (rule 45)
 
-	':'            shift, and enter state 250
+	':'            shift, and enter state 246
 
 
 State 141
-
-	Command -> '#variable' VarIdent . ':' Term          (rule 45)
-
-	':'            shift, and enter state 249
-
-
-State 142
 
 	Command -> '#unset-option' String .                 (rule 37)
 
@@ -4209,66 +4175,63 @@ State 142
 	%eof           reduce using rule 37
 
 
-State 143
+State 142
 
 	Command -> '#set-option' String . '=' String        (rule 36)
 
-	'='            shift, and enter state 248
+	'='            shift, and enter state 245
 
 
-State 144
+State 143
 
 	Command -> '#section' SectionName . ';' ListCommand '#end' SectionName    (rule 47)
 
-	';'            shift, and enter state 247
+	';'            shift, and enter state 244
 
 
-State 145
+State 144
 
 	Command -> '#postulate' VarIdent . DeclUsedVars ListParam ':' Term    (rule 42)
 	Command -> '#postulate' VarIdent . DeclUsedVars ':' Term    (rule 43)
 
 	'('            reduce using rule 55
 	':'            reduce using rule 55
-	'_'            reduce using rule 55
 	'unit'         reduce using rule 55
-	'uses'         shift, and enter state 110
+	'uses'         shift, and enter state 109
 	'{'            reduce using rule 55
 	L_VarIdentTokenreduce using rule 55
 
-	DeclUsedVars   goto state 246
+	DeclUsedVars   goto state 243
 
-State 146
+State 145
 
 	Command -> '#define' VarIdent . DeclUsedVars ListParam ':' Term ':=' Term    (rule 48)
 	Command -> '#define' VarIdent . DeclUsedVars ':' Term ':=' Term    (rule 49)
 
 	'('            reduce using rule 55
 	':'            reduce using rule 55
-	'_'            reduce using rule 55
 	'unit'         reduce using rule 55
-	'uses'         shift, and enter state 110
+	'uses'         shift, and enter state 109
 	'{'            reduce using rule 55
 	L_VarIdentTokenreduce using rule 55
 
-	DeclUsedVars   goto state 245
+	DeclUsedVars   goto state 242
 
-State 147
+State 146
 
 	Command -> '#def' VarIdent . DeclUsedVars ListParam ':' Term ':=' Term    (rule 50)
 	Command -> '#def' VarIdent . DeclUsedVars ':' Term ':=' Term    (rule 51)
 
 	'('            reduce using rule 55
 	':'            reduce using rule 55
-	'_'            reduce using rule 55
 	'unit'         reduce using rule 55
-	'uses'         shift, and enter state 110
+	'uses'         shift, and enter state 109
 	'{'            reduce using rule 55
 	L_VarIdentTokenreduce using rule 55
 
-	DeclUsedVars   goto state 244
+	DeclUsedVars   goto state 241
 
-State 148
+State 147
 
 	Command -> '#compute-whnf' Term .                   (rule 40)
 
@@ -4276,7 +4239,7 @@ State 148
 	%eof           reduce using rule 40
 
 
-State 149
+State 148
 
 	Command -> '#compute-nf' Term .                     (rule 41)
 
@@ -4284,7 +4247,7 @@ State 149
 	%eof           reduce using rule 41
 
 
-State 150
+State 149
 
 	Command -> '#compute' Term .                        (rule 39)
 
@@ -4292,101 +4255,101 @@ State 150
 	%eof           reduce using rule 39
 
 
-State 151
+State 150
 
 	Command -> '#check' Term . ':' Term                 (rule 38)
 
-	':'            shift, and enter state 243
+	':'            shift, and enter state 240
+
+
+State 151
+
+	Command -> '#assume' ListVarIdent . ':' Term        (rule 44)
+
+	':'            shift, and enter state 239
 
 
 State 152
 
-	Command -> '#assume' ListVarIdent . ':' Term        (rule 44)
-
-	':'            shift, and enter state 242
-
-
-State 153
-
 	ListCommand -> Command ';' . ListCommand            (rule 53)
 
-	'#assume'      shift, and enter state 113
-	'#check'       shift, and enter state 114
-	'#compute'     shift, and enter state 115
-	'#compute-nf'  shift, and enter state 116
-	'#compute-whnf'shift, and enter state 117
-	'#def'         shift, and enter state 118
-	'#define'      shift, and enter state 119
+	'#assume'      shift, and enter state 112
+	'#check'       shift, and enter state 113
+	'#compute'     shift, and enter state 114
+	'#compute-nf'  shift, and enter state 115
+	'#compute-whnf'shift, and enter state 116
+	'#def'         shift, and enter state 117
+	'#define'      shift, and enter state 118
 	'#end'         reduce using rule 52
-	'#postulate'   shift, and enter state 120
-	'#section'     shift, and enter state 121
-	'#set-option'  shift, and enter state 122
-	'#unset-option'shift, and enter state 123
-	'#variable'    shift, and enter state 124
-	'#variables'   shift, and enter state 125
+	'#postulate'   shift, and enter state 119
+	'#section'     shift, and enter state 120
+	'#set-option'  shift, and enter state 121
+	'#unset-option'shift, and enter state 122
+	'#variable'    shift, and enter state 123
+	'#variables'   shift, and enter state 124
 	%eof           reduce using rule 52
 
-	Command        goto state 111
-	ListCommand    goto state 241
+	Command        goto state 110
+	ListCommand    goto state 238
 
-State 154
+State 153
 
 	DeclUsedVars -> 'uses' '(' . ListVarIdent ')'       (rule 54)
 
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 131
-	ListVarIdent   goto state 240
+	VarIdent       goto state 130
+	ListVarIdent   goto state 237
+
+State 154
+
+	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 60)
+
+	','            shift, and enter state 235
+
 
 State 155
 
-	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 61)
+	ListPattern -> Pattern ListPattern .                (rule 62)
 
-	','            shift, and enter state 238
+	':'            reduce using rule 62
+	%eof           reduce using rule 62
 
 
 State 156
 
-	ListPattern -> Pattern ListPattern .                (rule 63)
+	Param -> '{' Pattern . ':' Term '|' Term '}'        (rule 66)
 
-	':'            reduce using rule 63
-	%eof           reduce using rule 63
+	':'            shift, and enter state 236
 
 
 State 157
 
-	Param -> '{' Pattern . ':' Term '|' Term '}'        (rule 66)
+	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 60)
+	ListPattern -> Pattern .                            (rule 61)
+	ListPattern -> Pattern . ListPattern                (rule 62)
 
-	':'            shift, and enter state 239
-
-
-State 158
-
-	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 61)
-	ListPattern -> Pattern .                            (rule 62)
-	ListPattern -> Pattern . ListPattern                (rule 63)
-
-	'('            shift, and enter state 105
-	','            shift, and enter state 238
-	':'            reduce using rule 62
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	','            shift, and enter state 235
+	':'            reduce using rule 61
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 103
-	ListPattern    goto state 156
+	Pattern        goto state 102
+	ListPattern    goto state 155
+
+State 158
+
+	Param -> '(' ListPattern . ':' Term ')'             (rule 64)
+	Param -> '(' ListPattern . ':' Term '|' Term ')'    (rule 65)
+
+	':'            shift, and enter state 234
+
 
 State 159
-
-	Param -> '(' ListPattern . ':' Term ')'             (rule 65)
-
-	':'            shift, and enter state 237
-
-
-State 160
 
 	ListParam -> Param ListParam .                      (rule 68)
 
@@ -4396,7 +4359,7 @@ State 160
 	%eof           reduce using rule 68
 
 
-State 161
+State 160
 
 	Term6 -> Term6 Term7 .                              (rule 134)
 
@@ -4456,173 +4419,9 @@ State 161
 	%eof           reduce using rule 134
 
 
-State 162
+State 161
 
 	Term6 -> Term6 '[' . ListRestriction ']'            (rule 133)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Restriction    goto state 88
-	ListRestrictiongoto state 236
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 90
-
-State 163
-
-	Restriction -> Term '|->' . Term                    (rule 76)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 235
-
-State 164
-
-	Restriction -> Term '↦' . Term                      (rule 75)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 234
-
-State 165
-
-	ListRestriction -> Restriction ',' . ListRestriction    (rule 78)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -4676,7 +4475,171 @@ State 165
 	Term6          goto state 39
 	Term           goto state 90
 
-State 166
+State 162
+
+	Restriction -> Term '|->' . Term                    (rule 76)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 232
+
+State 163
+
+	Restriction -> Term '↦' . Term                      (rule 75)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 231
+
+State 164
+
+	ListRestriction -> Restriction ',' . ListRestriction    (rule 78)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Restriction    goto state 88
+	ListRestrictiongoto state 230
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 90
+
+State 165
 
 	Term5 -> Term5 '*' . Term6                          (rule 111)
 
@@ -4716,9 +4679,9 @@ State 166
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
 	Term7          goto state 33
-	Term6          goto state 232
+	Term6          goto state 229
 
-State 167
+State 166
 
 	Term5 -> Term5 '×' . Term6                          (rule 109)
 
@@ -4758,9 +4721,9 @@ State 167
 	HoleIdent      goto state 30
 	VarIdent       goto state 31
 	Term7          goto state 33
-	Term6          goto state 231
+	Term6          goto state 228
 
-State 168
+State 167
 
 	Term1 -> Term2 '=' . Term2                          (rule 126)
 
@@ -4803,10 +4766,10 @@ State 168
 	Term5          goto state 34
 	Term4          goto state 35
 	Term3          goto state 36
-	Term2          goto state 230
+	Term2          goto state 227
 	Term6          goto state 83
 
-State 169
+State 168
 
 	Term1 -> Term2 '=_{' . Term '}' Term2               (rule 125)
 
@@ -4858,31 +4821,30 @@ State 169
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 229
+	Term           goto state 226
 
-State 170
+State 169
 
 	Term7 -> '(' Term . ',' Term ')'                    (rule 94)
 	Term7 -> '(' Term . ')'                             (rule 102)
 
-	')'            shift, and enter state 227
-	','            shift, and enter state 228
+	')'            shift, and enter state 209
+	','            shift, and enter state 210
 
 
-State 171
+State 170
 
 	Term1 -> '∑' '(' . Pattern ':' Term ')' ',' Term1    (rule 132)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 226
+	Pattern        goto state 225
 
-State 172
+State 171
 
 	Term6 -> 'π₂' Term7 .                               (rule 136)
 
@@ -4942,7 +4904,7 @@ State 172
 	%eof           reduce using rule 136
 
 
-State 173
+State 172
 
 	Term6 -> 'π₁' Term7 .                               (rule 135)
 
@@ -5002,42 +4964,40 @@ State 173
 	%eof           reduce using rule 135
 
 
-State 174
+State 173
 
 	Term1 -> 'Σ' '(' . Pattern ':' Term ')' ',' Term1    (rule 124)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 225
+	Pattern        goto state 224
+
+State 174
+
+	ParamDecl -> '{' Pattern . ':' Term '}'             (rule 72)
+	ParamDecl -> '{' Pattern . ':' Term '|' Term '}'    (rule 74)
+
+	':'            shift, and enter state 223
+
 
 State 175
 
-	ParamDecl -> '{' Pattern . ':' Term '}'             (rule 71)
-	ParamDecl -> '{' Pattern . ':' Term '|' Term '}'    (rule 74)
-
-	':'            shift, and enter state 224
-
-
-State 176
-
-	Pattern -> '(' . Pattern ',' Pattern ')'            (rule 61)
+	Pattern -> '(' . Pattern ',' Pattern ')'            (rule 60)
 	ParamDecl -> '{' '(' . Pattern ':' Term ')' '|' Term '}'    (rule 73)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 223
+	Pattern        goto state 222
 
-State 177
+State 176
 
 	Term6 -> 'second' Term7 .                           (rule 139)
 
@@ -5097,16 +5057,16 @@ State 177
 	%eof           reduce using rule 139
 
 
-State 178
+State 177
 
 	Term7 -> 'refl_{' Term . '}'                        (rule 97)
 	Term7 -> 'refl_{' Term . ':' Term '}'               (rule 98)
 
-	':'            shift, and enter state 221
-	'}'            shift, and enter state 222
+	':'            shift, and enter state 220
+	'}'            shift, and enter state 221
 
 
-State 179
+State 178
 
 	Term7 -> 'recOR' '(' . ListRestriction ')'          (rule 90)
 	Term7 -> 'recOR' '(' . Term ',' Term ',' Term ',' Term ')'    (rule 91)
@@ -5153,7 +5113,7 @@ State 179
 	VarIdent       goto state 31
 	ParamDecl      goto state 32
 	Restriction    goto state 88
-	ListRestrictiongoto state 219
+	ListRestrictiongoto state 218
 	Term7          goto state 33
 	Term5          goto state 34
 	Term4          goto state 35
@@ -5161,9 +5121,9 @@ State 179
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 220
+	Term           goto state 219
 
-State 180
+State 179
 
 	Term7 -> 'idJ' '(' . Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
 
@@ -5215,9 +5175,9 @@ State 180
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 218
+	Term           goto state 217
 
-State 181
+State 180
 
 	Term6 -> 'first' Term7 .                            (rule 138)
 
@@ -5277,97 +5237,49 @@ State 181
 	%eof           reduce using rule 138
 
 
-State 182
+State 181
 
 	Term1 -> '\\' ListParam . '→' Term1                 (rule 127)
 	Term1 -> '\\' ListParam . '->' Term1                (rule 131)
 
-	'->'           shift, and enter state 216
-	'→'            shift, and enter state 217
+	'->'           shift, and enter state 215
+	'→'            shift, and enter state 216
 
 
-State 183
+State 182
 
 	Term1 -> 'Sigma' '(' . Pattern ':' Term ')' ',' Term1    (rule 130)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 215
+	Pattern        goto state 214
 
-State 184
+State 183
 
 	Term7 -> '<' ParamDecl . '→' Term '>'               (rule 93)
 	Term7 -> '<' ParamDecl . '->' Term '>'              (rule 108)
 
-	'->'           shift, and enter state 213
-	'→'            shift, and enter state 214
+	'->'           shift, and enter state 212
+	'→'            shift, and enter state 213
 
 
-State 185
+State 184
 
-	ParamDecl -> '(' VarIdent . ':' Term ')'            (rule 72)
-	Term7 -> VarIdent .                                 (rule 101)
+	ParamDecl -> '(' Term . ':' Term ')'                (rule 70)
+	ParamDecl -> '(' Term . ':' Term '|' Term ')'       (rule 71)
+	Term7 -> '(' Term . ',' Term ')'                    (rule 94)
+	Term7 -> '(' Term . ')'                             (rule 102)
 
-	'('            reduce using rule 101
-	')'            reduce using rule 101
-	'*'            reduce using rule 101
-	'*_1'          reduce using rule 101
-	'*₁'           reduce using rule 101
-	','            reduce using rule 101
-	'->'           reduce using rule 101
-	'/\\'          reduce using rule 101
-	'0_2'          reduce using rule 101
-	'0₂'           reduce using rule 101
-	'1'            reduce using rule 101
-	'1_2'          reduce using rule 101
-	'1₂'           reduce using rule 101
-	'2'            reduce using rule 101
-	':'            shift, and enter state 212
-	'<'            reduce using rule 101
-	'<='           reduce using rule 101
-	'='            reduce using rule 101
-	'==='          reduce using rule 101
-	'=_{'          reduce using rule 101
-	'BOT'          reduce using rule 101
-	'CUBE'         reduce using rule 101
-	'TOP'          reduce using rule 101
-	'TOPE'         reduce using rule 101
-	'U'            reduce using rule 101
-	'Unit'         reduce using rule 101
-	'['            reduce using rule 101
-	'\\/'          reduce using rule 101
-	'as'           reduce using rule 101
-	'idJ'          reduce using rule 101
-	'recBOT'       reduce using rule 101
-	'recOR'        reduce using rule 101
-	'refl'         reduce using rule 101
-	'refl_{'       reduce using rule 101
-	'unit'         reduce using rule 101
-	'×'            reduce using rule 101
-	'→'            reduce using rule 101
-	'∧'            reduce using rule 101
-	'∨'            reduce using rule 101
-	'≡'            reduce using rule 101
-	'≤'            reduce using rule 101
-	'⊤'            reduce using rule 101
-	'⊥'            reduce using rule 101
-	L_VarIdentTokenreduce using rule 101
-	L_HoleIdentTokenreduce using rule 101
-
-
-State 186
-
-	ParamDecl -> '(' '_' . ':' Term ')'                 (rule 70)
-
+	')'            shift, and enter state 209
+	','            shift, and enter state 210
 	':'            shift, and enter state 211
 
 
-State 187
+State 185
 
 	ListTerm -> Term ',' . ListTerm                     (rule 143)
 
@@ -5420,9 +5332,9 @@ State 187
 	Term1          goto state 38
 	Term6          goto state 39
 	Term           goto state 40
-	ListTerm       goto state 210
+	ListTerm       goto state 208
 
-State 188
+State 186
 
 	Term -> Term2 'as' . Term1                          (rule 140)
 
@@ -5472,10 +5384,10 @@ State 188
 	Term4          goto state 35
 	Term3          goto state 36
 	Term2          goto state 80
-	Term1          goto state 209
+	Term1          goto state 207
 	Term6          goto state 39
 
-State 189
+State 187
 
 	Term2 -> Term3 '\\/' . Term2                        (rule 122)
 
@@ -5518,10 +5430,10 @@ State 189
 	Term5          goto state 34
 	Term4          goto state 35
 	Term3          goto state 36
-	Term2          goto state 208
+	Term2          goto state 206
 	Term6          goto state 83
 
-State 190
+State 188
 
 	Term2 -> Term3 '∨' . Term2                          (rule 120)
 
@@ -5564,10 +5476,10 @@ State 190
 	Term5          goto state 34
 	Term4          goto state 35
 	Term3          goto state 36
-	Term2          goto state 207
+	Term2          goto state 205
 	Term6          goto state 83
 
-State 191
+State 189
 
 	Term3 -> Term4 '/\\' . Term3                        (rule 119)
 
@@ -5609,10 +5521,10 @@ State 191
 	Term7          goto state 33
 	Term5          goto state 34
 	Term4          goto state 35
-	Term3          goto state 206
+	Term3          goto state 204
 	Term6          goto state 83
 
-State 192
+State 190
 
 	Term3 -> Term4 '∧' . Term3                          (rule 117)
 
@@ -5654,98 +5566,12 @@ State 192
 	Term7          goto state 33
 	Term5          goto state 34
 	Term4          goto state 35
-	Term3          goto state 205
+	Term3          goto state 203
 	Term6          goto state 83
 
-State 193
+State 191
 
 	Term4 -> Term5 '<=' . Term5                         (rule 116)
-
-	'('            shift, and enter state 79
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	Term7          goto state 33
-	Term5          goto state 204
-	Term6          goto state 83
-
-State 194
-
-	Term4 -> Term5 '===' . Term5                        (rule 115)
-
-	'('            shift, and enter state 79
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	Term7          goto state 33
-	Term5          goto state 203
-	Term6          goto state 83
-
-State 195
-
-	Term4 -> Term5 '≡' . Term5                          (rule 112)
 
 	'('            shift, and enter state 79
 	'*_1'          shift, and enter state 43
@@ -5786,9 +5612,9 @@ State 195
 	Term5          goto state 202
 	Term6          goto state 83
 
-State 196
+State 192
 
-	Term4 -> Term5 '≤' . Term5                          (rule 113)
+	Term4 -> Term5 '===' . Term5                        (rule 115)
 
 	'('            shift, and enter state 79
 	'*_1'          shift, and enter state 43
@@ -5829,7 +5655,93 @@ State 196
 	Term5          goto state 201
 	Term6          goto state 83
 
-State 197
+State 193
+
+	Term4 -> Term5 '≡' . Term5                          (rule 112)
+
+	'('            shift, and enter state 79
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	Term7          goto state 33
+	Term5          goto state 200
+	Term6          goto state 83
+
+State 194
+
+	Term4 -> Term5 '≤' . Term5                          (rule 113)
+
+	'('            shift, and enter state 79
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	Term7          goto state 33
+	Term5          goto state 199
+	Term6          goto state 83
+
+State 195
 
 	Term1 -> ParamDecl '->' . Term1                     (rule 129)
 
@@ -5879,10 +5791,10 @@ State 197
 	Term4          goto state 35
 	Term3          goto state 36
 	Term2          goto state 80
-	Term1          goto state 200
+	Term1          goto state 198
 	Term6          goto state 39
 
-State 198
+State 196
 
 	Term1 -> ParamDecl '→' . Term1                      (rule 123)
 
@@ -5932,10 +5844,10 @@ State 198
 	Term4          goto state 35
 	Term3          goto state 36
 	Term2          goto state 80
-	Term1          goto state 199
+	Term1          goto state 197
 	Term6          goto state 39
 
-State 199
+State 197
 
 	Term1 -> ParamDecl '→' Term1 .                      (rule 123)
 
@@ -5953,7 +5865,7 @@ State 199
 	%eof           reduce using rule 123
 
 
-State 200
+State 198
 
 	Term1 -> ParamDecl '->' Term1 .                     (rule 129)
 
@@ -5971,14 +5883,14 @@ State 200
 	%eof           reduce using rule 129
 
 
-State 201
+State 199
 
 	Term5 -> Term5 . '×' Term6                          (rule 109)
 	Term5 -> Term5 . '*' Term6                          (rule 111)
 	Term4 -> Term5 '≤' Term5 .                          (rule 113)
 
 	')'            reduce using rule 113
-	'*'            shift, and enter state 166
+	'*'            shift, and enter state 165
 	','            reduce using rule 113
 	'/\\'          reduce using rule 113
 	':'            reduce using rule 113
@@ -5993,21 +5905,21 @@ State 201
 	'|'            reduce using rule 113
 	'|->'          reduce using rule 113
 	'}'            reduce using rule 113
-	'×'            shift, and enter state 167
+	'×'            shift, and enter state 166
 	'↦'            reduce using rule 113
 	'∧'            reduce using rule 113
 	'∨'            reduce using rule 113
 	%eof           reduce using rule 113
 
 
-State 202
+State 200
 
 	Term5 -> Term5 . '×' Term6                          (rule 109)
 	Term5 -> Term5 . '*' Term6                          (rule 111)
 	Term4 -> Term5 '≡' Term5 .                          (rule 112)
 
 	')'            reduce using rule 112
-	'*'            shift, and enter state 166
+	'*'            shift, and enter state 165
 	','            reduce using rule 112
 	'/\\'          reduce using rule 112
 	':'            reduce using rule 112
@@ -6022,21 +5934,21 @@ State 202
 	'|'            reduce using rule 112
 	'|->'          reduce using rule 112
 	'}'            reduce using rule 112
-	'×'            shift, and enter state 167
+	'×'            shift, and enter state 166
 	'↦'            reduce using rule 112
 	'∧'            reduce using rule 112
 	'∨'            reduce using rule 112
 	%eof           reduce using rule 112
 
 
-State 203
+State 201
 
 	Term5 -> Term5 . '×' Term6                          (rule 109)
 	Term5 -> Term5 . '*' Term6                          (rule 111)
 	Term4 -> Term5 '===' Term5 .                        (rule 115)
 
 	')'            reduce using rule 115
-	'*'            shift, and enter state 166
+	'*'            shift, and enter state 165
 	','            reduce using rule 115
 	'/\\'          reduce using rule 115
 	':'            reduce using rule 115
@@ -6051,21 +5963,21 @@ State 203
 	'|'            reduce using rule 115
 	'|->'          reduce using rule 115
 	'}'            reduce using rule 115
-	'×'            shift, and enter state 167
+	'×'            shift, and enter state 166
 	'↦'            reduce using rule 115
 	'∧'            reduce using rule 115
 	'∨'            reduce using rule 115
 	%eof           reduce using rule 115
 
 
-State 204
+State 202
 
 	Term5 -> Term5 . '×' Term6                          (rule 109)
 	Term5 -> Term5 . '*' Term6                          (rule 111)
 	Term4 -> Term5 '<=' Term5 .                         (rule 116)
 
 	')'            reduce using rule 116
-	'*'            shift, and enter state 166
+	'*'            shift, and enter state 165
 	','            reduce using rule 116
 	'/\\'          reduce using rule 116
 	':'            reduce using rule 116
@@ -6080,14 +5992,14 @@ State 204
 	'|'            reduce using rule 116
 	'|->'          reduce using rule 116
 	'}'            reduce using rule 116
-	'×'            shift, and enter state 167
+	'×'            shift, and enter state 166
 	'↦'            reduce using rule 116
 	'∧'            reduce using rule 116
 	'∨'            reduce using rule 116
 	%eof           reduce using rule 116
 
 
-State 205
+State 203
 
 	Term3 -> Term4 '∧' Term3 .                          (rule 117)
 
@@ -6110,7 +6022,7 @@ State 205
 	%eof           reduce using rule 117
 
 
-State 206
+State 204
 
 	Term3 -> Term4 '/\\' Term3 .                        (rule 119)
 
@@ -6133,7 +6045,7 @@ State 206
 	%eof           reduce using rule 119
 
 
-State 207
+State 205
 
 	Term2 -> Term3 '∨' Term2 .                          (rule 120)
 
@@ -6154,7 +6066,7 @@ State 207
 	%eof           reduce using rule 120
 
 
-State 208
+State 206
 
 	Term2 -> Term3 '\\/' Term2 .                        (rule 122)
 
@@ -6175,7 +6087,7 @@ State 208
 	%eof           reduce using rule 122
 
 
-State 209
+State 207
 
 	Term -> Term2 'as' Term1 .                          (rule 140)
 
@@ -6193,560 +6105,14 @@ State 209
 	%eof           reduce using rule 140
 
 
-State 210
+State 208
 
 	ListTerm -> Term ',' ListTerm .                     (rule 143)
 
 	%eof           reduce using rule 143
 
 
-State 211
-
-	ParamDecl -> '(' '_' ':' . Term ')'                 (rule 70)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 285
-
-State 212
-
-	ParamDecl -> '(' VarIdent ':' . Term ')'            (rule 72)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 284
-
-State 213
-
-	Term7 -> '<' ParamDecl '->' . Term '>'              (rule 108)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 283
-
-State 214
-
-	Term7 -> '<' ParamDecl '→' . Term '>'               (rule 93)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 282
-
-State 215
-
-	Term1 -> 'Sigma' '(' Pattern . ':' Term ')' ',' Term1    (rule 130)
-
-	':'            shift, and enter state 281
-
-
-State 216
-
-	Term1 -> '\\' ListParam '->' . Term1                (rule 131)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 80
-	Term1          goto state 280
-	Term6          goto state 39
-
-State 217
-
-	Term1 -> '\\' ListParam '→' . Term1                 (rule 127)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 80
-	Term1          goto state 279
-	Term6          goto state 39
-
-State 218
-
-	Term7 -> 'idJ' '(' Term . ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
-
-	','            shift, and enter state 278
-
-
-State 219
-
-	Term7 -> 'recOR' '(' ListRestriction . ')'          (rule 90)
-
-	')'            shift, and enter state 277
-
-
-State 220
-
-	Restriction -> Term . '↦' Term                      (rule 75)
-	Restriction -> Term . '|->' Term                    (rule 76)
-	Term7 -> 'recOR' '(' Term . ',' Term ',' Term ',' Term ')'    (rule 91)
-
-	','            shift, and enter state 276
-	'|->'          shift, and enter state 163
-	'↦'            shift, and enter state 164
-
-
-State 221
-
-	Term7 -> 'refl_{' Term ':' . Term '}'               (rule 98)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 275
-
-State 222
-
-	Term7 -> 'refl_{' Term '}' .                        (rule 97)
-
-	'('            reduce using rule 97
-	')'            reduce using rule 97
-	'*'            reduce using rule 97
-	'*_1'          reduce using rule 97
-	'*₁'           reduce using rule 97
-	','            reduce using rule 97
-	'->'           reduce using rule 97
-	'/\\'          reduce using rule 97
-	'0_2'          reduce using rule 97
-	'0₂'           reduce using rule 97
-	'1'            reduce using rule 97
-	'1_2'          reduce using rule 97
-	'1₂'           reduce using rule 97
-	'2'            reduce using rule 97
-	':'            reduce using rule 97
-	':='           reduce using rule 97
-	';'            reduce using rule 97
-	'<'            reduce using rule 97
-	'<='           reduce using rule 97
-	'='            reduce using rule 97
-	'==='          reduce using rule 97
-	'=_{'          reduce using rule 97
-	'>'            reduce using rule 97
-	'BOT'          reduce using rule 97
-	'CUBE'         reduce using rule 97
-	'TOP'          reduce using rule 97
-	'TOPE'         reduce using rule 97
-	'U'            reduce using rule 97
-	'Unit'         reduce using rule 97
-	'['            reduce using rule 97
-	'\\/'          reduce using rule 97
-	']'            reduce using rule 97
-	'as'           reduce using rule 97
-	'idJ'          reduce using rule 97
-	'recBOT'       reduce using rule 97
-	'recOR'        reduce using rule 97
-	'refl'         reduce using rule 97
-	'refl_{'       reduce using rule 97
-	'unit'         reduce using rule 97
-	'|'            reduce using rule 97
-	'|->'          reduce using rule 97
-	'}'            reduce using rule 97
-	'×'            reduce using rule 97
-	'→'            reduce using rule 97
-	'↦'            reduce using rule 97
-	'∧'            reduce using rule 97
-	'∨'            reduce using rule 97
-	'≡'            reduce using rule 97
-	'≤'            reduce using rule 97
-	'⊤'            reduce using rule 97
-	'⊥'            reduce using rule 97
-	L_VarIdentTokenreduce using rule 97
-	L_HoleIdentTokenreduce using rule 97
-	%eof           reduce using rule 97
-
-
-State 223
-
-	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 61)
-	ParamDecl -> '{' '(' Pattern . ':' Term ')' '|' Term '}'    (rule 73)
-
-	','            shift, and enter state 238
-	':'            shift, and enter state 274
-
-
-State 224
-
-	ParamDecl -> '{' Pattern ':' . Term '}'             (rule 71)
-	ParamDecl -> '{' Pattern ':' . Term '|' Term '}'    (rule 74)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 273
-
-State 225
-
-	Term1 -> 'Σ' '(' Pattern . ':' Term ')' ',' Term1    (rule 124)
-
-	':'            shift, and enter state 272
-
-
-State 226
-
-	Term1 -> '∑' '(' Pattern . ':' Term ')' ',' Term1    (rule 132)
-
-	':'            shift, and enter state 271
-
-
-State 227
+State 209
 
 	Term7 -> '(' Term ')' .                             (rule 102)
 
@@ -6806,7 +6172,7 @@ State 227
 	%eof           reduce using rule 102
 
 
-State 228
+State 210
 
 	Term7 -> '(' Term ',' . Term ')'                    (rule 94)
 
@@ -6858,202 +6224,12 @@ State 228
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 270
+	Term           goto state 281
 
-State 229
+State 211
 
-	Term1 -> Term2 '=_{' Term . '}' Term2               (rule 125)
-
-	'}'            shift, and enter state 269
-
-
-State 230
-
-	Term1 -> Term2 '=' Term2 .                          (rule 126)
-
-	')'            reduce using rule 126
-	','            reduce using rule 126
-	':'            reduce using rule 126
-	':='           reduce using rule 126
-	';'            reduce using rule 126
-	'>'            reduce using rule 126
-	']'            reduce using rule 126
-	'|'            reduce using rule 126
-	'|->'          reduce using rule 126
-	'}'            reduce using rule 126
-	'↦'            reduce using rule 126
-	%eof           reduce using rule 126
-
-
-State 231
-
-	Term5 -> Term5 '×' Term6 .                          (rule 109)
-	Term6 -> Term6 . '[' ListRestriction ']'            (rule 133)
-	Term6 -> Term6 . Term7                              (rule 134)
-
-	'('            shift, and enter state 79
-	')'            reduce using rule 109
-	'*'            reduce using rule 109
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	','            reduce using rule 109
-	'/\\'          reduce using rule 109
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	':'            reduce using rule 109
-	':='           reduce using rule 109
-	';'            reduce using rule 109
-	'<'            shift, and enter state 51
-	'<='           reduce using rule 109
-	'='            reduce using rule 109
-	'==='          reduce using rule 109
-	'=_{'          reduce using rule 109
-	'>'            reduce using rule 109
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'['            shift, and enter state 162
-	'\\/'          reduce using rule 109
-	']'            reduce using rule 109
-	'as'           reduce using rule 109
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'unit'         shift, and enter state 67
-	'|'            reduce using rule 109
-	'|->'          reduce using rule 109
-	'}'            reduce using rule 109
-	'×'            reduce using rule 109
-	'↦'            reduce using rule 109
-	'∧'            reduce using rule 109
-	'∨'            reduce using rule 109
-	'≡'            reduce using rule 109
-	'≤'            reduce using rule 109
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-	%eof           reduce using rule 109
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	Term7          goto state 161
-
-State 232
-
-	Term5 -> Term5 '*' Term6 .                          (rule 111)
-	Term6 -> Term6 . '[' ListRestriction ']'            (rule 133)
-	Term6 -> Term6 . Term7                              (rule 134)
-
-	'('            shift, and enter state 79
-	')'            reduce using rule 111
-	'*'            reduce using rule 111
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	','            reduce using rule 111
-	'/\\'          reduce using rule 111
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	':'            reduce using rule 111
-	':='           reduce using rule 111
-	';'            reduce using rule 111
-	'<'            shift, and enter state 51
-	'<='           reduce using rule 111
-	'='            reduce using rule 111
-	'==='          reduce using rule 111
-	'=_{'          reduce using rule 111
-	'>'            reduce using rule 111
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'['            shift, and enter state 162
-	'\\/'          reduce using rule 111
-	']'            reduce using rule 111
-	'as'           reduce using rule 111
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'unit'         shift, and enter state 67
-	'|'            reduce using rule 111
-	'|->'          reduce using rule 111
-	'}'            reduce using rule 111
-	'×'            reduce using rule 111
-	'↦'            reduce using rule 111
-	'∧'            reduce using rule 111
-	'∨'            reduce using rule 111
-	'≡'            reduce using rule 111
-	'≤'            reduce using rule 111
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-	%eof           reduce using rule 111
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	Term7          goto state 161
-
-State 233
-
-	ListRestriction -> Restriction ',' ListRestriction .    (rule 78)
-
-	')'            reduce using rule 78
-	']'            reduce using rule 78
-	%eof           reduce using rule 78
-
-
-State 234
-
-	Restriction -> Term '↦' Term .                      (rule 75)
-
-	')'            reduce using rule 75
-	','            reduce using rule 75
-	']'            reduce using rule 75
-	%eof           reduce using rule 75
-
-
-State 235
-
-	Restriction -> Term '|->' Term .                    (rule 76)
-
-	')'            reduce using rule 76
-	','            reduce using rule 76
-	']'            reduce using rule 76
-	%eof           reduce using rule 76
-
-
-State 236
-
-	Term6 -> Term6 '[' ListRestriction . ']'            (rule 133)
-
-	']'            shift, and enter state 268
-
-
-State 237
-
-	Param -> '(' ListPattern ':' . Term ')'             (rule 65)
+	ParamDecl -> '(' Term ':' . Term ')'                (rule 70)
+	ParamDecl -> '(' Term ':' . Term '|' Term ')'       (rule 71)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -7103,22 +6279,705 @@ State 237
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 267
+	Term           goto state 280
 
-State 238
+State 212
 
-	Pattern -> '(' Pattern ',' . Pattern ')'            (rule 61)
+	Term7 -> '<' ParamDecl '->' . Term '>'              (rule 108)
 
-	'('            shift, and enter state 105
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 279
+
+State 213
+
+	Term7 -> '<' ParamDecl '→' . Term '>'               (rule 93)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 278
+
+State 214
+
+	Term1 -> 'Sigma' '(' Pattern . ':' Term ')' ',' Term1    (rule 130)
+
+	':'            shift, and enter state 277
+
+
+State 215
+
+	Term1 -> '\\' ListParam '->' . Term1                (rule 131)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 80
+	Term1          goto state 276
+	Term6          goto state 39
+
+State 216
+
+	Term1 -> '\\' ListParam '→' . Term1                 (rule 127)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 80
+	Term1          goto state 275
+	Term6          goto state 39
+
+State 217
+
+	Term7 -> 'idJ' '(' Term . ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
+
+	','            shift, and enter state 274
+
+
+State 218
+
+	Term7 -> 'recOR' '(' ListRestriction . ')'          (rule 90)
+
+	')'            shift, and enter state 273
+
+
+State 219
+
+	Restriction -> Term . '↦' Term                      (rule 75)
+	Restriction -> Term . '|->' Term                    (rule 76)
+	Term7 -> 'recOR' '(' Term . ',' Term ',' Term ',' Term ')'    (rule 91)
+
+	','            shift, and enter state 272
+	'|->'          shift, and enter state 162
+	'↦'            shift, and enter state 163
+
+
+State 220
+
+	Term7 -> 'refl_{' Term ':' . Term '}'               (rule 98)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 271
+
+State 221
+
+	Term7 -> 'refl_{' Term '}' .                        (rule 97)
+
+	'('            reduce using rule 97
+	')'            reduce using rule 97
+	'*'            reduce using rule 97
+	'*_1'          reduce using rule 97
+	'*₁'           reduce using rule 97
+	','            reduce using rule 97
+	'->'           reduce using rule 97
+	'/\\'          reduce using rule 97
+	'0_2'          reduce using rule 97
+	'0₂'           reduce using rule 97
+	'1'            reduce using rule 97
+	'1_2'          reduce using rule 97
+	'1₂'           reduce using rule 97
+	'2'            reduce using rule 97
+	':'            reduce using rule 97
+	':='           reduce using rule 97
+	';'            reduce using rule 97
+	'<'            reduce using rule 97
+	'<='           reduce using rule 97
+	'='            reduce using rule 97
+	'==='          reduce using rule 97
+	'=_{'          reduce using rule 97
+	'>'            reduce using rule 97
+	'BOT'          reduce using rule 97
+	'CUBE'         reduce using rule 97
+	'TOP'          reduce using rule 97
+	'TOPE'         reduce using rule 97
+	'U'            reduce using rule 97
+	'Unit'         reduce using rule 97
+	'['            reduce using rule 97
+	'\\/'          reduce using rule 97
+	']'            reduce using rule 97
+	'as'           reduce using rule 97
+	'idJ'          reduce using rule 97
+	'recBOT'       reduce using rule 97
+	'recOR'        reduce using rule 97
+	'refl'         reduce using rule 97
+	'refl_{'       reduce using rule 97
+	'unit'         reduce using rule 97
+	'|'            reduce using rule 97
+	'|->'          reduce using rule 97
+	'}'            reduce using rule 97
+	'×'            reduce using rule 97
+	'→'            reduce using rule 97
+	'↦'            reduce using rule 97
+	'∧'            reduce using rule 97
+	'∨'            reduce using rule 97
+	'≡'            reduce using rule 97
+	'≤'            reduce using rule 97
+	'⊤'            reduce using rule 97
+	'⊥'            reduce using rule 97
+	L_VarIdentTokenreduce using rule 97
+	L_HoleIdentTokenreduce using rule 97
+	%eof           reduce using rule 97
+
+
+State 222
+
+	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 60)
+	ParamDecl -> '{' '(' Pattern . ':' Term ')' '|' Term '}'    (rule 73)
+
+	','            shift, and enter state 235
+	':'            shift, and enter state 270
+
+
+State 223
+
+	ParamDecl -> '{' Pattern ':' . Term '}'             (rule 72)
+	ParamDecl -> '{' Pattern ':' . Term '|' Term '}'    (rule 74)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 269
+
+State 224
+
+	Term1 -> 'Σ' '(' Pattern . ':' Term ')' ',' Term1    (rule 124)
+
+	':'            shift, and enter state 268
+
+
+State 225
+
+	Term1 -> '∑' '(' Pattern . ':' Term ')' ',' Term1    (rule 132)
+
+	':'            shift, and enter state 267
+
+
+State 226
+
+	Term1 -> Term2 '=_{' Term . '}' Term2               (rule 125)
+
+	'}'            shift, and enter state 266
+
+
+State 227
+
+	Term1 -> Term2 '=' Term2 .                          (rule 126)
+
+	')'            reduce using rule 126
+	','            reduce using rule 126
+	':'            reduce using rule 126
+	':='           reduce using rule 126
+	';'            reduce using rule 126
+	'>'            reduce using rule 126
+	']'            reduce using rule 126
+	'|'            reduce using rule 126
+	'|->'          reduce using rule 126
+	'}'            reduce using rule 126
+	'↦'            reduce using rule 126
+	%eof           reduce using rule 126
+
+
+State 228
+
+	Term5 -> Term5 '×' Term6 .                          (rule 109)
+	Term6 -> Term6 . '[' ListRestriction ']'            (rule 133)
+	Term6 -> Term6 . Term7                              (rule 134)
+
+	'('            shift, and enter state 79
+	')'            reduce using rule 109
+	'*'            reduce using rule 109
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	','            reduce using rule 109
+	'/\\'          reduce using rule 109
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	':'            reduce using rule 109
+	':='           reduce using rule 109
+	';'            reduce using rule 109
+	'<'            shift, and enter state 51
+	'<='           reduce using rule 109
+	'='            reduce using rule 109
+	'==='          reduce using rule 109
+	'=_{'          reduce using rule 109
+	'>'            reduce using rule 109
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'['            shift, and enter state 161
+	'\\/'          reduce using rule 109
+	']'            reduce using rule 109
+	'as'           reduce using rule 109
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'unit'         shift, and enter state 67
+	'|'            reduce using rule 109
+	'|->'          reduce using rule 109
+	'}'            reduce using rule 109
+	'×'            reduce using rule 109
+	'↦'            reduce using rule 109
+	'∧'            reduce using rule 109
+	'∨'            reduce using rule 109
+	'≡'            reduce using rule 109
+	'≤'            reduce using rule 109
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+	%eof           reduce using rule 109
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	Term7          goto state 160
+
+State 229
+
+	Term5 -> Term5 '*' Term6 .                          (rule 111)
+	Term6 -> Term6 . '[' ListRestriction ']'            (rule 133)
+	Term6 -> Term6 . Term7                              (rule 134)
+
+	'('            shift, and enter state 79
+	')'            reduce using rule 111
+	'*'            reduce using rule 111
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	','            reduce using rule 111
+	'/\\'          reduce using rule 111
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	':'            reduce using rule 111
+	':='           reduce using rule 111
+	';'            reduce using rule 111
+	'<'            shift, and enter state 51
+	'<='           reduce using rule 111
+	'='            reduce using rule 111
+	'==='          reduce using rule 111
+	'=_{'          reduce using rule 111
+	'>'            reduce using rule 111
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'['            shift, and enter state 161
+	'\\/'          reduce using rule 111
+	']'            reduce using rule 111
+	'as'           reduce using rule 111
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'unit'         shift, and enter state 67
+	'|'            reduce using rule 111
+	'|->'          reduce using rule 111
+	'}'            reduce using rule 111
+	'×'            reduce using rule 111
+	'↦'            reduce using rule 111
+	'∧'            reduce using rule 111
+	'∨'            reduce using rule 111
+	'≡'            reduce using rule 111
+	'≤'            reduce using rule 111
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+	%eof           reduce using rule 111
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	Term7          goto state 160
+
+State 230
+
+	ListRestriction -> Restriction ',' ListRestriction .    (rule 78)
+
+	')'            reduce using rule 78
+	']'            reduce using rule 78
+	%eof           reduce using rule 78
+
+
+State 231
+
+	Restriction -> Term '↦' Term .                      (rule 75)
+
+	')'            reduce using rule 75
+	','            reduce using rule 75
+	']'            reduce using rule 75
+	%eof           reduce using rule 75
+
+
+State 232
+
+	Restriction -> Term '|->' Term .                    (rule 76)
+
+	')'            reduce using rule 76
+	','            reduce using rule 76
+	']'            reduce using rule 76
+	%eof           reduce using rule 76
+
+
+State 233
+
+	Term6 -> Term6 '[' ListRestriction . ']'            (rule 133)
+
+	']'            shift, and enter state 265
+
+
+State 234
+
+	Param -> '(' ListPattern ':' . Term ')'             (rule 64)
+	Param -> '(' ListPattern ':' . Term '|' Term ')'    (rule 65)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 264
+
+State 235
+
+	Pattern -> '(' Pattern ',' . Pattern ')'            (rule 60)
+
+	'('            shift, and enter state 104
+	'unit'         shift, and enter state 99
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
-	Pattern        goto state 266
+	Pattern        goto state 263
 
-State 239
+State 236
 
 	Param -> '{' Pattern ':' . Term '|' Term '}'        (rule 66)
 
@@ -7170,16 +7029,16 @@ State 239
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 265
+	Term           goto state 262
 
-State 240
+State 237
 
 	DeclUsedVars -> 'uses' '(' ListVarIdent . ')'       (rule 54)
 
-	')'            shift, and enter state 264
+	')'            shift, and enter state 261
 
 
-State 241
+State 238
 
 	ListCommand -> Command ';' ListCommand .            (rule 53)
 
@@ -7187,7 +7046,7 @@ State 241
 	%eof           reduce using rule 53
 
 
-State 242
+State 239
 
 	Command -> '#assume' ListVarIdent ':' . Term        (rule 44)
 
@@ -7239,9 +7098,9 @@ State 242
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 263
+	Term           goto state 260
 
-State 243
+State 240
 
 	Command -> '#check' Term ':' . Term                 (rule 38)
 
@@ -7293,93 +7152,90 @@ State 243
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 262
+	Term           goto state 259
 
-State 244
+State 241
 
 	Command -> '#def' VarIdent DeclUsedVars . ListParam ':' Term ':=' Term    (rule 50)
 	Command -> '#def' VarIdent DeclUsedVars . ':' Term ':=' Term    (rule 51)
 
 	'('            shift, and enter state 98
-	':'            shift, and enter state 261
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	':'            shift, and enter state 258
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
 	Pattern        goto state 95
 	Param          goto state 96
-	ListParam      goto state 260
+	ListParam      goto state 257
 
-State 245
+State 242
 
 	Command -> '#define' VarIdent DeclUsedVars . ListParam ':' Term ':=' Term    (rule 48)
 	Command -> '#define' VarIdent DeclUsedVars . ':' Term ':=' Term    (rule 49)
 
 	'('            shift, and enter state 98
-	':'            shift, and enter state 259
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	':'            shift, and enter state 256
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
 	Pattern        goto state 95
 	Param          goto state 96
-	ListParam      goto state 258
+	ListParam      goto state 255
 
-State 246
+State 243
 
 	Command -> '#postulate' VarIdent DeclUsedVars . ListParam ':' Term    (rule 42)
 	Command -> '#postulate' VarIdent DeclUsedVars . ':' Term    (rule 43)
 
 	'('            shift, and enter state 98
-	':'            shift, and enter state 257
-	'_'            shift, and enter state 99
-	'unit'         shift, and enter state 100
-	'{'            shift, and enter state 101
+	':'            shift, and enter state 254
+	'unit'         shift, and enter state 99
+	'{'            shift, and enter state 100
 	L_VarIdentTokenshift, and enter state 75
 
 	VarIdentToken  goto state 28
 	VarIdent       goto state 94
 	Pattern        goto state 95
 	Param          goto state 96
-	ListParam      goto state 256
+	ListParam      goto state 253
 
-State 247
+State 244
 
 	Command -> '#section' SectionName ';' . ListCommand '#end' SectionName    (rule 47)
 
-	'#assume'      shift, and enter state 113
-	'#check'       shift, and enter state 114
-	'#compute'     shift, and enter state 115
-	'#compute-nf'  shift, and enter state 116
-	'#compute-whnf'shift, and enter state 117
-	'#def'         shift, and enter state 118
-	'#define'      shift, and enter state 119
+	'#assume'      shift, and enter state 112
+	'#check'       shift, and enter state 113
+	'#compute'     shift, and enter state 114
+	'#compute-nf'  shift, and enter state 115
+	'#compute-whnf'shift, and enter state 116
+	'#def'         shift, and enter state 117
+	'#define'      shift, and enter state 118
 	'#end'         reduce using rule 52
-	'#postulate'   shift, and enter state 120
-	'#section'     shift, and enter state 121
-	'#set-option'  shift, and enter state 122
-	'#unset-option'shift, and enter state 123
-	'#variable'    shift, and enter state 124
-	'#variables'   shift, and enter state 125
+	'#postulate'   shift, and enter state 119
+	'#section'     shift, and enter state 120
+	'#set-option'  shift, and enter state 121
+	'#unset-option'shift, and enter state 122
+	'#variable'    shift, and enter state 123
+	'#variables'   shift, and enter state 124
 
-	Command        goto state 111
-	ListCommand    goto state 255
+	Command        goto state 110
+	ListCommand    goto state 252
 
-State 248
+State 245
 
 	Command -> '#set-option' String '=' . String        (rule 36)
 
 	L_quoted       shift, and enter state 27
 
-	String         goto state 254
+	String         goto state 251
 
-State 249
+State 246
 
 	Command -> '#variable' VarIdent ':' . Term          (rule 45)
 
@@ -7431,9 +7287,9 @@ State 249
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 253
+	Term           goto state 250
 
-State 250
+State 247
 
 	Command -> '#variables' ListVarIdent ':' . Term     (rule 46)
 
@@ -7485,9 +7341,9 @@ State 250
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 252
+	Term           goto state 249
 
-State 251
+State 248
 
 	LanguageDecl -> '#lang' Language ';' .              (rule 34)
 
@@ -7507,7 +7363,7 @@ State 251
 	%eof           reduce using rule 34
 
 
-State 252
+State 249
 
 	Command -> '#variables' ListVarIdent ':' Term .     (rule 46)
 
@@ -7515,7 +7371,7 @@ State 252
 	%eof           reduce using rule 46
 
 
-State 253
+State 250
 
 	Command -> '#variable' VarIdent ':' Term .          (rule 45)
 
@@ -7523,7 +7379,7 @@ State 253
 	%eof           reduce using rule 45
 
 
-State 254
+State 251
 
 	Command -> '#set-option' String '=' String .        (rule 36)
 
@@ -7531,21 +7387,21 @@ State 254
 	%eof           reduce using rule 36
 
 
-State 255
+State 252
 
 	Command -> '#section' SectionName ';' ListCommand . '#end' SectionName    (rule 47)
 
-	'#end'         shift, and enter state 310
+	'#end'         shift, and enter state 307
 
 
-State 256
+State 253
 
 	Command -> '#postulate' VarIdent DeclUsedVars ListParam . ':' Term    (rule 42)
 
-	':'            shift, and enter state 309
+	':'            shift, and enter state 306
 
 
-State 257
+State 254
 
 	Command -> '#postulate' VarIdent DeclUsedVars ':' . Term    (rule 43)
 
@@ -7597,16 +7453,16 @@ State 257
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 308
+	Term           goto state 305
 
-State 258
+State 255
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam . ':' Term ':=' Term    (rule 48)
 
-	':'            shift, and enter state 307
+	':'            shift, and enter state 304
 
 
-State 259
+State 256
 
 	Command -> '#define' VarIdent DeclUsedVars ':' . Term ':=' Term    (rule 49)
 
@@ -7658,16 +7514,16 @@ State 259
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 306
+	Term           goto state 303
 
-State 260
+State 257
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam . ':' Term ':=' Term    (rule 50)
 
-	':'            shift, and enter state 305
+	':'            shift, and enter state 302
 
 
-State 261
+State 258
 
 	Command -> '#def' VarIdent DeclUsedVars ':' . Term ':=' Term    (rule 51)
 
@@ -7719,9 +7575,9 @@ State 261
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 304
+	Term           goto state 301
 
-State 262
+State 259
 
 	Command -> '#check' Term ':' Term .                 (rule 38)
 
@@ -7729,7 +7585,7 @@ State 262
 	%eof           reduce using rule 38
 
 
-State 263
+State 260
 
 	Command -> '#assume' ListVarIdent ':' Term .        (rule 44)
 
@@ -7737,41 +7593,42 @@ State 263
 	%eof           reduce using rule 44
 
 
-State 264
+State 261
 
 	DeclUsedVars -> 'uses' '(' ListVarIdent ')' .       (rule 54)
 
 	'('            reduce using rule 54
 	':'            reduce using rule 54
-	'_'            reduce using rule 54
 	'unit'         reduce using rule 54
 	'{'            reduce using rule 54
 	L_VarIdentTokenreduce using rule 54
 	%eof           reduce using rule 54
 
 
-State 265
+State 262
 
 	Param -> '{' Pattern ':' Term . '|' Term '}'        (rule 66)
 
-	'|'            shift, and enter state 303
+	'|'            shift, and enter state 300
 
 
-State 266
+State 263
 
-	Pattern -> '(' Pattern ',' Pattern . ')'            (rule 61)
+	Pattern -> '(' Pattern ',' Pattern . ')'            (rule 60)
 
-	')'            shift, and enter state 302
-
-
-State 267
-
-	Param -> '(' ListPattern ':' Term . ')'             (rule 65)
-
-	')'            shift, and enter state 301
+	')'            shift, and enter state 299
 
 
-State 268
+State 264
+
+	Param -> '(' ListPattern ':' Term . ')'             (rule 64)
+	Param -> '(' ListPattern ':' Term . '|' Term ')'    (rule 65)
+
+	')'            shift, and enter state 297
+	'|'            shift, and enter state 298
+
+
+State 265
 
 	Term6 -> Term6 '[' ListRestriction ']' .            (rule 133)
 
@@ -7831,7 +7688,7 @@ State 268
 	%eof           reduce using rule 133
 
 
-State 269
+State 266
 
 	Term1 -> Term2 '=_{' Term '}' . Term2               (rule 125)
 
@@ -7874,17 +7731,10 @@ State 269
 	Term5          goto state 34
 	Term4          goto state 35
 	Term3          goto state 36
-	Term2          goto state 300
+	Term2          goto state 296
 	Term6          goto state 83
 
-State 270
-
-	Term7 -> '(' Term ',' Term . ')'                    (rule 94)
-
-	')'            shift, and enter state 299
-
-
-State 271
+State 267
 
 	Term1 -> '∑' '(' Pattern ':' . Term ')' ',' Term1    (rule 132)
 
@@ -7936,9 +7786,9 @@ State 271
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 298
+	Term           goto state 295
 
-State 272
+State 268
 
 	Term1 -> 'Σ' '(' Pattern ':' . Term ')' ',' Term1    (rule 124)
 
@@ -7990,18 +7840,18 @@ State 272
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 297
+	Term           goto state 294
 
-State 273
+State 269
 
-	ParamDecl -> '{' Pattern ':' Term . '}'             (rule 71)
+	ParamDecl -> '{' Pattern ':' Term . '}'             (rule 72)
 	ParamDecl -> '{' Pattern ':' Term . '|' Term '}'    (rule 74)
 
-	'|'            shift, and enter state 295
-	'}'            shift, and enter state 296
+	'|'            shift, and enter state 292
+	'}'            shift, and enter state 293
 
 
-State 274
+State 270
 
 	ParamDecl -> '{' '(' Pattern ':' . Term ')' '|' Term '}'    (rule 73)
 
@@ -8053,16 +7903,16 @@ State 274
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 294
+	Term           goto state 291
 
-State 275
+State 271
 
 	Term7 -> 'refl_{' Term ':' Term . '}'               (rule 98)
 
-	'}'            shift, and enter state 293
+	'}'            shift, and enter state 290
 
 
-State 276
+State 272
 
 	Term7 -> 'recOR' '(' Term ',' . Term ',' Term ',' Term ')'    (rule 91)
 
@@ -8114,9 +7964,9 @@ State 276
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 292
+	Term           goto state 289
 
-State 277
+State 273
 
 	Term7 -> 'recOR' '(' ListRestriction ')' .          (rule 90)
 
@@ -8176,7 +8026,7 @@ State 277
 	%eof           reduce using rule 90
 
 
-State 278
+State 274
 
 	Term7 -> 'idJ' '(' Term ',' . Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
 
@@ -8228,9 +8078,9 @@ State 278
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 291
+	Term           goto state 288
 
-State 279
+State 275
 
 	Term1 -> '\\' ListParam '→' Term1 .                 (rule 127)
 
@@ -8248,7 +8098,7 @@ State 279
 	%eof           reduce using rule 127
 
 
-State 280
+State 276
 
 	Term1 -> '\\' ListParam '->' Term1 .                (rule 131)
 
@@ -8266,7 +8116,7 @@ State 280
 	%eof           reduce using rule 131
 
 
-State 281
+State 277
 
 	Term1 -> 'Sigma' '(' Pattern ':' . Term ')' ',' Term1    (rule 130)
 
@@ -8318,340 +8168,39 @@ State 281
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 290
+	Term           goto state 287
 
-State 282
+State 278
 
 	Term7 -> '<' ParamDecl '→' Term . '>'               (rule 93)
 
-	'>'            shift, and enter state 289
+	'>'            shift, and enter state 286
 
 
-State 283
+State 279
 
 	Term7 -> '<' ParamDecl '->' Term . '>'              (rule 108)
 
-	'>'            shift, and enter state 288
+	'>'            shift, and enter state 285
 
 
-State 284
+State 280
 
-	ParamDecl -> '(' VarIdent ':' Term . ')'            (rule 72)
+	ParamDecl -> '(' Term ':' Term . ')'                (rule 70)
+	ParamDecl -> '(' Term ':' Term . '|' Term ')'       (rule 71)
 
-	')'            shift, and enter state 287
-
-
-State 285
-
-	ParamDecl -> '(' '_' ':' Term . ')'                 (rule 70)
-
-	')'            shift, and enter state 286
+	')'            shift, and enter state 283
+	'|'            shift, and enter state 284
 
 
-State 286
+State 281
 
-	ParamDecl -> '(' '_' ':' Term ')' .                 (rule 70)
+	Term7 -> '(' Term ',' Term . ')'                    (rule 94)
 
-	'->'           reduce using rule 70
-	'→'            reduce using rule 70
-	%eof           reduce using rule 70
+	')'            shift, and enter state 282
 
 
-State 287
-
-	ParamDecl -> '(' VarIdent ':' Term ')' .            (rule 72)
-
-	'->'           reduce using rule 72
-	'→'            reduce using rule 72
-	%eof           reduce using rule 72
-
-
-State 288
-
-	Term7 -> '<' ParamDecl '->' Term '>' .              (rule 108)
-
-	'('            reduce using rule 108
-	')'            reduce using rule 108
-	'*'            reduce using rule 108
-	'*_1'          reduce using rule 108
-	'*₁'           reduce using rule 108
-	','            reduce using rule 108
-	'->'           reduce using rule 108
-	'/\\'          reduce using rule 108
-	'0_2'          reduce using rule 108
-	'0₂'           reduce using rule 108
-	'1'            reduce using rule 108
-	'1_2'          reduce using rule 108
-	'1₂'           reduce using rule 108
-	'2'            reduce using rule 108
-	':'            reduce using rule 108
-	':='           reduce using rule 108
-	';'            reduce using rule 108
-	'<'            reduce using rule 108
-	'<='           reduce using rule 108
-	'='            reduce using rule 108
-	'==='          reduce using rule 108
-	'=_{'          reduce using rule 108
-	'>'            reduce using rule 108
-	'BOT'          reduce using rule 108
-	'CUBE'         reduce using rule 108
-	'TOP'          reduce using rule 108
-	'TOPE'         reduce using rule 108
-	'U'            reduce using rule 108
-	'Unit'         reduce using rule 108
-	'['            reduce using rule 108
-	'\\/'          reduce using rule 108
-	']'            reduce using rule 108
-	'as'           reduce using rule 108
-	'idJ'          reduce using rule 108
-	'recBOT'       reduce using rule 108
-	'recOR'        reduce using rule 108
-	'refl'         reduce using rule 108
-	'refl_{'       reduce using rule 108
-	'unit'         reduce using rule 108
-	'|'            reduce using rule 108
-	'|->'          reduce using rule 108
-	'}'            reduce using rule 108
-	'×'            reduce using rule 108
-	'→'            reduce using rule 108
-	'↦'            reduce using rule 108
-	'∧'            reduce using rule 108
-	'∨'            reduce using rule 108
-	'≡'            reduce using rule 108
-	'≤'            reduce using rule 108
-	'⊤'            reduce using rule 108
-	'⊥'            reduce using rule 108
-	L_VarIdentTokenreduce using rule 108
-	L_HoleIdentTokenreduce using rule 108
-	%eof           reduce using rule 108
-
-
-State 289
-
-	Term7 -> '<' ParamDecl '→' Term '>' .               (rule 93)
-
-	'('            reduce using rule 93
-	')'            reduce using rule 93
-	'*'            reduce using rule 93
-	'*_1'          reduce using rule 93
-	'*₁'           reduce using rule 93
-	','            reduce using rule 93
-	'->'           reduce using rule 93
-	'/\\'          reduce using rule 93
-	'0_2'          reduce using rule 93
-	'0₂'           reduce using rule 93
-	'1'            reduce using rule 93
-	'1_2'          reduce using rule 93
-	'1₂'           reduce using rule 93
-	'2'            reduce using rule 93
-	':'            reduce using rule 93
-	':='           reduce using rule 93
-	';'            reduce using rule 93
-	'<'            reduce using rule 93
-	'<='           reduce using rule 93
-	'='            reduce using rule 93
-	'==='          reduce using rule 93
-	'=_{'          reduce using rule 93
-	'>'            reduce using rule 93
-	'BOT'          reduce using rule 93
-	'CUBE'         reduce using rule 93
-	'TOP'          reduce using rule 93
-	'TOPE'         reduce using rule 93
-	'U'            reduce using rule 93
-	'Unit'         reduce using rule 93
-	'['            reduce using rule 93
-	'\\/'          reduce using rule 93
-	']'            reduce using rule 93
-	'as'           reduce using rule 93
-	'idJ'          reduce using rule 93
-	'recBOT'       reduce using rule 93
-	'recOR'        reduce using rule 93
-	'refl'         reduce using rule 93
-	'refl_{'       reduce using rule 93
-	'unit'         reduce using rule 93
-	'|'            reduce using rule 93
-	'|->'          reduce using rule 93
-	'}'            reduce using rule 93
-	'×'            reduce using rule 93
-	'→'            reduce using rule 93
-	'↦'            reduce using rule 93
-	'∧'            reduce using rule 93
-	'∨'            reduce using rule 93
-	'≡'            reduce using rule 93
-	'≤'            reduce using rule 93
-	'⊤'            reduce using rule 93
-	'⊥'            reduce using rule 93
-	L_VarIdentTokenreduce using rule 93
-	L_HoleIdentTokenreduce using rule 93
-	%eof           reduce using rule 93
-
-
-State 290
-
-	Term1 -> 'Sigma' '(' Pattern ':' Term . ')' ',' Term1    (rule 130)
-
-	')'            shift, and enter state 324
-
-
-State 291
-
-	Term7 -> 'idJ' '(' Term ',' Term . ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
-
-	','            shift, and enter state 323
-
-
-State 292
-
-	Term7 -> 'recOR' '(' Term ',' Term . ',' Term ',' Term ')'    (rule 91)
-
-	','            shift, and enter state 322
-
-
-State 293
-
-	Term7 -> 'refl_{' Term ':' Term '}' .               (rule 98)
-
-	'('            reduce using rule 98
-	')'            reduce using rule 98
-	'*'            reduce using rule 98
-	'*_1'          reduce using rule 98
-	'*₁'           reduce using rule 98
-	','            reduce using rule 98
-	'->'           reduce using rule 98
-	'/\\'          reduce using rule 98
-	'0_2'          reduce using rule 98
-	'0₂'           reduce using rule 98
-	'1'            reduce using rule 98
-	'1_2'          reduce using rule 98
-	'1₂'           reduce using rule 98
-	'2'            reduce using rule 98
-	':'            reduce using rule 98
-	':='           reduce using rule 98
-	';'            reduce using rule 98
-	'<'            reduce using rule 98
-	'<='           reduce using rule 98
-	'='            reduce using rule 98
-	'==='          reduce using rule 98
-	'=_{'          reduce using rule 98
-	'>'            reduce using rule 98
-	'BOT'          reduce using rule 98
-	'CUBE'         reduce using rule 98
-	'TOP'          reduce using rule 98
-	'TOPE'         reduce using rule 98
-	'U'            reduce using rule 98
-	'Unit'         reduce using rule 98
-	'['            reduce using rule 98
-	'\\/'          reduce using rule 98
-	']'            reduce using rule 98
-	'as'           reduce using rule 98
-	'idJ'          reduce using rule 98
-	'recBOT'       reduce using rule 98
-	'recOR'        reduce using rule 98
-	'refl'         reduce using rule 98
-	'refl_{'       reduce using rule 98
-	'unit'         reduce using rule 98
-	'|'            reduce using rule 98
-	'|->'          reduce using rule 98
-	'}'            reduce using rule 98
-	'×'            reduce using rule 98
-	'→'            reduce using rule 98
-	'↦'            reduce using rule 98
-	'∧'            reduce using rule 98
-	'∨'            reduce using rule 98
-	'≡'            reduce using rule 98
-	'≤'            reduce using rule 98
-	'⊤'            reduce using rule 98
-	'⊥'            reduce using rule 98
-	L_VarIdentTokenreduce using rule 98
-	L_HoleIdentTokenreduce using rule 98
-	%eof           reduce using rule 98
-
-
-State 294
-
-	ParamDecl -> '{' '(' Pattern ':' Term . ')' '|' Term '}'    (rule 73)
-
-	')'            shift, and enter state 321
-
-
-State 295
-
-	ParamDecl -> '{' Pattern ':' Term '|' . Term '}'    (rule 74)
-
-	'('            shift, and enter state 42
-	'*_1'          shift, and enter state 43
-	'*₁'           shift, and enter state 44
-	'0_2'          shift, and enter state 45
-	'0₂'           shift, and enter state 46
-	'1'            shift, and enter state 47
-	'1_2'          shift, and enter state 48
-	'1₂'           shift, and enter state 49
-	'2'            shift, and enter state 50
-	'<'            shift, and enter state 51
-	'BOT'          shift, and enter state 52
-	'CUBE'         shift, and enter state 53
-	'Sigma'        shift, and enter state 54
-	'TOP'          shift, and enter state 55
-	'TOPE'         shift, and enter state 56
-	'U'            shift, and enter state 57
-	'Unit'         shift, and enter state 58
-	'\\'           shift, and enter state 59
-	'first'        shift, and enter state 60
-	'idJ'          shift, and enter state 61
-	'recBOT'       shift, and enter state 62
-	'recOR'        shift, and enter state 63
-	'refl'         shift, and enter state 64
-	'refl_{'       shift, and enter state 65
-	'second'       shift, and enter state 66
-	'unit'         shift, and enter state 67
-	'{'            shift, and enter state 68
-	'Σ'            shift, and enter state 69
-	'π₁'           shift, and enter state 70
-	'π₂'           shift, and enter state 71
-	'∑'            shift, and enter state 72
-	'⊤'            shift, and enter state 73
-	'⊥'            shift, and enter state 74
-	L_VarIdentTokenshift, and enter state 75
-	L_HoleIdentTokenshift, and enter state 76
-
-	VarIdentToken  goto state 28
-	HoleIdentToken goto state 29
-	HoleIdent      goto state 30
-	VarIdent       goto state 31
-	ParamDecl      goto state 32
-	Term7          goto state 33
-	Term5          goto state 34
-	Term4          goto state 35
-	Term3          goto state 36
-	Term2          goto state 37
-	Term1          goto state 38
-	Term6          goto state 39
-	Term           goto state 320
-
-State 296
-
-	ParamDecl -> '{' Pattern ':' Term '}' .             (rule 71)
-
-	'->'           reduce using rule 71
-	'→'            reduce using rule 71
-	%eof           reduce using rule 71
-
-
-State 297
-
-	Term1 -> 'Σ' '(' Pattern ':' Term . ')' ',' Term1    (rule 124)
-
-	')'            shift, and enter state 319
-
-
-State 298
-
-	Term1 -> '∑' '(' Pattern ':' Term . ')' ',' Term1    (rule 132)
-
-	')'            shift, and enter state 318
-
-
-State 299
+State 282
 
 	Term7 -> '(' Term ',' Term ')' .                    (rule 94)
 
@@ -8711,59 +8260,18 @@ State 299
 	%eof           reduce using rule 94
 
 
-State 300
+State 283
 
-	Term1 -> Term2 '=_{' Term '}' Term2 .               (rule 125)
+	ParamDecl -> '(' Term ':' Term ')' .                (rule 70)
 
-	')'            reduce using rule 125
-	','            reduce using rule 125
-	':'            reduce using rule 125
-	':='           reduce using rule 125
-	';'            reduce using rule 125
-	'>'            reduce using rule 125
-	']'            reduce using rule 125
-	'|'            reduce using rule 125
-	'|->'          reduce using rule 125
-	'}'            reduce using rule 125
-	'↦'            reduce using rule 125
-	%eof           reduce using rule 125
+	'->'           reduce using rule 70
+	'→'            reduce using rule 70
+	%eof           reduce using rule 70
 
 
-State 301
+State 284
 
-	Param -> '(' ListPattern ':' Term ')' .             (rule 65)
-
-	'('            reduce using rule 65
-	'->'           reduce using rule 65
-	':'            reduce using rule 65
-	'_'            reduce using rule 65
-	'unit'         reduce using rule 65
-	'{'            reduce using rule 65
-	'→'            reduce using rule 65
-	L_VarIdentTokenreduce using rule 65
-	%eof           reduce using rule 65
-
-
-State 302
-
-	Pattern -> '(' Pattern ',' Pattern ')' .            (rule 61)
-
-	'('            reduce using rule 61
-	')'            reduce using rule 61
-	','            reduce using rule 61
-	'->'           reduce using rule 61
-	':'            reduce using rule 61
-	'_'            reduce using rule 61
-	'unit'         reduce using rule 61
-	'{'            reduce using rule 61
-	'→'            reduce using rule 61
-	L_VarIdentTokenreduce using rule 61
-	%eof           reduce using rule 61
-
-
-State 303
-
-	Param -> '{' Pattern ':' Term '|' . Term '}'        (rule 66)
+	ParamDecl -> '(' Term ':' Term '|' . Term ')'       (rule 71)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -8813,18 +8321,328 @@ State 303
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 317
+	Term           goto state 323
 
-State 304
+State 285
 
-	Command -> '#def' VarIdent DeclUsedVars ':' Term . ':=' Term    (rule 51)
+	Term7 -> '<' ParamDecl '->' Term '>' .              (rule 108)
 
-	':='           shift, and enter state 316
+	'('            reduce using rule 108
+	')'            reduce using rule 108
+	'*'            reduce using rule 108
+	'*_1'          reduce using rule 108
+	'*₁'           reduce using rule 108
+	','            reduce using rule 108
+	'->'           reduce using rule 108
+	'/\\'          reduce using rule 108
+	'0_2'          reduce using rule 108
+	'0₂'           reduce using rule 108
+	'1'            reduce using rule 108
+	'1_2'          reduce using rule 108
+	'1₂'           reduce using rule 108
+	'2'            reduce using rule 108
+	':'            reduce using rule 108
+	':='           reduce using rule 108
+	';'            reduce using rule 108
+	'<'            reduce using rule 108
+	'<='           reduce using rule 108
+	'='            reduce using rule 108
+	'==='          reduce using rule 108
+	'=_{'          reduce using rule 108
+	'>'            reduce using rule 108
+	'BOT'          reduce using rule 108
+	'CUBE'         reduce using rule 108
+	'TOP'          reduce using rule 108
+	'TOPE'         reduce using rule 108
+	'U'            reduce using rule 108
+	'Unit'         reduce using rule 108
+	'['            reduce using rule 108
+	'\\/'          reduce using rule 108
+	']'            reduce using rule 108
+	'as'           reduce using rule 108
+	'idJ'          reduce using rule 108
+	'recBOT'       reduce using rule 108
+	'recOR'        reduce using rule 108
+	'refl'         reduce using rule 108
+	'refl_{'       reduce using rule 108
+	'unit'         reduce using rule 108
+	'|'            reduce using rule 108
+	'|->'          reduce using rule 108
+	'}'            reduce using rule 108
+	'×'            reduce using rule 108
+	'→'            reduce using rule 108
+	'↦'            reduce using rule 108
+	'∧'            reduce using rule 108
+	'∨'            reduce using rule 108
+	'≡'            reduce using rule 108
+	'≤'            reduce using rule 108
+	'⊤'            reduce using rule 108
+	'⊥'            reduce using rule 108
+	L_VarIdentTokenreduce using rule 108
+	L_HoleIdentTokenreduce using rule 108
+	%eof           reduce using rule 108
 
 
-State 305
+State 286
 
-	Command -> '#def' VarIdent DeclUsedVars ListParam ':' . Term ':=' Term    (rule 50)
+	Term7 -> '<' ParamDecl '→' Term '>' .               (rule 93)
+
+	'('            reduce using rule 93
+	')'            reduce using rule 93
+	'*'            reduce using rule 93
+	'*_1'          reduce using rule 93
+	'*₁'           reduce using rule 93
+	','            reduce using rule 93
+	'->'           reduce using rule 93
+	'/\\'          reduce using rule 93
+	'0_2'          reduce using rule 93
+	'0₂'           reduce using rule 93
+	'1'            reduce using rule 93
+	'1_2'          reduce using rule 93
+	'1₂'           reduce using rule 93
+	'2'            reduce using rule 93
+	':'            reduce using rule 93
+	':='           reduce using rule 93
+	';'            reduce using rule 93
+	'<'            reduce using rule 93
+	'<='           reduce using rule 93
+	'='            reduce using rule 93
+	'==='          reduce using rule 93
+	'=_{'          reduce using rule 93
+	'>'            reduce using rule 93
+	'BOT'          reduce using rule 93
+	'CUBE'         reduce using rule 93
+	'TOP'          reduce using rule 93
+	'TOPE'         reduce using rule 93
+	'U'            reduce using rule 93
+	'Unit'         reduce using rule 93
+	'['            reduce using rule 93
+	'\\/'          reduce using rule 93
+	']'            reduce using rule 93
+	'as'           reduce using rule 93
+	'idJ'          reduce using rule 93
+	'recBOT'       reduce using rule 93
+	'recOR'        reduce using rule 93
+	'refl'         reduce using rule 93
+	'refl_{'       reduce using rule 93
+	'unit'         reduce using rule 93
+	'|'            reduce using rule 93
+	'|->'          reduce using rule 93
+	'}'            reduce using rule 93
+	'×'            reduce using rule 93
+	'→'            reduce using rule 93
+	'↦'            reduce using rule 93
+	'∧'            reduce using rule 93
+	'∨'            reduce using rule 93
+	'≡'            reduce using rule 93
+	'≤'            reduce using rule 93
+	'⊤'            reduce using rule 93
+	'⊥'            reduce using rule 93
+	L_VarIdentTokenreduce using rule 93
+	L_HoleIdentTokenreduce using rule 93
+	%eof           reduce using rule 93
+
+
+State 287
+
+	Term1 -> 'Sigma' '(' Pattern ':' Term . ')' ',' Term1    (rule 130)
+
+	')'            shift, and enter state 322
+
+
+State 288
+
+	Term7 -> 'idJ' '(' Term ',' Term . ',' Term ',' Term ',' Term ',' Term ')'    (rule 99)
+
+	','            shift, and enter state 321
+
+
+State 289
+
+	Term7 -> 'recOR' '(' Term ',' Term . ',' Term ',' Term ')'    (rule 91)
+
+	','            shift, and enter state 320
+
+
+State 290
+
+	Term7 -> 'refl_{' Term ':' Term '}' .               (rule 98)
+
+	'('            reduce using rule 98
+	')'            reduce using rule 98
+	'*'            reduce using rule 98
+	'*_1'          reduce using rule 98
+	'*₁'           reduce using rule 98
+	','            reduce using rule 98
+	'->'           reduce using rule 98
+	'/\\'          reduce using rule 98
+	'0_2'          reduce using rule 98
+	'0₂'           reduce using rule 98
+	'1'            reduce using rule 98
+	'1_2'          reduce using rule 98
+	'1₂'           reduce using rule 98
+	'2'            reduce using rule 98
+	':'            reduce using rule 98
+	':='           reduce using rule 98
+	';'            reduce using rule 98
+	'<'            reduce using rule 98
+	'<='           reduce using rule 98
+	'='            reduce using rule 98
+	'==='          reduce using rule 98
+	'=_{'          reduce using rule 98
+	'>'            reduce using rule 98
+	'BOT'          reduce using rule 98
+	'CUBE'         reduce using rule 98
+	'TOP'          reduce using rule 98
+	'TOPE'         reduce using rule 98
+	'U'            reduce using rule 98
+	'Unit'         reduce using rule 98
+	'['            reduce using rule 98
+	'\\/'          reduce using rule 98
+	']'            reduce using rule 98
+	'as'           reduce using rule 98
+	'idJ'          reduce using rule 98
+	'recBOT'       reduce using rule 98
+	'recOR'        reduce using rule 98
+	'refl'         reduce using rule 98
+	'refl_{'       reduce using rule 98
+	'unit'         reduce using rule 98
+	'|'            reduce using rule 98
+	'|->'          reduce using rule 98
+	'}'            reduce using rule 98
+	'×'            reduce using rule 98
+	'→'            reduce using rule 98
+	'↦'            reduce using rule 98
+	'∧'            reduce using rule 98
+	'∨'            reduce using rule 98
+	'≡'            reduce using rule 98
+	'≤'            reduce using rule 98
+	'⊤'            reduce using rule 98
+	'⊥'            reduce using rule 98
+	L_VarIdentTokenreduce using rule 98
+	L_HoleIdentTokenreduce using rule 98
+	%eof           reduce using rule 98
+
+
+State 291
+
+	ParamDecl -> '{' '(' Pattern ':' Term . ')' '|' Term '}'    (rule 73)
+
+	')'            shift, and enter state 319
+
+
+State 292
+
+	ParamDecl -> '{' Pattern ':' Term '|' . Term '}'    (rule 74)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 318
+
+State 293
+
+	ParamDecl -> '{' Pattern ':' Term '}' .             (rule 72)
+
+	'->'           reduce using rule 72
+	'→'            reduce using rule 72
+	%eof           reduce using rule 72
+
+
+State 294
+
+	Term1 -> 'Σ' '(' Pattern ':' Term . ')' ',' Term1    (rule 124)
+
+	')'            shift, and enter state 317
+
+
+State 295
+
+	Term1 -> '∑' '(' Pattern ':' Term . ')' ',' Term1    (rule 132)
+
+	')'            shift, and enter state 316
+
+
+State 296
+
+	Term1 -> Term2 '=_{' Term '}' Term2 .               (rule 125)
+
+	')'            reduce using rule 125
+	','            reduce using rule 125
+	':'            reduce using rule 125
+	':='           reduce using rule 125
+	';'            reduce using rule 125
+	'>'            reduce using rule 125
+	']'            reduce using rule 125
+	'|'            reduce using rule 125
+	'|->'          reduce using rule 125
+	'}'            reduce using rule 125
+	'↦'            reduce using rule 125
+	%eof           reduce using rule 125
+
+
+State 297
+
+	Param -> '(' ListPattern ':' Term ')' .             (rule 64)
+
+	'('            reduce using rule 64
+	'->'           reduce using rule 64
+	':'            reduce using rule 64
+	'unit'         reduce using rule 64
+	'{'            reduce using rule 64
+	'→'            reduce using rule 64
+	L_VarIdentTokenreduce using rule 64
+	%eof           reduce using rule 64
+
+
+State 298
+
+	Param -> '(' ListPattern ':' Term '|' . Term ')'    (rule 65)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -8876,16 +8694,25 @@ State 305
 	Term6          goto state 39
 	Term           goto state 315
 
-State 306
+State 299
 
-	Command -> '#define' VarIdent DeclUsedVars ':' Term . ':=' Term    (rule 49)
+	Pattern -> '(' Pattern ',' Pattern ')' .            (rule 60)
 
-	':='           shift, and enter state 314
+	'('            reduce using rule 60
+	')'            reduce using rule 60
+	','            reduce using rule 60
+	'->'           reduce using rule 60
+	':'            reduce using rule 60
+	'unit'         reduce using rule 60
+	'{'            reduce using rule 60
+	'→'            reduce using rule 60
+	L_VarIdentTokenreduce using rule 60
+	%eof           reduce using rule 60
 
 
-State 307
+State 300
 
-	Command -> '#define' VarIdent DeclUsedVars ListParam ':' . Term ':=' Term    (rule 48)
+	Param -> '{' Pattern ':' Term '|' . Term '}'        (rule 66)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -8935,19 +8762,18 @@ State 307
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 313
+	Term           goto state 314
 
-State 308
+State 301
 
-	Command -> '#postulate' VarIdent DeclUsedVars ':' Term .    (rule 43)
+	Command -> '#def' VarIdent DeclUsedVars ':' Term . ':=' Term    (rule 51)
 
-	';'            reduce using rule 43
-	%eof           reduce using rule 43
+	':='           shift, and enter state 313
 
 
-State 309
+State 302
 
-	Command -> '#postulate' VarIdent DeclUsedVars ListParam ':' . Term    (rule 42)
+	Command -> '#def' VarIdent DeclUsedVars ListParam ':' . Term ':=' Term    (rule 50)
 
 	'('            shift, and enter state 42
 	'*_1'          shift, and enter state 43
@@ -8999,7 +8825,130 @@ State 309
 	Term6          goto state 39
 	Term           goto state 312
 
-State 310
+State 303
+
+	Command -> '#define' VarIdent DeclUsedVars ':' Term . ':=' Term    (rule 49)
+
+	':='           shift, and enter state 311
+
+
+State 304
+
+	Command -> '#define' VarIdent DeclUsedVars ListParam ':' . Term ':=' Term    (rule 48)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 310
+
+State 305
+
+	Command -> '#postulate' VarIdent DeclUsedVars ':' Term .    (rule 43)
+
+	';'            reduce using rule 43
+	%eof           reduce using rule 43
+
+
+State 306
+
+	Command -> '#postulate' VarIdent DeclUsedVars ListParam ':' . Term    (rule 42)
+
+	'('            shift, and enter state 42
+	'*_1'          shift, and enter state 43
+	'*₁'           shift, and enter state 44
+	'0_2'          shift, and enter state 45
+	'0₂'           shift, and enter state 46
+	'1'            shift, and enter state 47
+	'1_2'          shift, and enter state 48
+	'1₂'           shift, and enter state 49
+	'2'            shift, and enter state 50
+	'<'            shift, and enter state 51
+	'BOT'          shift, and enter state 52
+	'CUBE'         shift, and enter state 53
+	'Sigma'        shift, and enter state 54
+	'TOP'          shift, and enter state 55
+	'TOPE'         shift, and enter state 56
+	'U'            shift, and enter state 57
+	'Unit'         shift, and enter state 58
+	'\\'           shift, and enter state 59
+	'first'        shift, and enter state 60
+	'idJ'          shift, and enter state 61
+	'recBOT'       shift, and enter state 62
+	'recOR'        shift, and enter state 63
+	'refl'         shift, and enter state 64
+	'refl_{'       shift, and enter state 65
+	'second'       shift, and enter state 66
+	'unit'         shift, and enter state 67
+	'{'            shift, and enter state 68
+	'Σ'            shift, and enter state 69
+	'π₁'           shift, and enter state 70
+	'π₂'           shift, and enter state 71
+	'∑'            shift, and enter state 72
+	'⊤'            shift, and enter state 73
+	'⊥'            shift, and enter state 74
+	L_VarIdentTokenshift, and enter state 75
+	L_HoleIdentTokenshift, and enter state 76
+
+	VarIdentToken  goto state 28
+	HoleIdentToken goto state 29
+	HoleIdent      goto state 30
+	VarIdent       goto state 31
+	ParamDecl      goto state 32
+	Term7          goto state 33
+	Term5          goto state 34
+	Term4          goto state 35
+	Term3          goto state 36
+	Term2          goto state 37
+	Term1          goto state 38
+	Term6          goto state 39
+	Term           goto state 309
+
+State 307
 
 	Command -> '#section' SectionName ';' ListCommand '#end' . SectionName    (rule 47)
 
@@ -9008,10 +8957,10 @@ State 310
 	%eof           reduce using rule 56
 
 	VarIdentToken  goto state 28
-	VarIdent       goto state 107
-	SectionName    goto state 311
+	VarIdent       goto state 106
+	SectionName    goto state 308
 
-State 311
+State 308
 
 	Command -> '#section' SectionName ';' ListCommand '#end' SectionName .    (rule 47)
 
@@ -9019,7 +8968,7 @@ State 311
 	%eof           reduce using rule 47
 
 
-State 312
+State 309
 
 	Command -> '#postulate' VarIdent DeclUsedVars ListParam ':' Term .    (rule 42)
 
@@ -9027,14 +8976,14 @@ State 312
 	%eof           reduce using rule 42
 
 
-State 313
+State 310
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' Term . ':=' Term    (rule 48)
 
-	':='           shift, and enter state 336
+	':='           shift, and enter state 337
 
 
-State 314
+State 311
 
 	Command -> '#define' VarIdent DeclUsedVars ':' Term ':=' . Term    (rule 49)
 
@@ -9086,16 +9035,16 @@ State 314
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 335
+	Term           goto state 336
 
-State 315
+State 312
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' Term . ':=' Term    (rule 50)
 
-	':='           shift, and enter state 334
+	':='           shift, and enter state 335
 
 
-State 316
+State 313
 
 	Command -> '#def' VarIdent DeclUsedVars ':' Term ':=' . Term    (rule 51)
 
@@ -9147,44 +9096,51 @@ State 316
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 333
+	Term           goto state 334
 
-State 317
+State 314
 
 	Param -> '{' Pattern ':' Term '|' Term . '}'        (rule 66)
 
-	'}'            shift, and enter state 332
+	'}'            shift, and enter state 333
 
 
-State 318
+State 315
+
+	Param -> '(' ListPattern ':' Term '|' Term . ')'    (rule 65)
+
+	')'            shift, and enter state 332
+
+
+State 316
 
 	Term1 -> '∑' '(' Pattern ':' Term ')' . ',' Term1    (rule 132)
 
 	','            shift, and enter state 331
 
 
-State 319
+State 317
 
 	Term1 -> 'Σ' '(' Pattern ':' Term ')' . ',' Term1    (rule 124)
 
 	','            shift, and enter state 330
 
 
-State 320
+State 318
 
 	ParamDecl -> '{' Pattern ':' Term '|' Term . '}'    (rule 74)
 
 	'}'            shift, and enter state 329
 
 
-State 321
+State 319
 
 	ParamDecl -> '{' '(' Pattern ':' Term ')' . '|' Term '}'    (rule 73)
 
 	'|'            shift, and enter state 328
 
 
-State 322
+State 320
 
 	Term7 -> 'recOR' '(' Term ',' Term ',' . Term ',' Term ')'    (rule 91)
 
@@ -9238,7 +9194,7 @@ State 322
 	Term6          goto state 39
 	Term           goto state 327
 
-State 323
+State 321
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' . Term ',' Term ',' Term ',' Term ')'    (rule 99)
 
@@ -9292,11 +9248,27 @@ State 323
 	Term6          goto state 39
 	Term           goto state 326
 
-State 324
+State 322
 
 	Term1 -> 'Sigma' '(' Pattern ':' Term ')' . ',' Term1    (rule 130)
 
 	','            shift, and enter state 325
+
+
+State 323
+
+	ParamDecl -> '(' Term ':' Term '|' Term . ')'       (rule 71)
+
+	')'            shift, and enter state 324
+
+
+State 324
+
+	ParamDecl -> '(' Term ':' Term '|' Term ')' .       (rule 71)
+
+	'->'           reduce using rule 71
+	'→'            reduce using rule 71
+	%eof           reduce using rule 71
 
 
 State 325
@@ -9349,21 +9321,21 @@ State 325
 	Term4          goto state 35
 	Term3          goto state 36
 	Term2          goto state 80
-	Term1          goto state 344
+	Term1          goto state 345
 	Term6          goto state 39
 
 State 326
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term . ',' Term ',' Term ',' Term ')'    (rule 99)
 
-	','            shift, and enter state 343
+	','            shift, and enter state 344
 
 
 State 327
 
 	Term7 -> 'recOR' '(' Term ',' Term ',' Term . ',' Term ')'    (rule 91)
 
-	','            shift, and enter state 342
+	','            shift, and enter state 343
 
 
 State 328
@@ -9418,7 +9390,7 @@ State 328
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 341
+	Term           goto state 342
 
 State 329
 
@@ -9479,7 +9451,7 @@ State 330
 	Term4          goto state 35
 	Term3          goto state 36
 	Term2          goto state 80
-	Term1          goto state 340
+	Term1          goto state 341
 	Term6          goto state 39
 
 State 331
@@ -9532,17 +9504,30 @@ State 331
 	Term4          goto state 35
 	Term3          goto state 36
 	Term2          goto state 80
-	Term1          goto state 339
+	Term1          goto state 340
 	Term6          goto state 39
 
 State 332
+
+	Param -> '(' ListPattern ':' Term '|' Term ')' .    (rule 65)
+
+	'('            reduce using rule 65
+	'->'           reduce using rule 65
+	':'            reduce using rule 65
+	'unit'         reduce using rule 65
+	'{'            reduce using rule 65
+	'→'            reduce using rule 65
+	L_VarIdentTokenreduce using rule 65
+	%eof           reduce using rule 65
+
+
+State 333
 
 	Param -> '{' Pattern ':' Term '|' Term '}' .        (rule 66)
 
 	'('            reduce using rule 66
 	'->'           reduce using rule 66
 	':'            reduce using rule 66
-	'_'            reduce using rule 66
 	'unit'         reduce using rule 66
 	'{'            reduce using rule 66
 	'→'            reduce using rule 66
@@ -9550,7 +9535,7 @@ State 332
 	%eof           reduce using rule 66
 
 
-State 333
+State 334
 
 	Command -> '#def' VarIdent DeclUsedVars ':' Term ':=' Term .    (rule 51)
 
@@ -9558,7 +9543,7 @@ State 333
 	%eof           reduce using rule 51
 
 
-State 334
+State 335
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' Term ':=' . Term    (rule 50)
 
@@ -9610,9 +9595,9 @@ State 334
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 338
+	Term           goto state 339
 
-State 335
+State 336
 
 	Command -> '#define' VarIdent DeclUsedVars ':' Term ':=' Term .    (rule 49)
 
@@ -9620,7 +9605,7 @@ State 335
 	%eof           reduce using rule 49
 
 
-State 336
+State 337
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' Term ':=' . Term    (rule 48)
 
@@ -9672,9 +9657,9 @@ State 336
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 337
+	Term           goto state 338
 
-State 337
+State 338
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' Term ':=' Term .    (rule 48)
 
@@ -9682,7 +9667,7 @@ State 337
 	%eof           reduce using rule 48
 
 
-State 338
+State 339
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' Term ':=' Term .    (rule 50)
 
@@ -9690,7 +9675,7 @@ State 338
 	%eof           reduce using rule 50
 
 
-State 339
+State 340
 
 	Term1 -> '∑' '(' Pattern ':' Term ')' ',' Term1 .    (rule 132)
 
@@ -9708,7 +9693,7 @@ State 339
 	%eof           reduce using rule 132
 
 
-State 340
+State 341
 
 	Term1 -> 'Σ' '(' Pattern ':' Term ')' ',' Term1 .    (rule 124)
 
@@ -9726,14 +9711,14 @@ State 340
 	%eof           reduce using rule 124
 
 
-State 341
+State 342
 
 	ParamDecl -> '{' '(' Pattern ':' Term ')' '|' Term . '}'    (rule 73)
 
-	'}'            shift, and enter state 347
+	'}'            shift, and enter state 348
 
 
-State 342
+State 343
 
 	Term7 -> 'recOR' '(' Term ',' Term ',' Term ',' . Term ')'    (rule 91)
 
@@ -9785,9 +9770,9 @@ State 342
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 346
+	Term           goto state 347
 
-State 343
+State 344
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' . Term ',' Term ',' Term ')'    (rule 99)
 
@@ -9839,9 +9824,9 @@ State 343
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 345
+	Term           goto state 346
 
-State 344
+State 345
 
 	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1 .    (rule 130)
 
@@ -9859,21 +9844,21 @@ State 344
 	%eof           reduce using rule 130
 
 
-State 345
+State 346
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term . ',' Term ',' Term ')'    (rule 99)
 
-	','            shift, and enter state 349
-
-
-State 346
-
-	Term7 -> 'recOR' '(' Term ',' Term ',' Term ',' Term . ')'    (rule 91)
-
-	')'            shift, and enter state 348
+	','            shift, and enter state 350
 
 
 State 347
+
+	Term7 -> 'recOR' '(' Term ',' Term ',' Term ',' Term . ')'    (rule 91)
+
+	')'            shift, and enter state 349
+
+
+State 348
 
 	ParamDecl -> '{' '(' Pattern ':' Term ')' '|' Term '}' .    (rule 73)
 
@@ -9882,7 +9867,7 @@ State 347
 	%eof           reduce using rule 73
 
 
-State 348
+State 349
 
 	Term7 -> 'recOR' '(' Term ',' Term ',' Term ',' Term ')' .    (rule 91)
 
@@ -9942,7 +9927,7 @@ State 348
 	%eof           reduce using rule 91
 
 
-State 349
+State 350
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' . Term ',' Term ')'    (rule 99)
 
@@ -9994,16 +9979,16 @@ State 349
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 350
+	Term           goto state 351
 
-State 350
+State 351
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term . ',' Term ')'    (rule 99)
 
-	','            shift, and enter state 351
+	','            shift, and enter state 352
 
 
-State 351
+State 352
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' . Term ')'    (rule 99)
 
@@ -10055,16 +10040,16 @@ State 351
 	Term2          goto state 37
 	Term1          goto state 38
 	Term6          goto state 39
-	Term           goto state 352
+	Term           goto state 353
 
-State 352
+State 353
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term . ')'    (rule 99)
 
-	')'            shift, and enter state 353
+	')'            shift, and enter state 354
 
 
-State 353
+State 354
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')' .    (rule 99)
 
@@ -10128,6 +10113,6 @@ State 353
 Grammar Totals
 -----------------------------------------------------------------------------
 Number of rules: 144
-Number of terminals: 81
+Number of terminals: 80
 Number of non-terminals: 55
-Number of states: 354
+Number of states: 355

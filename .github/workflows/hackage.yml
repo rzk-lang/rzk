@@ -1,0 +1,57 @@
+name: Upload on Hackage
+on:
+  release:
+    types: [published]
+
+jobs:
+  hackage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Cache Stack files
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-tools-and-libraries
+      with:
+        path: ~/.stack
+        key: ${{ runner.os }}-ca-${{ env.cache-name }}-${{ hashFiles('**/stack.yaml.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-ca-${{ env.cache-name }}-
+          ${{ runner.os }}-ca-
+          ${{ runner.os }}-
+
+#    - name: 🔨 Install BNFC, alex and happy (with Stack)
+#      run: |
+#        stack install alex happy BNFC
+#
+#    - name: 🔨 Generate Syntax files using BNFC
+#      run: |
+#        cd rzk/ && (make && make clean; cd ../)
+
+    - name: 🔨 Remove rzk.cabal, lexer and parser generator files
+      run: |
+        rm rzk/src/Language/Rzk/Syntax/Lex.x
+        rm rzk/src/Language/Rzk/Syntax/Par.y
+        rm rzk/rzk.cabal
+
+    - name: 🔨 Build the project
+      run: stack build
+
+    - name: "Generate package dist tarball"
+      run: stack sdist --tar-dir packages/
+
+    - name: 🚀 Upload on Hackage
+      uses: haskell-actions/hackage-publish@v1
+      with:
+        hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+        packagesPath: packages
+        publish: false
+
+
+
+
+
+
+
+

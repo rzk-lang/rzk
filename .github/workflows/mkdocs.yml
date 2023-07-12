@@ -10,6 +10,9 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   mkdocs:
     runs-on: ubuntu-latest
@@ -28,7 +31,7 @@ jobs:
       - name: 🔨 Install rzk proof assistant
         uses: jaxxstorm/action-install-gh-release@v1.10.0
         with:
-          repo: fizruk/rzk
+          repo: rzk-lang/rzk
           tag: latest # FIXME: should use the version from the same Git commit
           rename-to: rzk
           chmod: 0755

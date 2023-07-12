@@ -49,14 +49,17 @@ tokenizeParam = \case
   ParamPatternType _loc pats type_ -> concat
     [ foldMap tokenizePattern pats
     , tokenizeTerm type_ ]
-  ParamPatternShape _loc pat cube tope -> concat
+  ParamPatternShape _loc pats cube tope -> concat
+    [ foldMap tokenizePattern pats
+    , tokenizeTerm cube
+    , tokenizeTope tope ]
+  ParamPatternShapeDeprecated _loc pat cube tope -> concat
     [ tokenizePattern pat
     , tokenizeTerm cube
     , tokenizeTope tope ]
 
 tokenizePattern :: Pattern -> [VSToken]
 tokenizePattern = \case
-  PatternWildcard _loc   -> []
   PatternVar _loc var    -> mkToken var vs_parameter [vs_declaration]
   PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
   pat@(PatternUnit _loc) -> mkToken pat vs_enumMember [vs_declaration]
@@ -181,11 +184,18 @@ tokenizeRestriction (ASCII_Restriction _loc tope term) = concat
 tokenizeParamDecl :: ParamDecl -> [VSToken]
 tokenizeParamDecl = \case
   ParamType _loc type_ -> tokenizeTerm type_
-  ParamWildcardType _loc type_ -> tokenizeTerm type_
-  ParamVarType _loc pat type_ -> concat
+  ParamTermType _loc pat type_ -> concat
+    [ tokenizeTerm pat
+    , tokenizeTerm type_ ]
+  ParamTermShape _loc pat cube tope -> concat
+    [ tokenizeTerm pat
+    , tokenizeTerm cube
+    , tokenizeTope tope
+    ]
+  ParamTermTypeDeprecated _loc pat type_ -> concat
     [ tokenizePattern pat
     , tokenizeTerm type_ ]
-  ParamVarShape _loc pat cube tope -> concat
+  ParamVarShapeDeprecated _loc pat cube tope -> concat
     [ tokenizePattern pat
     , tokenizeTerm cube
     , tokenizeTope tope

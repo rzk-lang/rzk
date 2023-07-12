@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "rzk";
-  version = "0.5.2";
+  version = "0.5.3";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -21,7 +21,7 @@ mkDerivation {
     template-haskell text
   ];
   prePatch = "hpack";
-  homepage = "https://github.com/fizruk/rzk#readme";
+  homepage = "https://github.com/rzk-lang/rzk#readme";
   description = "An experimental proof assistant for synthetic ∞-categories";
   license = lib.licenses.bsd3;
 }

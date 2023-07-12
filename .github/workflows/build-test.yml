@@ -1,27 +1,23 @@
 # This is a basic workflow to help you get started with Actions
 
-name: Build and Deploy Haddock to GitHub Pages
+name: Build and test with GHC
 
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ main ]
     paths:
-      - .github/workflows/haddock.yml
+      - .github/workflows/build-test.yml
       - rzk/**
       - stack.yaml
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  haddock:
+  build-test:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -50,16 +46,10 @@ jobs:
         run: |
           cd rzk/ && (make && make clean; cd ../)
 
-      - name: 🔨 Build Haddock Documentation (with Stack)
+      - name: 🔨 Build dependencies (with Stack)
         run: |
-          stack haddock
-          mkdir -p dist/haddock
-          mv $(stack path --local-doc-root)/* dist/haddock
+          stack build --only-dependencies
 
-      - name: 🚀 Publish Haddock Documentation
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          folder: dist/haddock
-          target-folder: haddock
-          single-commit: true
+      - name: 🔨 Build and test (with Stack)
+        run: |
+          stack test
