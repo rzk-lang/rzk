@@ -18,6 +18,8 @@ LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
 
 Rzk1. Language ::= "rzk-1" ;
 
+CommandRequireFile.       Command ::= "#require-file" String ;
+
 CommandSetOption.         Command ::= "#set-option" String "=" String ;
 CommandUnsetOption.       Command ::= "#unset-option" String ;
 

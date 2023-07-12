@@ -18,6 +18,7 @@ tokenizeLanguageDecl _ = []
 
 tokenizeCommand :: Command -> [VSToken]
 tokenizeCommand command = case command of
+  CommandRequireFile{} -> []
   CommandSetOption{}   -> []    -- NOTE: fallback to TextMate
   CommandUnsetOption{} -> []    -- NOTE: fallback to TextMate
   CommandCheck        _loc term type_ -> foldMap tokenizeTerm [term, type_]
