@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-20.04, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v3
@@ -64,5 +64,5 @@ jobs:
         with:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: ./prepared_binaries/program.tar.gz
-          asset_name: rzk-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.tar.gz
+          asset_name: rzk-${{ github.ref_name }}-${{ matrix.os }}-${{ runner.os }}-${{ runner.arch }}.tar.gz
           asset_content_type: application/tar.gz
