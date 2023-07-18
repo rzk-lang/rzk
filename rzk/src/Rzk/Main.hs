@@ -2,13 +2,13 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Rzk.Main where
 
-import           Control.Monad                (forM)
-import qualified Data.Aeson                   as JSON
-import qualified Data.ByteString.Lazy.Char8   as ByteString
-import           Data.List                    (sort)
-import           Data.Version                 (showVersion)
+import           Control.Monad           (forM, void)
+import           Data.List               (sort)
+import           Data.Version            (showVersion)
+import           Language.Rzk.VSCode.Lsp (runLsp)
 import           Options.Generic
 import           System.Exit                  (exitFailure)
 import           System.FilePath.Glob         (glob)
@@ -20,7 +20,7 @@ import           Rzk.TypeCheck
 
 data Command
   = Typecheck [FilePath]
-  | Tokenize
+  | Lsp
   | Version
   deriving (Generic, Show, ParseRecord)
 
@@ -38,9 +38,7 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
         exitFailure
       Right () -> putStrLn "Everything is ok!"
 
-  Tokenize -> do
-    rzkModule <- parseStdin
-    ByteString.putStrLn (JSON.encode (tokenizeModule rzkModule))
+  Lsp -> void runLsp
 
   Version -> putStrLn (showVersion version)
 
