@@ -56,6 +56,9 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , template-haskell
@@ -79,6 +82,9 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , rzk
@@ -107,6 +113,9 @@ test-suite doctests
     , bifunctors
     , bytestring
     , doctest
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , template-haskell
@@ -131,6 +140,9 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , rzk

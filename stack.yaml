@@ -29,7 +29,7 @@ resolver: nightly-2023-04-09
 #   - auto-update
 #   - wai
 packages:
-- rzk
+  - rzk
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
@@ -40,9 +40,12 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-- with-utf8-1.0.2.4
-- Glob-0.10.2
-
+  - with-utf8-1.0.2.4
+  - Glob-0.10.2
+  - lens-5.2.2
+  - lsp-2.1.0.0
+  - lsp-types-2.0.1.0
+  - row-types-1.0.1.2
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

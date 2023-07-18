@@ -1,10 +1,10 @@
 name: rzk
 version: 0.5.7
-github: "rzk-lang/rzk"
+github: 'rzk-lang/rzk'
 license: BSD3
-author: "Nikolai Kudasov"
-maintainer: "nickolay.kudasov@gmail.com"
-copyright: "2023 Nikolai Kudasov"
+author: 'Nikolai Kudasov'
+maintainer: 'nickolay.kudasov@gmail.com'
+copyright: '2023 Nikolai Kudasov'
 
 extra-source-files:
   - README.md
@@ -33,6 +33,9 @@ dependencies:
   - text
   - optparse-generic
   - Glob
+  - lens
+  - lsp
+  - lsp-types
 
 ghc-options:
   - -Wall
@@ -65,7 +68,7 @@ executables:
     dependencies:
       - rzk
     when:
-      - condition: "!impl(ghcjs)"
+      - condition: '!impl(ghcjs)'
         dependencies:
           - with-utf8
 
