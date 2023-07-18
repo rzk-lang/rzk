@@ -1,22 +1,23 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 module Language.Rzk.VSCode.Tokenize where
 
+import           Language.LSP.Protocol.Types (SemanticTokenAbsolute (..),
+                                              SemanticTokenModifiers (..),
+                                              SemanticTokenTypes (..))
 import           Language.Rzk.Syntax
 import           Language.Rzk.Syntax.Print
-import           Language.Rzk.VSCode.Tokens
 
-tokenizeModule :: Module -> [VSToken]
+tokenizeModule :: Module -> [SemanticTokenAbsolute]
 tokenizeModule (Module _loc langDecl commands) = concat
   [ tokenizeLanguageDecl langDecl
   , foldMap tokenizeCommand commands
   ]
 
-tokenizeLanguageDecl :: LanguageDecl -> [VSToken]
+tokenizeLanguageDecl :: LanguageDecl -> [SemanticTokenAbsolute]
 tokenizeLanguageDecl _ = []
 
-tokenizeCommand :: Command -> [VSToken]
+tokenizeCommand :: Command -> [SemanticTokenAbsolute]
 tokenizeCommand command = case command of
   CommandSetOption{}   -> []    -- NOTE: fallback to TextMate
   CommandUnsetOption{} -> []    -- NOTE: fallback to TextMate
@@ -26,24 +27,24 @@ tokenizeCommand command = case command of
   CommandComputeWHNF  _loc term -> tokenizeTerm term
 
   CommandPostulate _loc name _declUsedVars params type_ -> concat
-    [ mkToken name vs_function [vs_declaration]
+    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
     , foldMap tokenizeParam params
     , tokenizeTerm type_
     ]
   CommandDefine _loc name _declUsedVars params type_ term -> concat
-    [ mkToken name vs_function [vs_declaration]
+    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
     , foldMap tokenizeParam params
     , foldMap tokenizeTerm [type_, term]
     ]
 
   CommandAssume _loc vars type_ -> concat
-    [ foldMap (\var -> mkToken var vs_parameter [vs_declaration]) vars
+    [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
     , tokenizeTerm type_
     ]
   CommandSection    _loc _nameStart -> []
   CommandSectionEnd _loc _nameEnd -> []
 
-tokenizeParam :: Param -> [VSToken]
+tokenizeParam :: Param -> [SemanticTokenAbsolute]
 tokenizeParam = \case
   ParamPattern _loc pat -> tokenizePattern pat
   ParamPatternType _loc pats type_ -> concat
@@ -58,19 +59,19 @@ tokenizeParam = \case
     , tokenizeTerm cube
     , tokenizeTope tope ]
 
-tokenizePattern :: Pattern -> [VSToken]
+tokenizePattern :: Pattern -> [SemanticTokenAbsolute]
 tokenizePattern = \case
-  PatternVar _loc var    -> mkToken var vs_parameter [vs_declaration]
+  PatternVar _loc var    -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]
   PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
-  pat@(PatternUnit _loc) -> mkToken pat vs_enumMember [vs_declaration]
+  pat@(PatternUnit _loc) -> mkToken pat SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
 
-tokenizeTope :: Term -> [VSToken]
-tokenizeTope = tokenizeTerm' (Just vs_string)
+tokenizeTope :: Term -> [SemanticTokenAbsolute]
+tokenizeTope = tokenizeTerm' (Just SemanticTokenTypes_String)
 
-tokenizeTerm :: Term -> [VSToken]
+tokenizeTerm :: Term -> [SemanticTokenAbsolute]
 tokenizeTerm = tokenizeTerm' Nothing
 
-tokenizeTerm' :: Maybe VSTokenType -> Term -> [VSToken]
+tokenizeTerm' :: Maybe SemanticTokenTypes -> Term -> [SemanticTokenAbsolute]
 tokenizeTerm' varTokenType = go
   where
     go term = case term of
@@ -79,26 +80,26 @@ tokenizeTerm' varTokenType = go
                  Nothing         -> []
                  Just token_type -> mkToken term token_type []
 
-      Universe{}           -> mkToken term vs_class [vs_defaultLibrary]
-      UniverseCube{}       -> mkToken term vs_class [vs_defaultLibrary]
-      UniverseTope{}       -> mkToken term vs_class [vs_defaultLibrary]
+      Universe{}           -> mkToken term SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+      UniverseCube{}       -> mkToken term SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+      UniverseTope{}       -> mkToken term SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
 
-      CubeUnit{}           -> mkToken term vs_enum [vs_defaultLibrary]
-      CubeUnitStar{}       -> mkToken term vs_enumMember [vs_defaultLibrary]
-      ASCII_CubeUnitStar{} -> mkToken term vs_enumMember [vs_defaultLibrary]
+      CubeUnit{}           -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
+      CubeUnitStar{}       -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_CubeUnitStar{} -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
 
-      Cube2{}              -> mkToken term vs_enum [vs_defaultLibrary]
-      Cube2_0{}            -> mkToken term vs_enumMember [vs_defaultLibrary]
-      ASCII_Cube2_0{}      -> mkToken term vs_enumMember [vs_defaultLibrary]
-      Cube2_1{}            -> mkToken term vs_enumMember [vs_defaultLibrary]
-      ASCII_Cube2_1{}      -> mkToken term vs_enumMember [vs_defaultLibrary]
+      Cube2{}              -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
+      Cube2_0{}            -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_Cube2_0{}      -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      Cube2_1{}            -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_Cube2_1{}      -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
 
       CubeProduct _loc l r -> foldMap go [l, r]
 
-      TopeTop{}            -> mkToken term vs_string [vs_defaultLibrary]
-      ASCII_TopeTop{}            -> mkToken term vs_string [vs_defaultLibrary]
-      TopeBottom{}         -> mkToken term vs_string [vs_defaultLibrary]
-      ASCII_TopeBottom{}         -> mkToken term vs_string [vs_defaultLibrary]
+      TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
+      TopeBottom{}         -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_TopeBottom{}         -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
       TopeAnd _loc l r     -> foldMap tokenizeTope [l, r]
       ASCII_TopeAnd _loc l r     -> foldMap tokenizeTope [l, r]
       TopeOr  _loc l r     -> foldMap tokenizeTope [l, r]
@@ -108,7 +109,7 @@ tokenizeTerm' varTokenType = go
       TopeLEQ _loc l r     -> foldMap tokenizeTope [l, r]
       ASCII_TopeLEQ _loc l r     -> foldMap tokenizeTope [l, r]
 
-      RecBottom{}          -> mkToken term vs_function [vs_defaultLibrary]
+      RecBottom{}          -> mkToken term SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
       RecOr _loc rs -> foldMap tokenizeRestriction rs
 
       TypeFun _loc paramDecl ret -> concat
@@ -118,11 +119,11 @@ tokenizeTerm' varTokenType = go
         [ tokenizeParamDecl paramDecl
         , go ret ]
       TypeSigma loc pat a b -> concat
-        [ mkToken (VarIdent loc "∑") vs_class [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
       ASCII_TypeSigma loc pat a b -> concat
-        [ mkToken (VarIdent loc "Sigma") vs_class [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
       TypeId _loc x a y -> foldMap go [x, a, y]
@@ -140,40 +141,40 @@ tokenizeTerm' varTokenType = go
 
       Pair _loc l r -> foldMap go [l, r]
       First loc t -> concat
-        [ mkToken (VarIdent loc "π₁") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "π₁") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]
       ASCII_First loc t -> concat
-        [ mkToken (VarIdent loc "first") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "first") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]
       Second loc t -> concat
-        [ mkToken (VarIdent loc "π₂") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "π₂") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]
       ASCII_Second loc t -> concat
-        [ mkToken (VarIdent loc "second") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "second") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]
 
-      TypeUnit _loc -> mkToken term vs_enum [vs_defaultLibrary]
-      Unit _loc -> mkToken term vs_enumMember [vs_defaultLibrary]
+      TypeUnit _loc -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
+      Unit _loc -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
 
-      Refl{} -> mkToken term vs_function [vs_defaultLibrary]
+      Refl{} -> mkToken term SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
       ReflTerm loc x -> concat
-        [ mkToken (VarIdent loc "refl") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "refl") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go x ]
       ReflTermType loc x a -> concat
-        [ mkToken (VarIdent loc "refl") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "refl") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , foldMap go [x, a] ]
 
       IdJ loc a b c d e f -> concat
-        [ mkToken (VarIdent loc "J") vs_function [vs_defaultLibrary]
+        [ mkToken (VarIdent loc "J") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , foldMap go [a, b, c, d, e, f] ]
 
       TypeAsc _loc t type_ -> foldMap go [t, type_]
 
-      RecOrDeprecated{} -> mkToken term vs_regexp [vs_deprecated]
-      TypeExtensionDeprecated{} -> mkToken term vs_regexp [vs_deprecated]
-      ASCII_TypeExtensionDeprecated{} -> mkToken term vs_regexp [vs_deprecated]
+      RecOrDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
+      TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
+      ASCII_TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
 
-tokenizeRestriction :: Restriction -> [VSToken]
+tokenizeRestriction :: Restriction -> [SemanticTokenAbsolute]
 tokenizeRestriction (Restriction _loc tope term) = concat
   [ tokenizeTope tope
   , tokenizeTerm term ]
@@ -181,7 +182,7 @@ tokenizeRestriction (ASCII_Restriction _loc tope term) = concat
   [ tokenizeTope tope
   , tokenizeTerm term ]
 
-tokenizeParamDecl :: ParamDecl -> [VSToken]
+tokenizeParamDecl :: ParamDecl -> [SemanticTokenAbsolute]
 tokenizeParamDecl = \case
   ParamType _loc type_ -> tokenizeTerm type_
   ParamTermType _loc pat type_ -> concat
@@ -201,13 +202,16 @@ tokenizeParamDecl = \case
     , tokenizeTope tope
     ]
 
-mkToken :: (HasPosition a, Print a) => a -> VSTokenType -> [VSTokenModifier] -> [VSToken]
+mkToken :: (HasPosition a, Print a) => a -> SemanticTokenTypes -> [SemanticTokenModifiers] -> [SemanticTokenAbsolute]
 mkToken x tokenType tokenModifiers =
   case hasPosition x of
     Nothing -> []
     Just (line, col) -> do
-      [ VSToken
-        { startCharacter = col - 1    -- NOTE: 0-indexed output for VS Code
-        , line = line - 1             -- NOTE: 0-indexed output for VS Code
-        , length = Prelude.length (printTree x)
-        , .. } ]
+      [ SemanticTokenAbsolute
+        { _tokenType = tokenType
+        , _tokenModifiers = tokenModifiers
+        , _startChar = fromIntegral col - 1    -- NOTE: 0-indexed output for VS Code
+        ,  _line = fromIntegral line - 1             -- NOTE: 0-indexed output for VS Code
+        ,  _length = fromIntegral $ Prelude.length (printTree x)
+        }
+        ]

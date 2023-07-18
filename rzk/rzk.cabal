@@ -37,7 +37,6 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Language.Rzk.VSCode.Tokenize
-      Language.Rzk.VSCode.Tokens
       Rzk
       Rzk.Main
       Rzk.TypeCheck
