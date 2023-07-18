@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -52,6 +52,9 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , template-haskell
@@ -71,6 +74,9 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , rzk
@@ -93,6 +99,9 @@ test-suite doctests
     , bifunctors
     , bytestring
     , doctest
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , template-haskell
@@ -113,6 +122,9 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , lens
+    , lsp
+    , lsp-types
     , mtl
     , optparse-generic
     , rzk

@@ -28,6 +28,9 @@ dependencies:
   - template-haskell
   - text
   - optparse-generic
+  - lens
+  - lsp
+  - lsp-types
 
 ghc-options:
   - -Wall
