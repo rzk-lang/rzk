@@ -15,8 +15,15 @@ import Language.LSP.VFS (virtualFileText)
 handlers :: Handlers (LspM ())
 handlers =
   mconcat
-    [ notificationHandler SMethod_Initialized $ \_not -> pure (),
-      requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
+    [ notificationHandler SMethod_Initialized $ \_not -> pure ()
+    , requestHandler SMethod_TextDocumentHover $ \req responder -> do
+        let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
+            Position _l _c' = pos
+            rsp = Hover (InL ms) (Just range')
+            ms = mkMarkdown "Hello world"
+            range' = Range pos pos
+        responder (Right $ InL rsp)
+    , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
         let doc = req ^. params . textDocument . uri . to toNormalizedUri
         mdoc <- getVirtualFile doc
         -- Why is mdoc Nothing???
