@@ -38,6 +38,16 @@ handlers =
             return ()
     ]
 
+
+syncOptions :: TextDocumentSyncOptions
+syncOptions = TextDocumentSyncOptions
+  { _openClose         = Just True
+  , _change            = Just TextDocumentSyncKind_Full
+  , _willSave          = Just False
+  , _willSaveWaitUntil = Just False
+  , _save              = Just $ InR $ SaveOptions $ Just False
+  }
+
 runLsp :: IO Int
 runLsp =
   runServer $
@@ -46,6 +56,6 @@ runLsp =
         doInitialize = const . pure . Right,
         staticHandlers = const handlers,
         interpretHandler = \env -> Iso (runLspT env) liftIO,
-        options = defaultOptions,
+        options = defaultOptions { optTextDocumentSync = Just syncOptions },
         defaultConfig = ()
       }
