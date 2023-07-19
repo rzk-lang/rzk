@@ -11,6 +11,8 @@ import Language.LSP.Protocol.Message
 import Language.LSP.Protocol.Types
 import Language.LSP.Server
 import Language.LSP.VFS (virtualFileText)
+import Language.Rzk.VSCode.Tokenize (tokenizeModule)
+import Language.Rzk.Syntax (parseModule)
 
 handlers :: Handlers (LspM ())
 handlers =
@@ -26,16 +28,21 @@ handlers =
     , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
         let doc = req ^. params . textDocument . uri . to toNormalizedUri
         mdoc <- getVirtualFile doc
-        -- Why is mdoc Nothing???
-        case virtualFileText <$> mdoc of
-          Nothing -> do
-            let (NormalizedUri _ path) = doc
-            _ <- sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Error (T.concat ["Couldn't open file: ", path]))
+        let possibleTokens = case virtualFileText <$> mdoc of
+              Nothing -> Left "Failed to get file content"
+              Just sourceCode -> tokenizeModule <$> parseModule (T.unpack sourceCode)
+        case possibleTokens of
+          Left _err -> do
+            -- Failed to open the file or to tokenize
             return ()
-          Just sourceCode -> do
-            _ <- sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Info "File opened")
-            -- TODO: tokenize `sourceCode` and send with `responder`
-            return ()
+          Right tokens -> do
+            let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
+            case encoded of
+              Left _err -> do
+                -- Failed to encode the tokens
+                return ()
+              Right list ->
+                responder (Right (InL SemanticTokens { _resultId = Nothing, _data_ = list }))
     ]
 
 
