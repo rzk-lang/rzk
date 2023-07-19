@@ -18,6 +18,11 @@ handlers :: Handlers (LspM ())
 handlers =
   mconcat
     [ notificationHandler SMethod_Initialized $ \_not -> pure ()
+    -- TODO: add logging
+    -- Empty handlers to silence the errors
+    , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()
+    , notificationHandler SMethod_TextDocumentDidChange $ \_msg -> pure ()
+    , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
     , requestHandler SMethod_TextDocumentHover $ \req responder -> do
         let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
             Position _l _c' = pos
