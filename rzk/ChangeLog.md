@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.5.4 — 2022-08-19
+
+This version contains minor improvements:
+
+1. Improve typechecking by trying an easier unification strategy first (see [#76](https://github.com/rzk-lang/rzk/pull/76));
+2. Update GitHub Action for Nix (see [#74](https://github.com/rzk-lang/rzk/pull/74)).
+
 ## v0.5.3 — 2022-07-12
 
 This version contains a few minor improvements:
