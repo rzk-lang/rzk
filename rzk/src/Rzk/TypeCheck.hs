@@ -107,8 +107,8 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
-          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
-          term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT >>= pure . termIsWHNF
+          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
+          term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT
           let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars)
           fmap (decl :) $
             localDeclPrepared decl $ do
@@ -127,7 +127,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
-          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT -- >>= pure . termIsWHNF
+          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
           let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars)
           fmap (decl :) $
             localDeclPrepared decl $
@@ -137,7 +137,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty ) $ do
         withCommand command $ do
-          ty' <- typecheck (toTerm' ty) universeT >>= whnfT -- >>= pure . termIsWHNF
+          ty' <- typecheck (toTerm' ty) universeT >>= whnfT
           _term' <- typecheck (toTerm' term) ty'
           go (i + 1) moreCommands
 
@@ -1228,6 +1228,10 @@ tryRestriction = \case
 -- unit : Unit
 whnfT :: Eq var => TermT var -> TypeCheck var (TermT var)
 whnfT tt = performing (ActionWHNF tt) $ case tt of
+  -- use cached result if it exists
+  Free (AnnF info _)
+    | Just tt' <- infoWHNF info -> pure tt'
+
   -- universe constants
   UniverseT{} -> pure tt
   UniverseCubeT{} -> pure tt
@@ -1263,9 +1267,6 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> whnfT term
 
-  Free (AnnF info _)
-    | Just tt' <- infoWHNF info -> pure tt'
-
   -- check if we have cube or a tope term (if so, compute NF)
   _ -> typeOf tt >>= \case
     UniverseCubeT{} -> nfTope tt
@@ -1281,7 +1282,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
       UniverseCubeT{} -> nfTope tt
 
       -- now we are in the type layer
-      _ -> do
+      _ -> fmap termIsWHNF $ do
         -- check if we are in the empty context
         inBottom <- asks localTopesEntailBottom
         if inBottom
@@ -1618,9 +1619,16 @@ unify mterm expected actual = performUnification `catchError` \typeError -> do
   where
     performUnification = unifyInCurrentContext mterm expected actual
 
+unifyViaDecompose :: Eq var => TermT var -> TermT var -> TypeCheck var ()
+unifyViaDecompose expected actual | expected == actual = return ()
+unifyViaDecompose (AppT _ f x) (AppT _ g y) = do
+  unify Nothing f g
+  unify Nothing x y
+unifyViaDecompose _ _ = issueTypeError (TypeErrorOther "cannot decompose")
+
 unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
 unifyInCurrentContext mterm expected actual = performing action $
-  unless (expected == actual) $ do      -- NOTE: this gives a small, but noticeable speedup
+  unifyViaDecompose expected actual `catchError` \_ -> do      -- NOTE: this gives a small, but noticeable speedup
     expectedVal <- whnfT expected
     actualVal <- whnfT actual
     (expected', actual') <- asks covariance >>= \case
