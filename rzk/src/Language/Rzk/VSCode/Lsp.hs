@@ -13,6 +13,12 @@ import Language.LSP.Server
 import Language.LSP.VFS (virtualFileText)
 import Language.Rzk.VSCode.Tokenize (tokenizeModule)
 import Language.Rzk.Syntax (parseModule)
+import Language.LSP.Diagnostics (partitionBySource)
+import Rzk.TypeCheck (typecheckModule, defaultTypeCheck, ppTypeErrorInScopedContext')
+
+-- | The maximum number of diagnostic messages to send to the client
+maxDiagnosticCount :: Int
+maxDiagnosticCount = 100
 
 handlers :: Handlers (LspM ())
 handlers =
@@ -23,7 +29,36 @@ handlers =
     , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidChange $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
-    , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> pure ()
+    , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
+        -- TODO: do the same thing in DidOpen handler
+        let normUri = toNormalizedUri $ msg ^. params . textDocument . uri
+        mdoc <- getVirtualFile normUri
+        let typeErrors =
+              case virtualFileText <$> mdoc of
+                Nothing -> Left "error getting text"
+                Just text -> typecheckModule Nothing <$> parseModule (T.unpack text)
+        let errorMessage = do
+              res <- typeErrors
+              case defaultTypeCheck res of
+                Left err -> Left $ ppTypeErrorInScopedContext' err
+                Right _decls -> Right ()
+        case errorMessage of
+          Left err -> do
+            let diags =
+                  [ Diagnostic
+                      (Range (Position 0 0) (Position 0 0))
+                      (Just DiagnosticSeverity_Error)
+                      Nothing -- diagnostic code
+                      Nothing -- diagonstic description
+                      (Just "rzk") -- A human-readable string describing the source of this diagnostic
+                      (T.pack err)
+                      Nothing -- tags
+                      (Just []) -- related information
+                      Nothing -- data that is preserved between different calls
+                  ]
+            publishDiagnostics maxDiagnosticCount normUri Nothing (partitionBySource diags)
+          Right () -> do
+            publishDiagnostics 0 normUri Nothing (partitionBySource [])
     -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
     --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
     --         Position _l _c' = pos
