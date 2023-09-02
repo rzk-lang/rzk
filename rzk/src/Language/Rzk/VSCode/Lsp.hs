@@ -24,13 +24,13 @@ handlers =
     , notificationHandler SMethod_TextDocumentDidChange $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> pure ()
-    , requestHandler SMethod_TextDocumentHover $ \req responder -> do
-        let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
-            Position _l _c' = pos
-            rsp = Hover (InL ms) (Just range')
-            ms = mkMarkdown "Hello world"
-            range' = Range pos pos
-        responder (Right $ InL rsp)
+    -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
+    --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
+    --         Position _l _c' = pos
+    --         rsp = Hover (InL ms) (Just range')
+    --         ms = mkMarkdown "Hello world"
+    --         range' = Range pos pos
+    --     responder (Right $ InL rsp)
     , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
         let doc = req ^. params . textDocument . uri . to toNormalizedUri
         mdoc <- getVirtualFile doc
