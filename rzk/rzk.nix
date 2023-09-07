@@ -1,5 +1,6 @@
-{ mkDerivation, aeson, array, base, bifunctors, bytestring, hpack
-, lib, mtl, optparse-generic, template-haskell, text
+{ mkDerivation, aeson, alex, array, base, bifunctors, bytestring
+, doctest, Glob, happy, hpack, lib, mtl, optparse-generic
+, QuickCheck, template-haskell, text
 }:
 mkDerivation {
   pname = "rzk";
@@ -11,15 +12,17 @@ mkDerivation {
     aeson array base bifunctors bytestring mtl optparse-generic
     template-haskell text
   ];
-  libraryToolDepends = [ hpack ];
+  libraryToolDepends = [ alex happy hpack ];
   executableHaskellDepends = [
     aeson array base bifunctors bytestring mtl optparse-generic
     template-haskell text
   ];
+  executableToolDepends = [ alex happy ];
   testHaskellDepends = [
-    aeson array base bifunctors bytestring mtl optparse-generic
-    template-haskell text
+    aeson array base bifunctors bytestring doctest Glob mtl
+    optparse-generic QuickCheck template-haskell text
   ];
+  testToolDepends = [ alex happy ];
   prePatch = "hpack";
   homepage = "https://github.com/rzk-lang/rzk#readme";
   description = "An experimental proof assistant for synthetic ∞-categories";
