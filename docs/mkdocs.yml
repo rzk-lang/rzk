@@ -113,5 +113,7 @@ extra:
 
 plugins:
   - mike
-  - rzk
+  - rzk:
+      render_svg: true
+      anchor_definitions: true
   - search
