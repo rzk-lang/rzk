@@ -10,7 +10,6 @@ import qualified Data.ByteString.Lazy.Char8   as ByteString
 import           Data.Version                 (showVersion)
 import           Options.Generic
 import           System.Exit                  (exitFailure)
-import           Main.Utf8                    (withUtf8)
 
 import qualified Language.Rzk.Syntax          as Rzk
 import           Language.Rzk.VSCode.Tokenize (tokenizeModule)
@@ -24,7 +23,7 @@ data Command
   deriving (Generic, Show, ParseRecord)
 
 main :: IO ()
-main = withUtf8 $ getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
+main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
   Typecheck paths -> do
     modules <- parseRzkFilesOrStdin paths
     case defaultTypeCheck (typecheckModulesWithLocation modules) of

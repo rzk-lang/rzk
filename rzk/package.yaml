@@ -32,7 +32,6 @@ dependencies:
   - template-haskell
   - text
   - optparse-generic
-  - with-utf8
 
 ghc-options:
   - -Wall
@@ -64,6 +63,10 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - rzk
+    when:
+      - condition: "!impl(ghcjs)"
+        dependencies:
+          - with-utf8
 
 tests:
   rzk-test:
