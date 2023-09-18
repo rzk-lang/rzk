@@ -32,6 +32,7 @@ dependencies:
   - template-haskell
   - text
   - optparse-generic
+  - with-utf8
 
 ghc-options:
   - -Wall
