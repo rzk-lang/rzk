@@ -63,6 +63,10 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - rzk
+    when:
+      - condition: "!impl(ghcjs)"
+        dependencies:
+          - with-utf8
 
 tests:
   rzk-test:

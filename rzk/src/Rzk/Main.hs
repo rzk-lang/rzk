@@ -80,4 +80,3 @@ typecheckString moduleString = do
         ]
       ]
     Right _ -> pure "Everything is ok!"
-
