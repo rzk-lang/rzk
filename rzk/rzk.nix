@@ -7,17 +7,12 @@ mkDerivation {
   version = "0.5.4";
   src = ./.;
   isLibrary = true;
-  isExecutable = true;
+  isExecutable = false;
   libraryHaskellDepends = [
     aeson array base bifunctors bytestring mtl optparse-generic
     template-haskell text
   ];
   libraryToolDepends = [ alex happy hpack ];
-  executableHaskellDepends = [
-    aeson array base bifunctors bytestring mtl optparse-generic
-    template-haskell text
-  ];
-  executableToolDepends = [ alex happy ];
   testHaskellDepends = [
     aeson array base bifunctors bytestring doctest Glob mtl
     optparse-generic QuickCheck template-haskell text
