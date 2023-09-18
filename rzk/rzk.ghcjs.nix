@@ -23,7 +23,7 @@ mkDerivation {
     optparse-generic QuickCheck template-haskell text
   ];
   testToolDepends = [ alex happy ];
-  prePatch = "hpack";
+  /* prePatch = "hpack"; */
   homepage = "https://github.com/rzk-lang/rzk#readme";
   description = "An experimental proof assistant for synthetic ∞-categories";
   license = lib.licenses.bsd3;
