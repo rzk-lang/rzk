@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy.Char8   as ByteString
 import           Data.Version                 (showVersion)
 import           Options.Generic
 import           System.Exit                  (exitFailure)
+import           System.FilePath.Glob         (glob)
 
 import qualified Language.Rzk.Syntax          as Rzk
 import           Language.Rzk.VSCode.Tokenize (tokenizeModule)
@@ -51,6 +52,14 @@ parseStdin = do
       error err
     Right rzkModule -> return rzkModule
 
+-- | Finds matches to the given pattern in the current working directory.
+-- **NOTE:** throws exception when 'glob' returns an empty list.
+globNonEmpty :: FilePath -> IO [FilePath]
+globNonEmpty path = do
+  glob path >>= \case
+    []    -> error ("File(s) not found at " <> path)
+    paths -> return paths
+
 parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
 parseRzkFilesOrStdin = \case
   -- if no paths are given — read from stdin
@@ -58,14 +67,16 @@ parseRzkFilesOrStdin = \case
     rzkModule <- parseStdin
     return [("<stdin>", rzkModule)]
   -- otherwise — parse all given files in given order
-  paths -> forM paths $ \path -> do
-    putStrLn ("Loading file " <> path)
-    result <- Rzk.parseModule <$> readFile path
-    case result of
-      Left err -> do
-        putStrLn ("An error occurred when parsing file " <> path)
-        error err
-      Right rzkModule -> return (path, rzkModule)
+  paths -> do
+    expandedPaths <- foldMap globNonEmpty paths
+    forM (reverse expandedPaths) $ \path -> do
+      putStrLn ("Loading file " <> path)
+      result <- Rzk.parseModule <$> readFile path
+      case result of
+        Left err -> do
+          putStrLn ("An error occurred when parsing file " <> path)
+          error err
+        Right rzkModule -> return (path, rzkModule)
 
 typecheckString :: String -> Either String String
 typecheckString moduleString = do
@@ -80,4 +91,3 @@ typecheckString moduleString = do
         ]
       ]
     Right _ -> pure "Everything is ok!"
-

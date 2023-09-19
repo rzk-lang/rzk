@@ -2,21 +2,21 @@ name: Build with GHCJS and Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main, develop ]
-    tags: [ v* ]
+    branches: [main, develop]
+    tags: [v*]
     paths:
       - .github/workflows/ghcjs.yml
       - rzk/**
       - try-rzk/**
       - stack.yaml
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
       - rzk/**
       - try-rzk/**
       - stack.yaml
 
-  workflow_dispatch:  # allow triggering this workflow manually
+  workflow_dispatch: # allow triggering this workflow manually
 
 permissions:
   contents: write
@@ -35,7 +35,7 @@ jobs:
             substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8=
             keep-outputs = true
-      
+
       - name: Restore and cache Nix store
         uses: nix-community/cache-nix-action@v1
         with:
@@ -44,11 +44,10 @@ jobs:
             ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml') }}
             ${{ runner.os }}-nix-
 
-      - name: 🔨 Remove rzk.cabal, lexer and parser generator files
+      - name: 🔨 Remove lexer and parser generator files
         run: |
           rm -f rzk/src/Language/Rzk/Syntax/Lex.x
           rm -f rzk/src/Language/Rzk/Syntax/Par.y
-          rm -f rzk/rzk.cabal
 
       - name: 🔨 Build GHCJS version with Nix
         run: |
@@ -61,7 +60,7 @@ jobs:
           chmod -R +w dist/
           cp try-rzk/index.html dist/.
 
-      - name: "🚀 Publish JS \"binaries\" (${{ github.ref_name }})"
+      - name: '🚀 Publish JS "binaries" (${{ github.ref_name }})'
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
@@ -71,7 +70,7 @@ jobs:
           clean: false
           single-commit: true
 
-      - name: "🚀 Publish JS \"binaries\""
+      - name: '🚀 Publish JS "binaries"'
         if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:

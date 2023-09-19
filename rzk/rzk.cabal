@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.5.4
+version:        0.5.5
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -46,8 +46,12 @@ library
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-tools:
+      alex
+    , happy
   build-depends:
-      aeson
+      Glob
+    , aeson
     , array
     , base >=4.7 && <5
     , bifunctors
@@ -65,8 +69,12 @@ executable rzk
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-tools:
+      alex
+    , happy
   build-depends:
-      aeson
+      Glob
+    , aeson
     , array
     , base >=4.7 && <5
     , bifunctors
@@ -77,6 +85,9 @@ executable rzk
     , template-haskell
     , text
   default-language: Haskell2010
+  if !impl(ghcjs)
+    build-depends:
+        with-utf8
 
 test-suite doctests
   type: exitcode-stdio-1.0
@@ -84,6 +95,9 @@ test-suite doctests
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-tools:
+      alex
+    , happy
   build-depends:
       Glob
     , QuickCheck
@@ -107,8 +121,12 @@ test-suite rzk-test
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-tools:
+      alex
+    , happy
   build-depends:
-      aeson
+      Glob
+    , aeson
     , array
     , base >=4.7 && <5
     , bifunctors

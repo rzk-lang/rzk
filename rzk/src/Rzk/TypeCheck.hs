@@ -2361,13 +2361,15 @@ infer tt = performing (ActionInfer tt) $ case tt of
         b' <- enterScope orig a' $ inferAs universeT b
         return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
-      TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
+      TypeFunT _ty _orig cube mtope UniverseTopeT{} -> do
         mapM_ checkNameShadowing orig
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
             b' <- inferAs universeT b
-            return (typeFunT orig cube (Just tope') b')
+            case mtope of
+              Nothing -> return (typeFunT orig cube (Just tope') b')
+              Just tope'' -> return (typeFunT orig cube (Just (topeAndT tope'' tope')) b')
       ty -> issueTypeError $ TypeErrorInvalidArgumentType a ty
 
   TypeFun orig cube (Just tope) ret -> do
@@ -2403,10 +2405,16 @@ infer tt = performing (ActionInfer tt) $ case tt of
       RecBottomT{} -> pure recBottomT -- FIXME: is this ok?
       TypeFunT _ty _orig a mtope b -> do
         x' <- typecheck x a
+        let result = appT (substituteT x' b) f' x'
         case b of
-          UniverseTopeT{} -> return ()
-          _               -> mapM_ (contextEntails . substituteT x') mtope   -- FIXME: need to check?
-        return (appT (substituteT x' b) f' x')
+          UniverseTopeT{} -> do
+            case mtope of
+              Nothing -> return result
+              Just tope -> do
+                return (topeAndT (substituteT x' tope) result)
+          _               -> do
+            mapM_ (contextEntails . substituteT x') mtope   -- FIXME: need to check?
+            return result
       ty -> issueTypeError $ TypeErrorNotFunction f' ty
 
   Lambda _orig Nothing _body -> do
