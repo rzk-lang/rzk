@@ -11,6 +11,13 @@ packages:
       size: 1051
   original:
     hackage: with-utf8-1.0.2.4
+- completed:
+    hackage: Glob-0.10.2@sha256:dd2ddbecae8f84e8f4cacb5b856901a19c25ceaa11f2525d3ee88d034acb0081,2938
+    pantry-tree:
+      sha256: 3c9d365a19c0e15d7cf5e93ee994bdc81958c8e4056f43ec0408f34f1a3bb970
+      size: 1432
+  original:
+    hackage: Glob-0.10.2
 snapshots:
 - completed:
     sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1

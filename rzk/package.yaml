@@ -32,6 +32,7 @@ dependencies:
   - template-haskell
   - text
   - optparse-generic
+  - Glob
 
 ghc-options:
   - -Wall
