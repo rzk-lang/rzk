@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.5.6 — 2023-09-19
+
+This version fixes the behaviour of glob (see [`77b7cc0`](https://github.com/rzk-lang/rzk/commit/77b7cc0494fe0bfd1c9f1aa83db20f42cfda5794)).
+
 ## v0.5.5 — 2023-09-19
 
 This version contains Unicode and tope logic-related fixes:
