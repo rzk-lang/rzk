@@ -6,14 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## v0.5.4 — 2022-08-19
+## v0.5.5 — 2023-09-19
+
+This version contains Unicode and tope logic-related fixes:
+
+1. Fix (add missing checks) for subshapes (see [#85](https://github.com/rzk-lang/rzk/pull/85));
+2. Allow to handle wildcards in `rzk` itself (see [#83](https://github.com/rzk-lang/rzk/pull/83));
+3. Fix Unicode on machines with non-standard locales (see [#82](https://github.com/rzk-lang/rzk/pull/82));
+4. Specify `happy` and `alex` as build tools to fix cabal build from Hackage (see [#80](https://github.com/rzk-lang/rzk/pull/80)).
+5. Add configuration for MkDocs plugin for Rzk (see [#79](https://github.com/rzk-lang/rzk/pull/79)).
+
+## v0.5.4 — 2023-08-19
 
 This version contains minor improvements:
 
 1. Improve typechecking by trying an easier unification strategy first (see [#76](https://github.com/rzk-lang/rzk/pull/76));
 2. Update GitHub Action for Nix (see [#74](https://github.com/rzk-lang/rzk/pull/74)).
 
-## v0.5.3 — 2022-07-12
+## v0.5.3 — 2023-07-12
 
 This version contains a few minor improvements:
 
@@ -24,7 +34,7 @@ This version contains a few minor improvements:
 5. Migrate from `fizruk` to `rzk-lang` organisation on GitHub (see [`ee0d063`](https://github.com/rzk-lang/rzk/commit/ee0d0638283232c99003a83fdf41eb109ae78983));
 6. Speed up GHCJS build with Nix (see [#66](https://github.com/rzk-lang/rzk/pull/66));
 
-## v0.5.2 — 2022-07-05
+## v0.5.2 — 2023-07-05
 
 This version introduces support for Unicode syntax, better recognition of Markdown code blocks and improves documentation a bit:
 
@@ -34,7 +44,7 @@ This version introduces support for Unicode syntax, better recognition of Markdo
 - Factor out Pygments highlighting to https://github.com/rzk-lang/pygments-rzk;
 - Use new cache action for Nix (see [#60](https://github.com/rzk-lang/rzk/pull/60)).
 
-## v0.5.1 — 2022-06-29
+## v0.5.1 — 2023-06-29
 
 This version fixes `Unit` type and makes some changes to documentation:
 
@@ -45,7 +55,7 @@ This version fixes `Unit` type and makes some changes to documentation:
 - Switch to Material theme for MkDocs (see [#57](https://github.com/rzk-lang/rzk/pull/57));
 - Fix links to `*.rzk.md` in `mkdocs.yml` (see [8ba1c55b](https://github.com/rzk-lang/rzk/commit/8ba1c55b));
 
-## v0.5 — 2022-06-20
+## v0.5 — 2023-06-20
 
 This version contains the following changes:
 
@@ -53,7 +63,7 @@ This version contains the following changes:
 - Add basic tokenizer support via `rzk tokenize` (see [#53](https://github.com/rzk-lang/rzk/pull/53));
 - Add location information for shadowing warnings and duplicate definition errors (see [bf9d6cd9](https://github.com/rzk-lang/rzk/commit/bf9d6cd9)).
 
-## v0.4.1 — 2022-06-16
+## v0.4.1 — 2023-06-16
 
 This is version contains minor changes, primarily in tools around rzk:
 
@@ -64,7 +74,7 @@ This is version contains minor changes, primarily in tools around rzk:
 - Add Pygments highlighting (see [01c2a017](https://github.com/rzk-lang/rzk/commit/01c2a017), [cbd656cc](https://github.com/rzk-lang/rzk/commit/cbd656cc), [5220ddf9](https://github.com/rzk-lang/rzk/commit/5220ddf9), [142ec003](https://github.com/rzk-lang/rzk/commit/142ec003), [5c7425f2](https://github.com/rzk-lang/rzk/commit/5c7425f2));
 - Update HighlightJS config for rzk v0.4.0 (see [171ee63f](https://github.com/rzk-lang/rzk/commit/171ee63f));
 
-## v0.4.0 — 2022-05-18
+## v0.4.0 — 2023-05-18
 
 This version introduces sections and variables. The feature is similar to <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>. An important difference, however, is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.
 
@@ -75,7 +85,7 @@ Minor improvements:
 - Add flake, set up nix and cabal builds, cache nix store on CI (see [#39](https://github.com/rzk-lang/rzk/pull/39));
 - Apply stylish-haskell (see [7d42ef62](https://github.com/rzk-lang/rzk/commit/7d42ef62));
 
-## v0.3.0 — 2022-04-28
+## v0.3.0 — 2023-04-28
 
 This version introduces an experimental feature for generating visualisations for simplicial terms in SVG.
 To enable rendering, enable option `"render" = "svg"` (to disable, `"render" = "none"`):
@@ -94,7 +104,7 @@ Fixes:
 - Fixed an issue with tope solver when context was empty (see 6196af9e);
 - Fixed #33 (missing coherence check for restricted types).
 
-## v0.2.0 - 2022-04-20
+## v0.2.0 - 2023-04-20
 
 This version was a complete rewrite of the proof assistant, using a new parser, a new internal representation, and a rewrite of the typechecking logic. This is still a prototype, but, arguably, significantly more stable and manageable than version 0.1.0.
 
