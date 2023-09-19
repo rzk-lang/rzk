@@ -7,6 +7,7 @@ module Rzk.Main where
 import           Control.Monad                (forM)
 import qualified Data.Aeson                   as JSON
 import qualified Data.ByteString.Lazy.Char8   as ByteString
+import           Data.List                    (sort)
 import           Data.Version                 (showVersion)
 import           Options.Generic
 import           System.Exit                  (exitFailure)
@@ -58,7 +59,7 @@ globNonEmpty :: FilePath -> IO [FilePath]
 globNonEmpty path = do
   glob path >>= \case
     []    -> error ("File(s) not found at " <> path)
-    paths -> return paths
+    paths -> return (sort paths)
 
 parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
 parseRzkFilesOrStdin = \case
@@ -69,7 +70,7 @@ parseRzkFilesOrStdin = \case
   -- otherwise — parse all given files in given order
   paths -> do
     expandedPaths <- foldMap globNonEmpty paths
-    forM (reverse expandedPaths) $ \path -> do
+    forM expandedPaths $ \path -> do
       putStrLn ("Loading file " <> path)
       result <- Rzk.parseModule <$> readFile path
       case result of
