@@ -41,6 +41,7 @@ packages:
 #
 extra-deps:
 - with-utf8-1.0.2.4
+- Glob-0.10.2
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
