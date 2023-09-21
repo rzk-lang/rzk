@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.5.7 — 2023-09-21
+
+This version contains two fixes (see [#88](https://github.com/rzk-lang/rzk/pull/88)) for issues discovered in [rzk-lang/sHoTT#30](https://github.com/rzk-lang/sHoTT/pull/30#issuecomment-1729212862):
+
+1. We now only generate well-typed LEM instances in the tope solver, speeding up significantly.
+2. We fix $\eta$-rule for product cubes, to not get stopped by reflexive equality topes like $\langle \langle \pi_1 (t_{12}), \pi_2 (t_{12}) \rangle, t_3 \rangle \equiv \langle t_{12}, t_3 \rangle$.
+
 ## v0.5.6 — 2023-09-19
 
 This version fixes the behaviour of glob (see [`77b7cc0`](https://github.com/rzk-lang/rzk/commit/77b7cc0494fe0bfd1c9f1aa83db20f42cfda5794)).
