@@ -49,21 +49,21 @@ data Decl var = Decl
 
 type Decl' = Decl VarIdent
 
-typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent ()
+typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent [(FilePath, [Decl'])]
 typecheckModulesWithLocation = \case
-  [] -> return ()
-  m : ms -> do
+  [] -> return []
+  m@(path, _) : ms -> do
     decls <- typecheckModuleWithLocation m
     localDeclsPrepared decls $
-      typecheckModulesWithLocation ms
+      ((path, decls) :) <$> typecheckModulesWithLocation ms
 
-typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent ()
+typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent [Decl']
 typecheckModules = \case
-  [] -> return ()
+  [] -> return []
   m : ms -> do
     decls <- typecheckModule Nothing m
     localDeclsPrepared decls $
-      typecheckModules ms
+      (decls <>) <$> typecheckModules ms
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck VarIdent [Decl']
 typecheckModuleWithLocation (path, module_) = do

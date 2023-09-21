@@ -36,7 +36,7 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
           , ppTypeErrorInScopedContext' err
           ]
         exitFailure
-      Right () -> putStrLn "Everything is ok!"
+      Right _declsByPath -> putStrLn "Everything is ok!"
 
   Tokenize -> do
     rzkModule <- parseStdin
