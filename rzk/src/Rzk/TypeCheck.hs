@@ -865,9 +865,29 @@ traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
 entail :: Eq var => [TermT var] -> TermT var -> Bool
 entail topes tope = all (`solveRHS` tope) $
   saturateTopes (allTopePoints tope) <$>
-    simplifyLHS topes'
+    simplifyLHSwithDisjunctions topes'
   where
     topes' = nubTermT (topes <> generateTopesForPoints (allTopePoints tope))
+
+entailM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
+entailM topes tope = do
+  genTopes <- generateTopesForPointsM (allTopePoints tope)
+  let topes'    = nubTermT (topes <> genTopes)
+      topes''   = simplifyLHSwithDisjunctions topes'
+      topes'''  = saturateTopes (allTopePoints tope) <$> topes''
+  -- prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
+  -- prettyTope <- ppTermInContext =<< nfTope tope
+  return $
+    -- trace ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+      all (`solveRHS` tope) topes'''
+
+entailTraceM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
+entailTraceM topes tope = do
+  topes' <- mapM ppTermInContext topes
+  tope' <- ppTermInContext tope
+  result <- trace ("entail " <> intercalate ", " topes' <> " |- " <> tope') $
+        topes `entailM` tope
+  return $ trace ("  " <> show result) result
 
 nubTermT :: Eq var => [TermT var] -> [TermT var]
 nubTermT []     = []
@@ -896,6 +916,7 @@ generateTopes :: Eq var => [TermT var] -> [TermT var] -> [TermT var]
 generateTopes newTopes oldTopes
   | topeBottomT `elem` newTopes = []
   | topeEQT cube2_0T cube2_1T `elem` newTopes = [topeBottomT]
+  | length oldTopes > 100 = []    -- FIXME
   | otherwise = concat
       [  -- symmetry EQ
         [ topeEQT y x | TopeEQT _ty x y <- newTopes ]
@@ -965,11 +986,26 @@ generateTopes newTopes oldTopes
 generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
 generateTopesForPoints points = nubTermT $ concat
   [ [ topeOrT (topeLEQT x y) (topeLEQT y x)
-    | x : points' <- tails points, y <- points'
-    , x /= y
-    , x `notElem` [cube2_0T, cube2_1T]
-    , y `notElem` [cube2_0T, cube2_1T] ]
+    | x : points' <- tails (filter (`notElem` [cube2_0T, cube2_1T]) points)
+    , y <- points'
+    , x /= y ]
   ]
+
+generateTopesForPointsM :: Eq var => [TermT var] -> TypeCheck var [TermT var]
+generateTopesForPointsM points = do
+  let pairs = nub $ concat
+        [ [ (x, y)
+          | x : points' <- tails (filter (`notElem` [cube2_0T, cube2_1T]) points)
+          , y <- points'
+          , x /= y ]
+        ]
+  topes <- forM pairs $ \(x, y) -> do
+    xType <- typeOf x
+    yType <- typeOf y
+    return $ if (xType == cube2T) && (yType == cube2T)
+      then [topeOrT (topeLEQT x y) (topeLEQT y x)]
+      else []
+  return (concat topes)
 
 allTopePoints :: Eq var => TermT var -> [TermT var]
 allTopePoints = nubTermT . foldMap subPoints . nubTermT . topePoints
@@ -992,17 +1028,37 @@ subPoints = \case
     | Cube2T{} <- infoType -> [p]
   _ -> []
 
-simplifyLHS :: Eq var => [TermT var] -> [[TermT var]]
-simplifyLHS topes = map nubTermT $
+-- | Simplify the context, including disjunctions. See also 'simplifyLHS'.
+simplifyLHSwithDisjunctions :: Eq var => [TermT var] -> [[TermT var]]
+simplifyLHSwithDisjunctions topes = map nubTermT $
   case topes of
     [] -> [[]]
-    TopeTopT{} : topes' -> simplifyLHS topes'
+    TopeTopT{} : topes' -> simplifyLHSwithDisjunctions topes'
     TopeBottomT{} : _  -> [[topeBottomT]]
+    TopeAndT _ l r : topes' -> simplifyLHSwithDisjunctions (l : r : topes')
+
+    -- NOTE: it is inefficient to expand disjunctions immediately
+    TopeOrT  _ l r : topes' -> simplifyLHSwithDisjunctions (l : topes') <> simplifyLHSwithDisjunctions (r : topes')
+
+    TopeEQT  _ (PairT _ x y) (PairT _ x' y') : topes' ->
+      simplifyLHSwithDisjunctions (topeEQT x x' : topeEQT y y' : topes')
+    t : topes' -> map (t :) (simplifyLHSwithDisjunctions topes')
+
+-- | Simplify the context, except disjunctions. See also 'simplifyLHSwithDisjunctions'.
+simplifyLHS :: Eq var => [TermT var] -> [TermT var]
+simplifyLHS topes = nubTermT $
+  case topes of
+    [] -> []
+    TopeTopT{} : topes' -> simplifyLHS topes'
+    TopeBottomT{} : _  -> [topeBottomT]
     TopeAndT _ l r : topes' -> simplifyLHS (l : r : topes')
-    TopeOrT  _ l r : topes' -> simplifyLHS (l : topes') <> simplifyLHS (r : topes')
+
+    -- NOTE: it is inefficient to expand disjunctions immediately
+    -- TopeOrT  _ l r : topes' -> simplifyLHS (l : topes') <> simplifyLHS (r : topes')
+
     TopeEQT  _ (PairT _ x y) (PairT _ x' y') : topes' ->
       simplifyLHS (topeEQT x x' : topeEQT y y' : topes')
-    t : topes' -> map (t:) (simplifyLHS topes')
+    t : topes' -> t : simplifyLHS topes'
 
 solveRHS :: Eq var => [TermT var] -> TermT var -> Bool
 solveRHS topes tope =
@@ -1011,6 +1067,10 @@ solveRHS topes tope =
     TopeTopT{}     -> True
     TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y')
       | solveRHS topes (topeEQT x x') && solveRHS topes (topeEQT y y') -> True
+    TopeEQT  _ty (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) r
+      | solveRHS topes (topeEQT x (firstT cubeI r)) && solveRHS topes (topeEQT y (secondT cubeJ r)) -> True
+    TopeEQT  _ty l (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y)
+      | solveRHS topes (topeEQT (firstT cubeI l) x) && solveRHS topes (topeEQT (secondT cubeJ l) y) -> True
     TopeEQT  _ty l r -> or
       [ l == r
       , tope `elem` topes
@@ -1032,7 +1092,7 @@ checkTope tope = do
   performing (ActionContextEntails ctxTopes tope) $ do
     topes' <- asks localTopesNF
     tope' <- nfTope tope
-    return (topes' `entail` tope')
+    topes' `entailM` tope'
 
 checkTopeEntails :: Eq var => TermT var -> TypeCheck var Bool
 checkTopeEntails tope = do
@@ -1041,13 +1101,13 @@ checkTopeEntails tope = do
     contextTopes <- asks localTopesNF
     restrictionTope <- nfTope tope
     let contextTopesRHS = foldr topeAndT topeTopT contextTopes
-    return ([restrictionTope] `entail` contextTopesRHS)
+    [restrictionTope] `entailM` contextTopesRHS
 
 checkEntails :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
 checkEntails l r = do  -- FIXME: add action
   l' <- nfTope l
   r' <- nfTope r
-  return ([l'] `entail` r')
+  [l'] `entailM` r'
 
 contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
 contextEntailedBy tope = do
@@ -1056,8 +1116,9 @@ contextEntailedBy tope = do
     contextTopes <- asks localTopesNF
     restrictionTope <- nfTope tope
     let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
-    unless ([restrictionTope] `entail` contextTopesRHS) $
-      issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
+    [restrictionTope] `entailM` contextTopesRHS >>= \case
+      False -> issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
+      True -> return ()
 
 contextEntails :: Eq var => TermT var -> TypeCheck var ()
 contextEntails tope = do
@@ -1072,7 +1133,9 @@ topesEquiv :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
 topesEquiv expected actual = performing (ActionUnifyTerms expected actual) $ do
   expected' <- nfT expected
   actual' <- nfT actual
-  return ([expected'] `entail` actual' && [actual'] `entail` expected')
+  (&&)
+    <$> [expected'] `entailM` actual'
+    <*> [actual'] `entailM` expected'
 
 contextEquiv :: Eq var => [TermT var] -> TypeCheck var ()
 contextEquiv topes = do
@@ -1082,10 +1145,12 @@ contextEquiv topes = do
     recTopes <- mapM nfTope topes
     let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
         recTopesRHS     = foldr topeOrT topeBottomT recTopes
-    unless (contextTopes `entail` recTopesRHS) $
-      issueTypeError $ TypeErrorTopeNotSatisfied contextTopes recTopesRHS
-    unless (recTopes `entail` contextTopesRHS) $
-      issueTypeError $ TypeErrorTopeNotSatisfied recTopes contextTopesRHS
+    contextTopes `entailM` recTopesRHS >>= \case
+      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes recTopesRHS
+      True -> return ()
+    recTopes `entailM` contextTopesRHS >>= \case
+      False -> issueTypeError $ TypeErrorTopeNotSatisfied recTopes contextTopesRHS
+      True -> return ()
 
 switchVariance :: TypeCheck var a -> TypeCheck var a
 switchVariance = local $ \Context{..} -> Context
@@ -1352,7 +1417,7 @@ nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   Pure var ->
     valueOfVar var >>= \case
-      Nothing   -> pure tt
+      Nothing   -> return tt
       Just term -> nfTope term
 
   -- see if normal form is already available
@@ -1592,9 +1657,9 @@ typeOf t = typeOfUncomputed t >>= whnfT
 
 unifyTopes :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyTopes l r = do
-  let equiv = and
-        [ [l] `entail` r
-        , [r] `entail` l ]
+  equiv <- (&&)
+    <$> [l] `entailM` r
+    <*> [r] `entailM` l
   unless equiv $
     issueTypeError (TypeErrorTopesNotEquivalent l r)
 
@@ -1850,7 +1915,7 @@ localTope tope tc = do
       , localTopesNF = tope' : localTopesNF
       , localTopesNFUnion = map nubTermT
           [ new <> old
-          | new <- simplifyLHS [tope']
+          | new <- simplifyLHSwithDisjunctions [tope']
           , old <- localTopesNFUnion ]
       , localTopesEntailBottom = entailsBottom
       , .. }
@@ -2714,7 +2779,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
         . map (foldr topeAndT topeTopT)
         . map (filter (\tope -> all (`notElem` tope) sub))
         . map (saturateTopes [])
-        . simplifyLHS
+        . simplifyLHSwithDisjunctions
   contextTopes  <- asks (reduceContext . localTopesNF)
   contextTopes' <- localTope (componentWiseEQT dim (Pure super) x) $ asks (reduceContext . localTopesNF)
   forM (subTopes2 dim (Pure super)) $ \(shapeId, tope) -> do
