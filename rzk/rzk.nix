@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "rzk";
-  version = "0.5.6";
+  version = "0.5.7";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
