@@ -52,9 +52,9 @@ type Decl' = Decl VarIdent
 typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent ()
 typecheckModulesWithLocation = \case
   [] -> return ()
-  m : ms -> do
+  m@(modulePath, _module) : ms -> do
     decls <- typecheckModuleWithLocation m
-    localDeclsPrepared decls $
+    addModuleDeclsPrepared modulePath decls $
       typecheckModulesWithLocation ms
 
 typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent ()
@@ -86,6 +86,13 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
 
     go :: Integer -> [Rzk.Command] -> TypeCheck VarIdent [Decl']
     go _i [] = return []
+
+    go  i (command@(Rzk.CommandRequireFile _loc requiredPath) : moreCommands) = do
+      traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
+          <> " Requiring formalisations from " <> requiredPath) $ do
+        withCommand command $ do
+          requireModuleFromFile requiredPath $ do
+            go (i + 1) moreCommands
 
     go  i (command@(Rzk.CommandUnsetOption _loc optionName) : moreCommands) = do
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
@@ -564,6 +571,10 @@ data ScopeInfo var = ScopeInfo
   , scopeVars :: [(var, VarInfo var)]
   } deriving (Functor, Foldable)
 
+addVarsToScope :: [(var, VarInfo var)] -> ScopeInfo var -> ScopeInfo var
+addVarsToScope vars ScopeInfo{..} = ScopeInfo
+  { scopeVars = vars ++ scopeVars, .. }
+
 addVarToScope :: var -> VarInfo var -> ScopeInfo var -> ScopeInfo var
 addVarToScope var info ScopeInfo{..} = ScopeInfo
   { scopeVars = (var, info) : scopeVars, .. }
@@ -578,6 +589,7 @@ data VarInfo var = VarInfo
 
 data Context var = Context
   { localScopes            :: [ScopeInfo var]
+  , moduleScopes           :: [(FilePath, ScopeInfo var)]
   , localTopes             :: [TermT var]
   , localTopesNF           :: [TermT var]
   , localTopesNFUnion      :: [[TermT var]]
@@ -590,6 +602,14 @@ data Context var = Context
   , renderBackend          :: Maybe RenderBackend
   } deriving (Functor, Foldable)
 
+addVarsInCurrentScope :: [(var, VarInfo var)] -> Context var -> Context var
+addVarsInCurrentScope vars Context{..} = Context
+  { localScopes =
+      case localScopes of
+        []             -> [ScopeInfo Nothing vars]
+        scope : scopes -> addVarsToScope vars scope : scopes
+  , .. }
+
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
 addVarInCurrentScope var info Context{..} = Context
   { localScopes =
@@ -598,9 +618,18 @@ addVarInCurrentScope var info Context{..} = Context
         scope : scopes -> addVarToScope var info scope : scopes
   , .. }
 
+addVarInModuleScope :: FilePath -> var -> VarInfo var -> Context var -> Context var
+addVarInModuleScope modulePath var info Context{..} = Context
+  { moduleScopes =
+      case lookup modulePath moduleScopes of
+        Nothing    -> (modulePath, ScopeInfo Nothing [(var, info)]) : moduleScopes
+        Just scope -> (modulePath, addVarToScope var info scope) : filter ((/= modulePath) . fst) moduleScopes
+  , .. }
+
 emptyContext :: Context var
 emptyContext = Context
   { localScopes = [ScopeInfo Nothing []]
+  , moduleScopes = []
   , localTopes = [topeTopT]
   , localTopesNF = [topeTopT]
   , localTopesNFUnion = [[topeTopT]]
@@ -629,6 +658,21 @@ varValues = map (fmap varValue) . varInfos
 
 varOrigs :: Context var -> [(var, Maybe VarIdent)]
 varOrigs = map (fmap varOrig) . varInfos
+
+requireModuleFromFile :: FilePath -> TypeCheck VarIdent a -> TypeCheck VarIdent a
+requireModuleFromFile modulePath next = do
+  asks (lookup modulePath . moduleScopes) >>= \case
+    Nothing -> do
+      paths <- asks (map fst . moduleScopes)
+      issueTypeError $ TypeErrorOther $ unlines
+        [ "No module found for path " <> modulePath
+        , "Known modules:"
+        , intercalate "\n" (map ("  " ++) paths)
+        ]
+    Just scope -> do
+      forM_ (scopeVars scope) $ \(var, _) ->
+        checkTopLevelDuplicate var  -- FIXME: should be a slightly different error message
+      local (addVarsInCurrentScope (scopeVars scope)) next
 
 withSection
   :: Maybe Rzk.SectionName
@@ -766,6 +810,8 @@ ppContext' ctx@Context{..} = unlines
       Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
       _                                 -> ""
   , case currentCommand of
+      Just (Rzk.CommandRequireFile _loc requiredPath) ->
+        "  Error occurred when processing requirements\n    #require-file " <> show requiredPath
       Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
         "  Error occurred when checking\n    #define " <> Rzk.printTree name
       Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
@@ -839,7 +885,24 @@ localDeclPrepared (Decl x ty term isAssumption vars) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
-    update  = addVarInCurrentScope x VarInfo
+    update = addVarInCurrentScope x VarInfo
+      { varType = ty
+      , varValue = term
+      , varOrig = Just x
+      , varIsAssumption = isAssumption
+      , varDeclaredAssumptions = vars
+      }
+
+addModuleDeclsPrepared :: FilePath -> [Decl VarIdent] -> TypeCheck VarIdent a -> TypeCheck VarIdent a
+addModuleDeclsPrepared _modulePath [] = id
+addModuleDeclsPrepared modulePath (decl : decls) =
+  addModuleDeclPrepared modulePath decl . addModuleDeclsPrepared modulePath decls
+
+addModuleDeclPrepared :: FilePath -> Decl VarIdent -> TypeCheck VarIdent a -> TypeCheck VarIdent a
+addModuleDeclPrepared path (Decl x ty term isAssumption vars) tc = do
+  local update tc
+  where
+    update = addVarInModuleScope path x VarInfo
       { varType = ty
       , varValue = term
       , varOrig = Just x

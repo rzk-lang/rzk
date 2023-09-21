@@ -45,6 +45,7 @@ transLanguage x = case x of
 
 transCommand :: Show a => Language.Rzk.Syntax.Abs.Command' a -> Result
 transCommand x = case x of
+  Language.Rzk.Syntax.Abs.CommandRequireFile _ string -> failure x
   Language.Rzk.Syntax.Abs.CommandSetOption _ string1 string2 -> failure x
   Language.Rzk.Syntax.Abs.CommandUnsetOption _ string -> failure x
   Language.Rzk.Syntax.Abs.CommandCheck _ term1 term2 -> failure x

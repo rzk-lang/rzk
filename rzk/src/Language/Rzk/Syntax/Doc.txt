@@ -39,21 +39,21 @@ The reserved words used in Syntax are the following:
   | ``Σ`` | ``π₁`` | ``π₂`` |
 
 The symbols used in Syntax are the following:
-  | #lang | ; | rzk-1 | #set-option
-  | = | #unset-option | #check | :
-  | #compute | #compute-whnf | #compute-nf | #postulate
-  | #assume | #variable | #variables | #section
-  | #end | #define | := | #def
-  | ( | ) | , | |
-  | { | } | ↦ | 1
-  | *₁ | 2 | 0₂ | 1₂
-  | × | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | [ | ] | <
-  | > | \ | refl_{ | *
-  | *_1 | 0_2 | 1_2 | ===
-  | <= | /\ | \/ | ->
-  | |-> | ∑ |  |
+  | #lang | ; | rzk-1 | #require-file
+  | #set-option | = | #unset-option | #check
+  | : | #compute | #compute-whnf | #compute-nf
+  | #postulate | #assume | #variable | #variables
+  | #section | #end | #define | :=
+  | #def | ( | ) | ,
+  | | | { | } | ↦
+  | 1 | *₁ | 2 | 0₂
+  | 1₂ | × | ⊤ | ⊥
+  | ≡ | ≤ | ∧ | ∨
+  | → | =_{ | [ | ]
+  | < | > | \ | refl_{
+  | * | *_1 | 0_2 | 1_2
+  | === | <= | /\ | \/
+  | -> | |-> | ∑ |
 
 ===Comments===
 Single-line comments begin with --.Multiple-line comments are  enclosed with {- and -}.
@@ -71,7 +71,8 @@ All other symbols are terminals.
   |  |  **|**  | //VarIdent// //[VarIdent]//
   | //LanguageDecl// | -> | ``#lang`` //Language// ``;``
   | //Language// | -> | ``rzk-1``
-  | //Command// | -> | ``#set-option`` //String// ``=`` //String//
+  | //Command// | -> | ``#require-file`` //String//
+  |  |  **|**  | ``#set-option`` //String// ``=`` //String//
   |  |  **|**  | ``#unset-option`` //String//
   |  |  **|**  | ``#check`` //Term// ``:`` //Term//
   |  |  **|**  | ``#compute`` //Term//

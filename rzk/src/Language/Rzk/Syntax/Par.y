@@ -83,73 +83,74 @@ import Language.Rzk.Syntax.Lex
   '#end'           { PT _ (TS _ 8)             }
   '#lang'          { PT _ (TS _ 9)             }
   '#postulate'     { PT _ (TS _ 10)            }
-  '#section'       { PT _ (TS _ 11)            }
-  '#set-option'    { PT _ (TS _ 12)            }
-  '#unset-option'  { PT _ (TS _ 13)            }
-  '#variable'      { PT _ (TS _ 14)            }
-  '#variables'     { PT _ (TS _ 15)            }
-  '('              { PT _ (TS _ 16)            }
-  ')'              { PT _ (TS _ 17)            }
-  '*'              { PT _ (TS _ 18)            }
-  '*_1'            { PT _ (TS _ 19)            }
-  '*₁'             { PT _ (TS _ 20)            }
-  ','              { PT _ (TS _ 21)            }
-  '->'             { PT _ (TS _ 22)            }
-  '/\\'            { PT _ (TS _ 23)            }
-  '0_2'            { PT _ (TS _ 24)            }
-  '0₂'             { PT _ (TS _ 25)            }
-  '1'              { PT _ (TS _ 26)            }
-  '1_2'            { PT _ (TS _ 27)            }
-  '1₂'             { PT _ (TS _ 28)            }
-  '2'              { PT _ (TS _ 29)            }
-  ':'              { PT _ (TS _ 30)            }
-  ':='             { PT _ (TS _ 31)            }
-  ';'              { PT _ (TS _ 32)            }
-  '<'              { PT _ (TS _ 33)            }
-  '<='             { PT _ (TS _ 34)            }
-  '='              { PT _ (TS _ 35)            }
-  '==='            { PT _ (TS _ 36)            }
-  '=_{'            { PT _ (TS _ 37)            }
-  '>'              { PT _ (TS _ 38)            }
-  'BOT'            { PT _ (TS _ 39)            }
-  'CUBE'           { PT _ (TS _ 40)            }
-  'Sigma'          { PT _ (TS _ 41)            }
-  'TOP'            { PT _ (TS _ 42)            }
-  'TOPE'           { PT _ (TS _ 43)            }
-  'U'              { PT _ (TS _ 44)            }
-  'Unit'           { PT _ (TS _ 45)            }
-  '['              { PT _ (TS _ 46)            }
-  '\\'             { PT _ (TS _ 47)            }
-  '\\/'            { PT _ (TS _ 48)            }
-  ']'              { PT _ (TS _ 49)            }
-  'as'             { PT _ (TS _ 50)            }
-  'first'          { PT _ (TS _ 51)            }
-  'idJ'            { PT _ (TS _ 52)            }
-  'recBOT'         { PT _ (TS _ 53)            }
-  'recOR'          { PT _ (TS _ 54)            }
-  'refl'           { PT _ (TS _ 55)            }
-  'refl_{'         { PT _ (TS _ 56)            }
-  'rzk-1'          { PT _ (TS _ 57)            }
-  'second'         { PT _ (TS _ 58)            }
-  'unit'           { PT _ (TS _ 59)            }
-  'uses'           { PT _ (TS _ 60)            }
-  '{'              { PT _ (TS _ 61)            }
-  '|'              { PT _ (TS _ 62)            }
-  '|->'            { PT _ (TS _ 63)            }
-  '}'              { PT _ (TS _ 64)            }
-  '×'              { PT _ (TS _ 65)            }
-  'Σ'              { PT _ (TS _ 66)            }
-  'π₁'             { PT _ (TS _ 67)            }
-  'π₂'             { PT _ (TS _ 68)            }
-  '→'              { PT _ (TS _ 69)            }
-  '↦'              { PT _ (TS _ 70)            }
-  '∑'              { PT _ (TS _ 71)            }
-  '∧'              { PT _ (TS _ 72)            }
-  '∨'              { PT _ (TS _ 73)            }
-  '≡'              { PT _ (TS _ 74)            }
-  '≤'              { PT _ (TS _ 75)            }
-  '⊤'              { PT _ (TS _ 76)            }
-  '⊥'              { PT _ (TS _ 77)            }
+  '#require-file'  { PT _ (TS _ 11)            }
+  '#section'       { PT _ (TS _ 12)            }
+  '#set-option'    { PT _ (TS _ 13)            }
+  '#unset-option'  { PT _ (TS _ 14)            }
+  '#variable'      { PT _ (TS _ 15)            }
+  '#variables'     { PT _ (TS _ 16)            }
+  '('              { PT _ (TS _ 17)            }
+  ')'              { PT _ (TS _ 18)            }
+  '*'              { PT _ (TS _ 19)            }
+  '*_1'            { PT _ (TS _ 20)            }
+  '*₁'             { PT _ (TS _ 21)            }
+  ','              { PT _ (TS _ 22)            }
+  '->'             { PT _ (TS _ 23)            }
+  '/\\'            { PT _ (TS _ 24)            }
+  '0_2'            { PT _ (TS _ 25)            }
+  '0₂'             { PT _ (TS _ 26)            }
+  '1'              { PT _ (TS _ 27)            }
+  '1_2'            { PT _ (TS _ 28)            }
+  '1₂'             { PT _ (TS _ 29)            }
+  '2'              { PT _ (TS _ 30)            }
+  ':'              { PT _ (TS _ 31)            }
+  ':='             { PT _ (TS _ 32)            }
+  ';'              { PT _ (TS _ 33)            }
+  '<'              { PT _ (TS _ 34)            }
+  '<='             { PT _ (TS _ 35)            }
+  '='              { PT _ (TS _ 36)            }
+  '==='            { PT _ (TS _ 37)            }
+  '=_{'            { PT _ (TS _ 38)            }
+  '>'              { PT _ (TS _ 39)            }
+  'BOT'            { PT _ (TS _ 40)            }
+  'CUBE'           { PT _ (TS _ 41)            }
+  'Sigma'          { PT _ (TS _ 42)            }
+  'TOP'            { PT _ (TS _ 43)            }
+  'TOPE'           { PT _ (TS _ 44)            }
+  'U'              { PT _ (TS _ 45)            }
+  'Unit'           { PT _ (TS _ 46)            }
+  '['              { PT _ (TS _ 47)            }
+  '\\'             { PT _ (TS _ 48)            }
+  '\\/'            { PT _ (TS _ 49)            }
+  ']'              { PT _ (TS _ 50)            }
+  'as'             { PT _ (TS _ 51)            }
+  'first'          { PT _ (TS _ 52)            }
+  'idJ'            { PT _ (TS _ 53)            }
+  'recBOT'         { PT _ (TS _ 54)            }
+  'recOR'          { PT _ (TS _ 55)            }
+  'refl'           { PT _ (TS _ 56)            }
+  'refl_{'         { PT _ (TS _ 57)            }
+  'rzk-1'          { PT _ (TS _ 58)            }
+  'second'         { PT _ (TS _ 59)            }
+  'unit'           { PT _ (TS _ 60)            }
+  'uses'           { PT _ (TS _ 61)            }
+  '{'              { PT _ (TS _ 62)            }
+  '|'              { PT _ (TS _ 63)            }
+  '|->'            { PT _ (TS _ 64)            }
+  '}'              { PT _ (TS _ 65)            }
+  '×'              { PT _ (TS _ 66)            }
+  'Σ'              { PT _ (TS _ 67)            }
+  'π₁'             { PT _ (TS _ 68)            }
+  'π₂'             { PT _ (TS _ 69)            }
+  '→'              { PT _ (TS _ 70)            }
+  '↦'              { PT _ (TS _ 71)            }
+  '∑'              { PT _ (TS _ 72)            }
+  '∧'              { PT _ (TS _ 73)            }
+  '∨'              { PT _ (TS _ 74)            }
+  '≡'              { PT _ (TS _ 75)            }
+  '≤'              { PT _ (TS _ 76)            }
+  '⊤'              { PT _ (TS _ 77)            }
+  '⊥'              { PT _ (TS _ 78)            }
   L_quoted         { PT _ (TL _)               }
   L_VarIdentToken  { PT _ (T_VarIdentToken _)  }
   L_HoleIdentToken { PT _ (T_HoleIdentToken _) }
@@ -192,7 +193,8 @@ Language
 
 Command :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Command) }
 Command
-  : '#set-option' String '=' String { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandSetOption (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  : '#require-file' String { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandRequireFile (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | '#set-option' String '=' String { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandSetOption (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#unset-option' String { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandUnsetOption (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | '#check' Term ':' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandCheck (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '#compute' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CommandCompute (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }

@@ -45,7 +45,8 @@ data Language' a = Rzk1 a
 
 type Command = Command' BNFC'Position
 data Command' a
-    = CommandSetOption a String String
+    = CommandRequireFile a String
+    | CommandSetOption a String String
     | CommandUnsetOption a String
     | CommandCheck a (Term' a) (Term' a)
     | CommandCompute a (Term' a)
@@ -226,6 +227,7 @@ instance HasPosition Language where
 
 instance HasPosition Command where
   hasPosition = \case
+    CommandRequireFile p _ -> p
     CommandSetOption p _ _ -> p
     CommandUnsetOption p _ -> p
     CommandCheck p _ _ -> p
