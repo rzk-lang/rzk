@@ -872,10 +872,14 @@ entail topes tope = all (`solveRHS` tope) $
 entailM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailM topes tope = do
   genTopes <- generateTopesForPointsM (allTopePoints tope)
-  let topes' = nubTermT (topes <> genTopes)
-  return $ all (`solveRHS` tope) $
-    saturateTopes (allTopePoints tope) <$>
-      simplifyLHSwithDisjunctions topes'
+  let topes'    = nubTermT (topes <> genTopes)
+      topes''   = simplifyLHSwithDisjunctions topes'
+      topes'''  = saturateTopes (allTopePoints tope) <$> topes''
+  -- prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
+  -- prettyTope <- ppTermInContext =<< nfTope tope
+  return $
+    -- trace ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+      all (`solveRHS` tope) topes'''
 
 entailTraceM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailTraceM topes tope = do
@@ -1063,6 +1067,10 @@ solveRHS topes tope =
     TopeTopT{}     -> True
     TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y')
       | solveRHS topes (topeEQT x x') && solveRHS topes (topeEQT y y') -> True
+    TopeEQT  _ty (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) r
+      | solveRHS topes (topeEQT x (firstT cubeI r)) && solveRHS topes (topeEQT y (secondT cubeJ r)) -> True
+    TopeEQT  _ty l (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y)
+      | solveRHS topes (topeEQT (firstT cubeI l) x) && solveRHS topes (topeEQT (secondT cubeJ l) y) -> True
     TopeEQT  _ty l r -> or
       [ l == r
       , tope `elem` topes
@@ -1460,13 +1468,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> nfTope term
 
-  PairT ty l r -> do
-    l' <- nfTope l
-    r' <- nfTope r
-    case (l', r') of
-      (FirstT _infol lt, SecondT _infor rt)
-        | lt == rt -> return lt -- eta-reduction
-      _ -> PairT ty <$> nfTope l <*> nfTope r
+  PairT ty l r -> PairT ty <$> nfTope l <*> nfTope r
 
   AppT ty f x ->
     nfTope f >>= \case
