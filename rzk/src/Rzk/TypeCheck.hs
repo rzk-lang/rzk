@@ -897,7 +897,7 @@ saturateTopes _points topes = saturateWith
 
 -- FIXME: cleanup
 saturateWith :: (a -> [a] -> Bool) -> ([a] -> [a] -> [a]) -> [a] -> [a]
-saturateWith elem' step zs = go (nub' zs) [] -- FIXME
+saturateWith elem' step zs = go (nub' zs) []
   where
     go lastNew xs
       | null new = lastNew
@@ -1409,7 +1409,7 @@ nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   Pure var ->
     valueOfVar var >>= \case
-      Nothing   -> pure tt
+      Nothing   -> return tt
       Just term -> nfTope term
 
   -- see if normal form is already available
@@ -1460,7 +1460,13 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> nfTope term
 
-  PairT ty l r -> PairT ty <$> nfTope l <*> nfTope r
+  PairT ty l r -> do
+    l' <- nfTope l
+    r' <- nfTope r
+    case (l', r') of
+      (FirstT _infol lt, SecondT _infor rt)
+        | lt == rt -> return lt -- eta-reduction
+      _ -> PairT ty <$> nfTope l <*> nfTope r
 
   AppT ty f x ->
     nfTope f >>= \case
