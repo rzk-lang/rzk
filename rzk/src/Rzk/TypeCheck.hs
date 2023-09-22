@@ -49,6 +49,15 @@ data Decl var = Decl
 
 type Decl' = Decl VarIdent
 
+typecheckModulesWithLocationIncremental
+  :: [(FilePath, [Decl'])]    -- ^ Cached declarations (only those that do not need rechecking).
+  -> [(FilePath, Rzk.Module)] -- ^ New modules to check
+  -> TypeCheck VarIdent [(FilePath, [Decl'])]
+typecheckModulesWithLocationIncremental cached modulesToTypecheck = do
+  let decls = foldMap snd cached
+  localDeclsPrepared decls $
+    (cached ++) <$> typecheckModulesWithLocation modulesToTypecheck
+
 typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent [(FilePath, [Decl'])]
 typecheckModulesWithLocation = \case
   [] -> return []
