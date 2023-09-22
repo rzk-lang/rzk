@@ -42,12 +42,12 @@ handlers =
         return ()
     , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
         -- TODO: do the same thing in DidOpen handler
-        let normUri = toNormalizedUri $ msg ^. params . textDocument . uri
-        mdoc <- getVirtualFile normUri
+        let normUri = msg ^. params . textDocument . uri . to toNormalizedUri
+        let mtext = msg ^. params . text
         let typeErrors =
-              case virtualFileText <$> mdoc of
+              case mtext of
                 Nothing -> Left "error getting text"
-                Just text -> typecheckModule Nothing <$> parseModule (T.unpack text)
+                Just source -> typecheckModule Nothing <$> parseModule (T.unpack source)
         let errorMessage = do
               res <- typeErrors
               case defaultTypeCheck res of
