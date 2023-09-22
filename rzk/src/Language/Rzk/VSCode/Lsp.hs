@@ -1,14 +1,12 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Language.Rzk.VSCode.Lsp where
 
 import           Control.Lens                  (to, (^.))
 import           Control.Monad.IO.Class
 import qualified Data.Text                     as T
-import           Language.LSP.Diagnostics      (partitionBySource)
 import           Language.LSP.Protocol.Lens    (HasParams (params),
-                                                HasText (text),
                                                 HasTextDocument (textDocument),
                                                 HasUri (uri))
 import           Language.LSP.Protocol.Message
@@ -17,10 +15,8 @@ import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 
 import           Language.Rzk.Syntax           (parseModule)
+import           Language.Rzk.VSCode.Handlers  (typecheckFromConfigFile)
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
-import           Rzk.TypeCheck                 (defaultTypeCheck,
-                                                ppTypeErrorInScopedContext',
-                                                typecheckModule)
 
 
 -- | The maximum number of diagnostic messages to send to the client
@@ -30,48 +26,25 @@ maxDiagnosticCount = 100
 handlers :: Handlers (LspM ())
 handlers =
   mconcat
-    [ notificationHandler SMethod_Initialized $ \_not -> pure ()
+    [ notificationHandler SMethod_Initialized $ const typecheckFromConfigFile
     -- TODO: add logging
     -- Empty handlers to silence the errors
     , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()
+    -- , requestHandler SMethod_TextDocumentFormatting $ \_req _res -> pure ()
     , notificationHandler SMethod_TextDocumentDidChange $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
     , notificationHandler SMethod_WorkspaceDidChangeWatchedFiles $ \_msg -> do
         -- TODO: see what files changed and typecheck them again
         --  Need to handle 3 events: added, changed, and deleted
-        return ()
-    , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
-        -- TODO: do the same thing in DidOpen handler
-        let normUri = msg ^. params . textDocument . uri . to toNormalizedUri
-        let mtext = msg ^. params . text
-        let typeErrors =
-              case mtext of
-                Nothing -> Left "error getting text"
-                Just source -> typecheckModule Nothing <$> parseModule (T.unpack source)
-        let errorMessage = do
-              res <- typeErrors
-              case defaultTypeCheck res of
-                Left err     -> Left $ ppTypeErrorInScopedContext' err
-                Right _decls -> Right ()
-        case errorMessage of
-          Left err -> do
-            let diags =
-                  [ Diagnostic
-                      (Range (Position 0 0) (Position 0 0))
-                      (Just DiagnosticSeverity_Error)
-                      Nothing -- diagnostic code
-                      Nothing -- diagonstic description
-                      (Just "rzk") -- A human-readable string describing the source of this diagnostic
-                      (T.pack err)
-                      Nothing -- tags
-                      (Just []) -- related information
-                      Nothing -- data that is preserved between different calls
-                  ]
-            publishDiagnostics maxDiagnosticCount normUri Nothing (partitionBySource diags)
-          Right () -> do
-            -- Reset any existing diags
-            publishDiagnostics 0 normUri Nothing (partitionBySource [])
+
+        -- Currently, this is only sent for changes in `rzk.yaml`, so it makes sense to typecheck again (unconditionally)
+        typecheckFromConfigFile
+    , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> do
+        -- TODO: check if the file is included in the config's `include` list.
+        --       If not (and not in `exclude`) either, issue a warning.
+        typecheckFromConfigFile
     -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
+    --    TODO: Read from the list of symbols that is supposed to be cached by the typechecker
     --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
     --         Position _l _c' = pos
     --         rsp = Hover (InL ms) (Just range')
