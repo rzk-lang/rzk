@@ -53,7 +53,8 @@ transCommand x = case x of
   Language.Rzk.Syntax.Abs.CommandComputeNF _ term -> failure x
   Language.Rzk.Syntax.Abs.CommandPostulate _ varident declusedvars params term -> failure x
   Language.Rzk.Syntax.Abs.CommandAssume _ varidents term -> failure x
-  Language.Rzk.Syntax.Abs.CommandSection _ sectionname1 commands sectionname2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandSection _ sectionname -> failure x
+  Language.Rzk.Syntax.Abs.CommandSectionEnd _ sectionname -> failure x
   Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> failure x
 
 transDeclUsedVars :: Show a => Language.Rzk.Syntax.Abs.DeclUsedVars' a -> Result

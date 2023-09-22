@@ -53,7 +53,8 @@ data Command' a
     | CommandComputeNF a (Term' a)
     | CommandPostulate a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a)
     | CommandAssume a [VarIdent' a] (Term' a)
-    | CommandSection a (SectionName' a) [Command' a] (SectionName' a)
+    | CommandSection a (SectionName' a)
+    | CommandSectionEnd a (SectionName' a)
     | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
@@ -234,7 +235,8 @@ instance HasPosition Command where
     CommandComputeNF p _ -> p
     CommandPostulate p _ _ _ _ -> p
     CommandAssume p _ _ -> p
-    CommandSection p _ _ _ -> p
+    CommandSection p _ -> p
+    CommandSectionEnd p _ -> p
     CommandDefine p _ _ _ _ _ -> p
 
 instance HasPosition DeclUsedVars where
