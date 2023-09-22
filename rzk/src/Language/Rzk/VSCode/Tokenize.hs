@@ -40,8 +40,8 @@ tokenizeCommand command = case command of
     [ foldMap (\var -> mkToken var vs_parameter [vs_declaration]) vars
     , tokenizeTerm type_
     ]
-  CommandSection _loc _nameStart commands _nameEnd ->
-    foldMap tokenizeCommand commands
+  CommandSection    _loc _nameStart -> []
+  CommandSectionEnd _loc _nameEnd -> []
 
 tokenizeParam :: Param -> [VSToken]
 tokenizeParam = \case

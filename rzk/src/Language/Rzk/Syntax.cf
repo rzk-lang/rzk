@@ -37,7 +37,8 @@ define commandVariable name term = CommandAssume [name] term ;
 commandVariables.         Command ::= "#variables" [VarIdent] ":" Term ;
 define commandVariables names term = CommandAssume names term ;
 
-CommandSection.           Command ::= "#section" SectionName ";" [Command] "#end" SectionName ;
+CommandSection.           Command ::= "#section" SectionName ;
+CommandSectionEnd.        Command ::= "#end" SectionName ;
 
 CommandDefine.            Command ::= "#define" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
 commandDefineNoParams.    Command ::= "#define" VarIdent DeclUsedVars ":" Term ":=" Term ;

@@ -72,10 +72,7 @@ typecheckModuleWithLocation (path, module_) = do
       typecheckModule (Just path) module_
 
 countCommands :: Integral a => [Rzk.Command] -> a
-countCommands [] = 0
-countCommands (Rzk.CommandSection _loc _name sectionCommands _name2 : commands) =
-  countCommands sectionCommands + countCommands commands
-countCommands (_ : commands) = 1 + countCommands commands
+countCommands = fromIntegral . length
 
 typecheckModule :: Maybe FilePath -> Rzk.Module -> TypeCheck VarIdent [Decl']
 typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
@@ -170,13 +167,33 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
             localDeclsPrepared decls $
               go (i + 1) moreCommands
 
-    go  i (command@(Rzk.CommandSection _loc name sectionCommands endName) : moreCommands) = do
+    go  i (command@(Rzk.CommandSection _loc name) : moreCommands) = do
       withCommand command $ do
-        when (Rzk.printTree name /= Rzk.printTree endName) $
-          issueTypeError $ TypeErrorOther $
-            "unexpected #end " <> Rzk.printTree endName <> ", expecting #end " <> Rzk.printTree name
+        (sectionCommands, moreCommands') <- splitSectionCommands name moreCommands
         withSection (Just name) (go i sectionCommands) $ do
-          go (i + countCommands sectionCommands) moreCommands
+          go (i + countCommands sectionCommands) moreCommands'
+
+    go  _i (command@(Rzk.CommandSectionEnd _loc endName) : _moreCommands) = do
+      withCommand command $
+        issueTypeError $ TypeErrorOther $
+          "unexpected #end " <> Rzk.printTree endName <> ", no section was declared!"
+
+
+splitSectionCommands :: Rzk.SectionName -> [Rzk.Command] -> TypeCheck var ([Rzk.Command], [Rzk.Command])
+splitSectionCommands name [] =
+  issueTypeError (TypeErrorOther $ "Section " <> Rzk.printTree name <> " is not closed with an #end")
+splitSectionCommands name (Rzk.CommandSection _loc name' : moreCommands) = do
+  (cs1, cs2) <- splitSectionCommands name' moreCommands
+  (cs3, cs4) <- splitSectionCommands name cs2
+  return (cs1 <> cs3, cs4)
+splitSectionCommands name (Rzk.CommandSectionEnd _loc endName : moreCommands) = do
+  when (Rzk.printTree name /= Rzk.printTree endName) $
+    issueTypeError $ TypeErrorOther $
+      "unexpected #end " <> Rzk.printTree endName <> ", expecting #end " <> Rzk.printTree name
+  return ([], moreCommands)
+splitSectionCommands name (command : moreCommands) = do
+  (cs1, cs2) <- splitSectionCommands name moreCommands
+  return (command : cs1, cs2)
 
 setOption :: String -> String -> TypeCheck var a -> TypeCheck var a
 setOption "verbosity" = \case
@@ -784,8 +801,10 @@ ppContext' ctx@Context{..} = unlines
         "  Error occurred when trying to unset option\n    " <> Rzk.printTree command
       Just command@Rzk.CommandAssume{} ->
         "  Error occurred when checking assumption\n    " <> Rzk.printTree command
-      Just (Rzk.CommandSection _loc name _commands _endName) ->
+      Just (Rzk.CommandSection _loc name) ->
         "  Error occurred when checking\n    #section " <> Rzk.printTree name
+      Just (Rzk.CommandSectionEnd _loc name) ->
+        "  Error occurred when checking\n    #end " <> Rzk.printTree name
       Nothing -> "  Error occurred"
 --  , "Local tope context (expanded):"
 --  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
