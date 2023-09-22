@@ -46,6 +46,7 @@ extra-deps:
   - lsp-2.1.0.0
   - lsp-types-2.0.1.0
   - row-types-1.0.1.2
+  - filepath-1.4.2.2
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

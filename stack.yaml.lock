@@ -4,51 +4,58 @@
 #   https://docs.haskellstack.org/en/stable/lock_files
 
 packages:
-  - completed:
-      hackage: with-utf8-1.0.2.4@sha256:c47c077769883cc54a18ea0a6567c5b49fd2ab708f796ec92b8ad3c8b60a8b09,2974
-      pantry-tree:
-        sha256: af0f438235d84ce1ea04f1e8ad566d1aeeb287515adae3d2843c309f4d031651
-        size: 1051
-    original:
-      hackage: with-utf8-1.0.2.4
-  - completed:
-      hackage: Glob-0.10.2@sha256:dd2ddbecae8f84e8f4cacb5b856901a19c25ceaa11f2525d3ee88d034acb0081,2938
-      pantry-tree:
-        sha256: 3c9d365a19c0e15d7cf5e93ee994bdc81958c8e4056f43ec0408f34f1a3bb970
-        size: 1432
-    original:
-      hackage: Glob-0.10.2
-  - completed:
-      hackage: lens-5.2.2@sha256:e01d5732173645b80f23a189a0f7e1f5cd0b2286de0ce20baf941cbf5c3b8435,15158
-      pantry-tree:
-        sha256: b69117901be8d6fb47cf106504af0065a5271a10bdbf9d8ab89acbd0508c4653
-        size: 8216
-    original:
-      hackage: lens-5.2.2
-  - completed:
-      hackage: lsp-2.1.0.0@sha256:ef6fc28eac6dc27672cd8471c9f83f14de646a9c1fcaf993a451d2ae4de274e8,3533
-      pantry-tree:
-        sha256: 1ace37e19271024b6396c8ef0ebe9410b5fe578d70ef2cfa0f58990ae975fe0c
-        size: 1043
-    original:
-      hackage: lsp-2.1.0.0
-  - completed:
-      hackage: lsp-types-2.0.1.0@sha256:70a822473de72c165495c2eed00f4c2a728f7fe1e6d7d8b4709d474a41860940,29317
-      pantry-tree:
-        sha256: 9aa011ac9899699570a7085e10957be306bdb78262f24ac2366d56c1bd9e6711
-        size: 45522
-    original:
-      hackage: lsp-types-2.0.1.0
-  - completed:
-      hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
-      pantry-tree:
-        sha256: 6a3617038d3970095100d14d026c396002a115700500cf3004ffb67ae5a75611
-        size: 1060
-    original:
-      hackage: row-types-1.0.1.2
+- completed:
+    hackage: with-utf8-1.0.2.4@sha256:c47c077769883cc54a18ea0a6567c5b49fd2ab708f796ec92b8ad3c8b60a8b09,2974
+    pantry-tree:
+      sha256: af0f438235d84ce1ea04f1e8ad566d1aeeb287515adae3d2843c309f4d031651
+      size: 1051
+  original:
+    hackage: with-utf8-1.0.2.4
+- completed:
+    hackage: Glob-0.10.2@sha256:dd2ddbecae8f84e8f4cacb5b856901a19c25ceaa11f2525d3ee88d034acb0081,2938
+    pantry-tree:
+      sha256: 3c9d365a19c0e15d7cf5e93ee994bdc81958c8e4056f43ec0408f34f1a3bb970
+      size: 1432
+  original:
+    hackage: Glob-0.10.2
+- completed:
+    hackage: lens-5.2.2@sha256:e01d5732173645b80f23a189a0f7e1f5cd0b2286de0ce20baf941cbf5c3b8435,15158
+    pantry-tree:
+      sha256: b69117901be8d6fb47cf106504af0065a5271a10bdbf9d8ab89acbd0508c4653
+      size: 8216
+  original:
+    hackage: lens-5.2.2
+- completed:
+    hackage: lsp-2.1.0.0@sha256:ef6fc28eac6dc27672cd8471c9f83f14de646a9c1fcaf993a451d2ae4de274e8,3533
+    pantry-tree:
+      sha256: 1ace37e19271024b6396c8ef0ebe9410b5fe578d70ef2cfa0f58990ae975fe0c
+      size: 1043
+  original:
+    hackage: lsp-2.1.0.0
+- completed:
+    hackage: lsp-types-2.0.1.0@sha256:70a822473de72c165495c2eed00f4c2a728f7fe1e6d7d8b4709d474a41860940,29317
+    pantry-tree:
+      sha256: 9aa011ac9899699570a7085e10957be306bdb78262f24ac2366d56c1bd9e6711
+      size: 45522
+  original:
+    hackage: lsp-types-2.0.1.0
+- completed:
+    hackage: row-types-1.0.1.2@sha256:4d4c7cb95d06a32b28ba977852d52a26b4c1f695ef083a6fd874ab6d79933b64,3071
+    pantry-tree:
+      sha256: 6a3617038d3970095100d14d026c396002a115700500cf3004ffb67ae5a75611
+      size: 1060
+  original:
+    hackage: row-types-1.0.1.2
+- completed:
+    hackage: filepath-1.4.2.2@sha256:3622cbc524093b18af0235249087546473ab04e9fe275967680e97755a9eae6b,2225
+    pantry-tree:
+      sha256: e8aa0c8f41f1f6801cbbc5e0f0bff434edc0fb7b9d822ec2690240051393d19b
+      size: 784
+  original:
+    hackage: filepath-1.4.2.2
 snapshots:
-  - completed:
-      sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1
-      size: 604108
-      url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2023/4/9.yaml
-    original: nightly-2023-04-09
+- completed:
+    sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1
+    size: 604108
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2023/4/9.yaml
+  original: nightly-2023-04-09

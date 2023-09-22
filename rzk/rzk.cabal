@@ -56,6 +56,7 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , filepath
     , lens
     , lsp
     , lsp-types
@@ -82,6 +83,7 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , filepath
     , lens
     , lsp
     , lsp-types
@@ -113,6 +115,7 @@ test-suite doctests
     , bifunctors
     , bytestring
     , doctest
+    , filepath
     , lens
     , lsp
     , lsp-types
@@ -140,6 +143,7 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , filepath
     , lens
     , lsp
     , lsp-types

@@ -36,6 +36,7 @@ dependencies:
   - lens
   - lsp
   - lsp-types
+  - filepath
 
 ghc-options:
   - -Wall
