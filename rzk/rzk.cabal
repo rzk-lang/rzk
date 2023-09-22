@@ -37,6 +37,7 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Language.Rzk.VSCode.Lsp
+      Language.Rzk.VSCode.State
       Language.Rzk.VSCode.Tokenize
       Rzk
       Rzk.Main
@@ -64,6 +65,7 @@ library
     , optparse-generic
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010
 
 executable rzk
@@ -92,6 +94,7 @@ executable rzk
     , rzk
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010
   if !impl(ghcjs)
     build-depends:
@@ -123,6 +126,7 @@ test-suite doctests
     , optparse-generic
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010
 
 test-suite rzk-test
@@ -152,4 +156,5 @@ test-suite rzk-test
     , rzk
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010

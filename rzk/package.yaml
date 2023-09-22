@@ -37,6 +37,7 @@ dependencies:
   - lsp
   - lsp-types
   - filepath
+  - yaml
 
 ghc-options:
   - -Wall

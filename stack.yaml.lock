@@ -53,6 +53,13 @@ packages:
       size: 784
   original:
     hackage: filepath-1.4.2.2
+- completed:
+    hackage: yaml-0.11.11.2@sha256:6f0a1859e0fb3068e50dbc7fe9bf9a26847741bc24344e35e16a03711a18f88d,5178
+    pantry-tree:
+      sha256: 799f6815fe2c823561c3935bdf0cabe5f4f4a55462dc9c0d2a9838f963c97ea0
+      size: 2044
+  original:
+    hackage: yaml-0.11.11.2
 snapshots:
 - completed:
     sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1
