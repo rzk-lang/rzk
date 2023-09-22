@@ -3,18 +3,25 @@
 
 module Language.Rzk.VSCode.Lsp where
 
-import Control.Lens (to, (^.))
-import Control.Monad.IO.Class
-import qualified Data.Text as T
-import Language.LSP.Protocol.Lens (HasParams (params), HasTextDocument (textDocument), HasUri (uri))
-import Language.LSP.Protocol.Message
-import Language.LSP.Protocol.Types
-import Language.LSP.Server
-import Language.LSP.VFS (virtualFileText)
-import Language.Rzk.VSCode.Tokenize (tokenizeModule)
-import Language.Rzk.Syntax (parseModule)
-import Language.LSP.Diagnostics (partitionBySource)
-import Rzk.TypeCheck (typecheckModule, defaultTypeCheck, ppTypeErrorInScopedContext')
+import           Control.Lens                  (to, (^.))
+import           Control.Monad.IO.Class
+import qualified Data.Text                     as T
+import           Language.LSP.Diagnostics      (partitionBySource)
+import           Language.LSP.Protocol.Lens    (HasParams (params),
+                                                HasText (text),
+                                                HasTextDocument (textDocument),
+                                                HasUri (uri))
+import           Language.LSP.Protocol.Message
+import           Language.LSP.Protocol.Types
+import           Language.LSP.Server
+import           Language.LSP.VFS              (virtualFileText)
+
+import           Language.Rzk.Syntax           (parseModule)
+import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
+import           Rzk.TypeCheck                 (defaultTypeCheck,
+                                                ppTypeErrorInScopedContext',
+                                                typecheckModule)
+
 
 -- | The maximum number of diagnostic messages to send to the client
 maxDiagnosticCount :: Int
@@ -44,7 +51,7 @@ handlers =
         let errorMessage = do
               res <- typeErrors
               case defaultTypeCheck res of
-                Left err -> Left $ ppTypeErrorInScopedContext' err
+                Left err     -> Left $ ppTypeErrorInScopedContext' err
                 Right _decls -> Right ()
         case errorMessage of
           Left err -> do
@@ -62,6 +69,7 @@ handlers =
                   ]
             publishDiagnostics maxDiagnosticCount normUri Nothing (partitionBySource diags)
           Right () -> do
+            -- Reset any existing diags
             publishDiagnostics 0 normUri Nothing (partitionBySource [])
     -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
     --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
