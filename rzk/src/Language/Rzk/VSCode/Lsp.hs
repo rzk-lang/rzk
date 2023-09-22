@@ -29,6 +29,10 @@ handlers =
     , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidChange $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
+    , notificationHandler SMethod_WorkspaceDidChangeWatchedFiles $ \_msg -> do
+        -- TODO: see what files changed and typecheck them again
+        --  Need to handle 3 events: added, changed, and deleted
+        return ()
     , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
         -- TODO: do the same thing in DidOpen handler
         let normUri = toNormalizedUri $ msg ^. params . textDocument . uri
