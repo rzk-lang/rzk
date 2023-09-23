@@ -10,12 +10,11 @@ import           Data.List               (sort)
 import           Data.Version            (showVersion)
 import           Language.Rzk.VSCode.Lsp (runLsp)
 import           Options.Generic
-import           System.Exit                  (exitFailure)
-import           System.FilePath.Glob         (glob)
+import           System.Exit             (exitFailure)
+import           System.FilePath.Glob    (glob)
 
-import qualified Language.Rzk.Syntax          as Rzk
-import           Language.Rzk.VSCode.Tokenize (tokenizeModule)
-import           Paths_rzk                    (version)
+import qualified Language.Rzk.Syntax     as Rzk
+import           Paths_rzk               (version)
 import           Rzk.TypeCheck
 
 data Command

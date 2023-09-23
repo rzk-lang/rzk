@@ -837,7 +837,12 @@ withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
 withLocation loc = local $ \Context{..} -> Context { location = Just loc, .. }
 
 withCommand :: Rzk.Command -> TypeCheck var a -> TypeCheck var a
-withCommand command = local $ \Context{..} -> Context { currentCommand = Just command, .. }
+withCommand command = local $ \Context{..} -> Context
+  { currentCommand = Just command
+  , location = updatePosition (Rzk.hasPosition command) <$> location
+  , .. }
+  where
+    updatePosition pos loc = loc { locationLine = fst <$> pos }
 
 localDecls :: [Decl VarIdent] -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 localDecls []             = id

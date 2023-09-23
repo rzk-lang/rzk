@@ -108,7 +108,10 @@ typecheckFromConfigFile = do
         msg = ppTypeErrorInScopedContext' err
 
         extractLineNumber :: TypeErrorInScopedContext var -> Maybe Int
-        extractLineNumber (PlainTypeError e)    = location (typeErrorContext e) >>= locationLine
+        extractLineNumber (PlainTypeError e)    = do
+          loc <- location (typeErrorContext e)
+          lineNo <- locationLine loc
+          return (lineNo - 1) -- VS Code indexes lines from 0, but locationLine starts with 1
         extractLineNumber (ScopedTypeError _ e) = extractLineNumber e
 
         line = fromIntegral $ fromMaybe 0 $ extractLineNumber err
