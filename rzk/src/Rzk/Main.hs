@@ -35,7 +35,7 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
           , ppTypeErrorInScopedContext' err
           ]
         exitFailure
-      Right () -> putStrLn "Everything is ok!"
+      Right _declsByPath -> putStrLn "Everything is ok!"
 
   Lsp -> void runLsp
 
