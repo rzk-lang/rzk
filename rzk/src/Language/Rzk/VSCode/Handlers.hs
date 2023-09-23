@@ -70,11 +70,11 @@ typecheckFromConfigFile = do
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
           (typeErrors, _checkedModules) <- case defaultTypeCheck (typecheckModulesWithLocationIncremental cachedModules parsedModules) of
-            Left err             -> return ([err], [])
-            Right checkedModules -> do
+            Left err             -> return ([err], [])    -- sort of impossible
+            Right (checkedModules, errors) -> do
               -- cache well-typed modules
               cacheTypecheckedModules checkedModules
-              return ([], checkedModules)
+              return (errors, checkedModules)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors

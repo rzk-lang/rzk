@@ -52,11 +52,24 @@ type Decl' = Decl VarIdent
 typecheckModulesWithLocationIncremental
   :: [(FilePath, [Decl'])]    -- ^ Cached declarations (only those that do not need rechecking).
   -> [(FilePath, Rzk.Module)] -- ^ New modules to check
-  -> TypeCheck VarIdent [(FilePath, [Decl'])]
+  -> TypeCheck VarIdent ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent])
 typecheckModulesWithLocationIncremental cached modulesToTypecheck = do
   let decls = foldMap snd cached
-  localDeclsPrepared decls $
-    (cached ++) <$> typecheckModulesWithLocation modulesToTypecheck
+  localDeclsPrepared decls $ do
+    (checked, errors) <- typecheckModulesWithLocation' modulesToTypecheck
+    return (cached <> checked, errors)
+
+typecheckModulesWithLocation' :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent])
+typecheckModulesWithLocation' = \case
+  [] -> return ([], [])
+  m@(path, _) : ms -> do
+    declsE <- (Right <$> typecheckModuleWithLocation m) `catchError` (return . Left)
+    case declsE of
+      Left err -> return ([], [err])
+      Right decls -> do
+        localDeclsPrepared decls $ do
+          (decls', errors) <- typecheckModulesWithLocation' ms
+          return ((path, decls) : decls', errors)
 
 typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent [(FilePath, [Decl'])]
 typecheckModulesWithLocation = \case
