@@ -6,6 +6,7 @@ module Language.Rzk.VSCode.Lsp where
 import           Control.Lens                  (_Just, to, (^.), (^..))
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
+import           Data.List                     (isSuffixOf)
 import qualified Data.Text                     as T
 import           Language.LSP.Protocol.Lens    (HasParams (params),
                                                 HasTextDocument (textDocument),
@@ -36,7 +37,9 @@ handlers =
     , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
     , notificationHandler SMethod_WorkspaceDidChangeWatchedFiles $ \msg -> do
         let modifiedPaths = msg ^.. params . changes . traverse . uri . to uriToFilePath . _Just
-        resetCacheForFiles modifiedPaths
+        if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
+          then resetCacheForAllFiles
+          else resetCacheForFiles modifiedPaths
         -- TODO: see what files changed and typecheck them again
         --  Need to handle 3 events: added, changed, and deleted
 
@@ -45,7 +48,7 @@ handlers =
     , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> do
         -- TODO: check if the file is included in the config's `include` list.
         --       If not (and not in `exclude`) either, issue a warning.
-        typecheckFromConfigFile
+        return () -- FIXME: typecheck standalone files (if they are not a part of the project)
     -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
     --    TODO: Read from the list of symbols that is supposed to be cached by the typechecker
     --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
