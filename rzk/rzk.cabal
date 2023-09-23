@@ -61,8 +61,6 @@ library
     , bytestring
     , filepath
     , lens
-    , lsp
-    , lsp-types
     , mtl
     , optparse-generic
     , stm
@@ -70,6 +68,10 @@ library
     , text
     , yaml
   default-language: Haskell2010
+  if !impl(ghcjs)
+    build-depends:
+        lsp
+      , lsp-types
 
 executable rzk
   main-is: Main.hs
@@ -90,8 +92,6 @@ executable rzk
     , bytestring
     , filepath
     , lens
-    , lsp
-    , lsp-types
     , mtl
     , optparse-generic
     , rzk
@@ -124,8 +124,6 @@ test-suite doctests
     , doctest
     , filepath
     , lens
-    , lsp
-    , lsp-types
     , mtl
     , optparse-generic
     , stm
@@ -154,8 +152,6 @@ test-suite rzk-test
     , bytestring
     , filepath
     , lens
-    , lsp
-    , lsp-types
     , mtl
     , optparse-generic
     , rzk

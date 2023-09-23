@@ -34,8 +34,6 @@ dependencies:
   - optparse-generic
   - Glob
   - lens
-  - lsp
-  - lsp-types
   - filepath
   - stm
   - yaml
@@ -59,6 +57,10 @@ library:
         - Language.Rzk.Syntax.Test
         - Language.Rzk.Syntax.ErrM
         - Language.Rzk.Syntax.Skel
+    - condition: '!impl(ghcjs)'
+      dependencies:
+        - lsp
+        - lsp-types
 
 executables:
   rzk:
