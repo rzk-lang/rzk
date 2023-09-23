@@ -1,10 +1,10 @@
 name: rzk
-version: 0.5.7
-github: "rzk-lang/rzk"
+version: 0.6.0
+github: 'rzk-lang/rzk'
 license: BSD3
-author: "Nikolai Kudasov"
-maintainer: "nickolay.kudasov@gmail.com"
-copyright: "2023 Nikolai Kudasov"
+author: 'Nikolai Kudasov'
+maintainer: 'nickolay.kudasov@gmail.com'
+copyright: '2023 Nikolai Kudasov'
 
 extra-source-files:
   - README.md
@@ -33,6 +33,10 @@ dependencies:
   - text
   - optparse-generic
   - Glob
+  - lens
+  - filepath
+  - stm
+  - yaml
 
 ghc-options:
   - -Wall
@@ -53,6 +57,16 @@ library:
         - Language.Rzk.Syntax.Test
         - Language.Rzk.Syntax.ErrM
         - Language.Rzk.Syntax.Skel
+    - condition: '!impl(ghcjs)'
+      exposed-modules:
+        - Language.Rzk.VSCode.Env
+        - Language.Rzk.VSCode.Handlers
+        - Language.Rzk.VSCode.Lsp
+        - Language.Rzk.VSCode.State
+        - Language.Rzk.VSCode.Tokenize
+      dependencies:
+        - lsp
+        - lsp-types
 
 executables:
   rzk:
@@ -65,7 +79,7 @@ executables:
     dependencies:
       - rzk
     when:
-      - condition: "!impl(ghcjs)"
+      - condition: '!impl(ghcjs)'
         dependencies:
           - with-utf8
 

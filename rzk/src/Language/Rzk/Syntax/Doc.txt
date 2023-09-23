@@ -82,7 +82,8 @@ All other symbols are terminals.
   |  |  **|**  | ``#assume`` //[VarIdent]// ``:`` //Term//
   |  |  **|**  | ``#variable`` //VarIdent// ``:`` //Term//
   |  |  **|**  | ``#variables`` //[VarIdent]// ``:`` //Term//
-  |  |  **|**  | ``#section`` //SectionName// ``;`` //[Command]// ``#end`` //SectionName//
+  |  |  **|**  | ``#section`` //SectionName//
+  |  |  **|**  | ``#end`` //SectionName//
   |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
