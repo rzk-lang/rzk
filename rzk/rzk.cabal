@@ -36,8 +36,6 @@ library
       Language.Rzk.Syntax.Lex
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
-      Language.Rzk.VSCode.Tokenize
-      Language.Rzk.VSCode.Tokens
       Rzk
       Rzk.Main
       Rzk.TypeCheck
@@ -56,11 +54,25 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , filepath
+    , lens
     , mtl
     , optparse-generic
+    , stm
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010
+  if !impl(ghcjs)
+    exposed-modules:
+        Language.Rzk.VSCode.Env
+        Language.Rzk.VSCode.Handlers
+        Language.Rzk.VSCode.Lsp
+        Language.Rzk.VSCode.State
+        Language.Rzk.VSCode.Tokenize
+    build-depends:
+        lsp
+      , lsp-types
 
 executable rzk
   main-is: Main.hs
@@ -79,11 +91,15 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , filepath
+    , lens
     , mtl
     , optparse-generic
     , rzk
+    , stm
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010
   if !impl(ghcjs)
     build-depends:
@@ -107,10 +123,14 @@ test-suite doctests
     , bifunctors
     , bytestring
     , doctest
+    , filepath
+    , lens
     , mtl
     , optparse-generic
+    , stm
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010
 
 test-suite rzk-test
@@ -131,9 +151,13 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , filepath
+    , lens
     , mtl
     , optparse-generic
     , rzk
+    , stm
     , template-haskell
     , text
+    , yaml
   default-language: Haskell2010

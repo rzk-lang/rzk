@@ -49,21 +49,43 @@ data Decl var = Decl
 
 type Decl' = Decl VarIdent
 
-typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent ()
+typecheckModulesWithLocationIncremental
+  :: [(FilePath, [Decl'])]    -- ^ Cached declarations (only those that do not need rechecking).
+  -> [(FilePath, Rzk.Module)] -- ^ New modules to check
+  -> TypeCheck VarIdent ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent])
+typecheckModulesWithLocationIncremental cached modulesToTypecheck = do
+  let decls = foldMap snd cached
+  localDeclsPrepared decls $ do
+    (checked, errors) <- typecheckModulesWithLocation' modulesToTypecheck
+    return (cached <> checked, errors)
+
+typecheckModulesWithLocation' :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent])
+typecheckModulesWithLocation' = \case
+  [] -> return ([], [])
+  m@(path, _) : ms -> do
+    declsE <- (Right <$> typecheckModuleWithLocation m) `catchError` (return . Left)
+    case declsE of
+      Left err -> return ([], [err])
+      Right decls -> do
+        localDeclsPrepared decls $ do
+          (decls', errors) <- typecheckModulesWithLocation' ms
+          return ((path, decls) : decls', errors)
+
+typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent [(FilePath, [Decl'])]
 typecheckModulesWithLocation = \case
-  [] -> return ()
-  m : ms -> do
+  [] -> return []
+  m@(path, _) : ms -> do
     decls <- typecheckModuleWithLocation m
     localDeclsPrepared decls $
-      typecheckModulesWithLocation ms
+      ((path, decls) :) <$> typecheckModulesWithLocation ms
 
-typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent ()
+typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent [Decl']
 typecheckModules = \case
-  [] -> return ()
+  [] -> return []
   m : ms -> do
     decls <- typecheckModule Nothing m
     localDeclsPrepared decls $
-      typecheckModules ms
+      (decls <>) <$> typecheckModules ms
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck VarIdent [Decl']
 typecheckModuleWithLocation (path, module_) = do
@@ -837,7 +859,12 @@ withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
 withLocation loc = local $ \Context{..} -> Context { location = Just loc, .. }
 
 withCommand :: Rzk.Command -> TypeCheck var a -> TypeCheck var a
-withCommand command = local $ \Context{..} -> Context { currentCommand = Just command, .. }
+withCommand command = local $ \Context{..} -> Context
+  { currentCommand = Just command
+  , location = updatePosition (Rzk.hasPosition command) <$> location
+  , .. }
+  where
+    updatePosition pos loc = loc { locationLine = fst <$> pos }
 
 localDecls :: [Decl VarIdent] -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 localDecls []             = id
