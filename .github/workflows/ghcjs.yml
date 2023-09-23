@@ -49,10 +49,6 @@ jobs:
           rm -f rzk/src/Language/Rzk/Syntax/Lex.x
           rm -f rzk/src/Language/Rzk/Syntax/Par.y
 
-      - name: 🔨 Generate proper rzk.nix derivation for GHCJS
-        run: |
-          cd rzk/ && cabal2nix --compiler ghcjs . >rzk.nix
-
       - name: 🔨 Build GHCJS version with Nix
         run: |
           nix build .#try-rzk
