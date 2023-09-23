@@ -3,13 +3,13 @@
 
 module Language.Rzk.VSCode.Lsp where
 
-import           Control.Lens                  (to, (^.))
+import           Control.Lens                  (_Just, to, (^.), (^..))
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import qualified Data.Text                     as T
 import           Language.LSP.Protocol.Lens    (HasParams (params),
                                                 HasTextDocument (textDocument),
-                                                HasUri (uri))
+                                                HasUri (uri), changes, uri)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
@@ -34,7 +34,9 @@ handlers =
     -- , requestHandler SMethod_TextDocumentFormatting $ \_req _res -> pure ()
     , notificationHandler SMethod_TextDocumentDidChange $ \_msg -> pure ()
     , notificationHandler SMethod_TextDocumentDidClose $ \_msg -> pure ()
-    , notificationHandler SMethod_WorkspaceDidChangeWatchedFiles $ \_msg -> do
+    , notificationHandler SMethod_WorkspaceDidChangeWatchedFiles $ \msg -> do
+        let modifiedPaths = msg ^.. params . changes . traverse . uri . to uriToFilePath . _Just
+        resetCacheForFiles modifiedPaths
         -- TODO: see what files changed and typecheck them again
         --  Need to handle 3 events: added, changed, and deleted
 

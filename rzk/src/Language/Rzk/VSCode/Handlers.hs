@@ -4,7 +4,7 @@
 module Language.Rzk.VSCode.Handlers where
 
 import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
-import           Data.List                     (sort)
+import           Data.List                     (sort, (\\))
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Y
 import           Language.LSP.Diagnostics      (partitionBySource)
@@ -63,8 +63,13 @@ typecheckFromConfigFile = do
         Right config -> do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
-          (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles paths
-          (typeErrors, checkedModules) <- case defaultTypeCheck (typecheckModulesWithLocation parsedModules) of
+
+          cachedModules <- getCachedTypecheckedModules
+          let cachedPaths = map fst cachedModules
+              modifiedFiles = paths \\ cachedPaths
+
+          (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
+          (typeErrors, checkedModules) <- case defaultTypeCheck (typecheckModulesWithLocationIncremental cachedModules parsedModules) of
             Left err             -> return ([err], [])
             Right checkedModules -> return ([], checkedModules) -- FIXME: cache actual checkedModules after something useful is returned
 

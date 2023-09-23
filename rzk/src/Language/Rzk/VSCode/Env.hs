@@ -31,3 +31,8 @@ resetCacheForFiles paths = lift $ do
   typecheckCache <- asks rzkEnvTypecheckCache
   liftIO $ atomically $ do
     modifyTVar typecheckCache (filter ((`notElem` paths) . fst))
+
+getCachedTypecheckedModules :: LSP RzkTypecheckCache
+getCachedTypecheckedModules = lift $ do
+  typecheckCache <- asks rzkEnvTypecheckCache
+  liftIO $ readTVarIO typecheckCache
