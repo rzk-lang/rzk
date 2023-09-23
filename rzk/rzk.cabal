@@ -36,6 +36,7 @@ library
       Language.Rzk.Syntax.Lex
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
+      Language.Rzk.VSCode.Env
       Language.Rzk.VSCode.Handlers
       Language.Rzk.VSCode.Lsp
       Language.Rzk.VSCode.State
@@ -64,6 +65,7 @@ library
     , lsp-types
     , mtl
     , optparse-generic
+    , stm
     , template-haskell
     , text
     , yaml
@@ -93,6 +95,7 @@ executable rzk
     , mtl
     , optparse-generic
     , rzk
+    , stm
     , template-haskell
     , text
     , yaml
@@ -125,6 +128,7 @@ test-suite doctests
     , lsp-types
     , mtl
     , optparse-generic
+    , stm
     , template-haskell
     , text
     , yaml
@@ -155,6 +159,7 @@ test-suite rzk-test
     , mtl
     , optparse-generic
     , rzk
+    , stm
     , template-haskell
     , text
     , yaml

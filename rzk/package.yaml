@@ -37,6 +37,7 @@ dependencies:
   - lsp
   - lsp-types
   - filepath
+  - stm
   - yaml
 
 ghc-options:

@@ -5,6 +5,7 @@ module Language.Rzk.VSCode.Lsp where
 
 import           Control.Lens                  (to, (^.))
 import           Control.Monad.IO.Class
+import           Control.Monad.Reader
 import qualified Data.Text                     as T
 import           Language.LSP.Protocol.Lens    (HasParams (params),
                                                 HasTextDocument (textDocument),
@@ -15,15 +16,15 @@ import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 
 import           Language.Rzk.Syntax           (parseModule)
-import           Language.Rzk.VSCode.Handlers  (typecheckFromConfigFile)
+import           Language.Rzk.VSCode.Env
+import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
-
 
 -- | The maximum number of diagnostic messages to send to the client
 maxDiagnosticCount :: Int
 maxDiagnosticCount = 100
 
-handlers :: Handlers (LspM ())
+handlers :: Handlers LSP
 handlers =
   mconcat
     [ notificationHandler SMethod_Initialized $ const typecheckFromConfigFile
@@ -82,13 +83,14 @@ syncOptions = TextDocumentSyncOptions
   }
 
 runLsp :: IO Int
-runLsp =
+runLsp = do
+  rzkEnv <- defaultRzkEnv
   runServer $
     ServerDefinition
       { onConfigurationChange = const $ pure $ Right (),
         doInitialize = const . pure . Right,
         staticHandlers = const handlers,
-        interpretHandler = \env -> Iso (runLspT env) liftIO,
+        interpretHandler = \env -> Iso (flip runReaderT rzkEnv . runLspT env) liftIO,
         options = defaultOptions { optTextDocumentSync = Just syncOptions },
         defaultConfig = ()
       }

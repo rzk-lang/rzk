@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
-module Language.Rzk.VSCode.Handlers (typecheckFromConfigFile) where
+module Language.Rzk.VSCode.Handlers where
 
 import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
 import           Data.List                     (sort)
@@ -17,6 +17,7 @@ import           System.FilePath.Glob          (compile, globDir)
 import           Data.Maybe                    (fromMaybe)
 import           Language.Rzk.Free.Syntax      (VarIdent)
 import           Language.Rzk.Syntax           (Module, parseModuleFile)
+import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.State     (ProjectConfig (include))
 import           Rzk.TypeCheck
 
@@ -49,7 +50,7 @@ filePathToNormalizedUri :: FilePath -> NormalizedUri
 filePathToNormalizedUri = toNormalizedUri . filePathToUri
 
 
-typecheckFromConfigFile :: LspT () IO ()
+typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
   root <- getRootPath
   case root of
@@ -63,9 +64,11 @@ typecheckFromConfigFile = do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles paths
-          (typeErrors, _checkedModules) <- case defaultTypeCheck (typecheckModulesWithLocation parsedModules) of
-            Left err              -> return ([err], [])
-            Right _checkedModules -> return ([], []) -- FIXME: cache actual checkedModules after something useful is returned
+          (typeErrors, checkedModules) <- case defaultTypeCheck (typecheckModulesWithLocation parsedModules) of
+            Left err             -> return ([err], [])
+            Right checkedModules -> return ([], checkedModules) -- FIXME: cache actual checkedModules after something useful is returned
+
+          cacheTypecheckedModules checkedModules
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
