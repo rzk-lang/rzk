@@ -1,8 +1,10 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Rzk.Syntax (
   module Language.Rzk.Syntax.Abs,
 
+  parseModuleSafe,
   parseModule,
   parseModuleRzk,
   parseModuleFile,
@@ -10,7 +12,12 @@ module Language.Rzk.Syntax (
   printTree,
   tryExtractMarkdownCodeBlocks,
   extractMarkdownCodeBlocks,
+  tryOrDisplayException,
+  tryOrDisplayExceptionIO,
 ) where
+
+import           Control.Exception          (Exception (..), SomeException,
+                                             evaluate, try)
 
 import           Data.Char                  (isSpace)
 import qualified Data.List                  as List
@@ -22,6 +29,18 @@ import           Language.Rzk.Syntax.Layout (resolveLayout)
 import           Language.Rzk.Syntax.Lex    (tokens)
 import           Language.Rzk.Syntax.Par    (pModule, pTerm)
 
+tryOrDisplayException :: Either String a -> IO (Either String a)
+tryOrDisplayException = tryOrDisplayExceptionIO . evaluate
+
+tryOrDisplayExceptionIO :: IO (Either String a) -> IO (Either String a)
+tryOrDisplayExceptionIO x =
+  try x >>= \case
+    Left (ex :: SomeException) -> return (Left (displayException ex))
+    Right result               -> return result
+
+parseModuleSafe :: String -> IO (Either String Module)
+parseModuleSafe = tryOrDisplayException . parseModule
+
 parseModule :: String -> Either String Module
 parseModule = pModule . resolveLayout True . tokens . tryExtractMarkdownCodeBlocks "rzk"
 
@@ -30,7 +49,8 @@ parseModuleRzk = pModule . resolveLayout True . tokens
 
 parseModuleFile :: FilePath -> IO (Either String Module)
 parseModuleFile path = do
-  parseModule <$> readFile path
+  source <- readFile path
+  parseModuleSafe source
 
 parseTerm :: String -> Either String Term
 parseTerm = pTerm . tokens

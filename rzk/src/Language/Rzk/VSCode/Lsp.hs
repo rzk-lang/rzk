@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeApplications      #-}
 
 module Language.Rzk.VSCode.Lsp where
 
@@ -16,7 +17,7 @@ import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 
-import           Language.Rzk.Syntax           (parseModule)
+import           Language.Rzk.Syntax           (parseModuleSafe)
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
@@ -60,12 +61,13 @@ handlers =
     , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
         let doc = req ^. params . textDocument . uri . to toNormalizedUri
         mdoc <- getVirtualFile doc
-        let possibleTokens = case virtualFileText <$> mdoc of
-              Nothing -> Left "Failed to get file content"
-              Just sourceCode -> tokenizeModule <$> parseModule (T.unpack sourceCode)
+        possibleTokens <- case virtualFileText <$> mdoc of
+              Nothing         -> return (Left "Failed to get file content")
+              Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
+                parseModuleSafe (T.unpack sourceCode)
         case possibleTokens of
           Left _err -> do
-            -- Failed to open the file or to tokenize
+            -- Exception occurred when parsing the module
             return ()
           Right tokens -> do
             let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
