@@ -6,7 +6,7 @@ module Language.Rzk.VSCode.Handlers where
 import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
 import           Data.List                     (sort, (\\))
 import qualified Data.Text                     as T
-import qualified Data.Yaml                     as Y
+import qualified Data.Yaml                     as Yaml
 import           Language.LSP.Diagnostics      (partitionBySource)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
@@ -58,7 +58,7 @@ typecheckFromConfigFile = do
       sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Warning "Cannot find the workspace root")
     Just rootPath -> do
       let rzkYamlPath = rootPath </> "rzk.yaml"
-      eitherConfig <- liftIO $ Y.decodeFileEither @ProjectConfig rzkYamlPath
+      eitherConfig <- liftIO $ Yaml.decodeFileEither @ProjectConfig rzkYamlPath
       case eitherConfig of
         Right config -> do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
@@ -93,7 +93,7 @@ typecheckFromConfigFile = do
                 errDiagnostic = diagnosticOfTypeError err
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri errPath) Nothing (partitionBySource [errDiagnostic])
         Left err -> do
-          sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Error (T.pack $ "Error parsing rzk.yaml: " ++ show err))
+          sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Warning (T.pack $ "Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err))
   where
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
