@@ -1,8 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Language.Rzk.VSCode.Handlers where
 
+import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
 import           Data.List                     (sort, (\\))
 import qualified Data.Text                     as T
@@ -60,6 +62,9 @@ typecheckFromConfigFile = do
       let rzkYamlPath = rootPath </> "rzk.yaml"
       eitherConfig <- liftIO $ Yaml.decodeFileEither @ProjectConfig rzkYamlPath
       case eitherConfig of
+        Left err -> do
+          sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Warning (T.pack $ "Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err))
+
         Right config -> do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
@@ -69,12 +74,16 @@ typecheckFromConfigFile = do
               modifiedFiles = paths \\ cachedPaths
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
-          (typeErrors, _checkedModules) <- case defaultTypeCheck (typecheckModulesWithLocationIncremental cachedModules parsedModules) of
-            Left err             -> return ([err], [])    -- sort of impossible
-            Right (checkedModules, errors) -> do
-              -- cache well-typed modules
-              cacheTypecheckedModules checkedModules
-              return (errors, checkedModules)
+          tcResults <- liftIO $ try $ evaluate $
+            defaultTypeCheck (typecheckModulesWithLocationIncremental cachedModules parsedModules)
+
+          (typeErrors, _checkedModules) <- case tcResults of
+            Left (_ex :: SomeException) -> return ([], [])   -- FIXME: publish diagnostics about an exception during typechecking!
+            Right (Left err) -> return ([err], [])    -- sort of impossible
+            Right (Right (checkedModules, errors)) -> do
+                -- cache well-typed modules
+                cacheTypecheckedModules checkedModules
+                return (errors, checkedModules)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
@@ -92,8 +101,6 @@ typecheckFromConfigFile = do
             let errPath = filepathOfTypeError err
                 errDiagnostic = diagnosticOfTypeError err
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri errPath) Nothing (partitionBySource [errDiagnostic])
-        Left err -> do
-          sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Warning (T.pack $ "Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err))
   where
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
