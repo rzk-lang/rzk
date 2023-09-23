@@ -1,6 +1,7 @@
 { mkDerivation, aeson, alex, array, base, bifunctors, bytestring
-, doctest, Glob, happy, hpack, lib, mtl, optparse-generic
-, QuickCheck, template-haskell, text
+, doctest, filepath, Glob, happy, hpack, lens, lib, lsp, lsp-types
+, mtl, optparse-generic, QuickCheck, template-haskell, text
+, with-utf8, yaml
 }:
 mkDerivation {
   pname = "rzk";
@@ -9,18 +10,19 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    aeson array base bifunctors bytestring Glob mtl optparse-generic
-    template-haskell text
+    aeson array base bifunctors bytestring filepath Glob lens lsp
+    lsp-types mtl optparse-generic template-haskell text yaml
   ];
   libraryToolDepends = [ alex happy hpack ];
   executableHaskellDepends = [
-    aeson array base bifunctors bytestring Glob mtl optparse-generic
-    template-haskell text
+    aeson array base bifunctors bytestring filepath Glob lens lsp
+    lsp-types mtl optparse-generic template-haskell text with-utf8 yaml
   ];
   executableToolDepends = [ alex happy ];
   testHaskellDepends = [
-    aeson array base bifunctors bytestring doctest Glob mtl
-    optparse-generic QuickCheck template-haskell text
+    aeson array base bifunctors bytestring doctest filepath Glob lens
+    lsp lsp-types mtl optparse-generic QuickCheck template-haskell text
+    yaml
   ];
   testToolDepends = [ alex happy ];
   prePatch = "hpack";
