@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.0 — 2023-09-23
+
+This version introduces a proper LSP server with basic support for incremental typechecking
+and some minor improvements:
+
+1. LSP server with incremental typechecking (see [#95](https://github.com/rzk-lang/rzk/pull/95));
+2. Improve error messages for unclosed `#section` and extra `#end` (see [#91](https://github.com/rzk-lang/rzk/pull/91)).
+
 ## v0.5.7 — 2023-09-21
 
 This version contains two fixes (see [#88](https://github.com/rzk-lang/rzk/pull/88)) for issues discovered in [rzk-lang/sHoTT#30](https://github.com/rzk-lang/sHoTT/pull/30#issuecomment-1729212862):
