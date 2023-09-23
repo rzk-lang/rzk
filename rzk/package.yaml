@@ -58,6 +58,12 @@ library:
         - Language.Rzk.Syntax.ErrM
         - Language.Rzk.Syntax.Skel
     - condition: '!impl(ghcjs)'
+      exposed-modules:
+        - Language.Rzk.VSCode.Env
+        - Language.Rzk.VSCode.Handlers
+        - Language.Rzk.VSCode.Lsp
+        - Language.Rzk.VSCode.State
+        - Language.Rzk.VSCode.Tokenize
       dependencies:
         - lsp
         - lsp-types

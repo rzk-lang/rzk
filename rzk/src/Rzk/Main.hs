@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
@@ -8,7 +9,9 @@ module Rzk.Main where
 import           Control.Monad           (forM, void)
 import           Data.List               (sort)
 import           Data.Version            (showVersion)
+#ifndef __GHCJS__
 import           Language.Rzk.VSCode.Lsp (runLsp)
+#endif
 import           Options.Generic
 import           System.Exit             (exitFailure)
 import           System.FilePath.Glob    (glob)
@@ -37,7 +40,12 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
         exitFailure
       Right _declsByPath -> putStrLn "Everything is ok!"
 
-  Lsp -> void runLsp
+  Lsp ->
+#ifndef __GHCJS__
+    void runLsp
+#else
+    error "rzk lsp is not supported with a GHCJS build"
+#endif
 
   Version -> putStrLn (showVersion version)
 
