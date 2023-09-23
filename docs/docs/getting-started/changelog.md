@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.1 — 2023-09-24
+
+This version contains a minor fix:
+
+- Catch exceptions in the parser, fixing LSP for files where layout resolver fails (see [#99](https://github.com/rzk-lang/rzk/pull/99)).
+
 ## v0.6.0 — 2023-09-23
 
 This version introduces a proper LSP server with basic support for incremental typechecking
