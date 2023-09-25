@@ -1,0 +1,99 @@
+section {
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #000;
+}
+
+.row {
+  display: flex;
+  justify-content: space-evenly;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.column {
+  margin-top: 0;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+#__codemirror__ {
+  font-family: Inconsolata, monospace;
+}
+
+#__app__ {
+  margin: 20px;
+}
+
+/* CSS for response button from https://getcssscan.com/css-buttons-examples (button 61) */
+#btnTypecheck {
+  align-items: center;
+  appearance: none;
+  border-radius: 4px;
+  border-style: none;
+  box-shadow: rgba(0, 0, 0, .2) 0 3px 1px -2px, rgba(0, 0, 0, .14) 0 2px 2px 0, rgba(0, 0, 0, .12) 0 1px 5px 0;
+  box-sizing: border-box;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: Roboto, sans-serif;
+  font-size: .875rem;
+  font-weight: 500;
+  height: 36px;
+  justify-content: center;
+  letter-spacing: .0892857em;
+  line-height: normal;
+  min-width: 64px;
+  outline: none;
+  overflow: visible;
+  padding: 0 16px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: box-shadow 280ms cubic-bezier(.4, 0, .2, 1);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: middle;
+  will-change: transform, opacity;
+}
+
+#btnTypecheck:hover {
+  box-shadow: rgba(0, 0, 0, .2) 0 2px 4px -1px, rgba(0, 0, 0, .14) 0 4px 5px 0, rgba(0, 0, 0, .12) 0 1px 10px 0;
+}
+
+#btnTypecheck:disabled {
+  background-color: rgba(0, 0, 0, .12);
+  box-shadow: rgba(0, 0, 0, .2) 0 0 0 0, rgba(0, 0, 0, .14) 0 0 0 0, rgba(0, 0, 0, .12) 0 0 0 0;
+  color: rgba(0, 0, 0, .37);
+  cursor: default;
+  pointer-events: none;
+}
+
+#btnTypecheck:not(:disabled) {
+  background-color: #6200ee;
+}
+
+#btnTypecheck:focus {
+  box-shadow: rgba(0, 0, 0, .2) 0 2px 4px -1px, rgba(0, 0, 0, .14) 0 4px 5px 0, rgba(0, 0, 0, .12) 0 1px 10px 0;
+}
+
+#btnTypecheck:active {
+  box-shadow: rgba(0, 0, 0, .2) 0 5px 5px -3px, rgba(0, 0, 0, .14) 0 8px 10px 1px, rgba(0, 0, 0, .12) 0 3px 14px 2px;
+  background: #A46BF5;
+}
+
+#message {
+  background-color: #202028;
+  color: #eee8d5;
+  overflow: scroll;
+}
+
+#message pre {
+  font-family: Inconsolata, monospace;
+}
