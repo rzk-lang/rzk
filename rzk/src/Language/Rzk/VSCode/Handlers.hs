@@ -121,7 +121,7 @@ typecheckFromConfigFile = do
                       (Just [])                 -- related information
                       Nothing                   -- data that is preserved between different calls
       where
-        msg = ppTypeErrorInScopedContext' err
+        msg = ppTypeErrorInScopedContext' TopDown err
 
         extractLineNumber :: TypeErrorInScopedContext var -> Maybe Int
         extractLineNumber (PlainTypeError e)    = do
