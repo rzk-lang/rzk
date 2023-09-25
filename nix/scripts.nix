@@ -61,6 +61,7 @@ let scripts =
         in
         ''
           rm -f ${playground-rzk-js}
+          mkdir -p "$(dirname ${playground-rzk-js})"
           cp ${packages.rzk-js} ${playground-rzk-js}
               
           (
