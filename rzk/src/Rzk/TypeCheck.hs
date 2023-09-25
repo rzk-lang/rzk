@@ -917,15 +917,15 @@ entail topes tope = all (`solveRHS` tope) $
 
 entailM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailM topes tope = do
-  genTopes <- generateTopesForPointsM (allTopePoints tope)
-  let topes'    = nubTermT (topes <> genTopes)
+  -- genTopes <- generateTopesForPointsM (allTopePoints tope)
+  let topes'    = nubTermT topes -- (topes <> genTopes)
       topes''   = simplifyLHSwithDisjunctions topes'
       topes'''  = saturateTopes (allTopePoints tope) <$> topes''
-  -- prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
-  -- prettyTope <- ppTermInContext =<< nfTope tope
-  return $
-    -- trace ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-      all (`solveRHS` tope) topes'''
+  prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
+  prettyTope <- ppTermInContext tope
+  traceTypeCheck Debug
+    ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+      and <$> mapM (`solveRHSM` tope) topes'''
 
 entailTraceM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailTraceM topes tope = do
@@ -1105,6 +1105,54 @@ simplifyLHS topes = nubTermT $
     TopeEQT  _ (PairT _ x y) (PairT _ x' y') : topes' ->
       simplifyLHS (topeEQT x x' : topeEQT y y' : topes')
     t : topes' -> t : simplifyLHS topes'
+
+solveRHSM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
+solveRHSM topes tope =
+  case tope of
+    _ | topeBottomT `elem` topes -> return True
+    TopeTopT{}     -> return True
+    TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y') ->
+      solveRHSM topes $ topeAndT
+        (topeEQT x x')
+        (topeEQT y y')
+    TopeEQT  _ty (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) r ->
+      solveRHSM topes $ topeAndT
+        (topeEQT x (firstT cubeI r))
+        (topeEQT y (secondT cubeJ r))
+    TopeEQT  _ty l (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) ->
+      solveRHSM topes $ topeAndT
+        (topeEQT (firstT cubeI l) x)
+        (topeEQT (secondT cubeJ l) y)
+    TopeEQT  _ty l r
+      | or
+          [ l == r
+          , tope `elem` topes
+          , topeEQT r l `elem` topes
+          ] -> return True
+    TopeLEQT _ty l r
+      | l == r -> return True
+      | solveRHS topes (topeEQT l r) -> return True
+      | solveRHS topes (topeEQT l cube2_0T) -> return True
+      | solveRHS topes (topeEQT r cube2_1T) -> return True
+    TopeAndT _ l r -> (&&)
+      <$> solveRHSM topes l
+      <*> solveRHSM topes r
+    _ | tope `elem` topes -> return True
+    TopeOrT  _ l r -> do
+      l' <- solveRHSM topes l
+      r' <- solveRHSM topes r
+      if (l' || r')
+        then return True
+        else do
+          lems <- generateTopesForPointsM (allTopePoints tope)
+          let lems' = [ lem | lem@(TopeOrT _ t1 t2) <- lems, all (`notElem` topes) [t1, t2] ]
+          case lems' of
+            TopeOrT _ t1 t2 : _ -> do
+              l'' <- solveRHSM (saturateTopes [] (t1 : topes)) tope
+              r'' <- solveRHSM (saturateTopes [] (t2 : topes)) tope
+              return (l'' && r'')
+            _ -> return False
+    _ -> return False
 
 solveRHS :: Eq var => [TermT var] -> TermT var -> Bool
 solveRHS topes tope =
