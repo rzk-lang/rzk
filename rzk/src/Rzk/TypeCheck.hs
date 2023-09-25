@@ -921,11 +921,11 @@ entailM topes tope = do
   let topes'    = nubTermT (topes <> genTopes)
       topes''   = simplifyLHSwithDisjunctions topes'
       topes'''  = saturateTopes (allTopePoints tope) <$> topes''
-  -- prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
-  -- prettyTope <- ppTermInContext =<< nfTope tope
-  return $
-    -- trace ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-      all (`solveRHS` tope) topes'''
+  prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
+  prettyTope <- ppTermInContext =<< nfTope tope
+  traceTypeCheck Debug
+    ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+      return (all (`solveRHS` tope) topes''')
 
 entailTraceM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailTraceM topes tope = do
