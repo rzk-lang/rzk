@@ -1,15 +1,15 @@
-name:                try-rzk
+name:                rzk-js
 version:             0.1.0
 synopsis:            A serverless online version of Rzk proof assistant
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable try-rzk
+executable rzk-js
   main-is:             Main.hs
   ghcjs-options:
     -dedupe
-  build-depends:       base, miso, rzk
+  build-depends:       base, rzk
   if impl(ghcjs)
     build-depends:
       ghcjs-base, ghcjs-prim
