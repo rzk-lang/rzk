@@ -8,7 +8,8 @@ module Language.Rzk.VSCode.Handlers where
 
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
-import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
+import           Control.Monad                 (forM_)
+import           Control.Monad.IO.Class        (MonadIO (liftIO))
 import           Data.Default.Class
 import           Data.List                     (sort, (\\))
 import           Data.Maybe                    (fromMaybe)
