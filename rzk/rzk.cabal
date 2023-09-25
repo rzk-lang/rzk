@@ -54,6 +54,7 @@ library
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , data-default-class
     , filepath
     , lens
     , mtl
@@ -91,6 +92,7 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , data-default-class
     , filepath
     , lens
     , mtl
@@ -122,6 +124,7 @@ test-suite doctests
     , base
     , bifunctors
     , bytestring
+    , data-default-class
     , doctest
     , filepath
     , lens
@@ -151,6 +154,7 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors
     , bytestring
+    , data-default-class
     , filepath
     , lens
     , mtl
