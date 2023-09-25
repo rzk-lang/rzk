@@ -58,6 +58,7 @@ handlers =
     --         ms = mkMarkdown "Hello world"
     --         range' = Range pos pos
     --     responder (Right $ InL rsp)
+    , requestHandler SMethod_TextDocumentCompletion provideCompletions
     , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
         let doc = req ^. params . textDocument . uri . to toNormalizedUri
         mdoc <- getVirtualFile doc
