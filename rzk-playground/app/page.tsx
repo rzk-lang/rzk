@@ -5,17 +5,9 @@ import Editor from '../components/editor/Editor';
 import Script from 'next/script';
 import { Resizable } from 're-resizable';
 import React from 'react';
-import { color } from '../components/editor/theme';
 import * as rzk from '../src/rzk';
 import { KeyBindProvider, ShortcutType } from 'react-keybinds';
 import dynamic from 'next/dynamic';
-
-const style = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: color.background
-}
 
 var typecheckedOnStart = false
 
@@ -25,7 +17,6 @@ function HomeNoSSR() {
   const [message, setMessage] = useState("Starting...");
 
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
-  const [editorHeight, setHeight] = React.useState(windowHeight * 70 / 100)
   const [needTypecheck, setNeedTypecheck] = useState(false)
 
   useEffect(() => {
@@ -91,39 +82,39 @@ function HomeNoSSR() {
     ]
     ;
 
+  const [outputHeight, setOutputHeight] = useState(windowHeight * 30 / 100)
+
   return (
     <main>
       <div style={{ height: '100vh', width: '100vw', backgroundColor: '#202028' }}>
         <Script src='rzk.js' />
         <KeyBindProvider shortcuts={KEYBINDINGS}></KeyBindProvider>
-        <Resizable
-          style={style}
-          size={{ width: '100vw', height: editorHeight }}
-          maxHeight={windowHeight - 100}
-          minHeight={100}
-          enable={{ bottom: true }}
-          onResize={(_e, _direction, _ref, d) => {
-            setHeight(_ref.offsetHeight)
+        <div style={{ height: '100vh' }}>
+          <Editor setText={setText} setNeedTypecheck={setNeedTypecheck} outputHeight={outputHeight} />
+        </div>
+        <div
+          id={'message'}
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            overflow: 'auto',
           }}
         >
-          <div style={{ height: editorHeight }}>
-            <Editor setText={setText} setNeedTypecheck={setNeedTypecheck} height={editorHeight} />
-          </div>
-        </Resizable>
-        <div className='column' style={{
-          height: `${windowHeight - editorHeight}px`,
-          position: 'fixed',
-          bottom: 0,
-          overflow: 'auto'
-        }}>
-          <div id='__app__'>
-            <div>
-              <button id='btnTypecheck' onClick={typecheck}>
-                TYPECHECK (SHIFT + ENTER)
-              </button>
-              <pre id='message' style={{ fontSize: 16 }}>{message}</pre>
-            </div>
-          </div>
+          <Resizable
+            size={{ width: '100vw', height: outputHeight }}
+            minHeight={100}
+            maxHeight={windowHeight - 100}
+            enable={{ top: true }}
+            onResizeStop={(_e, _direction, _ref, d) => {
+              setOutputHeight(outputHeight + d.height)
+            }}
+            style={{ padding: '20px' }}
+          >
+            <button id='btnTypecheck' onClick={typecheck}>
+              TYPECHECK (SHIFT + ENTER)
+            </button>
+            <pre id='message' style={{ fontSize: 16 }}>{message}</pre>
+          </Resizable>
         </div>
       </div>
     </main>

@@ -21,14 +21,6 @@ body {
   width: 100%;
 }
 
-#__codemirror__ {
-  font-family: Inconsolata, monospace;
-}
-
-#__app__ {
-  margin: 20px;
-}
-
 /* CSS for response button from https://getcssscan.com/css-buttons-examples (button 61) */
 #btnTypecheck {
   align-items: center;
