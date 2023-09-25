@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Language.Rzk.VSCode.Handlers where
 
@@ -142,3 +143,8 @@ typecheckFromConfigFile = do
                       Nothing
                       (Just [])
                       Nothing
+
+instance Default T.Text where def = ""
+instance Default CompletionItem
+instance Default CompletionItemLabelDetails
+
