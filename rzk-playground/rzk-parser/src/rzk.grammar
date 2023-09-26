@@ -1,0 +1,339 @@
+// Other parsers
+// https://github.com/mdaines/viz-js/blob/54ebb476d2d0fb4a3d1f1b6bd77162876c6b6697/packages/lang-dot/src/dot.grammar#L97
+
+@top Program { 
+    module
+}
+
+@tokens {
+    // varIdentTokenFirst { ![-?!.\\;,#\"\][)(}{><| \t\n\r] }
+    // varIdenTokenNext { ![\\;,#\"\][)(}{><| \t\n\r] }
+    // varIdentToken {  varIdentTokenFirst varIdenTokenNext* }
+    
+    // TODO name for tokens
+    varIdentToken { "aaaaaa" }
+            
+    holeIdentToken { '?' }
+    
+    LineComment { "--" ![\n]* }
+    BlockComment { "{-" blockCommentRest }
+    blockCommentRest { ![-] blockCommentRest | "-" blockCommentAfterDash }
+    blockCommentAfterDash { "}" | "-" blockCommentAfterDash | ![{-] blockCommentRest }
+    
+    Comment { 
+          LineComment 
+        | BlockComment 
+    }
+
+    comment { Comment }
+
+    String { '"' (![\\"] | "\\" _)* '"' }
+    string { String }
+}        
+
+Module { languageDecl command*  }
+module { Module }
+
+HoleIdent { holeIdentToken }
+holeIdent { HoleIdent }
+
+VarIdent { varIdentToken }
+varIdent { VarIdent }
+varIdents { varIdent+ }
+
+LanguageDecl { "lang" language ";" }
+languageDecl { LanguageDecl }
+
+Rzk1 { "rzk-1" }
+language { Rzk1 }
+
+CommandSetOption { "#set-option" string "=" string }
+CommandUnsetOption { "#unset-option" string "=" string }
+
+CommandCheck { "#check" term ":" term }
+
+CommandCompute { "#compute" term }
+CommandComputeWHNF { "#compute-whnf" term }
+CommandComputeNF { "#compute-nf" term }
+
+CommandPostulate { "#postulate" varIdent declUsedVars param+ ":" term }
+CommandPostulateNoParams { "#postulate" varIdent declUsedVars ":" term }
+
+CommandAssume {
+      "#assume" varIdents ":" term
+    | commandVariable
+    | commandVariables
+}
+// TODO Is this equivalent to `define`d functions?
+commandVariable { "#variable" varIdent ":" term }
+commandVariables { "#variables" varIdents ":" term }
+
+CommandSection { "#section" sectionName }
+CommandSectionEnd { "#end" sectionName }
+
+CommandDefine {
+    "#define" varIdent declUsedVars param+ ":" term ":=" term 
+    | commandDefineNoParams
+    | commandDef
+    | commandDefNoParams
+}
+commandDefineNoParams { "#define" varIdent declUsedVars ":" term ":=" term }
+commandDef { "#def" varIdent declUsedVars param+ ":" term ":=" term }
+commandDefNoParams { "#def" varIdent declUsedVars ":" term ":=" term }
+
+command { 
+    ( CommandSetOption
+    | CommandUnsetOption
+    | CommandCheck
+    | CommandCompute
+    | CommandComputeWHNF
+    | CommandComputeNF
+    | CommandPostulate
+    | CommandPostulateNoParams
+    | CommandAssume
+    | CommandSection
+    | CommandSectionEnd
+    | CommandDefine
+    ) ";"
+}
+
+DeclUsedVars { 
+      "uses" "(" varIdents ")" 
+    | noDeclUsedVars 
+}
+noDeclUsedVars { "" }
+declUsedVars { DeclUsedVars }
+
+NoSectionName  { "" }
+SomeSectionName { varIdent }
+sectionName { 
+      NoSectionName 
+    | SomeSectionName }
+
+// Patterns
+PatternUnit { "unit" }
+PatternVar { varIdent }
+PatternPair { "(" pattern "," pattern ")" }
+pattern {
+      PatternUnit
+    | PatternVar
+    | PatternPair
+}
+// TODO why separator for nonempty is ""?
+// we can have `unitunit` in `ParamPatternType`
+patterns { pattern+ }
+
+// Parameter introduction (for lambda abstractions)
+ParamPattern { pattern }
+ParamPatternType { "(" patterns ":" term ")" }
+ParamPatternShape { "(" patterns ":" term "|" term ")" }
+// ParamPatternShapeDeprecated
+
+param {
+      ParamPattern
+    | ParamPatternType
+    | ParamPatternShape
+    // | ParamPatternShapeDeprecated
+}
+// TODO why ""?
+params { param+ }
+
+// Parameter declaration for functions and extension types
+ParamType { term6 }
+ParamTermType { "(" term ":" term ")" }
+ParamTermShape { "(" term ":" term "|" term ")" }
+
+// TODO should support these?
+// ParamTermTypeDeprecated 
+// ParamVarShapeDeprecated
+// paramVarShapeDeprecated
+
+paramDecl {
+      ParamType
+    | ParamTermType
+    | ParamTermShape
+}
+
+
+Restriction { term "↦" term }
+restriction { Restriction | ASCII_Restriction }
+
+// TODO use this when see [Restriction]
+restrictions { restriction ("," restriction)* }
+
+// Universes
+Universe { "U" }
+UniverseCube { "Cube" }
+UniverseTope { "TOPE" }
+
+// Cubes
+CubeUnit { "1" }
+CubeUnitStar { "*₁" }
+Cube2 { "2" }
+Cube2_0 { "0₂" }
+Cube2_1 { "1₂" }
+CubeProduct { term5 "×" term6 }
+
+// Topes
+TopeTop { "⊤" }
+TopeBottom { "⊥" }
+TopeEQ { term5 "≡" term5 }
+TopeLEQ { "≤" }
+TopeAnd { "∧" }
+TopeOr { "∨" }
+
+// Tope disjunction elimination
+RecBottom { "recBot" }
+RecOr { "recOR" "(" restrictions ")" }
+// RecOrDeprecated
+
+// Types
+TypeFun { paramDecl "→" term1 }
+TypeSigma { "Σ" "(" pattern ":" term ")" "," term1 }
+TypeUnit { "Unit" }
+TypeId { term2 "=_{" term "}" term2 }
+TypeIdSimple { term2 "=" term2 }
+TypeRestricted { term6 "[" restrictions "]" }
+// TypeExtensionDeprecated
+
+// Terms
+App { term6 term7  }
+Lambda { "\\" params "→" term1  }
+Pair { "(" term "," term ")"  }
+First { "π₁" term7  }
+Second { "π₂" term7  }
+Unit { "unit"  }
+Refl { "refl" }
+ReflTerm { "refl_{" term "}"  }
+ReflTermType { "refl_{" term ":" term "}"  }
+IdJ { "idJ" "(" term "," term "," term "," term "," term "," term ")"  }
+
+// Variables and holes
+Hole { holeIdent }
+Var { varIdent }
+
+// Miscellaneous
+TypeAsc { term2 "as" term1 }
+
+term { 
+      TypeAsc
+    | term1 
+}
+terms { term ("," term)+ }
+
+// coercions *add* rules
+// term { term1 }
+// term1 { term2 }
+// term2 { term3 }
+// term3 { term4 }
+// term4 { term5 }
+// term5 { term6 }
+// term6 { term7 }
+// term7 { "(" term ")" }
+
+ascii_CubeProduct { term5 "*" term6 }
+
+ASCII_CubeUnitStar { "*_1" }
+ASCII_Cube2_0 { "0_2" }
+ASCII_Cube2_1 { "1_2" }
+
+ASCII_TopeTop { "TOP" }
+ASCII_TopeBottom { "BOT" }
+ASCII_TopeEQ { term5 "===" term5 }
+ASCII_TopeLEQ { term5 "<=" term5 }
+ASCII_TopeAnd { term4 "/\\" term3 }
+ASCII_TopeOr { term3 "\\/" term2 }
+ 
+ASCII_TypeFun { paramDecl "->" term1 }
+ASCII_TypeSigma { "Sigma" "(" pattern ":" term ")" "," term1 }
+
+ASCII_Lambda { "\\" params "->" term1 }
+ASCII_Restriction { term "|->" term }
+
+ASCII_TypeExtensionDeprecated { "<" paramDecl "->" term ">" }
+ASCII_First { "first" term7 }
+ASCII_Second { "second" term7 }
+
+// Alternative Unicode syntax rules
+// \sum
+unicode_TypeSigmaAlt { "∑" "(" pattern ":" term ")" "," term1 }
+
+term1 {
+      TypeFun
+    | TypeSigma
+    | TypeId
+    | TypeIdSimple
+    | Lambda
+    | ASCII_TypeFun
+    | ASCII_TypeSigma
+    | ASCII_Lambda
+    | unicode_TypeSigmaAlt
+    | term2
+}
+
+term2 {
+      TopeOr
+    | ASCII_TopeOr
+    | term3
+}
+
+term3 {
+      TopeAnd
+    | ASCII_TopeAnd
+    | term4
+}
+
+term4 {
+      TopeEQ
+    | TopeLEQ
+    | ASCII_TopeEQ
+    | ASCII_TopeLEQ
+    | term5
+}
+
+term5 {
+      CubeProduct
+    | ascii_CubeProduct
+    | term6
+}
+
+term6 {
+      TypeRestricted
+    | App
+    | First
+    | Second
+    | ASCII_First
+    | ASCII_Second
+    | term7
+}
+
+term7 {
+      Universe
+    | UniverseCube
+    | UniverseTope
+    | CubeUnit
+    | CubeUnitStar
+    | Cube2
+    | Cube2_0
+    | Cube2_1
+    | TopeTop
+    | TopeBottom
+    | RecBottom
+    | RecOr
+    | TypeUnit
+    | Pair
+    | Unit
+    | Refl
+    | ReflTerm
+    | ReflTermType
+    | IdJ
+    | Hole
+    | Var
+    | ASCII_CubeUnitStar
+    | ASCII_Cube2_0
+    | ASCII_Cube2_1
+    | ASCII_TopeTop
+    | ASCII_TopeBottom
+    | ASCII_TypeExtensionDeprecated
+    | "(" term ")"
+}
