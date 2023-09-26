@@ -4,8 +4,8 @@ import CodeMirror from '@uiw/react-codemirror';
 import { EditorView, keymap } from '@codemirror/view'
 import { scrollPastEnd } from '@codemirror/view';
 import { example } from './example';
-import { oneDark } from './theme';
-import { Dispatch, SetStateAction } from 'react';
+import { color, oneDark } from './theme';
+import { Dispatch, SetStateAction, useState } from 'react';
 import { centerCursor } from './cursor-height';
 
 export default function Editor({
@@ -17,6 +17,7 @@ export default function Editor({
     setNeedTypecheck: React.Dispatch<React.SetStateAction<boolean>>,
     editorHeight: number
 }) {
+    const [existsSelection, setExistsSelection] = useState(false)
     return <CodeMirror
         value={example}
         height={`100vh`}
@@ -24,6 +25,12 @@ export default function Editor({
         onCreateEditor={(view) => {
             setText(example)
             view.dispatch({ effects: EditorView.scrollIntoView(0) })
+        }}
+        onUpdate={(update) => {
+            if (update.selectionSet) {
+                let ranges = update.state.selection.ranges.filter(v => { return v.from != v.to })
+                setExistsSelection(ranges.length > 0)
+            }
         }}
         onChange={(value) => {
             setText(value)
@@ -40,11 +47,16 @@ export default function Editor({
             ]),
             scrollPastEnd(),
             centerCursor(editorHeight),
+            
+            // dynamic parts of the theme
             EditorView.theme({
                 "& .cm-scroller": {
                     maxHeight: `${editorHeight}px !important`
-                }
-            })
+                },
+                "& .cm-activeLine": {
+                    backgroundColor: `${existsSelection ? "transparent" : color.activeLine} !important`
+                },
+            }),
         ]}
     />;
 }

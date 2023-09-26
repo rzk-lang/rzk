@@ -85,8 +85,6 @@ function HomeNoSSR() {
   const [outputHeight, setOutputHeight] = useState(windowHeight * 30 / 100)
   const [editorHeight, setEditorHeight] = useState(windowHeight * 70 / 100)
 
-  console.log(editorHeight)
-
   return (
     <main>
       <div style={{ height: '100vh', width: '100vw', backgroundColor: '#202028' }}>
@@ -117,7 +115,6 @@ function HomeNoSSR() {
             }}
             onResize={(_e, _direction, _ref, d) => {
               setEditorHeight(window.innerHeight - (outputHeight + d.height))
-              console.log(editorHeight)
             }}
             style={{ padding: '20px' }}
           >

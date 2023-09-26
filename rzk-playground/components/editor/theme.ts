@@ -14,17 +14,20 @@ const chalky = "#e5c07b",
     invalid = "#ffffff",
     ivory = "#bdae93",
     stone = "#7c6f64", // Brightened compared to original to increase contrast
+    gutterColor = "#8d8e88",
     malibu = "#61afef",
     sage = "#98c379",
     whiskey = "#d19a66",
     violet = "#c678dd",
     darkBackground = "#21252b",
     highlightBackground = "#2c313a",
-    background = "#282828",
+    background = "#272822",
     tooltipBackground = "#353a42",
     cursor = "#ebdbb2",
-    activeLine = "#876b5e44",
-    selection = "#92837443"
+    activeLine = "#3e3d32",
+    selection = "#49483e",
+    gutterBackground = "#2f3129",
+    textColor = "#ffffff"
 
 /// The colors used in the theme, as CSS color strings.
 export const color = {
@@ -43,13 +46,15 @@ export const color = {
     background,
     tooltipBackground,
     selection,
-    cursor
+    cursor,
+    gutterBackground,
+    activeLine
 }
 
 /// The editor theme styles for One Dark.
 export const oneDarkTheme = EditorView.theme({
     "&": {
-        color: "#ebdbb2",
+        color: "#ffffff",
         backgroundColor: background,
         fontSize: "16px",
         fontFamily: "Inconsolata"
@@ -88,14 +93,15 @@ export const oneDarkTheme = EditorView.theme({
     },
 
     ".cm-gutters": {
-        backgroundColor: background,
-        color: stone,
+        backgroundColor: gutterBackground,
+        color: gutterColor,
         border: "none",
         fontWeight: "500"
     },
 
     ".cm-activeLineGutter": {
-        backgroundColor: highlightBackground
+        backgroundColor: gutterBackground,
+        color: "#d0d2c0"
     },
 
     ".cm-foldPlaceholder": {
