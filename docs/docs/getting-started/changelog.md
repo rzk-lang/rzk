@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.2 — 2023-09-26
+
+This version contains some improvements in efficiency and also to the language server:
+
+- Improve efficiency of the tope solver, applying LEM for directed interval only as a fallback option (see [#102](https://github.com/rzk-lang/rzk/pull/102))
+- Support autocompleting definitions from previous modules (see [#102](https://github.com/rzk-lang/rzk/pull/103))
+  - Well-typed definitions from the same module also work if the module is only partially well-typed!
+- Improve information order in the error messages given in LSP diagnostics (see [#104](https://github.com/rzk-lang/rzk/pull/104))
+
 ## v0.6.1 — 2023-09-24
 
 This version contains a minor fix:

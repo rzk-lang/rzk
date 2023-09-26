@@ -1,24 +1,36 @@
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Language.Rzk.VSCode.Handlers where
 
 import           Control.Exception             (SomeException, evaluate, try)
+import           Control.Lens
 import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
+import           Data.Default.Class
 import           Data.List                     (sort, (\\))
+import           Data.Maybe                    (fromMaybe)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
 import           Language.LSP.Diagnostics      (partitionBySource)
+import           Language.LSP.Protocol.Lens    (HasDetail (detail),
+                                                HasDocumentation (documentation),
+                                                HasLabel (label),
+                                                HasParams (params),
+                                                HasTextDocument (textDocument),
+                                                HasUri (uri))
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
-import           System.FilePath               ((</>))
+import           System.FilePath               (makeRelative, (</>))
 import           System.FilePath.Glob          (compile, globDir)
 
-import           Data.Maybe                    (fromMaybe)
-import           Language.Rzk.Free.Syntax      (VarIdent)
-import           Language.Rzk.Syntax           (Module, parseModuleFile)
+import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
+                                                VarIdent (getVarIdent))
+import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
+                                                parseModuleFile, printTree)
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.State     (ProjectConfig (include))
 import           Rzk.TypeCheck
@@ -121,7 +133,7 @@ typecheckFromConfigFile = do
                       (Just [])                 -- related information
                       Nothing                   -- data that is preserved between different calls
       where
-        msg = ppTypeErrorInScopedContext' err
+        msg = ppTypeErrorInScopedContext' TopDown err
 
         extractLineNumber :: TypeErrorInScopedContext var -> Maybe Int
         extractLineNumber (PlainTypeError e)    = do
@@ -142,3 +154,40 @@ typecheckFromConfigFile = do
                       Nothing
                       (Just [])
                       Nothing
+
+instance Default T.Text where def = ""
+instance Default CompletionItem
+instance Default CompletionItemLabelDetails
+
+provideCompletions :: Handler LSP 'Method_TextDocumentCompletion
+provideCompletions req res = do
+  root <- getRootPath
+  let rootDir = fromMaybe "/" root
+  cachedModules <- getCachedTypecheckedModules
+  let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
+  -- Take all the modules up to and including the currently open one
+  let modules = takeWhileInc ((/= currentFile) . fst) cachedModules
+        where
+          takeWhileInc _ [] = []
+          takeWhileInc p (x:xs)
+            | p x       = x : takeWhileInc p xs
+            | otherwise = [x]
+
+  let items = concatMap (declsToItems rootDir) modules
+  res $ Right $ InL items
+  where
+    declsToItems :: FilePath -> (FilePath, [Decl']) -> [CompletionItem]
+    declsToItems root (path, decls) = map (declToItem root path) decls
+    declToItem :: FilePath -> FilePath -> Decl' -> CompletionItem
+    declToItem rootDir path (Decl name type' _ _ _) = def
+      & label .~ T.pack (printTree $ getVarIdent name)
+      & detail ?~ T.pack (show type')
+      & documentation ?~ InR (MarkupContent MarkupKind_Markdown $ T.pack $
+          "---\nDefined" ++
+          (if line > 0 then " at line " ++ show line else "")
+          ++ " in *" ++ makeRelative rootDir path ++ "*")
+      where
+        (VarIdent pos _) = getVarIdent name
+        (RzkPosition _path pos') = pos
+        line = maybe 0 fst pos'
+        _col = maybe 0 snd pos'

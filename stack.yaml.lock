@@ -60,6 +60,13 @@ packages:
       size: 2044
   original:
     hackage: yaml-0.11.11.2
+- completed:
+    hackage: data-default-class-0.1.2.0@sha256:63e62120b7efd733a5a17cf59ceb43268e9a929c748127172d7d42f4a336e327,542
+    pantry-tree:
+      sha256: 5017630b11698aefa65fc61cab84a257ce97833c968d425e1b2d53d6c3b5c096
+      size: 224
+  original:
+    hackage: data-default-class-0.1.2.0
 snapshots:
 - completed:
     sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1

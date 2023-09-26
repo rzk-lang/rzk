@@ -12,6 +12,7 @@ module Rzk.TypeCheck where
 import           Control.Applicative      ((<|>))
 import           Control.Monad.Except
 import           Control.Monad.Reader
+import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
 import           Data.Maybe               (catMaybes, fromMaybe, isNothing,
@@ -63,10 +64,10 @@ typecheckModulesWithLocation' :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent 
 typecheckModulesWithLocation' = \case
   [] -> return ([], [])
   m@(path, _) : ms -> do
-    declsE <- (Right <$> typecheckModuleWithLocation m) `catchError` (return . Left)
-    case declsE of
-      Left err -> return ([], [err])
-      Right decls -> do
+    (decls, errs) <- typecheckModuleWithLocation m
+    case errs of
+      _:_ -> return ([(path, decls)], errs)
+      _ -> do
         localDeclsPrepared decls $ do
           (decls', errors) <- typecheckModulesWithLocation' ms
           return ((path, decls) : decls', errors)
@@ -75,19 +76,27 @@ typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent [
 typecheckModulesWithLocation = \case
   [] -> return []
   m@(path, _) : ms -> do
-    decls <- typecheckModuleWithLocation m
-    localDeclsPrepared decls $
-      ((path, decls) :) <$> typecheckModulesWithLocation ms
+    (decls, errs) <- typecheckModuleWithLocation m
+    if null errs
+      then
+        localDeclsPrepared decls $
+          ((path, decls) :) <$> typecheckModulesWithLocation ms
+      else
+        return [(path, decls)]
 
 typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent [Decl']
 typecheckModules = \case
   [] -> return []
   m : ms -> do
-    decls <- typecheckModule Nothing m
-    localDeclsPrepared decls $
-      (decls <>) <$> typecheckModules ms
+    (decls, errs) <- typecheckModule Nothing m
+    if null errs
+      then
+        localDeclsPrepared decls $
+          (decls <>) <$> typecheckModules ms
+      else
+        return decls
 
-typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck VarIdent [Decl']
+typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
 typecheckModuleWithLocation (path, module_) = do
   traceTypeCheck Normal ("Checking module from " <> path) $ do
     withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
@@ -96,15 +105,15 @@ typecheckModuleWithLocation (path, module_) = do
 countCommands :: Integral a => [Rzk.Command] -> a
 countCommands = fromIntegral . length
 
-typecheckModule :: Maybe FilePath -> Rzk.Module -> TypeCheck VarIdent [Decl']
+typecheckModule :: Maybe FilePath -> Rzk.Module -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
 typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
   withSection Nothing (go 1 commands) $ -- FIXME: use module name? or anonymous section?
-    return []
+    return ([], [])
   where
     totalCommands = countCommands commands
 
-    go :: Integer -> [Rzk.Command] -> TypeCheck VarIdent [Decl']
-    go _i [] = return []
+    go :: Integer -> [Rzk.Command] -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
+    go _i [] = return ([], [])
 
     go  i (command@(Rzk.CommandUnsetOption _loc optionName) : moreCommands) = do
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
@@ -129,7 +138,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
           term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT
           let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars)
-          fmap (decl :) $
+          fmap (first (decl :)) $
             localDeclPrepared decl $ do
               Context{..} <- ask
               termSVG <-
@@ -148,7 +157,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
           let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars)
-          fmap (decl :) $
+          fmap (first (decl :)) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
 
@@ -185,7 +194,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           ty' <- typecheck (toTerm' ty) universeT
           let decls = [ Decl (varIdentAt path name) ty' Nothing True [] | name <- names ]
-          fmap (decls <>) $
+          fmap (first (decls <>)) $
             localDeclsPrepared decls $
               go (i + 1) moreCommands
 
@@ -404,21 +413,22 @@ ppTypeError' = \case
     , "  " <> Rzk.printTree (getVarIdent name)
     ]
 
-ppTypeErrorInContext :: TypeErrorInContext VarIdent -> String
-ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
-  [ ppContext' typeErrorContext
-  , ppTypeError' typeErrorError
+ppTypeErrorInContext :: OutputDirection -> TypeErrorInContext VarIdent -> String
+ppTypeErrorInContext dir TypeErrorInContext{..} = block dir
+  [ ppTypeError' typeErrorError
+  , ppContext' dir typeErrorContext
   ]
 
 ppTypeErrorInScopedContextWith'
-  :: [VarIdent]
+  :: OutputDirection
+  -> [VarIdent]
   -> [VarIdent]
   -> TypeErrorInScopedContext VarIdent
   -> String
-ppTypeErrorInScopedContextWith' used vars = \case
-  PlainTypeError err -> ppTypeErrorInContext err
+ppTypeErrorInScopedContextWith' dir used vars = \case
+  PlainTypeError err -> ppTypeErrorInContext dir err
   ScopedTypeError orig err -> withFresh orig $ \(x, xs) ->
-    ppTypeErrorInScopedContextWith' (x:used) xs $ fmap (g x) err
+    ppTypeErrorInScopedContextWith' dir (x:used) xs $ fmap (g x) err
   where
     g x Z     = x
     g _ (S y) = y
@@ -431,8 +441,9 @@ ppTypeErrorInScopedContextWith' used vars = \case
       where
         z' = refreshVar used z -- FIXME: inefficient
 
-ppTypeErrorInScopedContext' :: TypeErrorInScopedContext VarIdent -> String
-ppTypeErrorInScopedContext' err = ppTypeErrorInScopedContextWith' vars (defaultVarIdents \\ vars) err
+ppTypeErrorInScopedContext' :: OutputDirection -> TypeErrorInScopedContext VarIdent -> String
+ppTypeErrorInScopedContext' dir err =
+  ppTypeErrorInScopedContextWith' dir vars (defaultVarIdents \\ vars) err
   where
     vars = nub (foldMap pure err)
 
@@ -669,36 +680,46 @@ varValues = map (fmap varValue) . varInfos
 varOrigs :: Context var -> [(var, Maybe VarIdent)]
 varOrigs = map (fmap varOrig) . varInfos
 
+withPartialDecls
+  :: TypeCheck VarIdent ([Decl'], [err])
+  -> TypeCheck VarIdent ([Decl'], [err])
+  -> TypeCheck VarIdent ([Decl'], [err])
+withPartialDecls tc next = do
+  (decls, errs) <- tc
+  if null errs
+    then first (decls <>)
+      <$> localDeclsPrepared decls next
+    else return (decls, errs)
+
 withSection
   :: Maybe Rzk.SectionName
-  -> TypeCheck VarIdent [Decl VarIdent]
-  -> TypeCheck VarIdent [Decl VarIdent]
-  -> TypeCheck VarIdent [Decl VarIdent]
-withSection name sectionBody next = do
-  sectionDecls <- startSection name $ do
-    decls <- sectionBody
+  -> TypeCheck VarIdent ([Decl VarIdent], [TypeErrorInScopedContext VarIdent])
+  -> TypeCheck VarIdent ([Decl VarIdent], [TypeErrorInScopedContext VarIdent])
+  -> TypeCheck VarIdent ([Decl VarIdent], [TypeErrorInScopedContext VarIdent])
+withSection name sectionBody =
+  withPartialDecls $ startSection name $ do
+    (decls, errs) <- sectionBody
     localDeclsPrepared decls $
       performing (ActionCloseSection name) $ do
-        endSection
-  fmap (sectionDecls <>) $
-    localDeclsPrepared sectionDecls $
-      next
+        (\ decls' -> (decls', errs)) <$> endSection errs
 
 startSection :: Maybe Rzk.SectionName -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 startSection name = local $ \Context{..} -> Context
   { localScopes = ScopeInfo { scopeName = name, scopeVars = [] } : localScopes
   , .. }
 
-endSection :: TypeCheck VarIdent [Decl VarIdent]
-endSection = askCurrentScope >>= scopeToDecls
+endSection :: [TypeErrorInScopedContext VarIdent] -> TypeCheck VarIdent [Decl']
+endSection errs = askCurrentScope >>= scopeToDecls errs
 
-scopeToDecls :: Eq var => ScopeInfo var -> TypeCheck var [Decl var]
-scopeToDecls ScopeInfo{..} = do
-  decls <- collectScopeDecls [] scopeVars
-  forM_ decls $ \Decl{..} -> do
-    let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
-    when (not (null unusedUsedVars)) $
-      issueTypeError $ TypeErrorUnusedUsedVariables unusedUsedVars declName
+scopeToDecls :: Eq var => [TypeErrorInScopedContext VarIdent] -> ScopeInfo var -> TypeCheck var [Decl var]
+scopeToDecls errs ScopeInfo{..} = do
+  decls <- collectScopeDecls errs [] scopeVars
+  -- only issue unused variable errors if there were no errors prior in the section
+  when (null errs) $ do
+    forM_ decls $ \Decl{..} -> do
+      let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
+      when (not (null unusedUsedVars)) $
+        issueTypeError $ TypeErrorUnusedUsedVariables unusedUsedVars declName
   return decls
 
 insertExplicitAssumptionFor
@@ -759,16 +780,18 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
       }
     xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
 
-collectScopeDecls :: Eq var => [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var [Decl var]
-collectScopeDecls recentVars (decl@(var, VarInfo{..}) : vars)
+collectScopeDecls :: Eq var => [TypeErrorInScopedContext VarIdent] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var [Decl var]
+collectScopeDecls errs recentVars (decl@(var, VarInfo{..}) : vars)
   | varIsAssumption = do
       (used, recentVars') <- makeAssumptionExplicit decl recentVars
-      when (not used) $ do
-        issueTypeError $ TypeErrorUnusedVariable var varType
-      collectScopeDecls recentVars' vars
+      -- only issue unused vars error if there were no other errors previously
+      when (null errs) $ do
+        when (not used) $ do
+          issueTypeError $ TypeErrorUnusedVariable var varType
+      collectScopeDecls errs recentVars' vars
   | otherwise = do
-      collectScopeDecls (decl : recentVars) vars
-collectScopeDecls recentVars [] = return (toDecl <$> recentVars)
+      collectScopeDecls errs (decl : recentVars) vars
+collectScopeDecls _ recentVars [] = return (toDecl <$> recentVars)
   where
     toDecl (var, VarInfo{..}) = Decl
       { declName = var
@@ -789,21 +812,27 @@ abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
   where
     newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
 
-ppContext' :: Context VarIdent -> String
-ppContext' ctx@Context{..} = unlines
-  [ "Definitions in context:"
-  , unlines
-      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
-      | (x, ty) <- reverse (varTypes ctx) ]
---  , unlines
---      [ show (Pure x :: Term') <> " = " <> show (untyped term)
---      | (x, Just term) <- reverse varValues ]
-  , intercalate "\n" (map (("when " <>) . ppAction 0) (reverse actionStack))
-  , "Local tope context:"
-  , intercalate "\n" (map (("  " <>) . show . untyped) localTopes)
-  , case location of
-      Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
-      _                                 -> ""
+data OutputDirection = TopDown | BottomUp
+
+block :: OutputDirection -> [String] -> String
+block TopDown  = intercalate "\n"
+block BottomUp = intercalate "\n" . reverse
+
+namedBlock :: OutputDirection -> String -> [String] -> String
+namedBlock dir name lines_ = block dir $
+  name : map indent lines_
+  where
+    indent = intercalate "\n" . (map ("  " ++)) . lines
+
+
+ppContext' :: OutputDirection -> Context VarIdent -> String
+ppContext' dir ctx@Context{..} = block dir
+  [ case location of
+      Just (LocationInfo (Just path) (Just lineNo)) ->
+        path <> " (line " <> show lineNo <> "):"
+      Just (LocationInfo (Just path) _) ->
+        path <> ":"
+      _  -> ""
   , case currentCommand of
       Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
         "  Error occurred when checking\n    #define " <> Rzk.printTree name
@@ -827,9 +856,21 @@ ppContext' ctx@Context{..} = unlines
         "  Error occurred when checking\n    #section " <> Rzk.printTree name
       Just (Rzk.CommandSectionEnd _loc name) ->
         "  Error occurred when checking\n    #end " <> Rzk.printTree name
-      Nothing -> "  Error occurred"
---  , "Local tope context (expanded):"
---  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
+      Nothing -> "  Error occurred outside of any command!"
+  , ""
+  , case filter (/= topeTopT) localTopes of
+      [] -> "Local tope context is unrestricted (⊤)."
+      localTopes' -> namedBlock TopDown "Local tope context:"
+        [ "  " <> show (untyped tope)
+        | tope <- localTopes' ]
+  , ""
+  , block dir
+    [ "when " <> ppAction 0 action
+    | action <- actionStack ]
+  , namedBlock TopDown "Definitions in context:"
+    [ block dir
+      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
+      | (x, ty) <- reverse (varTypes ctx) ] ]
   ]
 
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
@@ -858,12 +899,17 @@ checkNameShadowing name = do
 withLocation :: LocationInfo -> TypeCheck var a -> TypeCheck var a
 withLocation loc = local $ \Context{..} -> Context { location = Just loc, .. }
 
-withCommand :: Rzk.Command -> TypeCheck var a -> TypeCheck var a
-withCommand command = local $ \Context{..} -> Context
-  { currentCommand = Just command
-  , location = updatePosition (Rzk.hasPosition command) <$> location
-  , .. }
+withCommand :: Rzk.Command -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent]) -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
+withCommand command tc = local f $ do
+  result <- (Right <$> tc) `catchError` (return . Left)
+  case result of
+    Left err            -> return ([], [err])
+    Right (decls, errs) -> return (decls, errs)
   where
+    f Context{..} = Context
+      { currentCommand = Just command
+      , location = updatePosition (Rzk.hasPosition command) <$> location
+      , .. }
     updatePosition pos loc = loc { locationLine = fst <$> pos }
 
 localDecls :: [Decl VarIdent] -> TypeCheck VarIdent a -> TypeCheck VarIdent a
@@ -917,15 +963,15 @@ entail topes tope = all (`solveRHS` tope) $
 
 entailM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailM topes tope = do
-  genTopes <- generateTopesForPointsM (allTopePoints tope)
-  let topes'    = nubTermT (topes <> genTopes)
+  -- genTopes <- generateTopesForPointsM (allTopePoints tope)
+  let topes'    = nubTermT topes -- (topes <> genTopes)
       topes''   = simplifyLHSwithDisjunctions topes'
       topes'''  = saturateTopes (allTopePoints tope) <$> topes''
-  -- prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
-  -- prettyTope <- ppTermInContext =<< nfTope tope
-  return $
-    -- trace ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-      all (`solveRHS` tope) topes'''
+  prettyTopes <- mapM ppTermInContext (saturateTopes (allTopePoints tope) (simplifyLHS topes'))
+  prettyTope <- ppTermInContext tope
+  traceTypeCheck Debug
+    ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+      and <$> mapM (`solveRHSM` tope) topes'''
 
 entailTraceM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailTraceM topes tope = do
@@ -1105,6 +1151,54 @@ simplifyLHS topes = nubTermT $
     TopeEQT  _ (PairT _ x y) (PairT _ x' y') : topes' ->
       simplifyLHS (topeEQT x x' : topeEQT y y' : topes')
     t : topes' -> t : simplifyLHS topes'
+
+solveRHSM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
+solveRHSM topes tope =
+  case tope of
+    _ | topeBottomT `elem` topes -> return True
+    TopeTopT{}     -> return True
+    TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y') ->
+      solveRHSM topes $ topeAndT
+        (topeEQT x x')
+        (topeEQT y y')
+    TopeEQT  _ty (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) r ->
+      solveRHSM topes $ topeAndT
+        (topeEQT x (firstT cubeI r))
+        (topeEQT y (secondT cubeJ r))
+    TopeEQT  _ty l (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) ->
+      solveRHSM topes $ topeAndT
+        (topeEQT (firstT cubeI l) x)
+        (topeEQT (secondT cubeJ l) y)
+    TopeEQT  _ty l r
+      | or
+          [ l == r
+          , tope `elem` topes
+          , topeEQT r l `elem` topes
+          ] -> return True
+    TopeLEQT _ty l r
+      | l == r -> return True
+      | solveRHS topes (topeEQT l r) -> return True
+      | solveRHS topes (topeEQT l cube2_0T) -> return True
+      | solveRHS topes (topeEQT r cube2_1T) -> return True
+    TopeAndT _ l r -> (&&)
+      <$> solveRHSM topes l
+      <*> solveRHSM topes r
+    _ | tope `elem` topes -> return True
+    TopeOrT  _ l r -> do
+      l' <- solveRHSM topes l
+      r' <- solveRHSM topes r
+      if (l' || r')
+        then return True
+        else do
+          lems <- generateTopesForPointsM (allTopePoints tope)
+          let lems' = [ lem | lem@(TopeOrT _ t1 t2) <- lems, all (`notElem` topes) [t1, t2] ]
+          case lems' of
+            TopeOrT _ t1 t2 : _ -> do
+              l'' <- solveRHSM (saturateTopes [] (t1 : topes)) tope
+              r'' <- solveRHSM (saturateTopes [] (t2 : topes)) tope
+              return (l'' && r'')
+            _ -> return False
+    _ -> return False
 
 solveRHS :: Eq var => [TermT var] -> TermT var -> Bool
 solveRHS topes tope =
@@ -2634,10 +2728,7 @@ unsafeInferStandalone' term = unsafeTypeCheck' (infer term)
 unsafeTypeCheck' :: TypeCheck VarIdent a -> a
 unsafeTypeCheck' tc =
   case defaultTypeCheck tc of
-    Left err -> error $ intercalate "\n"
-      [ "Type Error:"
-      , ppTypeErrorInScopedContext' err
-      ]
+    Left err     -> error $ ppTypeErrorInScopedContext' BottomUp err
     Right result -> result
 
 type PointId = String

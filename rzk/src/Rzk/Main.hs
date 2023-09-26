@@ -35,7 +35,7 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
         putStrLn "An error occurred when typechecking!"
         putStrLn $ unlines
           [ "Type Error:"
-          , ppTypeErrorInScopedContext' err
+          , ppTypeErrorInScopedContext' BottomUp err
           ]
         exitFailure
       Right _declsByPath -> putStrLn "Everything is ok!"
@@ -93,7 +93,7 @@ typecheckString moduleString = do
       , "Rendering type error... (this may take a few seconds)"
       , unlines
         [ "Type Error:"
-        , ppTypeErrorInScopedContext' err
+        , ppTypeErrorInScopedContext' BottomUp err
         ]
       ]
     Right _ -> pure "Everything is ok!"
