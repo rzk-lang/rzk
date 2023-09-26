@@ -11,11 +11,11 @@ import { centerCursor } from './cursor-height';
 export default function Editor({
     setText,
     setNeedTypecheck,
-    outputHeight
+    editorHeight
 }: {
     setText: Dispatch<SetStateAction<string>>,
     setNeedTypecheck: React.Dispatch<React.SetStateAction<boolean>>,
-    outputHeight: number
+    editorHeight: number
 }) {
     return <CodeMirror
         value={example}
@@ -39,8 +39,12 @@ export default function Editor({
                 }
             ]),
             scrollPastEnd(),
-            centerCursor(outputHeight),
-            // scrollPastEndCustom(outputHeight),
+            centerCursor(editorHeight),
+            EditorView.theme({
+                "& .cm-scroller": {
+                    maxHeight: `${editorHeight}px !important`
+                }
+            })
         ]}
     />;
 }

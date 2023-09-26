@@ -83,6 +83,9 @@ function HomeNoSSR() {
     ;
 
   const [outputHeight, setOutputHeight] = useState(windowHeight * 30 / 100)
+  const [editorHeight, setEditorHeight] = useState(windowHeight * 70 / 100)
+
+  console.log(editorHeight)
 
   return (
     <main>
@@ -90,7 +93,11 @@ function HomeNoSSR() {
         <Script src='rzk.js' />
         <KeyBindProvider shortcuts={KEYBINDINGS}></KeyBindProvider>
         <div style={{ height: '100vh' }}>
-          <Editor setText={setText} setNeedTypecheck={setNeedTypecheck} outputHeight={outputHeight} />
+          <Editor
+            setText={setText}
+            setNeedTypecheck={setNeedTypecheck}
+            editorHeight={editorHeight}
+          />
         </div>
         <div
           id={'message'}
@@ -107,6 +114,10 @@ function HomeNoSSR() {
             enable={{ top: true }}
             onResizeStop={(_e, _direction, _ref, d) => {
               setOutputHeight(outputHeight + d.height)
+            }}
+            onResize={(_e, _direction, _ref, d) => {
+              setEditorHeight(window.innerHeight - (outputHeight + d.height))
+              console.log(editorHeight)
             }}
             style={{ padding: '20px' }}
           >
