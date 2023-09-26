@@ -37,6 +37,7 @@ dependencies:
   - filepath
   - stm
   - yaml
+  - data-default-class
 
 ghc-options:
   - -Wall
