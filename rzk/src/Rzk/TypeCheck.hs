@@ -404,21 +404,22 @@ ppTypeError' = \case
     , "  " <> Rzk.printTree (getVarIdent name)
     ]
 
-ppTypeErrorInContext :: TypeErrorInContext VarIdent -> String
-ppTypeErrorInContext TypeErrorInContext{..} = intercalate "\n"
-  [ ppContext' typeErrorContext
-  , ppTypeError' typeErrorError
+ppTypeErrorInContext :: OutputDirection -> TypeErrorInContext VarIdent -> String
+ppTypeErrorInContext dir TypeErrorInContext{..} = block dir
+  [ ppTypeError' typeErrorError
+  , ppContext' dir typeErrorContext
   ]
 
 ppTypeErrorInScopedContextWith'
-  :: [VarIdent]
+  :: OutputDirection
+  -> [VarIdent]
   -> [VarIdent]
   -> TypeErrorInScopedContext VarIdent
   -> String
-ppTypeErrorInScopedContextWith' used vars = \case
-  PlainTypeError err -> ppTypeErrorInContext err
+ppTypeErrorInScopedContextWith' dir used vars = \case
+  PlainTypeError err -> ppTypeErrorInContext dir err
   ScopedTypeError orig err -> withFresh orig $ \(x, xs) ->
-    ppTypeErrorInScopedContextWith' (x:used) xs $ fmap (g x) err
+    ppTypeErrorInScopedContextWith' dir (x:used) xs $ fmap (g x) err
   where
     g x Z     = x
     g _ (S y) = y
@@ -431,8 +432,9 @@ ppTypeErrorInScopedContextWith' used vars = \case
       where
         z' = refreshVar used z -- FIXME: inefficient
 
-ppTypeErrorInScopedContext' :: TypeErrorInScopedContext VarIdent -> String
-ppTypeErrorInScopedContext' err = ppTypeErrorInScopedContextWith' vars (defaultVarIdents \\ vars) err
+ppTypeErrorInScopedContext' :: OutputDirection -> TypeErrorInScopedContext VarIdent -> String
+ppTypeErrorInScopedContext' dir err =
+  ppTypeErrorInScopedContextWith' dir vars (defaultVarIdents \\ vars) err
   where
     vars = nub (foldMap pure err)
 
@@ -789,21 +791,27 @@ abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
   where
     newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
 
-ppContext' :: Context VarIdent -> String
-ppContext' ctx@Context{..} = unlines
-  [ "Definitions in context:"
-  , unlines
-      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
-      | (x, ty) <- reverse (varTypes ctx) ]
---  , unlines
---      [ show (Pure x :: Term') <> " = " <> show (untyped term)
---      | (x, Just term) <- reverse varValues ]
-  , intercalate "\n" (map (("when " <>) . ppAction 0) (reverse actionStack))
-  , "Local tope context:"
-  , intercalate "\n" (map (("  " <>) . show . untyped) localTopes)
-  , case location of
-      Just (LocationInfo (Just path) _) -> "\n" <> path <> ":"
-      _                                 -> ""
+data OutputDirection = TopDown | BottomUp
+
+block :: OutputDirection -> [String] -> String
+block TopDown  = intercalate "\n"
+block BottomUp = intercalate "\n" . reverse
+
+namedBlock :: OutputDirection -> String -> [String] -> String
+namedBlock dir name lines_ = block dir $
+  name : map indent lines_
+  where
+    indent = intercalate "\n" . (map ("  " ++)) . lines
+
+
+ppContext' :: OutputDirection -> Context VarIdent -> String
+ppContext' dir ctx@Context{..} = block dir
+  [ case location of
+      Just (LocationInfo (Just path) (Just lineNo)) ->
+        path <> " (line " <> show lineNo <> "):"
+      Just (LocationInfo (Just path) _) ->
+        path <> ":"
+      _  -> ""
   , case currentCommand of
       Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
         "  Error occurred when checking\n    #define " <> Rzk.printTree name
@@ -827,9 +835,21 @@ ppContext' ctx@Context{..} = unlines
         "  Error occurred when checking\n    #section " <> Rzk.printTree name
       Just (Rzk.CommandSectionEnd _loc name) ->
         "  Error occurred when checking\n    #end " <> Rzk.printTree name
-      Nothing -> "  Error occurred"
---  , "Local tope context (expanded):"
---  , intercalate "\n" (map (("  " <>) . show . untyped) (intercalate [TopeAndT topeT topeBottomT topeBottomT] (saturateTopes [] <$> simplifyLHS localTopes)))
+      Nothing -> "  Error occurred outside of any command!"
+  , ""
+  , case filter (/= topeTopT) localTopes of
+      [] -> "Local tope context is unrestricted (⊤)."
+      localTopes' -> namedBlock TopDown "Local tope context:"
+        [ "  " <> show (untyped tope)
+        | tope <- localTopes' ]
+  , ""
+  , block dir
+    [ "when " <> ppAction 0 action
+    | action <- actionStack ]
+  , namedBlock TopDown "Definitions in context:"
+    [ block dir
+      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
+      | (x, ty) <- reverse (varTypes ctx) ] ]
   ]
 
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
@@ -2682,10 +2702,7 @@ unsafeInferStandalone' term = unsafeTypeCheck' (infer term)
 unsafeTypeCheck' :: TypeCheck VarIdent a -> a
 unsafeTypeCheck' tc =
   case defaultTypeCheck tc of
-    Left err -> error $ intercalate "\n"
-      [ "Type Error:"
-      , ppTypeErrorInScopedContext' err
-      ]
+    Left err     -> error $ ppTypeErrorInScopedContext' BottomUp err
     Right result -> result
 
 type PointId = String
