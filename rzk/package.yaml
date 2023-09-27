@@ -19,25 +19,25 @@ category: Dependent Types # same as Agda
 description: Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 
 build-tools:
-  - alex
-  - happy
+  alex:   ">= 3.2.7.1"
+  happy:  ">= 1.20.0"
 
 dependencies:
-  - array
-  - aeson
-  - base >= 4.7 && < 5
-  - bifunctors
-  - bytestring
-  - mtl
-  - template-haskell
-  - text
-  - optparse-generic
-  - Glob
-  - lens
-  - filepath
-  - stm
-  - yaml
-  - data-default-class
+  array: ">= 0.5.4.0"
+  aeson: ">= 2.1.2.1"
+  base: ">= 4.7 && < 5"
+  bifunctors: ">= 5.5.15"
+  bytestring: ">= 0.11.3.1"
+  mtl: ">= 2.2.2"
+  template-haskell: ">= 2.19.0.0"
+  text: ">= 2.0.1"
+  optparse-generic: ">= 1.4.9"
+  Glob: ">= 0.9.3"
+  lens: ">= 5.2.2"
+  filepath: ">= 0.4.14"
+  stm: ">= 2.5.1.0"
+  yaml: ">= 0.11.0.0"
+  data-default-class: ">= 0.1.2.0"
 
 ghc-options:
   - -Wall
@@ -66,8 +66,8 @@ library:
         - Language.Rzk.VSCode.State
         - Language.Rzk.VSCode.Tokenize
       dependencies:
-        - lsp
-        - lsp-types
+        lsp: ">= 2.1.0.0"
+        lsp-types: ">= 2.0.1.0"
 
 executables:
   rzk:
@@ -82,7 +82,7 @@ executables:
     when:
       - condition: '!impl(ghcjs)'
         dependencies:
-          - with-utf8
+          with-utf8: ">= 1.0.2.4"
 
 tests:
   rzk-test:
