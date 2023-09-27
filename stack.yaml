@@ -41,14 +41,10 @@ packages:
 #
 extra-deps:
   - with-utf8-1.0.2.4
-  - Glob-0.10.2
-  - lens-5.2.2
   - lsp-2.1.0.0
   - lsp-types-2.0.1.0
   - row-types-1.0.1.2
-  - filepath-1.4.2.2
-  - yaml-0.11.11.2
-  - data-default-class-0.1.2.0
+  
 # Override default flag values for local packages and extra-deps
 # flags: {}
 
