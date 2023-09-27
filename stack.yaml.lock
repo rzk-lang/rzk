@@ -12,20 +12,6 @@ packages:
   original:
     hackage: with-utf8-1.0.2.4
 - completed:
-    hackage: Glob-0.10.2@sha256:dd2ddbecae8f84e8f4cacb5b856901a19c25ceaa11f2525d3ee88d034acb0081,2938
-    pantry-tree:
-      sha256: 3c9d365a19c0e15d7cf5e93ee994bdc81958c8e4056f43ec0408f34f1a3bb970
-      size: 1432
-  original:
-    hackage: Glob-0.10.2
-- completed:
-    hackage: lens-5.2.2@sha256:e01d5732173645b80f23a189a0f7e1f5cd0b2286de0ce20baf941cbf5c3b8435,15158
-    pantry-tree:
-      sha256: b69117901be8d6fb47cf106504af0065a5271a10bdbf9d8ab89acbd0508c4653
-      size: 8216
-  original:
-    hackage: lens-5.2.2
-- completed:
     hackage: lsp-2.1.0.0@sha256:ef6fc28eac6dc27672cd8471c9f83f14de646a9c1fcaf993a451d2ae4de274e8,3533
     pantry-tree:
       sha256: 1ace37e19271024b6396c8ef0ebe9410b5fe578d70ef2cfa0f58990ae975fe0c
@@ -46,27 +32,6 @@ packages:
       size: 1060
   original:
     hackage: row-types-1.0.1.2
-- completed:
-    hackage: filepath-1.4.2.2@sha256:3622cbc524093b18af0235249087546473ab04e9fe275967680e97755a9eae6b,2225
-    pantry-tree:
-      sha256: e8aa0c8f41f1f6801cbbc5e0f0bff434edc0fb7b9d822ec2690240051393d19b
-      size: 784
-  original:
-    hackage: filepath-1.4.2.2
-- completed:
-    hackage: yaml-0.11.11.2@sha256:6f0a1859e0fb3068e50dbc7fe9bf9a26847741bc24344e35e16a03711a18f88d,5178
-    pantry-tree:
-      sha256: 799f6815fe2c823561c3935bdf0cabe5f4f4a55462dc9c0d2a9838f963c97ea0
-      size: 2044
-  original:
-    hackage: yaml-0.11.11.2
-- completed:
-    hackage: data-default-class-0.1.2.0@sha256:63e62120b7efd733a5a17cf59ceb43268e9a929c748127172d7d42f4a336e327,542
-    pantry-tree:
-      sha256: 5017630b11698aefa65fc61cab84a257ce97833c968d425e1b2d53d6c3b5c096
-      size: 224
-  original:
-    hackage: data-default-class-0.1.2.0
 snapshots:
 - completed:
     sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1

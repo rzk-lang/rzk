@@ -2,4 +2,8 @@ resolver:
   url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/27.yaml
 
 packages:
-- rzk/
+  - rzk/
+
+flags:
+  rzk:
+    lsp: false
