@@ -38,7 +38,7 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
           , ppTypeErrorInScopedContext' BottomUp err
           ]
         exitFailure
-      Right _declsByPath -> putStrLn "Everything is ok!"
+      Right _decls -> putStrLn "Everything is ok!"
 
   Lsp ->
 #ifndef __GHCJS__
