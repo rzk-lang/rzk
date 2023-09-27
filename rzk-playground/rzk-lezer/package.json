@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "devDependencies": {
-    "@lezer/generator": "^1.5.1"
+    "@lezer/generator": "deemp/generator#838c8a0f6f64dbe574e6882d997e1fe7cdebecfe"
   },
   "dependencies": {
     "@lezer/lr": "^1.3.12"
   },
   "scripts": {
-    "build": "lezer-generator src/rzk.grammar -o src/parser.js"
+    "build": "lezer-generator src/rzk.grammar -o src/parser.ts --typeScript"
   }
 }
