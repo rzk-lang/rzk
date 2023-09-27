@@ -51,7 +51,7 @@ jobs:
 
       - name: 🔨 Build GHCJS version with Nix
         run: |
-          nix build .#try-rzk
+          nix build .#try-rzk || (nix log /nix/store/*-rzk-0.6.3.drv ; false)
 
       - name: 🔨 Collect build artifacts
         run: |
