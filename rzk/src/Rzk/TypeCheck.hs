@@ -77,12 +77,11 @@ typecheckModulesWithLocation = \case
   [] -> return []
   m@(path, _) : ms -> do
     (decls, errs) <- typecheckModuleWithLocation m
-    if null errs
-      then
-        localDeclsPrepared decls $
-          ((path, decls) :) <$> typecheckModulesWithLocation ms
-      else
-        return [(path, decls)]
+    case errs of
+      err : _ -> do
+        throwError err
+      [] -> localDeclsPrepared decls $
+        ((path, decls) :) <$> typecheckModulesWithLocation ms
 
 typecheckModules :: [Rzk.Module] -> TypeCheck VarIdent [Decl']
 typecheckModules = \case
@@ -302,19 +301,19 @@ type TypeError' = TypeError VarIdent
 ppTypeError' :: TypeError' -> String
 ppTypeError' = \case
   TypeErrorOther msg -> msg
-  TypeErrorUnify term expected actual -> unlines
+  TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"
     , "  " <> show (untyped expected)
     , "with actual type"
     , "  " <> show (untyped actual)
     , "for term"
     , "  " <> show (untyped term) ]
-  TypeErrorUnifyTerms expected actual -> unlines
+  TypeErrorUnifyTerms expected actual -> block TopDown
     [ "cannot unify term"
     , "  " <> show (untyped expected)
     , "with term"
     , "  " <> show (untyped actual) ]
-  TypeErrorNotPair term ty -> unlines
+  TypeErrorNotPair term ty -> block TopDown
     [ "expected a cube product or dependent pair"
     , "but got type"
     , "  " <> show (untyped ty)
@@ -325,26 +324,26 @@ ppTypeError' = \case
         _          -> ""
     ]
 
-  TypeErrorUnexpectedLambda term ty -> unlines
+  TypeErrorUnexpectedLambda term ty -> block TopDown
     [ "unexpected lambda abstraction"
     , "  " <> show term
     , "when typechecking against a non-function type"
     , "  " <> show ty
     ]
-  TypeErrorUnexpectedPair term ty -> unlines
+  TypeErrorUnexpectedPair term ty -> block TopDown
     [ "unexpected pair"
     , "  " <> show term
     , "when typechecking against a type that is not a product or a dependent sum"
     , "  " <> show ty
     ]
-  TypeErrorUnexpectedRefl term ty -> unlines
+  TypeErrorUnexpectedRefl term ty -> block TopDown
     [ "unexpected refl"
     , "  " <> show term
     , "when typechecking against a type that is not an identity type"
     , "  " <> show ty
     ]
 
-  TypeErrorNotFunction term ty -> unlines
+  TypeErrorNotFunction term ty -> block TopDown
     [ "expected a function or extension type"
     , "but got type"
     , "  " <> show (untyped ty)
@@ -354,30 +353,30 @@ ppTypeError' = \case
         AppT _ty f _x -> "\nPerhaps the term\n  " <> show (untyped f) <> "\nis applied to too many arguments?"
         _ -> ""
     ]
-  TypeErrorCannotInferBareLambda term -> unlines
+  TypeErrorCannotInferBareLambda term -> block TopDown
     [ "cannot infer the type of the argument"
     , "in lambda abstraction"
     , "  " <> show term
     ]
-  TypeErrorCannotInferBareRefl term -> unlines
+  TypeErrorCannotInferBareRefl term -> block TopDown
     [ "cannot infer the type of term"
     , "  " <> show term
     ]
-  TypeErrorUndefined var -> unlines
+  TypeErrorUndefined var -> block TopDown
     [ "undefined variable: " <> show (Pure var :: Term') ]
-  TypeErrorTopeNotSatisfied topes tope -> unlines
+  TypeErrorTopeNotSatisfied topes tope -> block TopDown
     [ "local context is not included in (does not entail) the tope"
     , "  " <> show (untyped tope)
     , "in local context (normalised)"
     , intercalate "\n" (map ("  " <>) (map show topes))
     , intercalate "\n" (map ("  " <>) (map show (generateTopesForPoints (allTopePoints tope))))] -- FIXME: remove
-  TypeErrorTopesNotEquivalent expected actual -> unlines
+  TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
     , "  " <> show (untyped expected)
     , "but got"
     , "  " <> show (untyped actual) ]
 
-  TypeErrorInvalidArgumentType argType argKind -> unlines
+  TypeErrorInvalidArgumentType argType argKind -> block TopDown
     [ "invalid function parameter type"
     , "  " <> show argType
     , "function parameter can be a cube, a shape, or a type"
@@ -385,7 +384,7 @@ ppTypeError' = \case
     , "  " <> show (untyped argKind)
     ]
 
-  TypeErrorDuplicateTopLevel previous lastName -> unlines
+  TypeErrorDuplicateTopLevel previous lastName -> block TopDown
     [ "duplicate top-level definition"
     , "  " <> ppVarIdentWithLocation lastName
     , "previous top-level definitions found at"
@@ -394,19 +393,19 @@ ppTypeError' = \case
       | name <- previous ]
     ]
 
-  TypeErrorUnusedVariable name type_ -> unlines
+  TypeErrorUnusedVariable name type_ -> block TopDown
     [ "unused variable"
     , "  " <> Rzk.printTree (getVarIdent name) <> " : " <> show (untyped type_)
     ]
 
-  TypeErrorUnusedUsedVariables vars name -> unlines
+  TypeErrorUnusedUsedVariables vars name -> block TopDown
     [ "unused variables"
     , "  " <> intercalate " " (map (Rzk.printTree . getVarIdent) vars)
     , "declared as used in definition of"
     , "  " <> Rzk.printTree (getVarIdent name)
     ]
 
-  TypeErrorImplicitAssumption (a, aType) name -> unlines
+  TypeErrorImplicitAssumption (a, aType) name -> block TopDown
     [ "implicit assumption"
     , "  " <> Rzk.printTree (getVarIdent a) <> " : " <> show (untyped aType)
     , "used in definition of"
@@ -416,6 +415,7 @@ ppTypeError' = \case
 ppTypeErrorInContext :: OutputDirection -> TypeErrorInContext VarIdent -> String
 ppTypeErrorInContext dir TypeErrorInContext{..} = block dir
   [ ppTypeError' typeErrorError
+  , ""
   , ppContext' dir typeErrorContext
   ]
 
@@ -813,6 +813,7 @@ abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
     newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
 
 data OutputDirection = TopDown | BottomUp
+  deriving (Eq)
 
 block :: OutputDirection -> [String] -> String
 block TopDown  = intercalate "\n"
@@ -824,39 +825,41 @@ namedBlock dir name lines_ = block dir $
   where
     indent = intercalate "\n" . (map ("  " ++)) . lines
 
-
 ppContext' :: OutputDirection -> Context VarIdent -> String
-ppContext' dir ctx@Context{..} = block dir
-  [ case location of
-      Just (LocationInfo (Just path) (Just lineNo)) ->
-        path <> " (line " <> show lineNo <> "):"
-      Just (LocationInfo (Just path) _) ->
-        path <> ":"
-      _  -> ""
-  , case currentCommand of
-      Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
-        "  Error occurred when checking\n    #define " <> Rzk.printTree name
-      Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
-        "  Error occurred when checking\n    #postulate " <> Rzk.printTree name
-      Just (Rzk.CommandCheck _loc term ty) ->
-        "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
-      Just (Rzk.CommandCompute _loc term) ->
-        "  Error occurred when computing\n    " <> Rzk.printTree term
-      Just (Rzk.CommandComputeNF _loc term) ->
-        "  Error occurred when computing NF for\n    " <> Rzk.printTree term
-      Just (Rzk.CommandComputeWHNF _loc term) ->
-        "  Error occurred when computing WHNF for\n    " <> Rzk.printTree term
-      Just (Rzk.CommandSetOption _loc optionName _optionValue) ->
-        "  Error occurred when trying to set option\n    #set-option " <> show optionName
-      Just command@Rzk.CommandUnsetOption{} ->
-        "  Error occurred when trying to unset option\n    " <> Rzk.printTree command
-      Just command@Rzk.CommandAssume{} ->
-        "  Error occurred when checking assumption\n    " <> Rzk.printTree command
-      Just (Rzk.CommandSection _loc name) ->
-        "  Error occurred when checking\n    #section " <> Rzk.printTree name
-      Just (Rzk.CommandSectionEnd _loc name) ->
-        "  Error occurred when checking\n    #end " <> Rzk.printTree name
-      Nothing -> "  Error occurred outside of any command!"
+ppContext' dir ctx@Context{..} = block dir $ dropWhile null
+  [ block TopDown
+    [ case location of
+        _ | dir == TopDown -> "" -- FIXME
+        Just (LocationInfo (Just path) (Just lineNo)) ->
+          path <> " (line " <> show lineNo <> "):"
+        Just (LocationInfo (Just path) _) ->
+          path <> ":"
+        _  -> ""
+    , case currentCommand of
+        Just (Rzk.CommandDefine _loc name _vars _params _ty _term) ->
+          "  Error occurred when checking\n    #define " <> Rzk.printTree name
+        Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
+          "  Error occurred when checking\n    #postulate " <> Rzk.printTree name
+        Just (Rzk.CommandCheck _loc term ty) ->
+          "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
+        Just (Rzk.CommandCompute _loc term) ->
+          "  Error occurred when computing\n    " <> Rzk.printTree term
+        Just (Rzk.CommandComputeNF _loc term) ->
+          "  Error occurred when computing NF for\n    " <> Rzk.printTree term
+        Just (Rzk.CommandComputeWHNF _loc term) ->
+          "  Error occurred when computing WHNF for\n    " <> Rzk.printTree term
+        Just (Rzk.CommandSetOption _loc optionName _optionValue) ->
+          "  Error occurred when trying to set option\n    #set-option " <> show optionName
+        Just command@Rzk.CommandUnsetOption{} ->
+          "  Error occurred when trying to unset option\n    " <> Rzk.printTree command
+        Just command@Rzk.CommandAssume{} ->
+          "  Error occurred when checking assumption\n    " <> Rzk.printTree command
+        Just (Rzk.CommandSection _loc name) ->
+          "  Error occurred when checking\n    #section " <> Rzk.printTree name
+        Just (Rzk.CommandSectionEnd _loc name) ->
+          "  Error occurred when checking\n    #end " <> Rzk.printTree name
+        Nothing -> "  Error occurred outside of any command!"
+    ]
   , ""
   , case filter (/= topeTopT) localTopes of
       [] -> "Local tope context is unrestricted (⊤)."
