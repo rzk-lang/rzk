@@ -27,9 +27,7 @@
     String { '"' (![\\"] | "\\" _)* '"' }
     string { String }
 
-    space { $[ \t\r]+ }
-
-    Newline { "\n"+ }
+    space { $[ \t\r\n]+ }
 }
 
 @skip { space | comment }
