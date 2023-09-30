@@ -1,5 +1,5 @@
 import { parser } from "./parser"
-import { printTree } from "printer"
+import { printTree } from "@lezer-unofficial/printer"
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "fs"
 
 const src = "examples/src"
