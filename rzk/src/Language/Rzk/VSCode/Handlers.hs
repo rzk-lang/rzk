@@ -8,10 +8,10 @@ module Language.Rzk.VSCode.Handlers where
 
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
-import           Control.Monad.Cont            (MonadIO (liftIO), forM_)
+import           Control.Monad.Cont            (MonadIO (liftIO), forM_, when)
 import           Data.Default.Class
 import           Data.List                     (sort, (\\))
-import           Data.Maybe                    (fromMaybe)
+import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
 import           Language.LSP.Diagnostics      (partitionBySource)
@@ -32,6 +32,7 @@ import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
                                                 parseModuleFile, printTree)
 import           Language.Rzk.VSCode.Env
+import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.State     (ProjectConfig (include))
 import           Rzk.TypeCheck
 
@@ -66,24 +67,30 @@ filePathToNormalizedUri = toNormalizedUri . filePathToUri
 
 typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
+  logInfo "Looking for rzk.yaml"
   root <- getRootPath
   case root of
     Nothing -> do
+      logWarning "Workspace has no root path, cannot find rzk.yaml"
       sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Warning "Cannot find the workspace root")
     Just rootPath -> do
       let rzkYamlPath = rootPath </> "rzk.yaml"
       eitherConfig <- liftIO $ Yaml.decodeFileEither @ProjectConfig rzkYamlPath
       case eitherConfig of
         Left err -> do
-          sendNotification SMethod_WindowShowMessage (ShowMessageParams MessageType_Warning (T.pack $ "Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err))
+          logError ("Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err)
 
         Right config -> do
+          logDebug "Starting typechecking"
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
 
           cachedModules <- getCachedTypecheckedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
+
+          logDebug ("Found " ++ show (length cachedPaths) ++ " files in the cache")
+          logDebug (show (length modifiedFiles) ++ " files have been modified")
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
           tcResults <- liftIO $ try $ evaluate $
@@ -94,11 +101,14 @@ typecheckFromConfigFile = do
             Right (Left err) -> return ([err], [])    -- sort of impossible
             Right (Right (checkedModules, errors)) -> do
                 -- cache well-typed modules
+                logInfo (show (length checkedModules) ++ " modules successfully typechecked")
+                logInfo (show (length errors) ++ " errors found")
                 cacheTypecheckedModules checkedModules
                 return (errors, checkedModules)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
+          -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
           forM_ paths $ \path -> do
             publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
@@ -161,9 +171,12 @@ instance Default CompletionItemLabelDetails
 
 provideCompletions :: Handler LSP 'Method_TextDocumentCompletion
 provideCompletions req res = do
+  logInfo "Providing text completions"
   root <- getRootPath
+  when (isNothing root) $ logDebug "Not in a workspace. Cannot find root path for relative paths"
   let rootDir = fromMaybe "/" root
   cachedModules <- getCachedTypecheckedModules
+  logDebug ("Found " ++ show (length cachedModules) ++ " modules in the cache")
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   -- Take all the modules up to and including the currently open one
   let modules = takeWhileInc ((/= currentFile) . fst) cachedModules
@@ -174,6 +187,7 @@ provideCompletions req res = do
             | otherwise = [x]
 
   let items = concatMap (declsToItems rootDir) modules
+  logDebug ("Sending " ++ show (length items) ++ " completion items")
   res $ Right $ InL items
   where
     declsToItems :: FilePath -> (FilePath, [Decl']) -> [CompletionItem]

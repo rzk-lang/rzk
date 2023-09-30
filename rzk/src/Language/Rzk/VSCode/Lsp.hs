@@ -19,6 +19,7 @@ import           Language.LSP.VFS              (virtualFileText)
 import           Language.Rzk.Syntax           (parseModuleSafe)
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
+import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
 
 -- | The maximum number of diagnostic messages to send to the client
@@ -38,7 +39,9 @@ handlers =
     , notificationHandler SMethod_WorkspaceDidChangeWatchedFiles $ \msg -> do
         let modifiedPaths = msg ^.. params . changes . traverse . uri . to uriToFilePath . _Just
         if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
-          then resetCacheForAllFiles
+          then do
+            logDebug "rzk.yaml modified. Clearing module cache"
+            resetCacheForAllFiles
           else resetCacheForFiles modifiedPaths
         typecheckFromConfigFile
     , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> do
@@ -62,9 +65,9 @@ handlers =
               Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
                 parseModuleSafe (T.unpack sourceCode)
         case possibleTokens of
-          Left _err -> do
+          Left err -> do
             -- Exception occurred when parsing the module
-            return ()
+            logWarning ("Failed to tokenize file: " ++ err)
           Right tokens -> do
             let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
             case encoded of
