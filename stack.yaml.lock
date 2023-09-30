@@ -32,6 +32,13 @@ packages:
       size: 1060
   original:
     hackage: row-types-1.0.1.2
+- completed:
+    hackage: co-log-core-0.3.2.0@sha256:9a4ad78d00507b302b2804ffbc619ba4d650ecae41d51954eae742719b7cd57d,3970
+    pantry-tree:
+      sha256: 9568e7dbeac4d16ef83d1f1f7dd066eca3325f3c895877949c11092d3376e716
+      size: 584
+  original:
+    hackage: co-log-core-0.3.2.0
 snapshots:
 - completed:
     sha256: cbf721fafa21237e4999d83cfd27137f440ae0e3032ff18fa96e8148d9bf5ce1
