@@ -36,21 +36,22 @@
         pkgs.cabal-install
         pkgs.hpack
         pkgs.nodejs_18
+        pkgs.bun
       ];
 
-      usual = import ./nix/usual.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools; };
+      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools; };
       ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools; };
       scripts = import ./nix/scripts.nix { inherit pkgs packages; };
 
 
       packages = {
-        default = usual.packages.default;
-        rzk = usual.packages.${rzk};
+        default = default.packages.default;
+        rzk = default.packages.${rzk};
         rzk-js = ghcjs.packages.${rzk-js};
       } // scripts;
 
       devShells = {
-        default = usual.devShells.default;
+        default = default.devShells.default;
         ghcjs = ghcjs.devShells.default;
         release = pkgs.mkShell {
           buildInputs = [ scripts.release-rzk-playground ];
@@ -58,7 +59,7 @@
       };
     in
     {
-      inherit packages devShells usual ghcjs;
+      inherit packages devShells default ghcjs;
     });
 
   nixConfig = {
