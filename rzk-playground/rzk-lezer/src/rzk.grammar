@@ -6,36 +6,27 @@
 }
 
 @tokens {
-    varIdentTokenFirst { ![-?!.\\;,#\"\]\[)(}{><| \t\n\r:/=×→≡↦] }
+    varIdentTokenFirst { ![-?!.\\;,#\"\]\[)(}{><| \t\n\r:/*=×→≡↦] }
     varIdenTokenNext { ![\\;,#\"\]\[)(}{><| \t\n\r] }
     varIdentToken {  varIdentTokenFirst varIdenTokenNext* }
-            
-    holeIdentToken { '?' }
-    
+        
     LineComment { "--" ![\n]* }
     BlockComment { "{-" blockCommentRest }
     blockCommentRest { ![-] blockCommentRest | "-" blockCommentAfterDash }
     blockCommentAfterDash { "}" | "-" blockCommentAfterDash | ![{-] blockCommentRest }
     
-    Comment { 
-          LineComment 
-        | BlockComment 
-    }
-
-    comment { Comment }
-
     String { '"' (![\\"] | "\\" _)* '"' }
     string { String }
 
     space { $[ \t\r\n]+ }
 }
 
-@skip { space | comment }
+@skip { space | LineComment | BlockComment }
 
 Module { languageDecl command*  }
 module { Module }
 
-HoleIdent { holeIdentToken }
+HoleIdent { "?" }
 holeIdent { HoleIdent }
 
 VarIdent { varIdentToken }
@@ -57,7 +48,7 @@ CommandCompute { "#compute" term }
 CommandComputeWHNF { "#compute-whnf" term }
 CommandComputeNF { "#compute-nf" term }
 
-CommandPostulate { "#postulate" varIdent declUsedVars param+ ":" term }
+CommandPostulate { "#postulate" varIdent declUsedVars params ":" term }
 CommandPostulateNoParams { "#postulate" varIdent declUsedVars ":" term }
 
 CommandAssume {
@@ -73,13 +64,13 @@ CommandSection { "#section" sectionName }
 CommandSectionEnd { "#end" sectionName }
 
 CommandDefine {
-    "#define" varIdent declUsedVars param+ ":" term ":=" term 
+    "#define" varIdent declUsedVars params ":" term ":=" term 
     | commandDefineNoParams
     | commandDef
     | commandDefNoParams
 }
 commandDefineNoParams { "#define" varIdent declUsedVars ":" term ":=" term }
-commandDef { "#def" varIdent declUsedVars param+ ":" term ":=" term }
+commandDef { "#def" varIdent declUsedVars params ":" term ":=" term }
 commandDefNoParams { "#def" varIdent declUsedVars ":" term ":=" term }
 
 command {
@@ -128,13 +119,13 @@ patterns { pattern+ }
 ParamPattern { pattern }
 ParamPatternType { "(" patterns ":" term ")" }
 ParamPatternShape { "(" patterns ":" term "|" term ")" }
-// ParamPatternShapeDeprecated
+ParamPatternShapeDeprecated { "{" pattern ":" term "|" term "}" }
 
 param {
       ParamPattern
     | ParamPatternType
     | ParamPatternShape
-    // | ParamPatternShapeDeprecated
+    | ParamPatternShapeDeprecated
 }
 // TODO why ""?
 params { param+ }
@@ -143,16 +134,17 @@ params { param+ }
 ParamType { term6 }
 ParamTermType { "(" term ":" term ")" }
 ParamTermShape { "(" term ":" term "|" term ")" }
-
-// TODO should support these?
-// ParamTermTypeDeprecated 
-// ParamVarShapeDeprecated
-// paramVarShapeDeprecated
+ParamTermTypeDeprecated { "{" pattern ":" term "}" } 
+ParamVarShapeDeprecated { "{" "(" pattern ":" term ")" "|" term "}" }
+paramVarShapeDeprecated { "{" pattern ":" term "|" term "}" }
 
 paramDecl {
       ParamType
     | ParamTermType
     | ParamTermShape
+    | ParamTermTypeDeprecated
+    | ParamVarShapeDeprecated
+    | paramVarShapeDeprecated
 }
 
 
@@ -186,7 +178,7 @@ TopeOr { @specialize<varIdentToken, "∨"> }
 // Tope disjunction elimination
 RecBottom { @specialize<varIdentToken, "recBot"> }
 RecOr { @specialize<varIdentToken, "recOR"> "(" restrictions ")" }
-// RecOrDeprecated
+RecOrDeprecated { @specialize<varIdentToken, "recOR"> "(" term "," term "," term "," term ")" }
 
 // Types
 TypeFun { paramDecl "→" term1 }
@@ -195,7 +187,7 @@ TypeUnit { @specialize<varIdentToken, "Unit"> }
 TypeId { term2 "=_{" term "}" term2 }
 TypeIdSimple { term2 "=" term2 }
 TypeRestricted { term6 "[" restrictions "]" }
-// TypeExtensionDeprecated
+TypeExtensionDeprecated { "<" paramDecl "→" term ">" }
 
 // Terms
 App { term6 term7  }
@@ -216,22 +208,6 @@ Var { varIdent }
 
 // Miscellaneous
 TypeAsc { term2 @specialize<varIdentToken, "as"> term1 }
-
-term { 
-      TypeAsc
-    | term1 
-}
-terms { term ("," term)+ }
-
-// coercions *add* rules
-// term { term1 }
-// term1 { term2 }
-// term2 { term3 }
-// term3 { term4 }
-// term4 { term5 }
-// term5 { term6 }
-// term6 { term7 }
-// term7 { "(" term ")" }
 
 ascii_CubeProduct { term5 @specialize<varIdentToken, "*"> term6 }
 
@@ -259,6 +235,13 @@ ASCII_Second { @specialize<varIdentToken, "second"> term7 }
 // Alternative Unicode syntax rules
 // \sum
 unicode_TypeSigmaAlt { @specialize<varIdentToken, "∑"> "(" pattern ":" term ")" "," term1 }
+
+// coercions *add* rules
+
+term { 
+  TypeAsc
+| term1 
+}
 
 term1 {
       TypeFun
@@ -322,7 +305,9 @@ term7 {
     | TopeBottom
     | RecBottom
     | RecOr
+    | RecOrDeprecated
     | TypeUnit
+    | TypeExtensionDeprecated
     | Pair
     | Unit
     | Refl
