@@ -9,9 +9,11 @@ module Rzk.Main where
 import           Control.Monad           (forM, void)
 import           Data.List               (sort)
 import           Data.Version            (showVersion)
-#ifndef __GHCJS__
+
+#ifdef LSP
 import           Language.Rzk.VSCode.Lsp (runLsp)
 #endif
+
 import           Options.Generic
 import           System.Exit             (exitFailure)
 import           System.FilePath.Glob    (glob)
@@ -41,10 +43,10 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
       Right _decls -> putStrLn "Everything is ok!"
 
   Lsp ->
-#ifndef __GHCJS__
+#ifdef LSP
     void runLsp
 #else
-    error "rzk lsp is not supported with a GHCJS build"
+    error "rzk lsp is not supported with this build"
 #endif
 
   Version -> putStrLn (showVersion version)
