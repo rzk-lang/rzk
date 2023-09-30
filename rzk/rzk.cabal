@@ -59,6 +59,7 @@ library
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
+    , co-log-core >=0.3.2.0
     , data-default-class >=0.1.2.0
     , filepath >=1.4.2.1
     , lens >=4.17
@@ -97,6 +98,7 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
+    , co-log-core >=0.3.2.0
     , data-default-class >=0.1.2.0
     , filepath >=1.4.2.1
     , lens >=4.17
@@ -129,6 +131,7 @@ test-suite doctests
     , base
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
+    , co-log-core >=0.3.2.0
     , data-default-class >=0.1.2.0
     , doctest
     , filepath >=1.4.2.1
@@ -159,6 +162,7 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
+    , co-log-core >=0.3.2.0
     , data-default-class >=0.1.2.0
     , filepath >=1.4.2.1
     , lens >=4.17

@@ -45,6 +45,7 @@ dependencies:
   stm: ">= 2.5.0.0"
   yaml: ">= 0.11.0.0"
   data-default-class: ">= 0.1.2.0"
+  co-log-core: ">= 0.3.2.0"
 
 ghc-options:
   - -Wall
