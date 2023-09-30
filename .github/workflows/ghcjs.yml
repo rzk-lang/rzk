@@ -87,7 +87,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: rzk-playground-release
           target-folder: ${{ github.ref_name }}/playground
-          clean: true
+          clean: false
           single-commit: true
 
       - name: '🚀 Publish JS "binaries"'
