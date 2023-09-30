@@ -4,7 +4,7 @@
   "type": "module",
   "module": "dist/index.js",
   "devDependencies": {
-    "@lezer/generator": "lezer-parser/generator#2dbaa9775f9c2409828fdfa1964964bb1ad9dc50",
+    "@lezer/generator": "deemp/generator#cc38c10ab0d9d6e9b0e6daf1659e7a15dad86649",
     "@lezer-unofficial/printer": "^1.0.1",
     "tsx": "^3.13.0"
   },
