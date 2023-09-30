@@ -41,6 +41,7 @@ library
       Language.Rzk.Syntax.Lex
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
+      Language.Rzk.VSCode.Logging
       Rzk
       Rzk.Main
       Rzk.TypeCheck
