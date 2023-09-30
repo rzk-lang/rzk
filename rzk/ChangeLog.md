@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.4 — 2023-09-27
+
+This version improves the stucture of the project, in particular w.r.t dependencies:
+
+- Add custom snapshot and explicit lower bounds (see [#108](https://github.com/rzk-lang/rzk/pull/108))
+
+## v0.6.3 — 2023-09-27
+
+This version contains a fix for the command line interface of `rzk`:
+
+- Fix command line `rzk typecheck` (see [#106](https://github.com/rzk-lang/rzk/pull/106))
+
+  - Previous version ignored failures in the command line
+    (the bug was introced when allowing better autocompletion in LSP).
+
 ## v0.6.2 — 2023-09-26
 
 This version contains some improvements in efficiency and also to the language server:
