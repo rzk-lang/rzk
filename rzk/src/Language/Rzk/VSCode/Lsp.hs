@@ -1,6 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE TypeApplications      #-}
 
 module Language.Rzk.VSCode.Lsp where
 
@@ -41,10 +40,6 @@ handlers =
         if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
           then resetCacheForAllFiles
           else resetCacheForFiles modifiedPaths
-        -- TODO: see what files changed and typecheck them again
-        --  Need to handle 3 events: added, changed, and deleted
-
-        -- Currently, this is only sent for changes in `rzk.yaml`, so it makes sense to typecheck again (unconditionally)
         typecheckFromConfigFile
     , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> do
         -- TODO: check if the file is included in the config's `include` list.
