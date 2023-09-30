@@ -7,6 +7,7 @@ import { example } from './example';
 import { color, oneDark } from './theme';
 import { Dispatch, SetStateAction, useState } from 'react';
 import { centerCursor } from './cursor-height';
+import { language } from './parser';
 
 export default function Editor({
     setText,
@@ -57,6 +58,7 @@ export default function Editor({
                     backgroundColor: `${existsSelection ? "transparent" : color.activeLine} !important`
                 },
             }),
+            language
         ]}
     />;
 }

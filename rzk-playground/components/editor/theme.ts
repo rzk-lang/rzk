@@ -27,7 +27,9 @@ const chalky = "#e5c07b",
     activeLine = "#3e3d32",
     selection = "#49483e",
     gutterBackground = "#2f3129",
-    textColor = "#ffffff"
+    textColor = "#ffffff",
+    parenColor = "#eeff00",
+    commentColor = "#909570"
 
 /// The colors used in the theme, as CSS color strings.
 export const color = {
@@ -54,7 +56,7 @@ export const color = {
 /// The editor theme styles for One Dark.
 export const oneDarkTheme = EditorView.theme({
     "&": {
-        color: "#ffffff",
+        color: textColor,
         backgroundColor: background,
         fontSize: "16px",
         fontFamily: "Inconsolata"
@@ -187,6 +189,34 @@ export const oneDarkHighlightStyle = HighlightStyle.define([
         color: coral
     },
     {
+        tag: t.moduleKeyword,
+        fontWeight: "bold",
+        color: "#178b8b"
+    },
+    {
+        tag: t.namespace,
+        fontWeight: "bold",
+        color: "#fe2f96"
+    },
+    {
+        tag: t.definitionKeyword,
+        fontWeight: "bold",
+        color: "#861ffb"
+    },
+    {
+        tag: t.definitionOperator,
+        fontWeight: "bold",
+        color: "#1fcbfb"
+    },
+    {
+        tag: t.lineComment,
+        color: commentColor
+    },
+    {
+        tag: t.blockComment,
+        color: commentColor
+    },
+    {
         tag: [t.atom, t.bool, t.special(t.variableName)],
         color: whiskey
     },
@@ -195,9 +225,21 @@ export const oneDarkHighlightStyle = HighlightStyle.define([
         color: sage
     },
     {
+        tag: t.brace,
+        color: cyan
+    },
+    {
+        tag: t.paren,
+        color: parenColor
+    },
+    {
         tag: t.invalid,
         color: invalid
     },
+    {
+        tag: t.macroName,
+        color: whiskey,
+    }
 ])
 
 /// Extension to enable the One Dark theme (both the editor theme and

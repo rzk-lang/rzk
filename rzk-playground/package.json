@@ -9,22 +9,22 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@codemirror/theme-one-dark": "^6.1.2",
     "@types/node": "20.6.3",
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
-    "@uiw/react-codemirror": "^4.21.17",
-    "eslint": "8.49.0",
-    "eslint-config-next": "13.5.2",
+    "@uiw/react-codemirror": "^4.21.18",
     "next": "13.5.2",
     "re-resizable": "^6.9.11",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-keybinds": "^1.0.8",
     "react-resizable": "^3.0.5",
-    "typescript": "5.2.2"
+    "rzk-lezer": "./rzk-lezer"
   },
   "devDependencies": {
+    "eslint": "8.49.0",
+    "eslint-config-next": "13.5.2",
+    "typescript": "5.2.2",
     "@types/react-resizable": "^3.0.4",
     "eslint-config-prettier": "^9.0.0"
   }

@@ -1,10 +1,11 @@
 {
-  "name": "rzk-parser",
+  "name": "rzk-lezer",
   "version": "0.1.0",
   "type": "module",
+  "module": "dist/index.js",
   "devDependencies": {
     "@lezer/generator": "lezer-parser/generator#2dbaa9775f9c2409828fdfa1964964bb1ad9dc50",
-    "printer": "deemp/printer",
+    "@lezer-unofficial/printer": "^1.0.1",
     "tsx": "^3.13.0"
   },
   "dependencies": {
@@ -14,8 +15,9 @@
     "examples"
   ],
   "scripts": {
-    "prepare": "npm run build && npm run examples",
-    "build": "lezer-generator src/rzk.grammar -o src/parser.ts",
-    "examples": "tsx src/run-examples.ts"
+    "prepare": "npm run build; npm run tsc",
+    "build": "lezer-generator src/rzk.grammar -o src/parser.ts --typeScript",
+    "examples": "tsx src/run-examples.ts",
+    "tsc": "tsc -p tsconfig.json"
   }
 }

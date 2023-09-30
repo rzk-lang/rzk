@@ -19,6 +19,16 @@
     string { String }
 
     space { $[ \t\r\n]+ }
+
+    "-" "->" "," ":" ":=" "?" "(" ")" "[" "]"
+    "{" "}" "*_1" "*" "*₁" "/\\" "\\" "\\/"
+    "#assume" "#check" "#compute-nf" "#compute-whnf" "#compute" "#def"
+    "#define" "#end" "#lang" "#postulate" "#section" "#set-option"
+    "#unset-option" "#variable" "#variables" 
+    "→" "↦" "∑" "×" "<" "<=" "=_{" "=" "===" ">" "|->" "|" "∧"
+    "∨" "≡" "≤" "⊤" "⊥" "0_2" "0₂" "1_2" "1" "1₂" "2" "as" "BOT" "Cube"
+    "first" "idJ" "recBot" "recOR" "refl_{" "refl" "rzk-1" "second" 
+    "Sigma" "TOP" "TOPE" "U" "unit" "Unit" "uses" "π₁" "π₂" "Σ"
 }
 
 @skip { space | LineComment | BlockComment }
