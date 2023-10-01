@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.Rzk.VSCode.State where
+module Rzk.Project.Config where
 
 import           Data.Yaml (FromJSON (..), (.!=), (.:), (.:?))
 import qualified Data.Yaml as Y
@@ -16,5 +16,3 @@ instance FromJSON ProjectConfig where
     v .:  "include" <*>
     v .:? "exclude" .!= []
   parseJSON _ = fail "Expected config value to be an object"
-
--- TODO: Add a "ServerState" data structure for holding the typechecking cache

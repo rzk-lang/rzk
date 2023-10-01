@@ -34,7 +34,7 @@ import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
                                                 parseModuleFile, printTree)
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
-import           Language.Rzk.VSCode.State     (ProjectConfig (include))
+import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 
 -- | Given a list of file paths, reads them and parses them as Rzk modules,
