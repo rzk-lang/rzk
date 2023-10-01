@@ -44,14 +44,6 @@ jobs:
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v4
 
-      - name: 🔨 Build dependencies (with Stack)
-        run: |
-          stack build --only-dependencies
-
-      - name: 🔨 Build and test (with Stack)
-        run: |
-          stack test
-
       - name: Tar and strip the binary
         id: rzkBinary
         run: echo "rzkPath=$(stack exec -- which rzk)" >> "$GITHUB_OUTPUT"
@@ -100,7 +92,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: 📥 Download rzk
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v1
         with:
           name: rzk
 
