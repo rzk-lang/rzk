@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: ${{ steps.rzkBinary.outputs.rzkPath }}
-          name: "rzk-${{ github.ref_name }}"
+          name: rzk
           if-no-files-found: error
 
   haddock:
