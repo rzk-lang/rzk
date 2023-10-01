@@ -50,6 +50,7 @@ jobs:
           mkdir -p bin/
           cp $(stack exec -- which rzk) bin/.
           tar -cvzf rzk-bin.tar.gz bin/
+        shell: bash
 
       - name: Upload rzk binary as Artifact
         uses: actions/upload-artifact@v3
