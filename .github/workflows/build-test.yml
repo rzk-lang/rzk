@@ -30,7 +30,6 @@ jobs:
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v4
         with:
-          cache-prefix: ${{ runner.os }}-stack-
           pedantic: false
 
       - name: 🔨 Install BNFC, alex and happy (with Stack)
