@@ -1,5 +1,3 @@
-'use client';
-
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView, keymap } from '@codemirror/view'
 import { scrollPastEnd } from '@codemirror/view';
@@ -21,7 +19,7 @@ export default function Editor({
     const [existsSelection, setExistsSelection] = useState(false)
     const params = new URLSearchParams(window.location.search);
 
-    var snippet = example
+    let snippet = example
     if (params.has("snippet")) {
         snippet = params.get("snippet")!;
     } else if (params.has("code")) {
@@ -37,7 +35,7 @@ export default function Editor({
         }}
         onUpdate={(update) => {
             if (update.selectionSet) {
-                let ranges = update.state.selection.ranges.filter(v => { return v.from != v.to })
+                const ranges = update.state.selection.ranges.filter(v => { return v.from != v.to })
                 setExistsSelection(ranges.length > 0)
             }
         }}

@@ -1,19 +1,14 @@
-'use client';
-
 import { useCallback, useEffect, useState } from 'react';
-import Editor from '../components/editor/Editor';
-import Script from 'next/script';
+import Editor from './editor/Editor';
 import { Resizable } from 're-resizable';
-import React from 'react';
-import * as rzk from '../src/rzk';
+import * as rzk from './rzk';
 import { KeyBindProvider, ShortcutType } from 'react-keybinds';
-import dynamic from 'next/dynamic';
 
-var typecheckedOnStart = false
+let typecheckedOnStart = false
 
-declare var window: Window & typeof globalThis;
+declare let window: Window & typeof globalThis & { rzkTypecheck_: (input: {input: string}) => void };
 
-function HomeNoSSR() {
+function App() {
   const [message, setMessage] = useState("Starting...");
 
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
@@ -44,9 +39,9 @@ function HomeNoSSR() {
 
   useEffect(() => {
     function checkFlag() {
-      if ((!((window as any).rzkTypecheck_) || (text === "")) && !typecheckedOnStart) {
+      if ((!((window).rzkTypecheck_) || (text === "")) && !typecheckedOnStart) {
         console.warn("something bad")
-        console.warn((window as any).rzkTypecheck_)
+        console.warn((window).rzkTypecheck_)
         window.setTimeout(checkFlag, 100); /* this checks the flag every 100 milliseconds*/
       } else if (!typecheckedOnStart) {
         typecheck()
@@ -88,7 +83,6 @@ function HomeNoSSR() {
   return (
     <main>
       <div style={{ height: '100vh', width: '100vw', backgroundColor: '#202028' }}>
-        <Script src='rzk.js' />
         <KeyBindProvider shortcuts={KEYBINDINGS}></KeyBindProvider>
         <div style={{ height: '100vh' }}>
           <Editor
@@ -129,8 +123,4 @@ function HomeNoSSR() {
   )
 }
 
-const Home = dynamic(() => Promise.resolve(HomeNoSSR), {
-  ssr: false,
-})
-
-export default Home
+export default App
