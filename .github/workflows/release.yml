@@ -19,9 +19,6 @@ jobs:
         with:
           fast: false
 
-      - name: 🔨 Build the project
-        run: stack build
-
       - name: 🔨 Generate package dist tarball
         run: stack sdist --tar-dir packages/
 
@@ -46,9 +43,6 @@ jobs:
         uses: freckle/stack-action@v4
         with:
           fast: false
-
-      - name: 🔨 Build the project
-        run: stack build
 
       - name: Tar and strip the binary
         run: |
