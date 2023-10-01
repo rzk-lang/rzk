@@ -5,7 +5,7 @@ cabal-version: 1.24
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.6.5
+version:        0.6.6
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -56,7 +56,7 @@ library
       Paths_rzk
   hs-source-dirs:
       src
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -99,7 +99,7 @@ executable rzk
       Paths_rzk
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -128,7 +128,7 @@ test-suite doctests
   main-is: doctests.hs
   hs-source-dirs:
       test
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -157,7 +157,7 @@ test-suite rzk-test
       Paths_rzk
   hs-source-dirs:
       test
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
