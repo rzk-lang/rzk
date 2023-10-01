@@ -33,7 +33,10 @@ permissions:
 jobs:
   build:
     name: "Build and test with GHC"
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: 📥 Checkout repository
@@ -47,12 +50,13 @@ jobs:
           mkdir -p bin/
           cp $(stack exec -- which rzk) bin/.
           tar -cvzf rzk-bin.tar.gz bin/
+        shell: bash
 
       - name: Upload rzk binary as Artifact
         uses: actions/upload-artifact@v3
         with:
           path: rzk-bin.tar.gz
-          name: rzk-bin
+          name: rzk-${{ runner.os }}-${{ runner.arch }}.tar.gz
           if-no-files-found: error
 
   haddock:
@@ -95,7 +99,7 @@ jobs:
         id: download
         uses: actions/download-artifact@v3
         with:
-          name: rzk-bin
+          name: rzk-${{ runner.os }}-${{ runner.arch }}.tar.gz
 
       - name: Unpack rzk-bin.tar.gz
         run: |

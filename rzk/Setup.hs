@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- Source: https://github.com/haskell/cabal/issues/6726#issuecomment-918663262
 
 -- | Custom Setup that runs bnfc to generate the language sub-libraries
@@ -18,7 +19,9 @@ main :: IO ()
 main = defaultMainWithHooks $ simpleUserHooks
   { hookedPrograms = [ bnfcProgram ]
   , postConf       = \args flags packageDesc localBuildInfo -> do
+#ifndef mingw32_HOST_OS
       _ <- system "bnfc -d -p Language.Rzk --generic --functor -o src/ grammar/Syntax.cf"
+#endif
       postConf simpleUserHooks args flags packageDesc localBuildInfo
   }
 
