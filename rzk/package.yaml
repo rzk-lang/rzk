@@ -60,6 +60,7 @@ ghc-options:
   - -Wmissing-home-modules
   - -Wpartial-fields
   - -Wredundant-constraints
+  - -optP-Wno-nonportable-include-path
 
 library:
   source-dirs: src
