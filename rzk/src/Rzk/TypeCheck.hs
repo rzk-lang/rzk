@@ -89,12 +89,12 @@ typecheckModules = \case
   [] -> return []
   m : ms -> do
     (decls, errs) <- typecheckModule Nothing m
-    if null errs
-      then
+    case errs of
+      err : _ -> do
+        throwError err
+      _ -> do
         localDeclsPrepared decls $
           (decls <>) <$> typecheckModules ms
-      else
-        return decls
 
 typecheckModuleWithLocation :: (FilePath, Rzk.Module) -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
 typecheckModuleWithLocation (path, module_) = do
@@ -1939,14 +1939,23 @@ unifyInCurrentContext mterm expected actual = performing action $
                     switchVariance $  -- unifying in the negative position!
                       unifyTerms cube cube' -- FIXME: unifyCubes
                     enterScope orig' cube $ do
-                      case (mtope, mtope') of
-                        (Just tope, Just tope') -> do
-                          topeNF <- nfT tope
-                          topeNF' <- nfT tope'
-                          unifyTopes topeNF topeNF'
-                        (Nothing, Nothing)      -> return ()
-                        (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
-                        (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
+                      case ret' of
+                        -- UniverseTopeT{} ->
+                        --   (Just tope, Just tope') -> do
+                        --     topeNF <- nfT tope
+                        --     topeNF' <- nfT tope'
+                        --     unifyTopes topeNF topeNF'
+                        --   (Nothing, Nothing)      -> return ()
+                        --   (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
+                        --   (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
+                        _ -> case (mtope, mtope') of
+                          (Just tope, Just tope') -> do
+                            topeNF <- nfT tope
+                            topeNF' <- nfT tope'
+                            unifyTopes topeNF topeNF'
+                          (Nothing, Nothing)      -> return ()
+                          (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
+                          (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
                       case mterm of
                         Nothing -> unifyTerms ret ret'
                         Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'

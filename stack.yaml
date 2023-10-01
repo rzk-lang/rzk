@@ -1,4 +1,3 @@
 resolver: snapshot.yaml
 packages:
   - rzk
-  
