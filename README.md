@@ -10,16 +10,18 @@ An experimental proof assistant for synthetic ∞-categories.
 
 ## About this project
 
-This project has started with the idea of bringing Riehl and Shulman's 2017 paper [1] to "life" by implementing a proof assistant based on their type theory with shapes. Currently an early prototype with an [online playground](https://rzk-lang.github.io/rzk/) is available. The current implementation is capable of checking various formalisations. Perhaps, the largest formalisations are available in two related projects: <https://github.com/fizruk/sHoTT> and <https://github.com/emilyriehl/yoneda>. `sHoTT` project (originally a fork of the yoneda project) aims to cover more formalisations in simplicial HoTT and ∞-categories, while `yoneda` project aims to compare different formalisations of the Yoneda lemma.
+This project has started with the idea of bringing Riehl and Shulman's 2017 paper [1] to "life" by implementing a proof assistant based on their type theory with shapes. Currently an early prototype with an [online playground](https://rzk-lang.github.io/rzk/develop/playground/) is available. The current implementation is capable of checking various formalisations. Perhaps, the largest formalisations are available in two related projects: <https://rzk-lang.github.com/sHoTT> and <https://github.com/emilyriehl/yoneda>. `sHoTT` project (originally a fork of the yoneda project) aims to cover more formalisations in simplicial HoTT and ∞-categories, while `yoneda` project aims to compare different formalisations of the Yoneda lemma.
 
 Internally, `rzk` uses a version of second-order abstract syntax allowing relatively straightforward handling of binders (such as lambda abstraction). In the future, `rzk` aims to support dependent type inference relying on E-unification for second-order abstract syntax [2].
 Using such representation is motivated by automatic handling of binders and easily automated boilerplate code. The idea is that this should keep the implementation of `rzk` relatively small and less error-prone than some of the existing approaches to implementation of dependent type checkers.
 
 An important part of `rzk` is a tope layer solver, which is essentially a theorem prover for a part of the type theory. A related project, dedicated just to that part is available at <https://github.com/fizruk/simple-topes>. `simple-topes` supports used-defined cubes, topes, and tope layer axioms. Once stable, `simple-topes` will be merged into `rzk`, expanding the proof assistant to the type theory with shapes, allowing formalisations for (variants of) cubical, globular, and other geometric versions of HoTT.
 
+See the list of contributors at [docs/docs/CONTRIBUTORS.md](docs/docs/CONTRIBUTORS.md).
+
 ## How to use `rzk`
 
-For relatively small single-file formalisations, you can use the online playground at <https://rzk-lang.github.io/rzk/playground.html>
+For relatively small single-file formalisations, you can use the online playground at <https://rzk-lang.github.io/rzk/develop/playground>
 
 However, for larger and multi-file formalisations you should install a version of `rzk` locally:
 
@@ -28,7 +30,7 @@ However, for larger and multi-file formalisations you should install a version o
   ```sh
   cabal install rzk
   ```
-  
+
 - You can install the latest "development" version of `rzk` from the [`develop` branch](https://github.com/rzk-lang/rzk/tree/develop) of this repository:
 
   ```sh
@@ -37,7 +39,7 @@ However, for larger and multi-file formalisations you should install a version o
   git checkout develop
   stack build && stack install
   ```
-  
+
 ### VS Code
 
 There exists a [VS Code extension for `rzk`](https://marketplace.visualstudio.com/items?itemName=NikolaiKudasovfizruk.rzk-1-experimental-highlighting) available on the Marketplace. The extension supports basic syntax highlighting, but more features may come in the future.
@@ -130,10 +132,10 @@ stack exec -- rzk typecheck FILE
 
 6. Clone this repository and enter it
 
-    ```console
-    git clone git@github.com:rzk-lang/rzk.git
-    cd rzk
-    ```
+   ```console
+   git clone git@github.com:rzk-lang/rzk.git
+   cd rzk
+   ```
 
 7. Run `direnv allow` in the repository root.
 8. Use `cabal` for development.
@@ -142,7 +144,7 @@ stack exec -- rzk typecheck FILE
    - So, use `nix` for setting up the environment with necessary tools that don't need rebuilds.
 9. The following sections provide commands to build and run packages. They should be executed from the root directory of this repository.
 10. The commands `nix-shell`, `nix shell`, and `nix develop` start shells with necessary tools.
- Run subsequent commands from code blocks in these shells.
+    Run subsequent commands from code blocks in these shells.
 
 ## Permanently install `rzk`
 
@@ -259,6 +261,7 @@ nix build .#rzk-js -o rzk-playground/public/rzk.js
 ### Develop
 
 1. Load `nodejs`
+
    - without flakes: `nix-shell`
    - with flakes: `nix develop`
 
