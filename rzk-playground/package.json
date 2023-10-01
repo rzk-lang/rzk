@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare": "tsc && vite build"
   },
   "dependencies": {
     "@uiw/react-codemirror": "^4.21.18",

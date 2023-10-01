@@ -49,14 +49,11 @@ let scripts =
 
     release-rzk-playground = pkgs.writeShellApplication {
       name = "release-rzk-playground";
-      runtimeInputs = [ pkgs.nodejs_18 packages.build-rzk-js ];
+      runtimeInputs = [ pkgs.nodejs_18 ];
       text =
         let
           playground = "rzk-playground";
           playground-rzk-js = "${playground}/public/rzk.js";
-          config = "next.config.js";
-          configTmp = "${config}.tmp";
-          configBackup = "${config}.bk";
           release = "rzk-playground-release";
         in
         ''
@@ -67,26 +64,11 @@ let scripts =
           (
             cd ${playground}
             npm i
-                
-            # empty string by default
-                
-            : "''${BASEPATH:=""}"
-
-            # substitute basepath in config
-
-            < ${config} sed "s|'''|'$BASEPATH'|" > ${configTmp}
-            mv ${config} ${configBackup}
-            mv ${configTmp} ${config}
-
-            # restore backup anyway
-                
-            npm run build || true
-            mv ${configBackup} ${config}
           )
 
           rm -rf ${release}
           mkdir ${release}
-          cp -r ${playground}/out/* ${release}
+          cp -r ${playground}/dist/* ${release}
 
           printf "Wrote release files to '${release}'\n"
         '';

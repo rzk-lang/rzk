@@ -75,7 +75,7 @@ jobs:
 
       - name: 🔨 Build Playground
         env:
-          BASEPATH: /${{ github.event.repository.name }}/${{ github.ref_name }}/playground
+          ASSET_URL: /${{ github.event.repository.name }}/${{ github.ref_name }}/playground
         run: |
           nix run .#release-rzk-playground
 
