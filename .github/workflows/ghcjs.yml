@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   build-and-deploy-with-ghcjs:
+    name: "Build with GHCJS (and deploy Rzk playground)"
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository

@@ -43,8 +43,6 @@ jobs:
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v4
-        with:
-          cache-prefix: ${{ runner.os }}-stack-
 
       - name: 🔨 Build dependencies (with Stack)
         run: |
@@ -77,8 +75,6 @@ jobs:
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v4
-        with:
-          cache-prefix: ${{ runner.os }}-stack-
 
       - name: 🔨 Build Haddock Documentation (with Stack)
         run: |

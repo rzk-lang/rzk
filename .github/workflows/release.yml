@@ -17,7 +17,6 @@ jobs:
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v4
         with:
-          cache-prefix: ${{ runner.os }}-stack-
           fast: false
 
       - name: 🔨 Build the project
@@ -46,7 +45,6 @@ jobs:
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v4
         with:
-          cache-prefix: ${{ runner.os }}-stack-
           fast: false
 
       - name: 🔨 Build the project
