@@ -97,5 +97,5 @@ jobs:
           name: rzk
 
       - name: Check Rzk files
-        run: ./rzk typecheck docs/docs/examples/recId.rzk.md # FIXME: rely on rzk.yaml instead
+        run: ./rzk/rzk/rzk typecheck docs/docs/examples/recId.rzk.md # FIXME: rely on rzk.yaml instead
         shell: bash
