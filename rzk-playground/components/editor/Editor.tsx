@@ -19,12 +19,20 @@ export default function Editor({
     editorHeight: number
 }) {
     const [existsSelection, setExistsSelection] = useState(false)
+    const params = new URLSearchParams(window.location.search);
+
+    var snippet = example
+    if (params.has("snippet")) {
+        snippet = params.get("snippet")!;
+    } else if (params.has("code")) {
+        snippet = params.get("code")!;
+    }
     return <CodeMirror
-        value={example}
+        value={snippet}
         height={`100vh`}
         width={`100vw`}
         onCreateEditor={(view) => {
-            setText(example)
+            setText(snippet)
             view.dispatch({ effects: EditorView.scrollIntoView(0) })
         }}
         onUpdate={(update) => {
@@ -48,7 +56,7 @@ export default function Editor({
             ]),
             scrollPastEnd(),
             centerCursor(editorHeight),
-            
+
             // dynamic parts of the theme
             EditorView.theme({
                 "& .cm-scroller": {
