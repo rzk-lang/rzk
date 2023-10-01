@@ -2,8 +2,8 @@ name: Build and Deploy MkDocs to GitHub Pages
 
 on:
   push:
-    branches: [ develop ]
-    tags: [ v* ]
+    branches: [develop]
+    tags: [v*]
     paths:
       - .github/workflows/mkdocs.yml
       - docs/**
@@ -25,8 +25,8 @@ jobs:
       - name: 🧰 Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-          cache: 'pip' # caching pip dependencies
+          python-version: "3.9"
+          cache: "pip" # caching pip dependencies
 
       - name: 🔨 Install rzk proof assistant
         uses: jaxxstorm/action-install-gh-release@v1.10.0
@@ -53,4 +53,3 @@ jobs:
         if: ${{ github.ref_name == 'develop' }}
         run: |
           mike deploy --rebase --push --config-file docs/mkdocs.yml ${{ github.ref_name }}
-

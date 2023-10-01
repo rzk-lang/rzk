@@ -1,0 +1,64 @@
+name: GHC workflow (build, test, haddock)
+
+# Controls when the workflow will run
+on:
+  push:
+  pull_request:
+    branches: [develop]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    name: "Build and test with GHC"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Stack
+        uses: freckle/stack-action@v4
+        with:
+          cache-prefix: ${{ runner.os }}-stack-
+
+      - name: 🔨 Build dependencies (with Stack)
+        run: |
+          stack build --only-dependencies
+
+      - name: 🔨 Build and test (with Stack)
+        run: |
+          stack test
+
+  haddock:
+    needs: [build-and-test]
+    if: ${{ github.ref_name == 'develop' }}
+    name: "Build and upload Haddock documentation (develop)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Stack
+        uses: freckle/stack-action@v4
+        with:
+          cache-prefix: ${{ runner.os }}-stack-
+
+      - name: 🔨 Build Haddock Documentation (with Stack)
+        run: |
+          stack haddock
+          mkdir -p dist/haddock
+          mv $(stack path --local-doc-root)/* dist/haddock
+
+      - name: 🚀 Publish Haddock Documentation
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: dist/haddock
+          target-folder: haddock
+          single-commit: true

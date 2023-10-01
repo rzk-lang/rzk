@@ -10,15 +10,15 @@ on:
       - rzk-js/**
       - rzk-playground/**
       - stack.yaml
-      - '**/*.nix'
+      - "**/*.nix"
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
     paths:
       - rzk/**
       - rzk-js/**
       - rzk-playground/**
       - stack.yaml
-      - '**/*.nix'
+      - "**/*.nix"
 
   workflow_dispatch: # allow triggering this workflow manually
 
@@ -26,7 +26,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-with-ghcjs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
