@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "lib": [
+            "ESNext"
+        ],
+        "noImplicitReturns": true,
+        "noUnusedLocals": true,
+        "strict": true,
+        "target": "ESNext",
+        "module": "ESNext",
+        "newLine": "lf",
+        "preserveConstEnums": true,
+        "stripInternal": true,
+        "moduleResolution": "node",
+        "outDir": "dist",
+        "declaration": true
+    },
+    "include": [
+        "src"
+    ]
+}
