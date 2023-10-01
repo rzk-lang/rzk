@@ -102,7 +102,7 @@ jobs:
       - name: 📥 Download rzk
         uses: actions/download-artifact@v3
         with:
-          name: ${{ needs.build.outputs.rzkPath }}
+          name: rzk
 
       - name: Check Rzk files
         run: ./rzk typecheck docs/docs/examples/recId.rzk.md # FIXME: rely on rzk.yaml instead
