@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.5 — 2023-10-01
+
+This version contains mostly intrastructure improvements:
+
+- Typecheck using `rzk.yaml` if it exists (see [#119](https://github.com/rzk-lang/rzk/pull/119))
+- Update Rzk Playground and Nix Flake (see [#84](https://github.com/rzk-lang/rzk/pull/84))
+  - Rzk Playground now uses CodeMirror 6 and NextJS
+  - `miso` dependency is dropped
+  - GHCJS 9.6 is now used
+  - Support `snippet={code}` or `code={code}` param (see [#118](https://github.com/rzk-lang/rzk/pull/118))
+    - Support for `snippet_url={URL}` is temporarily dropped
+- Update to GHC 9.6, latest Stackage Nightly, improve Rzk setup, and GitHub Actions (see [#116](https://github.com/rzk-lang/rzk/pull/116))
+- Add logging for Rzk Language Server (see [#114](https://github.com/rzk-lang/rzk/pull/114))
+
+Fixes:
+
+- Fix error messages in Rzk Playground (see [#115](https://github.com/rzk-lang/rzk/pull/115))
+
 ## v0.6.4 — 2023-09-27
 
 This version improves the stucture of the project, in particular w.r.t dependencies:
