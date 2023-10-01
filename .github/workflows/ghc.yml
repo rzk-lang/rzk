@@ -34,8 +34,6 @@ jobs:
   build:
     name: "Build and test with GHC"
     runs-on: ubuntu-latest
-    outputs:
-      rzkPath: ${{ steps.rzkBinary.outputs.rzkPath }}
 
     steps:
       - name: 📥 Checkout repository
