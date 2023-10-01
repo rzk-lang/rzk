@@ -1,0 +1,3 @@
+rzk/grammar/Syntax.cf linguist-language=EBNF linguist-detectable=true
+rzk/src/Language/Rzk/Syntax/* linguist-generated=true
+docs/** linguist-documentation=true

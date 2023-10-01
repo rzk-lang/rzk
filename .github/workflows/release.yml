@@ -1,0 +1,65 @@
+name: Release
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  hackage:
+    name: "Upload a new candidate on Hackage"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Stack
+        uses: freckle/stack-action@v4
+        with:
+          fast: false
+
+      - name: 🔨 Generate package dist tarball
+        run: stack sdist --tar-dir packages/
+
+      - name: 🚀 Upload on Hackage
+        uses: haskell-actions/hackage-publish@v1
+        with:
+          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          packagesPath: packages
+          publish: false
+
+  binaries:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Stack
+        uses: freckle/stack-action@v4
+        with:
+          fast: false
+
+      - name: Tar and strip the binary
+        run: |
+          mkdir -p prepared_binaries/
+          cd prepared_binaries/
+          export PROGRAM=rzk
+          cp `stack exec -- which $PROGRAM` .
+          tar -cavf program.tar.gz *
+        shell: bash
+
+      - name: 🚀 Upload assets
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./prepared_binaries/program.tar.gz
+          asset_name: rzk-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.tar.gz
+          asset_content_type: application/tar.gz

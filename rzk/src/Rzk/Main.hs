@@ -3,21 +3,28 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Rzk.Main where
 
 import           Control.Monad           (forM, void)
 import           Data.List               (sort)
 import           Data.Version            (showVersion)
-#ifndef __GHCJS__
+
+#ifdef LSP
 import           Language.Rzk.VSCode.Lsp (runLsp)
 #endif
+
+import qualified Data.Yaml               as Yaml
 import           Options.Generic
+import           System.Directory        (doesPathExist)
 import           System.Exit             (exitFailure)
 import           System.FilePath.Glob    (glob)
 
 import qualified Language.Rzk.Syntax     as Rzk
 import           Paths_rzk               (version)
+import           Rzk.Project.Config
 import           Rzk.TypeCheck
 
 data Command
@@ -41,10 +48,10 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
       Right _decls -> putStrLn "Everything is ok!"
 
   Lsp ->
-#ifndef __GHCJS__
+#ifdef LSP
     void runLsp
 #else
-    error "rzk lsp is not supported with a GHCJS build"
+    error "rzk lsp is not supported with this build"
 #endif
 
   Version -> putStrLn (showVersion version)
@@ -66,12 +73,29 @@ globNonEmpty path = do
     []    -> error ("File(s) not found at " <> path)
     paths -> return (sort paths)
 
+extractFilesFromRzkYaml :: FilePath -> IO [FilePath]
+extractFilesFromRzkYaml rzkYamlPath = do
+  eitherConfig <- Yaml.decodeFileEither @ProjectConfig rzkYamlPath
+  case eitherConfig of
+    Left err -> do
+      error ("Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err)
+    Right ProjectConfig{..} -> do
+      return include
+
 parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
 parseRzkFilesOrStdin = \case
   -- if no paths are given — read from stdin
   [] -> do
-    rzkModule <- parseStdin
-    return [("<stdin>", rzkModule)]
+    let rzkYamlPath = "rzk.yaml"
+    rzkYamlExists <- doesPathExist rzkYamlPath
+    if rzkYamlExists
+      then do
+        putStrLn ("Using Rzk project stucture specified in " <> rzkYamlPath)
+        paths <- extractFilesFromRzkYaml rzkYamlPath
+        parseRzkFilesOrStdin paths
+      else do
+        rzkModule <- parseStdin
+        return [("<stdin>", rzkModule)]
   -- otherwise — parse all given files in given order
   paths -> do
     expandedPaths <- foldMap globNonEmpty paths
@@ -87,7 +111,7 @@ parseRzkFilesOrStdin = \case
 typecheckString :: String -> Either String String
 typecheckString moduleString = do
   rzkModule <- Rzk.parseModule moduleString
-  case defaultTypeCheck (typecheckModule Nothing rzkModule) of
+  case defaultTypeCheck (typecheckModules [rzkModule]) of
     Left err -> Left $ unlines
       [ "An error occurred when typechecking!"
       , "Rendering type error... (this may take a few seconds)"

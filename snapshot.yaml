@@ -1,8 +1,0 @@
-resolver: nightly-2023-04-09
-name: rzk-snapshot
-packages:
-  - with-utf8-1.0.2.4
-  - lsp-2.1.0.0
-  - lsp-types-2.0.1.0
-  - row-types-1.0.1.2
-  

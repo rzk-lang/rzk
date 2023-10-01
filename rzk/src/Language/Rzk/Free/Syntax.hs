@@ -94,7 +94,7 @@ data TermF scope term
     | TypeUnitF
     | TypeAscF term term
     | TypeRestrictedF term [(term, term)]
-    deriving (Eq)
+    deriving (Eq, Functor, Foldable, Traversable)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
 deriveBitraversable ''TermF

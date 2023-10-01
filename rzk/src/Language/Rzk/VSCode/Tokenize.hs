@@ -6,7 +6,6 @@ import           Language.LSP.Protocol.Types (SemanticTokenAbsolute (..),
                                               SemanticTokenModifiers (..),
                                               SemanticTokenTypes (..))
 import           Language.Rzk.Syntax
-import           Language.Rzk.Syntax.Print
 
 tokenizeModule :: Module -> [SemanticTokenAbsolute]
 tokenizeModule (Module _loc langDecl commands) = concat

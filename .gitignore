@@ -33,3 +33,4 @@ __pycache__
 *.fls
 *.log
 rzk/doc/
+/rzk-playground-release

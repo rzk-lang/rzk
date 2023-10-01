@@ -6,6 +6,7 @@ edit_uri: edit/develop/docs/docs/
 nav:
   - General:
     - About: index.md
+    - Contributors: CONTRIBUTORS.md
   - Getting Started:
     - Install: getting-started/install.md
     - Quickstart: getting-started/quickstart.rzk.md
