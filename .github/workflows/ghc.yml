@@ -102,5 +102,5 @@ jobs:
           tar xzf ${{ steps.download.outputs.download-path}}/rzk-bin.tar.gz
 
       - name: Check Rzk files
-        run: ./bin/rzk typecheck docs/docs/examples/recId.rzk.md # FIXME: rely on rzk.yaml instead
+        run: ./bin/rzk typecheck
         shell: bash
