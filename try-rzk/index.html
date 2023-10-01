@@ -315,6 +315,7 @@
       /* use default snippet if one is not set in the query parameters */
       if (params.has("snippet")) {
         snippet = decodeURIComponent(params.get("snippet"));
+        myCodeMirror.setValue(snippet);
       } else if (params.has("snippet_url")) {
         snippet_url = decodeURIComponent(params.get("snippet_url"));
         fetch(snippet_url).then(function (response) {
