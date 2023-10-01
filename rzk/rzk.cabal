@@ -1,6 +1,6 @@
-cabal-version: 1.12
+cabal-version: 1.24
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -16,14 +16,21 @@ maintainer:     nickolay.kudasov@gmail.com
 copyright:      2023 Nikolai Kudasov
 license:        BSD3
 license-file:   LICENSE
-build-type:     Simple
+build-type:     Custom
 extra-source-files:
     README.md
     ChangeLog.md
+    grammar/Syntax.cf
 
 source-repository head
   type: git
   location: https://github.com/rzk-lang/rzk
+
+custom-setup
+  setup-depends:
+      Cabal >=2.4.0.1 && <4.0
+    , base >=4.11.0.0 && <5.0
+    , process >=1.6.3.0
 
 flag lsp
   description: Build with LSP support (only available with GHC, not GHCJS).
@@ -52,6 +59,8 @@ library
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
+  build-tool-depends:
+      BNFC:BNFC >=2.9.4.1
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -78,8 +87,8 @@ library
       , data-default-class >=0.1.2.0
       , filepath >=1.4.2.1
       , lens >=4.17
-      , lsp >=2.1.0.0
-      , lsp-types >=2.0.1.0
+      , lsp >=2.2.0.0
+      , lsp-types >=2.0.2.0
       , stm >=2.5.0.0
       , yaml >=0.11.0.0
 
@@ -93,6 +102,8 @@ executable rzk
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
+  build-tool-depends:
+      BNFC:BNFC >=2.9.4.1
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -118,6 +129,8 @@ test-suite doctests
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
+  build-tool-depends:
+      BNFC:BNFC >=2.9.4.1
   build-depends:
       Glob
     , QuickCheck
@@ -143,6 +156,8 @@ test-suite rzk-test
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
+  build-tool-depends:
+      BNFC:BNFC >=2.9.4.1
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0

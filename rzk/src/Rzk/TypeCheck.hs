@@ -10,7 +10,7 @@
 module Rzk.TypeCheck where
 
 import           Control.Applicative      ((<|>))
-import           Control.Monad            (when, forM, forM_, unless, join)
+import           Control.Monad            (forM, forM_, join, unless, when)
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Bifunctor           (first)

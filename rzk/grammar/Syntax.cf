@@ -73,7 +73,7 @@ separator nonempty Param "" ;
 ParamType.          ParamDecl ::= Term6 ;
 ParamTermType.      ParamDecl ::= "(" Term ":" Term ")" ;
 ParamTermShape.     ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
-ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ; 
+ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
 ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;

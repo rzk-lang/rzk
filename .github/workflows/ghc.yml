@@ -1,0 +1,106 @@
+name: GHC (build, test, haddock)
+
+# Controls when the workflow will run
+on:
+  push:
+    branches: [main, develop]
+    tags: [v*]
+    paths:
+      - .github/workflows/ghcjs.yml
+      - rzk/**
+      - stack.yaml
+      - rzk.yaml
+      - "**/*.rzk.md"
+      - "**/*.rzk"
+      - "**/*.rzk.tex"
+  pull_request:
+    branches: [develop]
+    paths:
+      - .github/workflows/ghcjs.yml
+      - rzk/**
+      - stack.yaml
+      - rzk.yaml
+      - "**/*.rzk.md"
+      - "**/*.rzk"
+      - "**/*.rzk.tex"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: "Build and test with GHC"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Stack
+        uses: freckle/stack-action@v4
+
+      - name: Tar and strip the binary
+        run: |
+          mkdir -p bin/
+          cp $(stack exec -- which rzk) bin/.
+          tar -cvzf rzk-bin.tar.gz bin/
+
+      - name: Upload rzk binary as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          path: rzk-bin.tar.gz
+          name: rzk-bin
+          if-no-files-found: error
+
+  haddock:
+    needs: [build]
+    if: ${{ github.ref_name == 'develop' }}
+    name: "Build and upload Haddock documentation (develop)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🧰 Setup Stack
+        uses: freckle/stack-action@v4
+
+      - name: 🔨 Build Haddock Documentation (with Stack)
+        run: |
+          stack haddock
+          mkdir -p dist/haddock
+          mv $(stack path --local-doc-root)/* dist/haddock
+
+      - name: 🚀 Publish Haddock Documentation
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: dist/haddock
+          target-folder: haddock
+          single-commit: true
+
+  rzk:
+    needs: [build]
+    name: "Check Rzk formalizations"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 📥 Download rzk
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: rzk-bin
+
+      - name: Unpack rzk-bin.tar.gz
+        run: |
+          tar xzf ${{ steps.download.outputs.download-path}}/rzk-bin.tar.gz
+
+      - name: Check Rzk files
+        run: ./bin/rzk typecheck docs/docs/examples/recId.rzk.md # FIXME: rely on rzk.yaml instead
+        shell: bash

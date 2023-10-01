@@ -9,6 +9,7 @@ copyright: '2023 Nikolai Kudasov'
 extra-source-files:
   - README.md
   - ChangeLog.md
+  - grammar/Syntax.cf
 
 synopsis: An experimental proof assistant for synthetic ∞-categories
 category: Dependent Types # same as Agda
@@ -25,9 +26,16 @@ flags:
     manual: true
     default: true
 
+custom-setup:
+  dependencies:
+    base:    ">= 4.11.0.0 && < 5.0"
+    Cabal:   ">= 2.4.0.1 && < 4.0"
+    process: ">= 1.6.3.0"
+
 build-tools:
   alex:   ">= 3.2.4"
   happy:  ">= 1.19.9"
+  BNFC:   ">= 2.9.4.1"
 
 dependencies:
   array: ">= 0.5.3.0"
@@ -73,8 +81,8 @@ library:
         data-default-class: ">= 0.1.2.0"
         filepath: ">= 1.4.2.1"
         lens: ">= 4.17"
-        lsp: ">= 2.1.0.0"
-        lsp-types: ">= 2.0.1.0"
+        lsp: ">= 2.2.0.0"
+        lsp-types: ">= 2.0.2.0"
         stm: ">= 2.5.0.0"
         yaml: ">= 0.11.0.0"
       cpp-options: -DLSP

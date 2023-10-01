@@ -93,10 +93,12 @@ runLsp = do
   rzkEnv <- defaultRzkEnv
   runServer $
     ServerDefinition
-      { onConfigurationChange = const $ pure $ Right (),
-        doInitialize = const . pure . Right,
-        staticHandlers = const handlers,
-        interpretHandler = \env -> Iso (flip runReaderT rzkEnv . runLspT env) liftIO,
-        options = defaultOptions { optTextDocumentSync = Just syncOptions },
-        defaultConfig = ()
+      { configSection = "rzk"
+      , parseConfig = const . pure
+      , onConfigChange = const $ pure ()
+      , doInitialize = const . pure . Right
+      , staticHandlers = const handlers
+      , interpretHandler = \env -> Iso (flip runReaderT rzkEnv . runLspT env) liftIO
+      , options = defaultOptions { optTextDocumentSync = Just syncOptions }
+      , defaultConfig = ()
       }

@@ -1,4 +1,4 @@
-name: Build with GHCJS and Deploy to GitHub Pages
+name: GHCJS (build and deploy Rzk playground)
 
 on:
   push:
@@ -10,15 +10,16 @@ on:
       - rzk-js/**
       - rzk-playground/**
       - stack.yaml
-      - '**/*.nix'
+      - "**/*.nix"
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
     paths:
+      - .github/workflows/ghcjs.yml
       - rzk/**
       - rzk-js/**
       - rzk-playground/**
       - stack.yaml
-      - '**/*.nix'
+      - "**/*.nix"
 
   workflow_dispatch: # allow triggering this workflow manually
 
@@ -26,7 +27,8 @@ permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-with-ghcjs:
+    name: "Build with GHCJS (and deploy Rzk playground)"
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
