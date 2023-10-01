@@ -14,6 +14,7 @@ on:
   pull_request:
     branches: [develop]
     paths:
+      - .github/workflows/ghcjs.yml
       - rzk/**
       - rzk-js/**
       - rzk-playground/**
