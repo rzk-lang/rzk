@@ -1,4 +1,4 @@
-name: Build with GHCJS and Deploy to GitHub Pages
+name: GHCJS (build and deploy Rzk playground)
 
 on:
   push:

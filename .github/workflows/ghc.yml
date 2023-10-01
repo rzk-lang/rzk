@@ -1,4 +1,4 @@
-name: GHC workflow (build, test, haddock)
+name: GHC (build, test, haddock)
 
 # Controls when the workflow will run
 on:

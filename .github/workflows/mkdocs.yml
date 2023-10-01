@@ -1,4 +1,4 @@
-name: Build and Deploy MkDocs to GitHub Pages
+name: MKDocs
 
 on:
   push:
@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   mkdocs:
+    name: "Build and Deploy MkDocs to GitHub Pages"
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
