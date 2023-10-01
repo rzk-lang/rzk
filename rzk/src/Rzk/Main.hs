@@ -3,6 +3,8 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Rzk.Main where
 
@@ -14,12 +16,15 @@ import           Data.Version            (showVersion)
 import           Language.Rzk.VSCode.Lsp (runLsp)
 #endif
 
+import qualified Data.Yaml               as Yaml
 import           Options.Generic
+import           System.Directory        (doesPathExist)
 import           System.Exit             (exitFailure)
 import           System.FilePath.Glob    (glob)
 
 import qualified Language.Rzk.Syntax     as Rzk
 import           Paths_rzk               (version)
+import           Rzk.Project.Config
 import           Rzk.TypeCheck
 
 data Command
@@ -68,12 +73,29 @@ globNonEmpty path = do
     []    -> error ("File(s) not found at " <> path)
     paths -> return (sort paths)
 
+extractFilesFromRzkYaml :: FilePath -> IO [FilePath]
+extractFilesFromRzkYaml rzkYamlPath = do
+  eitherConfig <- Yaml.decodeFileEither @ProjectConfig rzkYamlPath
+  case eitherConfig of
+    Left err -> do
+      error ("Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err)
+    Right ProjectConfig{..} -> do
+      return include
+
 parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
 parseRzkFilesOrStdin = \case
   -- if no paths are given — read from stdin
   [] -> do
-    rzkModule <- parseStdin
-    return [("<stdin>", rzkModule)]
+    let rzkYamlPath = "rzk.yaml"
+    rzkYamlExists <- doesPathExist rzkYamlPath
+    if rzkYamlExists
+      then do
+        putStrLn ("Using Rzk project stucture specified in " <> rzkYamlPath)
+        paths <- extractFilesFromRzkYaml rzkYamlPath
+        parseRzkFilesOrStdin paths
+      else do
+        rzkModule <- parseStdin
+        return [("<stdin>", rzkModule)]
   -- otherwise — parse all given files in given order
   paths -> do
     expandedPaths <- foldMap globNonEmpty paths
