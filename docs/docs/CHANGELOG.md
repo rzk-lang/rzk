@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.6 — 2023-10-02
+
+- Fix builds on Windows (and macOS) (see [#121](https://github.com/rzk-lang/rzk/pull/121))
+
 ## v0.6.5 — 2023-10-01
 
 This version contains mostly intrastructure improvements:

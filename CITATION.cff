@@ -4,5 +4,5 @@ authors:
   given-names: Nikolai
   orcid: "https://orcid.org/0000-0001-6572-7292"
 title: "Rzk: a  proof assistant for synthetic $\\infty$-categories"
-version: 0.6.5
+version: 0.6.6
 url: "https://github.com/rzk-lang/rzk"

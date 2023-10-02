@@ -7,11 +7,11 @@ nav:
   - General:
     - About: index.md
     - Contributors: CONTRIBUTORS.md
+    - Changelog: CHANGELOG.md
   - Getting Started:
     - Install: getting-started/install.md
     - Quickstart: getting-started/quickstart.rzk.md
     - Publishing with MkDocs: getting-started/publishing-with-mkdocs.md
-    - Changelog: getting-started/changelog.md
   - Reference:
     - Introduction: reference/introduction.rzk.md
     - Cube layer: reference/cube-layer.rzk.md
