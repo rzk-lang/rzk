@@ -9,10 +9,7 @@ let typecheckedOnStart = false
 declare let window: Window & typeof globalThis & { rzkTypecheck_: (input: {input: string}) => void };
 
 function App() {
-  const [message, setMessage] = useState("Starting...");
-
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
-  const [needTypecheck, setNeedTypecheck] = useState(false)
 
   useEffect(() => {
     const handleWindowResize = () => {
@@ -27,13 +24,14 @@ function App() {
   }, []);
 
   const [text, setText] = useState("")
+  const [output, setOutput] = useState("Starting...");
 
   const typecheck = useCallback(() => {
     const result = rzk.typecheck(text)
     if (result.status == 'ok') {
-      setMessage(`Everything is OK!`)
+      setOutput(`Everything is OK!`)
     } else {
-      setMessage(result.result)
+      setOutput(result.result)
     }
   }, [text])
 
@@ -54,6 +52,8 @@ function App() {
     }
   }, [typecheck, text])
 
+  const [needTypecheck, setNeedTypecheck] = useState(false)
+  
   useEffect(() => {
     if (needTypecheck) {
       typecheck()
@@ -77,7 +77,7 @@ function App() {
     ]
     ;
 
-  const [outputHeight, setOutputHeight] = useState(windowHeight * 30 / 100)
+  const [outputPanelHeight, setOutputHeight] = useState(windowHeight * 30 / 100)
   const [editorHeight, setEditorHeight] = useState(windowHeight * 70 / 100)
 
   return (
@@ -92,7 +92,7 @@ function App() {
           />
         </div>
         <div
-          id={'message'}
+          id={'output'}
           style={{
             position: 'fixed',
             bottom: 0,
@@ -100,22 +100,22 @@ function App() {
           }}
         >
           <Resizable
-            size={{ width: '100vw', height: outputHeight }}
+            size={{ width: '100vw', height: outputPanelHeight }}
             minHeight={100}
             maxHeight={windowHeight - 100}
             enable={{ top: true }}
             onResizeStop={(_e, _direction, _ref, d) => {
-              setOutputHeight(outputHeight + d.height)
+              setOutputHeight(outputPanelHeight + d.height)
             }}
             onResize={(_e, _direction, _ref, d) => {
-              setEditorHeight(window.innerHeight - (outputHeight + d.height))
+              setEditorHeight(window.innerHeight - (outputPanelHeight + d.height))
             }}
             style={{ padding: '20px' }}
           >
             <button id='btnTypecheck' onClick={typecheck}>
               TYPECHECK (SHIFT + ENTER)
             </button>
-            <pre id='message' style={{ fontSize: 16 }}>{message}</pre>
+            <pre id='message' style={{ fontSize: 16 }}>{output}</pre>
           </Resizable>
         </div>
       </div>
