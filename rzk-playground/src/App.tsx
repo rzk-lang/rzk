@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import Editor from './editor/Editor';
+import { Editor } from './editor/Editor';
 import { Resizable } from 're-resizable';
 import * as rzk from './rzk';
 import { KeyBindProvider, ShortcutType } from 'react-keybinds';
 
-let typecheckedOnStart = false
+declare let window: Window & typeof globalThis & {
+  rzkTypecheck_: (input: { input: string }) => void
+};
 
-declare let window: Window & typeof globalThis & { rzkTypecheck_: (input: {input: string}) => void };
-
-function App() {
+function Root({ typecheckedOnStartState }:
+  {
+    typecheckedOnStartState: [boolean, React.Dispatch<React.SetStateAction<boolean>>]
+  }) {
+  const [typecheckedOnStart, setTypecheckedOnStart] = typecheckedOnStartState
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
 
   useEffect(() => {
@@ -24,6 +28,7 @@ function App() {
   }, []);
 
   const [text, setText] = useState("")
+
   const [output, setOutput] = useState("Starting...");
 
   const typecheck = useCallback(() => {
@@ -35,25 +40,38 @@ function App() {
     }
   }, [text])
 
+  const [rzkTypeCheckAvailable, setRzkTypeCheckAvailable] = useState(false)
+
+  useEffect(() => {
+    function checkRzkTypecheckAvailable() {
+      if (!window.rzkTypecheck_) {
+        window.setTimeout(checkRzkTypecheckAvailable, 100)
+      } else {
+        setRzkTypeCheckAvailable(true)
+      }
+    }
+
+    checkRzkTypecheckAvailable()
+  }, [text])
+
+  // Typecheck when function and text are ready
   useEffect(() => {
     function checkFlag() {
-      if ((!((window).rzkTypecheck_) || (text === "")) && !typecheckedOnStart) {
-        console.warn("something bad")
-        console.warn((window).rzkTypecheck_)
-        window.setTimeout(checkFlag, 100); /* this checks the flag every 100 milliseconds*/
+      if (!typecheckedOnStart && (!rzkTypeCheckAvailable || text === '')) {
+        console.warn("Can't typecheck!")
       } else if (!typecheckedOnStart) {
         typecheck()
-        typecheckedOnStart = true
+        setTypecheckedOnStart(true)
       }
     }
 
     if (!typecheckedOnStart) {
       checkFlag();
     }
-  }, [typecheck, text])
+  }, [typecheck, rzkTypeCheckAvailable, text, setTypecheckedOnStart, typecheckedOnStart])
 
   const [needTypecheck, setNeedTypecheck] = useState(false)
-  
+
   useEffect(() => {
     if (needTypecheck) {
       typecheck()
@@ -77,16 +95,27 @@ function App() {
     ]
     ;
 
+
+  // height of the output panel
   const [outputPanelHeight, setOutputHeight] = useState(windowHeight * 30 / 100)
+
+  // visible height of the editor
   const [editorHeight, setEditorHeight] = useState(windowHeight * 70 / 100)
+
+  const
+    minHeight = 100,
+    maxHeight = windowHeight - 100,
+    width = '100vw',
+    height = '100vh',
+    backgroundColor = '#202028'
 
   return (
     <main>
-      <div style={{ height: '100vh', width: '100vw', backgroundColor: '#202028' }}>
+      <div style={{ height, width, backgroundColor }}>
         <KeyBindProvider shortcuts={KEYBINDINGS}></KeyBindProvider>
-        <div style={{ height: '100vh' }}>
+        <div style={{ height }}>
           <Editor
-            setText={setText}
+            textState={[text, setText]}
             setNeedTypecheck={setNeedTypecheck}
             editorHeight={editorHeight}
           />
@@ -100,27 +129,32 @@ function App() {
           }}
         >
           <Resizable
-            size={{ width: '100vw', height: outputPanelHeight }}
-            minHeight={100}
-            maxHeight={windowHeight - 100}
+            size={{ width, height: outputPanelHeight }}
+            minHeight={minHeight}
+            maxHeight={maxHeight}
             enable={{ top: true }}
-            onResizeStop={(_e, _direction, _ref, d) => {
-              setOutputHeight(outputPanelHeight + d.height)
+            onResizeStop={(_event, _direction, _elementRef, delta) => {
+              setOutputHeight(outputPanelHeight + delta.height)
             }}
-            onResize={(_e, _direction, _ref, d) => {
-              setEditorHeight(window.innerHeight - (outputPanelHeight + d.height))
+            onResize={(_event, _direction, _elementRef, delta) => {
+              setEditorHeight(window.innerHeight - (outputPanelHeight + delta.height))
             }}
             style={{ padding: '20px' }}
           >
             <button id='btnTypecheck' onClick={typecheck}>
               TYPECHECK (SHIFT + ENTER)
             </button>
-            <pre id='message' style={{ fontSize: 16 }}>{output}</pre>
+            <pre style={{ fontSize: 16 }}>{output}</pre>
           </Resizable>
         </div>
       </div>
     </main>
   )
+}
+
+
+function App() {
+  return <Root typecheckedOnStartState={useState(false)} />
 }
 
 export default App

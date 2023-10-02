@@ -7,30 +7,51 @@ import { Dispatch, SetStateAction, useState } from 'react';
 import { centerCursor } from './cursor-height';
 import { language } from './parser';
 
-export default function Editor({
-    setText,
+async function setInitialText(setText: Dispatch<SetStateAction<string>>) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("snippet")) {
+        setText(params.get("snippet")!);
+    } else if (params.has("code")) {
+        setText(params.get("code")!);
+    } else if (params.has("snippet_url")) {
+        const url = params.get("snippet_url")!;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'text/plain;charset=UTF-8'
+            }
+        })
+
+        if (!response.ok) {
+            console.error(`Could not get code from ${url}`)
+        }
+
+        setText(await response.text())
+    }
+    else {
+        setText(example)
+    }
+}
+
+export function Editor({
+    textState,
     setNeedTypecheck,
     editorHeight
 }: {
-    setText: Dispatch<SetStateAction<string>>,
+    textState: [string, Dispatch<SetStateAction<string>>],
     setNeedTypecheck: React.Dispatch<React.SetStateAction<boolean>>,
     editorHeight: number
 }) {
     const [existsSelection, setExistsSelection] = useState(false)
-    const params = new URLSearchParams(window.location.search);
+    const [text, setText] = textState
 
-    let snippet = example
-    if (params.has("snippet")) {
-        snippet = params.get("snippet")!;
-    } else if (params.has("code")) {
-        snippet = params.get("code")!;
-    }
     return <CodeMirror
-        value={snippet}
+        value={text}
         height={`100vh`}
         width={`100vw`}
-        onCreateEditor={(view) => {
-            setText(snippet)
+        onCreateEditor={async (view) => {
+            await setInitialText(setText)
+
             view.dispatch({ effects: EditorView.scrollIntoView(0) })
         }}
         onUpdate={(update) => {
