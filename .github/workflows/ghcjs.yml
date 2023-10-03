@@ -50,7 +50,7 @@ jobs:
             ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
             ${{ runner.os }}-nix-
           gc-linux: true
-          gc-max-store-size-linux: 7000000000
+          gc-max-store-size-linux: 8000000000
           purge: true
           purge-created-max-age: 1209600
 
@@ -69,18 +69,11 @@ jobs:
           rm -f rzk/src/Language/Rzk/Syntax/Lex.x
           rm -f rzk/src/Language/Rzk/Syntax/Par.y
 
-      # Uncomment to debug this job
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-
       - name: 🔨 Build Playground
         env:
           ASSET_URL: /${{ github.event.repository.name }}/${{ github.ref_name }}/playground
         run: |
           nix run .#release-rzk-playground
-
-      - name: 🔨 Save flake from garbage collection
-        run: nix run .#save-flake
 
       - name: '🚀 Publish JS "binaries" (${{ github.ref_name }})'
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
@@ -101,6 +94,9 @@ jobs:
           target-folder: playground
           clean: false
           single-commit: true
+
+      - name: 🔨 Save flake from garbage collection
+        run: nix run .#save-flake
 
       - name: 🔨 Push flake outputs to cachix
         if: vars.CACHIX_AUTH_TOKEN != ''
