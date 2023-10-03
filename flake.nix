@@ -11,10 +11,6 @@
       flake = false;
     };
     nix-filter.url = "github:numtide/nix-filter";
-    jsaddle = {
-      url = "github:ghcjs/jsaddle";
-      flake = false;
-    };
   };
   outputs = inputs: inputs.flake-utils.lib.eachDefaultSystem (system:
     let
