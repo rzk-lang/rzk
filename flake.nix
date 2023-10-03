@@ -7,7 +7,7 @@
       flake = false;
     };
     flake-compat = {
-      url = "github:edolstra/flake-compat";
+      url = "github:edolstra/flake-compat/4f910c9827911b1ec2bf26b5a062cd09f8d89f85";
       flake = false;
     };
     nix-filter.url = "github:numtide/nix-filter";

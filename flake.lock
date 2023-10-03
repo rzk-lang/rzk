@@ -13,6 +13,7 @@
       "original": {
         "owner": "edolstra",
         "repo": "flake-compat",
+        "rev": "4f910c9827911b1ec2bf26b5a062cd09f8d89f85",
         "type": "github"
       }
     },
