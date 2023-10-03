@@ -1,4 +1,4 @@
-{ inputs, pkgs, scripts, rzk, rzk-js, rzk-src, rzk-js-src, ghcVersion, tools }:
+{ inputs, pkgs, scripts, rzk, rzk-js, rzk-src, rzk-js-src, ghcVersion, tools, hpackHpkgs }:
 let
   inherit (pkgs.haskell.lib) overrideCabal;
   misoNix = (import "${inputs.miso.outPath}/default.nix" { inherit (pkgs) system; });
