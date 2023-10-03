@@ -1,9 +1,9 @@
-{ inputs, pkgs, ghcVersion, rzk, rzk-src, tools, hlsPkgs }:
+{ inputs, pkgs, ghcVersion, rzk, rzk-src, tools, hlsPkgs, hpackHpkgs }:
 let
   inherit (pkgs.haskell.lib) overrideCabal;
   # https://nixos.wiki/wiki/Haskell#Overrides
   hls = hlsPkgs.haskell-language-server-96;
-  hpkgs = pkgs.haskell.packages.${ghcVersion}.override {
+  hpkgs = hpackHpkgs.override {
     overrides = final: prev: {
       lsp = final.callHackageDirect
         {
@@ -20,7 +20,7 @@ let
         }
         { };
 
-      ${rzk} = final.callCabal2nix rzk rzk-src { };
+      ${rzk} = final.callCabal2nix rzk rzk-src { inherit (hpackHpkgs) hpack; };
     };
   };
 

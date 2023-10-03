@@ -30,15 +30,29 @@
         include = [ "Main.hs" "${rzk-js}.cabal" ];
       });
 
+      hpackHpkgs = pkgs.haskell.packages.${ghcVersion}.override {
+        overrides = final: prev: {
+          hpack = final.callHackageDirect
+            {
+              pkg = "hpack";
+              ver = "0.36.0";
+              sha256 = "sha256-a8jKkzO3CWIoBg+Uaw5TtpDwmeajWCTW1zJNrlpBKPU=";
+            }
+            { };
+          http-client-tls = prev.http-client-tls_0_3_6_3;
+          tls = prev.tls_1_7_1;
+          crypton-connection = pkgs.haskell.lib.unmarkBroken prev.crypton-connection;
+        };
+      };
+
       tools = [
         pkgs.cabal-install
-        pkgs.hpack
         pkgs.nodejs_18
         pkgs.bun
       ];
 
-      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools hlsPkgs; };
-      ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools; };
+      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools hlsPkgs hpackHpkgs; };
+      ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools hpackHpkgs; };
       scripts = import ./nix/scripts.nix { inherit pkgs packages; };
 
 
