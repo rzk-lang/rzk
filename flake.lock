@@ -69,6 +69,42 @@
         "type": "github"
       }
     },
+    "flakes": {
+      "locked": {
+        "lastModified": 1696364002,
+        "narHash": "sha256-7/it2KnhD5GAwsiPRJNyzvYWiD1c6Tf8CuwaP6FHaa0=",
+        "owner": "deemp",
+        "repo": "flakes",
+        "rev": "5ebf3c3704248e825dc4ec04fa751b1b83fe4050",
+        "type": "github"
+      },
+      "original": {
+        "owner": "deemp",
+        "repo": "flakes",
+        "type": "github"
+      }
+    },
+    "flakes-tools": {
+      "inputs": {
+        "flakes": "flakes"
+      },
+      "locked": {
+        "dir": "flakes-tools",
+        "lastModified": 1696364169,
+        "narHash": "sha256-UInZAkAY+T/YYj2AinLixf0CbbNorBeRsHadWSBg0yc=",
+        "owner": "deemp",
+        "repo": "flakes",
+        "rev": "93dacca29b38865b76ef5e8c4c5c81df426cf5e8",
+        "type": "github"
+      },
+      "original": {
+        "dir": "flakes-tools",
+        "owner": "deemp",
+        "repo": "flakes",
+        "rev": "93dacca29b38865b76ef5e8c4c5c81df426cf5e8",
+        "type": "github"
+      }
+    },
     "fourmolu-011": {
       "flake": false,
       "locked": {
@@ -328,6 +364,7 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "flake-utils": "flake-utils",
+        "flakes-tools": "flakes-tools",
         "haskell-language-server": "haskell-language-server",
         "miso": "miso",
         "nix-filter": "nix-filter",
