@@ -1,7 +1,8 @@
-{ inputs, pkgs, ghcVersion, rzk, rzk-src, tools }:
+{ inputs, pkgs, ghcVersion, rzk, rzk-src, tools, hlsPkgs }:
 let
   inherit (pkgs.haskell.lib) overrideCabal;
   # https://nixos.wiki/wiki/Haskell#Overrides
+  hls = hlsPkgs.haskell-language-server-96;
   hpkgs = pkgs.haskell.packages.${ghcVersion}.override {
     overrides = final: prev: {
       lsp = final.callHackageDirect
@@ -28,7 +29,7 @@ let
       hpkgs.shellFor {
         shellHook = "export LANG=C.utf8";
         packages = ps: [ ps.rzk ];
-        nativeBuildInputs = tools ++ [ hpkgs.haskell-language-server ];
+        nativeBuildInputs = tools ++ [ hls ];
       };
   };
 

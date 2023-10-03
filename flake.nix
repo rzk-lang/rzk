@@ -11,10 +11,12 @@
       flake = false;
     };
     nix-filter.url = "github:numtide/nix-filter";
+    haskell-language-server.url = "github:deemp/haskell-language-server/74604905f33e0c62b08fe3d533293a54cc883913";
   };
   outputs = inputs: inputs.flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = inputs.nixpkgs.legacyPackages.${system};
+      hlsPkgs = inputs.haskell-language-server.packages.${system};
 
       rzk = "rzk";
       rzk-js = "rzk-js";
@@ -35,7 +37,7 @@
         pkgs.bun
       ];
 
-      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools; };
+      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools hlsPkgs; };
       ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools; };
       scripts = import ./nix/scripts.nix { inherit pkgs packages; };
 
