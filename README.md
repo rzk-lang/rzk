@@ -3,6 +3,7 @@
 [![MkDocs](https://shields.io/badge/MkDocs-documentation-informational)](https://rzk-lang.github.io/rzk/)
 [![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://rzk-lang.github.io/rzk/haddock/index.html)
 [![GHCJS build](https://github.com/rzk-lang/rzk/actions/workflows/ghcjs.yml/badge.svg?branch=main)](https://github.com/rzk-lang/rzk/actions/workflows/ghcjs.yml)
+[![Rzk Zulip chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://rzk-lang.zulipchat.com)
 
 An experimental proof assistant for synthetic ∞-categories.
 
@@ -18,6 +19,11 @@ Using such representation is motivated by automatic handling of binders and easi
 An important part of `rzk` is a tope layer solver, which is essentially a theorem prover for a part of the type theory. A related project, dedicated just to that part is available at <https://github.com/fizruk/simple-topes>. `simple-topes` supports used-defined cubes, topes, and tope layer axioms. Once stable, `simple-topes` will be merged into `rzk`, expanding the proof assistant to the type theory with shapes, allowing formalisations for (variants of) cubical, globular, and other geometric versions of HoTT.
 
 See the list of contributors at [docs/docs/CONTRIBUTORS.md](docs/docs/CONTRIBUTORS.md).
+
+## Discussing Rzk and getting help
+
+A Zulip chat is available for all to join and chat about Rzk, including formalization projects, development of Rzk, and related projects:
+<https://rzk-lang.zulipchat.com/register/>
 
 ## How to use `rzk`
 
