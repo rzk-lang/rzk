@@ -99,7 +99,7 @@ jobs:
         run: nix run .#save-flake
 
       - name: 🔨 Push flake outputs to cachix
-        if: secrets.CACHIX_AUTH_TOKEN != ''
+        if: vars.CACHIX_CACHE != ''
         env:
           CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
