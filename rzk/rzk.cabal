@@ -61,7 +61,7 @@ library
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:BNFC >=2.9.4.1
+      BNFC:bnfc >=2.9.4.1
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -104,7 +104,7 @@ executable rzk
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:BNFC >=2.9.4.1
+      BNFC:bnfc >=2.9.4.1
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -133,7 +133,7 @@ test-suite doctests
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:BNFC >=2.9.4.1
+      BNFC:bnfc >=2.9.4.1
   build-depends:
       Glob
     , QuickCheck
@@ -162,7 +162,7 @@ test-suite rzk-test
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:BNFC >=2.9.4.1
+      BNFC:bnfc >=2.9.4.1
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
