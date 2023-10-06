@@ -5,7 +5,7 @@ import { ViewPlugin, ViewUpdate } from "@uiw/react-codemirror"
 export const centerCursor = (editorHeight: number) => ViewPlugin.fromClass(class {
     update(update: ViewUpdate) {
         if (update.transactions.some(tr => tr.scrollIntoView)) {
-            let view = update.view
+            const view = update.view
             // (Sync with other DOM read/write phases for efficiency)
             view.requestMeasure({
                 read() {
@@ -15,8 +15,8 @@ export const centerCursor = (editorHeight: number) => ViewPlugin.fromClass(class
                 },
                 write({ cursor }) {
                     if (cursor) {
-                        let cursorHeight = cursor.bottom - cursor.top
-                        let outputTop = editorHeight
+                        const cursorHeight = cursor.bottom - cursor.top
+                        const outputTop = editorHeight
                         if (cursor.bottom + cursorHeight + 5 > outputTop)
                             view.scrollDOM.scrollTop += ((cursor.bottom + 5) - outputTop)
                     }

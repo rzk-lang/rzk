@@ -1,8 +1,10 @@
-import * as wrapper from "./rzk-wrapper"
-
 export type Result = { status: string, result: string }
 
+declare function rzkTypecheck_(tmp: { input: string }): void;
+
 export function typecheck(input: string) {
-    let result: Result = wrapper.rzkTypecheck(input) as any
+    const tmp = { input }
+    rzkTypecheck_(tmp)
+    const result: Result = tmp as unknown as Result
     return result
 }

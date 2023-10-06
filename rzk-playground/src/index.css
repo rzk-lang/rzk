@@ -80,12 +80,12 @@ body {
   background: #A46BF5;
 }
 
-#message {
+#output {
   background-color: #1e1f1c;
   color: #ffffff;
   overflow: scroll;
 }
 
-#message pre {
+#output pre {
   font-family: Inconsolata, monospace;
 }
