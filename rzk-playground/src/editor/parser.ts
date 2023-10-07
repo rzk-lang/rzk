@@ -2,7 +2,7 @@ import { parser } from 'rzk-lezer/src/parser'
 import { styleTags, tags as t } from '@lezer/highlight'
 import { LRLanguage } from '@codemirror/language'
 
-let parserWithMetadata = parser.configure({
+const parserWithMetadata = parser.configure({
     props: [
         styleTags({
             "LineComment!": t.lineComment,
