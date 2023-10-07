@@ -34,6 +34,7 @@ However, for larger and multi-file formalisations you should install a version o
 - You can install the latest "stable" version of `rzk` from Hackage:
 
   ```sh
+  cabal update
   cabal install rzk
   ```
 
