@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.6.7 — 2023-10-07
+
+- Fix build on some systems (fix `BNFC:bnfc` executable dependency, see [#125](https://github.com/rzk-lang/rzk/pull/125))
+- Improve Rzk Playground (see [#124](https://github.com/rzk-lang/rzk/pull/124) by @deemp):
+  - Add `snippet_url` parameter
+  - Migrated from NextJS to Vite
+  - Use `setText` on `params` attribute
+- Slightly improve documentation:
+  - Add links to Rzk Zulip (see [#131](https://github.com/rzk-lang/rzk/pull/131))
+  - Add `cabal update` to instructions (see [`3aa8fd3`](https://github.com/rzk-lang/rzk/commit/3aa8fd38902fc8cbb29f86122410d24398a15b0b))
+
 ## v0.6.6 — 2023-10-02
 
 - Fix builds on Windows (and macOS) (see [#121](https://github.com/rzk-lang/rzk/pull/121))
