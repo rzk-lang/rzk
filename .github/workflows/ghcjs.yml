@@ -40,9 +40,9 @@ jobs:
       - name: 👝 Restore and Cache Nix store
         uses: nix-community/cache-nix-action@v4
         with:
-          key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          key: ${{ runner.os }}-nix-${{ hashfiles('flake*', '.github/workflows/ghcjs.yml', '**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+            ${{ runner.os }}-nix-${{ hashfiles('flake*', '.github/workflows/ghcjs.yml', '**/*.cabal') }}
             ${{ runner.os }}-nix-
           gc-linux: true
           gc-max-store-size-linux: 8000000000
