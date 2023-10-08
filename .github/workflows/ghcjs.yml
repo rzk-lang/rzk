@@ -4,22 +4,17 @@ on:
   push:
     branches: [main, develop]
     tags: [v*]
-    paths:
+    paths: &paths
       - .github/workflows/ghcjs.yml
       - rzk/**
       - rzk-js/**
       - rzk-playground/**
       - stack.yaml
       - "**/*.nix"
+      - "flake.lock"
   pull_request:
     branches: [develop]
-    paths:
-      - .github/workflows/ghcjs.yml
-      - rzk/**
-      - rzk-js/**
-      - rzk-playground/**
-      - stack.yaml
-      - "**/*.nix"
+    paths: *paths
 
   workflow_dispatch: # allow triggering this workflow manually
 
