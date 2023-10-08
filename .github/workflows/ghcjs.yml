@@ -46,7 +46,7 @@ jobs:
             ${{ runner.os }}-playground-ghcjs-
             ${{ runner.os }}-nix-
           gc-linux: true
-          gc-max-store-size-linux: 8000000000
+          gc-max-store-size-linux: 12000000000
           purge: true
           purge-created-max-age: 1209600
 
