@@ -1,11 +1,20 @@
-# rzk
+# Rzk proof assistant
 
-[![MkDocs](https://shields.io/badge/MkDocs-documentation-informational)](https://rzk-lang.github.io/rzk/)
-[![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://rzk-lang.github.io/rzk/haddock/index.html)
-[![GHCJS build](https://github.com/rzk-lang/rzk/actions/workflows/ghcjs.yml/badge.svg?branch=main)](https://github.com/rzk-lang/rzk/actions/workflows/ghcjs.yml)
+[![Release](https://img.shields.io/github/v/release/rzk-lang/rzk.svg)](https://github.com/rzk-lang/rzk/releases/latest)
+[![`rzk` on Hackage](https://img.shields.io/hackage/v/rzk)](http://hackage.haskell.org/package/rzk)
+[![`rzk` on Stackage Nightly](https://stackage.org/package/rzk/badge/nightly)](http://stackage.org/package/rzk)
+[![`rzk` on Stackage LTS](https://stackage.org/package/rzk/badge/lts)](http://stackage.org/package/rzk)
+
+[![Rzk documentation](https://shields.io/badge/MkDocs-Rzk%20documentation-informational)](https://rzk-lang.github.io/rzk/)
+[![Rzk Playground](<https://shields.io/badge/Rzk%20Playground%20(latest)-online-success>)](https://rzk-lang.github.io/rzk/latest/playground/)
 [![Rzk Zulip chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://rzk-lang.zulipchat.com)
 
+[![Haddock](<https://shields.io/badge/Haddock%20(develop)-Code%20documentation-informational>)](https://rzk-lang.github.io/rzk/haddock/index.html)
+[![Rzk Playground](<https://shields.io/badge/Rzk%20Playground%20(develop)-online-success>)](https://rzk-lang.github.io/rzk/develop/playground/)
+
 An experimental proof assistant for synthetic ∞-categories.
+
+<https://rzk-lang.github.io>
 
 [![Early prototype demo.](images/split-demo-render.png)](https://rzk-lang.github.io/rzk/)
 
