@@ -34,6 +34,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cachix-${{ hashfiles('flake*', '.github/workflows/cachix.yml', '**/*.cabal') }}
             ${{ runner.os }}-cachix-
+            ${{ runner.os }}-nix-
           gc-linux: true
           gc-max-store-size-linux: 13000000000
           purge: true
