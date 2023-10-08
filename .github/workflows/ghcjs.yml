@@ -33,8 +33,8 @@ jobs:
         uses: nixbuild/nix-quick-install-action@v25
         with:
           nix_conf: |
-            substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8=
+            substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org https://rzk-lang.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8= rzk-lang.cachix.org-1:hz9Ld3hYNWSM7cswW/28Dt4ABgGdK0CfBDx/MrciZW8=
             keep-outputs = true
 
       - name: 👝 Restore and Cache Nix store
