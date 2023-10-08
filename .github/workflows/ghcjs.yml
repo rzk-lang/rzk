@@ -41,24 +41,24 @@ jobs:
       - name: 👝 Restore and Cache Nix store
         uses: nix-community/cache-nix-action@v4
         with:
-          key: ${{ runner.os }}-nix-${{ hashfiles('flake*', '.github/workflows/ghcjs.yml', '**/*.cabal') }}
+          key: ${{ runner.os }}-playground-ghcjs-${{ hashfiles('flake*', '**/*.nix', '.github/workflows/ghcjs.yml', '**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-nix-${{ hashfiles('flake*', '.github/workflows/ghcjs.yml', '**/*.cabal') }}
+            ${{ runner.os }}-playground-ghcjs-
             ${{ runner.os }}-nix-
           gc-linux: true
           gc-max-store-size-linux: 8000000000
           purge: true
           purge-created-max-age: 1209600
 
-      - name: 👝 Restore and Cache NextJS cache
+      - name: 👝 Restore and Cache NodeJS dependencies
         uses: actions/cache@v3
         with:
-          key: ${{ runner.os }}-next-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-playground-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
+            ${{ runner.os }}-playground-node-
             ${{ runner.os }}-next-
           path: |
             ~/.npm
-            rzk-playground/.next/cache
 
       - name: 🔨 Remove lexer and parser generator files
         run: |
