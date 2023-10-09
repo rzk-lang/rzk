@@ -6,20 +6,16 @@ on:
     tags: [v*]
     paths:
       - .github/workflows/ghcjs.yml
-      - rzk/**
-      - rzk-js/**
-      - rzk-playground/**
-      - stack.yaml
+      - rzk*/**
       - "**/*.nix"
+      - "**/*.lock"
   pull_request:
     branches: [develop]
     paths:
       - .github/workflows/ghcjs.yml
-      - rzk/**
-      - rzk-js/**
-      - rzk-playground/**
-      - stack.yaml
+      - rzk*/**
       - "**/*.nix"
+      - "**/*.lock"
 
   workflow_dispatch: # allow triggering this workflow manually
 
@@ -38,49 +34,42 @@ jobs:
         uses: nixbuild/nix-quick-install-action@v25
         with:
           nix_conf: |
-            substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8=
+            substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org https://rzk-lang.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8= rzk-lang.cachix.org-1:hz9Ld3hYNWSM7cswW/28Dt4ABgGdK0CfBDx/MrciZW8=
             keep-outputs = true
 
       - name: 👝 Restore and Cache Nix store
         uses: nix-community/cache-nix-action@v4
         with:
-          key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          key: ${{ runner.os }}-playground-ghcjs-${{ hashfiles('flake*', '**/*.nix', '.github/workflows/ghcjs.yml', '**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+            ${{ runner.os }}-playground-ghcjs-
             ${{ runner.os }}-nix-
           gc-linux: true
-          gc-max-store-size-linux: 7000000000
+          gc-max-store-size-linux: 12000000000
           purge: true
           purge-created-max-age: 1209600
 
-      - name: 👝 Restore and Cache NextJS cache
+      - name: 👝 Restore and Cache NodeJS dependencies
         uses: actions/cache@v3
         with:
-          key: ${{ runner.os }}-next-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-playground-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
+            ${{ runner.os }}-playground-node-
             ${{ runner.os }}-next-
           path: |
             ~/.npm
-            rzk-playground/.next/cache
 
       - name: 🔨 Remove lexer and parser generator files
         run: |
           rm -f rzk/src/Language/Rzk/Syntax/Lex.x
           rm -f rzk/src/Language/Rzk/Syntax/Par.y
 
-      # Uncomment to debug this job
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-
       - name: 🔨 Build Playground
         env:
           ASSET_URL: /${{ github.event.repository.name }}/${{ github.ref_name }}/playground
         run: |
           nix run .#release-rzk-playground
-
-      - name: 🔨 Save flake from garbage collection
-        run: nix run .#save-flake
 
       - name: '🚀 Publish JS "binaries" (${{ github.ref_name }})'
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
@@ -111,3 +100,6 @@ jobs:
           target-folder: playground
           clean: false
           single-commit: true
+
+      - name: 🔨 Save flake from garbage collection
+        run: nix run .#save-flake

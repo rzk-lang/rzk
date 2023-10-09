@@ -7,18 +7,18 @@
       flake = false;
     };
     flake-compat = {
-      url = "github:edolstra/flake-compat";
+      url = "github:edolstra/flake-compat/4f910c9827911b1ec2bf26b5a062cd09f8d89f85";
       flake = false;
     };
     nix-filter.url = "github:numtide/nix-filter";
-    jsaddle = {
-      url = "github:ghcjs/jsaddle";
-      flake = false;
-    };
+    haskell-language-server.url = "github:deemp/haskell-language-server/74604905f33e0c62b08fe3d533293a54cc883913";
+    flakes-tools.url = "github:deemp/flakes/93dacca29b38865b76ef5e8c4c5c81df426cf5e8?dir=flakes-tools";
   };
   outputs = inputs: inputs.flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = inputs.nixpkgs.legacyPackages.${system};
+      hlsPkgs = inputs.haskell-language-server.packages.${system};
+      inherit (inputs.flakes-tools.lib.${system}) mkFlakesTools;
 
       rzk = "rzk";
       rzk-js = "rzk-js";
@@ -32,16 +32,30 @@
         include = [ "Main.hs" "${rzk-js}.cabal" ];
       });
 
+      hpackHpkgs = pkgs.haskell.packages.${ghcVersion}.override {
+        overrides = final: prev: {
+          hpack = final.callHackageDirect
+            {
+              pkg = "hpack";
+              ver = "0.36.0";
+              sha256 = "sha256-a8jKkzO3CWIoBg+Uaw5TtpDwmeajWCTW1zJNrlpBKPU=";
+            }
+            { };
+          http-client-tls = prev.http-client-tls_0_3_6_3;
+          tls = prev.tls_1_7_1;
+          crypton-connection = pkgs.haskell.lib.unmarkBroken prev.crypton-connection;
+        };
+      };
+
       tools = [
         pkgs.cabal-install
-        pkgs.hpack
         pkgs.nodejs_18
         pkgs.bun
       ];
 
-      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools; };
-      ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools; };
-      scripts = import ./nix/scripts.nix { inherit pkgs packages; };
+      default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools hlsPkgs hpackHpkgs; };
+      ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools hpackHpkgs; };
+      scripts = import ./nix/scripts.nix { inherit pkgs packages mkFlakesTools; };
 
 
       packages = {

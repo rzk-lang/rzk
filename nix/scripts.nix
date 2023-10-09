@@ -1,4 +1,4 @@
-{ pkgs, packages }:
+{ pkgs, packages, mkFlakesTools }:
 let scripts =
   {
     build-rzk-js = pkgs.writeShellApplication {
@@ -73,5 +73,7 @@ let scripts =
           printf "Wrote release files to '${release}'\n"
         '';
     };
+
+    inherit (mkFlakesTools { root = ../.; dirs = [ "." ]; }) pushToCachix;
   };
 in scripts

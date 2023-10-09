@@ -1,0 +1,50 @@
+name: Push flake to cachix
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "**/*.nix"
+      - "flake.lock"
+      - "**/*.cabal"
+
+jobs:
+  push-to-cachix:
+    name: Push flake to cachix
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-12]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: ❄️ Install Nix
+        uses: nixbuild/nix-quick-install-action@v25
+        with:
+          nix_conf: |
+            substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org https://rzk-lang.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8= rzk-lang.cachix.org-1:hz9Ld3hYNWSM7cswW/28Dt4ABgGdK0CfBDx/MrciZW8=
+            keep-outputs = true
+
+      - name: 👝 Restore and Cache Nix store
+        uses: nix-community/cache-nix-action@v4
+        with:
+          key: ${{ runner.os }}-cachix-${{ hashfiles('flake*', '.github/workflows/cachix.yml', '**/*.cabal') }}
+          restore-keys: |
+            ${{ runner.os }}-cachix-${{ hashfiles('flake*', '.github/workflows/cachix.yml', '**/*.cabal') }}
+            ${{ runner.os }}-cachix-
+            ${{ runner.os }}-nix-
+          gc-linux: true
+          gc-max-store-size-linux: 13000000000
+          purge: true
+          purge-created-max-age: 1209600
+
+      - name: 🔨 Push flake to cachix
+        env:
+          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: nix run .#pushToCachix
+
+      - name: 🔨 Save flake from garbage collection
+        run: nix run .#save-flake

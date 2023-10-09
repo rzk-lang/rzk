@@ -1,9 +1,9 @@
-{ inputs, pkgs, scripts, rzk, rzk-js, rzk-src, rzk-js-src, ghcVersion, tools }:
+{ inputs, pkgs, scripts, rzk, rzk-js, rzk-src, rzk-js-src, ghcVersion, tools, hpackHpkgs }:
 let
   inherit (pkgs.haskell.lib) overrideCabal;
   misoNix = (import "${inputs.miso.outPath}/default.nix" { inherit (pkgs) system; });
   pkgsMiso = misoNix.pkgs;
-
+  inherit (hpackHpkgs) hpack;
   hpkgs =
     # This isn't equivalent to `pkgsMiso.haskell.packages.ghcjs.override` ([link](https://nixos.wiki/wiki/Haskell#Overrides))
     # but avoids multiple rebuilds
@@ -16,9 +16,8 @@ let
           isExecutable = false;
           doCheck = false;
           doHaddock = false;
-          libraryToolDepends = [ pkgs.hpack pkgs.alex pkgs.happy ] ++ (x.libraryToolDepends or [ ]);
-          testToolDepends = [ pkgs.hpack pkgs.alex pkgs.happy ] ++ (x.testToolDepends or [ ]);
-          prePatch = "hpack --force";
+          libraryToolDepends = [ hpack pkgs.alex pkgs.happy ] ++ (x.libraryToolDepends or [ ]);
+          testToolDepends = [ hpack pkgs.alex pkgs.happy ] ++ (x.testToolDepends or [ ]);
         });
       rzk-js = overrideCabal
         (hpkgs.callCabal2nix rzk-js rzk-js-src { inherit (hpkgs) rzk; })
@@ -41,9 +40,8 @@ let
           isExecutable = false;
           doCheck = false;
           doHaddock = false;
-          libraryToolDepends = [ pkgs.hpack pkgs.alex pkgs.happy ] ++ (x.libraryToolDepends or [ ]);
-          testToolDepends = [ pkgs.hpack pkgs.alex pkgs.happy ] ++ (x.testToolDepends or [ ]);
-          prePatch = "hpack --force";
+          libraryToolDepends = [ hpack pkgs.alex pkgs.happy ] ++ (x.libraryToolDepends or [ ]);
+          testToolDepends = [ hpack pkgs.alex pkgs.happy ] ++ (x.testToolDepends or [ ]);
         });
       rzk-js = overrideCabal
         (final.callCabal2nix rzk-js rzk-js-src { inherit (final) rzk; })

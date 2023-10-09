@@ -5,7 +5,6 @@ let
   inherit (pkgs.haskell.lib) overrideCabal;
   overrideJS = {
     overrides = self: super: {
-      jsaddle = super.callCabal2nix "jsaddle" "${inputs.jsaddle.outPath}/jsaddle" { };
       rzk = overrideCabal
         (super.callCabal2nix rzk rzk-src { })
         (x: {
