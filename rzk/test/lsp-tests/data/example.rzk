@@ -1,0 +1,13 @@
+#lang rzk-1
+
+#define flip
+  (A B C : U)
+  (f : A -> B -> C)
+  : B -> A -> C
+  := \b a -> f a b
+
+#define flip-flip-is-id
+  (A B C : U)
+  (f : A -> B -> C)
+  : (flip B A C (flip A B C f)) = f
+  := refl

@@ -124,3 +124,10 @@ tests:
       - Glob
       - QuickCheck
       - template-haskell
+
+  lsp-tests:
+    source-dirs: test/lsp-tests
+    main: Spec.hs
+    dependencies:
+      rzk:
+      lsp-test: '>= 0.16.0.0'
