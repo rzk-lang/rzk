@@ -49,6 +49,7 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Rzk
+      Rzk.Format
       Rzk.Main
       Rzk.Project.Config
       Rzk.TypeCheck
