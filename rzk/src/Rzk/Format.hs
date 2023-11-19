@@ -7,7 +7,8 @@ LSP server.
 -}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
-module Rzk.Format where
+
+module Rzk.Format (formatTextEdits, format) where
 
 import qualified Data.Text                   as T
 
@@ -16,13 +17,16 @@ import           Language.LSP.Protocol.Types (Position (Position),
                                               TextEdit (TextEdit))
 import           Language.Rzk.Syntax         (tryExtractMarkdownCodeBlocks)
 import           Language.Rzk.Syntax.Layout  (resolveLayout)
-import           Language.Rzk.Syntax.Lex     (Posn (Pn), Tok (TK),
+import           Language.Rzk.Syntax.Lex     (Posn (Pn),
+                                              Tok (TK, T_VarIdentToken),
                                               TokSymbol (TokSymbol), Token (PT),
                                               tokens)
 
 mkEdit :: Int -> Int -> Int -> Int -> String -> TextEdit
 mkEdit startLine startCol endLine endCol newText =
   TextEdit (Range (Position (fromIntegral startLine - 1) (fromIntegral startCol - 1)) (Position (fromIntegral endLine - 1) (fromIntegral endCol - 1))) (T.pack newText)
+mkEditInsert :: Int -> Int -> String -> TextEdit
+mkEditInsert line col = mkEdit line col line col
 
 -- TODO: more patterns, e.g. for identifiers and literals
 pattern Symbol :: String -> Tok
@@ -31,78 +35,172 @@ pattern Symbol s <- TK (TokSymbol s _)
 pattern Token :: String -> Int -> Int -> Token
 pattern Token s line col <- PT (Pn _ line col) (Symbol s)
 
-data FormatState = FormatState {
-  parenDepth  :: Int,
-  indentation :: Int
-}
+-- pattern TokenSym :: String -> Int -> Int -> Token
+-- pattern TokenSym s line col <- PT (Pn _ line col) (Symbol s)
 
+pattern TokenIdent :: String -> Int -> Int -> Token
+pattern TokenIdent s line col <- PT (Pn _ line col) (T_VarIdentToken s)
+
+data FormatState = FormatState
+  { parensDepth  :: Int  -- ^ The level of parentheses nesting
+  , definingName :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
+  }
+
+-- TODO: replace all tabs with 1 space before processing
+-- TODO: create a custom TextEdit (isomorphic with LSP's) so the CLI wouldn't depend on LSP
 formatTextEdits :: String -> [TextEdit]
-formatTextEdits contents = go toks
+formatTextEdits contents = go initialState toks
   where
+    initialState = FormatState { parensDepth = 0, definingName = False }
+    incParensDepth s = s { parensDepth = parensDepth s + 1 }
+    decParensDepth s = s { parensDepth = parensDepth s - 1 }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
     toks = resolveLayout True (tokens rzkBlocks)
-    go :: [Token] -> [TextEdit]
-    go [] = []
-    -- Remove extra spaces between #lang and rzk-1
-    go (Token "#lang" langLine langCol : Token "rzk-1" rzkLine rzkCol : tks)
+    go :: FormatState -> [Token] -> [TextEdit]
+    go _ [] = []
+    go s (Token "#lang" langLine langCol : Token "rzk-1" rzkLine rzkCol : tks)
       -- FIXME: Tab characters break this because BNFC increases the column number to the next multiple of 8
       -- Should probably check the first field of Pn (always incremented by 1)
       -- Or `tabSize` param sent along the formatting request
       -- But we should probably convert tabs to spaces first before any other formatting
-      | rzkLine > langLine || rzkCol > langCol + 5 + 1
-        = mkEdit langLine (langCol + 5) rzkLine rzkCol " "
-        : go tks
+      = edits ++ go s tks
+      where
+        edits = map snd $ filter fst
+          -- Remove extra spaces before #lang
+          [ (langCol > 1, mkEdit langLine 1 langLine langCol "")
+          -- Remove extra spaces between #lang and rzk-1
+          , (rzkLine > langLine || rzkCol > langCol + 5 + 1,
+              mkEdit langLine (langCol + 5) rzkLine rzkCol " ")
+          ]
 
-    -- TODO: only one space (or line break) after #define
-    -- TODO: only one space (or line break) after #define name
+    go s (Token "#define" defLine defCol : TokenIdent _name nameLine nameCol : tks)
+      = edits ++ go (s {definingName = True}) tks
+      where
+        edits = map snd $ filter fst
+          -- Remove any space before #define
+          [ (defCol > 1, mkEdit defLine 1 defLine defCol "")
+          -- Ensure exactly one space after #define
+          , (nameLine /= defLine || nameCol > defCol + 7 + 1,
+              mkEdit defLine (defCol + 7) nameLine nameCol " ")
+          ]
+    -- #def is an alias for #define
+    go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
+    -- TODO: similarly for other commands
 
     -- Ensure exactly one space after the first open paren of a line
-    go (Token "(" line col : tks)
+    go s (Token "(" line col : tks)
       | isFirstNonSpaceChar && spacesAfter /= 1
         = mkEdit line spaceCol line (spaceCol + spacesAfter) " "
-        : go tks
+        : go (incParensDepth s) tks
+      -- Remove extra spaces if it's not the first open paren on a new line
+      | not isFirstNonSpaceChar && spacesAfter > 0
+        = mkEdit line spaceCol line (spaceCol + spacesAfter) ""
+        : go (incParensDepth s) tks
+      | otherwise = go (incParensDepth s) tks
+      -- TODO: Split after 80 chars
       where
         spaceCol = col + 1
         lineContent = contentLines line
         isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
 
-    -- TODO: line break before : (only the top-level one) and one space after
+    -- Remove any space before the closing paren
+    go s (Token ")" line col : tks)
+      = edits ++ go (decParensDepth s) tks
+      where
+        lineContent = contentLines line
+        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
+        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
+        edits = map snd $ filter fst
+          [ (not isFirstNonSpaceChar && spacesBefore > 0,
+              mkEdit line (col - spacesBefore) line col "")
+          ]
+
+    -- line break before : (only the top-level one) and one space after
+    go s (Token ":" line col : tks)
+      | isDefinitionTypeSeparator = typeSepEdits ++ go (s {definingName = False}) tks
+      | otherwise                 = normalEdits ++ go s tks
+      where
+        isDefinitionTypeSeparator = parensDepth s == 0 && definingName s
+        lineContent = contentLines line
+        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
+        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
+        spaceCol = col + 1
+        spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
+        typeSepEdits = map snd $ filter fst
+          -- Ensure line break before :
+          [ (not isFirstNonSpaceChar, mkEditInsert line col "\n  ")
+          -- Ensure 2 spaces before : (if already on a new line)
+          , (isFirstNonSpaceChar && spacesBefore /= 2, mkEdit line 1 line col "  ")
+          -- Ensure 1 space after
+          , (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          ]
+        normalEdits = map snd $ filter fst
+          -- 1 space before :
+          [ (spacesBefore /= 1, mkEdit line (col - spacesBefore) line col " ")
+          -- 1 space after
+          , (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          ]
 
     -- Line break before := and one space after
-    go (Token ":=" line col : tks)
-      -- TODO: combine these 2 rules. they are not mutually exclusive
-      -- Also, ensure 2 spaces before
-      | not isFirstNonSpaceChar
-        -- TODO: trim possible spaces before as well
-        = mkEdit line col line col "\n  "
-        : go tks
-      | length lineContent > col + 2 && spacesAfter /= 1
-        = mkEdit line (col + 2) line (col + 2 + spacesAfter) " "
-        : go tks
+    go s (Token ":=" line col : tks)
+      = edits ++ go s tks
       where
         lineContent = contentLines line
         isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
         spacesAfter = length $ takeWhile (== ' ') (drop (col + 1) lineContent)
-        edits = [
-            (not isFirstNonSpaceChar, mkEdit line col line col "\n  ")
+        spacesBefore = length $ takeWhile (== ' ') (take (col - 1) lineContent)
+        edits = map snd $ filter fst
+            -- Ensure line break before `:=`
+          [ (not isFirstNonSpaceChar, mkEdit line col line col "\n  ")
+            -- Ensure 2 spaces before `:=` (if already on a new line)
+          , (isFirstNonSpaceChar && spacesBefore /= 2,
+              mkEdit line 1 line col "  ")
+            -- Ensure exactly one space after
+          , (length lineContent > col + 2 && spacesAfter /= 1,
+              mkEdit line (col + 2) line (col + 2 + spacesAfter) " ")
           ]
+
+    -- One space after \
+    go s (Token "\\" line col : tks)
+      = edits ++ go s tks
+      where
+        lineContent = contentLines line
+        spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
+        spaceCol = col + 1
+        edits = map snd $ filter fst
+          [ (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          ]
+
+    -- TODO One space (or new line) around arrow (-> or →)
+
     -- TOOD: move any binary operators at the end of a line to the beginning of the next
-    -- TODO: any binary operator should have one space after
+    -- TODO: any binary operator should have one space after (and before if not in beginning of line)
 
     -- Replace some ASCII sequences with their Unicode equivalent
-    go (Token "->" line col : tks)  = mkEdit line col line (col + 2) "→" : go tks
-    go (Token "|->" line col : tks) = mkEdit line col line (col + 3) "↦" : go tks
-    go (Token "===" line col : tks) = mkEdit line col line (col + 3) "≡" : go tks
-    go (Token "<=" line col : tks)  = mkEdit line col line (col + 2) "≤" : go tks
-    go (Token "/\\" line col : tks)  = mkEdit line col line (col + 2) "∧" : go tks
-    go (Token "\\/" line col : tks)  = mkEdit line col line (col + 2) "∨" : go tks
-    go (Token "Sigma" line col : tks)  = mkEdit line col line (col + 5) "Σ" : go tks
-    go (Token "∑" line col : tks)  = mkEdit line col line (col + 1) "Σ" : go tks
+    go s (Token tk line col : tks)
+      | Just unicodeToken <- tk `lookup` unicodeTokens
+      = mkEdit line col line (col + length tk) unicodeToken : go s tks
+      where
+        unicodeTokens =
+          [ ("->", "→")
+          , ("|->", "↦")
+          , ("===", "≡")
+          , ("<=", "≤")
+          , ("/\\", "∧")
+          , ("\\/", "∨")
+          , ("Sigma", "Σ")
+          , ("∑", "Σ")
+          , ("*_1", "*₁")
+          , ("0_2", "0₂")
+          , ("1_2", "1₂")
+          , ("*", "×")
+          ]
 
-    -- TODO: 0_2, 1_2, I * J
-    go (_:tks) = go tks
+    -- Reset any state necessary after finishing a command
+    go s (Token ";" _ _ : tks) = go s tks
+    go s (_:tks) = go s tks
 
 applyTextEdits :: [TextEdit] -> String -> String
 applyTextEdits edits contents = contents
