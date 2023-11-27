@@ -173,7 +173,32 @@ formatTextEdits contents = go initialState toks
           [ (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
-    -- TODO One space (or new line) around arrow (-> or →)
+    -- One space (or new line) around binary operators ('->' or '→' or ',')
+    go s (Token binOp line col : tks)
+      | binOp `elem` ["->", "→", ","]
+      = edits ++ go s tks
+      where
+        lineContent = contentLines line
+        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
+        spacesAfter = length $ takeWhile (== ' ') (drop (col + length binOp - 1) lineContent)
+        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
+        isLastNonSpaceChar = all (== ' ') (drop (col + length binOp - 1) lineContent)
+        nextLine
+          | line + 1 < length (lines rzkBlocks) = contentLines (line + 1)
+          | otherwise = ""
+        spacesNextLine = length $ takeWhile (== ' ') nextLine
+        edits = map snd $ filter fst
+          -- Ensure exactly one space before (unless first char in line)
+          [ (not isFirstNonSpaceChar && spacesBefore /= 1,
+              mkEdit line (col - spacesBefore) line col " ")
+          -- Ensure exactly one space after (unless last char in line)
+          , (not isLastNonSpaceChar && spacesAfter /= 1,
+              mkEdit line (col + length binOp) line (col + length binOp + spacesAfter) " ")
+          -- If last char in line, move it to next line
+          , (isLastNonSpaceChar,
+              mkEdit line col (line + 1) (spacesNextLine + 1) $
+                "\n" ++ replicate spacesNextLine ' ' ++ binOp ++ " ")
+          ]
 
     -- TOOD: move any binary operators at the end of a line to the beginning of the next
     -- TODO: any binary operator should have one space after (and before if not in beginning of line)
