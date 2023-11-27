@@ -8,25 +8,19 @@ LSP server.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
-module Rzk.Format (formatTextEdits, format) where
+module Rzk.Format (formatTextEdits, format, FormattingEdit (FormattingEdit)) where
 
-import qualified Data.Text                   as T
+import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
+import           Language.Rzk.Syntax.Layout (resolveLayout)
+import           Language.Rzk.Syntax.Lex    (Posn (Pn),
+                                             Tok (TK, T_VarIdentToken),
+                                             TokSymbol (TokSymbol), Token (PT),
+                                             tokens)
 
-import           Language.LSP.Protocol.Types (Position (Position),
-                                              Range (Range),
-                                              TextEdit (TextEdit))
-import           Language.Rzk.Syntax         (tryExtractMarkdownCodeBlocks)
-import           Language.Rzk.Syntax.Layout  (resolveLayout)
-import           Language.Rzk.Syntax.Lex     (Posn (Pn),
-                                              Tok (TK, T_VarIdentToken),
-                                              TokSymbol (TokSymbol), Token (PT),
-                                              tokens)
+data FormattingEdit = FormattingEdit Int Int Int Int String
 
-mkEdit :: Int -> Int -> Int -> Int -> String -> TextEdit
-mkEdit startLine startCol endLine endCol newText =
-  TextEdit (Range (Position (fromIntegral startLine - 1) (fromIntegral startCol - 1)) (Position (fromIntegral endLine - 1) (fromIntegral endCol - 1))) (T.pack newText)
-mkEditInsert :: Int -> Int -> String -> TextEdit
-mkEditInsert line col = mkEdit line col line col
+mkEdit :: Int -> Int -> Int -> Int -> String -> FormattingEdit
+mkEdit = FormattingEdit
 
 -- TODO: more patterns, e.g. for identifiers and literals
 pattern Symbol :: String -> Tok
@@ -47,8 +41,7 @@ data FormatState = FormatState
   }
 
 -- TODO: replace all tabs with 1 space before processing
--- TODO: create a custom TextEdit (isomorphic with LSP's) so the CLI wouldn't depend on LSP
-formatTextEdits :: String -> [TextEdit]
+formatTextEdits :: String -> [FormattingEdit]
 formatTextEdits contents = go initialState toks
   where
     initialState = FormatState { parensDepth = 0, definingName = False }
@@ -57,7 +50,7 @@ formatTextEdits contents = go initialState toks
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
     toks = resolveLayout True (tokens rzkBlocks)
-    go :: FormatState -> [Token] -> [TextEdit]
+    go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
     go s (Token "#lang" langLine langCol : Token "rzk-1" rzkLine rzkCol : tks)
       -- FIXME: Tab characters break this because BNFC increases the column number to the next multiple of 8
@@ -130,7 +123,7 @@ formatTextEdits contents = go initialState toks
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         typeSepEdits = map snd $ filter fst
           -- Ensure line break before :
-          [ (not isFirstNonSpaceChar, mkEditInsert line col "\n  ")
+          [ (not isFirstNonSpaceChar, mkEdit line col line col "\n  ")
           -- Ensure 2 spaces before : (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2, mkEdit line 1 line col "  ")
           -- Ensure 1 space after
@@ -227,7 +220,7 @@ formatTextEdits contents = go initialState toks
     go s (Token ";" _ _ : tks) = go s tks
     go s (_:tks) = go s tks
 
-applyTextEdits :: [TextEdit] -> String -> String
+applyTextEdits :: [FormattingEdit] -> String -> String
 applyTextEdits edits contents = contents
 
 
