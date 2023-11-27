@@ -4,11 +4,13 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeApplications  #-}
 
 module Rzk.Main where
 
-import           Control.Monad           (forM, void)
+import           Control.Monad           (forM, forM_, unless, void, when,
+                                          (>=>))
 import           Data.List               (sort)
 import           Data.Version            (showVersion)
 
@@ -19,17 +21,31 @@ import           Language.Rzk.VSCode.Lsp (runLsp)
 import qualified Data.Yaml               as Yaml
 import           Options.Generic
 import           System.Directory        (doesPathExist)
-import           System.Exit             (exitFailure)
+import           System.Exit             (exitFailure, exitSuccess)
 import           System.FilePath.Glob    (glob)
 
+import           Data.Functor            ((<&>))
 import qualified Language.Rzk.Syntax     as Rzk
 import           Paths_rzk               (version)
+import           Rzk.Format              (formatFile, formatFileWrite,
+                                          isWellFormattedFile)
 import           Rzk.Project.Config
 import           Rzk.TypeCheck
+
+data FormatOptions = FormatOptions
+  { check :: Bool
+  , write :: Bool
+  } deriving (Generic, Show, ParseRecord, Read, ParseField)
+
+instance ParseFields FormatOptions where
+  parseFields _ _ _ _ = FormatOptions
+    <$> parseFields (Just "Check if the files are correctly formatted") (Just "check") (Just 'c') Nothing
+    <*> parseFields (Just "Write formatted file to disk") (Just "write") (Just 'w') Nothing
 
 data Command
   = Typecheck [FilePath]
   | Lsp
+  | Format FormatOptions [FilePath]
   | Version
   deriving (Generic, Show, ParseRecord)
 
@@ -53,6 +69,23 @@ main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categor
 #else
     error "rzk lsp is not supported with this build"
 #endif
+
+  Format (FormatOptions check write) paths -> do
+    when (check && write) (error "Options --check and --write are mutually exclusive")
+    expandedPaths <- expandRzkPathsOrYaml paths
+    case expandedPaths of
+      [] -> error "No files found"
+      filePaths -> do
+        when (not check && not write) $ forM_ filePaths (formatFile >=> putStrLn)
+        when write $ forM_ filePaths formatFileWrite
+        when check $ do
+          results <- forM filePaths $ \path -> isWellFormattedFile path <&> (path,)
+          let notFormatted = map fst $ filter (not . snd) results
+          unless (null notFormatted) $ do
+            putStrLn "Some files are not well formatted:"
+            forM_ notFormatted $ \path -> putStrLn ("  " <> path)
+            exitFailure
+          exitSuccess
 
   Version -> putStrLn (showVersion version)
 
@@ -82,9 +115,26 @@ extractFilesFromRzkYaml rzkYamlPath = do
     Right ProjectConfig{..} -> do
       return include
 
+-- | Given a list of file paths (possibly including globs), expands the globs (if any)
+-- or tries to read the list of files from the rzk.yaml file (if no paths are given).
+-- Glob patterns in rzk.yaml are also expanded.
+expandRzkPathsOrYaml :: [FilePath] -> IO [FilePath]
+expandRzkPathsOrYaml = \case
+    [] -> do
+      let rzkYamlPath = "rzk.yaml"
+      rzkYamlExists <- doesPathExist rzkYamlPath
+      if rzkYamlExists
+        then do
+          paths <- extractFilesFromRzkYaml rzkYamlPath
+          when (null paths) (error $ "No files found in " <> rzkYamlPath)
+          expandRzkPathsOrYaml paths
+        else error ("No paths given and no " <> rzkYamlPath <> " found")
+    paths -> foldMap globNonEmpty paths
+
 parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
 parseRzkFilesOrStdin = \case
   -- if no paths are given — read from stdin
+  -- TODO: reuse the `expandRzkPathsOrYaml` function
   [] -> do
     let rzkYamlPath = "rzk.yaml"
     rzkYamlExists <- doesPathExist rzkYamlPath

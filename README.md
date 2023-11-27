@@ -89,6 +89,26 @@ Inside of such directory, you can run `rzk typecheck` on all files using wildcar
 rzk typecheck *-*.md
 ```
 
+### Formatting
+
+Formatting can be done by calling `rzk format` and specifying the files to be formatted, e.g.:
+
+```sh
+rzk format file1.rzk file2.rzk
+```
+
+This prints the formatted version of the file to `stdout`.
+
+To overwrite the file content, you must use the `--write` flag as such:
+
+```sh
+rzk format --write examples/*.rzk related/*.rzk.md
+```
+
+Note that if no files are specified, `rzk format` will format all files listed in `rzk.yaml`.
+
+The CLI also supports the `--check` flag, which will exit with a non-zero exit code if any of the files are not formatted correctly. This is useful in CI pipelines to ensure that all files are formatted correctly.
+
 ## How to contribute to `rzk`
 
 ### Building the Documentation Locally
