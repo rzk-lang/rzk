@@ -17,7 +17,10 @@ import           Language.Rzk.Syntax.Lex    (Posn (Pn),
                                              TokSymbol (TokSymbol), Token (PT),
                                              tokens)
 
+-- | All indices are 1-based (as received from the lexer)
+-- Note: LSP uses 0-based indices
 data FormattingEdit = FormattingEdit Int Int Int Int String
+  deriving (Eq, Ord)
 
 -- TODO: more patterns, e.g. for identifiers and literals
 pattern Symbol :: String -> Tok
@@ -217,8 +220,25 @@ formatTextEdits contents = go initialState toks
     go s (Token ";" _ _ : tks) = go s tks
     go s (_:tks) = go s tks
 
+-- Adapted from https://hackage.haskell.org/package/lsp-types-2.1.0.0/docs/Language-LSP-Protocol-Types.html#g:7
+applyTextEdit :: FormattingEdit -> String -> String
+applyTextEdit (FormattingEdit sl sc el ec newText) oldText =
+  let (_, afterEnd) = splitAtPos (el-1, ec -1) oldText
+      (beforeStart, _) = splitAtPos (sl-1, sc-1) oldText
+   in mconcat [beforeStart, newText, afterEnd]
+ where
+  splitAtPos :: (Int, Int) -> String -> (String, String)
+  splitAtPos (l, c) t = let index = c + startLineIndex l t in splitAt index t
+
+  startLineIndex :: Int -> String -> Int
+  startLineIndex 0 _ = 0
+  startLineIndex line t' =
+    case elemIndex '\n' t' of
+      Just i  -> i + 1 + startLineIndex (line - 1) (drop (i + 1) t')
+      Nothing -> length t'
+
 applyTextEdits :: [FormattingEdit] -> String -> String
-applyTextEdits edits contents = contents
+applyTextEdits edits contents = foldl' (flip applyTextEdit) contents (reverse $ sort edits)
 
 
 format :: String -> String
