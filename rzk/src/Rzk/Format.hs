@@ -75,6 +75,8 @@ formatTextEdits contents = go initialState toks
               FormattingEdit langLine (langCol + 5) rzkLine rzkCol " ")
           ]
 
+    go s (Token "#postulate" _ _ : tks) = go (s {definingName = True}) tks
+
     go s (Token "#define" defLine defCol : TokenIdent _name nameLine nameCol : tks)
       = edits ++ go (s {definingName = True}) tks
       where
