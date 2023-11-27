@@ -8,7 +8,15 @@ LSP server.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 
-module Rzk.Format (formatTextEdits, format, FormattingEdit (FormattingEdit)) where
+module Rzk.Format (
+  FormattingEdit (FormattingEdit),
+  formatTextEdits,
+  format, formatFile, formatFileWrite,
+  isWellFormatted, isWellFormattedFile,
+) where
+
+import           Control.Monad              ((<$!>))
+import           Data.List                  (elemIndex, foldl', sort)
 
 import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
 import           Language.Rzk.Syntax.Layout (resolveLayout)
@@ -240,23 +248,23 @@ applyTextEdit (FormattingEdit sl sc el ec newText) oldText =
 applyTextEdits :: [FormattingEdit] -> String -> String
 applyTextEdits edits contents = foldl' (flip applyTextEdit) contents (reverse $ sort edits)
 
-
+-- | Format Rzk code, returning the formatted version.
 format :: String -> String
 format = applyTextEdits =<< formatTextEdits
 
-
--- | Format Rzk code from a file, returning the formatted version.
+-- | Format Rzk code from a file
 formatFile :: FilePath -> IO String
-formatFile path = do
-  contents <- readFile path
-  return (format contents)
+formatFile path = format <$!> readFile path -- strict because possibility of writing to same file
+
+-- | Format the file and write the result back to the file.
+formatFileWrite :: FilePath -> IO ()
+formatFileWrite path = formatFile path >>= writeFile path
 
 -- | Check if the given Rzk source code is well formatted.
 --   This is useful for automation tasks.
 isWellFormatted :: String -> Bool
-isWellFormatted src = src == format src
+isWellFormatted src = null (formatTextEdits src)
 
-formatFileWrite :: FilePath -> IO ()
-formatFileWrite path = do
-  formatted <- formatFile path
-  writeFile path formatted
+-- | Same as 'isWellFormatted', but reads the source code from a file.
+isWellFormattedFile :: FilePath -> IO Bool
+isWellFormattedFile path = isWellFormatted <$> readFile path
