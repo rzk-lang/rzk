@@ -19,9 +19,6 @@ import           Language.Rzk.Syntax.Lex    (Posn (Pn),
 
 data FormattingEdit = FormattingEdit Int Int Int Int String
 
-mkEdit :: Int -> Int -> Int -> Int -> String -> FormattingEdit
-mkEdit = FormattingEdit
-
 -- TODO: more patterns, e.g. for identifiers and literals
 pattern Symbol :: String -> Tok
 pattern Symbol s <- TK (TokSymbol s _)
@@ -61,10 +58,10 @@ formatTextEdits contents = go initialState toks
       where
         edits = map snd $ filter fst
           -- Remove extra spaces before #lang
-          [ (langCol > 1, mkEdit langLine 1 langLine langCol "")
+          [ (langCol > 1, FormattingEdit langLine 1 langLine langCol "")
           -- Remove extra spaces between #lang and rzk-1
           , (rzkLine > langLine || rzkCol > langCol + 5 + 1,
-              mkEdit langLine (langCol + 5) rzkLine rzkCol " ")
+              FormattingEdit langLine (langCol + 5) rzkLine rzkCol " ")
           ]
 
     go s (Token "#define" defLine defCol : TokenIdent _name nameLine nameCol : tks)
@@ -72,10 +69,10 @@ formatTextEdits contents = go initialState toks
       where
         edits = map snd $ filter fst
           -- Remove any space before #define
-          [ (defCol > 1, mkEdit defLine 1 defLine defCol "")
+          [ (defCol > 1, FormattingEdit defLine 1 defLine defCol "")
           -- Ensure exactly one space after #define
           , (nameLine /= defLine || nameCol > defCol + 7 + 1,
-              mkEdit defLine (defCol + 7) nameLine nameCol " ")
+              FormattingEdit defLine (defCol + 7) nameLine nameCol " ")
           ]
     -- #def is an alias for #define
     go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
@@ -84,11 +81,11 @@ formatTextEdits contents = go initialState toks
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
       | isFirstNonSpaceChar && spacesAfter /= 1
-        = mkEdit line spaceCol line (spaceCol + spacesAfter) " "
+        = FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
         : go (incParensDepth s) tks
       -- Remove extra spaces if it's not the first open paren on a new line
       | not isFirstNonSpaceChar && spacesAfter > 0
-        = mkEdit line spaceCol line (spaceCol + spacesAfter) ""
+        = FormattingEdit line spaceCol line (spaceCol + spacesAfter) ""
         : go (incParensDepth s) tks
       | otherwise = go (incParensDepth s) tks
       -- TODO: Split after 80 chars
@@ -107,7 +104,7 @@ formatTextEdits contents = go initialState toks
         spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
         edits = map snd $ filter fst
           [ (not isFirstNonSpaceChar && spacesBefore > 0,
-              mkEdit line (col - spacesBefore) line col "")
+              FormattingEdit line (col - spacesBefore) line col "")
           ]
 
     -- line break before : (only the top-level one) and one space after
@@ -123,17 +120,17 @@ formatTextEdits contents = go initialState toks
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         typeSepEdits = map snd $ filter fst
           -- Ensure line break before :
-          [ (not isFirstNonSpaceChar, mkEdit line col line col "\n  ")
+          [ (not isFirstNonSpaceChar, FormattingEdit line col line col "\n  ")
           -- Ensure 2 spaces before : (if already on a new line)
-          , (isFirstNonSpaceChar && spacesBefore /= 2, mkEdit line 1 line col "  ")
+          , (isFirstNonSpaceChar && spacesBefore /= 2, FormattingEdit line 1 line col "  ")
           -- Ensure 1 space after
-          , (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          , (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
         normalEdits = map snd $ filter fst
           -- 1 space before :
-          [ (spacesBefore /= 1, mkEdit line (col - spacesBefore) line col " ")
+          [ (spacesBefore /= 1, FormattingEdit line (col - spacesBefore) line col " ")
           -- 1 space after
-          , (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          , (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
     -- Line break before := and one space after
@@ -146,13 +143,13 @@ formatTextEdits contents = go initialState toks
         spacesBefore = length $ takeWhile (== ' ') (take (col - 1) lineContent)
         edits = map snd $ filter fst
             -- Ensure line break before `:=`
-          [ (not isFirstNonSpaceChar, mkEdit line col line col "\n  ")
+          [ (not isFirstNonSpaceChar, FormattingEdit line col line col "\n  ")
             -- Ensure 2 spaces before `:=` (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2,
-              mkEdit line 1 line col "  ")
+              FormattingEdit line 1 line col "  ")
             -- Ensure exactly one space after
           , (length lineContent > col + 2 && spacesAfter /= 1,
-              mkEdit line (col + 2) line (col + 2 + spacesAfter) " ")
+              FormattingEdit line (col + 2) line (col + 2 + spacesAfter) " ")
           ]
 
     -- One space after \
@@ -163,7 +160,7 @@ formatTextEdits contents = go initialState toks
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         spaceCol = col + 1
         edits = map snd $ filter fst
-          [ (spacesAfter /= 1, mkEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          [ (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
     -- One space (or new line) around binary operators ('->' or '→' or ',')
@@ -183,13 +180,13 @@ formatTextEdits contents = go initialState toks
         edits = map snd $ filter fst
           -- Ensure exactly one space before (unless first char in line)
           [ (not isFirstNonSpaceChar && spacesBefore /= 1,
-              mkEdit line (col - spacesBefore) line col " ")
+              FormattingEdit line (col - spacesBefore) line col " ")
           -- Ensure exactly one space after (unless last char in line)
           , (not isLastNonSpaceChar && spacesAfter /= 1,
-              mkEdit line (col + length binOp) line (col + length binOp + spacesAfter) " ")
+              FormattingEdit line (col + length binOp) line (col + length binOp + spacesAfter) " ")
           -- If last char in line, move it to next line
           , (isLastNonSpaceChar,
-              mkEdit line col (line + 1) (spacesNextLine + 1) $
+              FormattingEdit line col (line + 1) (spacesNextLine + 1) $
                 "\n" ++ replicate spacesNextLine ' ' ++ binOp ++ " ")
           ]
 
@@ -199,7 +196,7 @@ formatTextEdits contents = go initialState toks
     -- Replace some ASCII sequences with their Unicode equivalent
     go s (Token tk line col : tks)
       | Just unicodeToken <- tk `lookup` unicodeTokens
-      = mkEdit line col line (col + length tk) unicodeToken : go s tks
+      = FormattingEdit line col line (col + length tk) unicodeToken : go s tks
       where
         unicodeTokens =
           [ ("->", "→")
