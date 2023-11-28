@@ -176,9 +176,9 @@ formatTextEdits contents = go initialState toks
           [ (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
-    -- One space (or new line) around binary operators ('->' or '→' or ',')
+    -- One space (or new line) around binary operators ('→' or ',')
     go s (Token binOp line col : tks)
-      | binOp `elem` ["->", "→", ","]
+      | binOp `elem` ["→", ","]
       = edits ++ go s tks
       where
         lineContent = contentLines line
