@@ -4,7 +4,11 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Language.Rzk.VSCode.Handlers where
+module Language.Rzk.VSCode.Handlers (
+  typecheckFromConfigFile,
+  provideCompletions,
+  formatDocument,
+) where
 
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
@@ -25,6 +29,7 @@ import           Language.LSP.Protocol.Lens    (HasDetail (detail),
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
+import           Language.LSP.VFS              (virtualFileText)
 import           System.FilePath               (makeRelative, (</>))
 import           System.FilePath.Glob          (compile, globDir)
 
@@ -34,6 +39,8 @@ import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
                                                 parseModuleFile, printTree)
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
+import           Rzk.Format                    (FormattingEdit (..),
+                                                formatTextEdits)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 
@@ -206,3 +213,24 @@ provideCompletions req res = do
         (RzkPosition _path pos') = pos
         line = maybe 0 fst pos'
         _col = maybe 0 snd pos'
+
+formattingEditToTextEdit :: FormattingEdit -> TextEdit
+formattingEditToTextEdit (FormattingEdit startLine startCol endLine endCol newText) =
+  TextEdit
+    (Range
+      (Position (fromIntegral startLine - 1) (fromIntegral startCol - 1))
+      (Position (fromIntegral endLine - 1) (fromIntegral endCol - 1))
+    )
+    (T.pack newText)
+
+formatDocument :: Handler LSP 'Method_TextDocumentFormatting
+formatDocument req res = do
+  logDebug "Formatting document"
+  let doc = req ^. params . textDocument . uri . to toNormalizedUri
+  mdoc <- getVirtualFile doc
+  possibleEdits <- case virtualFileText <$> mdoc of
+    Nothing         -> return (Left "Failed to get file contents")
+    Just sourceCode -> return (Right $ map formattingEditToTextEdit $ formatTextEdits (filter (/= '\r') $ T.unpack sourceCode))
+  case possibleEdits of
+    Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
+    Right edits -> res $ Right $ InL edits

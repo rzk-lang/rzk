@@ -21,17 +21,6 @@ import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
-import           Rzk.Format                    (FormattingEdit (..),
-                                                formatTextEdits)
-
-formattingEditToTextEdit :: FormattingEdit -> TextEdit
-formattingEditToTextEdit (FormattingEdit startLine startCol endLine endCol newText) =
-  TextEdit
-    (Range
-      (Position (fromIntegral startLine - 1) (fromIntegral startCol - 1))
-      (Position (fromIntegral endLine - 1) (fromIntegral endCol - 1))
-    )
-    (T.pack newText)
 
 -- | The maximum number of diagnostic messages to send to the client
 maxDiagnosticCount :: Int
@@ -87,15 +76,7 @@ handlers =
                 return ()
               Right list ->
                 responder (Right (InL SemanticTokens { _resultId = Nothing, _data_ = list }))
-    , requestHandler SMethod_TextDocumentFormatting $ \req res -> do
-        let doc = req ^. params . textDocument . uri . to toNormalizedUri
-        mdoc <- getVirtualFile doc
-        possibleEdits <- case virtualFileText <$> mdoc of
-          Nothing         -> return (Left "Failed to get file contents")
-          Just sourceCode -> return (Right $ map formattingEditToTextEdit $ formatTextEdits (filter (/= '\r') $ T.unpack sourceCode))
-        case possibleEdits of
-          Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
-          Right edits -> res $ Right $ InL edits
+    , requestHandler SMethod_TextDocumentFormatting formatDocument
     ]
 
 
