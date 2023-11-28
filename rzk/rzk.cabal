@@ -48,6 +48,7 @@ library
       Language.Rzk.Syntax.Lex
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
+      Language.Rzk.VSCode.Config
       Rzk
       Rzk.Format
       Rzk.Main

@@ -6,6 +6,7 @@ module Language.Rzk.VSCode.Lsp where
 import           Control.Lens                  (_Just, to, (^.), (^..))
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
+import           Data.Default.Class            (Default (def))
 import           Data.List                     (isSuffixOf)
 import qualified Data.Text                     as T
 import           Language.LSP.Protocol.Lens    (HasParams (params),
@@ -16,7 +17,10 @@ import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 
+import           Data.Aeson                    (Result (Error, Success),
+                                                fromJSON)
 import           Language.Rzk.Syntax           (parseModuleSafe)
+import           Language.Rzk.VSCode.Config    (ServerConfig (..))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Logging
@@ -95,11 +99,14 @@ runLsp = do
   runServer $
     ServerDefinition
       { configSection = "rzk"
-      , parseConfig = const . pure
+      , parseConfig = \_oldConfig newObject -> case fromJSON newObject of
+          -- TODO: handle partial config updates from VS Code by updating oldConfig rather than parsing from scratch
+          Error err         -> Left $ T.pack err
+          Success rzkConfig -> Right rzkConfig
       , onConfigChange = const $ pure ()
       , doInitialize = const . pure . Right
       , staticHandlers = const handlers
       , interpretHandler = \env -> Iso (flip runReaderT rzkEnv . runLspT env) liftIO
       , options = defaultOptions { optTextDocumentSync = Just syncOptions }
-      , defaultConfig = ()
+      , defaultConfig = def :: ServerConfig
       }
