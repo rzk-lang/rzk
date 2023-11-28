@@ -132,8 +132,8 @@ formatTextEdits contents = go initialState toks
         spaceCol = col + 1
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         typeSepEdits = map snd $ filter fst
-          -- Ensure line break before :
-          [ (not isFirstNonSpaceChar, FormattingEdit line col line col "\n  ")
+          -- Ensure line break before : (and remove any spaces before)
+          [ (not isFirstNonSpaceChar, FormattingEdit line (col - spacesBefore) line col "\n  ")
           -- Ensure 2 spaces before : (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2, FormattingEdit line 1 line col "  ")
           -- Ensure 1 space after
@@ -153,10 +153,10 @@ formatTextEdits contents = go initialState toks
         lineContent = contentLines line
         isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
         spacesAfter = length $ takeWhile (== ' ') (drop (col + 1) lineContent)
-        spacesBefore = length $ takeWhile (== ' ') (take (col - 1) lineContent)
+        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
         edits = map snd $ filter fst
             -- Ensure line break before `:=`
-          [ (not isFirstNonSpaceChar, FormattingEdit line col line col "\n  ")
+          [ (not isFirstNonSpaceChar, FormattingEdit line (col - spacesBefore) line col "\n  ")
             -- Ensure 2 spaces before `:=` (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2,
               FormattingEdit line 1 line col "  ")
@@ -199,7 +199,7 @@ formatTextEdits contents = go initialState toks
               FormattingEdit line (col + length binOp) line (col + length binOp + spacesAfter) " ")
           -- If last char in line, move it to next line
           , (isLastNonSpaceChar,
-              FormattingEdit line col (line + 1) (spacesNextLine + 1) $
+              FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
                 "\n" ++ replicate spacesNextLine ' ' ++ binOp ++ " ")
           ]
 
