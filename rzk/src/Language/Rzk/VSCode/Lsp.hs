@@ -52,6 +52,8 @@ handlers =
         -- TODO: check if the file is included in the config's `include` list.
         --       If not (and not in `exclude`) either, issue a warning.
         return () -- FIXME: typecheck standalone files (if they are not a part of the project)
+    -- An empty hadler is needed to silence the error since it is already handled by the LSP package
+    , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ const $ pure ()
     -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
     --    TODO: Read from the list of symbols that is supposed to be cached by the typechecker
     --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
