@@ -229,7 +229,7 @@ formatDocument req res = do
   let doc = req ^. params . textDocument . uri . to toNormalizedUri
   logInfo $ "Formatting document: " <> show doc
   ServerConfig {formatEnabled = fmtEnabled} <- getConfig
-  when fmtEnabled $ do
+  if fmtEnabled then do
     mdoc <- getVirtualFile doc
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
@@ -238,3 +238,6 @@ formatDocument req res = do
       Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
       Right edits -> do
         res $ Right $ InL edits
+  else do
+    logDebug "Formatting is disabled in config"
+    res $ Right $ InR Null
