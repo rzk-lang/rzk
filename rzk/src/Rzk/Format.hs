@@ -46,13 +46,14 @@ pattern TokenIdent s line col <- PT (Pn _ line col) (T_VarIdentToken s)
 data FormatState = FormatState
   { parensDepth  :: Int  -- ^ The level of parentheses nesting
   , definingName :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
+  , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   }
 
 -- TODO: replace all tabs with 1 space before processing
 formatTextEdits :: String -> [FormattingEdit]
 formatTextEdits contents = go initialState toks
   where
-    initialState = FormatState { parensDepth = 0, definingName = False }
+    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = parensDepth s - 1 }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
@@ -167,7 +168,7 @@ formatTextEdits contents = go initialState toks
 
     -- One space after \
     go s (Token "\\" line col : tks)
-      = edits ++ go s tks
+      = edits ++ go (s { lambdaArrow = True }) tks
       where
         lineContent = contentLines line
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
@@ -177,14 +178,19 @@ formatTextEdits contents = go initialState toks
           ]
 
     -- One space (or new line) around binary operators and replace ASCII w/ unicode
-    go s (Token tk line col : tks)
-      | not (null edits) = edits ++ go s tks
+    go s (Token tk line col : tks) = edits ++ go s' tks
       where
+        s' | isArrow = s { lambdaArrow = False } -- reset flag after reaching the arrow
+           | otherwise = s
+        isArrow = tk `elem` ["->", "→"]
         lineContent = contentLines line
         spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
         spacesAfter = length $ takeWhile (== ' ') (drop (col + length tk - 1) lineContent)
         isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
         isLastNonSpaceChar = all (== ' ') (drop (col + length tk - 1) lineContent)
+        prevLine
+          | line > 0 = contentLines (line - 1)
+          | otherwise = ""
         nextLine
           | line + 1 < length (lines rzkBlocks) = contentLines (line + 1)
           | otherwise = ""
@@ -198,10 +204,14 @@ formatTextEdits contents = go initialState toks
               -- Ensure exactly one space after (unless last char in line)
               , (not isLastNonSpaceChar && spacesAfter /= 1,
                   FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " ")
-              -- If last char in line, move it to next line
-              , (isLastNonSpaceChar,
+              -- If last char in line, move it to next line (except for lambda arrow)
+              , (isLastNonSpaceChar && not (lambdaArrow s),
                   FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
                     "\n" ++ replicate spacesNextLine ' ' ++ tk ++ " ")
+              -- If lambda -> is first char in line, move it to the previous line
+              , (isFirstNonSpaceChar && isArrow && lambdaArrow s,
+                  FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
+                    " " ++ tk ++ "\n" ++ replicate spacesBefore ' ')
               ]
           | otherwise = []
         unicodeEdits
