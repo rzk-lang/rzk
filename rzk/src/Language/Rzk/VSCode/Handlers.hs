@@ -33,13 +33,11 @@ import           Language.LSP.VFS              (virtualFileText)
 import           System.FilePath               (makeRelative, (</>))
 import           System.FilePath.Glob          (compile, globDir)
 
-import           Control.Monad.Trans           (lift)
-import           Data.Aeson                    (ToJSON (toJSON))
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
                                                 VarIdent (getVarIdent))
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
                                                 parseModuleFile, printTree)
-import           Language.Rzk.VSCode.Config    (ServerConfig (ServerConfig, formatEnabled, formatMessageDisplayed))
+import           Language.Rzk.VSCode.Config    (ServerConfig (ServerConfig, formatEnabled))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
 import           Rzk.Format                    (FormattingEdit (..),
@@ -230,38 +228,13 @@ formatDocument :: Handler LSP 'Method_TextDocumentFormatting
 formatDocument req res = do
   let doc = req ^. params . textDocument . uri . to toNormalizedUri
   logInfo $ "Formatting document: " <> show doc
-  config@(ServerConfig {formatEnabled = fmtEnabled, formatMessageDisplayed = fmtMsgDisplayed}) <- getConfig
-  logInfo $ "Format enabled: " <> show fmtEnabled
-  logInfo $ "Format prompt displayed: " <> show fmtMsgDisplayed
-  -- unless formatEnabled $ do
-  --   res $ Left $ ResponseError (InR ErrorCodes_InternalError) "Formatting is disabled" Nothing
-  --   return ()
-
-  mdoc <- getVirtualFile doc
-  possibleEdits <- case virtualFileText <$> mdoc of
-    Nothing         -> return (Left "Failed to get file contents")
-    Just sourceCode -> return (Right $ map formattingEditToTextEdit $ formatTextEdits (filter (/= '\r') $ T.unpack sourceCode))
-  case possibleEdits of
-    Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
-    Right edits -> do
-      res $ Right $ InL edits
-
-      _ <- sendRequest SMethod_WindowShowMessageRequest
-        (ShowMessageRequestParams
-          MessageType_Info
-          "Formatting is enabled!"
-          (Just
-            [ MessageActionItem "Yay!"
-            , MessageActionItem "I don't like it :("
-            ])
-        )
-        handleResponse
-      _ <- tryChangeConfig mempty (toJSON $ config { formatMessageDisplayed = True })
-      return ()
-  where
-    handleResponse :: Either ResponseError (MessageResult 'Method_WindowShowMessageRequest) -> LSP ()
-    handleResponse (Left err) = logError ("Failed to show message: " ++ show err)
-    handleResponse (Right (InR Null)) = logInfo "Received no response. Keeping the formatter enabled"
-    handleResponse (Right (InL (MessageActionItem msg))) = do
-      logInfo ("Received response: " ++ T.unpack msg)
-      return () -- TODO: handle
+  ServerConfig {formatEnabled = fmtEnabled} <- getConfig
+  when fmtEnabled $ do
+    mdoc <- getVirtualFile doc
+    possibleEdits <- case virtualFileText <$> mdoc of
+      Nothing         -> return (Left "Failed to get file contents")
+      Just sourceCode -> return (Right $ map formattingEditToTextEdit $ formatTextEdits (filter (/= '\r') $ T.unpack sourceCode))
+    case possibleEdits of
+      Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
+      Right edits -> do
+        res $ Right $ InL edits
