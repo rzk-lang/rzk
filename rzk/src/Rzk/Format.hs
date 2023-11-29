@@ -177,6 +177,9 @@ formatTextEdits contents = go initialState toks
           [ (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
+    -- Reset any state necessary after finishing a command
+    go s (Token ";" _ _ : tks) = go s tks
+
     -- One space (or new line) around binary operators and replace ASCII w/ unicode
     go s (Token tk line col : tks) = edits ++ go s' tks
       where
@@ -234,8 +237,6 @@ formatTextEdits contents = go initialState toks
           , ("*", "×")
           ]
 
-    -- Reset any state necessary after finishing a command
-    go s (Token ";" _ _ : tks) = go s tks
     go s (_:tks) = go s tks
 
 -- Adapted from https://hackage.haskell.org/package/lsp-types-2.1.0.0/docs/Language-LSP-Protocol-Types.html#g:7
