@@ -176,41 +176,39 @@ formatTextEdits contents = go initialState toks
           [ (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
-    -- One space (or new line) around binary operators ('→' or ',')
-    go s (Token binOp line col : tks)
-      | binOp `elem` ["→", ","]
-      = edits ++ go s tks
+    -- One space (or new line) around binary operators and replace ASCII w/ unicode
+    go s (Token tk line col : tks)
+      | not (null edits) = edits ++ go s tks
       where
         lineContent = contentLines line
         spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
-        spacesAfter = length $ takeWhile (== ' ') (drop (col + length binOp - 1) lineContent)
+        spacesAfter = length $ takeWhile (== ' ') (drop (col + length tk - 1) lineContent)
         isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
-        isLastNonSpaceChar = all (== ' ') (drop (col + length binOp - 1) lineContent)
+        isLastNonSpaceChar = all (== ' ') (drop (col + length tk - 1) lineContent)
         nextLine
           | line + 1 < length (lines rzkBlocks) = contentLines (line + 1)
           | otherwise = ""
         spacesNextLine = length $ takeWhile (== ' ') nextLine
-        edits = map snd $ filter fst
-          -- Ensure exactly one space before (unless first char in line)
-          [ (not isFirstNonSpaceChar && spacesBefore /= 1,
-              FormattingEdit line (col - spacesBefore) line col " ")
-          -- Ensure exactly one space after (unless last char in line)
-          , (not isLastNonSpaceChar && spacesAfter /= 1,
-              FormattingEdit line (col + length binOp) line (col + length binOp + spacesAfter) " ")
-          -- If last char in line, move it to next line
-          , (isLastNonSpaceChar,
-              FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
-                "\n" ++ replicate spacesNextLine ' ' ++ binOp ++ " ")
-          ]
-
-    -- TOOD: move any binary operators at the end of a line to the beginning of the next
-    -- TODO: any binary operator should have one space after (and before if not in beginning of line)
-
-    -- Replace some ASCII sequences with their Unicode equivalent
-    go s (Token tk line col : tks)
-      | Just unicodeToken <- tk `lookup` unicodeTokens
-      = FormattingEdit line col line (col + length tk) unicodeToken : go s tks
-      where
+        edits = spaceEdits ++ unicodeEdits
+        spaceEdits
+          | tk `elem` ["->", "→", ",", "*", "×"] = map snd $ filter fst
+              -- Ensure exactly one space before (unless first char in line)
+              [ (not isFirstNonSpaceChar && spacesBefore /= 1,
+                  FormattingEdit line (col - spacesBefore) line col " ")
+              -- Ensure exactly one space after (unless last char in line)
+              , (not isLastNonSpaceChar && spacesAfter /= 1,
+                  FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " ")
+              -- If last char in line, move it to next line
+              , (isLastNonSpaceChar,
+                  FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
+                    "\n" ++ replicate spacesNextLine ' ' ++ tk ++ " ")
+              ]
+          | otherwise = []
+        unicodeEdits
+          | Just unicodeToken <- tk `lookup` unicodeTokens =
+              [ FormattingEdit line col line (col + length tk) unicodeToken
+              ]
+          | otherwise = []
         unicodeTokens =
           [ ("->", "→")
           , ("|->", "↦")
