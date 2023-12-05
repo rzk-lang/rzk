@@ -210,7 +210,7 @@ formatTextEdits contents = go initialState toks
               -- If last char in line, move it to next line (except for lambda arrow)
               , (isLastNonSpaceChar && not (lambdaArrow s),
                   FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
-                    "\n" ++ replicate spacesNextLine ' ' ++ tk ++ " ")
+                    "\n" ++ replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) ' ' ++ tk ++ " ")
               -- If lambda -> is first char in line, move it to the previous line
               , (isFirstNonSpaceChar && isArrow && lambdaArrow s,
                   FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
