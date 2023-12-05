@@ -108,7 +108,7 @@ formatTextEdits contents = go initialState toks
 
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
-      | precededBySingleCharOnly && spacesAfter /= 1
+      | precededBySingleCharOnly && spacesAfter /= 1 && not isLastNonSpaceChar
         = FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
         : go (incParensDepth s) tks
       -- Remove extra spaces if it's not the first open paren on a new line
@@ -127,6 +127,7 @@ formatTextEdits contents = go initialState toks
           , ["(", ":", ",", "="]
           ]
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
+        isLastNonSpaceChar = all (== ' ') (drop col lineContent)
 
     -- Remove any space before the closing paren
     go s (Token ")" line col : tks)
@@ -148,6 +149,7 @@ formatTextEdits contents = go initialState toks
         isDefinitionTypeSeparator = parensDepth s == 0 && definingName s
         lineContent = contentLines line
         isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
+        isLastNonSpaceChar = all (== ' ') (drop col lineContent)
         spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
         spaceCol = col + 1
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
@@ -157,13 +159,15 @@ formatTextEdits contents = go initialState toks
           -- Ensure 2 spaces before : (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2, FormattingEdit line 1 line col "  ")
           -- Ensure 1 space after
-          , (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          , (not isLastNonSpaceChar && spacesAfter /= 1,
+              FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
         normalEdits = map snd $ filter fst
           -- 1 space before :
           [ (spacesBefore /= 1, FormattingEdit line (col - spacesBefore) line col " ")
           -- 1 space after
-          , (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          , (not isLastNonSpaceChar && spacesAfter /= 1,
+              FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
     -- Line break before := and one space after
@@ -191,9 +195,11 @@ formatTextEdits contents = go initialState toks
       where
         lineContent = contentLines line
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
+        isLastNonSpaceChar = all (== ' ') (drop col lineContent)
         spaceCol = col + 1
         edits = map snd $ filter fst
-          [ (spacesAfter /= 1, FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
+          [ (not isLastNonSpaceChar && spacesAfter /= 1,
+              FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
     -- Reset any state necessary after finishing a command
