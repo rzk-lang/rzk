@@ -200,7 +200,7 @@ formatTextEdits contents = go initialState toks
         spacesNextLine = length $ takeWhile (== ' ') nextLine
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
-          | tk `elem` ["->", "→", ",", "*", "×"] = map snd $ filter fst
+          | tk `elem` ["->", "→", ",", "*", "×", "="] = map snd $ filter fst
               -- Ensure exactly one space before (unless first char in line)
               [ (not isFirstNonSpaceChar && spacesBefore /= 1,
                   FormattingEdit line (col - spacesBefore) line col " ")
