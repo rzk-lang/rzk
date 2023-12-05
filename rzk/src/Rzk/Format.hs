@@ -59,6 +59,20 @@ formatTextEdits contents = go initialState toks
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
     toks = resolveLayout True (tokens rzkBlocks)
+    unicodeTokens =
+      [ ("->", "→")
+      , ("|->", "↦")
+      , ("===", "≡")
+      , ("<=", "≤")
+      , ("/\\", "∧")
+      , ("\\/", "∨")
+      , ("Sigma", "Σ")
+      , ("∑", "Σ")
+      , ("*_1", "*₁")
+      , ("0_2", "0₂")
+      , ("1_2", "1₂")
+      , ("*", "×")
+      ]
     go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
     go s (Token "#lang" langLine langCol : Token "rzk-1" rzkLine rzkCol : tks)
@@ -94,11 +108,11 @@ formatTextEdits contents = go initialState toks
 
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
-      | isFirstNonSpaceChar && spacesAfter /= 1
+      | precededBySingleCharOnly && spacesAfter /= 1
         = FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
         : go (incParensDepth s) tks
       -- Remove extra spaces if it's not the first open paren on a new line
-      | not isFirstNonSpaceChar && spacesAfter > 0
+      | not precededBySingleCharOnly && spacesAfter > 0
         = FormattingEdit line spaceCol line (spaceCol + spacesAfter) ""
         : go (incParensDepth s) tks
       | otherwise = go (incParensDepth s) tks
@@ -106,7 +120,12 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
+        precededBySingleCharOnly = all isPunctuation (words (take (col - 1) lineContent))
+        isPunctuation tk = tk `elem` concat
+          [ map fst unicodeTokens -- ASCII sequences will be converted soon
+          , map snd unicodeTokens
+          , ["(", ":", ",", "="]
+          ]
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
 
     -- Remove any space before the closing paren
@@ -222,20 +241,6 @@ formatTextEdits contents = go initialState toks
               [ FormattingEdit line col line (col + length tk) unicodeToken
               ]
           | otherwise = []
-        unicodeTokens =
-          [ ("->", "→")
-          , ("|->", "↦")
-          , ("===", "≡")
-          , ("<=", "≤")
-          , ("/\\", "∧")
-          , ("\\/", "∨")
-          , ("Sigma", "Σ")
-          , ("∑", "Σ")
-          , ("*_1", "*₁")
-          , ("0_2", "0₂")
-          , ("1_2", "1₂")
-          , ("*", "×")
-          ]
 
     go s (_:tks) = go s tks
 
