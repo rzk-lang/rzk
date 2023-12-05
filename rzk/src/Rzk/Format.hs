@@ -226,8 +226,8 @@ formatTextEdits contents = go initialState toks
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
           | tk `elem` ["->", "→", ",", "*", "×", "="] = map snd $ filter fst
-              -- Ensure exactly one space before (unless first char in line)
-              [ (not isFirstNonSpaceChar && spacesBefore /= 1,
+              -- Ensure exactly one space before (unless first char in line, or about to move to next line)
+              [ (not isFirstNonSpaceChar && spacesBefore /= 1 && not isLastNonSpaceChar,
                   FormattingEdit line (col - spacesBefore) line col " ")
               -- Ensure exactly one space after (unless last char in line)
               , (not isLastNonSpaceChar && spacesAfter /= 1,
