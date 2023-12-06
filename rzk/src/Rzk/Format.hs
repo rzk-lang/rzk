@@ -120,11 +120,14 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        precededBySingleCharOnly = all isPunctuation (words (take (col - 1) lineContent))
-        isPunctuation tk = tk `elem` concat
+        -- | This is similar to (\\) but removes all occurrences (not just the first one)
+        setDifference xs excludes = filter (not . (`elem` excludes)) xs
+        precededBySingleCharOnly = null $ foldl' setDifference (take (col - 1) lineContent) punctuations
+        punctuations = concat
           [ map fst unicodeTokens -- ASCII sequences will be converted soon
           , map snd unicodeTokens
           , ["(", ":", ",", "="]
+          , [" ", "\t"]
           ]
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         isLastNonSpaceChar = all (== ' ') (drop col lineContent)
