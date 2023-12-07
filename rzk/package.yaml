@@ -72,11 +72,12 @@ library:
         - Language.Rzk.Syntax.Skel
     - condition: flag(lsp) && !impl(ghcjs)
       exposed-modules:
+        - Language.Rzk.VSCode.Config
         - Language.Rzk.VSCode.Env
         - Language.Rzk.VSCode.Handlers
+        - Language.Rzk.VSCode.Logging
         - Language.Rzk.VSCode.Lsp
         - Language.Rzk.VSCode.Tokenize
-        - Language.Rzk.VSCode.Logging
       dependencies:
         aeson: ">= 1.4.2.0"
         co-log-core: ">= 0.3.2.0"
