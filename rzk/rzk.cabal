@@ -76,6 +76,8 @@ library
     , yaml >=0.11.0.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
+    cpp-options: -DLSP
+  if flag(lsp) && !impl(ghcjs)
     exposed-modules:
         Language.Rzk.VSCode.Config
         Language.Rzk.VSCode.Env
@@ -83,7 +85,6 @@ library
         Language.Rzk.VSCode.Logging
         Language.Rzk.VSCode.Lsp
         Language.Rzk.VSCode.Tokenize
-    cpp-options: -DLSP
     build-depends:
         aeson >=1.4.2.0
       , co-log-core >=0.3.2.0
@@ -119,6 +120,8 @@ executable rzk
     , text >=1.2.3.1
     , yaml >=0.11.0.0
   default-language: Haskell2010
+  if flag(lsp) && !impl(ghcjs)
+    cpp-options: -DLSP
   if !impl(ghcjs)
     build-depends:
         optparse-generic >=1.4.0
@@ -149,6 +152,8 @@ test-suite doctests
     , text >=1.2.3.1
     , yaml >=0.11.0.0
   default-language: Haskell2010
+  if flag(lsp) && !impl(ghcjs)
+    cpp-options: -DLSP
 
 test-suite rzk-test
   type: exitcode-stdio-1.0
@@ -176,3 +181,5 @@ test-suite rzk-test
     , text >=1.2.3.1
     , yaml >=0.11.0.0
   default-language: Haskell2010
+  if flag(lsp) && !impl(ghcjs)
+    cpp-options: -DLSP

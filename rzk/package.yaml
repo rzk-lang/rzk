@@ -26,6 +26,10 @@ flags:
     manual: true
     default: true
 
+when:
+  - condition: flag(lsp) && !impl(ghcjs)
+    cpp-options: -DLSP
+
 custom-setup:
   dependencies:
     base: ">= 4.11.0.0 && < 5.0"
@@ -86,7 +90,6 @@ library:
         lsp: ">= 2.2.0.0"
         lsp-types: ">= 2.0.2.0"
         stm: ">= 2.5.0.0"
-      cpp-options: -DLSP
 
 executables:
   rzk:
