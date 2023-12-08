@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Main (main) where
 
@@ -71,7 +72,7 @@ main = do
       error "rzk lsp is not supported with this build"
 #endif
 
-    Format (FormatOptions check write) paths -> do
+    Format (FormatOptions {check, write}) paths -> do
       when (check && write) (error "Options --check and --write are mutually exclusive")
       expandedPaths <- expandRzkPathsOrYaml paths
       case expandedPaths of
