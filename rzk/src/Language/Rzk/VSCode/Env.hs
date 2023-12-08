@@ -3,7 +3,8 @@ module Language.Rzk.VSCode.Env where
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
 import           Language.LSP.Server
-import           Rzk.TypeCheck          (Decl')
+import           Language.Rzk.VSCode.Config (ServerConfig)
+import           Rzk.TypeCheck              (Decl')
 
 type RzkTypecheckCache = [(FilePath, [Decl'])]
 
@@ -18,7 +19,7 @@ defaultRzkEnv = do
     { rzkEnvTypecheckCache = typecheckCache }
 
 
-type LSP = LspT () (ReaderT RzkEnv IO)
+type LSP = LspT ServerConfig (ReaderT RzkEnv IO)
 
 -- | Override the cache with given typechecked modules.
 cacheTypecheckedModules :: RzkTypecheckCache -> LSP ()

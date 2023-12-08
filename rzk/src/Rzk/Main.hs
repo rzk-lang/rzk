@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -8,53 +5,16 @@
 
 module Rzk.Main where
 
-import           Control.Monad           (forM, void)
+import           Control.Monad           (forM, when)
 import           Data.List               (sort)
-import           Data.Version            (showVersion)
-
-#ifdef LSP
-import           Language.Rzk.VSCode.Lsp (runLsp)
-#endif
-
 import qualified Data.Yaml               as Yaml
-import           Options.Generic
 import           System.Directory        (doesPathExist)
-import           System.Exit             (exitFailure)
 import           System.FilePath.Glob    (glob)
-
 import qualified Language.Rzk.Syntax     as Rzk
-import           Paths_rzk               (version)
 import           Rzk.Project.Config
 import           Rzk.TypeCheck
 
-data Command
-  = Typecheck [FilePath]
-  | Lsp
-  | Version
-  deriving (Generic, Show, ParseRecord)
 
-main :: IO ()
-main = getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-  Typecheck paths -> do
-    modules <- parseRzkFilesOrStdin paths
-    case defaultTypeCheck (typecheckModulesWithLocation modules) of
-      Left err -> do
-        putStrLn "An error occurred when typechecking!"
-        putStrLn $ unlines
-          [ "Type Error:"
-          , ppTypeErrorInScopedContext' BottomUp err
-          ]
-        exitFailure
-      Right _decls -> putStrLn "Everything is ok!"
-
-  Lsp ->
-#ifdef LSP
-    void runLsp
-#else
-    error "rzk lsp is not supported with this build"
-#endif
-
-  Version -> putStrLn (showVersion version)
 
 parseStdin :: IO Rzk.Module
 parseStdin = do
@@ -82,9 +42,26 @@ extractFilesFromRzkYaml rzkYamlPath = do
     Right ProjectConfig{..} -> do
       return include
 
+-- | Given a list of file paths (possibly including globs), expands the globs (if any)
+-- or tries to read the list of files from the rzk.yaml file (if no paths are given).
+-- Glob patterns in rzk.yaml are also expanded.
+expandRzkPathsOrYaml :: [FilePath] -> IO [FilePath]
+expandRzkPathsOrYaml = \case
+    [] -> do
+      let rzkYamlPath = "rzk.yaml"
+      rzkYamlExists <- doesPathExist rzkYamlPath
+      if rzkYamlExists
+        then do
+          paths <- extractFilesFromRzkYaml rzkYamlPath
+          when (null paths) (error $ "No files found in " <> rzkYamlPath)
+          expandRzkPathsOrYaml paths
+        else error ("No paths given and no " <> rzkYamlPath <> " found")
+    paths -> foldMap globNonEmpty paths
+
 parseRzkFilesOrStdin :: [FilePath] -> IO [(FilePath, Rzk.Module)]
 parseRzkFilesOrStdin = \case
   -- if no paths are given — read from stdin
+  -- TODO: reuse the `expandRzkPathsOrYaml` function
   [] -> do
     let rzkYamlPath = "rzk.yaml"
     rzkYamlExists <- doesPathExist rzkYamlPath
