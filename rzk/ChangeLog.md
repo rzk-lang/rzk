@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.0 — 2023-12-08
+
+
+
 ## v0.6.7 — 2023-10-07
 
 - Fix build on some systems (fix `BNFC:bnfc` executable dependency, see [#125](https://github.com/rzk-lang/rzk/pull/125))

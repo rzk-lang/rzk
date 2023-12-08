@@ -3,6 +3,10 @@ authors:
   - family-names: Kudasov
     given-names: Nikolai
     orcid: "https://orcid.org/0000-0001-6572-7292"
+  - family-names: Abounegm
+    given-names: Abdelrahman
+  - family-names: Danko
+    given-names: Danila
 title: "Rzk: a  proof assistant for synthetic $\\infty$-categories"
-version: 0.6.7
+version: 0.7.0
 url: "https://github.com/rzk-lang/rzk"
