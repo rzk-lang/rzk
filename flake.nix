@@ -47,6 +47,7 @@
       packages = {
         default = default.packages.default;
         rzk = default.packages.${rzk};
+        rzk-ghcjs = ghcjs.packages.${rzk};
         rzk-js = ghcjs.packages.${rzk-js};
       } // scripts;
 
