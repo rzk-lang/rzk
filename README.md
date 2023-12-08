@@ -1,11 +1,20 @@
-# rzk
+# Rzk proof assistant
 
-[![MkDocs](https://shields.io/badge/MkDocs-documentation-informational)](https://rzk-lang.github.io/rzk/)
-[![Haddock](https://shields.io/badge/Haddock-documentation-informational)](https://rzk-lang.github.io/rzk/haddock/index.html)
-[![GHCJS build](https://github.com/rzk-lang/rzk/actions/workflows/ghcjs.yml/badge.svg?branch=main)](https://github.com/rzk-lang/rzk/actions/workflows/ghcjs.yml)
+[![Release](https://img.shields.io/github/v/release/rzk-lang/rzk.svg)](https://github.com/rzk-lang/rzk/releases/latest)
+[![`rzk` on Hackage](https://img.shields.io/hackage/v/rzk)](http://hackage.haskell.org/package/rzk)
+[![`rzk` on Stackage Nightly](https://stackage.org/package/rzk/badge/nightly)](http://stackage.org/package/rzk)
+[![`rzk` on Stackage LTS](https://stackage.org/package/rzk/badge/lts)](http://stackage.org/package/rzk)
+
+[![Rzk documentation](https://shields.io/badge/MkDocs-Rzk%20documentation-informational)](https://rzk-lang.github.io/rzk/)
+[![Rzk Playground](<https://shields.io/badge/Rzk%20Playground%20(latest)-online-success>)](https://rzk-lang.github.io/rzk/latest/playground/)
 [![Rzk Zulip chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://rzk-lang.zulipchat.com)
 
+[![Haddock](<https://shields.io/badge/Haddock%20(develop)-Code%20documentation-informational>)](https://rzk-lang.github.io/rzk/haddock/index.html)
+[![Rzk Playground](<https://shields.io/badge/Rzk%20Playground%20(develop)-online-success>)](https://rzk-lang.github.io/rzk/develop/playground/)
+
 An experimental proof assistant for synthetic ∞-categories.
+
+<https://rzk-lang.github.io>
 
 [![Early prototype demo.](images/split-demo-render.png)](https://rzk-lang.github.io/rzk/)
 
@@ -79,6 +88,26 @@ Inside of such directory, you can run `rzk typecheck` on all files using wildcar
 ```sh
 rzk typecheck *-*.md
 ```
+
+### Formatting
+
+Formatting can be done by calling `rzk format` and specifying the files to be formatted, e.g.:
+
+```sh
+rzk format file1.rzk file2.rzk
+```
+
+This prints the formatted version of the file to `stdout`.
+
+To overwrite the file content, you must use the `--write` flag as such:
+
+```sh
+rzk format --write examples/*.rzk related/*.rzk.md
+```
+
+Note that if no files are specified, `rzk format` will format all files listed in `rzk.yaml`.
+
+The CLI also supports the `--check` flag, which will exit with a non-zero exit code if any of the files are not formatted correctly. This is useful in CI pipelines to ensure that all files are formatted correctly.
 
 ## How to contribute to `rzk`
 

@@ -6,6 +6,7 @@ module Language.Rzk.VSCode.Lsp where
 import           Control.Lens                  (_Just, to, (^.), (^..))
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
+import           Data.Default.Class            (Default (def))
 import           Data.List                     (isSuffixOf)
 import qualified Data.Text                     as T
 import           Language.LSP.Protocol.Lens    (HasParams (params),
@@ -16,7 +17,10 @@ import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 
+import           Data.Aeson                    (Result (Error, Success),
+                                                fromJSON)
 import           Language.Rzk.Syntax           (parseModuleSafe)
+import           Language.Rzk.VSCode.Config    (ServerConfig (..))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Logging
@@ -48,6 +52,8 @@ handlers =
         -- TODO: check if the file is included in the config's `include` list.
         --       If not (and not in `exclude`) either, issue a warning.
         return () -- FIXME: typecheck standalone files (if they are not a part of the project)
+    -- An empty hadler is needed to silence the error since it is already handled by the LSP package
+    , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ const $ pure ()
     -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
     --    TODO: Read from the list of symbols that is supposed to be cached by the typechecker
     --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
@@ -63,7 +69,7 @@ handlers =
         possibleTokens <- case virtualFileText <$> mdoc of
               Nothing         -> return (Left "Failed to get file content")
               Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
-                parseModuleSafe (T.unpack sourceCode)
+                parseModuleSafe (filter (/= '\r') $ T.unpack sourceCode)
         case possibleTokens of
           Left err -> do
             -- Exception occurred when parsing the module
@@ -76,6 +82,7 @@ handlers =
                 return ()
               Right list ->
                 responder (Right (InL SemanticTokens { _resultId = Nothing, _data_ = list }))
+    , requestHandler SMethod_TextDocumentFormatting formatDocument
     ]
 
 
@@ -94,11 +101,14 @@ runLsp = do
   runServer $
     ServerDefinition
       { configSection = "rzk"
-      , parseConfig = const . pure
+      , parseConfig = \_oldConfig newObject -> case fromJSON newObject of
+          -- TODO: handle partial config updates from VS Code by updating oldConfig rather than parsing from scratch
+          Error err         -> Left $ T.pack err
+          Success rzkConfig -> Right rzkConfig
       , onConfigChange = const $ pure ()
       , doInitialize = const . pure . Right
       , staticHandlers = const handlers
       , interpretHandler = \env -> Iso (flip runReaderT rzkEnv . runLspT env) liftIO
       , options = defaultOptions { optTextDocumentSync = Just syncOptions }
-      , defaultConfig = ()
+      , defaultConfig = def :: ServerConfig
       }

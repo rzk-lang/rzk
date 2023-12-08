@@ -92,6 +92,16 @@ jobs:
           clean: false
           single-commit: true
 
+      - name: '🚀 Publish JS "binaries" (latest)'
+        if: ${{ startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'v') && github.event_name == 'push' }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: rzk-playground-release
+          target-folder: latest/playground
+          clean: false
+          single-commit: true
+
       - name: '🚀 Publish JS "binaries"'
         if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
         uses: JamesIves/github-pages-deploy-action@v4

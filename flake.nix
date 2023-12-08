@@ -1,7 +1,7 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/e1b4c97ed4ce160afd9ef1574b6a2ff168482f2a";
+    nixpkgs.url = "github:NixOS/nixpkgs/d1c3a8112f9d5d4840e0669727222e5fd9243451";
     miso = {
       url = "github:dmjio/miso/49edf0677253bbcdd473422b5dd5b4beffd83910";
       flake = false;
@@ -47,6 +47,7 @@
       packages = {
         default = default.packages.default;
         rzk = default.packages.${rzk};
+        rzk-ghcjs = ghcjs.packages.${rzk};
         rzk-js = ghcjs.packages.${rzk-js};
       } // scripts;
 
