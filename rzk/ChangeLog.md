@@ -6,9 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.1 — 2023-12-08
+
+- Fix default build to include Rzk Language Server (`rzk lsp`) (see [`9b78a15`](https://github.com/rzk-lang/rzk/commit/9b78a15c750699afa93c4dab3735c2aa31e6faac));
+- Apply formatting to `recId.rzk.md` example (see [`4032724`](https://github.com/rzk-lang/rzk/commit/40327246954332f40cd82c48d102bf4257ad719e));
+
 ## v0.7.0 — 2023-12-08
 
+Major changes:
 
+- Add an experimental `rzk format` command (by [Abdelrahman Abounegm](https://github.com/aabounegm), with feedback by [Fredrik Bakke](https://github.com/fredrik-bakke) (see [sHoTT#142](https://github.com/rzk-lang/sHoTT/pull/142)) and [Nikolai Kudasov](https://github.com/fizruk)):
+  - Automatically format files, partially automating the [Code Style of the sHoTT project](https://rzk-lang.github.io/sHoTT/STYLEGUIDE/)
+  - Notable features:
+    - Adds a space after the opening parenthesis to help with the [code tree structure](https://rzk-lang.github.io/sHoTT/STYLEGUIDE/#the-tree-structure-of-constructions)
+    - Puts the definition conclusion (type, starting with `:`) and construction (body, starting with `:=`) on new lines
+    - Adds a space after the `\` of a lambda term and around binary operators (like `,`)
+    - Moves binary operators to the beginning of the next line if they appear at the end of the previous one.
+    - Replaces [common ASCII sequences](https://rzk-lang.github.io/sHoTT/STYLEGUIDE/#use-of-unicode-characters) with their Unicode equivalent
+    - A CLI subcommand (`rzk format`) with `--check` and `--write` options
+  - Known limitations
+    - The 80 character line limit is currently not enforced due to the difficulty of determining where to add line breaks (for reference, check out [this post](https://journal.stuffwithstuff.com/2015/09/08/the-hardest-program-ive-ever-written/) by a Dart `fmt` engineer)
+    - Fixing indentation is not yet implemented due to the need for more semantics than the lexer provides to determine indentation level.
+    - There may be rare edge cases in which applying the formatter twice could result in additional edits that were not detected the first time.
+
+Minor changes:
+
+- Fix "latest" Rzk Playground link (see [#137](https://github.com/rzk-lang/rzk/pull/137));
+- Add more badges to README (see [#136](https://github.com/rzk-lang/rzk/pull/136));
 
 ## v0.6.7 — 2023-10-07
 

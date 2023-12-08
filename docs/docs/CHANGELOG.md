@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.1 — 2023-12-08
+
+- Fix default build to include Rzk Language Server (`rzk lsp`) (see [`9b78a15`](https://github.com/rzk-lang/rzk/commit/9b78a15c750699afa93c4dab3735c2aa31e6faac));
+- Apply formatting to `recId.rzk.md` example (see [`4032724`](https://github.com/rzk-lang/rzk/commit/40327246954332f40cd82c48d102bf4257ad719e));
+
 ## v0.7.0 — 2023-12-08
 
 Major changes:

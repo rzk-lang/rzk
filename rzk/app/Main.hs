@@ -23,7 +23,7 @@ import           Language.Rzk.VSCode.Lsp (runLsp)
 import           Options.Generic
 import           System.Exit             (exitFailure, exitSuccess)
 
-import           Data.Functor            ((<&>))
+import           Data.Functor            (void, (<&>))
 import           Paths_rzk               (version)
 import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
@@ -90,4 +90,3 @@ main = do
             exitSuccess
 
     Version -> putStrLn (showVersion version)
-

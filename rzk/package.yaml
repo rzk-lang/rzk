@@ -1,5 +1,5 @@
 name: rzk
-version: 0.7.0
+version: 0.7.1
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -25,6 +25,10 @@ flags:
       Build with LSP support (only available with GHC, not GHCJS).
     manual: true
     default: true
+
+when:
+  - condition: flag(lsp) && !impl(ghcjs)
+    cpp-options: -DLSP
 
 custom-setup:
   dependencies:
@@ -86,7 +90,6 @@ library:
         lsp: ">= 2.2.0.0"
         lsp-types: ">= 2.0.2.0"
         stm: ">= 2.5.0.0"
-      cpp-options: -DLSP
 
 executables:
   rzk:
