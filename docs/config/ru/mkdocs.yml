@@ -1,0 +1,72 @@
+INHERIT: "../base.yml"
+site_name: "Решатель теорем Rzk"
+site_description: "Экспериментальный решатель теорем для симплициальной теории типов и синтетических ∞-категорий."
+site_author: "Николай Кудасов"
+docs_dir: '../../docs/ru'
+site_dir: '../../generated/ru'
+edit_uri: edit/develop/docs/docs/ru/
+
+nav:
+  - General:
+    - About: index.md
+    - Contributors: CONTRIBUTORS.md
+    - Changelog: CHANGELOG.md
+  - Getting Started:
+    - Install: getting-started/install.md
+    - Quickstart: getting-started/quickstart.rzk.md
+    - Publishing with MkDocs: getting-started/publishing-with-mkdocs.md
+  - Reference:
+    - Introduction: reference/introduction.rzk.md
+    - Cube layer: reference/cube-layer.rzk.md
+    - Tope layer: reference/tope-layer.rzk.md
+    - Dependent types: reference/type-layer.rzk.md
+    - Tope disjunction elimination: reference/tope-disjunction-elimination.rzk.md
+    - Extension types: reference/extension-types.rzk.md
+    - Organizational features:
+      - Sections and Variables: reference/sections.rzk.md
+    - Builtins:
+      - Directed interval: reference/builtins/directed-interval.rzk.md
+      - Unit type: reference/builtins/unit.rzk.md
+    - Commands:
+      - Define and Postulate: reference/commands/define-postulate.rzk.md
+      - Compute: reference/commands/compute.rzk.md
+      - Check: reference/commands/check.rzk.md
+      - Options: reference/commands/options.rzk.md
+    - Other:
+      - Rendering Diagrams: reference/render.rzk.md
+  - Examples:
+    - Weak tope disjunction elimination: examples/recId.rzk.md
+  - Community: community.md
+  - Tools:
+    - Syntax Highlighting: tools/highlight.md
+    - IDE support: tools/ide.md
+    - Continuous Verification: tools/continuous.md
+  - Related Projects:
+    - Yoneda lemma for ∞-categories: related/yoneda.md
+    - sHoTT: related/sHoTT.md
+    - simple-topes: related/simple-topes.md
+  - Playground: playground/
+
+theme:
+  language: ru
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: white
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Переключить на тёмный режим
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: black
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Переключить на светлый режим
+
+plugins:
+  - mike:
+      deploy_prefix: 'ru/'
+  - search:
+      lang: ru

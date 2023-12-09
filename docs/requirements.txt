@@ -1,5 +1,5 @@
 mkdocs-material
-mike
+mike==2.0.0
 python-markdown-math
-mkdocs-plugin-rzk==0.1.2
+mkdocs-plugin-rzk
 pygments-rzk

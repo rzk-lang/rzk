@@ -2,7 +2,7 @@ name: MKDocs
 
 on:
   push:
-    branches: [develop]
+    branches: [develop,mkdocs-*]
     tags: [v*]
     paths:
       - .github/workflows/mkdocs.yml
@@ -46,11 +46,11 @@ jobs:
           git config --local user.name "github-actions[bot]"
 
       - name: 🚀 Deploy with mike (${{ github.ref_name }}, latest)
-        if: ${{ github.ref_name != 'develop' }}
+        if: ${{ github.ref_name != 'develop' && !startsWith(github.ref_name, 'mkdocs') }}
         run: |
-          mike deploy --push --update-aliases --config-file docs/mkdocs.yml ${{ github.ref_name }} latest
+          for config in $(ls docs/config/*/mkdocs.yml); do echo "mike deploy --push --update-aliases --config-file ${config} ${{ github.ref_name }} latest"; done
 
       - name: 🚀 Deploy with mike (${{ github.ref_name }})
-        if: ${{ github.ref_name == 'develop' }}
+        if: ${{ github.ref_name == 'develop' || startsWith(github.ref_name, 'mkdocs') }}
         run: |
-          mike deploy --push --config-file docs/mkdocs.yml ${{ github.ref_name }}
+          for config in $(ls docs/config/*/mkdocs.yml); do echo "mike deploy --push --config-file ${config} ${{ github.ref_name }}"; done
