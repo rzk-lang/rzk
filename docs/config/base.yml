@@ -18,7 +18,9 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
+    - navigation.prune
     - navigation.path
+    - toc.integrate
 
 extra_javascript:
   - javascript/mathjax.js
@@ -63,8 +65,3 @@ extra:
     - name: Русский
       link: /rzk/ru/
       lang: ru
-
-plugins:
-  - rzk:
-      render_svg: true
-      anchor_definitions: true

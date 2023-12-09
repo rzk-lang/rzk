@@ -62,7 +62,11 @@ theme:
         name: "Switch to light mode"
 
 plugins:
+  - social
   - mike:
       deploy_prefix: 'en/'
   - search:
       lang: en
+  - rzk:
+      render_svg: true
+      anchor_definitions: true

@@ -62,7 +62,11 @@ theme:
         name: "Переключить на светлый режим"
 
 plugins:
+  - social
   - mike:
       deploy_prefix: 'ru/'
   - search:
       lang: ru
+  - rzk:
+      render_svg: true
+      anchor_definitions: true
