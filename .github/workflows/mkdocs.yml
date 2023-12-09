@@ -37,6 +37,12 @@ jobs:
           rename-to: rzk
           chmod: 0755
 
+      - name: Check Rzk files for each language
+        run:
+          for lang_dir in $(ls -d docs/docs/*/); do
+            pushd ${lang_dir} && rzk typecheck; popd ;
+          done
+
       - name: 🔨 Install MkDocs Material and mike
         run: pip install -r docs/requirements.txt
 
