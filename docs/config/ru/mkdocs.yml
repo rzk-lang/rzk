@@ -43,6 +43,8 @@ nav:
 
 theme:
   language: ru
+  font:
+    text: PT Sans
   palette:
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"

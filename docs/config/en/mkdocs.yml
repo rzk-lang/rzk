@@ -43,6 +43,8 @@ nav:
 
 theme:
   language: en
+  font:
+    text: Inria Sans
   palette:
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
