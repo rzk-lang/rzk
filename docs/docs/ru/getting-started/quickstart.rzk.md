@@ -1,11 +1,12 @@
-# Quick introduction into Rzk
+# Быстрое начало
 
-!!! warning "Work-in-progress"
-    Documentation is a work in progress.
+!!! warning "Раздел в работе"
+    Этот раздел нуждается в доработке.
 
-This is a literate `rzk` file:
+Для начала, [установите Rzk](install.md).
+
+Этот раздел является литературным файлом Rzk:
 
 ```rzk
 #lang rzk-1
 ```
-

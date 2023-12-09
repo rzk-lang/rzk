@@ -7,14 +7,17 @@ site_dir: '../../generated/en'
 edit_uri: edit/develop/docs/docs/en/
 
 nav:
-  - General:
+  - Home:
     - About: index.md
+    - Community: community.md
+    - Tools: tools.md
     - Contributors: CONTRIBUTORS.md
     - Changelog: CHANGELOG.md
   - Getting Started:
     - Install: getting-started/install.md
     - Quickstart: getting-started/quickstart.rzk.md
-    - Publishing with MkDocs: getting-started/publishing-with-mkdocs.md
+    - Depedent Types: getting-started/dependent-types.rzk.md
+    - Setting up an Rzk project: getting-started/project.md
   - Reference:
     - Introduction: reference/introduction.rzk.md
     - Cube layer: reference/cube-layer.rzk.md
@@ -34,18 +37,9 @@ nav:
       - Options: reference/commands/options.rzk.md
     - Other:
       - Rendering Diagrams: reference/render.rzk.md
-  - Examples:
-    - Weak tope disjunction elimination: examples/recId.rzk.md
-  - Community: community.md
-  - Tools:
-    - Syntax Highlighting: tools/highlight.md
-    - IDE support: tools/ide.md
-    - Continuous Verification: tools/continuous.md
-  - Related Projects:
-    - Yoneda lemma for ∞-categories: related/yoneda.md
-    - sHoTT: related/sHoTT.md
-    - simple-topes: related/simple-topes.md
-  - Playground: playground/
+    - Examples:
+      - Weak tope disjunction elimination: examples/recId.rzk.md
+  - Playground: playground/index.html
 
 theme:
   language: en

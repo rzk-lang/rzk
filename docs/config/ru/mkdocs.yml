@@ -7,45 +7,39 @@ site_dir: '../../generated/ru'
 edit_uri: edit/develop/docs/docs/ru/
 
 nav:
-  - General:
-    - About: index.md
-    - Contributors: CONTRIBUTORS.md
-    - Changelog: CHANGELOG.md
-  - Getting Started:
-    - Install: getting-started/install.md
-    - Quickstart: getting-started/quickstart.rzk.md
-    - Publishing with MkDocs: getting-started/publishing-with-mkdocs.md
-  - Reference:
-    - Introduction: reference/introduction.rzk.md
-    - Cube layer: reference/cube-layer.rzk.md
-    - Tope layer: reference/tope-layer.rzk.md
-    - Dependent types: reference/type-layer.rzk.md
-    - Tope disjunction elimination: reference/tope-disjunction-elimination.rzk.md
-    - Extension types: reference/extension-types.rzk.md
-    - Organizational features:
-      - Sections and Variables: reference/sections.rzk.md
-    - Builtins:
-      - Directed interval: reference/builtins/directed-interval.rzk.md
-      - Unit type: reference/builtins/unit.rzk.md
-    - Commands:
-      - Define and Postulate: reference/commands/define-postulate.rzk.md
-      - Compute: reference/commands/compute.rzk.md
-      - Check: reference/commands/check.rzk.md
-      - Options: reference/commands/options.rzk.md
-    - Other:
-      - Rendering Diagrams: reference/render.rzk.md
-  - Examples:
-    - Weak tope disjunction elimination: examples/recId.rzk.md
-  - Community: community.md
-  - Tools:
-    - Syntax Highlighting: tools/highlight.md
-    - IDE support: tools/ide.md
-    - Continuous Verification: tools/continuous.md
-  - Related Projects:
-    - Yoneda lemma for ∞-categories: related/yoneda.md
-    - sHoTT: related/sHoTT.md
-    - simple-topes: related/simple-topes.md
-  - Playground: playground/
+  - Главная:
+    - О проекте: index.md
+    - Сообщество: community.md
+    - Инструменты: tools.md
+    - Участники (англ.): CONTRIBUTORS.md
+    - История изменений (англ.): CHANGELOG.md
+  - Первые шаги:
+    - Установка: getting-started/install.md
+    - Быстрое начало: getting-started/quickstart.rzk.md
+    - Введение в зависимые типы: getting-started/dependent-types.rzk.md
+    - Настройка проекта: getting-started/project.md
+  - Руководство:
+    - Введение: reference/introduction.rzk.md
+    - Слой кубов: reference/cube-layer.rzk.md
+    - Слой форм: reference/tope-layer.rzk.md
+    - Зависимые типы: reference/type-layer.rzk.md
+    - Устранение объединений форм: reference/tope-disjunction-elimination.rzk.md
+    - Типы-расширения: reference/extension-types.rzk.md
+    - Организация кода:
+      - Разделы и предпосылки: reference/sections.rzk.md
+    - Встроенные определения:
+      - Направленный интервал: reference/builtins/directed-interval.rzk.md
+      - Единичный тип: reference/builtins/unit.rzk.md
+    - Команды:
+      - Определения и постулаты: reference/commands/define-postulate.rzk.md
+      - Вычисления: reference/commands/compute.rzk.md
+      - Проверка типов: reference/commands/check.rzk.md
+      - Опции решателя: reference/commands/options.rzk.md
+    - Другое:
+      - Отрисовка диаграм: reference/render.rzk.md
+    - Примеры:
+      - Слабое устранение объединений форм: examples/recId.rzk.md
+  - Песочница: playground/index.html
 
 theme:
   language: ru

@@ -1,7 +1,10 @@
-# Rzk Community
+# Сообщество Rzk
 
-## Chat
+Вокруг Rzk собралось небольшое сообщество математиков и информатиков.
 
-A Zulip chat is available for all to join and chat about Rzk, including formalization projects, development of Rzk, and related projects:
+## Чат
 
-[Join Rzk Zulip](https://rzk-lang.zulipchat.com/register/){ .md-button .md-button--primary }
+Для всех желающих доступен (преимущественно англоязычный) чат Zulip,
+в котором можно обсудить формализации, разработку Rzk и смежные проекты:
+
+[Присоединиться к сообществу Rzk в Zulip](https://rzk-lang.zulipchat.com/register/){ .md-button .md-button--primary }

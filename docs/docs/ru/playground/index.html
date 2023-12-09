@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <title>Redirecting</title>
-  <noscript>
-    <meta http-equiv="refresh" content="1; url=latest/" />
-  </noscript>
   <script>
-    window.location.href = window.location.href.replace("/ru/", "/");
+    var new_href = window.location.href.replace("/ru/", "/");
+    if (new_href != window.location.href) {
+      window.location.href = new_href;
+    }
   </script>
 </head>
 <body>

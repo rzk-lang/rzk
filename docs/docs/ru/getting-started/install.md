@@ -1,45 +1,46 @@
-# How to install Rzk
+# Установка Rzk
 
-## VS Code extension with binaries (recommended)
+## Через расширение VS Code (рекомендуется)
 
-These instructions will walk you through setting up Rzk using the "basic" setup and VS Code as the editor.
+Следуйте этим инструкциям, чтобы настроить работу с Rzk в редакторе VS Code.
 
-1. Install [VS Code](https://code.visualstudio.com/).
-2. Launch VS Code and install the [`rzk` extension](https://marketplace.visualstudio.com/items?itemName=NikolaiKudasovfizruk.rzk-1-experimental-highlighting).
-3. Create a new file using "File > New Text File" (<kbd>Ctrl+N</kbd>). Click the `Select a language` prompt, type in `rzk`, and select "Literate Rzk Markdown".
-   ![VS Code rzk language selector.](../../assets/images/vscode-rzk-select-language.png)
-4. You should see the following popup:
-   ![VS Code rzk install prompt.](../../assets/images/vscode-rzk-install-prompt.png)
-5. Click "Yes" button.
-6. While it is installing, you can paste the following literate Rzk program into the new file:
+1. Установите [VS Code](https://code.visualstudio.com/).
+2. Запустите VS Code и установите [расширение `rzk`](https://marketplace.visualstudio.com/items?itemName=NikolaiKudasovfizruk.rzk-1-experimental-highlighting).
+3. Создайте новый файл через "Файл > Создать текстовый файл" (<kbd>Ctrl+N</kbd>). Нажмите `Select a language`, введите в поиске `rzk` и выберите "Literate Rzk Markdown".
+   ![VS Code rzk language selector.](../assets/images/vscode-rzk-select-language.png)
+4. Вы должны увидеть следующее сообщение:
+   ![VS Code rzk install prompt.](../assets/images/vscode-rzk-install-prompt.png)
+5. Нажмите "Yes".
+6. Пока Rzk устанавливается, скопируйте и вставьте следующий текст в открытый файл:
 
    ````markdown
-   # Sample literate Rzk markdown
+   # Пример литературного кода с Rzk
 
    ```rzk
    #lang rzk-1
 
+   -- тождественная функция
    #define id (A : U)
      : A -> A
      := \ x -> x
    ```
    ````
 
-7. When the installation is done you should see the following popup:
-   ![VS Code rzk reload prompt.](../../assets/images/vscode-rzk-install-success-reload-prompt.png)
-8. Click "Reload button".
-9. Save your file as `example.rzk.md`.
-10. Open local Terminal (<kbd>Ctrl+`</kbd>).
+7. Когда установка завершится, вы должны увидеть следующее сообщение:
+   ![VS Code rzk reload prompt.](../assets/images/vscode-rzk-install-success-reload-prompt.png)
+8. Нажмите "Reload" (перезагрузить VS Code).
+9. Сохраните ваш файл (например, как `example.rzk.md`).
+10. Откройте терминал внутри VS Code (<kbd>Ctrl+`</kbd>).
 
     <!-- ` -->
 
-11. In the terminal, run
+11. В терминале запустите команду
 
     ```sh
     rzk typecheck example.rzk.md
     ```
 
-12. You should see the output of the proof assistant:
+12. Вы должны увидеть что-то такое:
 
     ```text
     Loading file example.rzk.md
@@ -48,29 +49,31 @@ These instructions will walk you through setting up Rzk using the "basic" setup 
     Everything is ok!
     ```
 
-13. Congratulations! Now you have a working rzk setup :) Note that the rzk extension will notify you about updates of `rzk` and prompt updating to new versions.
+13. Поздравляем! Теперь ваш VS Code настроен на работу с Rzk :) Заметьте, что расширение будет уведомлять вас о наличии обновлений Rzk и предлагать обновить автоматически.
 
-14. See [Quickstart](../quickstart.rzk) to get familiar with the Rzk language!
+14. Можете перейти к [Быстрому началу](quickstart.rzk.md) чтобы познакомиться с языком Rzk!
 
-## Install binaries
+## Установка исполняемых файлов
 
-### Download from GitHub
+### Через страницу релизов на GitHub
 
-You can download and use binaries (at least for some platforms) directly for one of the latest releases on GitHub at <https://github.com/rzk-lang/rzk/releases>. If your platform is not represented, please consider leaving an issue at <https://github.com/rzk-lang/rzk/issues/new>.
+Вы можете скачать исполняемые файлы (для Linux, Windows, и macOS) напрямую со страницы релизов на GitHub: <https://github.com/rzk-lang/rzk/releases>.
+Если ваша платформа не поддержана, вы можете попробовать установить Rzk из исходников (см. ниже)
+или оставить пожелание о расширении поддержки на странице задач: <https://github.com/rzk-lang/rzk/issues/new>.
 
-## Install from sources
+## Сборка и установка из исходников
 
-You can install `rzk` from sources. You can get the latest "stable" release from Hackage or build from the `develop` branch on GitHub.
+Вы можете установить Rzk из исходников: вы можете либо скачать стабильную версию из репозитория пакетов Hackage, либо собрать самую свежую версию из ветки `develop` на GitHub.
 
 ### Stack
 
-To build and install with Stack from Hackage:
+Чтобы собрать и установить Rzk при помощи Stack, из репозитория Hackage:
 
 ```sh
 stack install rzk
 ```
 
-To build and install with Stack from sources on GitHub:
+Чтобы собрать и установить Rzk при помощи Stack, из исходников на GitHub:
 
 ```sh
 git clone https://github.com/rzk-lang/rzk.git
@@ -81,14 +84,14 @@ stack build && stack install
 
 ### cabal-install
 
-To build and install with `cabal-install` from Hackage:
+Чтобы собрать и установить Rzk при помощи `cabal-install`, из репозитория Hackage:
 
 ```sh
 cabal v2-update
 cabal v2-install rzk
 ```
 
-To build and install with `cabal-install` from sources on GitHub:
+Чтобы собрать и установить Rzk при помощи `cabal-install`, из исходников на GitHub:
 
 ```sh
 git clone https://github.com/rzk-lang/rzk.git
@@ -99,6 +102,6 @@ cabal v2-build && cabal v2-install
 
 ### Nix
 
-!!! warning "Work-in-progress"
+!!! warning "Раздел в работе."
 
-    To be done.
+    Раздел нуждается в доработке.
