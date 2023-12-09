@@ -56,14 +56,14 @@ theme:
       scheme: default
       toggle:
         icon: material/brightness-7
-        name: Переключить на тёмный режим
+        name: "Переключить на тёмный режим"
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
       primary: black
       scheme: slate
       toggle:
         icon: material/brightness-4
-        name: Переключить на светлый режим
+        name: "Переключить на светлый режим"
 
 plugins:
   - mike:
