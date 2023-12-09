@@ -1,2 +1,3 @@
 include:
-  - docs/docs/en/examples/recId.rzk.md
+  - getting-started/dependent-types.rzk.md
+  - examples/recId.rzk.md
