@@ -1,6 +1,11 @@
-# rzk — an experimental proof assistant for synthetic ∞-categories
+# Rzk proof assistant
 
-`rzk` is an early prototype of a proof assistant for a family of type systems, including Riehl and Shulman's «Type Theory for Synthetic ∞-categories» ([https://arxiv.org/abs/1705.07442](https://arxiv.org/abs/1705.07442)).
+`rzk` is an experimental proof assistant for ∞-categories,
+based on Riehl and Shulman's «Type Theory for Synthetic ∞-categories»[^1].
+
+[^1]:
+    Emily Riehl & Michael Shulman. A type theory for synthetic ∞-categories.
+    Higher Structures 1(1), 147-224. 2017. <https://arxiv.org/abs/1705.07442>
 
 [Get started with Rzk](getting-started/install.md){ .md-button .md-button--primary }
 [Try Rzk Playground](playground/){ .md-button }
