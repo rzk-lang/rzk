@@ -1,5 +1,7 @@
+.cache/
 .DS_Store
 docs/out/
+docs/generated/
 dist
 dist-*
 cabal-dev
