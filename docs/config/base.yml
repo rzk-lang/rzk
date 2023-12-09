@@ -61,10 +61,10 @@ extra:
     provider: mike
   alternate:
     - name: English
-      link: /en/
+      link: /rzk/en/
       lang: en
     - name: Русский
-      link: /ru/
+      link: /rzk/ru/
       lang: ru
 
 plugins:
