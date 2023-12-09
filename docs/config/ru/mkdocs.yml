@@ -1,4 +1,5 @@
 INHERIT: "../base.yml"
+site_url: https://rzk-lang.github.io/rzk/ru/
 site_name: "Решатель теорем Rzk"
 site_description: "Экспериментальный решатель теорем для симплициальной теории типов и синтетических ∞-категорий."
 site_author: "Николай Кудасов"
