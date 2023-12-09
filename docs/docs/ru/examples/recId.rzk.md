@@ -7,6 +7,10 @@ Luckily, assuming relative function extensionality, we can define a weaker versi
 
 ## Prerequisites
 
+This file relies on some definitions, defined in
+
+- [Getting Started > Dependent Types](../getting-started/dependent-types.rzk.md)
+
 We begin by introducing common HoTT definitions:
 
 ```rzk
@@ -26,11 +30,6 @@ We begin by introducing common HoTT definitions:
 #define isaset (A : U)
   : U
   := ( x : A) → (y : A) → isaprop (x =_{A} y)
-
--- Non-dependent product of A and B
-#define prod (A : U) (B : U)
-  : U
-  := Σ ( x : A) , B
 
 -- A function f : A → B is an equivalence
 -- if there exists g : B → A
