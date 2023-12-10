@@ -68,3 +68,8 @@ A Zulip chat is available for all to join and chat about Rzk, including formaliz
 [^5]:
     Nikolai Kudasov. Experimental prover for Tope logic. SCAN 2023, pages 37–39. 2023.
     <https://www.mathnet.ru/ConfLogos/2220/abstracts.pdf#page=38>
+
+## Other proof assistants for HoTT
+
+Rzk is not the first or the only proof assistant where it's possible to do (a variant of) homotopy type theory.
+See a [brief comparison of Rzk with other proof assistants](related.md).

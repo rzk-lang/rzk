@@ -14,6 +14,7 @@ nav:
     - Tools: tools.md
     - Contributors: CONTRIBUTORS.md
     - Changelog: CHANGELOG.md
+    - Other proof assistants: related.md
   - Getting Started:
     - getting-started/index.md
     - Install: getting-started/install.md

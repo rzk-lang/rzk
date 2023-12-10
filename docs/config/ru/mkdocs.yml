@@ -14,6 +14,7 @@ nav:
     - Инструменты: tools.md
     - Участники (англ.): CONTRIBUTORS.md
     - История изменений (англ.): CHANGELOG.md
+    - Другие решатели: related.md
   - Первые шаги:
     - getting-started/index.md
     - Установка: getting-started/install.md
