@@ -3,3 +3,4 @@ mike==2.0.0
 python-markdown-math
 mkdocs-plugin-rzk
 pygments-rzk
+mkdocs-rss-plugin

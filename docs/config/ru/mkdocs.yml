@@ -8,13 +8,15 @@ site_dir: '../../generated/ru'
 edit_uri: edit/develop/docs/docs/ru/
 
 nav:
-  - Главная:
-    - О проекте: index.md
+  - О проекте:
+    - index.md
     - Сообщество: community.md
     - Инструменты: tools.md
     - Участники (англ.): CONTRIBUTORS.md
     - История изменений (англ.): CHANGELOG.md
+    - Другие решатели: related.md
   - Первые шаги:
+    - getting-started/index.md
     - Установка: getting-started/install.md
     - Быстрое начало: getting-started/quickstart.rzk.md
     - Введение в зависимые типы: getting-started/dependent-types.rzk.md

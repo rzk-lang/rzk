@@ -19,6 +19,7 @@ theme:
     - navigation.sections
     - navigation.prune
     - navigation.path
+    - navigation.indexes
     - toc.integrate
 
 extra_javascript:
