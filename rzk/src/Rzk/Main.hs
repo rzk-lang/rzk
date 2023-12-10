@@ -5,12 +5,13 @@
 
 module Rzk.Main where
 
-import           Control.Monad           (forM, when)
-import           Data.List               (sort)
-import qualified Data.Yaml               as Yaml
-import           System.Directory        (doesPathExist)
-import           System.FilePath.Glob    (glob)
-import qualified Language.Rzk.Syntax     as Rzk
+import           Control.Monad        (forM, when)
+import           Data.List            (sort)
+import qualified Data.Yaml            as Yaml
+import           System.Directory     (doesPathExist)
+import           System.FilePath.Glob (glob)
+
+import qualified Language.Rzk.Syntax  as Rzk
 import           Rzk.Project.Config
 import           Rzk.TypeCheck
 
@@ -69,6 +70,7 @@ parseRzkFilesOrStdin = \case
       then do
         putStrLn ("Using Rzk project stucture specified in " <> rzkYamlPath)
         paths <- extractFilesFromRzkYaml rzkYamlPath
+        when (null paths) (error $ "No files found in " <> rzkYamlPath)
         parseRzkFilesOrStdin paths
       else do
         rzkModule <- parseStdin
