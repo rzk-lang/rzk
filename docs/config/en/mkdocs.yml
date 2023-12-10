@@ -67,9 +67,14 @@ theme:
         name: "Switch to light mode"
 
 plugins:
-  - blog:
-      categories: true
-      archive: true
+  - blog
+  - rss:
+      match_path: blog/posts/.*
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+        # - tags
   - social
   - mike:
       deploy_prefix: 'en/'
