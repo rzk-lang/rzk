@@ -159,6 +159,7 @@ test-suite rzk-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Rzk.FormatSpec
       Paths_rzk
   hs-source-dirs:
       test
@@ -175,6 +176,8 @@ test-suite rzk-test
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
     , directory >=1.2.7.0
+    , hspec
+    , hspec-discover
     , mtl >=2.2.2
     , rzk
     , template-haskell >=2.14.0.0

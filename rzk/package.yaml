@@ -117,6 +117,8 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - rzk
+      - hspec
+      - hspec-discover
 
   doctests:
     source-dirs: test
