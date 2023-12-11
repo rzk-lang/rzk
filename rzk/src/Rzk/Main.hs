@@ -70,7 +70,7 @@ parseRzkFilesOrStdin = \case
       then do
         putStrLn ("Using Rzk project stucture specified in " <> rzkYamlPath)
         paths <- extractFilesFromRzkYaml rzkYamlPath
-        when (null paths) (error $ "No files found in " <> rzkYamlPath)
+        when (null paths) (error $ "No Rzk files specified in the config file at " <> rzkYamlPath)
         parseRzkFilesOrStdin paths
       else do
         rzkModule <- parseStdin
