@@ -16,7 +16,8 @@ module Rzk.Format (
 ) where
 
 import           Control.Monad              ((<$!>))
-import           Data.List                  (elemIndex, foldl', sort)
+import           Data.List                  (elemIndex, foldl', isInfixOf, sort,
+                                             stripPrefix)
 
 import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
 import           Language.Rzk.Syntax.Layout (resolveLayout)
@@ -48,6 +49,12 @@ data FormatState = FormatState
   , definingName :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
   , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   }
+
+-- Inspired by https://hackage.haskell.org/package/extra-1.7.14/docs/src/Data.List.Extra.html#stripInfix
+stripInfix :: Eq a => [a] -> [a] -> [a]
+stripInfix needle haystack | Just rest <- stripPrefix needle haystack = stripInfix needle rest
+stripInfix _      []     = []
+stripInfix needle (x:xs) = x : stripInfix needle xs
 
 -- TODO: replace all tabs with 1 space before processing
 formatTextEdits :: String -> [FormattingEdit]
@@ -120,9 +127,8 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        -- | This is similar to (\\) but removes all occurrences (not just the first one)
-        setDifference xs excludes = filter (not . (`elem` excludes)) xs
-        precededBySingleCharOnly = null $ foldl' setDifference (take (col - 1) lineContent) punctuations
+        contentTillParen = take (col - 1) lineContent
+        precededBySingleCharOnly = not (":=" `isInfixOf` contentTillParen) && null (foldl' (flip stripInfix) contentTillParen punctuations)
         punctuations = concat
           [ map fst unicodeTokens -- ASCII sequences will be converted soon
           , map snd unicodeTokens
