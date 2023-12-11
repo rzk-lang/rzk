@@ -16,8 +16,7 @@ module Rzk.Format (
 ) where
 
 import           Control.Monad              ((<$!>))
-import           Data.List                  (elemIndex, foldl', isInfixOf, sort,
-                                             stripPrefix)
+import           Data.List                  (elemIndex, foldl', sort)
 
 import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
 import           Language.Rzk.Syntax.Layout (resolveLayout)
@@ -50,12 +49,6 @@ data FormatState = FormatState
   , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   }
 
--- Inspired by https://hackage.haskell.org/package/extra-1.7.14/docs/src/Data.List.Extra.html#stripInfix
-stripInfix :: Eq a => [a] -> [a] -> [a]
-stripInfix needle haystack | Just rest <- stripPrefix needle haystack = stripInfix needle rest
-stripInfix _      []     = []
-stripInfix needle (x:xs) = x : stripInfix needle xs
-
 -- TODO: replace all tabs with 1 space before processing
 formatTextEdits :: String -> [FormattingEdit]
 formatTextEdits contents = go initialState toks
@@ -66,6 +59,10 @@ formatTextEdits contents = go initialState toks
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
     toks = resolveLayout True (tokens rzkBlocks)
+    lineTokensBefore line col = filter isBefore toks
+      where
+        isBefore (PT (Pn _ l c) _) = l == line && c < col
+        isBefore _                 = False
     unicodeTokens =
       [ ("->", "→")
       , ("|->", "↦")
@@ -127,14 +124,15 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        contentTillParen = take (col - 1) lineContent
-        precededBySingleCharOnly = not (":=" `isInfixOf` contentTillParen) && null (foldl' (flip stripInfix) contentTillParen punctuations)
+        precededBySingleCharOnly = all isPunctuation (lineTokensBefore line col)
+        singleCharUnicodeTokens = filter (\(_, unicode) -> length unicode == 1) unicodeTokens
         punctuations = concat
-          [ map fst unicodeTokens -- ASCII sequences will be converted soon
-          , map snd unicodeTokens
+          [ map fst singleCharUnicodeTokens -- ASCII sequences will be converted soon
+          , map snd singleCharUnicodeTokens
           , ["(", ":", ",", "="]
-          , [" ", "\t"]
           ]
+        isPunctuation (Token tk _ _) = tk `elem` punctuations
+        isPunctuation _              = False
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         isLastNonSpaceChar = all (== ' ') (drop col lineContent)
 
