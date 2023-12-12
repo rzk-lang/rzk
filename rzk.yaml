@@ -1,0 +1,2 @@
+include:
+  - "docs/docs/en/posts/**/*.rzk.md"
