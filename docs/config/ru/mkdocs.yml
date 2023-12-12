@@ -43,6 +43,7 @@ nav:
     - Примеры:
       - Слабое устранение объединений форм: examples/recId.rzk.md
   - Песочница: playground/index.html
+  - Блог (англ.): blog/index.html
 
 theme:
   language: ru
