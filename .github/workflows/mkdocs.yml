@@ -2,11 +2,7 @@ name: MKDocs
 
 on:
   push:
-    branches: [develop,mkdocs-*]
-    tags: [v*]
-    paths:
-      - .github/workflows/mkdocs.yml
-      - docs/**
+    branches: [blog]
 
   workflow_dispatch:
 
