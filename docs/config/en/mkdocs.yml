@@ -1,0 +1,76 @@
+INHERIT: "../base.yml"
+site_url: https://rzk-lang.github.io/rzk/en/
+site_name: "Rzk proof assistant"
+site_description: "An experimental proof assistant for simplicial type theory and synthetic ∞-categories."
+site_author: "Nikolai Kudasov"
+docs_dir: '../../docs/en'
+site_dir: '../../generated/en'
+edit_uri: edit/develop/docs/docs/en/
+
+nav:
+  - About:
+    - index.md
+    - Community: community.md
+    - Tools: tools.md
+    - Contributors: CONTRIBUTORS.md
+    - Changelog: CHANGELOG.md
+    - Other proof assistants: related.md
+  - Getting Started:
+    - getting-started/index.md
+    - Install: getting-started/install.md
+    - Quickstart: getting-started/quickstart.rzk.md
+    - Depedent Types: getting-started/dependent-types.rzk.md
+    - Setting up an Rzk project: getting-started/project.md
+  - Reference:
+    - Introduction: reference/introduction.rzk.md
+    - Cube layer: reference/cube-layer.rzk.md
+    - Tope layer: reference/tope-layer.rzk.md
+    - Dependent types: reference/type-layer.rzk.md
+    - Tope disjunction elimination: reference/tope-disjunction-elimination.rzk.md
+    - Extension types: reference/extension-types.rzk.md
+    - Organizational features:
+      - Sections and Variables: reference/sections.rzk.md
+    - Builtins:
+      - Directed interval: reference/builtins/directed-interval.rzk.md
+      - Unit type: reference/builtins/unit.rzk.md
+    - Commands:
+      - Define and Postulate: reference/commands/define-postulate.rzk.md
+      - Compute: reference/commands/compute.rzk.md
+      - Check: reference/commands/check.rzk.md
+      - Options: reference/commands/options.rzk.md
+    - Other:
+      - Rendering Diagrams: reference/render.rzk.md
+    - Examples:
+      - Weak tope disjunction elimination: examples/recId.rzk.md
+  - Playground: playground/index.html
+  - Blog: blog/index.html
+
+theme:
+  language: en
+  font:
+    text: Inria Sans
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: white
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: "Switch to dark mode"
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: black
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: "Switch to light mode"
+
+plugins:
+  - social
+  - mike:
+      deploy_prefix: 'en/'
+  - search:
+      lang: en
+  - rzk:
+      render_svg: true
+      anchor_definitions: true

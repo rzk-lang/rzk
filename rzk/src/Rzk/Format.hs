@@ -59,6 +59,10 @@ formatTextEdits contents = go initialState toks
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
     toks = resolveLayout True (tokens rzkBlocks)
+    lineTokensBefore line col = filter isBefore toks
+      where
+        isBefore (PT (Pn _ l c) _) = l == line && c < col
+        isBefore _                 = False
     unicodeTokens =
       [ ("->", "→")
       , ("|->", "↦")
@@ -120,15 +124,15 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        -- | This is similar to (\\) but removes all occurrences (not just the first one)
-        setDifference xs excludes = filter (not . (`elem` excludes)) xs
-        precededBySingleCharOnly = null $ foldl' setDifference (take (col - 1) lineContent) punctuations
+        precededBySingleCharOnly = all isPunctuation (lineTokensBefore line col)
+        singleCharUnicodeTokens = filter (\(_, unicode) -> length unicode == 1) unicodeTokens
         punctuations = concat
-          [ map fst unicodeTokens -- ASCII sequences will be converted soon
-          , map snd unicodeTokens
+          [ map fst singleCharUnicodeTokens -- ASCII sequences will be converted soon
+          , map snd singleCharUnicodeTokens
           , ["(", ":", ",", "="]
-          , [" ", "\t"]
           ]
+        isPunctuation (Token tk _ _) = tk `elem` punctuations
+        isPunctuation _              = False
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         isLastNonSpaceChar = all (== ' ') (drop col lineContent)
 

@@ -1,0 +1,76 @@
+INHERIT: "../base.yml"
+site_url: https://rzk-lang.github.io/rzk/ru/
+site_name: "Решатель теорем Rzk"
+site_description: "Экспериментальный решатель теорем для симплициальной теории типов и синтетических ∞-категорий."
+site_author: "Николай Кудасов"
+docs_dir: '../../docs/ru'
+site_dir: '../../generated/ru'
+edit_uri: edit/develop/docs/docs/ru/
+
+nav:
+  - О проекте:
+    - index.md
+    - Сообщество: community.md
+    - Инструменты: tools.md
+    - Участники (англ.): CONTRIBUTORS.md
+    - История изменений (англ.): CHANGELOG.md
+    - Другие решатели: related.md
+  - Первые шаги:
+    - getting-started/index.md
+    - Установка: getting-started/install.md
+    - Быстрое начало: getting-started/quickstart.rzk.md
+    - Введение в зависимые типы: getting-started/dependent-types.rzk.md
+    - Настройка проекта: getting-started/project.md
+  - Руководство:
+    - Введение: reference/introduction.rzk.md
+    - Слой кубов: reference/cube-layer.rzk.md
+    - Слой форм: reference/tope-layer.rzk.md
+    - Зависимые типы: reference/type-layer.rzk.md
+    - Устранение объединений форм: reference/tope-disjunction-elimination.rzk.md
+    - Типы-расширения: reference/extension-types.rzk.md
+    - Организация кода:
+      - Разделы и предпосылки: reference/sections.rzk.md
+    - Встроенные определения:
+      - Направленный интервал: reference/builtins/directed-interval.rzk.md
+      - Единичный тип: reference/builtins/unit.rzk.md
+    - Команды:
+      - Определения и постулаты: reference/commands/define-postulate.rzk.md
+      - Вычисления: reference/commands/compute.rzk.md
+      - Проверка типов: reference/commands/check.rzk.md
+      - Опции решателя: reference/commands/options.rzk.md
+    - Другое:
+      - Отрисовка диаграм: reference/render.rzk.md
+    - Примеры:
+      - Слабое устранение объединений форм: examples/recId.rzk.md
+  - Песочница: playground/index.html
+  - Блог (англ.): blog/index.html
+
+theme:
+  language: ru
+  font:
+    text: PT Sans
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: white
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: "Переключить на тёмный режим"
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: black
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: "Переключить на светлый режим"
+
+plugins:
+  - social
+  - mike:
+      deploy_prefix: 'ru/'
+  - search:
+      lang: ru
+  - rzk:
+      render_svg: true
+      anchor_definitions: true
