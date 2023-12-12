@@ -51,5 +51,6 @@ jobs:
         if: ${{ github.ref_name == 'blog' }}
         run: |
           for config in $(ls docs/config/*/mkdocs.yml); do
-            mike deploy --push --config-file ${config} ${{ github.ref_name }};
+            mike deploy --config-file ${config} ${{ github.ref_name }};
+            mike props --config-file ${config} ${{ github.ref_name }} --set hidden=true --push ;
           done
