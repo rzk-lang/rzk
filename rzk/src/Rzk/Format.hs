@@ -16,8 +16,7 @@ module Rzk.Format (
 ) where
 
 import           Control.Monad              ((<$!>))
-import           Data.List                  (elemIndex, foldl', isInfixOf, sort,
-                                             stripPrefix)
+import           Data.List                  (elemIndex, foldl', sort)
 
 import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
 import           Language.Rzk.Syntax.Layout (resolveLayout)
@@ -29,7 +28,7 @@ import           Language.Rzk.Syntax.Lex    (Posn (Pn),
 -- | All indices are 1-based (as received from the lexer)
 -- Note: LSP uses 0-based indices
 data FormattingEdit = FormattingEdit Int Int Int Int String
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 -- TODO: more patterns, e.g. for identifiers and literals
 pattern Symbol :: String -> Tok
@@ -50,12 +49,6 @@ data FormatState = FormatState
   , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   }
 
--- Inspired by https://hackage.haskell.org/package/extra-1.7.14/docs/src/Data.List.Extra.html#stripInfix
-stripInfix :: Eq a => [a] -> [a] -> [a]
-stripInfix needle haystack | Just rest <- stripPrefix needle haystack = stripInfix needle rest
-stripInfix _      []     = []
-stripInfix needle (x:xs) = x : stripInfix needle xs
-
 -- TODO: replace all tabs with 1 space before processing
 formatTextEdits :: String -> [FormattingEdit]
 formatTextEdits contents = go initialState toks
@@ -66,6 +59,10 @@ formatTextEdits contents = go initialState toks
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
     toks = resolveLayout True (tokens rzkBlocks)
+    lineTokensBefore line col = filter isBefore toks
+      where
+        isBefore (PT (Pn _ l c) _) = l == line && c < col
+        isBefore _                 = False
     unicodeTokens =
       [ ("->", "→")
       , ("|->", "↦")
@@ -127,14 +124,15 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        contentTillParen = take (col - 1) lineContent
-        precededBySingleCharOnly = not (":=" `isInfixOf` contentTillParen) && null (foldl' (flip stripInfix) contentTillParen punctuations)
+        precededBySingleCharOnly = all isPunctuation (lineTokensBefore line col)
+        singleCharUnicodeTokens = filter (\(_, unicode) -> length unicode == 1) unicodeTokens
         punctuations = concat
-          [ map fst unicodeTokens -- ASCII sequences will be converted soon
-          , map snd unicodeTokens
+          [ map fst singleCharUnicodeTokens -- ASCII sequences will be converted soon
+          , map snd singleCharUnicodeTokens
           , ["(", ":", ",", "="]
-          , [" ", "\t"]
           ]
+        isPunctuation (Token tk _ _) = tk `elem` punctuations
+        isPunctuation _              = False
         spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
         isLastNonSpaceChar = all (== ' ') (drop col lineContent)
 
@@ -234,21 +232,26 @@ formatTextEdits contents = go initialState toks
         spacesNextLine = length $ takeWhile (== ' ') nextLine
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
-          | tk `elem` ["->", "→", ",", "*", "×", "="] = map snd $ filter fst
+          | tk `elem` ["->", "→", ",", "*", "×", "="] = concatMap snd $ filter fst
               -- Ensure exactly one space before (unless first char in line, or about to move to next line)
               [ (not isFirstNonSpaceChar && spacesBefore /= 1 && not isLastNonSpaceChar,
-                  FormattingEdit line (col - spacesBefore) line col " ")
+                  [FormattingEdit line (col - spacesBefore) line col " "])
               -- Ensure exactly one space after (unless last char in line)
               , (not isLastNonSpaceChar && spacesAfter /= 1,
-                  FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " ")
+                  [FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " "])
               -- If last char in line, move it to next line (except for lambda arrow)
               , (isLastNonSpaceChar && not (lambdaArrow s),
-                  FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
-                    "\n" ++ replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) ' ' ++ tk ++ " ")
+                  -- This is split into 2 edits to avoid possible overlap with unicode replacement
+                  -- 1. Add a new line (with relevant spaces) before the token
+                  [ FormattingEdit line (col - spacesBefore) line col $
+                      "\n" ++ replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) ' '
+                  -- 2. Replace the new line and spaces after the token with a single space
+                  , FormattingEdit line (col + length tk) (line + 1) (spacesNextLine + 1) " "
+                  ])
               -- If lambda -> is first char in line, move it to the previous line
               , (isFirstNonSpaceChar && isArrow && lambdaArrow s,
-                  FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
-                    " " ++ tk ++ "\n" ++ replicate spacesBefore ' ')
+                  [FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
+                    " " ++ tk ++ "\n" ++ replicate spacesBefore ' '])
               ]
           | otherwise = []
         unicodeEdits
