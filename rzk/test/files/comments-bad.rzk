@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Flipping the arguments of a function.
+#define flip
+    (A B : U)                         -- For any types A and B
+    (C : (x : A) -> (y : B) -> U)     -- and a type family C
+    (f : (x : A) -> (y : B) -> C x y) -- given a function f : A -> B -> C
+  : (y : B) -> (x : A) -> C x y       -- we construct a function of type B -> A -> C
+  := \y x -> f x y    -- by swapping the arguments

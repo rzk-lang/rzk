@@ -1,0 +1,11 @@
+#lang rzk-1
+
+#define id
+  ( A : U)
+  : A → A
+  := \ x → x
+
+#define swap
+  ( A B C : U)
+  : ( A → B → C) → (B → A → C)
+  := \ f y x → f x y
