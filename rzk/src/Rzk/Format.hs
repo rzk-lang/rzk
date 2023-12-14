@@ -28,7 +28,7 @@ import           Language.Rzk.Syntax.Lex    (Posn (Pn),
 -- | All indices are 1-based (as received from the lexer)
 -- Note: LSP uses 0-based indices
 data FormattingEdit = FormattingEdit Int Int Int Int String
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 -- TODO: more patterns, e.g. for identifiers and literals
 pattern Symbol :: String -> Tok
@@ -232,21 +232,26 @@ formatTextEdits contents = go initialState toks
         spacesNextLine = length $ takeWhile (== ' ') nextLine
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
-          | tk `elem` ["->", "→", ",", "*", "×", "="] = map snd $ filter fst
+          | tk `elem` ["->", "→", ",", "*", "×", "="] = concatMap snd $ filter fst
               -- Ensure exactly one space before (unless first char in line, or about to move to next line)
               [ (not isFirstNonSpaceChar && spacesBefore /= 1 && not isLastNonSpaceChar,
-                  FormattingEdit line (col - spacesBefore) line col " ")
+                  [FormattingEdit line (col - spacesBefore) line col " "])
               -- Ensure exactly one space after (unless last char in line)
               , (not isLastNonSpaceChar && spacesAfter /= 1,
-                  FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " ")
+                  [FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " "])
               -- If last char in line, move it to next line (except for lambda arrow)
               , (isLastNonSpaceChar && not (lambdaArrow s),
-                  FormattingEdit line (col - spacesBefore) (line + 1) (spacesNextLine + 1) $
-                    "\n" ++ replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) ' ' ++ tk ++ " ")
+                  -- This is split into 2 edits to avoid possible overlap with unicode replacement
+                  -- 1. Add a new line (with relevant spaces) before the token
+                  [ FormattingEdit line (col - spacesBefore) line col $
+                      "\n" ++ replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) ' '
+                  -- 2. Replace the new line and spaces after the token with a single space
+                  , FormattingEdit line (col + length tk) (line + 1) (spacesNextLine + 1) " "
+                  ])
               -- If lambda -> is first char in line, move it to the previous line
               , (isFirstNonSpaceChar && isArrow && lambdaArrow s,
-                  FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
-                    " " ++ tk ++ "\n" ++ replicate spacesBefore ' ')
+                  [FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
+                    " " ++ tk ++ "\n" ++ replicate spacesBefore ' '])
               ]
           | otherwise = []
         unicodeEdits
