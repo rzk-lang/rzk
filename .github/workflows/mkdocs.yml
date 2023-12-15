@@ -43,6 +43,12 @@ jobs:
             pushd ${lang_dir} && rzk typecheck; popd ;
           done
 
+      - name: Check Rzk formatting for each language
+        run:
+          for lang_dir in $(ls -d docs/docs/*/); do
+            pushd ${lang_dir} && rzk format --check; popd ;
+          done
+
       - name: 🔨 Install MkDocs Material and mike
         run: pip install -r docs/requirements.txt
 

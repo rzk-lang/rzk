@@ -5,8 +5,10 @@ Description : This module defines the formatter for rzk files.
 The formatter is designed in a way that can be consumed both by the CLI and the
 LSP server.
 -}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Rzk.Format (
   FormattingEdit (FormattingEdit),
@@ -15,15 +17,16 @@ module Rzk.Format (
   isWellFormatted, isWellFormattedFile,
 ) where
 
-import           Control.Monad              ((<$!>))
-import           Data.List                  (elemIndex, foldl', sort)
+import           Data.List                  (elemIndex, sort)
 
-import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
-import           Language.Rzk.Syntax.Layout (resolveLayout)
-import           Language.Rzk.Syntax.Lex    (Posn (Pn),
-                                             Tok (TK, T_VarIdentToken),
-                                             TokSymbol (TokSymbol), Token (PT),
-                                             tokens)
+import qualified Data.Text                  as T
+import qualified Data.Text.IO               as T
+
+import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks,
+                                             resolveLayout)
+import           Language.Rzk.Syntax.Lex    (Posn (Pn), Tok (..),
+                                             TokSymbol (TokSymbol),
+                                             Token (PT), tokens)
 
 -- | All indices are 1-based (as received from the lexer)
 -- Note: LSP uses 0-based indices
@@ -47,19 +50,22 @@ data FormatState = FormatState
   { parensDepth  :: Int  -- ^ The level of parentheses nesting
   , definingName :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
   , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
+  , allTokens    :: [Token] -- ^ The full array of tokens after resolving the layout
   }
 
 -- TODO: replace all tabs with 1 space before processing
 formatTextEdits :: String -> [FormattingEdit]
-formatTextEdits contents = go initialState toks
+formatTextEdits contents =
+  case resolveLayout True (tokens rzkBlocks) of
+    Left _err -> [] -- TODO: log error (in a CLI and LSP friendly way)
+    Right allToks -> go (initialState {allTokens = allToks}) allToks
   where
-    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False }
+    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
-    decParensDepth s = s { parensDepth = parensDepth s - 1 }
+    decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
     contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
-    toks = resolveLayout True (tokens rzkBlocks)
-    lineTokensBefore line col = filter isBefore toks
+    lineTokensBefore toks line col = filter isBefore toks
       where
         isBefore (PT (Pn _ l c) _) = l == line && c < col
         isBefore _                 = False
@@ -124,7 +130,7 @@ formatTextEdits contents = go initialState toks
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        precededBySingleCharOnly = all isPunctuation (lineTokensBefore line col)
+        precededBySingleCharOnly = all isPunctuation (lineTokensBefore (allTokens s) line col)
         singleCharUnicodeTokens = filter (\(_, unicode) -> length unicode == 1) unicodeTokens
         punctuations = concat
           [ map fst singleCharUnicodeTokens -- ASCII sequences will be converted soon
@@ -280,7 +286,7 @@ applyTextEdit (FormattingEdit sl sc el ec newText) oldText =
       Nothing -> length t'
 
 applyTextEdits :: [FormattingEdit] -> String -> String
-applyTextEdits edits contents = foldl' (flip applyTextEdit) contents (reverse $ sort edits)
+applyTextEdits edits contents = foldr applyTextEdit contents (sort edits)
 
 -- | Format Rzk code, returning the formatted version.
 format :: String -> String
@@ -288,7 +294,9 @@ format = applyTextEdits =<< formatTextEdits
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO String
-formatFile path = format <$!> readFile path -- strict because possibility of writing to same file
+formatFile path = do
+  contents <- T.readFile path
+  return (format (T.unpack contents))
 
 -- | Format the file and write the result back to the file.
 formatFileWrite :: FilePath -> IO ()
@@ -301,4 +309,6 @@ isWellFormatted src = null (formatTextEdits src)
 
 -- | Same as 'isWellFormatted', but reads the source code from a file.
 isWellFormattedFile :: FilePath -> IO Bool
-isWellFormattedFile path = isWellFormatted <$> readFile path
+isWellFormattedFile path = do
+  contents <- T.readFile path
+  return (isWellFormatted (T.unpack contents))
