@@ -19,17 +19,17 @@ We begin by introducing common HoTT definitions:
 -- A is contractible there exists x : A such that for any y : A we have x = y.
 #define iscontr (A : U)
   : U
-  := Σ ( a : A) , (x : A) → a =_{A} x
+  := Σ (a : A) , (x : A) → a =_{A} x
 
 -- A is a proposition if for any x, y : A we have x = y
 #define isaprop (A : U)
   : U
-  := ( x : A) → (y : A) → x =_{A} y
+  := (x : A) → (y : A) → x =_{A} y
 
 -- A is a set if for any x, y : A the type x =_{A} y is a proposition
 #define isaset (A : U)
   : U
-  := ( x : A) → (y : A) → isaprop (x =_{A} y)
+  := (x : A) → (y : A) → isaprop (x =_{A} y)
 
 -- A function f : A → B is an equivalence
 -- if there exists g : B → A
@@ -37,7 +37,7 @@ We begin by introducing common HoTT definitions:
 -- and for all y : B we have f (g y) = y
 #define isweq (A : U) (B : U) (f : A → B)
   : U
-  := Σ ( g : B → A)
+  := Σ (g : B → A)
   , prod
     ( ( x : A) → g (f x) =_{A} x)
     ( ( y : B) → f (g y) =_{B} y)
@@ -45,7 +45,7 @@ We begin by introducing common HoTT definitions:
 -- Equivalence of types A and B
 #define weq (A : U) (B : U)
   : U
-  := Σ ( f : A → B)
+  := Σ (f : A → B)
   , isweq A B f
 
 -- Transport along a path
@@ -66,12 +66,12 @@ We can now define relative function extensionality. There are several formulatio
 -- [RS17, Axiom 4.6] Relative function extensionality.
 #define relfunext
   : U
-  := ( I : CUBE)
+  := (I : CUBE)
   → ( ψ : I → TOPE)
   → ( φ : ψ → TOPE)
   → ( A : ψ → U)
   → ( ( t : ψ) → iscontr (A t))
-  → ( a : ( t : φ) → A t)
+  → ( a : (t : φ) → A t)
   → ( t : ψ) → A t [ φ t ↦ a t]
 
 -- [RS17, Proposition 4.8] A (weaker) formulation of function extensionality.
@@ -82,9 +82,9 @@ We can now define relative function extensionality. There are several formulatio
   → ( ψ : I → TOPE)
   → ( φ : ψ → TOPE)
   → ( A : ψ → U)
-  → ( a : ( t : φ) → A t)
+  → ( a : (t : φ) → A t)
   → ( f : (t : ψ) → A t [ φ t ↦ a t ])
-  → ( g : ( t : ψ) → A t [ φ t ↦ a t ])
+  → ( g : (t : ψ) → A t [ φ t ↦ a t ])
   → weq
     ( f = g)
     ( ( t : ψ) → (f t =_{A t} g t) [ φ t ↦ refl ])
@@ -106,13 +106,13 @@ First, we define how to restrict an extension type to a subshape:
 
 -- Restrict extension type to a subshape.
 #define restrict_phi
-  ( a : ( t : φ) → A t)
+  ( a : (t : φ) → A t)
   : ( t : I | ψ t ∧ φ t) → A t
   := \ t → a t
 
 -- Restrict extension type to a subshape.
 #define restrict_psi
-  ( a : ( t : ψ) → A t)
+  ( a : (t : ψ) → A t)
   : ( t : I | ψ t ∧ φ t) → A t
   := \ t → a t
 ```
@@ -122,14 +122,14 @@ Then, how to reformulate an `a` (or `b`) as an extension of its restriction:
 ```rzk
 -- Reformulate extension type as an extension of a restriction.
 #define ext-of-restrict_psi
-  ( a : ( t : ψ) → A t)
+  ( a : (t : ψ) → A t)
   : ( t : ψ)
   → A t [ ψ t ∧ φ t ↦ restrict_psi a t ]
   := a  -- type is coerced automatically here
 
 -- Reformulate extension type as an extension of a restriction.
 #define ext-of-restrict_phi
-  ( a : ( t : φ) → A t)
+  ( a : (t : φ) → A t)
   : ( t : φ)
   → A t [ ψ t ∧ φ t ↦ restrict_phi a t ]
   := a  -- type is coerced automatically here

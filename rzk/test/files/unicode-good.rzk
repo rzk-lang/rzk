@@ -1,0 +1,17 @@
+#lang rzk-1
+
+#define weird
+  ( A : U)
+  ( I : A → CUBE)
+  ( x y : A)
+  : CUBE
+  := I x × I y
+
+#define iscontr
+  ( A : U)
+  : U
+  := Σ (a : A) , (x : A) → a =_{A} x
+
+#def ∂Δ¹
+  : Δ¹ → TOPE
+  := \ t → (t ≡ 0₂ ∨ t ≡ 1₂)

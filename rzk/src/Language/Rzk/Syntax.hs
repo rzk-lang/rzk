@@ -9,6 +9,7 @@ module Language.Rzk.Syntax (
   parseModuleRzk,
   parseModuleFile,
   parseTerm,
+  resolveLayout,
   Print.Print(..), printTree,
   tryExtractMarkdownCodeBlocks,
   extractMarkdownCodeBlocks,
@@ -23,11 +24,12 @@ import           Data.Char                  (isSpace)
 import qualified Data.List                  as List
 
 import           Language.Rzk.Syntax.Abs
+import qualified Language.Rzk.Syntax.Layout as Layout
 import qualified Language.Rzk.Syntax.Print  as Print
 
-import           Language.Rzk.Syntax.Layout (resolveLayout)
-import           Language.Rzk.Syntax.Lex    (tokens)
+import           Language.Rzk.Syntax.Lex    (tokens, Token)
 import           Language.Rzk.Syntax.Par    (pModule, pTerm)
+import GHC.IO (unsafePerformIO)
 
 tryOrDisplayException :: Either String a -> IO (Either String a)
 tryOrDisplayException = tryOrDisplayExceptionIO . evaluate
@@ -42,10 +44,10 @@ parseModuleSafe :: String -> IO (Either String Module)
 parseModuleSafe = tryOrDisplayException . parseModule
 
 parseModule :: String -> Either String Module
-parseModule = pModule . resolveLayout True . tokens . tryExtractMarkdownCodeBlocks "rzk"
+parseModule = pModule . Layout.resolveLayout True . tokens . tryExtractMarkdownCodeBlocks "rzk"
 
 parseModuleRzk :: String -> Either String Module
-parseModuleRzk = pModule . resolveLayout True . tokens
+parseModuleRzk = pModule . Layout.resolveLayout True . tokens
 
 parseModuleFile :: FilePath -> IO (Either String Module)
 parseModuleFile path = do
@@ -121,6 +123,22 @@ identifyCodeBlockStart line
   | otherwise = NonCode
   where
     (prefix, suffix) = List.splitAt 3 line
+
+-- * Making BNFC resolveLayout safer
+
+-- | Replace layout syntax with explicit layout tokens.
+resolveLayout
+  :: Bool      -- ^ Whether to use top-level layout.
+  -> [Token]   -- ^ Token stream before layout resolution.
+  -> Either String [Token]   -- ^ Token stream after layout resolution.
+resolveLayout isTopLevel toks = unsafePerformIO $ do
+  -- NOTE: we use (length . show) as poor man's Control.DeepSeq.force
+  -- NOTE: this is required to force all resolveLayout error's to come out
+  try (evaluate (length (show resolvedToks))) >>= \case
+    Left (err :: SomeException) -> return (Left (displayException err))
+    Right _ -> return (Right resolvedToks)
+  where
+    resolvedToks = Layout.resolveLayout isTopLevel toks
 
 -- * Overriding BNFC pretty-printer
 
