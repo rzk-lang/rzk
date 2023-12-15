@@ -69,7 +69,6 @@ library
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
-    , deepseq >=1.4.8.1
     , directory >=1.2.7.0
     , mtl >=2.2.2
     , template-haskell >=2.14.0.0
@@ -114,7 +113,6 @@ executable rzk
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
-    , deepseq >=1.4.8.1
     , directory >=1.2.7.0
     , mtl >=2.2.2
     , rzk
@@ -147,7 +145,6 @@ test-suite doctests
     , base
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
-    , deepseq >=1.4.8.1
     , directory >=1.2.7.0
     , doctest
     , mtl >=2.2.2
@@ -178,7 +175,6 @@ test-suite rzk-test
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
-    , deepseq >=1.4.8.1
     , directory >=1.2.7.0
     , hspec
     , hspec-discover

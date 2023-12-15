@@ -9,6 +9,7 @@ LSP server.
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Rzk.Format (
   FormattingEdit (FormattingEdit),
@@ -19,16 +20,14 @@ module Rzk.Format (
 
 import           Data.List                  (elemIndex, foldl', sort)
 
-import           Control.DeepSeq            (NFData, force, rnf)
-import           Control.Exception          (SomeException, evaluate, try)
 import qualified Data.Text                  as T
 import qualified Data.Text.IO               as T
 
-import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks)
-import           Language.Rzk.Syntax.Layout (resolveLayout)
+import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks,
+                                             resolveLayout)
 import           Language.Rzk.Syntax.Lex    (Posn (Pn), Tok (..),
                                              TokSymbol (TokSymbol),
-                                             Token (Err, PT), tokens)
+                                             Token (PT), tokens)
 
 -- | All indices are 1-based (as received from the lexer)
 -- Note: LSP uses 0-based indices
@@ -55,28 +54,17 @@ data FormatState = FormatState
   , allTokens    :: [Token] -- ^ The full array of tokens after resolving the layout
   }
 
-instance NFData Posn where
-  rnf (Pn a l c) = rnf a `seq` rnf l `seq` rnf c
-
-instance NFData Token where
-  rnf (Err pos)                     = rnf pos
-  rnf (PT pos (TK (TokSymbol s i))) = rnf pos `seq` rnf s `seq` rnf i
-  rnf (PT pos (T_VarIdentToken s))  = rnf pos `seq` rnf s
-  rnf (PT pos (T_HoleIdentToken s)) = rnf pos `seq` rnf s
-  rnf (PT pos (TL s))               = rnf pos `seq` rnf s
-  rnf (PT pos (TI s))               = rnf pos `seq` rnf s
-  rnf (PT pos (TV s))               = rnf pos `seq` rnf s
-  rnf (PT pos (TD s))               = rnf pos `seq` rnf s
-  rnf (PT pos (TC s))               = rnf pos `seq` rnf s
-
--- TODO: replace all tabs with 1 space before processing
 formatTextEdits :: String -> IO [FormattingEdit]
 formatTextEdits contents = do
-  toksOrError <- try $ evaluate $ force $ resolveLayout True (tokens rzkBlocks)
-  case toksOrError of
-    Left (_ :: SomeException) -> return [] -- TODO: log error (in a CLI and LSP friendly way)
-    Right toks                -> do
-      return $ go (initialState {allTokens = toks}) toks
+  let edits = unsafeFormatTextEdits contents
+  return edits
+
+-- TODO: replace all tabs with 1 space before processing
+unsafeFormatTextEdits :: String -> [FormattingEdit]
+unsafeFormatTextEdits contents =
+  case resolveLayout True (tokens rzkBlocks) of
+    Left _err -> [] -- TODO: log error (in a CLI and LSP friendly way)
+    Right allToks -> go (initialState {allTokens = allToks}) allToks
   where
     initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
