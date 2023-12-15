@@ -79,7 +79,7 @@ which we will discuss soon. For now, we give definition of product types:
 #define prod
   ( A B : U)
   : U
-  := Σ ( _ : A) , B
+  := Σ (_ : A) , B
 ```
 
 The type `#!rzk prod A B` corresponds to the product type $A \times B$.
@@ -188,7 +188,7 @@ For example, for the product type `#!rzk prod A B`, recursion principle looks li
   ( C : U)
   ( f : A → B → C)
   : prod A B → C
-  := \ ( a , b) → f a b
+  := \ (a , b) → f a b
 ```
 
 For the `#!rzk Unit` type, recursion principle is trivial:
@@ -223,7 +223,7 @@ For example, for the product type `#!rzk prod A B`, induction principle looks li
   ( C : prod A B → U)
   ( f : (a : A) → (b : B) → C (a , b))
   : ( z : prod A B) → C z
-  := \ ( a , b) → f a b
+  := \ (a , b) → f a b
 ```
 
 We can use `#!rzk ind-prod` to prove the uniqueness principle for products.
@@ -313,7 +313,7 @@ The first projection can be easily defined in terms of pattern matching:
   ( A : U)
   ( B : A → U)
   : ( Σ ( a : A) , B a) → A
-  := \ ( a , _) → a
+  := \ (a , _) → a
 ```
 
 However, second projection requires some care. For instance, we might try this:
@@ -339,7 +339,7 @@ To access it, we need a dependent function:
   ( A : U)
   ( B : A → U)
   : ( z : Σ (a : A) , B a) → B (pr₁ A B z)
-  := \ ( _ , b) → b
+  := \ (_ , b) → b
 ```
 
 In Rzk, it is sometimes more convenient to talk about Σ-types as "total" types (as in "total spaces"):
@@ -349,7 +349,7 @@ In Rzk, it is sometimes more convenient to talk about Σ-types as "total" types 
   ( A : U)
   ( B : A → U)
   : U
-  := Σ ( a : A) , B a
+  := Σ (a : A) , B a
 ```
 
 We can use pattern matching in the function type and this new definition to write
@@ -376,7 +376,7 @@ the recursion principle for product types:
   ( C : U)
   ( f : (a : A) → B a → C)
   : total-type A B → C
-  := \ ( a , b) → f a b
+  := \ (a , b) → f a b
 ```
 
 The induction principle is, again, a generalization of the recursion
@@ -389,7 +389,7 @@ principle to dependent types:
   ( C : total-type A B → U)
   ( f : (a : A) → (b : B a) → C (a , b))
   : ( z : total-type A B) → C z
-  := \ ( a , b) → f a b
+  := \ (a , b) → f a b
 ```
 
 As before, using `#!rzk ind-Σ` we may prove the uniqueness principle, now for Σ-types:
@@ -424,7 +424,7 @@ Using `#!rzk ind-Σ` we can also prove a type-theoretic axiom of choice:
 ```rzk
 #define AxiomOfChoice
   : U
-  := ( A : U)
+  := (A : U)
     → ( B : U)
     → ( R : A → B → U)
     → ( ( x : A) → Σ (y : B) , R x y)
