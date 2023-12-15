@@ -1,5 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeApplications      #-}
 
 module Language.Rzk.VSCode.Lsp where
 
@@ -17,18 +19,54 @@ import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 
+import           Control.Exception             (SomeException, evaluate, try)
+import           Control.Monad.Except          (ExceptT (ExceptT),
+                                                MonadError (throwError),
+                                                modifyError, runExceptT)
 import           Data.Aeson                    (Result (Error, Success),
                                                 fromJSON)
-import           Language.Rzk.Syntax           (parseModuleSafe)
+import           Language.Rzk.Syntax           (parseModuleFile,
+                                                parseModuleSafe)
 import           Language.Rzk.VSCode.Config    (ServerConfig (..))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
+import           Rzk.TypeCheck                 (defaultTypeCheck,
+                                                typecheckModulesWithLocationIncremental)
 
 -- | The maximum number of diagnostic messages to send to the client
 maxDiagnosticCount :: Int
 maxDiagnosticCount = 100
+
+-- | Detects if the given path has changes in its declaration compared to what's in the cache
+hasNotChanged :: RzkTypecheckCache -> FilePath -> LSP Bool
+hasNotChanged cache path = toBool $ do
+  cachedDecls <- maybeToEitherLSP $ lookup path cache
+  module' <- toExceptTLifted $ parseModuleFile path
+  e <- toExceptTLifted $ try @SomeException $ evaluate $
+    defaultTypeCheck (typecheckModulesWithLocationIncremental (filter ((/= path) . fst) cache) [(path, module')])
+  (checkedModules, _errors) <- toExceptT $ return e
+  decls' <- maybeToEitherLSP $ lookup path checkedModules
+  return (decls' == cachedDecls)
+  where
+    toExceptT = modifyError (const ()) . ExceptT
+    toExceptTLifted = toExceptT . liftIO
+    maybeToEitherLSP = \case
+      Nothing -> throwError ()
+      Just x -> return x
+    toBool m = runExceptT m >>= \case
+      Left _ -> return False
+      Right x -> return x
+
+-- | Monadic 'dropWhile'
+dropWhileM :: (Monad m) => (a -> m Bool) -> [a] -> m [a]
+dropWhileM _ []     = return []
+dropWhileM p (x:xs) = do
+  q <- p x
+  if q
+    then dropWhileM p xs
+    else return (x:xs)
 
 handlers :: Handlers LSP
 handlers =
@@ -46,7 +84,10 @@ handlers =
           then do
             logDebug "rzk.yaml modified. Clearing module cache"
             resetCacheForAllFiles
-          else resetCacheForFiles modifiedPaths
+          else do
+            cache <- getCachedTypecheckedModules
+            actualModified <- dropWhileM (hasNotChanged cache) modifiedPaths
+            resetCacheForFiles actualModified
         typecheckFromConfigFile
     , notificationHandler SMethod_TextDocumentDidSave $ \_msg -> do
         -- TODO: check if the file is included in the config's `include` list.
