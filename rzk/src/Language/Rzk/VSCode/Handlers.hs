@@ -240,7 +240,7 @@ formatDocument req res = do
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
       Just sourceCode -> do
-        edits <- liftIO $ formatTextEdits (filter (/= '\r') $ T.unpack sourceCode)
+        let edits = formatTextEdits (filter (/= '\r') $ T.unpack sourceCode)
         return (Right $ map formattingEditToTextEdit edits)
     case possibleEdits of
       Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing

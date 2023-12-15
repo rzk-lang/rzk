@@ -9,7 +9,6 @@ LSP server.
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Rzk.Format (
   FormattingEdit (FormattingEdit),
@@ -54,14 +53,9 @@ data FormatState = FormatState
   , allTokens    :: [Token] -- ^ The full array of tokens after resolving the layout
   }
 
-formatTextEdits :: String -> IO [FormattingEdit]
-formatTextEdits contents = do
-  let edits = unsafeFormatTextEdits contents
-  return edits
-
 -- TODO: replace all tabs with 1 space before processing
-unsafeFormatTextEdits :: String -> [FormattingEdit]
-unsafeFormatTextEdits contents =
+formatTextEdits :: String -> [FormattingEdit]
+formatTextEdits contents =
   case resolveLayout True (tokens rzkBlocks) of
     Left _err -> [] -- TODO: log error (in a CLI and LSP friendly way)
     Right allToks -> go (initialState {allTokens = allToks}) allToks
@@ -292,17 +286,15 @@ applyTextEdit (FormattingEdit sl sc el ec newText) oldText =
       Nothing -> length t'
 
 applyTextEdits :: [FormattingEdit] -> String -> String
-applyTextEdits edits contents = foldl' (flip applyTextEdit) contents (reverse $ sort edits)
+applyTextEdits edits contents = foldr applyTextEdit contents (sort edits)
 
 -- | Format Rzk code, returning the formatted version.
-format :: String -> IO String
-format s = do
-  edits <- formatTextEdits s
-  return $ applyTextEdits edits s
+format :: String -> String
+format = applyTextEdits =<< formatTextEdits
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO String
-formatFile path = readFile path >>= format
+formatFile path = format <$> readFile path
 
 -- | Format the file and write the result back to the file.
 formatFileWrite :: FilePath -> IO ()
@@ -310,9 +302,11 @@ formatFileWrite path = formatFile path >>= writeFile path
 
 -- | Check if the given Rzk source code is well formatted.
 --   This is useful for automation tasks.
-isWellFormatted :: String -> IO Bool
-isWellFormatted src = null <$> formatTextEdits src
+isWellFormatted :: String -> Bool
+isWellFormatted src = null (formatTextEdits src)
 
 -- | Same as 'isWellFormatted', but reads the source code from a file.
 isWellFormattedFile :: FilePath -> IO Bool
-isWellFormattedFile path = T.readFile path >>= isWellFormatted . T.unpack
+isWellFormattedFile path = do
+  contents <- T.readFile path
+  return (isWellFormatted (T.unpack contents))
