@@ -17,7 +17,7 @@ module Rzk.Format (
   isWellFormatted, isWellFormattedFile,
 ) where
 
-import           Data.List                  (elemIndex, foldl', sort)
+import           Data.List                  (elemIndex, sort)
 
 import qualified Data.Text                  as T
 import qualified Data.Text.IO               as T
