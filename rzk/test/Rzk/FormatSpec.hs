@@ -12,8 +12,8 @@ formatsTo :: FilePath -> FilePath -> Expectation
 formatsTo beforePath afterPath = do
   beforeSrc <- readFile ("test/files/" ++ beforePath)
   afterSrc <- readFile ("test/files/" ++ afterPath)
-  format beforeSrc `shouldBe` afterSrc
-  isWellFormatted afterSrc `shouldBe` True -- idempotency
+  format beforeSrc `shouldReturn` afterSrc
+  isWellFormatted afterSrc `shouldReturn` True -- idempotency
 
 formats :: FilePath -> Expectation
 formats path = (path ++ "-bad.rzk") `formatsTo` (path ++ "-good.rzk")
