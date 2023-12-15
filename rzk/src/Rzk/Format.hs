@@ -294,7 +294,9 @@ format = applyTextEdits =<< formatTextEdits
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO String
-formatFile path = format <$> readFile path
+formatFile path = do
+  contents <- T.readFile path
+  return (format (T.unpack contents))
 
 -- | Format the file and write the result back to the file.
 formatFileWrite :: FilePath -> IO ()
