@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.3 — 2023-12-16
+
+Fixes:
+- Fix overlapping edits in the formatter, hopefully making it idempotent (see [#160](https://github.com/rzk-lang/rzk/pull/160));
+- Fix formatter crashing the language server (see [#161](https://github.com/rzk-lang/rzk/pull/161));
+- Avoid unnecessary typechecking when semantics of a file has not changed (see [#159](https://github.com/rzk-lang/rzk/pull/159));
+- Stop typechecking after the first parse error (avoid invalid cache) (see [`68ab0b4`](https://github.com/rzk-lang/rzk/commit/68ab0b4dd3d627756e10adb55cb16845b08d09d9));
+
+Other:
+- Add unit tests for the formatter (see [#157](https://github.com/rzk-lang/rzk/pull/157));
+
 ## v0.7.2 — 2023-12-12
 
 Fixes:
