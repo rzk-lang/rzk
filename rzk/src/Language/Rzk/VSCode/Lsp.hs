@@ -39,25 +39,36 @@ import           Rzk.TypeCheck                 (defaultTypeCheck,
 maxDiagnosticCount :: Int
 maxDiagnosticCount = 100
 
+data IsChanged
+  = HasChanged
+  | NotChanged
+
 -- | Detects if the given path has changes in its declaration compared to what's in the cache
-hasNotChanged :: RzkTypecheckCache -> FilePath -> LSP Bool
-hasNotChanged cache path = toBool $ do
+isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
+isChanged cache path = toIsChanged $ do
   cachedDecls <- maybeToEitherLSP $ lookup path cache
   module' <- toExceptTLifted $ parseModuleFile path
   e <- toExceptTLifted $ try @SomeException $ evaluate $
-    defaultTypeCheck (typecheckModulesWithLocationIncremental (filter ((/= path) . fst) cache) [(path, module')])
+    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cache) [(path, module')])
   (checkedModules, _errors) <- toExceptT $ return e
   decls' <- maybeToEitherLSP $ lookup path checkedModules
-  return (decls' == cachedDecls)
+  return $ if decls' == cachedDecls
+    then NotChanged
+    else HasChanged
   where
     toExceptT = modifyError (const ()) . ExceptT
     toExceptTLifted = toExceptT . liftIO
     maybeToEitherLSP = \case
       Nothing -> throwError ()
       Just x -> return x
-    toBool m = runExceptT m >>= \case
-      Left _ -> return False
+    toIsChanged m = runExceptT m >>= \case
+      Left _ -> return HasChanged -- in case of error consider the file has changed
       Right x -> return x
+
+hasNotChanged :: RzkTypecheckCache -> FilePath -> LSP Bool
+hasNotChanged cache path = isChanged cache path >>= \case
+  HasChanged -> return False
+  NotChanged -> return True
 
 -- | Monadic 'dropWhile'
 dropWhileM :: (Monad m) => (a -> m Bool) -> [a] -> m [a]

@@ -61,7 +61,7 @@ collectErrors :: [(FilePath, Either String Module)] -> ([(FilePath, String)], [(
 collectErrors [] = ([], [])
 collectErrors ((path, result) : paths) =
   case result of
-    Left err      -> ((path, err) : errors, modules)
+    Left err      -> ((path, err) : errors, [])
     Right module_ -> (errors, (path, module_) : modules)
   where
     (errors, modules) = collectErrors paths
