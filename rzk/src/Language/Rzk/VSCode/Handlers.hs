@@ -61,7 +61,7 @@ collectErrors :: [(FilePath, Either String Module)] -> ([(FilePath, String)], [(
 collectErrors [] = ([], [])
 collectErrors ((path, result) : paths) =
   case result of
-    Left err      -> ((path, err) : errors, modules)
+    Left err      -> ((path, err) : errors, [])
     Right module_ -> (errors, (path, module_) : modules)
   where
     (errors, modules) = collectErrors paths
@@ -106,8 +106,14 @@ typecheckFromConfigFile = do
             defaultTypeCheck (typecheckModulesWithLocationIncremental cachedModules parsedModules)
 
           (typeErrors, _checkedModules) <- case tcResults of
-            Left (_ex :: SomeException) -> return ([], [])   -- FIXME: publish diagnostics about an exception during typechecking!
-            Right (Left err) -> return ([err], [])    -- sort of impossible
+            Left (ex :: SomeException) -> do
+              -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
+              --  because exceptions are expected when the file has invalid syntax
+              logWarning ("Encountered an exception while typechecking:\n" ++ show ex)
+              return ([], [])
+            Right (Left err) -> do
+              logError ("An impossible error happened! Please report a bug:\n" ++ ppTypeErrorInScopedContext' BottomUp err)
+              return ([err], [])    -- sort of impossible
             Right (Right (checkedModules, errors)) -> do
                 -- cache well-typed modules
                 logInfo (show (length checkedModules) ++ " modules successfully typechecked")
@@ -233,7 +239,9 @@ formatDocument req res = do
     mdoc <- getVirtualFile doc
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
-      Just sourceCode -> return (Right $ map formattingEditToTextEdit $ formatTextEdits (filter (/= '\r') $ T.unpack sourceCode))
+      Just sourceCode -> do
+        let edits = formatTextEdits (filter (/= '\r') $ T.unpack sourceCode)
+        return (Right $ map formattingEditToTextEdit edits)
     case possibleEdits of
       Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
       Right edits -> do

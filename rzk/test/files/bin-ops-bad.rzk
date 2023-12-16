@@ -1,0 +1,19 @@
+#def function
+  ( parameter-1 : type-1)
+  ( parameter-2 : type-2)
+  : type-with-a-name-3 →
+  type-with-a-longer-name-4 ->
+  short-type-5
+  := undefined
+
+#def is-contr-map-has-retraction uses (is-contr-f)
+  : has-retraction A B f
+  :=
+    ( is-contr-map-inverse ,
+      \ a
+      → ( ap (fib A B f (f a)) A
+          ( is-contr-map-data-in-fiber a)
+          ( (a , refl))
+          ( ( a , refl))
+          ( \ u → first u)
+          ( is-contr-map-path-in-fiber a)))

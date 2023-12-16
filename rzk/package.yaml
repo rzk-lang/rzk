@@ -1,5 +1,5 @@
 name: rzk
-version: 0.7.2
+version: 0.7.3
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -117,6 +117,8 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - rzk
+      - hspec
+      - hspec-discover
 
   doctests:
     source-dirs: test

@@ -47,7 +47,7 @@ data Decl var = Decl
   , declValue        :: Maybe (TermT var)
   , declIsAssumption :: Bool
   , declUsedVars     :: [var]
-  }
+  } deriving Eq
 
 type Decl' = Decl VarIdent
 

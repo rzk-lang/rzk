@@ -1,0 +1,38 @@
+#def is-segal-is-local-horn-inclusion
+  (A : U)
+  (is-local-horn-inclusion-A : is-local-horn-inclusion A)
+  : is-segal A
+  :=
+  \ x y z f g →
+  contractible-fibers-is-equiv-projection
+  (   Λ → A)
+  (\ k →
+    Σ (h : hom A (k (0₂ , 0₂)) (k (1₂ , 1₂)))
+    , (  hom2 A
+        ( k (0₂ , 0₂)) (k (1₂ , 0₂)) (k (1₂ , 1₂))
+        (  \ t → k (t , 0₂))
+        ( \t → k (1₂ , t))
+        (h)))
+  (second
+    (   equiv-comp
+      ( Σ ( k : Λ → A)
+        , Σ (h : hom A (k (0₂ , 0₂)) (k (1₂ , 1₂)))
+          , (hom2 A
+              ( k (0₂ , 0₂)) (k (1₂ , 0₂)) (k (1₂ , 1₂))
+              (\ t → k (t , 0₂))
+              (\ t → k (1₂ , t))
+              (h)))
+      (Δ² → A)
+      ( Λ → A)
+      ( inv-equiv
+        (  Δ² → A)
+        (  Σ ( k : Λ → A)
+          , Σ ( h : hom A (k (0₂ , 0₂)) (k (1₂ , 1₂)))
+            , (hom2 A
+                (k (0₂ , 0₂)) (k (1₂ , 0₂)) (k (1₂ , 1₂))
+                (\ t → k (t , 0₂))
+                (\ t → k (1₂ , t))
+                (h)))
+        ( equiv-horn-restriction A))
+      (horn-restriction A , is-local-horn-inclusion-A)))
+  (horn A x y z f g)
