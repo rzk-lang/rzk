@@ -5,19 +5,17 @@
 
 module Language.Rzk.VSCode.Lsp where
 
-import           Control.Lens                  (_Just, to, (^.), (^..))
+import           Control.Lens                  (_Just, to, (^..))
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Data.Default.Class            (Default (def))
 import           Data.List                     (isSuffixOf)
 import qualified Data.Text                     as T
 import           Language.LSP.Protocol.Lens    (HasParams (params),
-                                                HasTextDocument (textDocument),
                                                 HasUri (uri), changes, uri)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
-import           Language.LSP.VFS              (virtualFileText)
 
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Monad.Except          (ExceptT (ExceptT),
@@ -25,13 +23,11 @@ import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 modifyError, runExceptT)
 import           Data.Aeson                    (Result (Error, Success),
                                                 fromJSON)
-import           Language.Rzk.Syntax           (parseModuleFile,
-                                                parseModuleSafe)
+import           Language.Rzk.Syntax           (parseModuleFile)
 import           Language.Rzk.VSCode.Config    (ServerConfig (..))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 import           Language.Rzk.VSCode.Logging
-import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
 import           Rzk.TypeCheck                 (defaultTypeCheck,
                                                 typecheckModulesWithLocationIncremental)
 
@@ -115,25 +111,7 @@ handlers =
     --         range' = Range pos pos
     --     responder (Right $ InL rsp)
     , requestHandler SMethod_TextDocumentCompletion provideCompletions
-    , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
-        let doc = req ^. params . textDocument . uri . to toNormalizedUri
-        mdoc <- getVirtualFile doc
-        possibleTokens <- case virtualFileText <$> mdoc of
-              Nothing         -> return (Left "Failed to get file content")
-              Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
-                parseModuleSafe (filter (/= '\r') $ T.unpack sourceCode)
-        case possibleTokens of
-          Left err -> do
-            -- Exception occurred when parsing the module
-            logWarning ("Failed to tokenize file: " ++ err)
-          Right tokens -> do
-            let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
-            case encoded of
-              Left _err -> do
-                -- Failed to encode the tokens
-                return ()
-              Right list ->
-                responder (Right (InL SemanticTokens { _resultId = Nothing, _data_ = list }))
+    , requestHandler SMethod_TextDocumentSemanticTokensFull provideSemanticTokens
     , requestHandler SMethod_TextDocumentFormatting formatDocument
     ]
 

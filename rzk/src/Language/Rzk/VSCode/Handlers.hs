@@ -8,6 +8,7 @@ module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
   provideCompletions,
   formatDocument,
+  provideSemanticTokens,
 ) where
 
 import           Control.Exception             (SomeException, evaluate, try)
@@ -36,10 +37,12 @@ import           System.FilePath.Glob          (compile, globDir)
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
                                                 VarIdent (getVarIdent))
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
-                                                parseModuleFile, printTree)
+                                                parseModuleFile,
+                                                parseModuleSafe, printTree)
 import           Language.Rzk.VSCode.Config    (ServerConfig (ServerConfig, formatEnabled))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
+import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
 import           Rzk.Format                    (FormattingEdit (..),
                                                 formatTextEdits)
 import           Rzk.Project.Config            (ProjectConfig (include))
@@ -249,3 +252,24 @@ formatDocument req res = do
   else do
     logDebug "Formatting is disabled in config"
     res $ Right $ InR Null
+
+provideSemanticTokens :: Handler LSP 'Method_TextDocumentSemanticTokensFull
+provideSemanticTokens req responder = do
+  let doc = req ^. params . textDocument . uri . to toNormalizedUri
+  mdoc <- getVirtualFile doc
+  possibleTokens <- case virtualFileText <$> mdoc of
+    Nothing         -> return (Left "Failed to get file content")
+    Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
+      parseModuleSafe (filter (/= '\r') $ T.unpack sourceCode)
+  case possibleTokens of
+    Left err -> do
+      -- Exception occurred when parsing the module
+      logWarning ("Failed to tokenize file: " ++ err)
+    Right tokens -> do
+      let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
+      case encoded of
+        Left _err -> do
+          -- Failed to encode the tokens
+          return ()
+        Right list ->
+          responder (Right (InL (SemanticTokens Nothing list)))
