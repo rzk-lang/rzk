@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -8,14 +9,19 @@ module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
   provideCompletions,
   formatDocument,
+  provideSemanticTokens,
+  handleFilesChanged,
 ) where
 
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
 import           Control.Monad                 (forM_, when)
+import           Control.Monad.Except          (ExceptT (ExceptT),
+                                                MonadError (throwError),
+                                                modifyError, runExceptT)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
-import           Data.List                     (sort, (\\))
+import           Data.List                     (isSuffixOf, sort, (\\))
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
@@ -25,7 +31,7 @@ import           Language.LSP.Protocol.Lens    (HasDetail (detail),
                                                 HasLabel (label),
                                                 HasParams (params),
                                                 HasTextDocument (textDocument),
-                                                HasUri (uri))
+                                                HasUri (uri), changes, uri)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
@@ -36,10 +42,12 @@ import           System.FilePath.Glob          (compile, globDir)
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
                                                 VarIdent (getVarIdent))
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
-                                                parseModuleFile, printTree)
+                                                parseModuleFile,
+                                                parseModuleSafe, printTree)
 import           Language.Rzk.VSCode.Config    (ServerConfig (ServerConfig, formatEnabled))
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
+import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
 import           Rzk.Format                    (FormattingEdit (..),
                                                 formatTextEdits)
 import           Rzk.Project.Config            (ProjectConfig (include))
@@ -249,3 +257,78 @@ formatDocument req res = do
   else do
     logDebug "Formatting is disabled in config"
     res $ Right $ InR Null
+
+provideSemanticTokens :: Handler LSP 'Method_TextDocumentSemanticTokensFull
+provideSemanticTokens req responder = do
+  let doc = req ^. params . textDocument . uri . to toNormalizedUri
+  mdoc <- getVirtualFile doc
+  possibleTokens <- case virtualFileText <$> mdoc of
+    Nothing         -> return (Left "Failed to get file content")
+    Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
+      parseModuleSafe (filter (/= '\r') $ T.unpack sourceCode)
+  case possibleTokens of
+    Left err -> do
+      -- Exception occurred when parsing the module
+      logWarning ("Failed to tokenize file: " ++ err)
+    Right tokens -> do
+      let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
+      case encoded of
+        Left _err -> do
+          -- Failed to encode the tokens
+          return ()
+        Right list ->
+          responder (Right (InL (SemanticTokens Nothing list)))
+
+
+data IsChanged
+  = HasChanged
+  | NotChanged
+
+-- | Detects if the given path has changes in its declaration compared to what's in the cache
+isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
+isChanged cache path = toIsChanged $ do
+  cachedDecls <- maybeToEitherLSP $ lookup path cache
+  module' <- toExceptTLifted $ parseModuleFile path
+  e <- toExceptTLifted $ try @SomeException $ evaluate $
+    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cache) [(path, module')])
+  (checkedModules, _errors) <- toExceptT $ return e
+  decls' <- maybeToEitherLSP $ lookup path checkedModules
+  return $ if decls' == cachedDecls
+    then NotChanged
+    else HasChanged
+  where
+    toExceptT = modifyError (const ()) . ExceptT
+    toExceptTLifted = toExceptT . liftIO
+    maybeToEitherLSP = \case
+      Nothing -> throwError ()
+      Just x -> return x
+    toIsChanged m = runExceptT m >>= \case
+      Left _ -> return HasChanged -- in case of error consider the file has changed
+      Right x -> return x
+
+hasNotChanged :: RzkTypecheckCache -> FilePath -> LSP Bool
+hasNotChanged cache path = isChanged cache path >>= \case
+  HasChanged -> return False
+  NotChanged -> return True
+
+-- | Monadic 'dropWhile'
+dropWhileM :: (Monad m) => (a -> m Bool) -> [a] -> m [a]
+dropWhileM _ []     = return []
+dropWhileM p (x:xs) = do
+  q <- p x
+  if q
+    then dropWhileM p xs
+    else return (x:xs)
+
+handleFilesChanged :: Handler LSP 'Method_WorkspaceDidChangeWatchedFiles
+handleFilesChanged msg = do
+  let modifiedPaths = msg ^.. params . changes . traverse . uri . to uriToFilePath . _Just
+  if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
+    then do
+      logDebug "rzk.yaml modified. Clearing module cache"
+      resetCacheForAllFiles
+    else do
+      cache <- getCachedTypecheckedModules
+      actualModified <- dropWhileM (hasNotChanged cache) modifiedPaths
+      resetCacheForFiles actualModified
+  typecheckFromConfigFile
