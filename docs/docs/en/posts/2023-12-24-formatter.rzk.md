@@ -16,7 +16,7 @@ that I will attempt to unpack in this post.
 ## Goal
 
 Basically, the target is to write a program that takes in Rzk code as input and
-makes sure it abides by the style guide with minimal modification otherwise.
+makes sure it abides by the [style guide](https://rzk-lang.github.io/sHoTT/STYLEGUIDE/) (developed mainly by [Fredrik Bakke](https://github.com/fredrik-bakke) and other contributors to the [sHoTT project](http://github.com/rzk-lang/sHoTT)) with minimal modification otherwise.
 For example, comments should stay intact and semantics should be preserved.
 
 We decided to not support any customization (at least initially), making the
