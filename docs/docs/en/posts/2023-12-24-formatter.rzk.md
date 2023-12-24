@@ -192,6 +192,11 @@ For the latter, we decided that it might be too constraining to force a specific
 indentation on the users when the line might be more readable using a different indentation,
 and the formatter is not smart enough to decide when it should adjust indentation or leave it as is.
 
+Lastly, some desirable features have been identified as belonging more to the linter
+(which we do not have yet) rather than the formatter, such as detecting unnecessary
+parenthesis, deprecated syntax, and expressions that could be simplified.
+The linter is currently not on the roadmap yet, but we hope to have it sometime in the future.
+
 ## How to use the formatter
 
 The formatter is shipped as part of the `rzk` executable under the subcommand `format`.
