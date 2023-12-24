@@ -185,8 +185,9 @@ Thankfully, the accompanying [VS Code extension](https://marketplace.visualstudi
 configures some default settings to avoid this situation by always inserting spaces.
 
 Aside from bugs like this, there are also features that are simply not yet implemented.
-For example, these include inserting line breaks in very long lines and inferring
-the correct indentation level a line should have.
+For example, these include [inserting line breaks](https://github.com/rzk-lang/rzk/issues/147)
+in very long lines and
+[inferring the correct indentation level](https://github.com/rzk-lang/rzk/issues/148) a line should have.
 For the latter, we decided that it might be too constraining to force a specific
 indentation on the users when the line might be more readable using a different indentation,
 and the formatter is not smart enough to decide when it should adjust indentation or leave it as is.
