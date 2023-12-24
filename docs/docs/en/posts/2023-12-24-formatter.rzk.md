@@ -235,6 +235,9 @@ This was an exciting milestone for the Rzk toolset and for me personally as I ha
 never written a similar piece of code before.
 That was an interesting engineering and research challenge, and I enjoyed it all the way.
 
+Contributions have been made to popular Rzk formalization repos to autoformat
+their content, such as [sHoTT](https://github.com/rzk-lang/sHoTT/pull/142) and the [HoTT Book](https://github.com/rzk-lang/hottbook/pull/16).
+
 I encourage everyone to use the formatter and help us by reporting any possible bugs
 on our [GitHub issues](https://github.com/rzk-lang/rzk/issues) page (using the label `formatter`).
 There also exists a [Zulip thread](https://rzk-lang.zulipchat.com/#narrow/stream/407112-general/topic/rzk.20v0.2E7.2E*.20with.20autoformatter.20.28experimental.29)
