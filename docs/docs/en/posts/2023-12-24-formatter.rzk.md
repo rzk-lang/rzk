@@ -242,5 +242,7 @@ I encourage everyone to use the formatter and help us by reporting any possible 
 on our [GitHub issues](https://github.com/rzk-lang/rzk/issues) page (using the label `formatter`).
 There also exists a [Zulip thread](https://rzk-lang.zulipchat.com/#narrow/stream/407112-general/topic/rzk.20v0.2E7.2E*.20with.20autoformatter.20.28experimental.29)
 about the autoformatter, so feedback and discussions are welcome there as well.
+Many thanks to [Fredrik Bakke](https://github.com/fredrik-bakke) for his helpful feedback
+on the [sHoTT formatting PR](https://github.com/rzk-lang/sHoTT/pull/142)!
 
 See you in future blog posts :)
