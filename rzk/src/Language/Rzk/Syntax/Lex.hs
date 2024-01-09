@@ -11,6 +11,7 @@ module Language.Rzk.Syntax.Lex where
 
 import Prelude
 
+import qualified Data.Text
 import qualified Data.Bits
 import Data.Char     (ord)
 import Data.Function (on)
@@ -228,234 +229,6 @@ alex_actions = array (0 :: Int, 29)
   , (0,alex_action_3)
   ]
 
-{-# LINE 64 "Language/Rzk/Syntax/Lex.x" #-}
--- | Create a token with position.
-tok :: (String -> Tok) -> (Posn -> String -> Token)
-tok f p = PT p . f
-
--- | Token without position.
-data Tok
-  = TK {-# UNPACK #-} !TokSymbol  -- ^ Reserved word or symbol.
-  | TL !String                    -- ^ String literal.
-  | TI !String                    -- ^ Integer literal.
-  | TV !String                    -- ^ Identifier.
-  | TD !String                    -- ^ Float literal.
-  | TC !String                    -- ^ Character literal.
-  | T_VarIdentToken !String
-  | T_HoleIdentToken !String
-  deriving (Eq, Show, Ord)
-
--- | Smart constructor for 'Tok' for the sake of backwards compatibility.
-pattern TS :: String -> Int -> Tok
-pattern TS t i = TK (TokSymbol t i)
-
--- | Keyword or symbol tokens have a unique ID.
-data TokSymbol = TokSymbol
-  { tsText :: String
-      -- ^ Keyword or symbol text.
-  , tsID   :: !Int
-      -- ^ Unique ID.
-  } deriving (Show)
-
--- | Keyword/symbol equality is determined by the unique ID.
-instance Eq  TokSymbol where (==)    = (==)    `on` tsID
-
--- | Keyword/symbol ordering is determined by the unique ID.
-instance Ord TokSymbol where compare = compare `on` tsID
-
--- | Token with position.
-data Token
-  = PT  Posn Tok
-  | Err Posn
-  deriving (Eq, Show, Ord)
-
--- | Pretty print a position.
-printPosn :: Posn -> String
-printPosn (Pn _ l c) = "line " ++ show l ++ ", column " ++ show c
-
--- | Pretty print the position of the first token in the list.
-tokenPos :: [Token] -> String
-tokenPos (t:_) = printPosn (tokenPosn t)
-tokenPos []    = "end of file"
-
--- | Get the position of a token.
-tokenPosn :: Token -> Posn
-tokenPosn (PT p _) = p
-tokenPosn (Err p)  = p
-
--- | Get line and column of a token.
-tokenLineCol :: Token -> (Int, Int)
-tokenLineCol = posLineCol . tokenPosn
-
--- | Get line and column of a position.
-posLineCol :: Posn -> (Int, Int)
-posLineCol (Pn _ l c) = (l,c)
-
--- | Convert a token into "position token" form.
-mkPosToken :: Token -> ((Int, Int), String)
-mkPosToken t = (tokenLineCol t, tokenText t)
-
--- | Convert a token to its text.
-tokenText :: Token -> String
-tokenText t = case t of
-  PT _ (TS s _) -> s
-  PT _ (TL s)   -> show s
-  PT _ (TI s)   -> s
-  PT _ (TV s)   -> s
-  PT _ (TD s)   -> s
-  PT _ (TC s)   -> s
-  Err _         -> "#error"
-  PT _ (T_VarIdentToken s) -> s
-  PT _ (T_HoleIdentToken s) -> s
-
--- | Convert a token to a string.
-prToken :: Token -> String
-prToken t = tokenText t
-
--- | Finite map from text to token organized as binary search tree.
-data BTree
-  = N -- ^ Nil (leaf).
-  | B String Tok BTree BTree
-      -- ^ Binary node.
-  deriving (Show)
-
--- | Convert potential keyword into token or use fallback conversion.
-eitherResIdent :: (String -> Tok) -> String -> Tok
-eitherResIdent tv s = treeFind resWords
-  where
-  treeFind N = tv s
-  treeFind (B a t left right) =
-    case compare s a of
-      LT -> treeFind left
-      GT -> treeFind right
-      EQ -> t
-
--- | The keywords and symbols of the language organized as binary search tree.
-resWords :: BTree
-resWords =
-  b "BOT" 39
-    (b "*\8321" 20
-       (b "#postulate" 10
-          (b "#compute-whnf" 5
-             (b "#compute" 3
-                (b "#check" 2 (b "#assume" 1 N N) N) (b "#compute-nf" 4 N N))
-             (b "#end" 8 (b "#define" 7 (b "#def" 6 N N) N) (b "#lang" 9 N N)))
-          (b "#variables" 15
-             (b "#unset-option" 13
-                (b "#set-option" 12 (b "#section" 11 N N) N)
-                (b "#variable" 14 N N))
-             (b "*" 18 (b ")" 17 (b "(" 16 N N) N) (b "*_1" 19 N N))))
-       (b ":" 30
-          (b "0\8322" 25
-             (b "/\\" 23 (b "->" 22 (b "," 21 N N) N) (b "0_2" 24 N N))
-             (b "1\8322" 28 (b "1_2" 27 (b "1" 26 N N) N) (b "2" 29 N N)))
-          (b "=" 35
-             (b "<" 33 (b ";" 32 (b ":=" 31 N N) N) (b "<=" 34 N N))
-             (b "=_{" 37 (b "===" 36 N N) (b ">" 38 N N)))))
-    (b "unit" 59
-       (b "]" 49
-          (b "U" 44
-             (b "TOP" 42 (b "Sigma" 41 (b "CUBE" 40 N N) N) (b "TOPE" 43 N N))
-             (b "\\" 47 (b "[" 46 (b "Unit" 45 N N) N) (b "\\/" 48 N N)))
-          (b "recOR" 54
-             (b "idJ" 52 (b "first" 51 (b "as" 50 N N) N) (b "recBOT" 53 N N))
-             (b "rzk-1" 57
-                (b "refl_{" 56 (b "refl" 55 N N) N) (b "second" 58 N N))))
-       (b "\8594" 69
-          (b "}" 64
-             (b "|" 62 (b "{" 61 (b "uses" 60 N N) N) (b "|->" 63 N N))
-             (b "\960\8321" 67
-                (b "\931" 66 (b "\215" 65 N N) N) (b "\960\8322" 68 N N)))
-          (b "\8801" 74
-             (b "\8743" 72
-                (b "\8721" 71 (b "\8614" 70 N N) N) (b "\8744" 73 N N))
-             (b "\8868" 76 (b "\8804" 75 N N) (b "\8869" 77 N N)))))
-  where
-  b s n = B bs (TS bs n)
-    where
-    bs = s
-
--- | Unquote string literal.
-unescapeInitTail :: String -> String
-unescapeInitTail = id . unesc . tail . id
-  where
-  unesc s = case s of
-    '\\':c:cs | elem c ['\"', '\\', '\''] -> c : unesc cs
-    '\\':'n':cs  -> '\n' : unesc cs
-    '\\':'t':cs  -> '\t' : unesc cs
-    '\\':'r':cs  -> '\r' : unesc cs
-    '\\':'f':cs  -> '\f' : unesc cs
-    '"':[]       -> []
-    c:cs         -> c : unesc cs
-    _            -> []
-
--------------------------------------------------------------------
--- Alex wrapper code.
--- A modified "posn" wrapper.
--------------------------------------------------------------------
-
-data Posn = Pn !Int !Int !Int
-  deriving (Eq, Show, Ord)
-
-alexStartPos :: Posn
-alexStartPos = Pn 0 1 1
-
-alexMove :: Posn -> Char -> Posn
-alexMove (Pn a l c) '\t' = Pn (a+1)  l     (((c+7) `div` 8)*8+1)
-alexMove (Pn a l c) '\n' = Pn (a+1) (l+1)   1
-alexMove (Pn a l c) _    = Pn (a+1)  l     (c+1)
-
-type Byte = Word8
-
-type AlexInput = (Posn,     -- current position,
-                  Char,     -- previous char
-                  [Byte],   -- pending bytes on the current char
-                  String)   -- current input string
-
-tokens :: String -> [Token]
-tokens str = go (alexStartPos, '\n', [], str)
-    where
-      go :: AlexInput -> [Token]
-      go inp@(pos, _, _, str) =
-               case alexScan inp 0 of
-                AlexEOF                   -> []
-                AlexError (pos, _, _, _)  -> [Err pos]
-                AlexSkip  inp' len        -> go inp'
-                AlexToken inp' len act    -> act pos (take len str) : (go inp')
-
-alexGetByte :: AlexInput -> Maybe (Byte,AlexInput)
-alexGetByte (p, c, (b:bs), s) = Just (b, (p, c, bs, s))
-alexGetByte (p, _, [], s) =
-  case s of
-    []  -> Nothing
-    (c:s) ->
-             let p'     = alexMove p c
-                 (b:bs) = utf8Encode c
-              in p' `seq` Just (b, (p', c, bs, s))
-
-alexInputPrevChar :: AlexInput -> Char
-alexInputPrevChar (p, c, bs, s) = c
-
--- | Encode a Haskell String to a list of Word8 values, in UTF8 format.
-utf8Encode :: Char -> [Word8]
-utf8Encode = map fromIntegral . go . ord
-  where
-  go oc
-   | oc <= 0x7f       = [oc]
-
-   | oc <= 0x7ff      = [ 0xc0 + (oc `Data.Bits.shiftR` 6)
-                        , 0x80 + oc Data.Bits..&. 0x3f
-                        ]
-
-   | oc <= 0xffff     = [ 0xe0 + (oc `Data.Bits.shiftR` 12)
-                        , 0x80 + ((oc `Data.Bits.shiftR` 6) Data.Bits..&. 0x3f)
-                        , 0x80 + oc Data.Bits..&. 0x3f
-                        ]
-   | otherwise        = [ 0xf0 + (oc `Data.Bits.shiftR` 18)
-                        , 0x80 + ((oc `Data.Bits.shiftR` 12) Data.Bits..&. 0x3f)
-                        , 0x80 + ((oc `Data.Bits.shiftR` 6) Data.Bits..&. 0x3f)
-                        , 0x80 + oc Data.Bits..&. 0x3f
-                        ]
 alex_action_3 = tok (eitherResIdent TV)
 alex_action_4 = tok (eitherResIdent T_VarIdentToken)
 alex_action_5 = tok (eitherResIdent T_HoleIdentToken)
@@ -627,9 +400,10 @@ alex_scan_tkn user__ orig_input len input__ s last_acc =
         let
                 base   = alexIndexInt32OffAddr alex_base s
                 offset = PLUS(base,ord_c)
-                check  = alexIndexInt16OffAddr alex_check offset
 
-                new_s = if GTE(offset,ILIT(0)) && EQ(check,ord_c)
+                new_s = if GTE(offset,ILIT(0))
+                          && let check  = alexIndexInt16OffAddr alex_check offset
+                             in  EQ(check,ord_c)
                           then alexIndexInt16OffAddr alex_table offset
                           else alexIndexInt16OffAddr alex_deflt s
         in
@@ -702,3 +476,231 @@ alexRightContext IBOX(sc) user__ _ _ input__ =
         -- match when checking the right context, just
         -- the first match will do.
 #endif
+{-# LINE 65 ".\Language\Rzk\Syntax\Lex.x" #-}
+-- | Create a token with position.
+tok :: (Data.Text.Text -> Tok) -> (Posn -> Data.Text.Text -> Token)
+tok f p = PT p . f
+
+-- | Token without position.
+data Tok
+  = TK {-# UNPACK #-} !TokSymbol  -- ^ Reserved word or symbol.
+  | TL !Data.Text.Text            -- ^ String literal.
+  | TI !Data.Text.Text            -- ^ Integer literal.
+  | TV !Data.Text.Text            -- ^ Identifier.
+  | TD !Data.Text.Text            -- ^ Float literal.
+  | TC !Data.Text.Text            -- ^ Character literal.
+  | T_VarIdentToken !Data.Text.Text
+  | T_HoleIdentToken !Data.Text.Text
+  deriving (Eq, Show, Ord)
+
+-- | Smart constructor for 'Tok' for the sake of backwards compatibility.
+pattern TS :: Data.Text.Text -> Int -> Tok
+pattern TS t i = TK (TokSymbol t i)
+
+-- | Keyword or symbol tokens have a unique ID.
+data TokSymbol = TokSymbol
+  { tsText :: Data.Text.Text
+      -- ^ Keyword or symbol text.
+  , tsID   :: !Int
+      -- ^ Unique ID.
+  } deriving (Show)
+
+-- | Keyword/symbol equality is determined by the unique ID.
+instance Eq  TokSymbol where (==)    = (==)    `on` tsID
+
+-- | Keyword/symbol ordering is determined by the unique ID.
+instance Ord TokSymbol where compare = compare `on` tsID
+
+-- | Token with position.
+data Token
+  = PT  Posn Tok
+  | Err Posn
+  deriving (Eq, Show, Ord)
+
+-- | Pretty print a position.
+printPosn :: Posn -> String
+printPosn (Pn _ l c) = "line " ++ show l ++ ", column " ++ show c
+
+-- | Pretty print the position of the first token in the list.
+tokenPos :: [Token] -> String
+tokenPos (t:_) = printPosn (tokenPosn t)
+tokenPos []    = "end of file"
+
+-- | Get the position of a token.
+tokenPosn :: Token -> Posn
+tokenPosn (PT p _) = p
+tokenPosn (Err p)  = p
+
+-- | Get line and column of a token.
+tokenLineCol :: Token -> (Int, Int)
+tokenLineCol = posLineCol . tokenPosn
+
+-- | Get line and column of a position.
+posLineCol :: Posn -> (Int, Int)
+posLineCol (Pn _ l c) = (l,c)
+
+-- | Convert a token into "position token" form.
+mkPosToken :: Token -> ((Int, Int), Data.Text.Text)
+mkPosToken t = (tokenLineCol t, tokenText t)
+
+-- | Convert a token to its text.
+tokenText :: Token -> Data.Text.Text
+tokenText t = case t of
+  PT _ (TS s _) -> s
+  PT _ (TL s)   -> Data.Text.pack (show s)
+  PT _ (TI s)   -> s
+  PT _ (TV s)   -> s
+  PT _ (TD s)   -> s
+  PT _ (TC s)   -> s
+  Err _         -> Data.Text.pack "#error"
+  PT _ (T_VarIdentToken s) -> s
+  PT _ (T_HoleIdentToken s) -> s
+
+-- | Convert a token to a string.
+prToken :: Token -> String
+prToken t = Data.Text.unpack (tokenText t)
+
+-- | Finite map from text to token organized as binary search tree.
+data BTree
+  = N -- ^ Nil (leaf).
+  | B Data.Text.Text Tok BTree BTree
+      -- ^ Binary node.
+  deriving (Show)
+
+-- | Convert potential keyword into token or use fallback conversion.
+eitherResIdent :: (Data.Text.Text -> Tok) -> Data.Text.Text -> Tok
+eitherResIdent tv s = treeFind resWords
+  where
+  treeFind N = tv s
+  treeFind (B a t left right) =
+    case compare s a of
+      LT -> treeFind left
+      GT -> treeFind right
+      EQ -> t
+
+-- | The keywords and symbols of the language organized as binary search tree.
+resWords :: BTree
+resWords =
+  b "BOT" 39
+    (b "*\8321" 20
+       (b "#postulate" 10
+          (b "#compute-whnf" 5
+             (b "#compute" 3
+                (b "#check" 2 (b "#assume" 1 N N) N) (b "#compute-nf" 4 N N))
+             (b "#end" 8 (b "#define" 7 (b "#def" 6 N N) N) (b "#lang" 9 N N)))
+          (b "#variables" 15
+             (b "#unset-option" 13
+                (b "#set-option" 12 (b "#section" 11 N N) N)
+                (b "#variable" 14 N N))
+             (b "*" 18 (b ")" 17 (b "(" 16 N N) N) (b "*_1" 19 N N))))
+       (b ":" 30
+          (b "0\8322" 25
+             (b "/\\" 23 (b "->" 22 (b "," 21 N N) N) (b "0_2" 24 N N))
+             (b "1\8322" 28 (b "1_2" 27 (b "1" 26 N N) N) (b "2" 29 N N)))
+          (b "=" 35
+             (b "<" 33 (b ";" 32 (b ":=" 31 N N) N) (b "<=" 34 N N))
+             (b "=_{" 37 (b "===" 36 N N) (b ">" 38 N N)))))
+    (b "unit" 59
+       (b "]" 49
+          (b "U" 44
+             (b "TOP" 42 (b "Sigma" 41 (b "CUBE" 40 N N) N) (b "TOPE" 43 N N))
+             (b "\\" 47 (b "[" 46 (b "Unit" 45 N N) N) (b "\\/" 48 N N)))
+          (b "recOR" 54
+             (b "idJ" 52 (b "first" 51 (b "as" 50 N N) N) (b "recBOT" 53 N N))
+             (b "rzk-1" 57
+                (b "refl_{" 56 (b "refl" 55 N N) N) (b "second" 58 N N))))
+       (b "\8594" 69
+          (b "}" 64
+             (b "|" 62 (b "{" 61 (b "uses" 60 N N) N) (b "|->" 63 N N))
+             (b "\960\8321" 67
+                (b "\931" 66 (b "\215" 65 N N) N) (b "\960\8322" 68 N N)))
+          (b "\8801" 74
+             (b "\8743" 72
+                (b "\8721" 71 (b "\8614" 70 N N) N) (b "\8744" 73 N N))
+             (b "\8868" 76 (b "\8804" 75 N N) (b "\8869" 77 N N)))))
+  where
+  b s n = B bs (TS bs n)
+    where
+    bs = Data.Text.pack s
+
+-- | Unquote string literal.
+unescapeInitTail :: Data.Text.Text -> Data.Text.Text
+unescapeInitTail = Data.Text.pack . unesc . tail . Data.Text.unpack
+  where
+  unesc s = case s of
+    '\\':c:cs | elem c ['\"', '\\', '\''] -> c : unesc cs
+    '\\':'n':cs  -> '\n' : unesc cs
+    '\\':'t':cs  -> '\t' : unesc cs
+    '\\':'r':cs  -> '\r' : unesc cs
+    '\\':'f':cs  -> '\f' : unesc cs
+    '"':[]       -> []
+    c:cs         -> c : unesc cs
+    _            -> []
+
+-------------------------------------------------------------------
+-- Alex wrapper code.
+-- A modified "posn" wrapper.
+-------------------------------------------------------------------
+
+data Posn = Pn !Int !Int !Int
+  deriving (Eq, Show, Ord)
+
+alexStartPos :: Posn
+alexStartPos = Pn 0 1 1
+
+alexMove :: Posn -> Char -> Posn
+alexMove (Pn a l c) '\t' = Pn (a+1)  l     (((c+7) `div` 8)*8+1)
+alexMove (Pn a l c) '\n' = Pn (a+1) (l+1)   1
+alexMove (Pn a l c) _    = Pn (a+1)  l     (c+1)
+
+type Byte = Word8
+
+type AlexInput = (Posn,     -- current position,
+                  Char,     -- previous char
+                  [Byte],   -- pending bytes on the current char
+                  Data.Text.Text)   -- current input string
+
+tokens :: Data.Text.Text -> [Token]
+tokens str = go (alexStartPos, '\n', [], str)
+    where
+      go :: AlexInput -> [Token]
+      go inp@(pos, _, _, str) =
+               case alexScan inp 0 of
+                AlexEOF                   -> []
+                AlexError (pos, _, _, _)  -> [Err pos]
+                AlexSkip  inp' len        -> go inp'
+                AlexToken inp' len act    -> act pos (Data.Text.take len str) : (go inp')
+
+alexGetByte :: AlexInput -> Maybe (Byte,AlexInput)
+alexGetByte (p, c, (b:bs), s) = Just (b, (p, c, bs, s))
+alexGetByte (p, _, [], s) =
+  case Data.Text.uncons s of
+    Nothing  -> Nothing
+    Just (c,s) ->
+             let p'     = alexMove p c
+                 (b:bs) = utf8Encode c
+              in p' `seq` Just (b, (p', c, bs, s))
+
+alexInputPrevChar :: AlexInput -> Char
+alexInputPrevChar (p, c, bs, s) = c
+
+-- | Encode a Haskell String to a list of Word8 values, in UTF8 format.
+utf8Encode :: Char -> [Word8]
+utf8Encode = map fromIntegral . go . ord
+  where
+  go oc
+   | oc <= 0x7f       = [oc]
+
+   | oc <= 0x7ff      = [ 0xc0 + (oc `Data.Bits.shiftR` 6)
+                        , 0x80 + oc Data.Bits..&. 0x3f
+                        ]
+
+   | oc <= 0xffff     = [ 0xe0 + (oc `Data.Bits.shiftR` 12)
+                        , 0x80 + ((oc `Data.Bits.shiftR` 6) Data.Bits..&. 0x3f)
+                        , 0x80 + oc Data.Bits..&. 0x3f
+                        ]
+   | otherwise        = [ 0xf0 + (oc `Data.Bits.shiftR` 18)
+                        , 0x80 + ((oc `Data.Bits.shiftR` 12) Data.Bits..&. 0x3f)
+                        , 0x80 + ((oc `Data.Bits.shiftR` 6) Data.Bits..&. 0x3f)
+                        , 0x80 + oc Data.Bits..&. 0x3f
+                        ]
