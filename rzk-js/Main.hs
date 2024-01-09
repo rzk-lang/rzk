@@ -6,6 +6,7 @@ import qualified GHCJS.Foreign.Callback as GHCJS
 import GHCJS.Marshal (fromJSVal, toJSVal)
 import GHCJS.Prim (JSVal)
 import Data.JSString(JSString, pack)
+import qualified Data.Text as T
 import JavaScript.Object
 import JavaScript.Object.Internal (Object (..), create)
 import qualified Rzk.Main as Rzk
@@ -23,8 +24,8 @@ main = do
     input <- maybe (Left "Could not turn JSRef to a String") Right <$> fromJSVal rawInput
 
     case Rzk.typecheckString =<< input of
-      Left err -> setStringProp "status" "error" o >> setStringProp "result" (pack err) o
-      Right ok -> setStringProp "status" "ok" o >> setStringProp "result" (pack ok) o
+      Left err -> setStringProp "status" "error" o >> setStringProp "result" (pack (T.unpack err)) o
+      Right ok -> setStringProp "status" "ok" o >> setStringProp "result" (pack (T.unpack ok)) o
 
   set_rzk_typecheck_callback callback
 

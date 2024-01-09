@@ -4,14 +4,15 @@ Description : Tests related to the formatter module
 -}
 module Rzk.FormatSpec where
 
+import qualified Data.Text.IO as T
 import           Test.Hspec
 
-import           Rzk.Format (format, isWellFormatted)
+import           Rzk.Format   (format, isWellFormatted)
 
 formatsTo :: FilePath -> FilePath -> Expectation
 formatsTo beforePath afterPath = do
-  beforeSrc <- readFile ("test/files/" ++ beforePath)
-  afterSrc <- readFile ("test/files/" ++ afterPath)
+  beforeSrc <- T.readFile ("test/files/" ++ beforePath)
+  afterSrc <- T.readFile ("test/files/" ++ afterPath)
   format beforeSrc `shouldBe` afterSrc
   isWellFormatted afterSrc `shouldBe` True -- idempotency
 

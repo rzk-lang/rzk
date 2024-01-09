@@ -2,18 +2,17 @@
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE NamedFieldPuns #-}
 
 module Main (main) where
 
 #ifndef __GHCJS__
-import           Main.Utf8 (withUtf8)
+import           Main.Utf8               (withUtf8)
 #endif
 
-import           Control.Monad           (forM, forM_, unless, when,
-                                          (>=>))
+import           Control.Monad           (forM, forM_, unless, when, (>=>))
 import           Data.Version            (showVersion)
 
 #ifdef LSP
@@ -24,11 +23,13 @@ import           Options.Generic
 import           System.Exit             (exitFailure, exitSuccess)
 
 import           Data.Functor            (void, (<&>))
+import qualified Data.Text.IO            as T
+
 import           Paths_rzk               (version)
 import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
-import           Rzk.TypeCheck
 import           Rzk.Main
+import           Rzk.TypeCheck
 
 data FormatOptions = FormatOptions
   { check :: Bool
@@ -78,7 +79,7 @@ main = do
       case expandedPaths of
         [] -> error "No files found"
         filePaths -> do
-          when (not check && not write) $ forM_ filePaths (formatFile >=> putStrLn)
+          when (not check && not write) $ forM_ filePaths (formatFile >=> T.putStrLn)
           when write $ forM_ filePaths formatFileWrite
           when check $ do
             results <- forM filePaths $ \path -> isWellFormattedFile path <&> (path,)

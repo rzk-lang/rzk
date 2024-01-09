@@ -6,15 +6,15 @@ import           Language.LSP.Logging (defaultClientLogger)
 import           Language.LSP.Server  (MonadLsp)
 
 
-logDebug :: MonadLsp c m => String -> m ()
-logDebug msg = defaultClientLogger <& T.pack msg `WithSeverity` Debug
+logDebug :: MonadLsp c m => T.Text -> m ()
+logDebug msg = defaultClientLogger <& msg `WithSeverity` Debug
 
-logInfo :: MonadLsp c m => String -> m ()
-logInfo msg = defaultClientLogger <& T.pack msg `WithSeverity` Info
+logInfo :: MonadLsp c m => T.Text -> m ()
+logInfo msg = defaultClientLogger <& msg `WithSeverity` Info
 
-logWarning :: MonadLsp c m => String -> m ()
-logWarning msg = defaultClientLogger <& T.pack msg `WithSeverity` Warning
+logWarning :: MonadLsp c m => T.Text -> m ()
+logWarning msg = defaultClientLogger <& msg `WithSeverity` Warning
 
 -- | Error logs will also be shown to the user via `window/showMessage`
-logError :: MonadLsp c m => String -> m ()
-logError msg = defaultClientLogger <& T.pack msg `WithSeverity` Error
+logError :: MonadLsp c m => T.Text -> m ()
+logError msg = defaultClientLogger <& msg `WithSeverity` Error

@@ -19,6 +19,7 @@ import           Data.Functor        (void)
 import           Data.List           (intercalate, nub, (\\))
 import           Data.Maybe          (fromMaybe)
 import           Data.String
+import qualified Data.Text           as T
 
 import           Free.Scoped
 import           Free.Scoped.TH
@@ -428,18 +429,18 @@ incVarIdentIndex (VarIdent (Rzk.VarIdent loc token)) =
 
 -- | Increment the subscript number at the end of the indentifier.
 --
--- >>> putStrLn $ incIndex "x"
+-- >>> putStrLn $ T.unpack $ incIndex "x"
 -- x₁
--- >>> putStrLn $ incIndex "x₁₉"
+-- >>> putStrLn $ T.unpack $ incIndex "x₁₉"
 -- x₂₀
-incIndex :: String -> String
-incIndex s = name <> newIndex
+incIndex :: T.Text -> T.Text
+incIndex s = T.pack $ name <> newIndex
   where
     digitsSub = "₀₁₂₃₄₅₆₇₈₉" :: String
     isDigitSub = (`elem` digitsSub)
     digitFromSub c = chr ((ord c - ord '₀') + ord '0')
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
-    (name, index) = break isDigitSub s
+    (name, index) = break isDigitSub (T.unpack s)
     oldIndexN = read ('0' : map digitFromSub index) -- FIXME: read
     newIndex = map digitToSub (show (oldIndexN + 1))
 
@@ -447,9 +448,9 @@ instance Show Term' where
   show = Rzk.printTree . fromTerm'
 
 instance IsString Term' where
-  fromString = toTerm' . fromRight . Rzk.parseTerm
+  fromString = toTerm' . fromRight . Rzk.parseTerm . T.pack
     where
-      fromRight (Left err) = error ("Parse error: " <> err)
+      fromRight (Left err) = error (T.unpack $ "Parse error: " <> err)
       fromRight (Right t)  = t
 
 instance Show TermT' where

@@ -41,6 +41,7 @@ import Prelude
 
 import qualified Language.Rzk.Syntax.Abs
 import Language.Rzk.Syntax.Lex
+import qualified Data.Text
 import qualified Data.Array as Happy_Data_Array
 import qualified Data.Bits as Bits
 import qualified GHC.Exts as Happy_GHC_Exts
@@ -429,7 +430,7 @@ happyReduce_26 = happySpecReduce_1  0# happyReduction_26
 happyReduction_26 happy_x_1
 	 =  case happyOutTok happy_x_1 of { happy_var_1 -> 
 	happyIn29
-		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), ((\(PT _ (TL s)) -> s) happy_var_1))
+		 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), (Data.Text.unpack ((\(PT _ (TL s)) -> s) happy_var_1)))
 	)}
 
 happyReduce_27 = happySpecReduce_1  1# happyReduction_27
@@ -1845,7 +1846,7 @@ happyError ts = Left $
     [Err _] -> " due to lexer error"
     t:_     -> " before `" ++ (prToken t) ++ "'"
 
-myLexer :: String -> [Token]
+myLexer :: Data.Text.Text -> [Token]
 myLexer = tokens
 
 -- Entrypoints
