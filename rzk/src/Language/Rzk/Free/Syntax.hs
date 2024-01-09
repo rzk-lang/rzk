@@ -429,9 +429,9 @@ incVarIdentIndex (VarIdent (Rzk.VarIdent loc token)) =
 
 -- | Increment the subscript number at the end of the indentifier.
 --
--- >>> putStrLn $ incIndex "x"
+-- >>> putStrLn $ T.unpack $ incIndex "x"
 -- x₁
--- >>> putStrLn $ incIndex "x₁₉"
+-- >>> putStrLn $ T.unpack $ incIndex "x₁₉"
 -- x₂₀
 incIndex :: T.Text -> T.Text
 incIndex s = T.pack $ name <> newIndex

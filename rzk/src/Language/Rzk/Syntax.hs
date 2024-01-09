@@ -87,7 +87,7 @@ data LineType = NonCode | CodeOf T.Text
 --   := U
 -- ```
 -- asda
--- >>> putStrLn $ extractMarkdownCodeBlocks "rzk" example
+-- >>> putStrLn $ T.unpack $ extractMarkdownCodeBlocks "rzk" example
 -- <BLANKLINE>
 -- <BLANKLINE>
 -- #lang rzk-1
