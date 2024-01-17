@@ -40,12 +40,14 @@ inserting a new line somewhere in the line, there are $O(2^n)$ possible choices
 to compare between for inserting line breaks.
 For example, consider the following Rzk code:
 ```rzk
+#lang rzk-1
+
 #define id (A : U) (x : A) : A := x
 ```
 which has 11 positions where a new line can be inserted, as shown by these markers:
-```rzk
+```
 #define id (A : U) (x : A) : A := x
---     ^  ^  ^ ^  ^  ^ ^  ^ ^ ^  ^
+       ^  ^  ^ ^  ^  ^ ^  ^ ^ ^  ^
 ```
 This amounts to 2048 combinations that have to be ranked for such a simple line.
 Even the ranking itself is not a straightforward problem to tackle.
