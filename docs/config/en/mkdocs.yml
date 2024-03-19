@@ -19,7 +19,7 @@ nav:
     - getting-started/index.md
     - Install: getting-started/install.md
     - Quickstart: getting-started/quickstart.rzk.md
-    - Depedent Types: getting-started/dependent-types.rzk.md
+    - Dependent Types: getting-started/dependent-types.rzk.md
     - Setting up an Rzk project: getting-started/project.md
   - Reference:
     - Introduction: reference/introduction.rzk.md
