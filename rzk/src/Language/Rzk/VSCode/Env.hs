@@ -3,10 +3,11 @@ module Language.Rzk.VSCode.Env where
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
 import           Language.LSP.Server
+import           Language.Rzk.Free.Syntax   (VarIdent)
 import           Language.Rzk.VSCode.Config (ServerConfig)
-import           Rzk.TypeCheck              (Decl')
+import           Rzk.TypeCheck              (Decl', TypeErrorInScopedContext)
 
-type RzkTypecheckCache = [(FilePath, [Decl'])]
+type RzkTypecheckCache = [(FilePath, [Decl'], [TypeErrorInScopedContext VarIdent])]
 
 data RzkEnv = RzkEnv
   { rzkEnvTypecheckCache :: TVar RzkTypecheckCache
@@ -37,7 +38,9 @@ resetCacheForFiles :: [FilePath] -> LSP ()
 resetCacheForFiles paths = lift $ do
   typecheckCache <- asks rzkEnvTypecheckCache
   liftIO $ atomically $ do
-    modifyTVar typecheckCache (takeWhile ((`notElem` paths) . fst))
+    modifyTVar typecheckCache (takeWhile ((`notElem` paths) . fst3))
+  where
+    fst3 (a,_,_) = a
 
 -- | Get the current state of the cache.
 getCachedTypecheckedModules :: LSP RzkTypecheckCache

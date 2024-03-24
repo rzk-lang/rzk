@@ -102,7 +102,8 @@ typecheckFromConfigFile = do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
 
-          cachedModules <- getCachedTypecheckedModules
+          typecheckedCachedModules <- getCachedTypecheckedModules
+          let cachedModules = map (\(a,b,_) -> (a,b)) typecheckedCachedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
@@ -126,7 +127,8 @@ typecheckFromConfigFile = do
                 -- cache well-typed modules
                 logInfo (show (length checkedModules) ++ " modules successfully typechecked")
                 logInfo (show (length errors) ++ " errors found")
-                cacheTypecheckedModules checkedModules
+                let checkedModules' = map (\(path, decls) -> (path, decls, filter ((== path) . filepathOfTypeError) errors)) checkedModules
+                cacheTypecheckedModules checkedModules'
                 return (errors, checkedModules)
 
           -- Reset all published diags
@@ -202,8 +204,10 @@ provideCompletions req res = do
   logDebug ("Found " ++ show (length cachedModules) ++ " modules in the cache")
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   -- Take all the modules up to and including the currently open one
-  let modules = takeWhileInc ((/= currentFile) . fst) cachedModules
+  let modules = map ignoreErrors $ takeWhileInc ((/= currentFile) . fst3) cachedModules
         where
+          fst3 (a,_,_) = a
+          ignoreErrors (a,b,_) = (a,b)
           takeWhileInc _ [] = []
           takeWhileInc p (x:xs)
             | p x       = x : takeWhileInc p xs
@@ -287,13 +291,16 @@ data IsChanged
 -- | Detects if the given path has changes in its declaration compared to what's in the cache
 isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
 isChanged cache path = toIsChanged $ do
-  cachedDecls <- maybeToEitherLSP $ lookup path cache
+  let cacheWithoutDecls = map (\(p, _, e) -> (p, e)) cache
+  let cacheWithoutErrors = map (\(p, d, _) -> (p, d)) cache
+  errors <- maybeToEitherLSP $ lookup path cacheWithoutDecls
+  cachedDecls <- maybeToEitherLSP $ lookup path cacheWithoutErrors
   module' <- toExceptTLifted $ parseModuleFile path
   e <- toExceptTLifted $ try @SomeException $ evaluate $
-    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cache) [(path, module')])
+    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cacheWithoutErrors) [(path, module')])
   (checkedModules, _errors) <- toExceptT $ return e
   decls' <- maybeToEitherLSP $ lookup path checkedModules
-  return $ if decls' == cachedDecls
+  return $ if null errors && decls' == cachedDecls
     then NotChanged
     else HasChanged
   where
