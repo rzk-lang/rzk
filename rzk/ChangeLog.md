@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.4 — 2024-04-01
+
+Fixes:
+- Fix caching in Rzk Language Server, especially in presence of errors (see [#167](https://github.com/rzk-lang/rzk/pull/167))
+- Fix CI for the Rzk Playground (see [#174](https://github.com/rzk-lang/rzk/pull/174))
+
+This release also contains minor refactoring (see [#165](https://github.com/rzk-lang/rzk/pull/165))
+and a typo fix (see [#171](https://github.com/rzk-lang/rzk/pull/171)).
+
 ## v0.7.3 — 2023-12-16
 
 Fixes:
@@ -82,7 +91,7 @@ Minor changes:
 
 ## v0.6.5 — 2023-10-01
 
-This version contains mostly intrastructure improvements:
+This version contains mostly infrastructure improvements:
 
 - Typecheck using `rzk.yaml` if it exists (see [#119](https://github.com/rzk-lang/rzk/pull/119))
 - Update Rzk Playground and Nix Flake (see [#84](https://github.com/rzk-lang/rzk/pull/84))
@@ -91,7 +100,7 @@ This version contains mostly intrastructure improvements:
   - GHCJS 9.6 is now used
   - Support `snippet={code}` or `code={code}` param (see [#118](https://github.com/rzk-lang/rzk/pull/118))
     - Support for `snippet_url={URL}` is temporarily dropped
-- Update to GHC 9.6, latest Stackage Nightly, improve Rzk setup, and GitHub Actions (see [#116](https://github.com/rzk-lang/rzk/pull/116))
+- Update to GHC 9.6, the latest Stackage Nightly, improve Rzk setup, and GitHub Actions (see [#116](https://github.com/rzk-lang/rzk/pull/116))
 - Add logging for Rzk Language Server (see [#114](https://github.com/rzk-lang/rzk/pull/114))
 
 Fixes:
@@ -100,7 +109,7 @@ Fixes:
 
 ## v0.6.4 — 2023-09-27
 
-This version improves the stucture of the project, in particular w.r.t dependencies:
+This version improves the structure of the project, in particular w.r.t dependencies:
 
 - Add custom snapshot and explicit lower bounds (see [#108](https://github.com/rzk-lang/rzk/pull/108))
 
@@ -111,7 +120,7 @@ This version contains a fix for the command line interface of `rzk`:
 - Fix command line `rzk typecheck` (see [#106](https://github.com/rzk-lang/rzk/pull/106))
 
   - Previous version ignored failures in the command line
-    (the bug was introced when allowing better autocompletion in LSP).
+    (the bug was introduced when allowing better autocompletion in LSP).
 
 ## v0.6.2 — 2023-09-26
 
@@ -145,14 +154,14 @@ This version contains two fixes (see [#88](https://github.com/rzk-lang/rzk/pull/
 
 ## v0.5.6 — 2023-09-19
 
-This version fixes the behaviour of glob (see [`77b7cc0`](https://github.com/rzk-lang/rzk/commit/77b7cc0494fe0bfd1c9f1aa83db20f42cfda5794)).
+This version fixes the behavior of glob (see [`77b7cc0`](https://github.com/rzk-lang/rzk/commit/77b7cc0494fe0bfd1c9f1aa83db20f42cfda5794)).
 
 ## v0.5.5 — 2023-09-19
 
 This version contains Unicode and tope logic-related fixes:
 
 1. Fix (add missing checks) for subshapes (see [#85](https://github.com/rzk-lang/rzk/pull/85));
-2. Allow to handle wildcards in `rzk` itself (see [#83](https://github.com/rzk-lang/rzk/pull/83));
+2. Allow handling wildcards in `rzk` itself (see [#83](https://github.com/rzk-lang/rzk/pull/83));
 3. Fix Unicode on machines with non-standard locales (see [#82](https://github.com/rzk-lang/rzk/pull/82));
 4. Specify `happy` and `alex` as build tools to fix cabal build from Hackage (see [#80](https://github.com/rzk-lang/rzk/pull/80)).
 5. Add configuration for MkDocs plugin for Rzk (see [#79](https://github.com/rzk-lang/rzk/pull/79)).
@@ -172,7 +181,7 @@ This version contains a few minor improvements:
 2. Hint about possible shape coercions (see [#67](https://github.com/rzk-lang/rzk/pull/67));
 3. Enable doctests (see [#68](https://github.com/rzk-lang/rzk/pull/68));
 4. Improve documentation (add recommended installation instructions via VS Code)
-5. Migrate from `fizruk` to `rzk-lang` organisation on GitHub (see [`ee0d063`](https://github.com/rzk-lang/rzk/commit/ee0d0638283232c99003a83fdf41eb109ae78983));
+5. Migrate from `fizruk` to `rzk-lang` organization on GitHub (see [`ee0d063`](https://github.com/rzk-lang/rzk/commit/ee0d0638283232c99003a83fdf41eb109ae78983));
 6. Speed up GHCJS build with Nix (see [#66](https://github.com/rzk-lang/rzk/pull/66));
 
 ## v0.5.2 — 2023-07-05
@@ -228,7 +237,7 @@ Minor improvements:
 
 ## v0.3.0 — 2023-04-28
 
-This version introduces an experimental feature for generating visualisations for simplicial terms in SVG.
+This version introduces an experimental feature for generating visualizations for simplicial terms in SVG.
 To enable rendering, enable option `"render" = "svg"` (to disable, `"render" = "none"`):
 
 ```rzk
@@ -252,7 +261,7 @@ This version was a complete rewrite of the proof assistant, using a new parser, 
 ### Language
 
 Syntax is almost entirely backwards compatible with version 0.1.0.
-Typechecking has been fixed and improved.
+Type checking has been fixed and improved.
 
 #### Breaking Changes
 
@@ -293,7 +302,7 @@ Otherwise, syntax is now made more flexible:
      := (t : Δ¹) -> A [ ∂Δ¹ t |-> recOR(t === 0_2, t === 1_2, x, y) ]
    ```
 
-6. Restrictions can now support multiple subshapes, effectively internalising `recOR`:
+6. Restrictions can now support multiple subshapes, effectively internalizing `recOR`:
 
    ```rzk
    #def hom (A : U) (x y : A) : U
@@ -308,7 +317,7 @@ Otherwise, syntax is now made more flexible:
 9. `recOR` now supports alternative syntax with an arbitrary number of subshapes:
    `recOR( tope1 |-> term1, tope2 |-> term2, ..., topeN |-> termN )`
 
-10. Now it is possible to have type ascriptions: `t as T`. This can help with ensuring types of subexpressions in parts of formalisations, or to upcast types.
+10. Now it is possible to have type ascriptions: `t as T`. This can help with ensuring types of subexpressions in parts of formalizations, or to upcast types.
 
 11. New (better) commands are now supported:
 
@@ -350,8 +359,8 @@ The output and error messages have been slightly improved, but not in a major wa
 ### Internal representation
 
 A new internal representation (a version of second-order abstract syntax)
-allows to stop worrying about name captures in substitutions,
+allows stopping worrying about name captures in substitutions,
 so the implementation is much more trustworthy.
-The new representation will also allow to bring in higher-order unification in the future, for better type inference, matching, etc.
+The new representation will also allow bringing in higher-order unification in the future, for better type inference, matching, etc.
 
 New representation also allowed annotating each (sub)term with its type to avoid recomputations and some other minor speedups. There are still some performance issues, which need to be debugged, but overall it is much faster than version 0.1.0 already.
