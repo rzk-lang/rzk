@@ -5,8 +5,6 @@
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TupleSections        #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 module Rzk.TypeCheck where
 
 import           Control.Applicative      ((<|>))

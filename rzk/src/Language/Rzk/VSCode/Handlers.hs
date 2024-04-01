@@ -135,7 +135,7 @@ typecheckFromConfigFile = do
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
           -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
-          forM_ paths $ \path -> do
+          forM_ modifiedFiles $ \path -> do
             publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
           -- Report parse errors to the client
@@ -297,9 +297,9 @@ isChanged cache path = toIsChanged $ do
   module' <- toExceptTLifted $ parseModuleFile path
   e <- toExceptTLifted $ try @SomeException $ evaluate $
     defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cacheWithoutErrors) [(path, module')])
-  (checkedModules, _errors) <- toExceptT $ return e
+  (checkedModules, errors') <- toExceptT $ return e
   decls' <- maybeToEitherLSP $ lookup path checkedModules
-  return $ if null errors && decls' == cachedDecls
+  return $ if null errors' && null errors && decls' == cachedDecls
     then NotChanged
     else HasChanged
   where
