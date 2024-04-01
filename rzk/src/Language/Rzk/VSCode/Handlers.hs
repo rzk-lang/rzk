@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
@@ -103,7 +104,7 @@ typecheckFromConfigFile = do
           let paths = concatMap sort rawPaths
 
           typecheckedCachedModules <- getCachedTypecheckedModules
-          let cachedModules = map (\(a,b,_) -> (a,b)) typecheckedCachedModules
+          let cachedModules = map (\(path, RzkCachedModule{..}) -> (path, cachedModuleDecls)) typecheckedCachedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
@@ -127,7 +128,7 @@ typecheckFromConfigFile = do
                 -- cache well-typed modules
                 logInfo (show (length checkedModules) ++ " modules successfully typechecked")
                 logInfo (show (length errors) ++ " errors found")
-                let checkedModules' = map (\(path, decls) -> (path, decls, filter ((== path) . filepathOfTypeError) errors)) checkedModules
+                let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
                 cacheTypecheckedModules checkedModules'
                 return (errors, checkedModules)
 
@@ -204,10 +205,9 @@ provideCompletions req res = do
   logDebug ("Found " ++ show (length cachedModules) ++ " modules in the cache")
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   -- Take all the modules up to and including the currently open one
-  let modules = map ignoreErrors $ takeWhileInc ((/= currentFile) . fst3) cachedModules
+  let modules = map ignoreErrors $ takeWhileInc ((/= currentFile) . fst) cachedModules
         where
-          fst3 (a,_,_) = a
-          ignoreErrors (a,b,_) = (a,b)
+          ignoreErrors (path, RzkCachedModule{..}) = (path, cachedModuleDecls)
           takeWhileInc _ [] = []
           takeWhileInc p (x:xs)
             | p x       = x : takeWhileInc p xs
@@ -291,10 +291,9 @@ data IsChanged
 -- | Detects if the given path has changes in its declaration compared to what's in the cache
 isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
 isChanged cache path = toIsChanged $ do
-  let cacheWithoutDecls = map (\(p, _, e) -> (p, e)) cache
-  let cacheWithoutErrors = map (\(p, d, _) -> (p, d)) cache
-  errors <- maybeToEitherLSP $ lookup path cacheWithoutDecls
-  cachedDecls <- maybeToEitherLSP $ lookup path cacheWithoutErrors
+  let cacheWithoutErrors = map (fmap cachedModuleDecls) cache
+  errors <- maybeToEitherLSP $ cachedModuleErrors <$> lookup path cache
+  cachedDecls <- maybeToEitherLSP $ cachedModuleDecls <$> lookup path cache
   module' <- toExceptTLifted $ parseModuleFile path
   e <- toExceptTLifted $ try @SomeException $ evaluate $
     defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cacheWithoutErrors) [(path, module')])
