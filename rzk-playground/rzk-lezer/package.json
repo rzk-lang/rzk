@@ -4,12 +4,14 @@
   "type": "module",
   "module": "dist/index.js",
   "devDependencies": {
-    "@lezer/generator": "deemp/generator#cc38c10ab0d9d6e9b0e6daf1659e7a15dad86649",
     "@lezer-unofficial/printer": "^1.0.1",
-    "tsx": "^3.13.0"
+    "@lezer/generator": "1.7.0",
+    "@types/node": "^20.12.2",
+    "tsx": "^4.7.0",
+    "typescript": "5.4.3"
   },
   "dependencies": {
-    "@lezer/lr": "^1.3.12"
+    "@lezer/lr": "^1.4.0"
   },
   "files": [
     "examples"
