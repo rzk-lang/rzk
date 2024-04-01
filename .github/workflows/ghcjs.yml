@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: ❄️ Install Nix
         uses: nixbuild/nix-quick-install-action@v25
@@ -43,26 +43,26 @@ jobs:
             keep-outputs = true
 
       - name: 👝 Restore and Cache Nix store
-        uses: nix-community/cache-nix-action@v4
+        uses: nix-community/cache-nix-action@v5
         with:
-          key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
-          restore-keys: |
+          primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          restore-prefixes-first-match: |
             ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
             ${{ runner.os }}-nix-
-          gc-linux: true
-          gc-max-store-size-linux: 7000000000
+          gc-max-store-size: 7000000000
           purge: true
-          purge-created-max-age: 1209600
+          purge-prefixes: ${{ runner.os }}-nix-
+          purge-created: 0
+          purge-primary-key: never
 
-      - name: 👝 Restore and Cache NextJS cache
-        uses: actions/cache@v3
+      - name: 👝 Restore and cache NodeJS deps
+        uses: actions/cache@v4
         with:
-          key: ${{ runner.os }}-next-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-next-
+            ${{ runner.os }}-node-
           path: |
             ~/.npm
-            rzk-playground/.next/cache
 
       - name: 🔨 Remove lexer and parser generator files
         run: |
@@ -76,8 +76,7 @@ jobs:
       - name: 🔨 Build Playground
         env:
           ASSET_URL: /${{ github.event.repository.name }}/${{ github.ref_name }}/playground
-        run: |
-          nix run .#release-rzk-playground
+        run: nix run .#release-rzk-playground
 
       - name: 🔨 Save flake from garbage collection
         run: nix run .#save-flake
