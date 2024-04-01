@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
@@ -102,7 +103,8 @@ typecheckFromConfigFile = do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
 
-          cachedModules <- getCachedTypecheckedModules
+          typecheckedCachedModules <- getCachedTypecheckedModules
+          let cachedModules = map (\(path, RzkCachedModule{..}) -> (path, cachedModuleDecls)) typecheckedCachedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
@@ -126,13 +128,14 @@ typecheckFromConfigFile = do
                 -- cache well-typed modules
                 logInfo (show (length checkedModules) ++ " modules successfully typechecked")
                 logInfo (show (length errors) ++ " errors found")
-                cacheTypecheckedModules checkedModules
+                let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
+                cacheTypecheckedModules checkedModules'
                 return (errors, checkedModules)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
           -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
-          forM_ paths $ \path -> do
+          forM_ modifiedFiles $ \path -> do
             publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
           -- Report parse errors to the client
@@ -202,8 +205,9 @@ provideCompletions req res = do
   logDebug ("Found " ++ show (length cachedModules) ++ " modules in the cache")
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   -- Take all the modules up to and including the currently open one
-  let modules = takeWhileInc ((/= currentFile) . fst) cachedModules
+  let modules = map ignoreErrors $ takeWhileInc ((/= currentFile) . fst) cachedModules
         where
+          ignoreErrors (path, RzkCachedModule{..}) = (path, cachedModuleDecls)
           takeWhileInc _ [] = []
           takeWhileInc p (x:xs)
             | p x       = x : takeWhileInc p xs
@@ -287,13 +291,15 @@ data IsChanged
 -- | Detects if the given path has changes in its declaration compared to what's in the cache
 isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
 isChanged cache path = toIsChanged $ do
-  cachedDecls <- maybeToEitherLSP $ lookup path cache
+  let cacheWithoutErrors = map (fmap cachedModuleDecls) cache
+  errors <- maybeToEitherLSP $ cachedModuleErrors <$> lookup path cache
+  cachedDecls <- maybeToEitherLSP $ cachedModuleDecls <$> lookup path cache
   module' <- toExceptTLifted $ parseModuleFile path
   e <- toExceptTLifted $ try @SomeException $ evaluate $
-    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cache) [(path, module')])
-  (checkedModules, _errors) <- toExceptT $ return e
+    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cacheWithoutErrors) [(path, module')])
+  (checkedModules, errors') <- toExceptT $ return e
   decls' <- maybeToEitherLSP $ lookup path checkedModules
-  return $ if decls' == cachedDecls
+  return $ if null errors' && null errors && decls' == cachedDecls
     then NotChanged
     else HasChanged
   where
