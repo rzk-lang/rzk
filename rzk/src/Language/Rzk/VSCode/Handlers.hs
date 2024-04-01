@@ -132,7 +132,7 @@ typecheckFromConfigFile = do
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
           -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
-          forM_ paths $ \path -> do
+          forM_ modifiedFiles $ \path -> do
             publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
           -- Report parse errors to the client
