@@ -3,8 +3,9 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
@@ -40,6 +41,7 @@ import           Language.LSP.VFS              (virtualFileText)
 import           System.FilePath               (makeRelative, (</>))
 import           System.FilePath.Glob          (compile, globDir)
 
+import           Data.Char                     (isDigit)
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
                                                 VarIdent (getVarIdent))
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
@@ -53,6 +55,7 @@ import           Rzk.Format                    (FormattingEdit (..),
                                                 formatTextEdits)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
+import           Text.Read                     (readMaybe)
 
 -- | Given a list of file paths, reads them and parses them as Rzk modules,
 --   returning the same list of file paths but with the parsed module (or parse error)
@@ -181,7 +184,7 @@ typecheckFromConfigFile = do
         line = fromIntegral $ fromMaybe 0 $ extractLineNumber err
 
     diagnosticOfParseError :: String -> Diagnostic
-    diagnosticOfParseError err = Diagnostic (Range (Position 0 0) (Position 0 0))
+    diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "parse-error")
                       Nothing
@@ -190,6 +193,27 @@ typecheckFromConfigFile = do
                       Nothing
                       (Just [])
                       Nothing
+      where
+        (errLine, errColumnStart, errColumnEnd) = fromMaybe (0, 0, 0) $
+          case words err of
+            -- Happy parse error
+            (take 9 -> ["syntax", "error", "at", "line", lineStr, "column", columnStr, "before", token]) -> do
+              line <- readMaybe (takeWhile isDigit lineStr)
+              columnStart <- readMaybe (takeWhile isDigit columnStr)
+              return (line - 1, columnStart - 1, columnStart + fromIntegral (length token) - 3)
+            -- Happy parse error due to lexer error
+            (take 7 -> ["syntax", "error", "at", "line", lineStr, "column", columnStr]) -> do
+              line <- readMaybe (takeWhile isDigit lineStr)
+              columnStart <- readMaybe (takeWhile isDigit columnStr)
+              return (line - 1, columnStart - 1, columnStart - 1)
+            -- BNFC layout resolver error
+            (take 14 -> ["Layout", "error", "at", "line", _lineStr, "column", _columnStr, "found", token, "at", "line", lineStr', "column", columnStr']) -> do
+              -- line <- readMaybe (takeWhile isDigit lineStr)
+              -- columnStart <- readMaybe (takeWhile isDigit columnStr)
+              line' <- readMaybe (takeWhile isDigit lineStr')
+              columnStart' <- readMaybe (takeWhile isDigit columnStr')
+              return (line' - 1, columnStart', columnStart' + fromIntegral (length token) - 2)
+            _ -> Nothing
 
 instance Default T.Text where def = ""
 instance Default CompletionItem
