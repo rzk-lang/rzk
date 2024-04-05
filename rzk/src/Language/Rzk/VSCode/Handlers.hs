@@ -244,7 +244,7 @@ provideCompletions req res = do
     declsToItems :: FilePath -> (FilePath, [Decl']) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
     declToItem :: FilePath -> FilePath -> Decl' -> CompletionItem
-    declToItem rootDir path (Decl name type' _ _ _) = def
+    declToItem rootDir path (Decl name type' _ _ _ _loc) = def
       & label .~ T.pack (printTree $ getVarIdent name)
       & detail ?~ T.pack (show type')
       & documentation ?~ InR (MarkupContent MarkupKind_Markdown $ T.pack $
