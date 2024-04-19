@@ -171,8 +171,10 @@ All other symbols are terminals.
   |  |  **|**  | //Term2//
   |  |  **|**  | //ParamDecl// ``->`` //Term1//
   |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
   |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``∑`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   | //Term6// | -> | //Term6// ``[`` //[Restriction]// ``]``
   |  |  **|**  | //Term6// //Term7//
   |  |  **|**  | ``π₁`` //Term7//

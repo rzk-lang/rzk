@@ -295,6 +295,7 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 term2 -> prPrec i 2 (concatD [prt 3 term1, doc (showString "\\/"), prt 2 term2])
     Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl term -> prPrec i 1 (concatD [prt 0 paramdecl, doc (showString "->"), prt 1 term])
     Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ term1 term2 -> prPrec i 1 (concatD [doc (showString "Sigma"), doc (showString "("), prt 0 pattern_, doc (showString ":"), prt 0 term1, doc (showString ")"), doc (showString ","), prt 1 term2])
+    Language.Rzk.Syntax.Abs.ASCII_TypeSigmaNested _ sigmaparam sigmaparams term -> prPrec i 1 (concatD [doc (showString "Sigma"), doc (showString "("), prt 0 sigmaparam, doc (showString ","), prt 0 sigmaparams, doc (showString ")"), doc (showString ","), prt 1 term])
     Language.Rzk.Syntax.Abs.ASCII_Lambda _ params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "->"), prt 1 term])
     Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl term -> prPrec i 7 (concatD [doc (showString "<"), prt 0 paramdecl, doc (showString "->"), prt 0 term, doc (showString ">")])
     Language.Rzk.Syntax.Abs.ASCII_First _ term -> prPrec i 6 (concatD [doc (showString "first"), prt 7 term])

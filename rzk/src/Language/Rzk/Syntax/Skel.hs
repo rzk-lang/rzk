@@ -148,6 +148,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeSigmaNested _ sigmaparam sigmaparams term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Lambda _ params term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_First _ term -> failure x

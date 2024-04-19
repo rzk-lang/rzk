@@ -153,6 +153,7 @@ data Term' a
     | ASCII_TopeOr a (Term' a) (Term' a)
     | ASCII_TypeFun a (ParamDecl' a) (Term' a)
     | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | ASCII_TypeSigmaNested a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | ASCII_Lambda a [Param' a] (Term' a)
     | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | ASCII_First a (Term' a)
@@ -188,6 +189,9 @@ ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
 
 unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
 unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
+
+unicode_TypeSigmaNestedAlt :: a -> SigmaParam' a -> [SigmaParam' a] -> Term' a -> Term' a
+unicode_TypeSigmaNestedAlt = \ _a par pars t -> TypeSigmaNested _a par pars t
 
 newtype VarIdentToken = VarIdentToken String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
@@ -335,6 +339,7 @@ instance HasPosition Term where
     ASCII_TopeOr p _ _ -> p
     ASCII_TypeFun p _ _ -> p
     ASCII_TypeSigma p _ _ _ -> p
+    ASCII_TypeSigmaNested p _ _ _ -> p
     ASCII_Lambda p _ _ -> p
     ASCII_TypeExtensionDeprecated p _ _ -> p
     ASCII_First p _ -> p

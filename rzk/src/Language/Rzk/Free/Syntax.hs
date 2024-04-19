@@ -223,6 +223,7 @@ toTerm bvars = go
 
       Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
+      Rzk.ASCII_TypeSigmaNested loc p ps tN -> go (Rzk.TypeSigmaNested loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
       Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
       Rzk.ASCII_First loc term -> go (Rzk.First loc term)
