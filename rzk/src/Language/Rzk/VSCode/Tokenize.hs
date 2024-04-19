@@ -125,8 +125,17 @@ tokenizeTerm' varTokenType = go
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
+      TypeSigmaNested loc p ps tN -> concat 
+        [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap tokenizeSigmaParam (p : ps)
+        , go tN ]
+      ASCII_TypeSigmaNested loc p ps tN -> concat 
+        [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap tokenizeSigmaParam (p : ps)
+        , go tN ]
       TypeId _loc x a y -> foldMap go [x, a, y]
       TypeIdSimple _loc x y -> foldMap go [x, y]
+        
 
       TypeRestricted _loc type_ rs -> concat
         [ go type_
@@ -200,6 +209,11 @@ tokenizeParamDecl = \case
     , tokenizeTerm cube
     , tokenizeTope tope
     ]
+
+tokenizeSigmaParam :: SigmaParam -> [SemanticTokenAbsolute]
+tokenizeSigmaParam (SigmaParam _loc pat type_) = concat 
+  [ tokenizePattern pat 
+  , tokenizeTerm type_ ]
 
 mkToken :: (HasPosition a, Print a) => a -> SemanticTokenTypes -> [SemanticTokenModifiers] -> [SemanticTokenAbsolute]
 mkToken x tokenType tokenModifiers =
