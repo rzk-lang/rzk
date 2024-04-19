@@ -234,6 +234,7 @@ Pattern
   : 'unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.PatternUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | VarIdent { (fst $1, Language.Rzk.Syntax.Abs.PatternVar (fst $1) (snd $1)) }
   | '(' Pattern ',' Pattern ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.PatternPair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '(' Pattern ',' Pattern ',' ListPattern ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.PatternTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
 
 ListPattern :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Pattern]) }
 ListPattern

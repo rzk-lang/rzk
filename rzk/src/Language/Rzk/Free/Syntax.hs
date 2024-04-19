@@ -173,6 +173,12 @@ toScopePattern pat bvars = toTerm $ \z ->
     bindings (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) _ = []
     bindings (Rzk.PatternVar _loc x)    t = [(varIdent x, t)]
     bindings (Rzk.PatternPair _loc l r) t = bindings l (First t) <> bindings r (Second t)
+    bindings (Rzk.PatternTuple loc p1 p2 ps) t = bindings (desugarTuple loc (reverse ps) p2 p1) t
+
+desugarTuple loc ps p2 p1 =
+  case ps of
+    []          -> Rzk.PatternPair loc p1 p2
+    pLast : ps' -> Rzk.PatternPair loc (desugarTuple loc ps' p2 p1) pLast
 
 toTerm :: (VarIdent -> Term a) -> Rzk.Term -> Term a
 toTerm bvars = go
@@ -325,6 +331,7 @@ patternToTerm = ptt
       Rzk.PatternVar loc x    -> Rzk.Var loc x
       Rzk.PatternPair loc l r -> Rzk.Pair loc (ptt l) (ptt r)
       Rzk.PatternUnit loc     -> Rzk.Unit loc
+      Rzk.PatternTuple loc p1 p2 ps -> patternToTerm (desugarTuple loc (reverse ps) p2 p1)
 
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp

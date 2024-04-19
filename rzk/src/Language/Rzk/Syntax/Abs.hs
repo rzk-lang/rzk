@@ -72,6 +72,7 @@ data Pattern' a
     = PatternUnit a
     | PatternVar a (VarIdent' a)
     | PatternPair a (Pattern' a) (Pattern' a)
+    | PatternTuple a (Pattern' a) (Pattern' a) [Pattern' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Param = Param' BNFC'Position
@@ -262,6 +263,7 @@ instance HasPosition Pattern where
     PatternUnit p -> p
     PatternVar p _ -> p
     PatternPair p _ _ -> p
+    PatternTuple p _ _ _ -> p
 
 instance HasPosition Param where
   hasPosition = \case

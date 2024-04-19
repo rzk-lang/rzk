@@ -60,6 +60,7 @@ SomeSectionName.  SectionName ::= VarIdent ;
 PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
 PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
+PatternTuple.     Pattern ::= "(" Pattern "," Pattern "," [Pattern] ")" ;
 separator nonempty Pattern "" ;
 
 -- Parameter introduction (for lambda abstractions)
@@ -78,7 +79,7 @@ ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}"
 paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
 
--- Parameter declaration for Sigma types 
+-- Parameter declaration for Sigma types
 SigmaParam. SigmaParam ::= Pattern ":" Term ;
 separator nonempty SigmaParam "," ;
 

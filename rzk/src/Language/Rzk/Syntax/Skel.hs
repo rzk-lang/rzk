@@ -71,6 +71,7 @@ transPattern x = case x of
   Language.Rzk.Syntax.Abs.PatternUnit _ -> failure x
   Language.Rzk.Syntax.Abs.PatternVar _ varident -> failure x
   Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> failure x
+  Language.Rzk.Syntax.Abs.PatternTuple _ pattern_1 pattern_2 patterns -> failure x
 
 transParam :: Show a => Language.Rzk.Syntax.Abs.Param' a -> Result
 transParam x = case x of

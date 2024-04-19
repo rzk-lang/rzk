@@ -97,6 +97,7 @@ All other symbols are terminals.
   | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
+  |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``,`` //[Pattern]// ``)``
   | //[Pattern]// | -> | //Pattern//
   |  |  **|**  | //Pattern// //[Pattern]//
   | //Param// | -> | //Pattern//

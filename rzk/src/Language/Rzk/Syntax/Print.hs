@@ -198,6 +198,7 @@ instance Print (Language.Rzk.Syntax.Abs.Pattern' a) where
     Language.Rzk.Syntax.Abs.PatternUnit _ -> prPrec i 0 (concatD [doc (showString "unit")])
     Language.Rzk.Syntax.Abs.PatternVar _ varident -> prPrec i 0 (concatD [prt 0 varident])
     Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> prPrec i 0 (concatD [doc (showString "("), prt 0 pattern_1, doc (showString ","), prt 0 pattern_2, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.PatternTuple _ pattern_1 pattern_2 patterns -> prPrec i 0 (concatD [doc (showString "("), prt 0 pattern_1, doc (showString ","), prt 0 pattern_2, doc (showString ","), prt 0 patterns, doc (showString ")")])
 
 instance Print [Language.Rzk.Syntax.Abs.Pattern' a] where
   prt _ [] = concatD []

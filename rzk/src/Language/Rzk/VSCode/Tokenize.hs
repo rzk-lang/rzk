@@ -63,6 +63,7 @@ tokenizePattern = \case
   PatternVar _loc var    -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]
   PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
   pat@(PatternUnit _loc) -> mkToken pat SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
+  PatternTuple _loc p1 p2 ps -> foldMap tokenizePattern (p1 : p2 : ps)
 
 tokenizeTope :: Term -> [SemanticTokenAbsolute]
 tokenizeTope = tokenizeTerm' (Just SemanticTokenTypes_String)
