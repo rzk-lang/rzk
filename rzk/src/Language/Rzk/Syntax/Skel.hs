@@ -87,6 +87,10 @@ transParamDecl x = case x of
   Language.Rzk.Syntax.Abs.ParamTermTypeDeprecated _ pattern_ term -> failure x
   Language.Rzk.Syntax.Abs.ParamVarShapeDeprecated _ pattern_ term1 term2 -> failure x
 
+transSigmaParam :: Show a => Language.Rzk.Syntax.Abs.SigmaParam' a -> Result
+transSigmaParam x = case x of
+  Language.Rzk.Syntax.Abs.SigmaParam _ pattern_ term -> failure x
+
 transRestriction :: Show a => Language.Rzk.Syntax.Abs.Restriction' a -> Result
 transRestriction x = case x of
   Language.Rzk.Syntax.Abs.Restriction _ term1 term2 -> failure x
@@ -114,6 +118,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 term2 term3 term4 -> failure x
   Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeSigmaNested _ sigmaparams term -> failure x
   Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
   Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x

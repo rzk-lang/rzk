@@ -78,6 +78,10 @@ ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}"
 paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
 
+-- Parameter declaration for Sigma types 
+SigmaParam. SigmaParam ::= Pattern ":" Term ;
+separator nonempty SigmaParam "," ;
+
 Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
 
@@ -106,6 +110,7 @@ RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
+TypeSigmaNested. Term1 ::= "Σ" "(" [SigmaParam] ")" "," Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;

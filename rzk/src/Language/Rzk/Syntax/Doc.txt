@@ -111,6 +111,9 @@ All other symbols are terminals.
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
   |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
+  | //SigmaParam// | -> | //Pattern// ``:`` //Term//
+  | //[SigmaParam]// | -> | //SigmaParam//
+  |  |  **|**  | //SigmaParam// ``,`` //[SigmaParam]//
   | //Restriction// | -> | //Term// ``↦`` //Term//
   |  |  **|**  | //Term// ``|->`` //Term//
   | //[Restriction]// | -> | //Restriction//
@@ -161,6 +164,7 @@ All other symbols are terminals.
   |  |  **|**  | //Term3// ``\/`` //Term2//
   | //Term1// | -> | //ParamDecl// ``→`` //Term1//
   |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //[SigmaParam]// ``)`` ``,`` //Term1//
   |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
   |  |  **|**  | //Term2// ``=`` //Term2//
   |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
