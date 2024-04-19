@@ -123,7 +123,7 @@ data Term' a
     | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
-    | TypeSigmaNested a [SigmaParam' a] (Term' a)
+    | TypeSigmaNested a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
@@ -305,7 +305,7 @@ instance HasPosition Term where
     RecOrDeprecated p _ _ _ _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
-    TypeSigmaNested p _ _ -> p
+    TypeSigmaNested p _ _ _ -> p
     TypeUnit p -> p
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p

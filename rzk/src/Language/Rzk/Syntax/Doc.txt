@@ -164,7 +164,7 @@ All other symbols are terminals.
   |  |  **|**  | //Term3// ``\/`` //Term2//
   | //Term1// | -> | //ParamDecl// ``→`` //Term1//
   |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //[SigmaParam]// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
   |  |  **|**  | //Term2// ``=`` //Term2//
   |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//

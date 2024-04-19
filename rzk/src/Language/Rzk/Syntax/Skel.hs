@@ -118,7 +118,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 term2 term3 term4 -> failure x
   Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
-  Language.Rzk.Syntax.Abs.TypeSigmaNested _ sigmaparams term -> failure x
+  Language.Rzk.Syntax.Abs.TypeSigmaNested _ sigmaparam sigmaparams term -> failure x
   Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
   Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
