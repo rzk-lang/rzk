@@ -299,6 +299,7 @@ Term7
   | 'Unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeUnit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | '<' ParamDecl '→' Term '>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeExtensionDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '(' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Pair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '(' Term ',' Term ',' ListTerm ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Tuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
   | 'unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Unit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Refl (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl_{' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ReflTerm (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }

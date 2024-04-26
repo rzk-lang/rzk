@@ -149,6 +149,7 @@ tokenizeTerm' varTokenType = go
       ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]
+      Tuple _loc p1 p2 ps -> foldMap go (p1:p2:ps)
       First loc t -> concat
         [ mkToken (VarIdent loc "π₁") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]

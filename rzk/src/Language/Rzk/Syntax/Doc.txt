@@ -135,6 +135,7 @@ All other symbols are terminals.
   |  |  **|**  | ``Unit``
   |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``

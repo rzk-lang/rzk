@@ -121,6 +121,7 @@ TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
+Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;

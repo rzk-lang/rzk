@@ -128,6 +128,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.App _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.Lambda _ params term -> failure x
   Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.Tuple _ term1 term2 terms -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
   Language.Rzk.Syntax.Abs.Unit _ -> failure x

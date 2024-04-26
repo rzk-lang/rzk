@@ -275,6 +275,7 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.App _ term1 term2 -> prPrec i 6 (concatD [prt 6 term1, prt 7 term2])
     Language.Rzk.Syntax.Abs.Lambda _ params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "\8594"), prt 1 term])
     Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> prPrec i 7 (concatD [doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.Tuple _ term1 term2 terms -> prPrec i 7 (concatD [doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ","), prt 0 terms, doc (showString ")")])
     Language.Rzk.Syntax.Abs.First _ term -> prPrec i 6 (concatD [doc (showString "\960\8321"), prt 7 term])
     Language.Rzk.Syntax.Abs.Second _ term -> prPrec i 6 (concatD [doc (showString "\960\8322"), prt 7 term])
     Language.Rzk.Syntax.Abs.Unit _ -> prPrec i 7 (concatD [doc (showString "unit")])

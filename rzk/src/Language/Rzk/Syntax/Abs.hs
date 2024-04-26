@@ -133,6 +133,7 @@ data Term' a
     | App a (Term' a) (Term' a)
     | Lambda a [Param' a] (Term' a)
     | Pair a (Term' a) (Term' a)
+    | Tuple a (Term' a) (Term' a) [Term' a]
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -320,6 +321,7 @@ instance HasPosition Term where
     App p _ _ -> p
     Lambda p _ _ -> p
     Pair p _ _ -> p
+    Tuple p _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p
