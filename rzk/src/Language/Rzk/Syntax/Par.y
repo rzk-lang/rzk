@@ -345,17 +345,17 @@ Term1 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term)
 Term1
   : ParamDecl '→' Term1 { (fst $1, Language.Rzk.Syntax.Abs.TypeFun (fst $1) (snd $1) (snd $3)) }
   | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaNested (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
   | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
   | '\\' ListParam '→' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | Term2 { (fst $1, (snd $1)) }
   | ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TypeFun (fst $1) (snd $1) (snd $3)) }
   | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigmaNested (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
   | '\\' ListParam '->' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '∑' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaNestedAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaTupleAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
 
 Term6 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term6

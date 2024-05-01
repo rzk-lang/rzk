@@ -126,11 +126,11 @@ tokenizeTerm' varTokenType = go
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
-      TypeSigmaNested loc p ps tN -> concat 
+      TypeSigmaTuple loc p ps tN -> concat 
         [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , foldMap tokenizeSigmaParam (p : ps)
         , go tN ]
-      ASCII_TypeSigmaNested loc p ps tN -> concat 
+      ASCII_TypeSigmaTuple loc p ps tN -> concat 
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , foldMap tokenizeSigmaParam (p : ps)
         , go tN ]

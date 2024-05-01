@@ -228,7 +228,7 @@ toTerm bvars = go
 
       Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
-      Rzk.ASCII_TypeSigmaNested loc p ps tN -> go (Rzk.TypeSigmaNested loc p ps tN)
+      Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
       Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
       Rzk.ASCII_First loc term -> go (Rzk.First loc term)
@@ -288,12 +288,12 @@ toTerm bvars = go
       Rzk.TypeSigma _loc pat tA tB ->
         TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.TypeSigmaNested _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN -> 
-        go (Rzk.TypeSigmaNested _loc (Rzk.SigmaParam _loc patX tX) ps tN)
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN -> 
+        go (Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _loc patX tX) ps tN)
         where
           patX = Rzk.PatternPair _loc patA patB
           tX = Rzk.TypeSigma _loc patA tA tB
-      Rzk.TypeSigmaNested _loc (Rzk.SigmaParam _ pat tA) [] tB -> go (Rzk.TypeSigma _loc pat tA tB)
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ pat tA) [] tB -> go (Rzk.TypeSigma _loc pat tA tB)
 
       Rzk.Lambda _loc [] body -> go body
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->

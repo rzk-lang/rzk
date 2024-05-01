@@ -124,7 +124,7 @@ data Term' a
     | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
-    | TypeSigmaNested a (SigmaParam' a) [SigmaParam' a] (Term' a)
+    | TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
@@ -155,7 +155,7 @@ data Term' a
     | ASCII_TopeOr a (Term' a) (Term' a)
     | ASCII_TypeFun a (ParamDecl' a) (Term' a)
     | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
-    | ASCII_TypeSigmaNested a (SigmaParam' a) [SigmaParam' a] (Term' a)
+    | ASCII_TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | ASCII_Lambda a [Param' a] (Term' a)
     | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | ASCII_First a (Term' a)
@@ -192,8 +192,8 @@ ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
 unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
 unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
 
-unicode_TypeSigmaNestedAlt :: a -> SigmaParam' a -> [SigmaParam' a] -> Term' a -> Term' a
-unicode_TypeSigmaNestedAlt = \ _a par pars t -> TypeSigmaNested _a par pars t
+unicode_TypeSigmaTupleAlt :: a -> SigmaParam' a -> [SigmaParam' a] -> Term' a -> Term' a
+unicode_TypeSigmaTupleAlt = \ _a par pars t -> TypeSigmaTuple _a par pars t
 
 newtype VarIdentToken = VarIdentToken String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
@@ -312,7 +312,7 @@ instance HasPosition Term where
     RecOrDeprecated p _ _ _ _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
-    TypeSigmaNested p _ _ _ -> p
+    TypeSigmaTuple p _ _ _ -> p
     TypeUnit p -> p
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p
@@ -343,7 +343,7 @@ instance HasPosition Term where
     ASCII_TopeOr p _ _ -> p
     ASCII_TypeFun p _ _ -> p
     ASCII_TypeSigma p _ _ _ -> p
-    ASCII_TypeSigmaNested p _ _ _ -> p
+    ASCII_TypeSigmaTuple p _ _ _ -> p
     ASCII_Lambda p _ _ -> p
     ASCII_TypeExtensionDeprecated p _ _ -> p
     ASCII_First p _ -> p

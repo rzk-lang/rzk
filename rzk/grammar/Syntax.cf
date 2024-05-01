@@ -111,7 +111,7 @@ RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
-TypeSigmaNested. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
+TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
@@ -156,7 +156,7 @@ ASCII_TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
 
 ASCII_TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
-ASCII_TypeSigmaNested. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
+ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 
 ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
 ASCII_Restriction. Restriction ::= Term "|->" Term ;
@@ -169,6 +169,6 @@ ASCII_Second.         Term6 ::= "second" Term7 ;
 -- Alternative Unicode syntax rules
 
 unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
-unicode_TypeSigmaNestedAlt. Term1 ::= "∑" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
+unicode_TypeSigmaTupleAlt. Term1 ::= "∑" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
-define unicode_TypeSigmaNestedAlt par pars t = TypeSigmaNested par pars t ;
+define unicode_TypeSigmaTupleAlt par pars t = TypeSigmaTuple par pars t ;
