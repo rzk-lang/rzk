@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: ❄️ Install Nix
-        uses: nixbuild/nix-quick-install-action@v25
+        uses: nixbuild/nix-quick-install-action@v27
         with:
           nix_conf: |
             substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org

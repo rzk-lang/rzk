@@ -40,10 +40,10 @@ jobs:
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 🧰 Setup Stack
-        uses: freckle/stack-action@v4
+        uses: freckle/stack-action@v5
 
       - name: Tar and strip the binary
         run: |
@@ -53,7 +53,7 @@ jobs:
         shell: bash
 
       - name: Upload rzk binary as Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: rzk-bin.tar.gz
           name: rzk-${{ runner.os }}-${{ runner.arch }}.tar.gz
@@ -67,10 +67,10 @@ jobs:
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 🧰 Setup Stack
-        uses: freckle/stack-action@v4
+        uses: freckle/stack-action@v5
 
       - name: 🔨 Build Haddock Documentation (with Stack)
         run: |
@@ -93,11 +93,11 @@ jobs:
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 📥 Download rzk
         id: download
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: rzk-${{ runner.os }}-${{ runner.arch }}.tar.gz
 
