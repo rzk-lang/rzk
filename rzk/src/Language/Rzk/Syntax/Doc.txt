@@ -97,6 +97,7 @@ All other symbols are terminals.
   | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
+  |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``,`` //[Pattern]// ``)``
   | //[Pattern]// | -> | //Pattern//
   |  |  **|**  | //Pattern// //[Pattern]//
   | //Param// | -> | //Pattern//
@@ -111,6 +112,9 @@ All other symbols are terminals.
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
   |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
+  | //SigmaParam// | -> | //Pattern// ``:`` //Term//
+  | //[SigmaParam]// | -> | //SigmaParam//
+  |  |  **|**  | //SigmaParam// ``,`` //[SigmaParam]//
   | //Restriction// | -> | //Term// ``↦`` //Term//
   |  |  **|**  | //Term// ``|->`` //Term//
   | //[Restriction]// | -> | //Restriction//
@@ -131,6 +135,7 @@ All other symbols are terminals.
   |  |  **|**  | ``Unit``
   |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``
@@ -161,14 +166,17 @@ All other symbols are terminals.
   |  |  **|**  | //Term3// ``\/`` //Term2//
   | //Term1// | -> | //ParamDecl// ``→`` //Term1//
   |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
   |  |  **|**  | //Term2// ``=`` //Term2//
   |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
   |  |  **|**  | //Term2//
   |  |  **|**  | //ParamDecl// ``->`` //Term1//
   |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
   |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``∑`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   | //Term6// | -> | //Term6// ``[`` //[Restriction]// ``]``
   |  |  **|**  | //Term6// //Term7//
   |  |  **|**  | ``π₁`` //Term7//
