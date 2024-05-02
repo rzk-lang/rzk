@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Rendering Diagrams - rzk: an experimental proof assistant for syntheric ∞-categories</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" rel="stylesheet" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/rzk/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/rzk/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/rzk/favicon-16x16.png">
+    <link rel="manifest" href="/rzk/site.webmanifest">
+<!-- <link rel="stylesheet" href="../../css/highlightjs-11.7.0.min.css" /> -->
+    <link rel="stylesheet" href="../../css/highlightjs-copy.css" />
+    <script src="../../js/highlight-11.7.0.min.js"></script>
+    <script src="../../js/rzk.js"></script>
+    <link rel="stylesheet" href="../../css/gruvbox-light.css" />
+    <!-- <link rel="stylesheet" href="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.css" /> -->
+    <script src="../../js/highlightjs-copy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script>
+      hljs.addPlugin(new CopyButtonPlugin());
+      hljs.highlightAll();
+    </script>
+    <style>
+      .rzk-render {
+        float: right;
+        clear: both;
+      }
+    </style>
+    
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Rendering Diagrams";
+        var mkdocs_page_input_path = "rzk-1/render.rzk.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+ 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> rzk: an experimental proof assistant for syntheric ∞-categories
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">General</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../..">About</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">rzk-1 Language</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../introduction.md">Introduction</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../sections.md">Sections and Variables</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../render.md">Rendering Diagrams</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../recId.md">Weak tope disjunction elimination</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tools</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/highlight/">Syntax Highlighting</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/ide/">IDE support</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/continuous/">Continuous Verification</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Related Projects</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/sHoTT/">sHoTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/simple-topes/">simple-topes</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">rzk: an experimental proof assistant for syntheric ∞-categories</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Rendering Diagrams</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="rendering-diagrams">Rendering Diagrams</h1>
+<p>Starting from version <code>0.3.0</code>, <code>rzk</code> supports rendering of topes, types, and terms as diagrams.</p>
+<p>This is a literate <code>rzk</code> file:</p>
+<pre><code class="language-rzk">#lang rzk-1
+</code></pre>
+<p>To enable rendering, enable option <code>"render" = "svg"</code> (to disable, <code>"render" = "none"</code>):</p>
+<pre><code class="language-rzk">#set-option &quot;render&quot; = &quot;svg&quot;  -- enable rendering in SVG
+</code></pre>
+<p>Rendering is completely automatic, and works in the following situations:</p>
+<ol>
+<li>Mapping from a shape (including curried mappings), up to 3 dimensions, only in products of <code>2</code> cubes;</li>
+<li>Type of mapping from a shape (including curried mappings), up to 3 dimensions, only in products of <code>2</code> cubes.</li>
+<li>Mappings from a shape that is a section of an existing shape.</li>
+</ol>
+<p>The rendering assigns the following colors:</p>
+<ul>
+<li>purple is assigned for parameters (context) variables;</li>
+<li>blue is used for fillings for types (e.g. for <code>hom</code> and <code>hom2</code>);</li>
+<li>red is used for terms (e.g. <code>Segal-comp-witness</code>);</li>
+<li>orange is used for shapes in the tope layer;</li>
+<li>grey is used for discarded parts of a (larger) mapping (e.g. when extracting a diagonal/face from a larger shape).</li>
+</ul>
+<p>The SVG pictures can be inserted directly into <code>.md</code> files before a corresponding <code>rzk</code> code block. At the bottom of a markdown file, you might want to add stylization, e.g.:</p>
+<pre><code class="language-html">&lt;style&gt;
+.rzk-render { transition: transform .2s; /* Animation */ }
+.rzk-render:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+&lt;/style&gt;
+
+&lt;!-- Definitions for the SVG images above --&gt;
+&lt;svg width=&quot;0&quot; height=&quot;0&quot;&gt;
+  &lt;defs&gt;
+    &lt;style data-bx-fonts=&quot;Noto Serif&quot;&gt;@import url(https://fonts.googleapis.com/css2?family=Noto+Serif&amp;display=swap);&lt;/style&gt;
+    &lt;marker id=&quot;arrow&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;5&quot; refY=&quot;5&quot;
+      markerWidth=&quot;5&quot; markerHeight=&quot;5&quot; orient=&quot;auto-start-reverse&quot;&gt;
+      &lt;path d=&quot;M 0 2 L 5 5 L 0 8 z&quot; stroke=&quot;purple&quot; fill=&quot;purple&quot; /&gt;
+    &lt;/marker&gt;
+  &lt;/defs&gt;
+  &lt;style&gt;
+    text, textPath {
+      font-family: Noto Serif;
+      font-size: 28px;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+  &lt;/style&gt;
+&lt;/svg&gt;
+</code></pre>
+<h2 id="examples">Examples</h2>
+<h3 id="visualising-simplicial-topes">Visualising Simplicial Topes</h3>
+<p>Topes are visualised with <span style="color: orange"><strong>orange</strong></span> color:</p>
+<pre><code class="language-rzk">-- 2-simplex
+#def Δ² : (2 * 2) -&gt; TOPE
+  := \(t, s) -&gt; s &lt;= t
+</code></pre>
+<p><br><br>
+Boundary of a tope:</p>
+<pre><code class="language-rzk">-- boundary of a 2-simplex
+#def ∂Δ² : Δ² -&gt; TOPE
+  := \(t, s) -&gt; s === 0_2 \/ t === 1_2 \/ s === t
+</code></pre>
+<p>The busiest tope diagram involves the entire 3D cube:
+<br><br></p>
+<pre><code class="language-rzk">-- 3-dim cube
+#def 2³ : (2 * 2 * 2) -&gt; TOPE
+  := \_ -&gt; TOP
+</code></pre>
+<p><br><br><br></p>
+<pre><code class="language-rzk">-- 3-simplex
+#def Δ³ : (2 * 2 * 2) -&gt; TOPE
+  := \((t1, t2), t3) -&gt; t3 &lt;= t2 /\ t2 &lt;= t1
+</code></pre>
+<p><br><br></p>
+<h3 id="visualising-simplicial-types">Visualising Simplicial Types</h3>
+<p>Types are visualised with <span style="color: blue"><strong>blue</strong></span> color. Recognised parameter part (e.g. fixed endpoints, edges, faces with clear labels) are visualised with <span style="color: purple"><strong>purple</strong></span> color. When a type is constructed by taking a part of another shape, the rest of the larger shape is colored using <span style="color: gray"><strong>gray</strong></span> color.</p>
+<pre><code class="language-rzk">-- [RS17, Definition 5.1]
+-- The type of arrows in A from x to y.
+#def hom
+  (A : U)   -- A type.
+  (x y : A) -- Two points in A.
+  : U                   -- (hom A x y) is a 1-simplex (an arrow)
+  := (t : 2) -&gt; A [    -- in A where
+    t === 0_2 |-&gt; x,    -- * the left endpoint is exactly x
+    t === 1_2 |-&gt; y     -- * the right endpoint is exactly y
+  ]
+</code></pre>
+<pre><code class="language-rzk">-- [RS17, Definition 5.2]
+-- the type of commutative triangles in A
+#def hom2
+  (A : U)           -- A type.
+  (x y z : A)       -- Three points in A.
+  (f : hom A x y)   -- An arrow in A from x to y.
+  (g : hom A y z)   -- An arrow in A from y to z.
+  (h : hom A x z)   -- An arrow in A from x to z.
+  : U                           -- (hom2 A x y z f g h) is a 2-simplex (triangle)
+  := { (t1, t2) : Δ² } -&gt; A [   -- in A where
+    t2 === 0_2 |-&gt; f t1,        -- * the top edge is exactly f,
+    t1 === 1_2 |-&gt; g t2,        -- * the right edge is exactly g, and
+    t2 === t1  |-&gt; h t2         -- * the diagonal is exactly h
+  ]
+</code></pre>
+<h3 id="visualising-terms-of-simplicial-types">Visualising Terms of Simplicial Types</h3>
+<p>Terms (with non-trivial labels) are visualised with <span style="color: red"><strong>red</strong></span> color (you can see a detailed label on hover). Recognised parameter part (e.g. fixed endpoints, edges, faces with clear labels) are visualised with <span style="color: purple"><strong>purple</strong></span> color. When a term is constructed by taking a part of another shape, the rest of the larger shape is colored using <span style="color: gray"><strong>gray</strong></span> color.</p>
+<p>We can visualise terms that fill a shape:</p>
+<pre><code class="language-rzk">#def square
+  (A : U)
+  (x y z : A)
+  (f : hom A x y)
+  (g : hom A y z)
+  (h : hom A x z)
+  (a : Sigma (h' : hom A x z), hom2 A x y z f g h')
+  : (2 * 2) -&gt; A
+  := \(t, s) -&gt; recOR( s &lt;= t |-&gt; second a (t, s) , t &lt;= s |-&gt; second a (s, t))
+</code></pre>
+<p>If a term is extracted as a part of a larger shape, generally, the whole shape will be shown (in gray):</p>
+<pre><code class="language-rzk">#def face
+  (A : U)
+  (x y z : A)
+  (f : hom A x y)
+  (a : Sigma (g : hom A y z), {((t1, t2), t3) : 2 * 2 * 2 | t3 &lt;= t1 \/ t2 &lt;= t1} -&gt; A [ t1 === 0_2 |-&gt; f t2, t1 === 1_2 |-&gt; g t3 ])
+  : Δ² -&gt; A
+  := \(t, s) -&gt; second a ((t, t), s)
+</code></pre>
+<!-- Style for the SVG images above -->
+<style>
+.rzk-render { transition: transform .2s; /* Animation */ }
+.rzk-render:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+</style>
+
+<!-- Definitions for the SVG images above -->
+<p><svg width="0" height="0">
+  <defs>
+    <style data-bx-fonts="Noto Serif">@import url(https://fonts.googleapis.com/css2?family=Noto+Serif&amp;display=swap);</style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5"
+      markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 2 L 5 5 L 0 8 z" stroke="black" fill="black" />
+    </marker>
+  </defs>
+<br />
+<style>
+    text, textPath {
+      font-family: Noto Serif;
+      font-size: 28px;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+  </style></p>
+<p></svg></p>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

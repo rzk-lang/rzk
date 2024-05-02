@@ -1,0 +1,1602 @@
+
+<!doctype html>
+<html lang="ru" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Экспериментальный решатель теорем для симплициальной теории типов и синтетических ∞-категорий.">
+      
+      
+        <meta name="author" content="Николай Кудасов">
+      
+      
+        <link rel="canonical" href="https://rzk-lang.github.io/rzk/ru/develop/CHANGELOG/">
+      
+      
+        <link rel="prev" href="../CONTRIBUTORS/">
+      
+      
+        <link rel="next" href="../related/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+    
+    
+      
+        <title>История изменений (англ.) - Решатель теорем Rzk</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.66ac8b77.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Sans:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"PT Sans";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    
+      <link rel="stylesheet" href="../assets/css/rzk-render.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="История изменений (англ.) - Решатель теорем Rzk" >
+      
+        <meta  property="og:description"  content="Экспериментальный решатель теорем для симплициальной теории типов и синтетических ∞-категорий." >
+      
+        <meta  property="og:image"  content="https://rzk-lang.github.io/rzk/ru/develop/assets/images/social/CHANGELOG.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://rzk-lang.github.io/rzk/ru/develop/CHANGELOG/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="История изменений (англ.) - Решатель теорем Rzk" >
+      
+        <meta  name="twitter:description"  content="Экспериментальный решатель теорем для симплициальной теории типов и синтетических ∞-категорий." >
+      
+        <meta  name="twitter:image"  content="https://rzk-lang.github.io/rzk/ru/develop/assets/images/social/CHANGELOG.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog-for-rzk" class="md-skip">
+          Перейти к содержанию
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Верхний колонтитул">
+    <a href=".." title="Решатель теорем Rzk" class="md-header__button md-logo" aria-label="Решатель теорем Rzk" data-md-component="logo">
+      
+  <img src="../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Решатель теорем Rzk
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              История изменений (англ.)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-label="Переключить на тёмный режим"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Переключить на тёмный режим" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Переключить на светлый режим"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Переключить на светлый режим" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Выберите язык">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.52 17.52 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04M18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12m-2.62 7 1.62-4.33L19.12 17h-3.24Z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="/rzk/en/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="/rzk/ru/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Поиск" placeholder="Поиск" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Поиск">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Очистить" aria-label="Очистить" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Инициализация поиска
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/rzk-lang/rzk" title="Перейти к репозиторию" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Вкладки" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href=".." class="md-tabs__link">
+          
+  
+    
+  
+  О проекте
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../getting-started/" class="md-tabs__link">
+          
+  
+    
+  
+  Первые шаги
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/introduction.rzk/" class="md-tabs__link">
+          
+  
+    
+  
+  Руководство
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../playground/" class="md-tabs__link">
+        
+  
+    
+  
+  Песочница
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../blog/" class="md-tabs__link">
+        
+  
+    
+  
+  Блог (англ.)
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Навигация" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Решатель теорем Rzk" class="md-nav__button md-logo" aria-label="Решатель теорем Rzk" data-md-component="logo">
+      
+  <img src="../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    Решатель теорем Rzk
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/rzk-lang/rzk" title="Перейти к репозиторию" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href=".." class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    О проекте
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            О проекте
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../community/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Сообщество
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Инструменты
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CONTRIBUTORS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Участники (англ.)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    История изменений (англ.)
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    История изменений (англ.)
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Содержание">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Содержание
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#v074-2024-04-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.7.4 — 2024-04-01
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v073-2023-12-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.7.3 — 2023-12-16
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v072-2023-12-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.7.2 — 2023-12-12
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v071-2023-12-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.7.1 — 2023-12-08
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v070-2023-12-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.7.0 — 2023-12-08
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v067-2023-10-07" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.7 — 2023-10-07
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v066-2023-10-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.6 — 2023-10-02
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v065-2023-10-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.5 — 2023-10-01
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v064-2023-09-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.4 — 2023-09-27
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v063-2023-09-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.3 — 2023-09-27
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v062-2023-09-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.2 — 2023-09-26
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v061-2023-09-24" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.1 — 2023-09-24
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v060-2023-09-23" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.6.0 — 2023-09-23
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v057-2023-09-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.7 — 2023-09-21
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v056-2023-09-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.6 — 2023-09-19
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v055-2023-09-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.5 — 2023-09-19
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v054-2023-08-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.4 — 2023-08-19
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v053-2023-07-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.3 — 2023-07-12
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v052-2023-07-05" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.2 — 2023-07-05
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v051-2023-06-29" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5.1 — 2023-06-29
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v05-2023-06-20" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.5 — 2023-06-20
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v041-2023-06-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.4.1 — 2023-06-16
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v040-2023-05-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.4.0 — 2023-05-18
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v030-2023-04-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.3.0 — 2023-04-28
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#v020-2023-04-20" class="md-nav__link">
+    <span class="md-ellipsis">
+      v0.2.0 - 2023-04-20
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="v0.2.0 - 2023-04-20">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#language" class="md-nav__link">
+    <span class="md-ellipsis">
+      Language
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Language">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#breaking-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Breaking Changes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deprecated-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deprecated Syntax
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#syntax-relaxation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Syntax Relaxation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#simple-shape-coercions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Simple Shape Coercions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#better-type-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      Better Type Inference
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#better-output-and-error-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      Better output and error message
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal representation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../related/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Другие решатели
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+    <a href="../getting-started/" class="md-nav__link">
+      
+  
+  <span class="md-ellipsis">
+    Первые шаги
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+    <a href="../reference/introduction.rzk/" class="md-nav__link">
+      
+  
+  <span class="md-ellipsis">
+    Руководство
+  </span>
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../playground/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Песочница
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../blog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Блог (англ.)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+    <a href="https://github.com/rzk-lang/rzk/edit/develop/docs/docs/ru/CHANGELOG.md" title="Редактировать страницу" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="changelog-for-rzk">Changelog for <code>rzk</code><a class="headerlink" href="#changelog-for-rzk" title="Permanent link">&para;</a></h1>
+<p>All notable changes to this project will be documented in this file.</p>
+<p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
+and this project adheres to the
+<a href="https://pvp.haskell.org/">Haskell Package Versioning Policy</a>.</p>
+<h2 id="v074-2024-04-01">v0.7.4 — 2024-04-01<a class="headerlink" href="#v074-2024-04-01" title="Permanent link">&para;</a></h2>
+<p>Fixes:</p>
+<ul>
+<li>Fix caching in Rzk Language Server, especially in presence of errors (see <a href="https://github.com/rzk-lang/rzk/pull/167">#167</a>)</li>
+<li>Fix CI for the Rzk Playground (see <a href="https://github.com/rzk-lang/rzk/pull/174">#174</a>)</li>
+</ul>
+<p>This release also contains minor refactoring (see <a href="https://github.com/rzk-lang/rzk/pull/165">#165</a>)
+and a typo fix (see <a href="https://github.com/rzk-lang/rzk/pull/171">#171</a>).</p>
+<h2 id="v073-2023-12-16">v0.7.3 — 2023-12-16<a class="headerlink" href="#v073-2023-12-16" title="Permanent link">&para;</a></h2>
+<p>Fixes:</p>
+<ul>
+<li>Fix overlapping edits in the formatter, hopefully making it idempotent (see <a href="https://github.com/rzk-lang/rzk/pull/160">#160</a>);</li>
+<li>Fix formatter crashing the language server (see <a href="https://github.com/rzk-lang/rzk/pull/161">#161</a>);</li>
+<li>Avoid unnecessary typechecking when semantics of a file has not changed (see <a href="https://github.com/rzk-lang/rzk/pull/159">#159</a>);</li>
+<li>Stop typechecking after the first parse error (avoid invalid cache) (see <a href="https://github.com/rzk-lang/rzk/commit/68ab0b4dd3d627756e10adb55cb16845b08d09d9"><code>68ab0b4</code></a>);</li>
+</ul>
+<p>Other:</p>
+<ul>
+<li>Add unit tests for the formatter (see <a href="https://github.com/rzk-lang/rzk/pull/157">#157</a>);</li>
+</ul>
+<h2 id="v072-2023-12-12">v0.7.2 — 2023-12-12<a class="headerlink" href="#v072-2023-12-12" title="Permanent link">&para;</a></h2>
+<p>Fixes:</p>
+<ul>
+<li>Fixes for <code>rzk format</code>:</li>
+<li>Fix extra space after open parens in formatter (see <a href="https://github.com/rzk-lang/rzk/pull/155">#155</a>);</li>
+<li>Replace line string content with tokens when checking open parens (see <a href="https://github.com/rzk-lang/rzk/pull/156">#156</a>);</li>
+<li>Throw an error when <code>rzk.yaml</code>'s <code>include</code> is empty (see <a href="https://github.com/rzk-lang/rzk/pull/154">#154</a>);</li>
+</ul>
+<p>Changes to the Rzk website:</p>
+<ul>
+<li>Support multiple languages in the documentation (see <a href="https://github.com/rzk-lang/rzk/pull/150">#150</a>);</li>
+<li>English is the default;</li>
+<li>Russian documentation is partially translated and is available at <a href="http://rzk-lang.github.io/rzk/ru/">http://rzk-lang.github.io/rzk/ru/</a>;</li>
+<li>Add a blog (see <a href="https://github.com/rzk-lang/rzk/pull/153">#153</a> and <a href="https://github.com/rzk-lang/rzk/commit/e4388202cea59531903c4c24b939841b2771ceb7"><code>e438820</code></a>);</li>
+<li>The blog is not versioned and is always available at <a href="https://rzk-lang.github.io/rzk/en/blog/">https://rzk-lang.github.io/rzk/en/blog/</a>;</li>
+<li>Add a new <a href="https://rzk-lang.github.io/rzk/en/v0.7.2/related/">Other proof assistants for HoTT</a> page (also <a href="https://rzk-lang.github.io/rzk/ru/v0.7.2/related/">in Russian</a>);</li>
+<li>Add a new <a href="https://rzk-lang.github.io/rzk/en/v0.7.2/getting-started/dependent-types.rzk/">Introduction to Dependent Types</a> page (also <a href="https://rzk-lang.github.io/rzk/ru/v0.7.2/getting-started/dependent-types.rzk/">in Russian</a>)</li>
+<li>Add (default) social cards</li>
+<li>Integrate ToC on the left</li>
+<li>Use Inria Sans for English, PT Sans for Russian</li>
+</ul>
+<h2 id="v071-2023-12-08">v0.7.1 — 2023-12-08<a class="headerlink" href="#v071-2023-12-08" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fix default build to include Rzk Language Server (<code>rzk lsp</code>) (see <a href="https://github.com/rzk-lang/rzk/commit/9b78a15c750699afa93c4dab3735c2aa31e6faac"><code>9b78a15</code></a>);</li>
+<li>Apply formatting to <code>recId.rzk.md</code> example (see <a href="https://github.com/rzk-lang/rzk/commit/40327246954332f40cd82c48d102bf4257ad719e"><code>4032724</code></a>);</li>
+</ul>
+<h2 id="v070-2023-12-08">v0.7.0 — 2023-12-08<a class="headerlink" href="#v070-2023-12-08" title="Permanent link">&para;</a></h2>
+<p>Major changes:</p>
+<ul>
+<li>Add an experimental <code>rzk format</code> command (by <a href="https://github.com/aabounegm">Abdelrahman Abounegm</a>, with feedback by <a href="https://github.com/fredrik-bakke">Fredrik Bakke</a> (see <a href="https://github.com/rzk-lang/sHoTT/pull/142">sHoTT#142</a>) and <a href="https://github.com/fizruk">Nikolai Kudasov</a>):</li>
+<li>Automatically format files, partially automating the <a href="https://rzk-lang.github.io/sHoTT/STYLEGUIDE/">Code Style of the sHoTT project</a></li>
+<li>Notable features:<ul>
+<li>Adds a space after the opening parenthesis to help with the <a href="https://rzk-lang.github.io/sHoTT/STYLEGUIDE/#the-tree-structure-of-constructions">code tree structure</a></li>
+<li>Puts the definition conclusion (type, starting with <code>:</code>) and construction (body, starting with <code>:=</code>) on new lines</li>
+<li>Adds a space after the <code>\</code> of a lambda term and around binary operators (like <code>,</code>)</li>
+<li>Moves binary operators to the beginning of the next line if they appear at the end of the previous one.</li>
+<li>Replaces <a href="https://rzk-lang.github.io/sHoTT/STYLEGUIDE/#use-of-unicode-characters">common ASCII sequences</a> with their Unicode equivalent</li>
+<li>A CLI subcommand (<code>rzk format</code>) with <code>--check</code> and <code>--write</code> options</li>
+</ul>
+</li>
+<li>Known limitations<ul>
+<li>The 80 character line limit is currently not enforced due to the difficulty of determining where to add line breaks (for reference, check out <a href="https://journal.stuffwithstuff.com/2015/09/08/the-hardest-program-ive-ever-written/">this post</a> by a Dart <code>fmt</code> engineer)</li>
+<li>Fixing indentation is not yet implemented due to the need for more semantics than the lexer provides to determine indentation level.</li>
+<li>There may be rare edge cases in which applying the formatter twice could result in additional edits that were not detected the first time.</li>
+</ul>
+</li>
+</ul>
+<p>Minor changes:</p>
+<ul>
+<li>Fix "latest" Rzk Playground link (see <a href="https://github.com/rzk-lang/rzk/pull/137">#137</a>);</li>
+<li>Add more badges to README (see <a href="https://github.com/rzk-lang/rzk/pull/136">#136</a>);</li>
+</ul>
+<h2 id="v067-2023-10-07">v0.6.7 — 2023-10-07<a class="headerlink" href="#v067-2023-10-07" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fix build on some systems (fix <code>BNFC:bnfc</code> executable dependency, see <a href="https://github.com/rzk-lang/rzk/pull/125">#125</a>)</li>
+<li>Improve Rzk Playground (see <a href="https://github.com/rzk-lang/rzk/pull/124">#124</a> by @deemp):</li>
+<li>Add <code>snippet_url</code> parameter</li>
+<li>Migrated from NextJS to Vite</li>
+<li>Use <code>setText</code> on <code>params</code> attribute</li>
+<li>Slightly improve documentation:</li>
+<li>Add links to Rzk Zulip (see <a href="https://github.com/rzk-lang/rzk/pull/131">#131</a>)</li>
+<li>Add <code>cabal update</code> to instructions (see <a href="https://github.com/rzk-lang/rzk/commit/3aa8fd38902fc8cbb29f86122410d24398a15b0b"><code>3aa8fd3</code></a>)</li>
+</ul>
+<h2 id="v066-2023-10-02">v0.6.6 — 2023-10-02<a class="headerlink" href="#v066-2023-10-02" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fix builds on Windows (and macOS) (see <a href="https://github.com/rzk-lang/rzk/pull/121">#121</a>)</li>
+</ul>
+<h2 id="v065-2023-10-01">v0.6.5 — 2023-10-01<a class="headerlink" href="#v065-2023-10-01" title="Permanent link">&para;</a></h2>
+<p>This version contains mostly infrastructure improvements:</p>
+<ul>
+<li>Typecheck using <code>rzk.yaml</code> if it exists (see <a href="https://github.com/rzk-lang/rzk/pull/119">#119</a>)</li>
+<li>Update Rzk Playground and Nix Flake (see <a href="https://github.com/rzk-lang/rzk/pull/84">#84</a>)</li>
+<li>Rzk Playground now uses CodeMirror 6 and NextJS</li>
+<li><code>miso</code> dependency is dropped</li>
+<li>GHCJS 9.6 is now used</li>
+<li>Support <code>snippet={code}</code> or <code>code={code}</code> param (see <a href="https://github.com/rzk-lang/rzk/pull/118">#118</a>)<ul>
+<li>Support for <code>snippet_url={URL}</code> is temporarily dropped</li>
+</ul>
+</li>
+<li>Update to GHC 9.6, the latest Stackage Nightly, improve Rzk setup, and GitHub Actions (see <a href="https://github.com/rzk-lang/rzk/pull/116">#116</a>)</li>
+<li>Add logging for Rzk Language Server (see <a href="https://github.com/rzk-lang/rzk/pull/114">#114</a>)</li>
+</ul>
+<p>Fixes:</p>
+<ul>
+<li>Fix error messages in Rzk Playground (see <a href="https://github.com/rzk-lang/rzk/pull/115">#115</a>)</li>
+</ul>
+<h2 id="v064-2023-09-27">v0.6.4 — 2023-09-27<a class="headerlink" href="#v064-2023-09-27" title="Permanent link">&para;</a></h2>
+<p>This version improves the structure of the project, in particular w.r.t dependencies:</p>
+<ul>
+<li>Add custom snapshot and explicit lower bounds (see <a href="https://github.com/rzk-lang/rzk/pull/108">#108</a>)</li>
+</ul>
+<h2 id="v063-2023-09-27">v0.6.3 — 2023-09-27<a class="headerlink" href="#v063-2023-09-27" title="Permanent link">&para;</a></h2>
+<p>This version contains a fix for the command line interface of <code>rzk</code>:</p>
+<ul>
+<li>
+<p>Fix command line <code>rzk typecheck</code> (see <a href="https://github.com/rzk-lang/rzk/pull/106">#106</a>)</p>
+</li>
+<li>
+<p>Previous version ignored failures in the command line
+    (the bug was introduced when allowing better autocompletion in LSP).</p>
+</li>
+</ul>
+<h2 id="v062-2023-09-26">v0.6.2 — 2023-09-26<a class="headerlink" href="#v062-2023-09-26" title="Permanent link">&para;</a></h2>
+<p>This version contains some improvements in efficiency and also to the language server:</p>
+<ul>
+<li>Improve efficiency of the tope solver, applying LEM for directed interval only as a fallback option (see <a href="https://github.com/rzk-lang/rzk/pull/102">#102</a>)</li>
+<li>Support autocompleting definitions from previous modules (see <a href="https://github.com/rzk-lang/rzk/pull/103">#102</a>)</li>
+<li>Well-typed definitions from the same module also work if the module is only partially well-typed!</li>
+<li>Improve information order in the error messages given in LSP diagnostics (see <a href="https://github.com/rzk-lang/rzk/pull/104">#104</a>)</li>
+</ul>
+<h2 id="v061-2023-09-24">v0.6.1 — 2023-09-24<a class="headerlink" href="#v061-2023-09-24" title="Permanent link">&para;</a></h2>
+<p>This version contains a minor fix:</p>
+<ul>
+<li>Catch exceptions in the parser, fixing LSP for files where layout resolver fails (see <a href="https://github.com/rzk-lang/rzk/pull/99">#99</a>).</li>
+</ul>
+<h2 id="v060-2023-09-23">v0.6.0 — 2023-09-23<a class="headerlink" href="#v060-2023-09-23" title="Permanent link">&para;</a></h2>
+<p>This version introduces a proper LSP server with basic support for incremental typechecking
+and some minor improvements:</p>
+<ol>
+<li>LSP server with incremental typechecking (see <a href="https://github.com/rzk-lang/rzk/pull/95">#95</a>);</li>
+<li>Improve error messages for unclosed <code>#section</code> and extra <code>#end</code> (see <a href="https://github.com/rzk-lang/rzk/pull/91">#91</a>).</li>
+</ol>
+<h2 id="v057-2023-09-21">v0.5.7 — 2023-09-21<a class="headerlink" href="#v057-2023-09-21" title="Permanent link">&para;</a></h2>
+<p>This version contains two fixes (see <a href="https://github.com/rzk-lang/rzk/pull/88">#88</a>) for issues discovered in <a href="https://github.com/rzk-lang/sHoTT/pull/30#issuecomment-1729212862">rzk-lang/sHoTT#30</a>:</p>
+<ol>
+<li>We now only generate well-typed LEM instances in the tope solver, speeding up significantly.</li>
+<li>We fix <span class="arithmatex">\(\eta\)</span>-rule for product cubes, to not get stopped by reflexive equality topes like <span class="arithmatex">\(\langle \langle \pi_1 (t_{12}), \pi_2 (t_{12}) \rangle, t_3 \rangle \equiv \langle t_{12}, t_3 \rangle\)</span>.</li>
+</ol>
+<h2 id="v056-2023-09-19">v0.5.6 — 2023-09-19<a class="headerlink" href="#v056-2023-09-19" title="Permanent link">&para;</a></h2>
+<p>This version fixes the behavior of glob (see <a href="https://github.com/rzk-lang/rzk/commit/77b7cc0494fe0bfd1c9f1aa83db20f42cfda5794"><code>77b7cc0</code></a>).</p>
+<h2 id="v055-2023-09-19">v0.5.5 — 2023-09-19<a class="headerlink" href="#v055-2023-09-19" title="Permanent link">&para;</a></h2>
+<p>This version contains Unicode and tope logic-related fixes:</p>
+<ol>
+<li>Fix (add missing checks) for subshapes (see <a href="https://github.com/rzk-lang/rzk/pull/85">#85</a>);</li>
+<li>Allow handling wildcards in <code>rzk</code> itself (see <a href="https://github.com/rzk-lang/rzk/pull/83">#83</a>);</li>
+<li>Fix Unicode on machines with non-standard locales (see <a href="https://github.com/rzk-lang/rzk/pull/82">#82</a>);</li>
+<li>Specify <code>happy</code> and <code>alex</code> as build tools to fix cabal build from Hackage (see <a href="https://github.com/rzk-lang/rzk/pull/80">#80</a>).</li>
+<li>Add configuration for MkDocs plugin for Rzk (see <a href="https://github.com/rzk-lang/rzk/pull/79">#79</a>).</li>
+</ol>
+<h2 id="v054-2023-08-19">v0.5.4 — 2023-08-19<a class="headerlink" href="#v054-2023-08-19" title="Permanent link">&para;</a></h2>
+<p>This version contains minor improvements:</p>
+<ol>
+<li>Improve typechecking by trying an easier unification strategy first (see <a href="https://github.com/rzk-lang/rzk/pull/76">#76</a>);</li>
+<li>Update GitHub Action for Nix (see <a href="https://github.com/rzk-lang/rzk/pull/74">#74</a>).</li>
+</ol>
+<h2 id="v053-2023-07-12">v0.5.3 — 2023-07-12<a class="headerlink" href="#v053-2023-07-12" title="Permanent link">&para;</a></h2>
+<p>This version contains a few minor improvements:</p>
+<ol>
+<li>Allow patterns in dependent function types (see <a href="https://github.com/rzk-lang/rzk/pull/67">#67</a>);</li>
+<li>Hint about possible shape coercions (see <a href="https://github.com/rzk-lang/rzk/pull/67">#67</a>);</li>
+<li>Enable doctests (see <a href="https://github.com/rzk-lang/rzk/pull/68">#68</a>);</li>
+<li>Improve documentation (add recommended installation instructions via VS Code)</li>
+<li>Migrate from <code>fizruk</code> to <code>rzk-lang</code> organization on GitHub (see <a href="https://github.com/rzk-lang/rzk/commit/ee0d0638283232c99003a83fdf41eb109ae78983"><code>ee0d063</code></a>);</li>
+<li>Speed up GHCJS build with Nix (see <a href="https://github.com/rzk-lang/rzk/pull/66">#66</a>);</li>
+</ol>
+<h2 id="v052-2023-07-05">v0.5.2 — 2023-07-05<a class="headerlink" href="#v052-2023-07-05" title="Permanent link">&para;</a></h2>
+<p>This version introduces support for Unicode syntax, better recognition of Markdown code blocks and improves documentation a bit:</p>
+<ul>
+<li>Support some Unicode syntax (see <a href="https://github.com/rzk-lang/rzk/pull/61">#61</a>);</li>
+<li>Support curly braces syntax for code blocks (see <a href="https://github.com/rzk-lang/rzk/pull/64">#64</a>);</li>
+<li>Update documentation a bit (see <a href="https://github.com/rzk-lang/rzk/commit/07b520a67eb432105fad908202949c93a1639ca8">07b520a6</a> and <a href="https://github.com/rzk-lang/rzk/commit/7cc7f383b1785130277ed79d123c1dd357162d9d">7cc7f383</a>);</li>
+<li>Factor out Pygments highlighting to https://github.com/rzk-lang/pygments-rzk;</li>
+<li>Use new cache action for Nix (see <a href="https://github.com/rzk-lang/rzk/pull/60">#60</a>).</li>
+</ul>
+<h2 id="v051-2023-06-29">v0.5.1 — 2023-06-29<a class="headerlink" href="#v051-2023-06-29" title="Permanent link">&para;</a></h2>
+<p>This version fixes <code>Unit</code> type and makes some changes to documentation:</p>
+<ul>
+<li>Fix computation for <code>Unit</code> (see <a href="https://github.com/rzk-lang/rzk/commit/2f7d6295">2f7d6295</a>);</li>
+<li>Update documentation (see <a href="https://github.com/rzk-lang/rzk/commit/ea2d176b">ea2d176b</a>);</li>
+<li>Use mike to deploy versioned docs (see <a href="https://github.com/rzk-lang/rzk/commit/99cf721a">99cf721a</a>);</li>
+<li>Replace MkDocs hook with the published plugin (see <a href="https://github.com/rzk-lang/rzk/pull/58">#58</a>);</li>
+<li>Switch to Material theme for MkDocs (see <a href="https://github.com/rzk-lang/rzk/pull/57">#57</a>);</li>
+<li>Fix links to <code>*.rzk.md</code> in <code>mkdocs.yml</code> (see <a href="https://github.com/rzk-lang/rzk/commit/8ba1c55b">8ba1c55b</a>);</li>
+</ul>
+<h2 id="v05-2023-06-20">v0.5 — 2023-06-20<a class="headerlink" href="#v05-2023-06-20" title="Permanent link">&para;</a></h2>
+<p>This version contains the following changes:</p>
+<ul>
+<li><code>Unit</code> type (with <code>unit</code> value) (see <a href="https://github.com/rzk-lang/rzk/commit/ede02611">ede02611</a> and <a href="https://github.com/rzk-lang/rzk/commit/bf9d6cd9">bf9d6cd9</a>;</li>
+<li>Add basic tokenizer support via <code>rzk tokenize</code> (see <a href="https://github.com/rzk-lang/rzk/pull/53">#53</a>);</li>
+<li>Add location information for shadowing warnings and duplicate definition errors (see <a href="https://github.com/rzk-lang/rzk/commit/bf9d6cd9">bf9d6cd9</a>).</li>
+</ul>
+<h2 id="v041-2023-06-16">v0.4.1 — 2023-06-16<a class="headerlink" href="#v041-2023-06-16" title="Permanent link">&para;</a></h2>
+<p>This is version contains minor changes, primarily in tools around rzk:</p>
+<ul>
+<li>Add <code>rzk version</code> command (see <a href="https://github.com/rzk-lang/rzk/commit/f1709dc7">f1709dc7</a>);</li>
+<li>Add action to release binaries (see <a href="https://github.com/rzk-lang/rzk/commit/9286afae">9286afae</a>);</li>
+<li>Automate SVG rendering in MkDocs (see <a href="https://github.com/rzk-lang/rzk/pull/49">#49</a>);</li>
+<li>Read <code>stdin</code> when no filepaths are given (see <a href="https://github.com/rzk-lang/rzk/commit/936c15a3">936c15a3</a>);</li>
+<li>Add Pygments highlighting (see <a href="https://github.com/rzk-lang/rzk/commit/01c2a017">01c2a017</a>, <a href="https://github.com/rzk-lang/rzk/commit/cbd656cc">cbd656cc</a>, <a href="https://github.com/rzk-lang/rzk/commit/5220ddf9">5220ddf9</a>, <a href="https://github.com/rzk-lang/rzk/commit/142ec003">142ec003</a>, <a href="https://github.com/rzk-lang/rzk/commit/5c7425f2">5c7425f2</a>);</li>
+<li>Update HighlightJS config for rzk v0.4.0 (see <a href="https://github.com/rzk-lang/rzk/commit/171ee63f">171ee63f</a>);</li>
+</ul>
+<h2 id="v040-2023-05-18">v0.4.0 — 2023-05-18<a class="headerlink" href="#v040-2023-05-18" title="Permanent link">&para;</a></h2>
+<p>This version introduces sections and variables. The feature is similar to <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank"><code>Variable</code> command in Coq</a>. An important difference, however, is that <code>rzk</code> does not allow definitions to use variables implicitly and adds <code>uses (...)</code> annotations to ensure such dependencies are not accidental.</p>
+<ul>
+<li>Variables and sections (Coq-style) (see <a href="https://github.com/rzk-lang/rzk/pull/38">#38</a>);</li>
+</ul>
+<p>Minor improvements:</p>
+<ul>
+<li>Add flake, set up nix and cabal builds, cache nix store on CI (see <a href="https://github.com/rzk-lang/rzk/pull/39">#39</a>);</li>
+<li>Apply stylish-haskell (see <a href="https://github.com/rzk-lang/rzk/commit/7d42ef62">7d42ef62</a>);</li>
+</ul>
+<h2 id="v030-2023-04-28">v0.3.0 — 2023-04-28<a class="headerlink" href="#v030-2023-04-28" title="Permanent link">&para;</a></h2>
+<p>This version introduces an experimental feature for generating visualizations for simplicial terms in SVG.
+To enable rendering, enable option <code>"render" = "svg"</code> (to disable, <code>"render" = "none"</code>):</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">#set-option</span><span class="err"> </span><span class="s">&quot;render&quot;</span><span class="err"> = </span><span class="s">&quot;svg&quot;</span><span class="err">  </span><span class="c">-- enable rendering in SVG</span>
+</span></code></pre></div>
+<p>Minor changes:</p>
+<ul>
+<li>Exit with non-zero code upon a type error (see b135c4fb)</li>
+<li>Fix external links and some typos in the documentation</li>
+</ul>
+<p>Fixes:</p>
+<ul>
+<li>Fixed an issue with tope solver when context was empty (see 6196af9e);</li>
+<li>Fixed #33 (missing coherence check for restricted types).</li>
+</ul>
+<h2 id="v020-2023-04-20">v0.2.0 - 2023-04-20<a class="headerlink" href="#v020-2023-04-20" title="Permanent link">&para;</a></h2>
+<p>This version was a complete rewrite of the proof assistant, using a new parser, a new internal representation, and a rewrite of the typechecking logic. This is still a prototype, but, arguably, significantly more stable and manageable than version 0.1.0.</p>
+<h3 id="language">Language<a class="headerlink" href="#language" title="Permanent link">&para;</a></h3>
+<p>Syntax is almost entirely backwards compatible with version 0.1.0.
+Type checking has been fixed and improved.</p>
+<h4 id="breaking-changes">Breaking Changes<a class="headerlink" href="#breaking-changes" title="Permanent link">&para;</a></h4>
+<p>The only known breaking changes are:</p>
+<ol>
+<li>Terms like <code>second x y</code> which previous have been parsed as <code>second (x y)</code>
+   now are properly parsed as <code>(second x) y</code>.</li>
+<li>It is now necessary to have at least a minimal indentation in the definition of a term after a newline.</li>
+<li>Unicode syntax is temporarily disabled, except for dependent sums and arrows in function types.</li>
+<li>The restriction syntax <code>[ ... ]</code> now has a slightly different precedence, so some parentheses are required, e.g. in <code>(A -&gt; B) [ phi |-&gt; f]</code> or <code>(f t = g t) [ phi |-&gt; f]</code>.</li>
+<li>Duplicate top-level definitions are no longer allowed.</li>
+</ol>
+<h4 id="deprecated-syntax">Deprecated Syntax<a class="headerlink" href="#deprecated-syntax" title="Permanent link">&para;</a></h4>
+<p>The angle brackets for extension types are supported, but deprecated,
+as they are completely unnecessary now: <code>&lt;{t : I | psi t} -&gt; A t [ phi t |-&gt; a t ]&gt;</code> can now be written as <code>{t : I | psi t} -&gt; A t [ phi t |-&gt; a t]</code>
+or even <code>(t : psi) -&gt; A t [ phi t |-&gt; a t ]</code>.</p>
+<h4 id="syntax-relaxation">Syntax Relaxation<a class="headerlink" href="#syntax-relaxation" title="Permanent link">&para;</a></h4>
+<p>Otherwise, syntax is now made more flexible:</p>
+<ol>
+<li>Function parameters can be unnamed: <code>A -&gt; B</code> is the same as <code>(_ : A) -&gt; B</code>.</li>
+<li>Angle brackets are now optional: <code>{t : I | psi t} -&gt; A t [ phi t |-&gt; a t ]</code></li>
+<li>Nullary extension types are possible: <code>A t [ phi t |-&gt; a t ]</code></li>
+<li>Lambda abstractions can introduce multiple arguments:</li>
+</ol>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:hom" id="define:hom" style="visibility: visible; position: relative; color: inherit">hom</a></span><span class="err"> : </span><span class="p">(</span>A <span class="p">:</span><span class="err"> U) -&gt; A -&gt; A -&gt; U</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="err">  := </span><span class="p">\</span>A x y <span class="err">-&gt;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="err">    </span><span class="p">(</span>t <span class="p">:</span><span class="err"> Δ¹) -&gt; A [ ∂Δ¹ t |-&gt; </span><span class="s">recOR</span><span class="err">(t </span><span class="sx">===</span><span class="err"> </span><span class="m">0_2</span><span class="err">, t </span><span class="sx">===</span><span class="err"> </span><span class="m">1_2</span><span class="err">, x, y) ]</span>
+</span></code></pre></div>
+<ol>
+<li>Parameters can be introduced simultaneously for the type and body. Moreover, multiple parameters can be introduced with the same type:</li>
+</ol>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:hom" id="define:hom" style="visibility: visible; position: relative; color: inherit">hom</a></span><span class="err"> </span><span class="p">(</span>A <span class="p">:</span><span class="err"> U) </span><span class="p">(</span>x y <span class="p">:</span><span class="err"> A) : U</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="err">  := </span><span class="p">(</span>t <span class="p">:</span><span class="err"> Δ¹) -&gt; A [ ∂Δ¹ t |-&gt; </span><span class="s">recOR</span><span class="err">(t </span><span class="sx">===</span><span class="err"> </span><span class="m">0_2</span><span class="err">, t </span><span class="sx">===</span><span class="err"> </span><span class="m">1_2</span><span class="err">, x, y) ]</span>
+</span></code></pre></div>
+<ol>
+<li>Restrictions can now support multiple subshapes, effectively internalizing <code>recOR</code>:</li>
+</ol>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:hom" id="define:hom" style="visibility: visible; position: relative; color: inherit">hom</a></span><span class="err"> </span><span class="p">(</span>A <span class="p">:</span><span class="err"> U) </span><span class="p">(</span>x y <span class="p">:</span><span class="err"> A) : U</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="err">  := </span><span class="p">(</span>t <span class="p">:</span><span class="err"> Δ¹) -&gt; A [ t </span><span class="sx">===</span><span class="err"> </span><span class="m">0_2</span><span class="err"> |-&gt; x, t </span><span class="sx">===</span><span class="err"> </span><span class="m">1_2</span><span class="err"> |-&gt; y ]</span>
+</span></code></pre></div>
+<ol>
+<li>
+<p>There are now 3 syntactic versions of <code>refl</code> with different amount of explicit annotations:
+   <code>refl</code>, <code>refl_{x}</code> and <code>refl_{x : A}</code></p>
+</li>
+<li>
+<p>There are now 2 syntactic versions of identity types (<code>=</code>): <code>x = y</code> and <code>x =_{A} y</code>.</p>
+</li>
+<li>
+<p><code>recOR</code> now supports alternative syntax with an arbitrary number of subshapes:
+   <code>recOR( tope1 |-&gt; term1, tope2 |-&gt; term2, ..., topeN |-&gt; termN )</code></p>
+</li>
+<li>
+<p>Now it is possible to have type ascriptions: <code>t as T</code>. This can help with ensuring types of subexpressions in parts of formalizations, or to upcast types.</p>
+</li>
+<li>
+<p>New (better) commands are now supported:</p>
+<ol>
+<li><code>#define &lt;name&gt; (&lt;param&gt;)* : &lt;type&gt; := &lt;term&gt;</code> — same as <code>#def</code>, but with full spelling of the word</li>
+<li><code>#postulate &lt;name&gt; (&lt;param&gt;)* : &lt;type&gt;</code> — postulate an axiom</li>
+<li><code>#check &lt;term&gt; : &lt;type&gt;</code> — typecheck an expression against a given type</li>
+<li><code>#compute-whnf &lt;term&gt;</code> — compute (WHNF) of a term</li>
+<li><code>#compute-nf &lt;term&gt;</code> — compute normal form of a term</li>
+<li><code>#compute &lt;term&gt;</code> — alias for <code>#compute-whnf</code></li>
+<li>
+<p><code>#set-option &lt;option&gt; = &lt;value&gt;</code> — set a (typechecker) option:</p>
+</li>
+<li>
+<p><code>#set-option "verbosity" = "silent"</code> — no log printing</p>
+</li>
+<li><code>#set-option "verbosity" = "normal"</code> — log typechecking progress</li>
+<li>
+<p><code>#set-option "verbosity" = "debug"</code> — log every intermediate action
+     (may be useful to debug when some definition does not typecheck)</p>
+</li>
+<li>
+<p><code>#unset-option &lt;option&gt;</code> — revert option's value to its default</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="simple-shape-coercions">Simple Shape Coercions<a class="headerlink" href="#simple-shape-coercions" title="Permanent link">&para;</a></h4>
+<p>In some places, shapes (cube indexed tope families) can be used directly:</p>
+<ol>
+<li>
+<p>In function parameters: <code>(Λ -&gt; A) -&gt; (Δ² -&gt; A)</code> is the same as <code>({(t, s) : 2 * 2 | Λ (t, s)} -&gt; A) -&gt; ({(t, s) : 2 * 2 | Δ²} -&gt; A)</code></p>
+</li>
+<li>
+<p>In parameter types of lambda abstractions: <code>\((t, s) : Δ²) -&gt; ...</code> is the same as <code>\{(t, s) : 2 * 2 | Δ² (t, s)} -&gt; ...</code></p>
+</li>
+</ol>
+<h4 id="better-type-inference">Better Type Inference<a class="headerlink" href="#better-type-inference" title="Permanent link">&para;</a></h4>
+<ol>
+<li>
+<p>It is now not required to annotate point variables with tope restrictions, the typechecker is finally smart enough to figure them out from the context.</p>
+</li>
+<li>
+<p>It is now possible to simply write <code>refl</code> in most situations.</p>
+</li>
+<li>
+<p>It is now possible to omit the index type in an identity type: <code>x = y</code></p>
+</li>
+</ol>
+<h3 id="better-output-and-error-message">Better output and error message<a class="headerlink" href="#better-output-and-error-message" title="Permanent link">&para;</a></h3>
+<p>The output and error messages have been slightly improved, but not in a major way.</p>
+<h3 id="internal-representation">Internal representation<a class="headerlink" href="#internal-representation" title="Permanent link">&para;</a></h3>
+<p>A new internal representation (a version of second-order abstract syntax)
+allows stopping worrying about name captures in substitutions,
+so the implementation is much more trustworthy.
+The new representation will also allow bringing in higher-order unification in the future, for better type inference, matching, etc.</p>
+<p>New representation also allowed annotating each (sub)term with its type to avoid recomputations and some other minor speedups. There are still some performance issues, which need to be debugged, but overall it is much faster than version 0.1.0 already.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Нижний колонтитул" >
+        
+          
+          <a href="../CONTRIBUTORS/" class="md-footer__link md-footer__link--prev" aria-label="Назад: Участники (англ.)">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Назад
+              </span>
+              <div class="md-ellipsis">
+                Участники (англ.)
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../related/" class="md-footer__link md-footer__link--next" aria-label="Вперед: Другие решатели">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Вперед
+              </span>
+              <div class="md-ellipsis">
+                Другие решатели
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "content.action.edit", "navigation.footer", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.prune", "navigation.path", "navigation.indexes", "toc.integrate"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0432 \u0431\u0443\u0444\u0435\u0440", "clipboard.copy": "\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0432 \u0431\u0443\u0444\u0435\u0440", "search.result.more.one": "\u0415\u0449\u0451 1 \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.more.other": "\u0415\u0449\u0451 # \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.none": "\u0421\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e", "search.result.one": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e 1 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435", "search.result.other": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439: #", "search.result.placeholder": "\u041d\u0430\u0447\u043d\u0438\u0442\u0435 \u043f\u0435\u0447\u0430\u0442\u0430\u0442\u044c \u0434\u043b\u044f \u043f\u043e\u0438\u0441\u043a\u0430", "search.result.term.missing": "\u041e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442", "select.version": "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0435\u0440\u0441\u0438\u044e"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      
+        <script src="../javascript/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

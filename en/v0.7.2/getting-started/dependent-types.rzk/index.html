@@ -1,0 +1,2363 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories.">
+      
+      
+        <meta name="author" content="Nikolai Kudasov">
+      
+      
+        <link rel="canonical" href="https://rzk-lang.github.io/rzk/en/v0.7.2/getting-started/dependent-types.rzk/">
+      
+      
+        <link rel="prev" href="../quickstart.rzk/">
+      
+      
+        <link rel="next" href="../project/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.2">
+    
+    
+      
+        <title>Depedent Types - Rzk proof assistant</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.50c56a3b.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inria+Sans:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inria Sans";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    
+      <link rel="stylesheet" href="../../assets/css/rzk-render.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="Depedent Types - Rzk proof assistant" >
+      
+        <meta  property="og:description"  content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories." >
+      
+        <meta  property="og:image"  content="https://rzk-lang.github.io/rzk/en/v0.7.2/assets/images/social/getting-started/dependent-types.rzk.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://rzk-lang.github.io/rzk/en/v0.7.2/getting-started/dependent-types.rzk/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="Depedent Types - Rzk proof assistant" >
+      
+        <meta  name="twitter:description"  content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories." >
+      
+        <meta  name="twitter:image"  content="https://rzk-lang.github.io/rzk/en/v0.7.2/assets/images/social/getting-started/dependent-types.rzk.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dependent-types" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Rzk proof assistant" class="md-header__button md-logo" aria-label="Rzk proof assistant" data-md-component="logo">
+      
+  <img src="../../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Rzk proof assistant
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Depedent Types
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.52 17.52 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04M18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12m-2.62 7 1.62-4.33L19.12 17h-3.24Z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="/rzk/en/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="/rzk/ru/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/rzk-lang/rzk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+    
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/introduction.rzk/" class="md-tabs__link">
+          
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../playground/" class="md-tabs__link">
+        
+  
+    
+  
+  Playground
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../blog/" class="md-tabs__link">
+        
+  
+    
+  
+  Blog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Rzk proof assistant" class="md-nav__button md-logo" aria-label="Rzk proof assistant" data-md-component="logo">
+      
+  <img src="../../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    Rzk proof assistant
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/rzk-lang/rzk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../.." class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    About
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_1" id="__nav_1_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            About
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../community/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Community
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tools
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../CONTRIBUTORS/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contributors
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../CHANGELOG/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Changelog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../related/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Other proof assistants
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Install
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Depedent Types
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Depedent Types
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Functions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#product-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Product types
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Product types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#remark-on-type-formers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Remark on type formers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recursion-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recursion principle
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#induction-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Induction principle
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dependent-pair-types-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dependent pair types (Σ-types)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dependent pair types (Σ-types)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#projections" class="md-nav__link">
+    <span class="md-ellipsis">
+      Projections
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recursion-and-induction-principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recursion and induction principles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-theoretic-axiom-of-choice" class="md-nav__link">
+    <span class="md-ellipsis">
+      Type-theoretic "axiom" of choice
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coproducts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coproducts
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Coproducts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#postulating-the-empty-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      Postulating the empty type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postulating-the-coproduct-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      Postulating the coproduct type
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#booleans" class="md-nav__link">
+    <span class="md-ellipsis">
+      Booleans
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#natural-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Natural numbers
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../project/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Setting up an Rzk project
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/introduction.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cube-layer.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Cube layer
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/tope-layer.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tope layer
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/type-layer.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dependent types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/tope-disjunction-elimination.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tope disjunction elimination
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/extension-types.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Extension types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Organizational features
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            Organizational features
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sections.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sections and Variables
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Builtins
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            Builtins
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/builtins/directed-interval.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Directed interval
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/builtins/unit.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Unit type
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_9" id="__nav_3_9_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Commands
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_9">
+            <span class="md-nav__icon md-icon"></span>
+            Commands
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/commands/define-postulate.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Define and Postulate
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/commands/compute.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Compute
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/commands/check.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Check
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/commands/options.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Options
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_10" id="__nav_3_10_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Other
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_10">
+            <span class="md-nav__icon md-icon"></span>
+            Other
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/render.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Rendering Diagrams
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_11" id="__nav_3_11_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Examples
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_11">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/recId.rzk/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Weak tope disjunction elimination
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../playground/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Playground
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../blog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Blog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+    <a href="https://github.com/rzk-lang/rzk/edit/develop/docs/docs/en/getting-started/dependent-types.rzk.md" title="Edit this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="dependent-types">Dependent types<a class="headerlink" href="#dependent-types" title="Permanent link">&para;</a></h1>
+<p>In this file we will look at Rzk primitives to work with dependent types.</p>
+<div class="admonition info">
+<p class="admonition-title">Reference material</p>
+<p>This page is mostly based on the introduction of dependent types in the HoTT Book (Sections 1.2–1.6),
+immediately introducing corresponding formalizations in Rzk and noting some differences.</p>
+</div>
+<p>This is a literate Rzk file:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">#lang</span><span class="p"> </span><span class="s">rzk-1</span>
+</span></code></pre></div>
+<h2 id="functions">Functions<a class="headerlink" href="#functions" title="Permanent link">&para;</a></h2>
+<p>The type <code class="language-rzk highlight"><span class="p">(</span>x <span class="p">:</span><span class="err"> A) → B x</span></code> is the type of (dependent)
+functions with an argument of type <code>A</code> and, for each input <code>x</code>,
+the output type <code>B x</code>.</p>
+<p>As a simple example of a dependent function,
+consider the identity function:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:identity" id="define:identity" style="visibility: visible; position: relative; color: inherit">identity</a></span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="err">  : </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U) → </span><span class="p">(</span>x <span class="p">:</span><span class="err"> A) → A</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="err">  := </span><span class="p">\ </span>A x <span class="err">→ x</span>
+</span></code></pre></div>
+<p>Since we are not using <code>x</code> in the type of <code>identity</code>,
+we can simply write the type of the argument,
+without providing its name:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:identity₁" id="define:identity₁" style="visibility: visible; position: relative; color: inherit">identity₁</a></span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="err">  : </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U) → A → A</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="err">  := </span><span class="p">\ </span>A x <span class="err">→ x</span>
+</span></code></pre></div>
+<p>We can write this definition differently,
+by putting <code class="language-rzk highlight"><span class="p">(</span>A <span class="p">:</span><span class="err"> U)</span></code> into parameters (before <code>:</code>),
+and omitting it in the lambda abstraction:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:identity₂" id="define:identity₂" style="visibility: visible; position: relative; color: inherit">identity₂</a></span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="err">  : A → A</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="err">  := </span><span class="p">\ </span>x <span class="err">→ x</span>
+</span></code></pre></div>
+<p>We could also move <code>x</code> into parameters as well,
+although this probably does not increase readability anymore:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:identity₃" id="define:identity₃" style="visibility: visible; position: relative; color: inherit">identity₃</a></span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="err">  </span><span class="p">( </span>x <span class="p">:</span><span class="err"> A)</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="err">  : A</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="err">  := x</span>
+</span></code></pre></div>
+<p>Another, less trivial example of a dependent function is
+the one that swaps the arguments of another function:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:swap" id="define:swap" style="visibility: visible; position: relative; color: inherit">swap</a></span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="err">  </span><span class="p">( </span>A B C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="err">  : ( A → B → C) → (B → A → C)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="err">  := </span><span class="p">\ </span>f <span class="err">→ </span><span class="p">\ </span>b a <span class="err">→ f a b</span>
+</span></code></pre></div>
+<h2 id="product-types">Product types<a class="headerlink" href="#product-types" title="Permanent link">&para;</a></h2>
+<p>Rzk does not have built-in product types, since they are a special case of Σ-types,
+which we will discuss soon. For now, we give definition of product types:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:prod" id="define:prod" style="visibility: visible; position: relative; color: inherit">prod</a></span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="err">  : U</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="err">  := </span><span class="kt">Σ</span><span class="err"> </span><span class="p">( </span>_ <span class="p">:</span><span class="err"> A) , B</span>
+</span></code></pre></div>
+<p>The type <code class="language-rzk highlight"><span class="err">prod A B</span></code> corresponds to the product type <span class="arithmatex">\(A \times B\)</span>.
+The <code class="language-rzk highlight"><span class="kt">Unit</span></code> type corresponds to the type <span class="arithmatex">\(\mathbf{1}\)</span>.</p>
+<p>The intended elements of <code class="language-rzk highlight"><span class="err">prod A B</span></code> are only pairs <code class="language-rzk highlight"><span class="err">(a, b) : prod A B</span></code>
+where <code class="language-rzk highlight"><span class="err">a : A</span></code> and <code class="language-rzk highlight"><span class="err">b : B</span></code>. Similarly, intended element of <code class="language-rzk highlight"><span class="kt">Unit</span></code>
+is only <code class="language-rzk highlight"><span class="s">unit</span></code>. However, formally, this is not immediately true and instead
+is a theorem that we can prove.</p>
+<h3 id="remark-on-type-formers">Remark on type formers<a class="headerlink" href="#remark-on-type-formers" title="Permanent link">&para;</a></h3>
+<p>Formally, we have the following constituents of the definition for product types and function types
+(for comparison):</p>
+<ol>
+<li>
+<p><strong>Type formation</strong>:</p>
+<ul>
+<li><code class="language-rzk highlight"><span class="err">prod A B</span></code> is a type whenever <code>A</code> and <code>B</code> are types</li>
+<li><code class="language-rzk highlight"><span class="err">A → B</span></code> is a type whenever <code>A</code> and <code>B</code> are types</li>
+</ul>
+</li>
+<li>
+<p><strong>Constructors (introduction rules)</strong>:</p>
+<ul>
+<li><code class="language-rzk highlight"><span class="err">(x , y)</span></code> is a term of type <code class="language-rzk highlight"><span class="err">prod A B</span></code> whenever <code class="language-rzk highlight"><span class="err">x : A</span></code> and <code class="language-rzk highlight"><span class="err">y : B</span></code></li>
+<li><code class="language-rzk highlight"><span class="p">\ </span>x <span class="err">→ y</span></code> is a term of type <code class="language-rzk highlight"><span class="err">A → B</span></code> whenever for any <code class="language-rzk highlight"><span class="err">x : A</span></code> we have <code class="language-rzk highlight"><span class="err">y : B</span></code></li>
+</ul>
+</li>
+<li>
+<p><strong>Eliminators (elimination rules)</strong>:</p>
+<ul>
+<li>
+<p>Given <code class="language-rzk highlight"><span class="err">z : prod A B</span></code>, we can <em>project</em> the first and second components:</p>
+<ul>
+<li><code class="language-rzk highlight"><span class="s">first</span><span class="err"> z : A</span></code> and <code class="language-rzk highlight"><span class="s">second</span><span class="err"> z : B</span></code></li>
+<li>
+<p>it is also possible to pattern match (deconstruct) in a function argument or when introducing a parameter, e.g.</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:swap-prod₁" id="define:swap-prod₁" style="visibility: visible; position: relative; color: inherit">swap-prod₁</a></span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="err">  : prod A B → prod B A</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="err">  := \ (x , y) → (y , x)</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:swap-prod₂" id="define:swap-prod₂" style="visibility: visible; position: relative; color: inherit">swap-prod₂</a></span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="err">  ( (x , y) : prod A B)</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="err">  : prod B A</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="err">  := ( y , x)</span>
+</span></code></pre></div>
+</li>
+<li>
+<p>more generally, eliminators come in a form of an <em>induction principle</em>, which we will discuss below
+  and can be defined in Rzk in terms of pattern matching or <code class="language-rzk highlight"><span class="s">first</span></code> and <code class="language-rzk highlight"><span class="s">second</span></code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:ind-prod" id="define:ind-prod" style="visibility: visible; position: relative; color: inherit">ind-prod</a></span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> prod A B → U)</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → </span><span class="p">(</span>b <span class="p">:</span><span class="err"> B) → C (a , b))</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="err">  : </span><span class="p">(</span>z <span class="p">:</span><span class="err"> prod A B) → C z</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="err">  := \ (a , b) → f a b</span>
+</span></code></pre></div>
+</li>
+</ul>
+</li>
+<li>
+<p>Given <code class="language-rzk highlight"><span class="err">f : A → B</span></code>, we can <em>apply</em> it to an argument of type <code class="language-rzk highlight"><span class="err">a : A</span></code>:</p>
+<ul>
+<li><code class="language-rzk highlight"><span class="err">f a : B</span></code></li>
+</ul>
+</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Built-in eliminators in Rzk</p>
+<p>Built-in eliminators in Rzk need to be <strong>always</strong> fully applied (e.g. <code class="language-rzk highlight"><span class="s">first</span></code> without an argument is invalid syntax!).
+Technically, this corresponds with the "second presentation" of type theory in Appendix A.2 of the HoTT Book.
+In practice, this is not always convenient for users, as we often want to curry some of these built-ins,
+so wrapper functions are introduced (by users), for example:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:pr₁" id="define:pr₁" style="visibility: visible; position: relative; color: inherit">pr₁</a></span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="err">  : prod A B → A</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="err">  := </span><span class="p">\ </span>p <span class="err">→ </span><span class="s">first</span><span class="err"> p</span>
+</span></code></pre></div>
+</div>
+</li>
+<li>
+<p><strong>Computation rules</strong>:</p>
+<ul>
+<li>Projecting from a pair is computed as follows for any <code class="language-rzk highlight"><span class="err">x : A</span></code> and <code class="language-rzk highlight"><span class="err">y : B</span></code>:<ul>
+<li><code class="language-rzk highlight"><span class="s">first</span><span class="err"> (x , y) </span><span class="sx">≡</span><span class="err"> x</span></code></li>
+<li><code class="language-rzk highlight"><span class="s">second</span><span class="err"> (x , y) </span><span class="sx">≡</span><span class="err"> y</span></code></li>
+</ul>
+</li>
+<li>Applying an lambda abstraction is computed by substituting the argument into a body:</li>
+<li><code class="language-rzk highlight"><span class="err">(</span><span class="p">\ </span>x <span class="err">→ y) a </span><span class="sx">≡</span><span class="err"> y{x ↦ a}</span></code> when <code class="language-rzk highlight"><span class="err">a : A</span></code> and for all <code class="language-rzk highlight"><span class="err">x : A</span></code>, <code class="language-rzk highlight"><span class="err">y : B</span></code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Uniqueness principle (optional)</strong>:</p>
+<ul>
+<li>For any <code class="language-rzk highlight"><span class="err">z : prod A B</span></code>, we have <code class="language-rzk highlight"><span class="err">z </span><span class="sx">≡</span><span class="err"> (</span><span class="s">first</span><span class="err"> z, </span><span class="s">second</span><span class="err"> z)</span></code></li>
+<li>This holds definitionally for product types and Σ-types in Rzk, but is provable in a weaker (propositional) form in HoTT Book</li>
+<li>For any function <code class="language-rzk highlight"><span class="err">f : A → B</span></code>, we have <code class="language-rzk highlight"><span class="err">f </span><span class="sx">≡</span><span class="err"> </span><span class="p">\ </span>x <span class="err">→ f x</span></code></li>
+</ul>
+</li>
+</ol>
+<h3 id="recursion-principle">Recursion principle<a class="headerlink" href="#recursion-principle" title="Permanent link">&para;</a></h3>
+<p>Following the HoTT Book, for each type former we can formalize its <em>recursion principle</em>.
+A recursion principle for type <code class="language-rzk highlight"><span class="err">T</span></code> is a function that allows to produce
+a result of arbitrary type <code class="language-rzk highlight"><span class="err">C</span></code> from a value of type <code class="language-rzk highlight"><span class="err">T</span></code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-T" id="define:rec-T" style="visibility: visible; position: relative; color: inherit">rec-T</a></span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="err">  </span><span class="c">-- ... (parameters to the recursion principle)</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="err">  : T → C</span>
+</span></code></pre></div>
+<p>For example, for the product type <code class="language-rzk highlight"><span class="err">prod A B</span></code>, recursion principle looks like this:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-prod" id="define:rec-prod" style="visibility: visible; position: relative; color: inherit">rec-prod</a></span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> A → B → C)</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="err">  : prod A B → C</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="err">  := \ ( a , b) → f a b</span>
+</span></code></pre></div>
+<p>For the <code class="language-rzk highlight"><span class="kt">Unit</span></code> type, recursion principle is trivial:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-Unit" id="define:rec-Unit" style="visibility: visible; position: relative; color: inherit">rec-Unit</a></span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="err">  </span><span class="p">( </span>c <span class="p">:</span><span class="err"> C)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="err">  : Unit → C</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="err">  := </span><span class="p">\ </span>unit <span class="err">→ c</span>
+</span></code></pre></div>
+<h3 id="induction-principle">Induction principle<a class="headerlink" href="#induction-principle" title="Permanent link">&para;</a></h3>
+<p>To define a <em>dependent</em> function out of a type, we use its <em>induction principle</em>,
+which can be seen as a dependent version of the recursion principle.
+An induction principle for type <code class="language-rzk highlight"><span class="err">T</span></code> is a function that allows to produce
+a result of arbitrary type <code class="language-rzk highlight"><span class="err">C z</span></code> from a value <code class="language-rzk highlight"><span class="err">z : T</span></code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:ind-T" id="define:ind-T" style="visibility: visible; position: relative; color: inherit">ind-T</a></span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> T → U)</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="err">  </span><span class="c">-- ... (parameters to the induction principle)</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="err">  : </span><span class="p">(</span>z <span class="p">:</span><span class="err"> T) → C z</span>
+</span></code></pre></div>
+<p>For example, for the product type <code class="language-rzk highlight"><span class="err">prod A B</span></code>, induction principle looks like this:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:ind-prod" id="define:ind-prod" style="visibility: visible; position: relative; color: inherit">ind-prod</a></span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> prod A B → U)</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → </span><span class="p">(</span>b <span class="p">:</span><span class="err"> B) → C (a , b))</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> prod A B) → C z</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="err">  := \ ( a , b) → f a b</span>
+</span></code></pre></div>
+<p>We can use <code class="language-rzk highlight"><span class="err">ind-prod</span></code> to prove the uniqueness principle for products.
+Here we use the identity type, which we will cover later, but for now it is
+sufficient to know that there is always an element <code class="language-rzk highlight"><span class="s">refl</span><span class="err">_{x} : x =_{A} x</span></code>
+for any <code class="language-rzk highlight"><span class="err">x : A</span></code>.</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-prod" id="define:uniq-prod" style="visibility: visible; position: relative; color: inherit">uniq-prod</a></span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> prod A B)</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="err">  : ( </span><span class="s">first</span><span class="err"> z , </span><span class="s">second</span><span class="err"> z) =_{prod A B} z</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="err">  := ind-prod A B</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="err">      ( </span><span class="p">\ </span>z&#39; <span class="err">→ (</span><span class="s">first</span><span class="err"> z&#39; , </span><span class="s">second</span><span class="err"> z&#39;) =_{prod A B} z&#39;) </span><span class="c">-- C</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="err">      ( </span><span class="p">\ </span>a b <span class="err">→ </span><span class="s">refl</span><span class="err">_{(a , b)})</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="err">        </span><span class="c">-- C (a, b)</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="err">        </span><span class="c">-- ≡ ( \ z&#39; → (first z&#39;, second z&#39;) =_{prod A B} z&#39;) (a, b)</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="err">        </span><span class="c">-- ≡ (first (a, b), second (a, b)) =_{prod A B} (a, b)</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="err">        </span><span class="c">-- ≡ (a, second (a, b)) =_{prod A B} (a, b)</span>
+</span><span id="__span-15-12"><a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="err">        </span><span class="c">-- ≡ (a, b) =_{prod A B} (a, b)</span>
+</span><span id="__span-15-13"><a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="err">      z</span>
+</span></code></pre></div>
+<p>Since in Rzk the uniqueness principle is builtin, a simpler proof also works:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-prod&#39;" id="define:uniq-prod&#39;" style="visibility: visible; position: relative; color: inherit">uniq-prod&#39;</a></span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> prod A B)</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="err">  : ( </span><span class="s">first</span><span class="err"> z , </span><span class="s">second</span><span class="err"> z) =_{prod A B} z</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="err">  := </span><span class="s">refl</span><span class="err">_{z} </span><span class="c">-- works in Rzk, not in HoTT Book, since in Rzk we have (first z, second z) ≡ z</span>
+</span></code></pre></div>
+<p>For the <code class="language-rzk highlight"><span class="kt">Unit</span></code> type, induction principle is trivial:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:ind-Unit" id="define:ind-Unit" style="visibility: visible; position: relative; color: inherit">ind-Unit</a></span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> Unit → U)</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="err">  </span><span class="p">( </span>c <span class="p">:</span><span class="err"> C </span><span class="s">unit</span><span class="err">)</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> Unit) → C z</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="err">  := </span><span class="p">\ </span>unit <span class="err">→ c</span>
+</span></code></pre></div>
+<p>Unlike <code class="language-rzk highlight"><span class="err">rec-</span><span class="kt">Unit</span></code>, induction principle for <code class="language-rzk highlight"><span class="kt">Unit</span></code> is not useless,
+since it allows, for example, to prove the uniqueness principle:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-Unit" id="define:uniq-Unit" style="visibility: visible; position: relative; color: inherit">uniq-Unit</a></span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> Unit)</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="err">  : </span><span class="s">unit</span><span class="err"> =_{Unit} z</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="err">  := ind-</span><span class="kt">Unit</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="err">      ( </span><span class="p">\ </span>z&#39; <span class="err">→ </span><span class="s">unit</span><span class="err"> =_{Unit} z&#39;)</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="err">      ( </span><span class="s">refl</span><span class="err">_{</span><span class="s">unit</span><span class="err">})</span>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="err">      z</span>
+</span></code></pre></div>
+<p>Again, since Rzk has a builtin uniqueness principle for <code class="language-rzk highlight"><span class="kt">Unit</span></code>, a simpler proof also works:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-Unit&#39;" id="define:uniq-Unit&#39;" style="visibility: visible; position: relative; color: inherit">uniq-Unit&#39;</a></span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> Unit)</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="err">  : </span><span class="s">unit</span><span class="err"> =_{Unit} z</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="err">  := </span><span class="s">refl</span><span class="err">_{z} </span><span class="c">-- works in Rzk, not in HoTT Book, since in Rzk we have unit ≡ z</span>
+</span></code></pre></div>
+<h2 id="dependent-pair-types-types">Dependent pair types (Σ-types)<a class="headerlink" href="#dependent-pair-types-types" title="Permanent link">&para;</a></h2>
+<p>A straightforward generalization of product types to dependent pairs <code class="language-rzk highlight"><span class="kt">Σ</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A), B a</span></code>
+where <code class="language-rzk highlight"><span class="err">A</span></code> is a type and <code class="language-rzk highlight"><span class="err">B : A → U</span></code> is a type family indexed in <code class="language-rzk highlight"><span class="err">A</span></code>.</p>
+<p>The indended values of <code class="language-rzk highlight"><span class="kt">Σ</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A), B a</span></code> are pairs <code class="language-rzk highlight"><span class="err">(a , b)</span></code> of
+terms <code class="language-rzk highlight"><span class="err">a : A</span></code> and <code class="language-rzk highlight"><span class="err">b : B a</span></code>. Note that the type of the second component
+may depend on the value of the first component.
+When the type family <code class="language-rzk highlight"><span class="err">B</span></code> is constant, e.g. <code class="language-rzk highlight"><span class="err">(</span><span class="p">\ </span>_ <span class="err">→ C)</span></code>,
+then <code class="language-rzk highlight"><span class="kt">Σ</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A), B a</span></code> becomes exactly the product type <code class="language-rzk highlight"><span class="err">prod A C</span></code>.</p>
+<p>To eliminate dependent pairs, we use <code class="language-rzk highlight"><span class="s">first</span></code>, <code class="language-rzk highlight"><span class="s">second</span></code>, or pattern
+matching on pairs. However, the types of projections are less obvious compared
+to the case of product types.</p>
+<h3 id="projections">Projections<a class="headerlink" href="#projections" title="Permanent link">&para;</a></h3>
+<p>The first projection can be easily defined in terms of pattern matching:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:pr₁" id="define:pr₁" style="visibility: visible; position: relative; color: inherit">pr₁</a></span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="err">  : </span><span class="p">( </span>Σ ( a <span class="p">:</span><span class="err"> A) , B a) → A</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="err">  := \ ( a , _) → a</span>
+</span></code></pre></div>
+<p>However, second projection requires some care. For instance, we might try this:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c">-- NOTE: incorrect definition</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:pr₂" id="define:pr₂" style="visibility: visible; position: relative; color: inherit">pr₂</a></span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="err">  : </span><span class="p">(</span>Σ (a <span class="p">:</span><span class="err"> A), B a) → B a  </span><span class="c">-- ERROR!</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="err">  := \ (_ , b) → b</span>
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>undefined variable: a
+</span></code></pre></div>
+<p>We get the <code>undefined variable</code> error since <code>a</code> is not visible outside of Σ-type definition.
+To access it, we need a dependent function:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:pr₂" id="define:pr₂" style="visibility: visible; position: relative; color: inherit">pr₂</a></span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> </span><span class="kt">Σ</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) , B a) → B (pr₁ A B z)</span>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="err">  := \ ( _ , b) → b</span>
+</span></code></pre></div>
+<p>In Rzk, it is sometimes more convenient to talk about Σ-types as "total" types (as in "total spaces"):</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:total-type" id="define:total-type" style="visibility: visible; position: relative; color: inherit">total-type</a></span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="err">  : U</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="err">  := </span><span class="kt">Σ</span><span class="err"> </span><span class="p">( </span>a <span class="p">:</span><span class="err"> A) , B a</span>
+</span></code></pre></div>
+<p>We can use pattern matching in the function type and this new definition to write
+second projection slightly differently:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:pr₂&#39;" id="define:pr₂&#39;" style="visibility: visible; position: relative; color: inherit">pr₂&#39;</a></span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="err">  ( ( a , b) : total-type A B)</span>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="err">  : B a</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="err">  := b</span>
+</span></code></pre></div>
+<h3 id="recursion-and-induction-principles">Recursion and induction principles<a class="headerlink" href="#recursion-and-induction-principles" title="Permanent link">&para;</a></h3>
+<p>The recursion principle for Σ-types is a simple generalization of
+the recursion principle for product types:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-Σ" id="define:rec-Σ" style="visibility: visible; position: relative; color: inherit">rec-Σ</a></span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → B a → C)</span>
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="err">  : total-type A B → C</span>
+</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="err">  := \ ( a , b) → f a b</span>
+</span></code></pre></div>
+<p>The induction principle is, again, a generalization of the recursion
+principle to dependent types:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:ind-Σ" id="define:ind-Σ" style="visibility: visible; position: relative; color: inherit">ind-Σ</a></span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> total-type A B → U)</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → </span><span class="p">(</span>b <span class="p">:</span><span class="err"> B a) → C (a , b))</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> total-type A B) → C z</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="err">  := \ ( a , b) → f a b</span>
+</span></code></pre></div>
+<p>As before, using <code class="language-rzk highlight"><span class="err">ind-Σ</span></code> we may prove the uniqueness principle, now for Σ-types:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-Σ" id="define:uniq-Σ" style="visibility: visible; position: relative; color: inherit">uniq-Σ</a></span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> total-type A B)</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="err">  : ( pr₁ A B z , pr₂ A B z) =_{total-type A B} z</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="err">  := ind-Σ A B</span>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="err">      ( </span><span class="p">\ </span>z <span class="err">→ (pr₁ A B z , pr₂ A B z) =_{total-type A B} z)</span>
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="err">      ( </span><span class="p">\ </span>a b <span class="err">→ </span><span class="s">refl</span><span class="err">_{(a , b)})</span>
+</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="err">      z</span>
+</span></code></pre></div>
+<p>And again, Rzk can accept a simpler proof, since uniqueness for Σ-types is already built into it:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-Σ&#39;" id="define:uniq-Σ&#39;" style="visibility: visible; position: relative; color: inherit">uniq-Σ&#39;</a></span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="err">  </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="err">  </span><span class="p">( </span>B <span class="p">:</span><span class="err"> A → U)</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> total-type A B)</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="err">  : ( pr₁ A B z , pr₂ A B z) =_{total-type A B} z</span>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="err">  := </span><span class="s">refl</span><span class="err">_{z} </span><span class="c">-- works in Rzk, but not in HoTT Book</span>
+</span></code></pre></div>
+<h3 id="type-theoretic-axiom-of-choice">Type-theoretic "axiom" of choice<a class="headerlink" href="#type-theoretic-axiom-of-choice" title="Permanent link">&para;</a></h3>
+<p>Using <code class="language-rzk highlight"><span class="err">ind-Σ</span></code> we can also prove a type-theoretic axiom of choice:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:AxiomOfChoice" id="define:AxiomOfChoice" style="visibility: visible; position: relative; color: inherit">AxiomOfChoice</a></span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="err">  : U</span>
+</span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="err">  := </span><span class="p">( </span>A <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="err">    → </span><span class="p">( </span>B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-30-5"><a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="err">    → </span><span class="p">( </span>R <span class="p">:</span><span class="err"> A → B → U)</span>
+</span><span id="__span-30-6"><a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="err">    → </span><span class="p">( </span>( x <span class="p">:</span><span class="err"> A) → </span><span class="kt">Σ</span><span class="err"> </span><span class="p">(</span>y <span class="p">:</span><span class="err"> B) , R x y)</span>
+</span><span id="__span-30-7"><a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="err">    → </span><span class="p">( </span>Σ ( f <span class="p">:</span><span class="err"> A → B) , </span><span class="p">(</span>x <span class="p">:</span><span class="err"> A) → R x (f x))</span>
+</span></code></pre></div>
+<p>You are encouraged to try proving this yourself first.</p>
+<p>If you encounter problems, try looking for the proof in the HoTT Book Section 1.6 (page 32).</p>
+<p>If you still have issues formalizing it in Rzk, you may peek here:</p>
+<details class="abstract">
+<summary>Proof of the type theoretic axiom of choice</summary>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:ac" id="define:ac" style="visibility: visible; position: relative; color: inherit">ac</a></span><span class="err"> : AxiomOfChoice</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="err">  := </span><span class="p">\ </span>A B R g <span class="err">→ ( </span><span class="p">\ </span>a <span class="err">→ </span><span class="s">first</span><span class="err"> (g a) , </span><span class="p">\ </span>x <span class="err">→ </span><span class="s">second</span><span class="err"> (g x))</span>
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="err">  </span><span class="c">-- g    : (x : A) → Σ (y : B), R x y</span>
+</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="err">  </span><span class="c">-- x    : A</span>
+</span><span id="__span-31-5"><a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="err">  </span><span class="c">-- g x  : Σ (y : B), R x y</span>
+</span><span id="__span-31-6"><a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="err">  </span><span class="c">-- second (g x) : R x (first (g x))</span>
+</span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>
+</span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="err">  </span><span class="c">-- f : A → B</span>
+</span><span id="__span-31-9"><a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="err">  </span><span class="c">-- f := \ a → first (g a)</span>
+</span><span id="__span-31-10"><a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="err">  </span><span class="c">--</span>
+</span><span id="__span-31-11"><a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="err">  </span><span class="c">-- R x (f x)</span>
+</span><span id="__span-31-12"><a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="err">  </span><span class="c">-- == R x ((\ a → first (g a)) x)</span>
+</span><span id="__span-31-13"><a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="err">  </span><span class="c">-- == R x (first (g x))</span>
+</span></code></pre></div>
+</details>
+<h2 id="coproducts">Coproducts<a class="headerlink" href="#coproducts" title="Permanent link">&para;</a></h2>
+<p>Given types <span class="arithmatex">\(A\)</span> and <span class="arithmatex">\(B\)</span> a coproduct type <span class="arithmatex">\(A + B\)</span> corresponds intuitively
+to a disjoint union of <span class="arithmatex">\(A\)</span> and <span class="arithmatex">\(B\)</span> (in set theory). We also have a nullary
+version: <span class="arithmatex">\(\mathbf{0}\)</span> (empty type).</p>
+<p>In Rzk, empty type and coproduct types do not exist, but a weaker version can be postulated.</p>
+<h3 id="postulating-the-empty-type">Postulating the empty type<a class="headerlink" href="#postulating-the-empty-type" title="Permanent link">&para;</a></h3>
+<p>For example, an empty type can be postulated as follows:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:Void" id="define:Void" style="visibility: visible; position: relative; color: inherit">Void</a></span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="err">  : U</span>
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-Void" id="define:ind-Void" style="visibility: visible; position: relative; color: inherit">ind-Void</a></span>
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> Void → U)</span>
+</span><span id="__span-32-5"><a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> Void) → C z</span>
+</span></code></pre></div>
+<p>Since there should be no values of type <code class="language-rzk highlight"><span class="err">Void</span></code>,
+the induction principle corresponds to the principle that from falsehood anything follows.
+A non-dependent version of that corresponds to the recursion principle,
+which we can define in terms of <code class="language-rzk highlight"><span class="err">ind-Void</span></code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-Void" id="define:rec-Void" style="visibility: visible; position: relative; color: inherit">rec-Void</a></span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="err">  : Void → C</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="err">  := ind-Void (</span><span class="p">\ </span>_ <span class="err">→ C)</span>
+</span></code></pre></div>
+<h3 id="postulating-the-coproduct-type">Postulating the coproduct type<a class="headerlink" href="#postulating-the-coproduct-type" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Postulating coproducts</p>
+<p>This subsection currently provides postulates with little explanation.
+Once Rzk has support for user-defined (higher) inductive types or built-in coproducts,
+this section will be updated.</p>
+</div>
+<p>Similarly, we can postulate the coproduct:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:coprod" id="define:coprod" style="visibility: visible; position: relative; color: inherit">coprod</a></span>
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="err">  : U</span>
+</span></code></pre></div>
+<p>There are two ways to create a term of type <code class="language-rzk highlight"><span class="err">coprod A B</span></code> —
+inject a term from <code class="language-rzk highlight"><span class="err">A</span></code> or a term of <code class="language-rzk highlight"><span class="err">B</span></code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:inl" id="define:inl" style="visibility: visible; position: relative; color: inherit">inl</a></span>
+</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="err">  : A → coprod A B</span>
+</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:inr" id="define:inr" style="visibility: visible; position: relative; color: inherit">inr</a></span>
+</span><span id="__span-35-5"><a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-35-6"><a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="err">  : B → coprod A B</span>
+</span></code></pre></div>
+<p>To eliminate a coproduct, we have to provide two handlers —
+one for the left case and one for the right:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-coprod" id="define:ind-coprod" style="visibility: visible; position: relative; color: inherit">ind-coprod</a></span>
+</span><span id="__span-36-2"><a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-36-3"><a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> coprod A B → U)</span>
+</span><span id="__span-36-4"><a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="err">  </span><span class="p">( </span>l <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → C (inl A B a))</span>
+</span><span id="__span-36-5"><a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a><span class="err">  </span><span class="p">( </span>r <span class="p">:</span><span class="err"> </span><span class="p">(</span>b <span class="p">:</span><span class="err"> B) → C (inr A B b))</span>
+</span><span id="__span-36-6"><a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> coprod A B) → C z</span>
+</span></code></pre></div>
+<p>Since we are postulating the induction principle,
+we also have to provide the computational rules explicitly.
+However, in Rzk, we can only postulate <em>propositional</em> computational rules:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-coprod-inl" id="define:ind-coprod-inl" style="visibility: visible; position: relative; color: inherit">ind-coprod-inl</a></span>
+</span><span id="__span-37-2"><a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-37-3"><a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> coprod A B → U)</span>
+</span><span id="__span-37-4"><a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="err">  </span><span class="p">( </span>l <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → C (inl A B a))</span>
+</span><span id="__span-37-5"><a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="err">  </span><span class="p">( </span>r <span class="p">:</span><span class="err"> </span><span class="p">(</span>b <span class="p">:</span><span class="err"> B) → C (inr A B b))</span>
+</span><span id="__span-37-6"><a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="err">  </span><span class="p">( </span>a <span class="p">:</span><span class="err"> A)</span>
+</span><span id="__span-37-7"><a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a><span class="err">  : ind-coprod A B C l r (inl A B a) = l a</span>
+</span><span id="__span-37-8"><a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>
+</span><span id="__span-37-9"><a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-coprod-inr" id="define:ind-coprod-inr" style="visibility: visible; position: relative; color: inherit">ind-coprod-inr</a></span>
+</span><span id="__span-37-10"><a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-37-11"><a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> coprod A B → U)</span>
+</span><span id="__span-37-12"><a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a><span class="err">  </span><span class="p">( </span>l <span class="p">:</span><span class="err"> </span><span class="p">(</span>a <span class="p">:</span><span class="err"> A) → C (inl A B a))</span>
+</span><span id="__span-37-13"><a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a><span class="err">  </span><span class="p">( </span>r <span class="p">:</span><span class="err"> </span><span class="p">(</span>b <span class="p">:</span><span class="err"> B) → C (inr A B b))</span>
+</span><span id="__span-37-14"><a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a><span class="err">  </span><span class="p">( </span>b <span class="p">:</span><span class="err"> B)</span>
+</span><span id="__span-37-15"><a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a><span class="err">  : ind-coprod A B C l r (inr A B b) = r b</span>
+</span></code></pre></div>
+<p>We can now define recursion for coproducts
+as a special case of induction:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-38-1"><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-coprod" id="define:rec-coprod" style="visibility: visible; position: relative; color: inherit">rec-coprod</a></span>
+</span><span id="__span-38-2"><a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-38-3"><a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-38-4"><a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="err">  </span><span class="p">( </span>l <span class="p">:</span><span class="err"> A → C)</span>
+</span><span id="__span-38-5"><a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a><span class="err">  </span><span class="p">( </span>r <span class="p">:</span><span class="err"> B → C)</span>
+</span><span id="__span-38-6"><a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a><span class="err">  : coprod A B → C</span>
+</span><span id="__span-38-7"><a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="err">  := ind-coprod A B (</span><span class="p">\ </span>_ <span class="err">→ C) l r</span>
+</span></code></pre></div>
+<p>The uniqueness principle for coproducts says
+that any coproduct is either an <code class="language-rzk highlight"><span class="err">inl</span></code> or an <code class="language-rzk highlight"><span class="err">inr</span></code>.
+Proving the uniqueness is fairly straightforward, except
+we have to provide some intermediate types explicitly:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-39-1"><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-coprod" id="define:uniq-coprod" style="visibility: visible; position: relative; color: inherit">uniq-coprod</a></span>
+</span><span id="__span-39-2"><a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="err">  </span><span class="p">( </span>A B <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-39-3"><a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> coprod A B)</span>
+</span><span id="__span-39-4"><a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="err">  : coprod</span>
+</span><span id="__span-39-5"><a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="err">      </span><span class="p">( </span>Σ ( a <span class="p">:</span><span class="err"> A) , inl A B a = z)</span>
+</span><span id="__span-39-6"><a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="err">      </span><span class="p">( </span>Σ ( b <span class="p">:</span><span class="err"> B) , inr A B b = z)</span>
+</span><span id="__span-39-7"><a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a><span class="err">  := ind-coprod A B</span>
+</span><span id="__span-39-8"><a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a><span class="err">      </span><span class="p">( </span>\ z&#39; → coprod
+</span><span id="__span-39-9"><a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>          ( Σ ( a <span class="p">:</span><span class="err"> A) , inl A B a = z&#39;)</span>
+</span><span id="__span-39-10"><a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a><span class="err">          </span><span class="p">( </span>Σ ( b <span class="p">:</span><span class="err"> B) , inr A B b = z&#39;))</span>
+</span><span id="__span-39-11"><a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a><span class="err">      </span><span class="p">( </span>\ a&#39; → inl
+</span><span id="__span-39-12"><a id="__codelineno-39-12" name="__codelineno-39-12" href="#__codelineno-39-12"></a>          ( Σ ( a <span class="p">:</span><span class="err"> A) , (inl A B a = inl A B a&#39;))</span>
+</span><span id="__span-39-13"><a id="__codelineno-39-13" name="__codelineno-39-13" href="#__codelineno-39-13"></a><span class="err">          </span><span class="p">( </span>Σ ( b <span class="p">:</span><span class="err"> B) , (inr A B b = inl A B a&#39;))</span>
+</span><span id="__span-39-14"><a id="__codelineno-39-14" name="__codelineno-39-14" href="#__codelineno-39-14"></a><span class="err">          ( a&#39; , </span><span class="s">refl</span><span class="err">))</span>
+</span><span id="__span-39-15"><a id="__codelineno-39-15" name="__codelineno-39-15" href="#__codelineno-39-15"></a><span class="err">      </span><span class="p">( </span>\ b&#39; → inr
+</span><span id="__span-39-16"><a id="__codelineno-39-16" name="__codelineno-39-16" href="#__codelineno-39-16"></a>          ( Σ ( a <span class="p">:</span><span class="err"> A) , (inl A B a = inr A B b&#39;))</span>
+</span><span id="__span-39-17"><a id="__codelineno-39-17" name="__codelineno-39-17" href="#__codelineno-39-17"></a><span class="err">          </span><span class="p">( </span>Σ ( b <span class="p">:</span><span class="err"> B) , (inr A B b = inr A B b&#39;))</span>
+</span><span id="__span-39-18"><a id="__codelineno-39-18" name="__codelineno-39-18" href="#__codelineno-39-18"></a><span class="err">          ( b&#39; , </span><span class="s">refl</span><span class="err">))</span>
+</span><span id="__span-39-19"><a id="__codelineno-39-19" name="__codelineno-39-19" href="#__codelineno-39-19"></a><span class="err">      z</span>
+</span></code></pre></div>
+<h2 id="booleans">Booleans<a class="headerlink" href="#booleans" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Postulating booleans</p>
+<p>This subsection currently provides postulates with little explanation.
+Once Rzk has support for user-defined (higher) inductive types or built-in booleans,
+this section will be updated.</p>
+</div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-40-1"><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:Bool" id="define:Bool" style="visibility: visible; position: relative; color: inherit">Bool</a></span>
+</span><span id="__span-40-2"><a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="err">  : U</span>
+</span><span id="__span-40-3"><a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:false" id="define:false" style="visibility: visible; position: relative; color: inherit">false</a></span>
+</span><span id="__span-40-4"><a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="err">  : Bool</span>
+</span><span id="__span-40-5"><a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:true" id="define:true" style="visibility: visible; position: relative; color: inherit">true</a></span>
+</span><span id="__span-40-6"><a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="err">  : Bool</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-41-1"><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-Bool" id="define:ind-Bool" style="visibility: visible; position: relative; color: inherit">ind-Bool</a></span>
+</span><span id="__span-41-2"><a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> Bool → U)</span>
+</span><span id="__span-41-3"><a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> C false)</span>
+</span><span id="__span-41-4"><a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a><span class="err">  </span><span class="p">( </span>t <span class="p">:</span><span class="err"> C true)</span>
+</span><span id="__span-41-5"><a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a><span class="err">  : </span><span class="p">( </span>z <span class="p">:</span><span class="err"> Bool) → C z</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-42-1"><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-Bool-false" id="define:ind-Bool-false" style="visibility: visible; position: relative; color: inherit">ind-Bool-false</a></span>
+</span><span id="__span-42-2"><a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> Bool → U)</span>
+</span><span id="__span-42-3"><a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> C false)</span>
+</span><span id="__span-42-4"><a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="err">  </span><span class="p">( </span>t <span class="p">:</span><span class="err"> C true)</span>
+</span><span id="__span-42-5"><a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a><span class="err">  : ind-Bool C f t false = f</span>
+</span><span id="__span-42-6"><a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-Bool-true" id="define:ind-Bool-true" style="visibility: visible; position: relative; color: inherit">ind-Bool-true</a></span>
+</span><span id="__span-42-7"><a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> Bool → U)</span>
+</span><span id="__span-42-8"><a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a><span class="err">  </span><span class="p">( </span>f <span class="p">:</span><span class="err"> C false)</span>
+</span><span id="__span-42-9"><a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a><span class="err">  </span><span class="p">( </span>t <span class="p">:</span><span class="err"> C true)</span>
+</span><span id="__span-42-10"><a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a><span class="err">  : ind-Bool C f t true = t</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-43-1"><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-Bool" id="define:rec-Bool" style="visibility: visible; position: relative; color: inherit">rec-Bool</a></span>
+</span><span id="__span-43-2"><a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-43-3"><a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a><span class="err">  </span><span class="p">( </span>f t <span class="p">:</span><span class="err"> C)</span>
+</span><span id="__span-43-4"><a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a><span class="err">  : Bool → C</span>
+</span><span id="__span-43-5"><a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a><span class="err">  := ind-Bool (</span><span class="p">\ </span>_ <span class="err">→ C) f t</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-44-1"><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:uniq-Bool" id="define:uniq-Bool" style="visibility: visible; position: relative; color: inherit">uniq-Bool</a></span>
+</span><span id="__span-44-2"><a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a><span class="err">  </span><span class="p">( </span>z <span class="p">:</span><span class="err"> Bool)</span>
+</span><span id="__span-44-3"><a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a><span class="err">  : coprod (z = false) (z = true)</span>
+</span><span id="__span-44-4"><a id="__codelineno-44-4" name="__codelineno-44-4" href="#__codelineno-44-4"></a><span class="err">  := ind-Bool</span>
+</span><span id="__span-44-5"><a id="__codelineno-44-5" name="__codelineno-44-5" href="#__codelineno-44-5"></a><span class="err">      ( </span><span class="p">\ </span>z&#39; <span class="err">→ coprod (z&#39; = false) (z&#39; = true))</span>
+</span><span id="__span-44-6"><a id="__codelineno-44-6" name="__codelineno-44-6" href="#__codelineno-44-6"></a><span class="err">      ( inl (false = false) (false = true) </span><span class="s">refl</span><span class="err">)</span>
+</span><span id="__span-44-7"><a id="__codelineno-44-7" name="__codelineno-44-7" href="#__codelineno-44-7"></a><span class="err">      ( inr (true = false) (true = true) </span><span class="s">refl</span><span class="err">)</span>
+</span><span id="__span-44-8"><a id="__codelineno-44-8" name="__codelineno-44-8" href="#__codelineno-44-8"></a><span class="err">      z</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-45-1"><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:not" id="define:not" style="visibility: visible; position: relative; color: inherit">not</a></span>
+</span><span id="__span-45-2"><a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a><span class="err">  : Bool → Bool</span>
+</span><span id="__span-45-3"><a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a><span class="err">  := rec-Bool Bool true false</span>
+</span></code></pre></div>
+<p>Unfortunately, because computation rules are postulated
+in a weak form, they do not compute automatically and have to be used explicitly,
+so the following proof does not work:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-46-1"><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:not-not-is-identity" id="define:not-not-is-identity" style="visibility: visible; position: relative; color: inherit">not-not-is-identity</a></span>
+</span><span id="__span-46-2"><a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="err">  : </span><span class="p">(</span>z <span class="p">:</span><span class="err"> Bool) → not (not z) = z</span>
+</span><span id="__span-46-3"><a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a><span class="err">  := ind-Bool</span>
+</span><span id="__span-46-4"><a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a><span class="err">      ( </span><span class="p">\ </span>z <span class="err">→ not (not z) = z)</span>
+</span><span id="__span-46-5"><a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a><span class="err">      ( </span><span class="s">refl</span><span class="err">)</span>
+</span><span id="__span-46-6"><a id="__codelineno-46-6" name="__codelineno-46-6" href="#__codelineno-46-6"></a><span class="err">      ( </span><span class="s">refl</span><span class="err">)</span>
+</span></code></pre></div>
+<p>There is a way to fix the proof, but we'll need to learn more about
+the identity types before we can do that.</p>
+<h2 id="natural-numbers">Natural numbers<a class="headerlink" href="#natural-numbers" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Postulating natural numbers</p>
+<p>This subsection currently provides postulates without explanations.
+Once Rzk has support for user-defined (higher) inductive types or built-in natural numbers,
+this section will be updated.</p>
+</div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-47-1"><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ℕ" id="define:ℕ" style="visibility: visible; position: relative; color: inherit">ℕ</a></span>
+</span><span id="__span-47-2"><a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="err">  : U</span>
+</span><span id="__span-47-3"><a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:zero" id="define:zero" style="visibility: visible; position: relative; color: inherit">zero</a></span>
+</span><span id="__span-47-4"><a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a><span class="err">  : ℕ</span>
+</span><span id="__span-47-5"><a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:succ" id="define:succ" style="visibility: visible; position: relative; color: inherit">succ</a></span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ)</span>
+</span><span id="__span-47-6"><a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a><span class="err">  : ℕ</span>
+</span><span id="__span-47-7"><a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a>
+</span><span id="__span-47-8"><a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-ℕ" id="define:ind-ℕ" style="visibility: visible; position: relative; color: inherit">ind-ℕ</a></span>
+</span><span id="__span-47-9"><a id="__codelineno-47-9" name="__codelineno-47-9" href="#__codelineno-47-9"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> ℕ → U)</span>
+</span><span id="__span-47-10"><a id="__codelineno-47-10" name="__codelineno-47-10" href="#__codelineno-47-10"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C zero)</span>
+</span><span id="__span-47-11"><a id="__codelineno-47-11" name="__codelineno-47-11" href="#__codelineno-47-11"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C n → C (succ n))</span>
+</span><span id="__span-47-12"><a id="__codelineno-47-12" name="__codelineno-47-12" href="#__codelineno-47-12"></a><span class="err">  : </span><span class="p">( </span>n <span class="p">:</span><span class="err"> ℕ) → C n</span>
+</span><span id="__span-47-13"><a id="__codelineno-47-13" name="__codelineno-47-13" href="#__codelineno-47-13"></a>
+</span><span id="__span-47-14"><a id="__codelineno-47-14" name="__codelineno-47-14" href="#__codelineno-47-14"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-ℕ-zero" id="define:ind-ℕ-zero" style="visibility: visible; position: relative; color: inherit">ind-ℕ-zero</a></span>
+</span><span id="__span-47-15"><a id="__codelineno-47-15" name="__codelineno-47-15" href="#__codelineno-47-15"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> ℕ → U)</span>
+</span><span id="__span-47-16"><a id="__codelineno-47-16" name="__codelineno-47-16" href="#__codelineno-47-16"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C zero)</span>
+</span><span id="__span-47-17"><a id="__codelineno-47-17" name="__codelineno-47-17" href="#__codelineno-47-17"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C n → C (succ n))</span>
+</span><span id="__span-47-18"><a id="__codelineno-47-18" name="__codelineno-47-18" href="#__codelineno-47-18"></a><span class="err">  : ind-ℕ C base step zero = base</span>
+</span><span id="__span-47-19"><a id="__codelineno-47-19" name="__codelineno-47-19" href="#__codelineno-47-19"></a><span class="kr">#postulate</span><span class="p"> </span><span class="nf"><a href="#define:ind-ℕ-succ" id="define:ind-ℕ-succ" style="visibility: visible; position: relative; color: inherit">ind-ℕ-succ</a></span>
+</span><span id="__span-47-20"><a id="__codelineno-47-20" name="__codelineno-47-20" href="#__codelineno-47-20"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> ℕ → U)</span>
+</span><span id="__span-47-21"><a id="__codelineno-47-21" name="__codelineno-47-21" href="#__codelineno-47-21"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C zero)</span>
+</span><span id="__span-47-22"><a id="__codelineno-47-22" name="__codelineno-47-22" href="#__codelineno-47-22"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C n → C (succ n))</span>
+</span><span id="__span-47-23"><a id="__codelineno-47-23" name="__codelineno-47-23" href="#__codelineno-47-23"></a><span class="err">  </span><span class="p">( </span>n <span class="p">:</span><span class="err"> ℕ)</span>
+</span><span id="__span-47-24"><a id="__codelineno-47-24" name="__codelineno-47-24" href="#__codelineno-47-24"></a><span class="err">  : ind-ℕ C base step (succ n) = step n (ind-ℕ C base step n)</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-48-1"><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:rec-ℕ" id="define:rec-ℕ" style="visibility: visible; position: relative; color: inherit">rec-ℕ</a></span>
+</span><span id="__span-48-2"><a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> U)</span>
+</span><span id="__span-48-3"><a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C)</span>
+</span><span id="__span-48-4"><a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C → C)</span>
+</span><span id="__span-48-5"><a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a><span class="err">  : ℕ → C</span>
+</span><span id="__span-48-6"><a id="__codelineno-48-6" name="__codelineno-48-6" href="#__codelineno-48-6"></a><span class="err">  := ind-ℕ (</span><span class="p">\ </span>_ <span class="err">→ C) base step</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-49-1"><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:double-ℕ" id="define:double-ℕ" style="visibility: visible; position: relative; color: inherit">double-ℕ</a></span>
+</span><span id="__span-49-2"><a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="err">  : ℕ → ℕ</span>
+</span><span id="__span-49-3"><a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="err">  := rec-ℕ ℕ zero (</span><span class="p">\ </span>_ m <span class="err">→ succ (succ m))</span>
+</span></code></pre></div>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-50-1"><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:compute-ind-ℕ-zero" id="define:compute-ind-ℕ-zero" style="visibility: visible; position: relative; color: inherit">compute-ind-ℕ-zero</a></span>
+</span><span id="__span-50-2"><a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> ℕ → U)</span>
+</span><span id="__span-50-3"><a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C zero)</span>
+</span><span id="__span-50-4"><a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C n → C (succ n))</span>
+</span><span id="__span-50-5"><a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="err">  : C zero</span>
+</span><span id="__span-50-6"><a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="err">  := base</span>
+</span><span id="__span-50-7"><a id="__codelineno-50-7" name="__codelineno-50-7" href="#__codelineno-50-7"></a>
+</span><span id="__span-50-8"><a id="__codelineno-50-8" name="__codelineno-50-8" href="#__codelineno-50-8"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:compute-ind-ℕ-one" id="define:compute-ind-ℕ-one" style="visibility: visible; position: relative; color: inherit">compute-ind-ℕ-one</a></span>
+</span><span id="__span-50-9"><a id="__codelineno-50-9" name="__codelineno-50-9" href="#__codelineno-50-9"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> ℕ → U)</span>
+</span><span id="__span-50-10"><a id="__codelineno-50-10" name="__codelineno-50-10" href="#__codelineno-50-10"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C zero)</span>
+</span><span id="__span-50-11"><a id="__codelineno-50-11" name="__codelineno-50-11" href="#__codelineno-50-11"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C n → C (succ n))</span>
+</span><span id="__span-50-12"><a id="__codelineno-50-12" name="__codelineno-50-12" href="#__codelineno-50-12"></a><span class="err">  : C (succ zero)</span>
+</span><span id="__span-50-13"><a id="__codelineno-50-13" name="__codelineno-50-13" href="#__codelineno-50-13"></a><span class="err">  := step zero (compute-ind-ℕ-zero C base step)</span>
+</span><span id="__span-50-14"><a id="__codelineno-50-14" name="__codelineno-50-14" href="#__codelineno-50-14"></a>
+</span><span id="__span-50-15"><a id="__codelineno-50-15" name="__codelineno-50-15" href="#__codelineno-50-15"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:compute-ind-ℕ-two" id="define:compute-ind-ℕ-two" style="visibility: visible; position: relative; color: inherit">compute-ind-ℕ-two</a></span>
+</span><span id="__span-50-16"><a id="__codelineno-50-16" name="__codelineno-50-16" href="#__codelineno-50-16"></a><span class="err">  </span><span class="p">( </span>C <span class="p">:</span><span class="err"> ℕ → U)</span>
+</span><span id="__span-50-17"><a id="__codelineno-50-17" name="__codelineno-50-17" href="#__codelineno-50-17"></a><span class="err">  </span><span class="p">( </span>base <span class="p">:</span><span class="err"> C zero)</span>
+</span><span id="__span-50-18"><a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a><span class="err">  </span><span class="p">( </span>step <span class="p">:</span><span class="err"> </span><span class="p">(</span>n <span class="p">:</span><span class="err"> ℕ) → C n → C (succ n))</span>
+</span><span id="__span-50-19"><a id="__codelineno-50-19" name="__codelineno-50-19" href="#__codelineno-50-19"></a><span class="err">  : C (succ (succ zero))</span>
+</span><span id="__span-50-20"><a id="__codelineno-50-20" name="__codelineno-50-20" href="#__codelineno-50-20"></a><span class="err">  := step (succ zero) (compute-ind-ℕ-one C base step)</span>
+</span><span id="__span-50-21"><a id="__codelineno-50-21" name="__codelineno-50-21" href="#__codelineno-50-21"></a>
+</span><span id="__span-50-22"><a id="__codelineno-50-22" name="__codelineno-50-22" href="#__codelineno-50-22"></a><span class="nd">#compute</span><span class="err"> compute-ind-ℕ-two (</span><span class="p">\ </span>_ <span class="err">→ ℕ) zero (</span><span class="p">\ </span>_ m <span class="err">→ succ (succ m))</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../quickstart.rzk/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Quickstart">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Quickstart
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../project/" class="md-footer__link md-footer__link--next" aria-label="Next: Setting up an Rzk project">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Setting up an Rzk project
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy", "content.action.edit", "navigation.footer", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.prune", "navigation.path", "navigation.indexes", "toc.integrate"], "search": "../../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7c377c4.min.js"></script>
+      
+        <script src="../../javascript/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
