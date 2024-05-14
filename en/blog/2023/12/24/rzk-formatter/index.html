@@ -1,0 +1,1286 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories.">
+      
+      
+        <meta name="author" content="Nikolai Kudasov">
+      
+      
+        <link rel="canonical" href="https://rzk-lang.github.io/rzk/en/blog/2023/12/24/rzk-formatter/">
+      
+      
+        <link rel="prev" href="../../10/we-have-a-blog-now/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.22">
+    
+    
+      
+        <title>Rzk Formatter - Rzk proof assistant</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.732c4fb1.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inria+Sans:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inria Sans";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/rzk-render.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+      
+        <meta  property="og:type"  content="website" >
+      
+        <meta  property="og:title"  content="Rzk Formatter - Rzk proof assistant" >
+      
+        <meta  property="og:description"  content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories." >
+      
+        <meta  property="og:image"  content="https://rzk-lang.github.io/rzk/en/blog/assets/images/social/posts/2023-12-24-formatter.png" >
+      
+        <meta  property="og:image:type"  content="image/png" >
+      
+        <meta  property="og:image:width"  content="1200" >
+      
+        <meta  property="og:image:height"  content="630" >
+      
+        <meta  property="og:url"  content="https://rzk-lang.github.io/rzk/en/blog/2023/12/24/rzk-formatter/" >
+      
+        <meta  name="twitter:card"  content="summary_large_image" >
+      
+        <meta  name="twitter:title"  content="Rzk Formatter - Rzk proof assistant" >
+      
+        <meta  name="twitter:description"  content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories." >
+      
+        <meta  name="twitter:image"  content="https://rzk-lang.github.io/rzk/en/blog/assets/images/social/posts/2023-12-24-formatter.png" >
+      
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#rzk-formatter" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="Rzk proof assistant" class="md-header__button md-logo" aria-label="Rzk proof assistant" data-md-component="logo">
+      
+  <img src="../../../../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Rzk proof assistant
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Rzk Formatter
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.52 17.52 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04M18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12m-2.62 7 1.62-4.33L19.12 17h-3.24Z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="/rzk/en/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="/rzk/ru/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/rzk-lang/rzk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/" class="md-tabs__link">
+        
+  
+    
+  
+  About
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/getting-started/" class="md-tabs__link">
+        
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/reference/" class="md-tabs__link">
+        
+  
+    
+  
+  Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/playground/" class="md-tabs__link">
+        
+  
+    
+  
+  Playground
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="Rzk proof assistant" class="md-nav__button md-logo" aria-label="Rzk proof assistant" data-md-component="logo">
+      
+  <img src="../../../../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    Rzk proof assistant
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/rzk-lang/rzk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    About
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/getting-started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting Started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/reference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://rzk-lang.github.io/rzk/en/latest/playground/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Playground
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../.." class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Blog
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Blog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Archive
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2023/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2023
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Categories
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            Categories
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/announcements/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Announcements
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+  <div class="md-content md-content--post" data-md-component="content">
+    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
+      <div class="md-sidebar__scrollwrap">
+        <div class="md-sidebar__inner md-post">
+          <nav class="md-nav md-nav--primary">
+            <div class="md-post__back">
+              <div class="md-nav__title md-nav__container">
+                <a href="../../../.." class="md-nav__link">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+                  <span class="md-ellipsis">
+                    Back to index
+                  </span>
+                </a>
+              </div>
+            </div>
+            
+              <div class="md-post__authors md-typeset">
+                
+                  <div class="md-profile md-post__profile">
+                    <span class="md-author md-author--long">
+                      <img src="https://avatars.githubusercontent.com/u/11016151" alt="Abdelrahman Abounegm">
+                    </span>
+                    <span class="md-profile__description">
+                      <strong>
+                        
+                          <a href="https://github.com/aabounegm">Abdelrahman Abounegm</a>
+                        
+                      </strong>
+                      <br>
+                      Language Server maintainer
+                    </span>
+                  </div>
+                
+              </div>
+            
+            <ul class="md-post__meta md-nav__list">
+              <li class="md-nav__item md-nav__item--section">
+                <div class="md-post__title">
+                  <span class="md-ellipsis">
+                    Metadata
+                  </span>
+                </div>
+                <nav class="md-nav">
+                  <ul class="md-nav__list">
+                    <li class="md-nav__item">
+                      <div class="md-nav__link">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"/></svg>
+                        <time datetime="2023-12-24 00:00:00" class="md-ellipsis">December 24, 2023</time>
+                      </div>
+                    </li>
+                    
+                    
+                    
+                      
+                      <li class="md-nav__item">
+                        <div class="md-nav__link">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5Z"/></svg>
+                          <span class="md-ellipsis">
+                            
+                              8 min read
+                            
+                          </span>
+                        </div>
+                      </li>
+                    
+                  </ul>
+                </nav>
+              </li>
+            </ul>
+          </nav>
+          
+            
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goal
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#challenges" class="md-nav__link">
+    <span class="md-ellipsis">
+      Challenges
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#possible-approaches-and-their-tradeoffs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Possible approaches (and their tradeoffs)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Possible approaches (and their tradeoffs)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prettier-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prettier plugin
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bnfcs-parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      BNFC's parser
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dedicated-parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dedicated parser
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bnfcs-lexer" class="md-nav__link">
+    <span class="md-ellipsis">
+      BNFC's lexer
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#our-chosen-solution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Our chosen solution
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Our chosen solution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#implemented-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implemented rules
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shortcomings" class="md-nav__link">
+    <span class="md-ellipsis">
+      Shortcomings
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-use-the-formatter" class="md-nav__link">
+    <span class="md-ellipsis">
+      How to use the formatter
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to use the formatter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      CLI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      VS Code
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#github-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      GitHub Action
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conclusion-and-feedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      Conclusion and Feedback
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+          
+        </div>
+      </div>
+    </div>
+    <article class="md-content__inner md-typeset">
+      
+        
+
+  
+    <a href="https://github.com/rzk-lang/rzk/edit/blog/docs/docs/en/posts/2023-12-24-formatter.md" title="Edit this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="rzk-formatter">Rzk Formatter<a class="headerlink" href="#rzk-formatter" title="Permanent link">&para;</a></h1>
+<p>Version 0.7.0 (and later 0.7.3 with bug fixes) of Rzk has recently been released,
+and it brings with it an exciting new feature: the auto formatter!
+It has been under work for over 3 weeks and came with unique design challenges
+that I will attempt to unpack in this post.</p>
+<!-- more -->
+
+<h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
+<p>Basically, the target is to write a program that takes in Rzk code as input and
+makes sure it abides by the <a href="https://rzk-lang.github.io/sHoTT/STYLEGUIDE/">style guide</a> (developed mainly by <a href="https://github.com/fredrik-bakke">Fredrik Bakke</a> and other contributors to the <a href="http://github.com/rzk-lang/sHoTT">sHoTT project</a>) with minimal modification otherwise.
+For example, comments should stay intact and semantics should be preserved.</p>
+<p>We decided to not support any customization (at least initially), making the
+formatter heavily opinionated.</p>
+<h2 id="challenges">Challenges<a class="headerlink" href="#challenges" title="Permanent link">&para;</a></h2>
+<p>Designing a formatter has both technical and nontechnical challenges.
+From the nontechnical side, and especially since the formatter is not customizable,
+there is the challenge of having the formatting requirements formulated in a
+precise enough language that can be translated easily into code, assuming there
+is even consensus among the community on these requirements.</p>
+<p>From the technical perspective, the parser generator currently used (BNFC) loses
+a lot of the information necessary for reconstructing the source program, so a
+pretty-printer based on the parse result is not feasible (for example, all comments would be lost).
+Even after this difficulty is overcome, there are still more challenges regarding the formatting itself.
+For example, if a given line is too long and it is necessary to wrap it by
+inserting a new line somewhere in the line, there are <span class="arithmatex">\(O(2^n)\)</span> possible choices
+(where <span class="arithmatex">\(n\)</span> is the number of locations in the code where a new line could be inserted)
+to compare between for inserting line breaks.
+For example, consider the following Rzk code:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">#lang</span><span class="p"> </span><span class="s">rzk-1</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kr">#define</span><span class="p"> </span><span class="nf"><a href="#define:id" id="define:id" style="visibility: visible; position: relative; color: inherit">id</a></span><span class="err"> </span><span class="p">(</span>A <span class="p">:</span><span class="err"> U) </span><span class="p">(</span>x <span class="p">:</span><span class="err"> A) : A := x</span>
+</span></code></pre></div>
+<p>which has 11 positions where a new line can be inserted, as shown by these markers:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>#define id (A : U) (x : A) : A := x
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>       ^  ^  ^ ^  ^  ^ ^  ^ ^ ^  ^
+</span></code></pre></div>
+<p>This amounts to 2048 combinations that have to be ranked for such a simple line.
+Even the ranking itself is not a straightforward problem to tackle.</p>
+<p>Additionally, to properly indent each line, it is necessary to understand the
+program semantics, which increases the complexity of the formatter's parser.</p>
+<h2 id="possible-approaches-and-their-tradeoffs">Possible approaches (and their tradeoffs)<a class="headerlink" href="#possible-approaches-and-their-tradeoffs" title="Permanent link">&para;</a></h2>
+<p>Multiple possible solutions exist for the above difficulties, each with their pros and cons.
+The alternatives we considered for Rzk's formatter can be summarized as follows:</p>
+<ol>
+<li>Implement a <a href="https://prettier.io/">Prettier</a> plugin</li>
+<li>Reuse the existing parser generated by BNFC</li>
+<li>Write a dedicated parser for the formatter specifically</li>
+<li>Reuse the exiting lexer generated by BNFC</li>
+</ol>
+<h3 id="prettier-plugin">Prettier plugin<a class="headerlink" href="#prettier-plugin" title="Permanent link">&para;</a></h3>
+<p>Seeing as some formalization projects were already making use of Prettier, a plugin
+to support Rzk seemed like a reasonable option. However, that option didn't seem
+so attractive for a few reasons.
+First of all, it would mean forcing all users to install Prettier, which requires
+having the JavaScript toolchain (in particular, <code>npm</code>) installed, but not all Rzk
+developers use JavaScript. It would be better to have an in-house solution.</p>
+<p>Additionally, <a href="https://prettier.io/docs/en/plugins">Prettier plugins</a> can only be
+written in JavaScript, which means having to maintain a separate parser written
+from scratch in JS, which is not maintainable or even desirable.</p>
+<h3 id="bnfcs-parser">BNFC's parser<a class="headerlink" href="#bnfcs-parser" title="Permanent link">&para;</a></h3>
+<p>Rzk makes use of <a href="https://bnfc.digitalgrammars.com/">BNFC</a> which produces a lexer,
+parser, AST, and pretty-printer for a given <em>Labelled BNF</em> grammar file.
+The generated pretty-printer is not configurable, so it would take a lot of dirty
+patching to have it follow the style guide of Rzk code.</p>
+<p>As for the <em>abstract syntax tree</em> (AST) it generates, it is also not suitable
+particularly for being too <em>abstract</em>. It loses all information about spaces,
+parentheses, and basically any syntactic construction, which is useful for a
+compiler or typechecker, but not so much for a formatter.</p>
+<h3 id="dedicated-parser">Dedicated parser<a class="headerlink" href="#dedicated-parser" title="Permanent link">&para;</a></h3>
+<p>An alternative to the generated parser would be to manually write another parser
+that keeps all the information relevant to the formatter in a <strong>concrete syntax tree</strong> (CST).
+This would be the most customizable option, but it would also be a lot of repeated
+work (since we already have the generated parser) that is additionally more error-prone.</p>
+<p>Writing a parser manually is time-consuming and redundant since it can easily be
+automatically generated from the much more readable grammar file.</p>
+<h3 id="bnfcs-lexer">BNFC's lexer<a class="headerlink" href="#bnfcs-lexer" title="Permanent link">&para;</a></h3>
+<p>Since BNFC generates a lexer that is used by the parser, a more rudimentary
+approach would be to make use of that lexer for our formatter.
+As the lexer simply tokenizes the input source code, it does not make any
+decisions regarding what to throw away and keeps all syntax constructions (except comments).
+Therefore, this approach would have the least amount of syntactic information lost
+among the automatically generated tools.</p>
+<p>On the hand, working with a stream of tokens is not as easy as working with a parsed tree.
+First, tokens do not carry almost any semantics with them, so it is difficult to
+understand whether an identifier refers to a parameter, a function application,
+or if it's even still being declared.
+Also, without having semantics, it is difficult to judge out which line split
+would make more sense when inserting line breaks in a long line, or to figure out
+how much a given line should be indented.</p>
+<h2 id="our-chosen-solution">Our chosen solution<a class="headerlink" href="#our-chosen-solution" title="Permanent link">&para;</a></h2>
+<p>The approach that seemed the most suitable of the above was the last one: use BNFC's lexer.
+After going through the style guide a few times, it was clear that the vast majority
+of the rules/recommendations did not involve understanding much semantics.
+For example, Unicode replacement for ASCII sequences, moving <code>:=</code> to a new line,
+and adding a space after <code>\\</code> in a lambda term can all be applied blindly.</p>
+<p>For the few rules that require having some semantics (like distinguishing between <code>:</code>
+for definition conclusion and for other types), it was enough to just store some
+state that is preserved (and updated) while traversing the tokens; no additional
+semantic analysis was necessary.</p>
+<p>The actual implementation in Haskell is just pattern matching on tokens with some
+conditions and applying edits to the text in response.
+For example, the following is an excerpt of the pattern match for opening parenthesis:</p>
+<div class="language-haskell highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Ensure exactly one space after the first open paren of a line</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nf"><a href="#define:go" id="define:go" style="visibility: visible; position: relative; color: inherit">go</a></span><span class="w"> </span><span class="ow">::</span><span class="w"> </span><span class="kt">FormatState</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="kt">Token</span><span class="p">]</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="p">[</span><span class="kt">FormattingEdit</span><span class="p">]</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nf"><a href="#define:go" id="define:go" style="visibility: visible; position: relative; color: inherit">go</a></span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="p">(</span><span class="kt">Token</span><span class="w"> </span><span class="s">&quot;(&quot;</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="n">col</span><span class="w"> </span><span class="kt">:</span><span class="w"> </span><span class="n">tks</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="o">|</span><span class="w"> </span><span class="n">precededBySingleCharOnly</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">spacesAfter</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">not</span><span class="w"> </span><span class="n">isLastNonSpaceChar</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="ow">=</span><span class="w"> </span><span class="kt">FormattingEdit</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="p">(</span><span class="n">col</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="p">(</span><span class="n">spaceColcol</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">spacesAfter</span><span class="p">)</span><span class="w"> </span><span class="s">&quot; &quot;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="kt">:</span><span class="w"> </span><span class="n">go</span><span class="w"> </span><span class="p">(</span><span class="n">incParensDepth</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="n">tks</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="c1">-- Remove extra spaces if it&#39;s *not* the first open paren on a new line</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="o">|</span><span class="w"> </span><span class="n">not</span><span class="w"> </span><span class="n">precededBySingleCharOnly</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">spacesAfter</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="ow">=</span><span class="w"> </span><span class="kt">FormattingEdit</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="p">(</span><span class="n">col</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="p">(</span><span class="n">col</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">spacesAfter</span><span class="p">)</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="kt">:</span><span class="w"> </span><span class="n">go</span><span class="w"> </span><span class="p">(</span><span class="n">incParensDepth</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="n">tks</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="o">|</span><span class="w"> </span><span class="n">otherwise</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="n">go</span><span class="w"> </span><span class="p">(</span><span class="n">incParensDepth</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="n">tks</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="kr">where</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="c1">-- Redacted for brevity</span>
+</span></code></pre></div>
+<p>where <code>go</code> is a helper function containing the core logic used inside <code>format :: String -&gt; String</code>.
+It simply operates on the current state and the matched token(s) and returns a list
+of edits to be applied to the text. The <code>FormattingEdit</code> structure provides compatibility
+with LSP (for the VS Code extension) and is easy to reuse for the CLI.
+Additionally, we try to make sure that these edits perform the minimal changes
+needed so that nothing else is affected by mistake (such as comments).</p>
+<p>While this implementation is more error-prone than an auto-generated pretty-printer,
+it is much more flexible and unit tests have been added that verify the various
+rules to make sure no functionality gets broken by mistake. In fact, the unit tests
+helped catch a bug with the formatter right as we thought we were ready to release it.</p>
+<h3 id="implemented-rules">Implemented rules<a class="headerlink" href="#implemented-rules" title="Permanent link">&para;</a></h3>
+<p>The formatter currently implements the following features:</p>
+<ul>
+<li>Add a space after the opening parenthesis to help with the code tree structure</li>
+<li>Put the definition conclusion (type, starting with <code>:</code>) and construction (body, starting with <code>:=</code>) on new lines</li>
+<li>Add a space after the <code>\\</code> of a lambda term and around binary operators (like <code>,</code> and <code>=</code>)</li>
+<li>Move binary operators to the beginning of the next line if they appear at the end of the previous one</li>
+<li>Replace common ASCII sequences with their Unicode equivalent</li>
+<li>Removes extraneous spaces in some places like before <code>)</code> or between <code>#lang</code> and <code>rzk-1</code> (though it's not comprehensive yet)</li>
+</ul>
+<h3 id="shortcomings">Shortcomings<a class="headerlink" href="#shortcomings" title="Permanent link">&para;</a></h3>
+<p>No software is ever perfect, especially from the first release, and our formatter
+is definitely no exception 🙂.</p>
+<p>For example, if the source code contained tab characters, instead of throwing its
+hands up in the air and angrily shouting "I can't deal with this", the formatter
+decides to silently take revenge and mess up your code by deleting random characters
+around the tab character, but only every once in a while!
+(I really wish I was joking 😅)</p>
+<p>Thankfully, the accompanying <a href="https://marketplace.visualstudio.com/items?itemName=NikolaiKudasovfizruk.rzk-1-experimental-highlighting">VS Code extension</a>
+configures some default settings to avoid this situation by always inserting spaces.</p>
+<p>Aside from bugs like this, there are also features that are simply not yet implemented.
+For example, these include <a href="https://github.com/rzk-lang/rzk/issues/147">inserting line breaks</a>
+in very long lines and
+<a href="https://github.com/rzk-lang/rzk/issues/148">inferring the correct indentation level</a> a line should have.
+For the latter, we decided that it might be too constraining to force a specific
+indentation on the users when the line might be more readable using a different indentation,
+and the formatter is not smart enough to decide when it should adjust indentation or leave it as is.</p>
+<p>Lastly, some desirable features have been identified as belonging more to the linter
+(which we do not have yet) rather than the formatter, such as detecting unnecessary
+parenthesis, deprecated syntax, and expressions that could be simplified.
+The linter is currently not on the roadmap yet, but we hope to have it sometime in the future.</p>
+<h2 id="how-to-use-the-formatter">How to use the formatter<a class="headerlink" href="#how-to-use-the-formatter" title="Permanent link">&para;</a></h2>
+<p>The formatter is shipped as part of the <code>rzk</code> executable under the subcommand <code>format</code>.
+It is also integrated in the language server and used by the VS Code extension.
+Additionally, the GitHub Action now has an option to check the formatting as well.</p>
+<h3 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h3>
+<p>The command looks like so:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>rzk<span class="w"> </span>format<span class="w"> </span><span class="o">[</span>--check<span class="o">]</span><span class="w"> </span><span class="o">[</span>--write<span class="o">]</span><span class="w"> </span><span class="o">[</span>file_path<span class="o">]</span>...
+</span></code></pre></div>
+<p>It follows the convention of other formatters (Prettier and <a href="https://hackage.haskell.org/package/fourmolu">Fourmolu</a>, to name a couple)
+in that usage with any flags (<code>rzk format file.rzk</code>) outputs the result to <code>stdout</code>,
+using <code>--write</code> will modify the files in place, and <code>--check</code> is only for verifying
+that the files are already well-formatted (and exits with a non-zero code if they aren't).
+Naturally, <code>--write</code> and <code>--check</code> are mutually exclusive and it would be an error to specify both.</p>
+<p>If no file paths are given, then they will be read from <code>rzk.yaml</code> if it exists (just like with <code>typecheck</code>).</p>
+<h3 id="vs-code">VS Code<a class="headerlink" href="#vs-code" title="Permanent link">&para;</a></h3>
+<p>The accompanying release of the VS Code extension integrated formatter support
+so you can use the built-in <a href="https://code.visualstudio.com/docs/editor/codebasics#_formatting"><code>Format Document</code></a>
+command to format Rzk and Literate Rzk Markdown files.
+It also comes with new default settings for Rzk file that ensure consistent indentation (2 spaces),
+enable formatting on save, and add a ruler at 80 chars to help users identify
+long lines since the formatter cannot wrap them just yet.</p>
+<p>The formatter can be turned off manually by setting the <code>rzk.format.enable</code> option to <code>false</code>.</p>
+<h3 id="github-action">GitHub Action<a class="headerlink" href="#github-action" title="Permanent link">&para;</a></h3>
+<p>A new option has been added to the <a href="https://github.com/rzk-lang/rzk-action"><code>rzk-action</code></a>
+called <code>check-formatting</code> that, well, <em>checks</em> the <em>formatting</em> of the input files.
+It is off by default, and cannot be used with <code>rzk-version</code> lower than <code>v0.7.1</code>.</p>
+<h2 id="conclusion-and-feedback">Conclusion and Feedback<a class="headerlink" href="#conclusion-and-feedback" title="Permanent link">&para;</a></h2>
+<p>This was an exciting milestone for the Rzk toolset and for me personally as I have
+never written a similar piece of code before.
+That was an interesting engineering and research challenge, and I enjoyed it all the way.</p>
+<p>Contributions have been made to popular Rzk formalization repos to autoformat
+their content, such as <a href="https://github.com/rzk-lang/sHoTT/pull/142">sHoTT</a> and the <a href="https://github.com/rzk-lang/hottbook/pull/16">HoTT Book</a>.</p>
+<p>I encourage everyone to use the formatter and help us by reporting any possible bugs
+on our <a href="https://github.com/rzk-lang/rzk/issues">GitHub issues</a> page (using the label <code>formatter</code>).
+There also exists a <a href="https://rzk-lang.zulipchat.com/#narrow/stream/407112-general/topic/rzk.20v0.2E7.2E*.20with.20autoformatter.20.28experimental.29">Zulip thread</a>
+about the autoformatter, so feedback and discussions are welcome there as well.
+Many thanks to <a href="https://github.com/fredrik-bakke">Fredrik Bakke</a> for his helpful feedback
+on the <a href="https://github.com/rzk-lang/sHoTT/pull/142">sHoTT formatting PR</a>!</p>
+<p>See you in future blog posts :)</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+  
+
+
+
+      
+    </article>
+  </div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+        
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../10/we-have-a-blog-now/" class="md-footer__link md-footer__link--prev" aria-label="Previous: We have a blog now!">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                We have a blog now!
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../../..", "features": ["content.code.copy", "content.action.edit", "navigation.footer", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.prune", "navigation.path", "navigation.indexes", "toc.integrate"], "search": "../../../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.5cfa9459.min.js"></script>
+      
+        <script src="../../../../javascript/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
