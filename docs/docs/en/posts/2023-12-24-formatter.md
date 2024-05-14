@@ -39,16 +39,20 @@ inserting a new line somewhere in the line, there are $O(2^n)$ possible choices
 (where $n$ is the number of locations in the code where a new line could be inserted)
 to compare between for inserting line breaks.
 For example, consider the following Rzk code:
+
 ```rzk
 #lang rzk-1
 
 #define id (A : U) (x : A) : A := x
 ```
+
 which has 11 positions where a new line can be inserted, as shown by these markers:
+
 ```
 #define id (A : U) (x : A) : A := x
        ^  ^  ^ ^  ^  ^ ^  ^ ^ ^  ^
 ```
+
 This amounts to 2048 combinations that have to be ranked for such a simple line.
 Even the ranking itself is not a straightforward problem to tackle.
 
@@ -149,6 +153,7 @@ go s (Token "(" line col : tks)
   where
     -- Redacted for brevity
 ```
+
 where `go` is a helper function containing the core logic used inside `format :: String -> String`.
 It simply operates on the current state and the matched token(s) and returns a list
 of edits to be applied to the text. The `FormattingEdit` structure provides compatibility
@@ -208,6 +213,7 @@ Additionally, the GitHub Action now has an option to check the formatting as wel
 ### CLI
 
 The command looks like so:
+
 ```bash
 rzk format [--check] [--write] [file_path]...
 ```
