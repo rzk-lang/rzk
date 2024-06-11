@@ -125,8 +125,19 @@ termIsNF (Free (AnnF info f)) = t'
     t' = Free (AnnF info { infoWHNF = Just t', infoNF = Just t' } f)
 
 invalidateWHNF :: TermT var -> TermT var
-invalidateWHNF = transFS $ \(AnnF info f) ->
-  AnnF info { infoWHNF = Nothing, infoNF = Nothing } f
+invalidateWHNF tt = case tt of
+  -- type layer terms that should not be evaluated further
+  LambdaT{} -> tt
+  ReflT{} -> tt
+  TypeFunT{} -> tt
+  TypeSigmaT{} -> tt
+  TypeIdT{} -> tt
+  RecBottomT{} -> tt
+  TypeUnitT{} -> tt
+  UnitT{} -> tt
+
+  _ -> (`transFS` tt) $ \(AnnF info f) ->
+          AnnF info { infoWHNF = Nothing, infoNF = Nothing } f
 
 substituteT :: TermT var -> Scope TermT var -> TermT var
 substituteT x = substitute x . invalidateWHNF
@@ -288,7 +299,7 @@ toTerm bvars = go
       Rzk.TypeSigma _loc pat tA tB ->
         TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN -> 
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN ->
         go (Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _loc patX tX) ps tN)
         where
           patX = Rzk.PatternPair _loc patA patB
@@ -299,7 +310,7 @@ toTerm bvars = go
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
         Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
       Rzk.Lambda _loc (Rzk.ParamPatternType _ [] _ty : params) body ->
-        go (Rzk.Lambda _loc params body)                        
+        go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternType _ (pat:pats) ty : params) body ->
         Lambda (patternVar pat) (Just (go ty, Nothing))
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
