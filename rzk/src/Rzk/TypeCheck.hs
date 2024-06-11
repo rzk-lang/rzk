@@ -24,6 +24,7 @@ import           Language.Rzk.Free.Syntax
 import qualified Language.Rzk.Syntax      as Rzk
 
 import           Debug.Trace
+import           Text.Read                (readMaybe)
 import           Unsafe.Coerce
 
 -- $setup
@@ -241,6 +242,10 @@ setOption "render" = \case
   "none"  -> localRenderBackend Nothing
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown render backend (use \"svg\", \"latex\", or \"none\")"
+setOption "max-whnf-depth" = \case
+  str | Just n <- readMaybe str, n > 0 -> localMaxWhnfDepth n
+  _ -> const $
+    issueTypeError $ TypeErrorOther "invalid number (use any positive integer)"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -645,6 +650,8 @@ data Context var = Context
   , verbosity              :: Verbosity
   , covariance             :: Covariance
   , renderBackend          :: Maybe RenderBackend
+  , maxWhnfDepth           :: !Int
+  , whnfDepth              :: !Int
   } deriving (Functor, Foldable)
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
@@ -668,6 +675,8 @@ emptyContext = Context
   , verbosity = Normal
   , covariance = Covariant
   , renderBackend = Nothing
+  , maxWhnfDepth = 50
+  , whnfDepth = 0
   }
 
 askCurrentScope :: TypeCheck var (ScopeInfo var)
@@ -1458,12 +1467,22 @@ tryRestriction = \case
     go rs
   _ -> pure Nothing
 
+localMaxWhnfDepth :: Int -> TypeCheck var a -> TypeCheck var a
+localMaxWhnfDepth n = local $ \ctx -> ctx { maxWhnfDepth = n }
+
+incWhnfDepth :: a -> TypeCheck var a -> TypeCheck var a
+incWhnfDepth def tc = do
+  Context{..} <- ask
+  if whnfDepth > maxWhnfDepth
+    then return def
+    else local (\ctx -> ctx { whnfDepth = whnfDepth + 1}) tc
+
 -- | Compute a typed term to its WHNF.
 --
 -- >>> unsafeTypeCheck' $ whnfT "(\\ (x : Unit) -> x) unit"
 -- unit : Unit
 whnfT :: Eq var => TermT var -> TypeCheck var (TermT var)
-whnfT tt = performing (ActionWHNF tt) $ case tt of
+whnfT tt = incWhnfDepth tt $ case tt of
   -- use cached result if it exists
   Free (AnnF info _)
     | Just tt' <- infoWHNF info -> pure tt'
