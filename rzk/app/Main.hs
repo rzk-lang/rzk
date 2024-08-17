@@ -16,7 +16,7 @@ import           Control.Monad           (forM, forM_, unless, when,
                                           (>=>))
 import           Data.Version            (showVersion)
 
-#ifdef LSP
+#ifdef LSP_ENABLED
 import           Language.Rzk.VSCode.Lsp (runLsp)
 #endif
 
@@ -66,7 +66,7 @@ main = do
         Right _decls -> putStrLn "Everything is ok!"
 
     Lsp ->
-#ifdef LSP
+#ifdef LSP_ENABLED
       void runLsp
 #else
       error "rzk lsp is not supported with this build"
