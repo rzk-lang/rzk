@@ -28,7 +28,7 @@ flags:
 
 when:
   - condition: flag(lsp) && !impl(ghcjs)
-    cpp-options: -DLSP
+    cpp-options: -DLSP_ENABLED
 
 custom-setup:
   dependencies:

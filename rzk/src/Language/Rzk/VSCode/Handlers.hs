@@ -1,10 +1,11 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE CPP           #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE RecordWildCards     #-}
 
 module Language.Rzk.VSCode.Handlers (
@@ -279,7 +280,11 @@ formatDocument req res = do
         let edits = formatTextEdits (filter (/= '\r') $ T.unpack sourceCode)
         return (Right $ map formattingEditToTextEdit edits)
     case possibleEdits of
+#if MIN_VERSION_lsp(2,7,0)
+      Left err    -> res $ Left $ TResponseError (InR ErrorCodes_InternalError) err Nothing
+#else
       Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
+#endif
       Right edits -> do
         res $ Right $ InL edits
   else do
