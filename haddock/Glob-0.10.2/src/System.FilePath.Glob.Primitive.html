@@ -1,0 +1,115 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- File created: 2009-01-17</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |A number of primitives from which complete 'Pattern's may be constructed.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Using this together with the functions provided by the 'Monoid' instance of</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- 'Pattern' allows for direct manipulation of 'Pattern's beyond what can be</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- done with just the 'compile' family of functions. And of course you don't</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- have to go via 'String's if you use these.</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FilePath.Glob.Primitive</span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#literal"><span class="hs-identifier">literal</span></a></span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#singleWildcard"><span class="hs-identifier">singleWildcard</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#wildcard"><span class="hs-identifier">wildcard</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#recursiveWildcard"><span class="hs-identifier">recursiveWildcard</span></a></span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#charRange"><span class="hs-identifier">charRange</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#numberRange"><span class="hs-identifier">numberRange</span></a></span><span>
+</span><span id="line-13"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isPathSeparator</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isExtSeparator</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html"><span class="hs-identifier">System.FilePath.Glob.Base</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier">Pattern</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Token"><span class="hs-identifier">Token</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#optimize"><span class="hs-identifier">optimize</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- |A 'Pattern' which matches the given 'String' literally.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Handles any embedded path and extension separators.</span><span>
+</span><span id="line-22"></span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#literal"><span class="hs-identifier hs-type">literal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-23"></span><span id="literal"><span class="annot"><span class="annottext">literal :: String -&gt; Pattern
+</span><a href="System.FilePath.Glob.Primitive.html#literal"><span class="hs-identifier hs-var hs-var">literal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#optimize"><span class="hs-identifier hs-var">optimize</span></a></span><span> </span><span class="annot"><span class="annottext">(Pattern -&gt; Pattern) -&gt; (String -&gt; Pattern) -&gt; String -&gt; Pattern
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Pattern) -&gt; (String -&gt; [Token]) -&gt; String -&gt; Pattern
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Token) -&gt; String -&gt; [Token]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Token
+</span><a href="#local-6989586621679072960"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-24"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>   </span><span id="local-6989586621679072960"><span class="annot"><span class="annottext">f :: Char -&gt; Token
+</span><a href="#local-6989586621679072960"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679072961"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072961"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072961"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span>
+</span><span id="line-26"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072961"><span class="hs-identifier hs-var">c</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#ExtSeparator"><span class="hs-identifier hs-var">ExtSeparator</span></a></span><span>
+</span><span id="line-27"></span><span>       </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Token
+</span><a href="System.FilePath.Glob.Base.html#Literal"><span class="hs-identifier hs-var">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072961"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- |Matches any single character except a path separator: corresponds to the</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- @?@ operator.</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#singleWildcard"><span class="hs-identifier hs-type">singleWildcard</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-32"></span><span id="singleWildcard"><span class="annot"><span class="annottext">singleWildcard :: Pattern
+</span><a href="System.FilePath.Glob.Primitive.html#singleWildcard"><span class="hs-identifier hs-var hs-var">singleWildcard</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#NonPathSeparator"><span class="hs-identifier hs-var">NonPathSeparator</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- |Matches any number of characters up to a path separator: corresponds to the</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- @*@ operator.</span><span>
+</span><span id="line-36"></span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#wildcard"><span class="hs-identifier hs-type">wildcard</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-37"></span><span id="wildcard"><span class="annot"><span class="annottext">wildcard :: Pattern
+</span><a href="System.FilePath.Glob.Primitive.html#wildcard"><span class="hs-identifier hs-var hs-var">wildcard</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyNonPathSeparator"><span class="hs-identifier hs-var">AnyNonPathSeparator</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- |Matches any number of characters including path separators: corresponds to</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- the @**/@ operator.</span><span>
+</span><span id="line-41"></span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#recursiveWildcard"><span class="hs-identifier hs-type">recursiveWildcard</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-42"></span><span id="recursiveWildcard"><span class="annot"><span class="annottext">recursiveWildcard :: Pattern
+</span><a href="System.FilePath.Glob.Primitive.html#recursiveWildcard"><span class="hs-identifier hs-var hs-var">recursiveWildcard</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyDirectory"><span class="hs-identifier hs-var">AnyDirectory</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- |Matches a single character if it is within the (inclusive) range in any</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- 'Right' or if it is equal to the character in any 'Left'. Corresponds to the</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- @[]@, @[^]@ and @[!]@ operators.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- If the given 'Bool' is 'False', the result of the match is inverted: the</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- match succeeds if the character does /not/ match according to the above</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- rules.</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#charRange"><span class="hs-identifier hs-type">charRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-52"></span><span id="charRange"><span class="annot"><span class="annottext">charRange :: Bool -&gt; [Either Char (Char, Char)] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Primitive.html#charRange"><span class="hs-identifier hs-var hs-var">charRange</span></a></span></span><span> </span><span id="local-6989586621679072968"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679072968"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679072969"><span class="annot"><span class="annottext">[Either Char (Char, Char)]
+</span><a href="#local-6989586621679072969"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#optimize"><span class="hs-identifier hs-var">optimize</span></a></span><span> </span><span class="annot"><span class="annottext">(Pattern -&gt; Pattern) -&gt; Pattern -&gt; Pattern
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Bool -&gt; [Either Char (Char, Char)] -&gt; Token
+</span><a href="System.FilePath.Glob.Base.html#CharRange"><span class="hs-identifier hs-var">CharRange</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679072968"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">[Either Char (Char, Char)]
+</span><a href="#local-6989586621679072969"><span class="hs-identifier hs-var">rs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- |Matches a number in the given range, which may be open, half-open, or</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- closed. Corresponds to the @\&lt;\&gt;@ operator.</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="System.FilePath.Glob.Primitive.html#numberRange"><span class="hs-identifier hs-type">numberRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-57"></span><span id="numberRange"><span class="annot"><span class="annottext">numberRange :: Maybe Integer -&gt; Maybe Integer -&gt; Pattern
+</span><a href="System.FilePath.Glob.Primitive.html#numberRange"><span class="hs-identifier hs-var hs-var">numberRange</span></a></span></span><span> </span><span id="local-6989586621679072971"><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679072971"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679072972"><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679072972"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Maybe String -&gt; Maybe String -&gt; Token
+</span><a href="System.FilePath.Glob.Base.html#OpenRange"><span class="hs-identifier hs-var">OpenRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Integer -&gt; String) -&gt; Maybe Integer -&gt; Maybe String
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679072971"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Integer -&gt; String) -&gt; Maybe Integer -&gt; Maybe String
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Maybe Integer
+</span><a href="#local-6989586621679072972"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-58"></span></pre></body></html>

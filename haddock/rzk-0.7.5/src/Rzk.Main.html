@@ -1,0 +1,322 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards   #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications  #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Rzk.Main</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sort</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Yaml</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Yaml</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Directory</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">doesPathExist</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.FilePath.Glob</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">glob</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.Rzk.Syntax.html"><span class="hs-identifier">Language.Rzk.Syntax</span></a></span><span>  </span><span class="hs-keyword">as</span><span> </span><span class="annot"><a href="Rzk.html"><span class="hs-identifier">Rzk</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.Project.Config.html"><span class="hs-identifier">Rzk.Project.Config</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.html"><span class="hs-identifier">Rzk.TypeCheck</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Rzk.Main.html#parseStdin"><span class="hs-identifier hs-type">parseStdin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Language.Rzk.Syntax.Abs.html#Module"><span class="hs-identifier hs-type">Rzk.Module</span></a></span><span>
+</span><span id="line-21"></span><span id="parseStdin"><span class="annot"><span class="annottext">parseStdin :: IO Module
+</span><a href="Rzk.Main.html#parseStdin"><span class="hs-identifier hs-var hs-var">parseStdin</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-22"></span><span>  </span><span id="local-6989586621679817304"><span class="annot"><span class="annottext">Either String Module
+</span><a href="#local-6989586621679817304"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String Module
+</span><a href="Language.Rzk.Syntax.html#parseModule"><span class="hs-identifier hs-var">Rzk.parseModule</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Either String Module)
+-&gt; IO String -&gt; IO (Either String Module)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO String
+</span><span class="hs-identifier hs-var">getContents</span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either String Module
+</span><a href="#local-6989586621679817304"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679817308"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817308"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-25"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;An error occurred when parsing stdin&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO Module
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817308"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679817311"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817311"><span class="hs-identifier hs-var">rzkModule</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Module -&gt; IO Module
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817311"><span class="hs-identifier hs-var">rzkModule</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | Finds matches to the given pattern in the current working directory.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- **NOTE:** throws exception when 'glob' returns an empty list.</span><span>
+</span><span id="line-31"></span><span class="annot"><a href="Rzk.Main.html#globNonEmpty"><span class="hs-identifier hs-type">globNonEmpty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span id="globNonEmpty"><span class="annot"><span class="annottext">globNonEmpty :: String -&gt; IO [String]
+</span><a href="Rzk.Main.html#globNonEmpty"><span class="hs-identifier hs-var hs-var">globNonEmpty</span></a></span></span><span> </span><span id="local-6989586621679817314"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817314"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+</span><span class="hs-identifier hs-var">glob</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817314"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">IO [String] -&gt; ([String] -&gt; IO [String]) -&gt; IO [String]
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;File(s) not found at &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817314"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679817315"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817315"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; IO [String]
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; [String]
+forall a. Ord a =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sort</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817315"><span class="hs-identifier hs-var">paths</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Rzk.Main.html#extractFilesFromRzkYaml"><span class="hs-identifier hs-type">extractFilesFromRzkYaml</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-38"></span><span id="extractFilesFromRzkYaml"><span class="annot"><span class="annottext">extractFilesFromRzkYaml :: String -&gt; IO [String]
+</span><a href="Rzk.Main.html#extractFilesFromRzkYaml"><span class="hs-identifier hs-var hs-var">extractFilesFromRzkYaml</span></a></span></span><span> </span><span id="local-6989586621679817317"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817317"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621679817318"><span class="annot"><span class="annottext">Either ParseException ProjectConfig
+</span><a href="#local-6989586621679817318"><span class="hs-identifier hs-var">eitherConfig</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">forall a. FromJSON a =&gt; String -&gt; IO (Either ParseException a)
+</span><span class="hs-identifier hs-var">Yaml.decodeFileEither</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="Rzk.Project.Config.html#ProjectConfig"><span class="hs-identifier hs-type">ProjectConfig</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817317"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either ParseException ProjectConfig
+</span><a href="#local-6989586621679817318"><span class="hs-identifier hs-var">eitherConfig</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679817320"><span class="annot"><span class="annottext">ParseException
+</span><a href="#local-6989586621679817320"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Invalid or missing rzk.yaml: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">ParseException -&gt; String
+</span><span class="hs-identifier hs-var">Yaml.prettyPrintParseException</span></span><span> </span><span class="annot"><span class="annottext">ParseException
+</span><a href="#local-6989586621679817320"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><a href="Rzk.Project.Config.html#ProjectConfig"><span class="hs-identifier hs-type">ProjectConfig</span></a></span><span class="hs-special">{</span><span id="local-6989586621679817323"><span id="local-6989586621679817324"><span class="annot"><span class="annottext">[String]
+include :: [String]
+exclude :: [String]
+exclude :: ProjectConfig -&gt; [String]
+include :: ProjectConfig -&gt; [String]
+</span><a href="#local-6989586621679817323"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="annottext">[String] -&gt; IO [String]
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817323"><span class="hs-identifier hs-var">include</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | Given a list of file paths (possibly including globs), expands the globs (if any)</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- or tries to read the list of files from the rzk.yaml file (if no paths are given).</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- Glob patterns in rzk.yaml are also expanded.</span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Rzk.Main.html#expandRzkPathsOrYaml"><span class="hs-identifier hs-type">expandRzkPathsOrYaml</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-50"></span><span id="expandRzkPathsOrYaml"><span class="annot"><span class="annottext">expandRzkPathsOrYaml :: [String] -&gt; IO [String]
+</span><a href="Rzk.Main.html#expandRzkPathsOrYaml"><span class="hs-identifier hs-var hs-var">expandRzkPathsOrYaml</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679817329"><span class="annot"><span class="annottext">rzkYamlPath :: String
+</span><a href="#local-6989586621679817329"><span class="hs-identifier hs-var hs-var">rzkYamlPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rzk.yaml&quot;</span></span><span>
+</span><span id="line-53"></span><span>      </span><span id="local-6989586621679817330"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679817330"><span class="hs-identifier hs-var">rzkYamlExists</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesPathExist</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817329"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679817330"><span class="hs-identifier hs-var">rzkYamlExists</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-56"></span><span>          </span><span id="local-6989586621679817331"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817331"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+</span><a href="Rzk.Main.html#extractFilesFromRzkYaml"><span class="hs-identifier hs-var">extractFilesFromRzkYaml</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817329"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span>
+</span><span id="line-57"></span><span>          </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817331"><span class="hs-identifier hs-var">paths</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IO ()
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;No files found in &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817329"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>          </span><span class="annot"><span class="annottext">[String] -&gt; IO [String]
+</span><a href="Rzk.Main.html#expandRzkPathsOrYaml"><span class="hs-identifier hs-var">expandRzkPathsOrYaml</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817331"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;No paths given and no &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817329"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; found&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679817333"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817333"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO [String]) -&gt; [String] -&gt; IO [String]
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+</span><a href="Rzk.Main.html#globNonEmpty"><span class="hs-identifier hs-var">globNonEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817333"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Rzk.Main.html#parseRzkFilesOrStdin"><span class="hs-identifier hs-type">parseRzkFilesOrStdin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Syntax.Abs.html#Module"><span class="hs-identifier hs-type">Rzk.Module</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span id="parseRzkFilesOrStdin"><span class="annot"><span class="annottext">parseRzkFilesOrStdin :: [String] -&gt; IO [(String, Module)]
+</span><a href="Rzk.Main.html#parseRzkFilesOrStdin"><span class="hs-identifier hs-var hs-var">parseRzkFilesOrStdin</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-comment">-- if no paths are given &#8212; read from stdin</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-comment">-- TODO: reuse the `expandRzkPathsOrYaml` function</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679817337"><span class="annot"><span class="annottext">rzkYamlPath :: String
+</span><a href="#local-6989586621679817337"><span class="hs-identifier hs-var hs-var">rzkYamlPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rzk.yaml&quot;</span></span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679817338"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679817338"><span class="hs-identifier hs-var">rzkYamlExists</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Bool
+</span><span class="hs-identifier hs-var">doesPathExist</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817337"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679817338"><span class="hs-identifier hs-var">rzkYamlExists</span></a></span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Using Rzk project stucture specified in &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817337"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>        </span><span id="local-6989586621679817339"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817339"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+</span><a href="Rzk.Main.html#extractFilesFromRzkYaml"><span class="hs-identifier hs-var">extractFilesFromRzkYaml</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817337"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[String] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817339"><span class="hs-identifier hs-var">paths</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IO ()
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO ()) -&gt; String -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;No Rzk files specified in the config file at &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817337"><span class="hs-identifier hs-var">rzkYamlPath</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><span class="annottext">[String] -&gt; IO [(String, Module)]
+</span><a href="Rzk.Main.html#parseRzkFilesOrStdin"><span class="hs-identifier hs-var">parseRzkFilesOrStdin</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817339"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>        </span><span id="local-6989586621679817340"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817340"><span class="hs-identifier hs-var">rzkModule</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Module
+</span><a href="Rzk.Main.html#parseStdin"><span class="hs-identifier hs-var">parseStdin</span></a></span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="annottext">[(String, Module)] -&gt; IO [(String, Module)]
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&lt;stdin&gt;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817340"><span class="hs-identifier hs-var">rzkModule</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-comment">-- otherwise &#8212; parse all given files in given order</span><span>
+</span><span id="line-79"></span><span>  </span><span id="local-6989586621679817341"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817341"><span class="hs-identifier hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679817342"><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817342"><span class="hs-identifier hs-var">expandedPaths</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(String -&gt; IO [String]) -&gt; [String] -&gt; IO [String]
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO [String]
+</span><a href="Rzk.Main.html#globNonEmpty"><span class="hs-identifier hs-var">globNonEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817341"><span class="hs-identifier hs-var">paths</span></a></span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">[String]
+-&gt; (String -&gt; IO (String, Module)) -&gt; IO [(String, Module)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="annot"><span class="annottext">[String]
+</span><a href="#local-6989586621679817342"><span class="hs-identifier hs-var">expandedPaths</span></a></span><span> </span><span class="annot"><span class="annottext">((String -&gt; IO (String, Module)) -&gt; IO [(String, Module)])
+-&gt; (String -&gt; IO (String, Module)) -&gt; IO [(String, Module)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679817343"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817343"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Loading file &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817343"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>      </span><span id="local-6989586621679817344"><span class="annot"><span class="annottext">Either String Module
+</span><a href="#local-6989586621679817344"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String Module
+</span><a href="Language.Rzk.Syntax.html#parseModule"><span class="hs-identifier hs-var">Rzk.parseModule</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Either String Module)
+-&gt; IO String -&gt; IO (Either String Module)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; IO String
+</span><span class="hs-identifier hs-var">readFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817343"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either String Module
+</span><a href="#local-6989586621679817344"><span class="hs-identifier hs-var">result</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-85"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679817346"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817346"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-86"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><span class="hs-identifier hs-var">putStrLn</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;An error occurred when parsing file &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817343"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; IO (String, Module)
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817346"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679817347"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817347"><span class="hs-identifier hs-var">rzkModule</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(String, Module) -&gt; IO (String, Module)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817343"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817347"><span class="hs-identifier hs-var">rzkModule</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="annot"><a href="Rzk.Main.html#typecheckString"><span class="hs-identifier hs-type">typecheckString</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-91"></span><span id="typecheckString"><span class="annot"><span class="annottext">typecheckString :: String -&gt; Either String String
+</span><a href="Rzk.Main.html#typecheckString"><span class="hs-identifier hs-var hs-var">typecheckString</span></a></span></span><span> </span><span id="local-6989586621679817349"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817349"><span class="hs-identifier hs-var">moduleString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621679817350"><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817350"><span class="hs-identifier hs-var">rzkModule</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String Module
+</span><a href="Language.Rzk.Syntax.html#parseModule"><span class="hs-identifier hs-var">Rzk.parseModule</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679817349"><span class="hs-identifier hs-var">moduleString</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TypeCheck VarIdent [Decl']
+-&gt; Either (TypeErrorInScopedContext VarIdent) [Decl']
+forall var a.
+TypeCheck var a -&gt; Either (TypeErrorInScopedContext var) a
+</span><a href="Rzk.TypeCheck.html#defaultTypeCheck"><span class="hs-identifier hs-var">defaultTypeCheck</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Module] -&gt; TypeCheck VarIdent [Decl']
+</span><a href="Rzk.TypeCheck.html#typecheckModules"><span class="hs-identifier hs-var">typecheckModules</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Module
+</span><a href="#local-6989586621679817350"><span class="hs-identifier hs-var">rzkModule</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679817353"><span class="annot"><span class="annottext">TypeErrorInScopedContext VarIdent
+</span><a href="#local-6989586621679817353"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String String
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Either String String) -&gt; String -&gt; Either String String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span>
+</span><span id="line-95"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;An error occurred when typechecking!&quot;</span></span><span>
+</span><span id="line-96"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Rendering type error... (this may take a few seconds)&quot;</span></span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span>
+</span><span id="line-98"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Type Error:&quot;</span></span><span>
+</span><span id="line-99"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">OutputDirection -&gt; TypeErrorInScopedContext VarIdent -&gt; String
+</span><a href="Rzk.TypeCheck.html#ppTypeErrorInScopedContext%27"><span class="hs-identifier hs-var">ppTypeErrorInScopedContext'</span></a></span><span> </span><span class="annot"><span class="annottext">OutputDirection
+</span><a href="Rzk.TypeCheck.html#BottomUp"><span class="hs-identifier hs-var">BottomUp</span></a></span><span> </span><span class="annot"><span class="annottext">TypeErrorInScopedContext VarIdent
+</span><a href="#local-6989586621679817353"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-100"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-101"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">[Decl']
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String String
+forall a. a -&gt; Either String a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Everything is ok!&quot;</span></span><span>
+</span><span id="line-103"></span></pre></body></html>

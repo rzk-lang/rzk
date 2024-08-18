@@ -1,0 +1,614 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ForeignFunctionInterface #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- File created: 2008-10-10 13:40:35</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FilePath.Glob.Utils</span><span>
+</span><span id="line-6"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#isLeft"><span class="hs-identifier">isLeft</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#fromLeft"><span class="hs-identifier">fromLeft</span></a></span><span>
+</span><span id="line-7"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#increasingSeq"><span class="hs-identifier">increasingSeq</span></a></span><span>
+</span><span id="line-8"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#addToRange"><span class="hs-identifier">addToRange</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-identifier">inRange</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#overlap"><span class="hs-identifier">overlap</span></a></span><span>
+</span><span id="line-9"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#dropLeadingZeroes"><span class="hs-identifier">dropLeadingZeroes</span></a></span><span>
+</span><span id="line-10"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#pathParts"><span class="hs-identifier">pathParts</span></a></span><span>
+</span><span id="line-11"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#nubOrd"><span class="hs-identifier">nubOrd</span></a></span><span>
+</span><span id="line-12"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#partitionDL"><span class="hs-identifier">partitionDL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#tailDL"><span class="hs-identifier">tailDL</span></a></span><span>
+</span><span id="line-13"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#getRecursiveContents"><span class="hs-identifier">getRecursiveContents</span></a></span><span>
+</span><span id="line-14"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#catchIO"><span class="hs-identifier">catchIO</span></a></span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(\\)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.DList</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">DL</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.DList</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">DList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Directory</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getDirectoryContents</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;/&gt;)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isPathSeparator</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">dropDrive</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeInterleaveIO</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if mingw32_HOST_OS
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Bits</span><span>          </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator">.&amp;.</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Win32.Types</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">withTString</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Win32.File</span><span>  </span><span class="hs-special">(</span><span class="hs-identifier">FileAttributeOrFlag</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">fILE_ATTRIBUTE_DIRECTORY</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Win32.String</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">LPCTSTR</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.String</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">withCString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">allocaBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>
+</span><span id="line-36"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isDrive</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">dropTrailingPathSeparator</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">addTrailingPathSeparator</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Internals</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sizeof_stat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">lstat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">s_isdir</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">st_mode</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-40"></span><span id="local-6989586621679071812"><span class="annot"><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-identifier hs-type">inRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679071812"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071812"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679071812"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071812"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-41"></span><span id="inRange"><span class="annot"><span class="annottext">inRange :: forall a. Ord a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-identifier hs-var hs-var">inRange</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071966"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071966"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679071967"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071967"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679071968"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071968"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071968"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071966"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071968"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071967"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- returns Just (a range which covers both given ranges) or Nothing if they are</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- disjoint.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Assumes that the ranges are in the correct order, i.e. (fst x &lt; snd x).</span><span>
+</span><span id="line-47"></span><span id="local-6989586621679071815"><span class="annot"><a href="System.FilePath.Glob.Utils.html#overlap"><span class="hs-identifier hs-type">overlap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679071815"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-48"></span><span id="overlap"><span class="annot"><span class="annottext">overlap :: forall a. Ord a =&gt; (a, a) -&gt; (a, a) -&gt; Maybe (a, a)
+</span><a href="System.FilePath.Glob.Utils.html#overlap"><span class="hs-identifier hs-var hs-var">overlap</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071976"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071976"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679071977"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071977"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071978"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071978"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679071979"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071979"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>   </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071977"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071978"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071977"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071979"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-51"></span><span>              </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071976"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071978"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-52"></span><span>                      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071976"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071977"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>                      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071978"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071977"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>              </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071976"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071978"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-55"></span><span>                      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071976"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071979"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>                      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071978"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071979"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe (a, a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span id="local-6989586621679071818"><span class="annot"><a href="System.FilePath.Glob.Utils.html#addToRange"><span class="hs-identifier hs-type">addToRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679071818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-60"></span><span id="addToRange"><span class="annot"><span class="annottext">addToRange :: forall a. (Ord a, Enum a) =&gt; (a, a) -&gt; a -&gt; Maybe (a, a)
+</span><a href="System.FilePath.Glob.Utils.html#addToRange"><span class="hs-identifier hs-var hs-var">addToRange</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071989"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071989"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679071990"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071990"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679071991"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071991"><span class="hs-identifier hs-var">c</span></a></span></span><span>
+</span><span id="line-61"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; a -&gt; Bool
+forall a. Ord a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-identifier hs-var">inRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071989"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071990"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071991"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071989"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071990"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071991"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071989"><span class="hs-identifier hs-var">a</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071991"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071990"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071991"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071990"><span class="hs-identifier hs-var">b</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, a) -&gt; Maybe (a, a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071989"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071991"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (a, a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- fst of result is in reverse order so that:</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- If x = fst (increasingSeq (a:xs)), then</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- x == reverse [a .. head x]</span><span>
+</span><span id="line-70"></span><span id="local-6989586621679071822"><span class="annot"><a href="System.FilePath.Glob.Utils.html#increasingSeq"><span class="hs-identifier hs-type">increasingSeq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679071822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Enum</span></span><span> </span><span class="annot"><a href="#local-6989586621679071822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071822"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span></span><span>
+</span><span id="line-71"></span><span id="increasingSeq"><span class="annot"><span class="annottext">increasingSeq :: forall a. (Eq a, Enum a) =&gt; [a] -&gt; ([a], [a])
+</span><a href="System.FilePath.Glob.Utils.html#increasingSeq"><span class="hs-identifier hs-var hs-var">increasingSeq</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#increasingSeq"><span class="hs-identifier hs-var">increasingSeq</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071998"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071998"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679071999"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071999"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; ([a], [a])
+forall {a}. (Eq a, Enum a) =&gt; [a] -&gt; [a] -&gt; ([a], [a])
+</span><a href="#local-6989586621679072000"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071998"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071999"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-73"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>   </span><span id="local-6989586621679072000"><span class="annot"><span class="annottext">go :: [a] -&gt; [a] -&gt; ([a], [a])
+</span><a href="#local-6989586621679072000"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679072007"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072007"><span class="hs-identifier hs-var">is</span></a></span></span><span>       </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072007"><span class="hs-identifier hs-var">is</span></a></span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>   </span><span class="annot"><a href="#local-6989586621679072000"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679072008"><span class="annot"><span class="annottext">is :: [a]
+</span><a href="#local-6989586621679072008"><span class="hs-identifier hs-var">is</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679072009"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072009"><span class="hs-identifier hs-var">i</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072010"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072010"><span class="hs-identifier hs-var">y</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072011"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072011"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072010"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072009"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-77"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; ([a], [a])
+</span><a href="#local-6989586621679072000"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072010"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072008"><span class="hs-identifier hs-var">is</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072011"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-78"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072008"><span class="hs-identifier hs-var">is</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072010"><span class="hs-identifier hs-var">y</span></a></span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072011"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>   </span><span class="annot"><a href="#local-6989586621679072000"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; ([a], [a])
+forall a. HasCallStack =&gt; FilePath -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Glob.increasingSeq :: internal error&quot;</span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span id="local-6989586621679071828"><span id="local-6989586621679071829"><span class="annot"><a href="System.FilePath.Glob.Utils.html#isLeft"><span class="hs-identifier hs-type">isLeft</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679071828"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071829"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span></span><span>
+</span><span id="line-82"></span><span id="isLeft"><span class="annot"><span class="annottext">isLeft :: forall a b. Either a b -&gt; Bool
+</span><a href="System.FilePath.Glob.Utils.html#isLeft"><span class="hs-identifier hs-var hs-var">isLeft</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#isLeft"><span class="hs-identifier hs-var">isLeft</span></a></span><span> </span><span class="annot"><span class="annottext">Either a b
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span id="local-6989586621679071832"><span id="local-6989586621679071833"><span class="annot"><a href="System.FilePath.Glob.Utils.html#fromLeft"><span class="hs-identifier hs-type">fromLeft</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679071832"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071833"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071832"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-86"></span><span id="fromLeft"><span class="annot"><span class="annottext">fromLeft :: forall a b. Either a b -&gt; a
+</span><a href="System.FilePath.Glob.Utils.html#fromLeft"><span class="hs-identifier hs-var hs-var">fromLeft</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072015"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072015"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072015"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#fromLeft"><span class="hs-identifier hs-var">fromLeft</span></a></span><span> </span><span class="annot"><span class="annottext">Either a b
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; a
+forall a. HasCallStack =&gt; FilePath -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;fromLeft :: Right&quot;</span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#dropLeadingZeroes"><span class="hs-identifier hs-type">dropLeadingZeroes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-90"></span><span id="dropLeadingZeroes"><span class="annot"><span class="annottext">dropLeadingZeroes :: FilePath -&gt; FilePath
+</span><a href="System.FilePath.Glob.Utils.html#dropLeadingZeroes"><span class="hs-identifier hs-var hs-var">dropLeadingZeroes</span></a></span></span><span> </span><span id="local-6989586621679072016"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072016"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>   </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679072018"><span class="annot"><span class="annottext">x :: FilePath
+</span><a href="#local-6989586621679072018"><span class="hs-identifier hs-var hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; FilePath -&gt; FilePath
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'0'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072016"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072018"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;0&quot;</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072018"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- foo/bar/baz -&gt; [foo/bar/baz,bar/baz,baz]</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#pathParts"><span class="hs-identifier hs-type">pathParts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-96"></span><span id="pathParts"><span class="annot"><span class="annottext">pathParts :: FilePath -&gt; [FilePath]
+</span><a href="System.FilePath.Glob.Utils.html#pathParts"><span class="hs-identifier hs-var hs-var">pathParts</span></a></span></span><span> </span><span id="local-6989586621679072021"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072021"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072021"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath] -&gt; [FilePath]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679072022"><span class="annot"><span class="annottext">d :: FilePath
+</span><a href="#local-6989586621679072022"><span class="hs-identifier hs-var hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath
+</span><span class="hs-identifier hs-var">dropDrive</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072021"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-97"></span><span>                   </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072022"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072022"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072021"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-98"></span><span>                         </span><span class="hs-keyword">then</span><span>     </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath]
+</span><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072022"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-99"></span><span>                         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072022"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath] -&gt; [FilePath]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath]
+</span><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072022"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-100"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>   </span><span id="local-6989586621679072024"><span class="annot"><span class="annottext">f :: FilePath -&gt; [FilePath]
+</span><a href="#local-6989586621679072024"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span>   </span><span class="annot"><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072025"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072025"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072026"><span class="annot"><span class="annottext">xs :: FilePath
+</span><a href="#local-6989586621679072026"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679072027"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072027"><span class="hs-identifier hs-var">y</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072025"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072027"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath]
+</span><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072026"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-103"></span><span>   </span><span class="annot"><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072028"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072028"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072029"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072029"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-104"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679072028"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-105"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072029"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath] -&gt; [FilePath]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath]
+</span><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072029"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-106"></span><span>         </span><span class="hs-keyword">else</span><span>      </span><span class="annot"><span class="annottext">FilePath -&gt; [FilePath]
+</span><a href="#local-6989586621679072024"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072029"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- Significantly speedier than System.Directory.doesDirectoryExist.</span><span>
+</span><span id="line-109"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#doesDirectoryExist"><span class="hs-identifier hs-type">doesDirectoryExist</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-cpp">
+#if mingw32_HOST_OS
+</span><span class="hs-comment">-- This one allocates more memory since it has to do a UTF-16 conversion, but</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- that can't really be helped: the below version is locale-dependent.</span><span>
+</span><span id="line-113"></span><span class="hs-identifier">doesDirectoryExist</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">flip</span><span> </span><span class="hs-identifier">withTString</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">s</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-114"></span><span>   </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_GetFileAttributes</span><span> </span><span class="hs-identifier">s</span><span>
+</span><span id="line-115"></span><span>   </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">/=</span><span> </span><span class="hs-number">0xffffffff</span><span> </span><span class="hs-operator">&amp;&amp;</span><span> </span><span class="hs-identifier">a</span><span class="hs-operator">.&amp;.</span><span class="hs-identifier">fILE_ATTRIBUTE_DIRECTORY</span><span> </span><span class="hs-operator">/=</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span id="doesDirectoryExist"><span class="annot"><span class="annottext">doesDirectoryExist :: FilePath -&gt; IO Bool
+</span><a href="System.FilePath.Glob.Utils.html#doesDirectoryExist"><span class="hs-identifier hs-var hs-var">doesDirectoryExist</span></a></span></span><span> </span><span id="local-6989586621679072031"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072031"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>   </span><span class="annot"><span class="annottext">Int -&gt; (Ptr CStat -&gt; IO Bool) -&gt; IO Bool
+forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier hs-var">sizeof_stat</span></span><span> </span><span class="annot"><span class="annottext">((Ptr CStat -&gt; IO Bool) -&gt; IO Bool)
+-&gt; (Ptr CStat -&gt; IO Bool) -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679072032"><span class="annot"><span class="annottext">Ptr CStat
+</span><a href="#local-6989586621679072032"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>      </span><span class="annot"><span class="annottext">FilePath -&gt; (CString -&gt; IO Bool) -&gt; IO Bool
+forall a. FilePath -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withCString</span></span><span>
+</span><span id="line-120"></span><span>         </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Bool
+</span><span class="hs-identifier hs-var">isDrive</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072031"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-121"></span><span>             </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath
+</span><span class="hs-identifier hs-var">addTrailingPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072031"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-122"></span><span>             </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath
+</span><span class="hs-identifier hs-var">dropTrailingPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072031"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>         </span><span class="annot"><span class="annottext">((CString -&gt; IO Bool) -&gt; IO Bool)
+-&gt; (CString -&gt; IO Bool) -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679072033"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679072033"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-124"></span><span>            </span><span id="local-6989586621679072034"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679072034"><span class="hs-identifier hs-var">st</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CString -&gt; Ptr CStat -&gt; IO CInt
+</span><span class="hs-identifier hs-var">lstat</span></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679072033"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CStat
+</span><a href="#local-6989586621679072032"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-125"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679072034"><span class="hs-identifier hs-var">st</span></a></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-126"></span><span>               </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(CMode -&gt; Bool) -&gt; IO CMode -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">CMode -&gt; Bool
+</span><span class="hs-identifier hs-var">s_isdir</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr CStat -&gt; IO CMode
+</span><span class="hs-identifier hs-var">st_mode</span></span><span> </span><span class="annot"><span class="annottext">Ptr CStat
+</span><a href="#local-6989586621679072032"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>               </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO Bool
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if mingw32_HOST_OS
+</span><span class="hs-cpp">#if defined(i386_HOST_ARCH)
+</span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">stdcall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;windows.h GetFileAttributesW&quot;</span><span> </span><span class="hs-identifier">c_GetFileAttributes</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">LPCTSTR</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FileAttributeOrFlag</span><span class="hs-cpp">
+#elif defined(x86_64_HOST_ARCH)
+</span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;windows.h GetFileAttributesW&quot;</span><span> </span><span class="hs-identifier">c_GetFileAttributes</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">LPCTSTR</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FileAttributeOrFlag</span><span class="hs-cpp">
+#else
+</span><span class="hs-cpp">#error Unknown mingw32 arch
+</span><span class="hs-cpp">#endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-140"></span><span class="annot"><a href="System.FilePath.Glob.Utils.html#getRecursiveContents"><span class="hs-identifier hs-type">getRecursiveContents</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DList</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span id="getRecursiveContents"><span class="annot"><span class="annottext">getRecursiveContents :: FilePath -&gt; IO (DList FilePath)
+</span><a href="System.FilePath.Glob.Utils.html#getRecursiveContents"><span class="hs-identifier hs-var hs-var">getRecursiveContents</span></a></span></span><span> </span><span id="local-6989586621679072035"><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072035"><span class="hs-identifier hs-var">dir</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>   </span><span class="annot"><span class="annottext">(IO (DList FilePath)
+ -&gt; (IOException -&gt; IO (DList FilePath)) -&gt; IO (DList FilePath))
+-&gt; (IOException -&gt; IO (DList FilePath))
+-&gt; IO (DList FilePath)
+-&gt; IO (DList FilePath)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">IO (DList FilePath)
+-&gt; (IOException -&gt; IO (DList FilePath)) -&gt; IO (DList FilePath)
+forall a. IO a -&gt; (IOException -&gt; IO a) -&gt; IO a
+</span><a href="System.FilePath.Glob.Utils.html#catchIO"><span class="hs-identifier hs-var">catchIO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">IOException
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DList FilePath -&gt; IO (DList FilePath)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(DList FilePath -&gt; IO (DList FilePath))
+-&gt; DList FilePath -&gt; IO (DList FilePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; DList FilePath
+forall a. a -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.singleton</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072035"><span class="hs-identifier hs-var">dir</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO (DList FilePath) -&gt; IO (DList FilePath))
+-&gt; IO (DList FilePath) -&gt; IO (DList FilePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span>      </span><span id="local-6989586621679072038"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072038"><span class="hs-identifier hs-var">raw</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO [FilePath]
+</span><span class="hs-identifier hs-var">getDirectoryContents</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072035"><span class="hs-identifier hs-var">dir</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679072041"><span class="annot"><span class="annottext">entries :: [FilePath]
+</span><a href="#local-6989586621679072041"><span class="hs-identifier hs-var hs-var">entries</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; FilePath) -&gt; [FilePath] -&gt; [FilePath]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072035"><span class="hs-identifier hs-var">dir</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; FilePath -&gt; FilePath
+</span><span class="hs-operator hs-var">&lt;/&gt;</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072038"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath] -&gt; [FilePath] -&gt; [FilePath]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">\\</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;.&quot;</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;..&quot;</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679072042"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072042"><span class="hs-identifier hs-var">dirs</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072043"><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072043"><span class="hs-identifier hs-var">files</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; IO Bool) -&gt; [FilePath] -&gt; IO ([FilePath], [FilePath])
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+(a -&gt; m Bool) -&gt; [a] -&gt; m ([a], [a])
+</span><a href="System.FilePath.Glob.Utils.html#partitionM"><span class="hs-identifier hs-var">partitionM</span></a></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO Bool
+</span><a href="System.FilePath.Glob.Utils.html#doesDirectoryExist"><span class="hs-identifier hs-var">doesDirectoryExist</span></a></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072041"><span class="hs-identifier hs-var">entries</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>      </span><span id="local-6989586621679072045"><span class="annot"><span class="annottext">[DList FilePath]
+</span><a href="#local-6989586621679072045"><span class="hs-identifier hs-var">subs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO [DList FilePath] -&gt; IO [DList FilePath]
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">unsafeInterleaveIO</span></span><span> </span><span class="annot"><span class="annottext">(IO [DList FilePath] -&gt; IO [DList FilePath])
+-&gt; ([FilePath] -&gt; IO [DList FilePath])
+-&gt; [FilePath]
+-&gt; IO [DList FilePath]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(FilePath -&gt; IO (DList FilePath))
+-&gt; [FilePath] -&gt; IO [DList FilePath]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; IO (DList FilePath)
+</span><a href="System.FilePath.Glob.Utils.html#getRecursiveContents"><span class="hs-identifier hs-var">getRecursiveContents</span></a></span><span> </span><span class="annot"><span class="annottext">([FilePath] -&gt; IO [DList FilePath])
+-&gt; [FilePath] -&gt; IO [DList FilePath]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072042"><span class="hs-identifier hs-var">dirs</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>      </span><span class="annot"><span class="annottext">DList FilePath -&gt; IO (DList FilePath)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span class="annot"><span class="annottext">(DList FilePath -&gt; IO (DList FilePath))
+-&gt; DList FilePath -&gt; IO (DList FilePath)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; DList FilePath -&gt; DList FilePath
+forall a. a -&gt; DList a -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.cons</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><a href="#local-6989586621679072035"><span class="hs-identifier hs-var">dir</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[FilePath] -&gt; DList FilePath
+forall a. [a] -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.fromList</span></span><span> </span><span class="annot"><span class="annottext">[FilePath]
+</span><a href="#local-6989586621679072043"><span class="hs-identifier hs-var">files</span></a></span><span> </span><span class="annot"><span class="annottext">DList FilePath -&gt; DList FilePath -&gt; DList FilePath
+forall a. DList a -&gt; DList a -&gt; DList a
+</span><span class="hs-operator hs-var">`DL.append`</span></span><span> </span><span class="annot"><span class="annottext">[DList FilePath] -&gt; DList FilePath
+forall a. [DList a] -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.concat</span></span><span> </span><span class="annot"><span class="annottext">[DList FilePath]
+</span><a href="#local-6989586621679072045"><span class="hs-identifier hs-var">subs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span id="local-6989586621679071864"><span id="local-6989586621679071865"><span class="annot"><a href="System.FilePath.Glob.Utils.html#partitionM"><span class="hs-identifier hs-type">partitionM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679071864"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071865"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071864"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071865"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071864"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071865"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071865"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-154"></span><span id="partitionM"><span class="annot"><span class="annottext">partitionM :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+(a -&gt; m Bool) -&gt; [a] -&gt; m ([a], [a])
+</span><a href="System.FilePath.Glob.Utils.html#partitionM"><span class="hs-identifier hs-var hs-var">partitionM</span></a></span></span><span> </span><span id="local-6989586621679072056"><span class="annot"><span class="annottext">a -&gt; m Bool
+</span><a href="#local-6989586621679072056"><span class="hs-identifier hs-var">p_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(([a], [a]) -&gt; a -&gt; m ([a], [a]))
+-&gt; ([a], [a]) -&gt; [a] -&gt; m ([a], [a])
+forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m b
+</span><span class="hs-identifier hs-var">foldM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m Bool) -&gt; ([a], [a]) -&gt; a -&gt; m ([a], [a])
+forall {m :: * -&gt; *} {a}.
+Monad m =&gt;
+(a -&gt; m Bool) -&gt; ([a], [a]) -&gt; a -&gt; m ([a], [a])
+</span><a href="#local-6989586621679072057"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; m Bool
+</span><a href="#local-6989586621679072056"><span class="hs-identifier hs-var">p_</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-156"></span><span>   </span><span id="local-6989586621679072057"><span class="annot"><span class="annottext">f :: (a -&gt; m Bool) -&gt; ([a], [a]) -&gt; a -&gt; m ([a], [a])
+</span><a href="#local-6989586621679072057"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679072068"><span class="annot"><span class="annottext">a -&gt; m Bool
+</span><a href="#local-6989586621679072068"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072069"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072069"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072070"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072070"><span class="hs-identifier hs-var">fs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679072071"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072071"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m Bool
+</span><a href="#local-6989586621679072068"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072071"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m Bool -&gt; (Bool -&gt; m ([a], [a])) -&gt; m ([a], [a])
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679072072"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679072072"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-157"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679072072"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-158"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">([a], [a]) -&gt; m ([a], [a])
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072071"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072069"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072070"><span class="hs-identifier hs-var">fs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">([a], [a]) -&gt; m ([a], [a])
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072069"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072071"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072070"><span class="hs-identifier hs-var">fs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span id="local-6989586621679071889"><span class="annot"><a href="System.FilePath.Glob.Utils.html#partitionDL"><span class="hs-identifier hs-type">partitionDL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071889"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DList</span></span><span> </span><span class="annot"><a href="#local-6989586621679071889"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">DList</span></span><span> </span><span class="annot"><a href="#local-6989586621679071889"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DList</span></span><span> </span><span class="annot"><a href="#local-6989586621679071889"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-162"></span><span id="partitionDL"><span class="annot"><span class="annottext">partitionDL :: forall a. (a -&gt; Bool) -&gt; DList a -&gt; (DList a, DList a)
+</span><a href="System.FilePath.Glob.Utils.html#partitionDL"><span class="hs-identifier hs-var hs-var">partitionDL</span></a></span></span><span> </span><span id="local-6989586621679072073"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679072073"><span class="hs-identifier hs-var">p_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (DList a, DList a) -&gt; (DList a, DList a))
+-&gt; (DList a, DList a) -&gt; DList a -&gt; (DList a, DList a)
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; DList a -&gt; b
+</span><span class="hs-identifier hs-var">DL.foldr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; a -&gt; (DList a, DList a) -&gt; (DList a, DList a)
+forall {a}.
+(a -&gt; Bool) -&gt; a -&gt; (DList a, DList a) -&gt; (DList a, DList a)
+</span><a href="#local-6989586621679072075"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679072073"><span class="hs-identifier hs-var">p_</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DList a
+forall a. DList a
+</span><span class="hs-identifier hs-var">DL.empty</span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">DList a
+forall a. DList a
+</span><span class="hs-identifier hs-var">DL.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-164"></span><span>   </span><span id="local-6989586621679072075"><span class="annot"><span class="annottext">f :: (a -&gt; Bool) -&gt; a -&gt; (DList a, DList a) -&gt; (DList a, DList a)
+</span><a href="#local-6989586621679072075"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679072077"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679072077"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679072078"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072078"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072079"><span class="annot"><span class="annottext">DList a
+</span><a href="#local-6989586621679072079"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072080"><span class="annot"><span class="annottext">DList a
+</span><a href="#local-6989586621679072080"><span class="hs-identifier hs-var">fs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679072077"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072078"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-166"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; DList a -&gt; DList a
+forall a. a -&gt; DList a -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.cons</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072078"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">DList a
+</span><a href="#local-6989586621679072079"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DList a
+</span><a href="#local-6989586621679072080"><span class="hs-identifier hs-var">fs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DList a
+</span><a href="#local-6989586621679072079"><span class="hs-identifier hs-var">ts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a -&gt; DList a -&gt; DList a
+forall a. a -&gt; DList a -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.cons</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072078"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">DList a
+</span><a href="#local-6989586621679072080"><span class="hs-identifier hs-var">fs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span id="local-6989586621679071895"><span class="annot"><a href="System.FilePath.Glob.Utils.html#tailDL"><span class="hs-identifier hs-type">tailDL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DList</span></span><span> </span><span class="annot"><a href="#local-6989586621679071895"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DList</span></span><span> </span><span class="annot"><a href="#local-6989586621679071895"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-cpp">
+#if MIN_VERSION_dlist(1,0,0)
+</span><span id="tailDL"><span class="annot"><span class="annottext">tailDL :: forall a. DList a -&gt; DList a
+</span><a href="System.FilePath.Glob.Utils.html#tailDL"><span class="hs-identifier hs-var hs-var">tailDL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; DList a
+forall a. [a] -&gt; DList a
+</span><span class="hs-identifier hs-var">DL.fromList</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; DList a) -&gt; (DList a -&gt; [a]) -&gt; DList a -&gt; DList a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">DList a -&gt; [a]
+forall a. DList a -&gt; [a]
+</span><span class="hs-identifier hs-var">DL.tail</span></span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">tailDL</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DL.tail</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-176"></span><span id="local-6989586621679071898"><span class="annot"><a href="System.FilePath.Glob.Utils.html#nubOrd"><span class="hs-identifier hs-type">nubOrd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679071898"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071898"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071898"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-177"></span><span id="nubOrd"><span class="annot"><span class="annottext">nubOrd :: forall a. Ord a =&gt; [a] -&gt; [a]
+</span><a href="System.FilePath.Glob.Utils.html#nubOrd"><span class="hs-identifier hs-var hs-var">nubOrd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a] -&gt; [a]
+forall {a}. Ord a =&gt; Set a -&gt; [a] -&gt; [a]
+</span><a href="#local-6989586621679072084"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span>
+</span><span id="line-178"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-179"></span><span>   </span><span id="local-6989586621679072084"><span class="annot"><span class="annottext">go :: Set a -&gt; [a] -&gt; [a]
+</span><a href="#local-6989586621679072084"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-180"></span><span>   </span><span class="annot"><a href="#local-6989586621679072084"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679072091"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679072091"><span class="hs-identifier hs-var">set</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072092"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072092"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072093"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072093"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-181"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.member</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072092"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679072091"><span class="hs-identifier hs-var">set</span></a></span><span>
+</span><span id="line-182"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a] -&gt; [a]
+</span><a href="#local-6989586621679072084"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679072091"><span class="hs-identifier hs-var">set</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072093"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-183"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072092"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a] -&gt; [a]
+</span><a href="#local-6989586621679072084"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072092"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679072091"><span class="hs-identifier hs-var">set</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679072093"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span id="local-6989586621679071859"><span class="annot"><a href="System.FilePath.Glob.Utils.html#catchIO"><span class="hs-identifier hs-type">catchIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679071859"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">E.IOException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679071859"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679071859"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-186"></span><span id="catchIO"><span class="annot"><span class="annottext">catchIO :: forall a. IO a -&gt; (IOException -&gt; IO a) -&gt; IO a
+</span><a href="System.FilePath.Glob.Utils.html#catchIO"><span class="hs-identifier hs-var hs-var">catchIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; (IOException -&gt; IO a) -&gt; IO a
+forall e a. Exception e =&gt; IO a -&gt; (e -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">E.catch</span></span><span>
+</span><span id="line-187"></span></pre></body></html>

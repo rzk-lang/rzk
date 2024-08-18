@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Rzk.Project.Config</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Yaml</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.!=)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.:)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.:?)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Yaml</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Y</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">data</span><span> </span><span id="ProjectConfig"><span class="annot"><a href="Rzk.Project.Config.html#ProjectConfig"><span class="hs-identifier hs-var">ProjectConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ProjectConfig"><span class="annot"><a href="Rzk.Project.Config.html#ProjectConfig"><span class="hs-identifier hs-var">ProjectConfig</span></a></span></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="include"><span class="annot"><span class="annottext">ProjectConfig -&gt; [FilePath]
+</span><a href="Rzk.Project.Config.html#include"><span class="hs-identifier hs-var hs-var">include</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="exclude"><span class="annot"><span class="annottext">ProjectConfig -&gt; [FilePath]
+</span><a href="Rzk.Project.Config.html#exclude"><span class="hs-identifier hs-var hs-var">exclude</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">]</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679809619"><span id="local-6989586621679809625"><span class="annot"><span class="annottext">ProjectConfig -&gt; ProjectConfig -&gt; Bool
+(ProjectConfig -&gt; ProjectConfig -&gt; Bool)
+-&gt; (ProjectConfig -&gt; ProjectConfig -&gt; Bool) -&gt; Eq ProjectConfig
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ProjectConfig -&gt; ProjectConfig -&gt; Bool
+== :: ProjectConfig -&gt; ProjectConfig -&gt; Bool
+$c/= :: ProjectConfig -&gt; ProjectConfig -&gt; Bool
+/= :: ProjectConfig -&gt; ProjectConfig -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679809632"><span id="local-6989586621679809640"><span id="local-6989586621679809644"><span class="annot"><span class="annottext">Int -&gt; ProjectConfig -&gt; ShowS
+[ProjectConfig] -&gt; ShowS
+ProjectConfig -&gt; FilePath
+(Int -&gt; ProjectConfig -&gt; ShowS)
+-&gt; (ProjectConfig -&gt; FilePath)
+-&gt; ([ProjectConfig] -&gt; ShowS)
+-&gt; Show ProjectConfig
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; FilePath) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ProjectConfig -&gt; ShowS
+showsPrec :: Int -&gt; ProjectConfig -&gt; ShowS
+$cshow :: ProjectConfig -&gt; FilePath
+show :: ProjectConfig -&gt; FilePath
+$cshowList :: [ProjectConfig] -&gt; ShowS
+showList :: [ProjectConfig] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679809651"><span id="local-6989586621679809655"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Rzk.Project.Config.html#ProjectConfig"><span class="hs-identifier hs-type">ProjectConfig</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>  </span><span id="local-6989586621679809673"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ProjectConfig
+</span><a href="#local-6989586621679809673"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Y.Object</span></span><span> </span><span id="local-6989586621679809676"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679809676"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="annottext">[FilePath] -&gt; [FilePath] -&gt; ProjectConfig
+</span><a href="Rzk.Project.Config.html#ProjectConfig"><span class="hs-identifier hs-var">ProjectConfig</span></a></span><span>   </span><span class="annot"><span class="annottext">([FilePath] -&gt; [FilePath] -&gt; ProjectConfig)
+-&gt; Parser [FilePath] -&gt; Parser ([FilePath] -&gt; ProjectConfig)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679809676"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser [FilePath]
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span>  </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;include&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser ([FilePath] -&gt; ProjectConfig)
+-&gt; Parser [FilePath] -&gt; Parser ProjectConfig
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679809676"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe [FilePath])
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;exclude&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe [FilePath]) -&gt; [FilePath] -&gt; Parser [FilePath]
+forall a. Parser (Maybe a) -&gt; a -&gt; Parser a
+</span><span class="hs-operator hs-var">.!=</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FilePath -&gt; Parser ProjectConfig
+forall a. FilePath -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; FilePath -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">FilePath
+</span><span class="hs-string">&quot;Expected config value to be an object&quot;</span></span><span>
+</span><span id="line-19"></span></pre></body></html>

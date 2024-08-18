@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- File created: 2009-01-30 14:54:14</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FilePath.Glob.Simplify</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Simplify.html#simplify"><span class="hs-identifier">simplify</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html"><span class="hs-identifier">System.FilePath.Glob.Base</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier">Pattern</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Token"><span class="hs-identifier">Token</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#liftP"><span class="hs-identifier">liftP</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |Simplifies a 'Pattern' object: removes redundant @\&quot;./\&quot;@, for instance.</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- The resulting 'Pattern' matches the exact same input as the original one,</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- with some differences:</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- * The output of 'globDir' will differ: for example, globbing for @\&quot;./\*\&quot;@</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--   gives @\&quot;./foo\&quot;@, but after simplification this'll be only @\&quot;foo\&quot;@.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- * Decompiling the simplified 'Pattern' will obviously not give the original.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- * The simplified 'Pattern' is a bit faster to match with and uses less</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--   memory, since some redundant data is removed.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- For the last of the above reasons, if you're performance-conscious and not</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- using 'globDir', you should always 'simplify' after calling 'compile'.</span><span>
+</span><span id="line-21"></span><span class="annot"><a href="System.FilePath.Glob.Simplify.html#simplify"><span class="hs-identifier hs-type">simplify</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span>
+</span><span id="line-22"></span><span id="simplify"><span class="annot"><span class="annottext">simplify :: Pattern -&gt; Pattern
+</span><a href="System.FilePath.Glob.Simplify.html#simplify"><span class="hs-identifier hs-var hs-var">simplify</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; [Token]) -&gt; Pattern -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#liftP"><span class="hs-identifier hs-var">liftP</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; [Token]) -&gt; ([Token] -&gt; [Token]) -&gt; [Token] -&gt; [Token]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072912"><span class="hs-identifier hs-var">pre</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>   </span><span class="hs-comment">-- ./ at beginning -&gt; nothing (any number of /'s)</span><span>
+</span><span id="line-25"></span><span>   </span><span id="local-6989586621679072912"><span class="annot"><span class="annottext">pre :: [Token] -&gt; [Token]
+</span><a href="#local-6989586621679072912"><span class="hs-identifier hs-var hs-var">pre</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#ExtSeparator"><span class="hs-identifier hs-var">ExtSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072915"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072915"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072912"><span class="hs-identifier hs-var">pre</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Token -&gt; Bool) -&gt; [Token] -&gt; [Token]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Bool
+</span><a href="#local-6989586621679072917"><span class="hs-identifier hs-var">isSlash</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072915"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>   </span><span class="annot"><a href="#local-6989586621679072912"><span class="hs-identifier hs-var">pre</span></a></span><span>                             </span><span id="local-6989586621679072918"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072918"><span class="hs-identifier hs-var">xs</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072918"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>   </span><span id="local-6989586621679072910"><span class="annot"><span class="annottext">go :: [Token] -&gt; [Token]
+</span><a href="#local-6989586621679072910"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>   </span><span class="hs-comment">-- /./ -&gt; /</span><span>
+</span><span id="line-31"></span><span>   </span><span class="annot"><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#ExtSeparator"><span class="hs-identifier hs-var">ExtSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072921"><span class="annot"><span class="annottext">xs :: [Token]
+</span><a href="#local-6989586621679072921"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072921"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>   </span><span class="annot"><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072922"><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679072922"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679072923"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072923"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Token -&gt; Bool
+</span><a href="#local-6989586621679072917"><span class="hs-identifier hs-var">isSlash</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679072922"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-35"></span><span>         </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072924"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072924"><span class="hs-identifier hs-var">compressed</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679072925"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072925"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Token -&gt; Bool) -&gt; [Token] -&gt; ([Token], [Token])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">span</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Bool
+</span><a href="#local-6989586621679072917"><span class="hs-identifier hs-var">isSlash</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072923"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-36"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072924"><span class="hs-identifier hs-var">compressed</span></a></span><span>
+</span><span id="line-37"></span><span>                     </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679072922"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Token -&gt; [Token] -&gt; [Token]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072925"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-38"></span><span>                     </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679072922"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Token -&gt; [Token] -&gt; [Token]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072925"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="#local-6989586621679072922"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Token -&gt; [Token] -&gt; [Token]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679072910"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679072923"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>   </span><span id="local-6989586621679072917"><span class="annot"><span class="annottext">isSlash :: Token -&gt; Bool
+</span><a href="#local-6989586621679072917"><span class="hs-identifier hs-var hs-var">isSlash</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-42"></span><span>   </span><span class="annot"><a href="#local-6989586621679072917"><span class="hs-identifier hs-var">isSlash</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-43"></span></pre></body></html>

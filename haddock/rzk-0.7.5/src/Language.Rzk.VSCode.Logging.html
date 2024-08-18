@@ -1,0 +1,73 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.Rzk.VSCode.Logging</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Colog.Core</span></span><span>           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Severity</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">WithSeverity</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;&amp;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.LSP.Logging</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">defaultClientLogger</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.LSP.Server</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadLsp</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span id="local-6989586621679808246"><span id="local-6989586621679808247"><span class="annot"><a href="Language.Rzk.VSCode.Logging.html#logDebug"><span class="hs-identifier hs-type">logDebug</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadLsp</span></span><span> </span><span class="annot"><a href="#local-6989586621679808246"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679808247"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679808247"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-10"></span><span id="logDebug"><span class="annot"><span class="annottext">logDebug :: forall c (m :: * -&gt; *). MonadLsp c m =&gt; String -&gt; m ()
+</span><a href="Language.Rzk.VSCode.Logging.html#logDebug"><span class="hs-identifier hs-var hs-var">logDebug</span></a></span></span><span> </span><span id="local-6989586621679808271"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808271"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text)
+forall c (m :: * -&gt; *).
+MonadLsp c m =&gt;
+LogAction m (WithSeverity Text)
+</span><span class="hs-identifier hs-var">defaultClientLogger</span></span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text) -&gt; WithSeverity Text -&gt; m ()
+forall (m :: * -&gt; *) msg. LogAction m msg -&gt; msg -&gt; m ()
+</span><span class="hs-operator hs-var">&lt;&amp;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808271"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Severity -&gt; WithSeverity Text
+forall msg. msg -&gt; Severity -&gt; WithSeverity msg
+</span><span class="hs-operator hs-var">`WithSeverity`</span></span><span> </span><span class="annot"><span class="annottext">Severity
+</span><span class="hs-identifier hs-var">Debug</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span id="local-6989586621679808275"><span id="local-6989586621679808276"><span class="annot"><a href="Language.Rzk.VSCode.Logging.html#logInfo"><span class="hs-identifier hs-type">logInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadLsp</span></span><span> </span><span class="annot"><a href="#local-6989586621679808275"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679808276"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679808276"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-13"></span><span id="logInfo"><span class="annot"><span class="annottext">logInfo :: forall c (m :: * -&gt; *). MonadLsp c m =&gt; String -&gt; m ()
+</span><a href="Language.Rzk.VSCode.Logging.html#logInfo"><span class="hs-identifier hs-var hs-var">logInfo</span></a></span></span><span> </span><span id="local-6989586621679808280"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808280"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text)
+forall c (m :: * -&gt; *).
+MonadLsp c m =&gt;
+LogAction m (WithSeverity Text)
+</span><span class="hs-identifier hs-var">defaultClientLogger</span></span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text) -&gt; WithSeverity Text -&gt; m ()
+forall (m :: * -&gt; *) msg. LogAction m msg -&gt; msg -&gt; m ()
+</span><span class="hs-operator hs-var">&lt;&amp;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808280"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Severity -&gt; WithSeverity Text
+forall msg. msg -&gt; Severity -&gt; WithSeverity msg
+</span><span class="hs-operator hs-var">`WithSeverity`</span></span><span> </span><span class="annot"><span class="annottext">Severity
+</span><span class="hs-identifier hs-var">Info</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span id="local-6989586621679808282"><span id="local-6989586621679808283"><span class="annot"><a href="Language.Rzk.VSCode.Logging.html#logWarning"><span class="hs-identifier hs-type">logWarning</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadLsp</span></span><span> </span><span class="annot"><a href="#local-6989586621679808282"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679808283"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679808283"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-16"></span><span id="logWarning"><span class="annot"><span class="annottext">logWarning :: forall c (m :: * -&gt; *). MonadLsp c m =&gt; String -&gt; m ()
+</span><a href="Language.Rzk.VSCode.Logging.html#logWarning"><span class="hs-identifier hs-var hs-var">logWarning</span></a></span></span><span> </span><span id="local-6989586621679808287"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808287"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text)
+forall c (m :: * -&gt; *).
+MonadLsp c m =&gt;
+LogAction m (WithSeverity Text)
+</span><span class="hs-identifier hs-var">defaultClientLogger</span></span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text) -&gt; WithSeverity Text -&gt; m ()
+forall (m :: * -&gt; *) msg. LogAction m msg -&gt; msg -&gt; m ()
+</span><span class="hs-operator hs-var">&lt;&amp;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808287"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Severity -&gt; WithSeverity Text
+forall msg. msg -&gt; Severity -&gt; WithSeverity msg
+</span><span class="hs-operator hs-var">`WithSeverity`</span></span><span> </span><span class="annot"><span class="annottext">Severity
+</span><span class="hs-identifier hs-var">Warning</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="annot"><span class="hs-comment">-- | Error logs will also be shown to the user via `window/showMessage`</span></span><span>
+</span><span id="line-19"></span><span id="local-6989586621679808289"><span id="local-6989586621679808290"><span class="annot"><a href="Language.Rzk.VSCode.Logging.html#logError"><span class="hs-identifier hs-type">logError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadLsp</span></span><span> </span><span class="annot"><a href="#local-6989586621679808289"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679808290"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679808290"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-20"></span><span id="logError"><span class="annot"><span class="annottext">logError :: forall c (m :: * -&gt; *). MonadLsp c m =&gt; String -&gt; m ()
+</span><a href="Language.Rzk.VSCode.Logging.html#logError"><span class="hs-identifier hs-var hs-var">logError</span></a></span></span><span> </span><span id="local-6989586621679808294"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808294"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text)
+forall c (m :: * -&gt; *).
+MonadLsp c m =&gt;
+LogAction m (WithSeverity Text)
+</span><span class="hs-identifier hs-var">defaultClientLogger</span></span><span> </span><span class="annot"><span class="annottext">LogAction m (WithSeverity Text) -&gt; WithSeverity Text -&gt; m ()
+forall (m :: * -&gt; *) msg. LogAction m msg -&gt; msg -&gt; m ()
+</span><span class="hs-operator hs-var">&lt;&amp;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679808294"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Severity -&gt; WithSeverity Text
+forall msg. msg -&gt; Severity -&gt; WithSeverity msg
+</span><span class="hs-operator hs-var">`WithSeverity`</span></span><span> </span><span class="annot"><span class="annottext">Severity
+</span><span class="hs-identifier hs-var">Error</span></span><span>
+</span><span id="line-21"></span></pre></body></html>

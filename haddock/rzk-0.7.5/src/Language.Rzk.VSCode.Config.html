@@ -1,0 +1,99 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards   #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.Rzk.VSCode.Config</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier">ServerConfig</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Default.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Default</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">def</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="ServerConfig"><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-var">ServerConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ServerConfig"><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-var">ServerConfig</span></a></span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="formatEnabled"><span class="annot"><span class="annottext">ServerConfig -&gt; Bool
+</span><a href="Language.Rzk.VSCode.Config.html#formatEnabled"><span class="hs-identifier hs-var hs-var">formatEnabled</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679808166"><span id="local-6989586621679808172"><span id="local-6989586621679808176"><span class="annot"><span class="annottext">Int -&gt; ServerConfig -&gt; ShowS
+[ServerConfig] -&gt; ShowS
+ServerConfig -&gt; String
+(Int -&gt; ServerConfig -&gt; ShowS)
+-&gt; (ServerConfig -&gt; String)
+-&gt; ([ServerConfig] -&gt; ShowS)
+-&gt; Show ServerConfig
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ServerConfig -&gt; ShowS
+showsPrec :: Int -&gt; ServerConfig -&gt; ShowS
+$cshow :: ServerConfig -&gt; String
+show :: ServerConfig -&gt; String
+$cshowList :: [ServerConfig] -&gt; ShowS
+showList :: [ServerConfig] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Default</span></span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>  </span><span id="local-6989586621679808182"><span class="annot"><span class="annottext">def :: ServerConfig
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">def</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">formatEnabled :: Bool
+</span><a href="Language.Rzk.VSCode.Config.html#formatEnabled"><span class="hs-identifier hs-var">formatEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- We need to derive the FromJSON instance manually in order to provide defaults</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- for absent fields.</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679808185"><span id="local-6989586621679808189"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-comment">-- Note: &quot;configSection&quot; in ServerDefinition already filters by the &quot;rzk.&quot; prefix</span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679808206"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ServerConfig
+</span><a href="#local-6989586621679808206"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ServerConfig) -&gt; Value -&gt; Parser ServerConfig
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;rzkSettings&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ServerConfig) -&gt; Value -&gt; Parser ServerConfig)
+-&gt; (Object -&gt; Parser ServerConfig) -&gt; Value -&gt; Parser ServerConfig
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679808209"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679808209"><span class="hs-identifier hs-var">rzkSettings</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-25"></span><span>    </span><span id="local-6989586621679808210"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679808210"><span class="hs-identifier hs-var">formatSettings</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679808209"><span class="hs-identifier hs-var">rzkSettings</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Object
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;format&quot;</span></span><span> </span><span class="hs-comment">-- TODO: how to make this optional?</span><span>
+</span><span id="line-26"></span><span>    </span><span id="local-6989586621679808212"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679808212"><span class="hs-identifier hs-var">formatEnabled</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679808210"><span class="hs-identifier hs-var">formatSettings</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;enable&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe Bool) -&gt; Bool -&gt; Parser Bool
+forall a. Parser (Maybe a) -&gt; a -&gt; Parser a
+</span><span class="hs-operator hs-var">.!=</span></span><span> </span><span class="annot"><span class="annottext">ServerConfig -&gt; Bool
+</span><a href="Language.Rzk.VSCode.Config.html#formatEnabled"><span class="hs-identifier hs-var">formatEnabled</span></a></span><span> </span><span class="annot"><span class="annottext">ServerConfig
+forall a. Default a =&gt; a
+</span><span class="hs-identifier hs-var">def</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><span class="annottext">ServerConfig -&gt; Parser ServerConfig
+forall a. a -&gt; Parser a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">Bool
+formatEnabled :: Bool
+formatEnabled :: Bool
+</span><a href="Language.Rzk.VSCode.Config.html#formatEnabled"><span class="hs-glyph hs-var hs-var">..</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679808217"><span id="local-6989586621679808221"><span id="local-6989586621679808224"><span id="local-6989586621679808227"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>  </span><span id="local-6989586621679808241"><span class="annot"><span class="annottext">toJSON :: ServerConfig -&gt; Value
+</span><a href="#local-6989586621679808241"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621679808243"><span class="annot"><span class="annottext">Bool
+formatEnabled :: ServerConfig -&gt; Bool
+formatEnabled :: Bool
+</span><a href="Language.Rzk.VSCode.Config.html#formatEnabled"><span class="hs-glyph hs-var hs-var">..</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span>
+</span><span id="line-31"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;format&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Value -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span>
+</span><span id="line-32"></span><span>          </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;enable&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Bool -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679808243"><span class="hs-identifier hs-var">formatEnabled</span></a></span><span>
+</span><span id="line-33"></span><span>          </span><span class="hs-special">]</span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span></pre></body></html>

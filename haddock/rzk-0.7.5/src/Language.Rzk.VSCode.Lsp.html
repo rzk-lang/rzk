@@ -1,0 +1,364 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings     #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language.Rzk.VSCode.Lsp</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Default.Class</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Default</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">def</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Message</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.LSP.Server</span></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Result</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Error</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Success</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>                                                </span><span class="annot"><span class="hs-identifier">fromJSON</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html"><span class="hs-identifier">Language.Rzk.VSCode.Config</span></a></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier">ServerConfig</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.VSCode.Env.html"><span class="hs-identifier">Language.Rzk.VSCode.Env</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.VSCode.Handlers.html"><span class="hs-identifier">Language.Rzk.VSCode.Handlers</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">-- | The maximum number of diagnostic messages to send to the client</span></span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Language.Rzk.VSCode.Lsp.html#maxDiagnosticCount"><span class="hs-identifier hs-type">maxDiagnosticCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-22"></span><span id="maxDiagnosticCount"><span class="annot"><span class="annottext">maxDiagnosticCount :: Int
+</span><a href="Language.Rzk.VSCode.Lsp.html#maxDiagnosticCount"><span class="hs-identifier hs-var hs-var">maxDiagnosticCount</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">100</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Language.Rzk.VSCode.Lsp.html#handlers"><span class="hs-identifier hs-type">handlers</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handlers</span></span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Env.html#LSP"><span class="hs-identifier hs-type">LSP</span></a></span><span>
+</span><span id="line-25"></span><span id="handlers"><span class="annot"><span class="annottext">handlers :: Handlers LSP
+</span><a href="Language.Rzk.VSCode.Lsp.html#handlers"><span class="hs-identifier hs-var hs-var">handlers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="annottext">[Handlers LSP] -&gt; Handlers LSP
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_Initialized
+-&gt; Handler LSP 'Method_Initialized -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_Initialized
+</span><span class="hs-identifier hs-var">SMethod_Initialized</span></span><span> </span><span class="annot"><span class="annottext">(Handler LSP 'Method_Initialized -&gt; Handlers LSP)
+-&gt; Handler LSP 'Method_Initialized -&gt; Handlers LSP
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">LSP () -&gt; TNotificationMessage 'Method_Initialized -&gt; LSP ()
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">LSP ()
+</span><a href="Language.Rzk.VSCode.Handlers.html#typecheckFromConfigFile"><span class="hs-identifier hs-var">typecheckFromConfigFile</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-comment">-- TODO: add logging</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-comment">-- Empty handlers to silence the errors</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidOpen
+-&gt; Handler LSP 'Method_TextDocumentDidOpen -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidOpen
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentDidOpen</span></span><span> </span><span class="annot"><span class="annottext">(Handler LSP 'Method_TextDocumentDidOpen -&gt; Handlers LSP)
+-&gt; Handler LSP 'Method_TextDocumentDidOpen -&gt; Handlers LSP
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679818803"><span class="annot"><span class="annottext">TNotificationMessage 'Method_TextDocumentDidOpen
+</span><a href="#local-6989586621679818803"><span class="hs-identifier hs-var">_msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; LSP ()
+forall a. a -&gt; LspT ServerConfig (ReaderT RzkEnv IO) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidChange
+-&gt; Handler LSP 'Method_TextDocumentDidChange -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidChange
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentDidChange</span></span><span> </span><span class="annot"><span class="annottext">(Handler LSP 'Method_TextDocumentDidChange -&gt; Handlers LSP)
+-&gt; Handler LSP 'Method_TextDocumentDidChange -&gt; Handlers LSP
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679818805"><span class="annot"><span class="annottext">TNotificationMessage 'Method_TextDocumentDidChange
+</span><a href="#local-6989586621679818805"><span class="hs-identifier hs-var">_msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; LSP ()
+forall a. a -&gt; LspT ServerConfig (ReaderT RzkEnv IO) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidClose
+-&gt; Handler LSP 'Method_TextDocumentDidClose -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidClose
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentDidClose</span></span><span> </span><span class="annot"><span class="annottext">(Handler LSP 'Method_TextDocumentDidClose -&gt; Handlers LSP)
+-&gt; Handler LSP 'Method_TextDocumentDidClose -&gt; Handlers LSP
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679818807"><span class="annot"><span class="annottext">TNotificationMessage 'Method_TextDocumentDidClose
+</span><a href="#local-6989586621679818807"><span class="hs-identifier hs-var">_msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; LSP ()
+forall a. a -&gt; LspT ServerConfig (ReaderT RzkEnv IO) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_WorkspaceDidChangeWatchedFiles
+-&gt; Handler LSP 'Method_WorkspaceDidChangeWatchedFiles
+-&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_WorkspaceDidChangeWatchedFiles
+</span><span class="hs-identifier hs-var">SMethod_WorkspaceDidChangeWatchedFiles</span></span><span> </span><span class="annot"><span class="annottext">Handler LSP 'Method_WorkspaceDidChangeWatchedFiles
+</span><a href="Language.Rzk.VSCode.Handlers.html#handleFilesChanged"><span class="hs-identifier hs-var">handleFilesChanged</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidSave
+-&gt; Handler LSP 'Method_TextDocumentDidSave -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentDidSave
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentDidSave</span></span><span> </span><span class="annot"><span class="annottext">(Handler LSP 'Method_TextDocumentDidSave -&gt; Handlers LSP)
+-&gt; Handler LSP 'Method_TextDocumentDidSave -&gt; Handlers LSP
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679818811"><span class="annot"><span class="annottext">TNotificationMessage 'Method_TextDocumentDidSave
+</span><a href="#local-6989586621679818811"><span class="hs-identifier hs-var">_msg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-35"></span><span>        </span><span class="hs-comment">-- TODO: check if the file is included in the config's `include` list.</span><span>
+</span><span id="line-36"></span><span>        </span><span class="hs-comment">--       If not (and not in `exclude`) either, issue a warning.</span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">() -&gt; LSP ()
+forall a. a -&gt; LspT ServerConfig (ReaderT RzkEnv IO) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- FIXME: typecheck standalone files (if they are not a part of the project)</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-comment">-- An empty hadler is needed to silence the error since it is already handled by the LSP package</span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_WorkspaceDidChangeConfiguration
+-&gt; Handler LSP 'Method_WorkspaceDidChangeConfiguration
+-&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Notification) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">notificationHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_WorkspaceDidChangeConfiguration
+</span><span class="hs-identifier hs-var">SMethod_WorkspaceDidChangeConfiguration</span></span><span> </span><span class="annot"><span class="annottext">(Handler LSP 'Method_WorkspaceDidChangeConfiguration
+ -&gt; Handlers LSP)
+-&gt; Handler LSP 'Method_WorkspaceDidChangeConfiguration
+-&gt; Handlers LSP
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">LSP ()
+-&gt; TNotificationMessage 'Method_WorkspaceDidChangeConfiguration
+-&gt; LSP ()
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">(LSP ()
+ -&gt; TNotificationMessage 'Method_WorkspaceDidChangeConfiguration
+ -&gt; LSP ())
+-&gt; LSP ()
+-&gt; TNotificationMessage 'Method_WorkspaceDidChangeConfiguration
+-&gt; LSP ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">() -&gt; LSP ()
+forall a. a -&gt; LspT ServerConfig (ReaderT RzkEnv IO) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-comment">-- , requestHandler SMethod_TextDocumentHover $ \req responder -&gt; do</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">--    TODO: Read from the list of symbols that is supposed to be cached by the typechecker</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-comment">--     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-comment">--         Position _l _c' = pos</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">--         rsp = Hover (InL ms) (Just range')</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-comment">--         ms = mkMarkdown &quot;Hello world&quot;</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">--         range' = Range pos pos</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">--     responder (Right $ InL rsp)</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentCompletion
+-&gt; Handler LSP 'Method_TextDocumentCompletion -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Request) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">requestHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentCompletion
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentCompletion</span></span><span> </span><span class="annot"><span class="annottext">Handler LSP 'Method_TextDocumentCompletion
+</span><a href="Language.Rzk.VSCode.Handlers.html#provideCompletions"><span class="hs-identifier hs-var">provideCompletions</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentSemanticTokensFull
+-&gt; Handler LSP 'Method_TextDocumentSemanticTokensFull
+-&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Request) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">requestHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentSemanticTokensFull
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentSemanticTokensFull</span></span><span> </span><span class="annot"><span class="annottext">Handler LSP 'Method_TextDocumentSemanticTokensFull
+</span><a href="Language.Rzk.VSCode.Handlers.html#provideSemanticTokens"><span class="hs-identifier hs-var">provideSemanticTokens</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentFormatting
+-&gt; Handler LSP 'Method_TextDocumentFormatting -&gt; Handlers LSP
+forall (m :: Method 'ClientToServer 'Request) (f :: * -&gt; *).
+SMethod m -&gt; Handler f m -&gt; Handlers f
+</span><span class="hs-identifier hs-var">requestHandler</span></span><span> </span><span class="annot"><span class="annottext">SMethod 'Method_TextDocumentFormatting
+</span><span class="hs-identifier hs-var">SMethod_TextDocumentFormatting</span></span><span> </span><span class="annot"><span class="annottext">Handler LSP 'Method_TextDocumentFormatting
+</span><a href="Language.Rzk.VSCode.Handlers.html#formatDocument"><span class="hs-identifier hs-var">formatDocument</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Language.Rzk.VSCode.Lsp.html#syncOptions"><span class="hs-identifier hs-type">syncOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextDocumentSyncOptions</span></span><span>
+</span><span id="line-55"></span><span id="syncOptions"><span class="annot"><span class="annottext">syncOptions :: TextDocumentSyncOptions
+</span><a href="Language.Rzk.VSCode.Lsp.html#syncOptions"><span class="hs-identifier hs-var hs-var">syncOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextDocumentSyncOptions</span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">_openClose :: Maybe Bool
+</span><span class="hs-identifier hs-var">_openClose</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_change :: Maybe TextDocumentSyncKind
+</span><span class="hs-identifier hs-var">_change</span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind -&gt; Maybe TextDocumentSyncKind
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TextDocumentSyncKind
+</span><span class="hs-identifier hs-var">TextDocumentSyncKind_Full</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_willSave :: Maybe Bool
+</span><span class="hs-identifier hs-var">_willSave</span></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_willSaveWaitUntil :: Maybe Bool
+</span><span class="hs-identifier hs-var">_willSaveWaitUntil</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">_save :: Maybe (Bool |? SaveOptions)
+</span><span class="hs-identifier hs-var">_save</span></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Bool |? SaveOptions) -&gt; Maybe (Bool |? SaveOptions)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">((Bool |? SaveOptions) -&gt; Maybe (Bool |? SaveOptions))
+-&gt; (Bool |? SaveOptions) -&gt; Maybe (Bool |? SaveOptions)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SaveOptions -&gt; Bool |? SaveOptions
+forall a b. b -&gt; a |? b
+</span><span class="hs-identifier hs-var">InR</span></span><span> </span><span class="annot"><span class="annottext">(SaveOptions -&gt; Bool |? SaveOptions)
+-&gt; SaveOptions -&gt; Bool |? SaveOptions
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SaveOptions</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">_includeText :: Maybe Bool
+</span><span class="hs-identifier hs-var">_includeText</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Language.Rzk.VSCode.Lsp.html#runLsp"><span class="hs-identifier hs-type">runLsp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-64"></span><span id="runLsp"><span class="annot"><span class="annottext">runLsp :: IO Int
+</span><a href="Language.Rzk.VSCode.Lsp.html#runLsp"><span class="hs-identifier hs-var hs-var">runLsp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679818832"><span class="annot"><span class="annottext">RzkEnv
+</span><a href="#local-6989586621679818832"><span class="hs-identifier hs-var">rzkEnv</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO RzkEnv
+</span><a href="Language.Rzk.VSCode.Env.html#defaultRzkEnv"><span class="hs-identifier hs-var">defaultRzkEnv</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">ServerDefinition ServerConfig -&gt; IO Int
+forall config. ServerDefinition config -&gt; IO Int
+</span><span class="hs-identifier hs-var">runServer</span></span><span> </span><span class="annot"><span class="annottext">(ServerDefinition ServerConfig -&gt; IO Int)
+-&gt; ServerDefinition ServerConfig -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ServerDefinition</span></span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">configSection :: Text
+</span><span class="hs-identifier hs-var">configSection</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;rzk&quot;</span></span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">parseConfig :: ServerConfig -&gt; Value -&gt; Either Text ServerConfig
+</span><span class="hs-identifier hs-var">parseConfig</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679818838"><span class="annot"><span class="annottext">ServerConfig
+</span><a href="#local-6989586621679818838"><span class="hs-identifier hs-var">_oldConfig</span></a></span></span><span> </span><span id="local-6989586621679818839"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679818839"><span class="hs-identifier hs-var">newObject</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Result ServerConfig
+forall a. FromJSON a =&gt; Value -&gt; Result a
+</span><span class="hs-identifier hs-var">fromJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679818839"><span class="hs-identifier hs-var">newObject</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-70"></span><span>          </span><span class="hs-comment">-- TODO: handle partial config updates from VS Code by updating oldConfig rather than parsing from scratch</span><span>
+</span><span id="line-71"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Error</span></span><span> </span><span id="local-6989586621679818840"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679818840"><span class="hs-identifier hs-var">err</span></a></span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text ServerConfig
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Either Text ServerConfig)
+-&gt; Text -&gt; Either Text ServerConfig
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679818840"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-72"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Success</span></span><span> </span><span id="local-6989586621679818842"><span class="annot"><span class="annottext">ServerConfig
+</span><a href="#local-6989586621679818842"><span class="hs-identifier hs-var">rzkConfig</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ServerConfig -&gt; Either Text ServerConfig
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">ServerConfig
+</span><a href="#local-6989586621679818842"><span class="hs-identifier hs-var">rzkConfig</span></a></span><span>
+</span><span id="line-73"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">onConfigChange :: ServerConfig -&gt; LSP ()
+</span><span class="hs-identifier hs-var">onConfigChange</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LSP () -&gt; ServerConfig -&gt; LSP ()
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">(LSP () -&gt; ServerConfig -&gt; LSP ())
+-&gt; LSP () -&gt; ServerConfig -&gt; LSP ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">() -&gt; LSP ()
+forall a. a -&gt; LspT ServerConfig (ReaderT RzkEnv IO) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">doInitialize :: LanguageContextEnv ServerConfig
+-&gt; TMessage 'Method_Initialize
+-&gt; IO
+     (Either
+        (TResponseError 'Method_Initialize)
+        (LanguageContextEnv ServerConfig))
+</span><span class="hs-identifier hs-var">doInitialize</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO
+  (Either
+     (TResponseError 'Method_Initialize)
+     (LanguageContextEnv ServerConfig))
+-&gt; TRequestMessage 'Method_Initialize
+-&gt; IO
+     (Either
+        (TResponseError 'Method_Initialize)
+        (LanguageContextEnv ServerConfig))
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">(IO
+   (Either
+      (TResponseError 'Method_Initialize)
+      (LanguageContextEnv ServerConfig))
+ -&gt; TRequestMessage 'Method_Initialize
+ -&gt; IO
+      (Either
+         (TResponseError 'Method_Initialize)
+         (LanguageContextEnv ServerConfig)))
+-&gt; (LanguageContextEnv ServerConfig
+    -&gt; IO
+         (Either
+            (TResponseError 'Method_Initialize)
+            (LanguageContextEnv ServerConfig)))
+-&gt; LanguageContextEnv ServerConfig
+-&gt; TRequestMessage 'Method_Initialize
+-&gt; IO
+     (Either
+        (TResponseError 'Method_Initialize)
+        (LanguageContextEnv ServerConfig))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Either
+  (TResponseError 'Method_Initialize)
+  (LanguageContextEnv ServerConfig)
+-&gt; IO
+     (Either
+        (TResponseError 'Method_Initialize)
+        (LanguageContextEnv ServerConfig))
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Either
+   (TResponseError 'Method_Initialize)
+   (LanguageContextEnv ServerConfig)
+ -&gt; IO
+      (Either
+         (TResponseError 'Method_Initialize)
+         (LanguageContextEnv ServerConfig)))
+-&gt; (LanguageContextEnv ServerConfig
+    -&gt; Either
+         (TResponseError 'Method_Initialize)
+         (LanguageContextEnv ServerConfig))
+-&gt; LanguageContextEnv ServerConfig
+-&gt; IO
+     (Either
+        (TResponseError 'Method_Initialize)
+        (LanguageContextEnv ServerConfig))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">LanguageContextEnv ServerConfig
+-&gt; Either
+     (TResponseError 'Method_Initialize)
+     (LanguageContextEnv ServerConfig)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">staticHandlers :: ClientCapabilities -&gt; Handlers LSP
+</span><span class="hs-identifier hs-var">staticHandlers</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Handlers LSP -&gt; ClientCapabilities -&gt; Handlers LSP
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Handlers LSP
+</span><a href="Language.Rzk.VSCode.Lsp.html#handlers"><span class="hs-identifier hs-var">handlers</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">interpretHandler :: LanguageContextEnv ServerConfig -&gt; LSP &lt;~&gt; IO
+</span><span class="hs-identifier hs-var">interpretHandler</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679818848"><span class="annot"><span class="annottext">LanguageContextEnv ServerConfig
+</span><a href="#local-6989586621679818848"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(forall a. LSP a -&gt; IO a)
+-&gt; (forall a. IO a -&gt; LSP a) -&gt; LSP &lt;~&gt; IO
+forall {k} (m :: k -&gt; *) (n :: k -&gt; *).
+(forall (a :: k). m a -&gt; n a)
+-&gt; (forall (a :: k). n a -&gt; m a) -&gt; m &lt;~&gt; n
+</span><span class="hs-identifier hs-var">Iso</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ReaderT RzkEnv IO a -&gt; RzkEnv -&gt; IO a)
+-&gt; RzkEnv -&gt; ReaderT RzkEnv IO a -&gt; IO a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT RzkEnv IO a -&gt; RzkEnv -&gt; IO a
+forall r (m :: * -&gt; *) a. ReaderT r m a -&gt; r -&gt; m a
+</span><span class="hs-identifier hs-var">runReaderT</span></span><span> </span><span class="annot"><span class="annottext">RzkEnv
+</span><a href="#local-6989586621679818832"><span class="hs-identifier hs-var">rzkEnv</span></a></span><span> </span><span class="annot"><span class="annottext">(ReaderT RzkEnv IO a -&gt; IO a)
+-&gt; (LSP a -&gt; ReaderT RzkEnv IO a) -&gt; LSP a -&gt; IO a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">LanguageContextEnv ServerConfig -&gt; LSP a -&gt; ReaderT RzkEnv IO a
+forall config (m :: * -&gt; *) a.
+LanguageContextEnv config -&gt; LspT config m a -&gt; m a
+</span><span class="hs-identifier hs-var">runLspT</span></span><span> </span><span class="annot"><span class="annottext">LanguageContextEnv ServerConfig
+</span><a href="#local-6989586621679818848"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; LSP a
+forall a. IO a -&gt; LSP a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">liftIO</span></span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">options :: Options
+</span><a href="#local-6989586621679818860"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Options
+</span><span class="hs-identifier hs-var">defaultOptions</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">optTextDocumentSync</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Lsp.html#syncOptions"><span class="hs-identifier hs-type">syncOptions</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">defaultConfig :: ServerConfig
+</span><a href="#local-6989586621679818863"><span class="hs-identifier hs-var">defaultConfig</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerConfig
+forall a. Default a =&gt; a
+</span><span class="hs-identifier hs-var">def</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.Config.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-80"></span></pre></body></html>

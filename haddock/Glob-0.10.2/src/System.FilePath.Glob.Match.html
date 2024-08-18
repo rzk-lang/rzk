@@ -1,0 +1,809 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- File created: 2008-10-10 13:29:03</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.FilePath.Glob.Match</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Match.html#match"><span class="hs-identifier">match</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Match.html#matchWith"><span class="hs-identifier">matchWith</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">assert</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isDigit</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toLower</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toUpper</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">findIndex</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isJust</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if !MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span>       </span><span class="hs-special">(</span><span class="hs-identifier">mappend</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.FilePath</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">isPathSeparator</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isExtSeparator</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html"><span class="hs-identifier">System.FilePath.Glob.Base</span></a></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier">Pattern</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Token"><span class="hs-identifier">Token</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#MatchOptions"><span class="hs-identifier">MatchOptions</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#matchDefault"><span class="hs-identifier">matchDefault</span></a></span><span>
+</span><span id="line-18"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#isLiteral"><span class="hs-identifier">isLiteral</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#tokToLower"><span class="hs-identifier">tokToLower</span></a></span><span>
+</span><span id="line-19"></span><span>                                  </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html"><span class="hs-identifier">System.FilePath.Glob.Utils</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Utils.html#dropLeadingZeroes"><span class="hs-identifier">dropLeadingZeroes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-identifier">inRange</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Utils.html#pathParts"><span class="hs-identifier">pathParts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- |Matches the given 'Pattern' against the given 'FilePath', returning 'True'</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- if the pattern matches and 'False' otherwise.</span><span>
+</span><span id="line-24"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match"><span class="hs-identifier hs-type">match</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-25"></span><span id="match"><span class="annot"><span class="annottext">match :: Pattern -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match"><span class="hs-identifier hs-var hs-var">match</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; Pattern -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#matchWith"><span class="hs-identifier hs-var">matchWith</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="System.FilePath.Glob.Base.html#matchDefault"><span class="hs-identifier hs-var">matchDefault</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- |Like 'match', but applies the given 'MatchOptions' instead of the defaults.</span><span>
+</span><span id="line-28"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#matchWith"><span class="hs-identifier hs-type">matchWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#MatchOptions"><span class="hs-identifier hs-type">MatchOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-type">Pattern</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-29"></span><span id="matchWith"><span class="annot"><span class="annottext">matchWith :: MatchOptions -&gt; Pattern -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#matchWith"><span class="hs-identifier hs-var hs-var">matchWith</span></a></span></span><span> </span><span id="local-6989586621679073065"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073065"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679073066"><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621679073066"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679073067"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073067"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073065"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+</span><a href="#local-6989586621679073069"><span class="hs-identifier hs-var">lcPat</span></a></span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; [Token]) -&gt; [Token] -&gt; [Token]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; [Token]
+</span><a href="System.FilePath.Glob.Base.html#unPattern"><span class="hs-identifier hs-var">unPattern</span></a></span><span> </span><span class="annot"><span class="annottext">Pattern
+</span><a href="#local-6989586621679073066"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+</span><a href="#local-6989586621679073071"><span class="hs-identifier hs-var">lcPath</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073067"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>   </span><span id="local-6989586621679073071"><span class="annot"><span class="annottext">lcPath :: [Char] -&gt; [Char]
+</span><a href="#local-6989586621679073071"><span class="hs-identifier hs-var hs-var">lcPath</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#ignoreCase"><span class="hs-identifier hs-var">ignoreCase</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073065"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Char) -&gt; [Char] -&gt; [Char]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span>    </span><span class="annot"><span class="annottext">Char -&gt; Char
+</span><span class="hs-identifier hs-var">toLower</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-32"></span><span>   </span><span id="local-6989586621679073069"><span class="annot"><span class="annottext">lcPat :: [Token] -&gt; [Token]
+</span><a href="#local-6989586621679073069"><span class="hs-identifier hs-var hs-var">lcPat</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#ignoreCase"><span class="hs-identifier hs-var">ignoreCase</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073065"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(Token -&gt; Token) -&gt; [Token] -&gt; [Token]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Token
+</span><a href="System.FilePath.Glob.Base.html#tokToLower"><span class="hs-identifier hs-var">tokToLower</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; [Token]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- begMatch takes care of some things at the beginning of a pattern or after /:</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--    - . needs to be matched explicitly</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--    - ./foo is equivalent to foo (for any number of /)</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- .*/foo still needs to match ./foo though, and it won't match plain foo;</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- special case that one</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- and .**/foo should /not/ match ../foo; more special casing</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- (All of the above is modulo options, of course)</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-type">begMatch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-type">match'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.FilePath.Glob.Base.html#MatchOptions"><span class="hs-identifier hs-type">MatchOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="System.FilePath.Glob.Base.html#Token"><span class="hs-identifier hs-type">Token</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-45"></span><span id="begMatch"><span class="annot"><span class="annottext">begMatch :: MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var hs-var">begMatch</span></a></span></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyDirectory"><span class="hs-identifier hs-var">AnyDirectory</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073077"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073077"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073078"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073078"><span class="hs-identifier hs-var">y</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073077"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073078"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span id="local-6989586621679073080"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073080"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679073082"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073082"><span class="hs-identifier hs-var">pat</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073083"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073083"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#ignoreDotSlash"><span class="hs-identifier hs-var">ignoreDotSlash</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073080"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-49"></span><span>   </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073080"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Token -&gt; Bool) -&gt; [Token] -&gt; [Token]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Token -&gt; Bool
+</span><a href="#local-6989586621679073086"><span class="hs-identifier hs-var">isSlash</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073082"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+</span><a href="#local-6989586621679073087"><span class="hs-identifier hs-var">dropDotSlash</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073083"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>   </span><span id="local-6989586621679073086"><span class="annot"><span class="annottext">isSlash :: Token -&gt; Bool
+</span><a href="#local-6989586621679073086"><span class="hs-identifier hs-var hs-var">isSlash</span></a></span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-52"></span><span>   </span><span class="annot"><a href="#local-6989586621679073086"><span class="hs-identifier hs-var">isSlash</span></a></span><span> </span><span class="annot"><span class="annottext">Token
+</span><span class="hs-identifier">_</span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>   </span><span id="local-6989586621679073087"><span class="annot"><span class="annottext">dropDotSlash :: [Char] -&gt; [Char]
+</span><a href="#local-6989586621679073087"><span class="hs-identifier hs-var hs-var">dropDotSlash</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073088"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073088"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073089"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073089"><span class="hs-identifier hs-var">y</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073090"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073090"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073088"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073089"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; [Char]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073090"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-56"></span><span>   </span><span class="annot"><a href="#local-6989586621679073087"><span class="hs-identifier hs-var">dropDotSlash</span></a></span><span> </span><span id="local-6989586621679073091"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073091"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073091"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span id="local-6989586621679073092"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073092"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679073093"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073093"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073094"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073094"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073095"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073095"><span class="hs-identifier hs-var">y</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073096"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073096"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073097"><span class="hs-identifier hs-var">dotSlash</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073098"><span class="hs-identifier hs-var">dotStarSlash</span></a></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073092"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073099"><span class="hs-identifier hs-var">pat'</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073096"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-60"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#ignoreDotSlash"><span class="hs-identifier hs-var">ignoreDotSlash</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073092"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073097"><span class="hs-identifier hs-var">dotSlash</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073092"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073093"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; [Char]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073096"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>   </span><span id="local-6989586621679073097"><span class="annot"><span class="annottext">dotSlash :: Bool
+</span><a href="#local-6989586621679073097"><span class="hs-identifier hs-var hs-var">dotSlash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073094"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073095"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-64"></span><span>   </span><span class="hs-special">(</span><span id="local-6989586621679073098"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073098"><span class="hs-identifier hs-var">dotStarSlash</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679073099"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073099"><span class="hs-identifier hs-var">pat'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073093"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><a href="System.FilePath.Glob.Base.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyNonPathSeparator"><span class="hs-identifier hs-var">AnyNonPathSeparator</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679073101"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073101"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073101"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span>                                                       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073093"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span id="local-6989586621679073102"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073102"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679073103"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073103"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073104"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073104"><span class="hs-identifier hs-var">e</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073104"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-71"></span><span>     </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#matchDotsImplicitly"><span class="hs-identifier hs-var">matchDotsImplicitly</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073102"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>     </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Pattern -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#isLiteral"><span class="hs-identifier hs-var">isLiteral</span></a></span><span> </span><span class="annot"><span class="annottext">(Pattern -&gt; Bool) -&gt; ([Token] -&gt; Pattern) -&gt; [Token] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Pattern
+</span><a href="System.FilePath.Glob.Base.html#Pattern"><span class="hs-identifier hs-var">Pattern</span></a></span><span> </span><span class="annot"><span class="annottext">([Token] -&gt; Bool) -&gt; [Token] -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Token] -&gt; [Token]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073103"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span id="local-6989586621679073109"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073109"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679073110"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073110"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679073111"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073111"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073109"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073110"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073111"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span id="match%27"><span class="annot"><span class="annottext">match' :: MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var hs-var">match'</span></a></span></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>                        </span><span id="local-6989586621679073112"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073112"><span class="hs-identifier hs-var">s</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073112"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyNonPathSeparator"><span class="hs-identifier hs-var">AnyNonPathSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073114"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073114"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Token] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073114"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-78"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span>                         </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-79"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073115"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073115"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#Literal"><span class="hs-identifier hs-type">Literal</span></a></span><span> </span><span id="local-6989586621679073116"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073116"><span class="hs-identifier hs-var">l</span></a></span></span><span>       </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073117"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073117"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073118"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073118"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073119"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073119"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073116"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073118"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073115"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073117"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073119"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073120"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073120"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#NonPathSeparator"><span class="hs-identifier hs-var">NonPathSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073122"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073122"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073123"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073123"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073124"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073124"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>   </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073123"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073120"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073122"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073124"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073125"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073125"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span>   </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073126"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073126"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073127"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073127"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073128"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073128"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>   </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073127"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#begMatch"><span class="hs-identifier hs-var">begMatch</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073125"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Token -&gt; Bool) -&gt; [Token] -&gt; [Token]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token -&gt; Token -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#PathSeparator"><span class="hs-identifier hs-var">PathSeparator</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073126"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>                                   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; [Char]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073128"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073129"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073129"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#CharRange"><span class="hs-identifier hs-type">CharRange</span></a></span><span> </span><span id="local-6989586621679073131"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073131"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679073132"><span class="annot"><span class="annottext">[Either Char (Char, Char)]
+</span><a href="#local-6989586621679073132"><span class="hs-identifier hs-var">rng</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073133"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073133"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073134"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073134"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073135"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073135"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>   </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679073140"><span class="annot"><span class="annottext">rangeMatch :: Either Char (Char, Char) -&gt; Bool
+</span><a href="#local-6989586621679073140"><span class="hs-identifier hs-var hs-var">rangeMatch</span></a></span></span><span> </span><span id="local-6989586621679073141"><span class="annot"><span class="annottext">Either Char (Char, Char)
+</span><a href="#local-6989586621679073141"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>          </span><span class="annot"><span class="annottext">(Char -&gt; Bool)
+-&gt; ((Char, Char) -&gt; Bool) -&gt; Either Char (Char, Char) -&gt; Bool
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073134"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char, Char) -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-operator hs-var">`inRange`</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073134"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Either Char (Char, Char)
+</span><a href="#local-6989586621679073141"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span>
+</span><span id="line-90"></span><span>             </span><span class="hs-comment">-- See comment near Base.tokToLower for an explanation of why we</span><span>
+</span><span id="line-91"></span><span>             </span><span class="hs-comment">-- do this</span><span>
+</span><span id="line-92"></span><span>             </span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#ignoreCase"><span class="hs-identifier hs-var">ignoreCase</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073129"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool)
+-&gt; ((Char, Char) -&gt; Bool) -&gt; Either Char (Char, Char) -&gt; Bool
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
+</span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073134"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char, Char) -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><a href="System.FilePath.Glob.Utils.html#inRange"><span class="hs-operator hs-var">`inRange`</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char
+</span><span class="hs-identifier hs-var">toUpper</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073134"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Either Char (Char, Char)
+</span><a href="#local-6989586621679073141"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073134"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-94"></span><span>       </span><span class="annot"><span class="annottext">(Either Char (Char, Char) -&gt; Bool)
+-&gt; [Either Char (Char, Char)] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">Either Char (Char, Char) -&gt; Bool
+</span><a href="#local-6989586621679073140"><span class="hs-identifier hs-var">rangeMatch</span></a></span><span> </span><span class="annot"><span class="annottext">[Either Char (Char, Char)]
+</span><a href="#local-6989586621679073132"><span class="hs-identifier hs-var">rng</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073131"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-95"></span><span>       </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073129"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073133"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073135"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073145"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073145"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#OpenRange"><span class="hs-identifier hs-type">OpenRange</span></a></span><span> </span><span id="local-6989586621679073147"><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073147"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679073148"><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073148"><span class="hs-identifier hs-var">hi</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073149"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073149"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073150"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073150"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-98"></span><span>   </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679073156"><span class="annot"><span class="annottext">getNumChoices :: [a] -&gt; [([a], [a])]
+</span><a href="#local-6989586621679073156"><span class="hs-identifier hs-var hs-var">getNumChoices</span></a></span></span><span> </span><span id="local-6989586621679073157"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073157"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-99"></span><span>          </span><span class="annot"><span class="annottext">[([a], [a])] -&gt; [([a], [a])]
+forall a. (?callStack::CallStack) =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">tail</span></span><span> </span><span class="annot"><span class="annottext">([([a], [a])] -&gt; [([a], [a])])
+-&gt; ([Int] -&gt; [([a], [a])]) -&gt; [Int] -&gt; [([a], [a])]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(([a], [a]) -&gt; Bool) -&gt; [([a], [a])] -&gt; [([a], [a])]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">takeWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (([a], [a]) -&gt; Bool) -&gt; ([a], [a]) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">[a] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span class="annot"><span class="annottext">([a] -&gt; Bool) -&gt; (([a], [a]) -&gt; [a]) -&gt; ([a], [a]) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">([a], [a]) -&gt; [a]
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([([a], [a])] -&gt; [([a], [a])])
+-&gt; ([Int] -&gt; [([a], [a])]) -&gt; [Int] -&gt; [([a], [a])]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; ([a], [a])) -&gt; [Int] -&gt; [([a], [a])]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; ([a], [a])
+forall a. Int -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-operator hs-var">`splitAt`</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073157"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; [([a], [a])]) -&gt; [Int] -&gt; [([a], [a])]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span>
+</span><span id="line-100"></span><span>       </span><span class="hs-special">(</span><span id="local-6989586621679073162"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073162"><span class="hs-identifier hs-var">lzNum</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073163"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073163"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; ([Char], [Char])
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">span</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073150"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-101"></span><span>       </span><span id="local-6989586621679073165"><span class="annot"><span class="annottext">num :: [Char]
+</span><a href="#local-6989586621679073165"><span class="hs-identifier hs-var hs-var">num</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char]
+</span><a href="System.FilePath.Glob.Utils.html#dropLeadingZeroes"><span class="hs-identifier hs-var">dropLeadingZeroes</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073162"><span class="hs-identifier hs-var">lzNum</span></a></span><span>
+</span><span id="line-102"></span><span>       </span><span id="local-6989586621679073166"><span class="annot"><span class="annottext">numChoices :: [([Char], [Char])]
+</span><a href="#local-6989586621679073166"><span class="hs-identifier hs-var hs-var">numChoices</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [([Char], [Char])]
+forall {a}. [a] -&gt; [([a], [a])]
+</span><a href="#local-6989586621679073156"><span class="hs-identifier hs-var">getNumChoices</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073165"><span class="hs-identifier hs-var">num</span></a></span><span>
+</span><span id="line-103"></span><span>       </span><span id="local-6989586621679073169"><span class="annot"><span class="annottext">zeroChoices :: [([Char], [Char])]
+</span><a href="#local-6989586621679073169"><span class="hs-identifier hs-var hs-var">zeroChoices</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(([Char], [Char]) -&gt; Bool)
+-&gt; [([Char], [Char])] -&gt; [([Char], [Char])]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">takeWhile</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'0'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Bool)
+-&gt; (([Char], [Char]) -&gt; [Char]) -&gt; ([Char], [Char]) -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [Char]
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; [([Char], [Char])]
+forall {a}. [a] -&gt; [([a], [a])]
+</span><a href="#local-6989586621679073156"><span class="hs-identifier hs-var">getNumChoices</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073162"><span class="hs-identifier hs-var">lzNum</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-comment">-- null lzNum means no digits: definitely not a match</span><span>
+</span><span id="line-105"></span><span>       </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073162"><span class="hs-identifier hs-var">lzNum</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span>
+</span><span id="line-106"></span><span>          </span><span class="hs-comment">-- So, given the path &quot;00123foo&quot; what we've got is:</span><span>
+</span><span id="line-107"></span><span>          </span><span class="hs-comment">--    lzNum       = &quot;00123&quot;</span><span>
+</span><span id="line-108"></span><span>          </span><span class="hs-comment">--    cs          = &quot;foo&quot;</span><span>
+</span><span id="line-109"></span><span>          </span><span class="hs-comment">--    num         = &quot;123&quot;</span><span>
+</span><span id="line-110"></span><span>          </span><span class="hs-comment">--    numChoices  = [(&quot;1&quot;,&quot;23&quot;),(&quot;12&quot;,&quot;3&quot;)]</span><span>
+</span><span id="line-111"></span><span>          </span><span class="hs-comment">--    zeroChoices = [(&quot;0&quot;, &quot;0123&quot;), (&quot;00&quot;, &quot;123&quot;)]</span><span>
+</span><span id="line-112"></span><span>          </span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span>          </span><span class="hs-comment">-- We want to try matching x against each of 123, 12, and 1.</span><span>
+</span><span id="line-114"></span><span>          </span><span class="hs-comment">-- 12 and 1 are in numChoices already, but we need to add (num,&quot;&quot;)</span><span>
+</span><span id="line-115"></span><span>          </span><span class="hs-comment">-- manually.</span><span>
+</span><span id="line-116"></span><span>          </span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span>          </span><span class="hs-comment">-- It's also possible that we only want to match the zeroes. Handle</span><span>
+</span><span id="line-118"></span><span>          </span><span class="hs-comment">-- that separately since inOpenRange doesn't like leading zeroes.</span><span>
+</span><span id="line-119"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(([Char], [Char]) -&gt; Bool) -&gt; [([Char], [Char])] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679073172"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073172"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073173"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073173"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe [Char] -&gt; Maybe [Char] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#inOpenRange"><span class="hs-identifier hs-var">inOpenRange</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073147"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073148"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073172"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073145"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073149"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073173"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073163"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>               </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073165"><span class="hs-identifier hs-var">num</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; [([Char], [Char])] -&gt; [([Char], [Char])]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[([Char], [Char])]
+</span><a href="#local-6989586621679073166"><span class="hs-identifier hs-var">numChoices</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>           </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[([Char], [Char])] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[([Char], [Char])]
+</span><a href="#local-6989586621679073169"><span class="hs-identifier hs-var">zeroChoices</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Maybe [Char] -&gt; Maybe [Char] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#inOpenRange"><span class="hs-identifier hs-var">inOpenRange</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073147"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073148"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;0&quot;</span></span><span>
+</span><span id="line-122"></span><span>               </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">(([Char], [Char]) -&gt; Bool) -&gt; [([Char], [Char])] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679073175"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073175"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073145"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073149"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073175"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073163"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[([Char], [Char])]
+</span><a href="#local-6989586621679073169"><span class="hs-identifier hs-var">zeroChoices</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073176"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073176"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span id="local-6989586621679073177"><span class="annot"><span class="annottext">again :: [Token]
+</span><a href="#local-6989586621679073177"><span class="hs-identifier hs-var">again</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyNonPathSeparator"><span class="hs-identifier hs-var">AnyNonPathSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073178"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073178"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073179"><span class="annot"><span class="annottext">path :: [Char]
+</span><a href="#local-6989586621679073179"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679073180"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073180"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073181"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073181"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>   </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073176"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073178"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073179"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679073180"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073176"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073177"><span class="hs-identifier hs-var">again</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073181"><span class="hs-identifier hs-var">cs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073182"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073182"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#AnyDirectory"><span class="hs-identifier hs-var">AnyDirectory</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073183"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073183"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073184"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073184"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>   </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; Bool
+</span><a href="System.FilePath.Glob.Base.html#matchDotsImplicitly"><span class="hs-identifier hs-var">matchDotsImplicitly</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073182"><span class="hs-identifier hs-var">o</span></a></span><span>
+</span><span id="line-129"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073185"><span class="hs-identifier hs-var">hasMatch</span></a></span><span>
+</span><span id="line-130"></span><span>      </span><span class="hs-comment">--  **/baz shouldn't match foo/.bar/baz, so check that none of the</span><span>
+</span><span id="line-131"></span><span>      </span><span class="hs-comment">-- directories matched by **/ start with .</span><span>
+</span><span id="line-132"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679073185"><span class="hs-identifier hs-var">hasMatch</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Bool) -&gt; [[Char]] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; ([Char] -&gt; Bool) -&gt; [Char] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isExtSeparator</span></span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; ([Char] -&gt; Char) -&gt; [Char] -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">[Char] -&gt; Char
+forall a. (?callStack::CallStack) =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">head</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679073187"><span class="hs-identifier hs-var">matchedDirs</span></a></span><span>
+</span><span id="line-133"></span><span> </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679073188"><span class="annot"><span class="annottext">parts :: [[Char]]
+</span><a href="#local-6989586621679073188"><span class="hs-identifier hs-var hs-var">parts</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><a href="System.FilePath.Glob.Utils.html#pathParts"><span class="hs-identifier hs-var">pathParts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; [Char]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">dropWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isPathSeparator</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073184"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>       </span><span id="local-6989586621679073189"><span class="annot"><span class="annottext">matchIndex :: Maybe Int
+</span><a href="#local-6989586621679073189"><span class="hs-identifier hs-var hs-var">matchIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Bool) -&gt; [[Char]] -&gt; Maybe Int
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">findIndex</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073182"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073183"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679073188"><span class="hs-identifier hs-var">parts</span></a></span><span>
+</span><span id="line-135"></span><span>       </span><span id="local-6989586621679073185"><span class="annot"><span class="annottext">hasMatch :: Bool
+</span><a href="#local-6989586621679073185"><span class="hs-identifier hs-var hs-var">hasMatch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int -&gt; Bool
+forall a. Maybe a -&gt; Bool
+</span><span class="hs-identifier hs-var">isJust</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679073189"><span class="hs-identifier hs-var">matchIndex</span></a></span><span>
+</span><span id="line-136"></span><span>       </span><span id="local-6989586621679073187"><span class="annot"><span class="annottext">matchedDirs :: [[Char]]
+</span><a href="#local-6989586621679073187"><span class="hs-identifier hs-var hs-var">matchedDirs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [[Char]] -&gt; [[Char]]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679073189"><span class="hs-identifier hs-var">matchIndex</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[[Char]]
+</span><a href="#local-6989586621679073188"><span class="hs-identifier hs-var">parts</span></a></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span id="local-6989586621679073192"><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073192"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.FilePath.Glob.Base.html#LongLiteral"><span class="hs-identifier hs-type">LongLiteral</span></a></span><span> </span><span id="local-6989586621679073194"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073194"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621679073195"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073195"><span class="hs-identifier hs-var">s</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073196"><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073196"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073197"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073197"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-139"></span><span>   </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073198"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073198"><span class="hs-identifier hs-var">pre</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679073199"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073199"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Char] -&gt; ([Char], [Char])
+forall a. Int -&gt; [a] -&gt; ([a], [a])
+</span><span class="hs-identifier hs-var">splitAt</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679073194"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073197"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073198"><span class="hs-identifier hs-var">pre</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073195"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">MatchOptions -&gt; [Token] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><a href="#local-6989586621679073192"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">[Token]
+</span><a href="#local-6989586621679073196"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073199"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#Unmatchable"><span class="hs-identifier hs-var">Unmatchable</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#match%27"><span class="hs-identifier hs-var">match'</span></a></span><span> </span><span class="annot"><span class="annottext">MatchOptions
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Token
+</span><a href="System.FilePath.Glob.Base.html#ExtSeparator"><span class="hs-identifier hs-var">ExtSeparator</span></a></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[Token]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Bool
+forall a. (?callStack::CallStack) =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;ExtSeparator survived optimization?&quot;</span></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- Does the actual open range matching: finds whether the third parameter</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- is between the first two or not.</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- It does this by keeping track of the Ordering so far (e.g. having</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- looked at &quot;12&quot; and &quot;34&quot; the Ordering of the two would be LT: 12 &lt; 34)</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- and aborting if a String &quot;runs out&quot;: a longer string is automatically</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- greater.</span><span>
+</span><span id="line-152"></span><span class="hs-comment">--</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- Assumes that the input strings contain only digits, and no leading zeroes.</span><span>
+</span><span id="line-154"></span><span class="annot"><a href="System.FilePath.Glob.Match.html#inOpenRange"><span class="hs-identifier hs-type">inOpenRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-155"></span><span id="inOpenRange"><span class="annot"><span class="annottext">inOpenRange :: Maybe [Char] -&gt; Maybe [Char] -&gt; [Char] -&gt; Bool
+</span><a href="System.FilePath.Glob.Match.html#inOpenRange"><span class="hs-identifier hs-var hs-var">inOpenRange</span></a></span></span><span> </span><span id="local-6989586621679073203"><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073203"><span class="hs-identifier hs-var">l_</span></a></span></span><span> </span><span id="local-6989586621679073204"><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073204"><span class="hs-identifier hs-var">h_</span></a></span></span><span> </span><span id="local-6989586621679073205"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073205"><span class="hs-identifier hs-var">s_</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. (?callStack::CallStack) =&gt; Bool -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var hs-var">assert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; [Char] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><span class="hs-identifier hs-var">isDigit</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073205"><span class="hs-identifier hs-var">s_</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; Bool -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+-&gt; Maybe [Char] -&gt; [Char] -&gt; Ordering -&gt; Ordering -&gt; Bool
+forall {a}.
+Ord a =&gt;
+Maybe [a] -&gt; Maybe [a] -&gt; [a] -&gt; Ordering -&gt; Ordering -&gt; Bool
+</span><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073203"><span class="hs-identifier hs-var">l_</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+</span><a href="#local-6989586621679073204"><span class="hs-identifier hs-var">h_</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621679073205"><span class="hs-identifier hs-var">s_</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span>
+</span><span id="line-156"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-157"></span><span>   </span><span id="local-6989586621679073206"><span class="annot"><span class="annottext">go :: Maybe [a] -&gt; Maybe [a] -&gt; [a] -&gt; Ordering -&gt; Ordering -&gt; Bool
+</span><a href="#local-6989586621679073206"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>      </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>  </span><span class="hs-comment">-- no bounds</span><span>
+</span><span id="line-158"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>    </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-special">[</span><span class="hs-special">]</span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">--  lesser than lower bound</span><span>
+</span><span id="line-159"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier">_</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- greater than upper bound</span><span>
+</span><span id="line-160"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier">_</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">--  longer than upper bound</span><span>
+</span><span id="line-161"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-special">[</span><span class="hs-special">]</span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-comment">-- shorter than lower bound</span><span>
+</span><span id="line-162"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier">_</span></span><span>            </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-special">[</span><span class="hs-special">]</span><span>    </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073210"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073210"><span class="hs-identifier hs-var">l</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073211"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073211"><span class="hs-identifier hs-var">ls</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073212"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073212"><span class="hs-identifier hs-var">h</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073213"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073213"><span class="hs-identifier hs-var">hs</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073214"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073214"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073215"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073215"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073216"><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073216"><span class="hs-identifier hs-var">ordl</span></a></span></span><span> </span><span id="local-6989586621679073217"><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073217"><span class="hs-identifier hs-var">ordh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679073222"><span class="annot"><span class="annottext">ordl' :: Ordering
+</span><a href="#local-6989586621679073222"><span class="hs-identifier hs-var hs-var">ordl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073216"><span class="hs-identifier hs-var">ordl</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Ordering
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073214"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073210"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-166"></span><span>          </span><span id="local-6989586621679073227"><span class="annot"><span class="annottext">ordh' :: Ordering
+</span><a href="#local-6989586621679073227"><span class="hs-identifier hs-var hs-var">ordh'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073217"><span class="hs-identifier hs-var">ordh</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Ordering
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073214"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073212"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-167"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Maybe [a] -&gt; Maybe [a] -&gt; [a] -&gt; Ordering -&gt; Ordering -&gt; Bool
+</span><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073211"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073213"><span class="hs-identifier hs-var">hs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073215"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073222"><span class="hs-identifier hs-var">ordl'</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073227"><span class="hs-identifier hs-var">ordh'</span></a></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073228"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073228"><span class="hs-identifier hs-var">h</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073229"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073229"><span class="hs-identifier hs-var">hs</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073230"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073230"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073231"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073231"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679073232"><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073232"><span class="hs-identifier hs-var">ordh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-170"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679073236"><span class="annot"><span class="annottext">ordh' :: Ordering
+</span><a href="#local-6989586621679073236"><span class="hs-identifier hs-var hs-var">ordh'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073232"><span class="hs-identifier hs-var">ordh</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Ordering
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073230"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073228"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-171"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Maybe [a] -&gt; Maybe [a] -&gt; [a] -&gt; Ordering -&gt; Ordering -&gt; Bool
+</span><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073229"><span class="hs-identifier hs-var">hs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073231"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073236"><span class="hs-identifier hs-var">ordh'</span></a></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073237"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073237"><span class="hs-identifier hs-var">l</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073238"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073238"><span class="hs-identifier hs-var">ls</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679073239"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073239"><span class="hs-identifier hs-var">c</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679073240"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073240"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073241"><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073241"><span class="hs-identifier hs-var">ordl</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-174"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679073245"><span class="annot"><span class="annottext">ordl' :: Ordering
+</span><a href="#local-6989586621679073245"><span class="hs-identifier hs-var hs-var">ordl'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073241"><span class="hs-identifier hs-var">ordl</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Ordering
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073239"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679073237"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-175"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Maybe [a] -&gt; Maybe [a] -&gt; [a] -&gt; Ordering -&gt; Ordering -&gt; Bool
+</span><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073238"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073240"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073245"><span class="hs-identifier hs-var">ordl'</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span>   </span><span class="hs-comment">-- lower bound is shorter: s is greater</span><span>
+</span><span id="line-178"></span><span>   </span><span class="annot"><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span id="local-6989586621679073246"><span class="annot"><span class="annottext">Maybe [a]
+</span><a href="#local-6989586621679073246"><span class="hs-identifier hs-var">hi</span></a></span></span><span> </span><span id="local-6989586621679073247"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073247"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679073248"><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073248"><span class="hs-identifier hs-var">ordh</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe [a] -&gt; Maybe [a] -&gt; [a] -&gt; Ordering -&gt; Ordering -&gt; Bool
+</span><a href="#local-6989586621679073206"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+</span><a href="#local-6989586621679073246"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679073247"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><a href="#local-6989586621679073248"><span class="hs-identifier hs-var">ordh</span></a></span><span>
+</span><span id="line-179"></span></pre></body></html>

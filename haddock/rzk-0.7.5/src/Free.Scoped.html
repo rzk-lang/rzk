@@ -1,0 +1,1160 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveFoldable        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveFunctor         #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric         #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveTraversable     #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms       #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE QuantifiedConstraints #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes            #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving    #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell       #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators         #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances  #-}</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Free.Scoped</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifunctor.TH</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">on</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">GHC</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="Inc"><span class="annot"><a href="Free.Scoped.html#Inc"><span class="hs-identifier hs-var">Inc</span></a></span></span><span> </span><span id="local-6989586621679791104"><span class="annot"><a href="#local-6989586621679791104"><span class="hs-identifier hs-type">var</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Z"><span class="annot"><a href="Free.Scoped.html#Z"><span class="hs-identifier hs-var">Z</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="S"><span class="annot"><a href="Free.Scoped.html#S"><span class="hs-identifier hs-var">S</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679791104"><span class="hs-identifier hs-type">var</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679791427"><span id="local-6989586621679791430"><span class="annot"><span class="annottext">Inc var -&gt; Inc var -&gt; Bool
+(Inc var -&gt; Inc var -&gt; Bool)
+-&gt; (Inc var -&gt; Inc var -&gt; Bool) -&gt; Eq (Inc var)
+forall var. Eq var =&gt; Inc var -&gt; Inc var -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall var. Eq var =&gt; Inc var -&gt; Inc var -&gt; Bool
+== :: Inc var -&gt; Inc var -&gt; Bool
+$c/= :: forall var. Eq var =&gt; Inc var -&gt; Inc var -&gt; Bool
+/= :: Inc var -&gt; Inc var -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791436"><span id="local-6989586621679791441"><span id="local-6989586621679791445"><span class="annot"><span class="annottext">Int -&gt; Inc var -&gt; ShowS
+[Inc var] -&gt; ShowS
+Inc var -&gt; String
+(Int -&gt; Inc var -&gt; ShowS)
+-&gt; (Inc var -&gt; String) -&gt; ([Inc var] -&gt; ShowS) -&gt; Show (Inc var)
+forall var. Show var =&gt; Int -&gt; Inc var -&gt; ShowS
+forall var. Show var =&gt; [Inc var] -&gt; ShowS
+forall var. Show var =&gt; Inc var -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall var. Show var =&gt; Int -&gt; Inc var -&gt; ShowS
+showsPrec :: Int -&gt; Inc var -&gt; ShowS
+$cshow :: forall var. Show var =&gt; Inc var -&gt; String
+show :: Inc var -&gt; String
+$cshowList :: forall var. Show var =&gt; [Inc var] -&gt; ShowS
+showList :: [Inc var] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791449"><span id="local-6989586621679791451"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Inc a -&gt; Inc b)
+-&gt; (forall a b. a -&gt; Inc b -&gt; Inc a) -&gt; Functor Inc
+forall a b. a -&gt; Inc b -&gt; Inc a
+forall a b. (a -&gt; b) -&gt; Inc a -&gt; Inc b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; Inc a -&gt; Inc b
+fmap :: forall a b. (a -&gt; b) -&gt; Inc a -&gt; Inc b
+$c&lt;$ :: forall a b. a -&gt; Inc b -&gt; Inc a
+&lt;$ :: forall a b. a -&gt; Inc b -&gt; Inc a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791455"><span id="local-6989586621679791461"><span id="local-6989586621679791465"><span id="local-6989586621679791470"><span id="local-6989586621679791472"><span id="local-6989586621679791475"><span id="local-6989586621679791478"><span id="local-6989586621679791481"><span id="local-6989586621679791484"><span id="local-6989586621679791487"><span id="local-6989586621679791490"><span id="local-6989586621679791492"><span id="local-6989586621679791495"><span id="local-6989586621679791500"><span id="local-6989586621679791505"><span id="local-6989586621679791510"><span id="local-6989586621679791515"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; Inc m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a)
+-&gt; (forall a. Inc a -&gt; [a])
+-&gt; (forall a. Inc a -&gt; Bool)
+-&gt; (forall a. Inc a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; Inc a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; Inc a -&gt; a)
+-&gt; (forall a. Ord a =&gt; Inc a -&gt; a)
+-&gt; (forall a. Num a =&gt; Inc a -&gt; a)
+-&gt; (forall a. Num a =&gt; Inc a -&gt; a)
+-&gt; Foldable Inc
+forall a. Eq a =&gt; a -&gt; Inc a -&gt; Bool
+forall a. Num a =&gt; Inc a -&gt; a
+forall a. Ord a =&gt; Inc a -&gt; a
+forall m. Monoid m =&gt; Inc m -&gt; m
+forall a. Inc a -&gt; Bool
+forall a. Inc a -&gt; Int
+forall a. Inc a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; Inc m -&gt; m
+fold :: forall m. Monoid m =&gt; Inc m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Inc a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Inc a -&gt; a
+$ctoList :: forall a. Inc a -&gt; [a]
+toList :: forall a. Inc a -&gt; [a]
+$cnull :: forall a. Inc a -&gt; Bool
+null :: forall a. Inc a -&gt; Bool
+$clength :: forall a. Inc a -&gt; Int
+length :: forall a. Inc a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; Inc a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; Inc a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; Inc a -&gt; a
+maximum :: forall a. Ord a =&gt; Inc a -&gt; a
+$cminimum :: forall a. Ord a =&gt; Inc a -&gt; a
+minimum :: forall a. Ord a =&gt; Inc a -&gt; a
+$csum :: forall a. Num a =&gt; Inc a -&gt; a
+sum :: forall a. Num a =&gt; Inc a -&gt; a
+$cproduct :: forall a. Num a =&gt; Inc a -&gt; a
+product :: forall a. Num a =&gt; Inc a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791525"><span id="local-6989586621679791531"><span id="local-6989586621679791537"><span id="local-6989586621679791542"><span class="annot"><span class="annottext">Functor Inc
+Foldable Inc
+(Functor Inc, Foldable Inc) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; Inc a -&gt; f (Inc b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    Inc (f a) -&gt; f (Inc a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; Inc a -&gt; m (Inc b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; Inc (m a) -&gt; m (Inc a))
+-&gt; Traversable Inc
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a. Monad m =&gt; Inc (m a) -&gt; m (Inc a)
+forall (f :: * -&gt; *) a. Applicative f =&gt; Inc (f a) -&gt; f (Inc a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Inc a -&gt; m (Inc b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Inc a -&gt; f (Inc b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Inc a -&gt; f (Inc b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Inc a -&gt; f (Inc b)
+$csequenceA :: forall (f :: * -&gt; *) a. Applicative f =&gt; Inc (f a) -&gt; f (Inc a)
+sequenceA :: forall (f :: * -&gt; *) a. Applicative f =&gt; Inc (f a) -&gt; f (Inc a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Inc a -&gt; m (Inc b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Inc a -&gt; m (Inc b)
+$csequence :: forall (m :: * -&gt; *) a. Monad m =&gt; Inc (m a) -&gt; m (Inc a)
+sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; Inc (m a) -&gt; m (Inc a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">type</span><span> </span><span id="Scope"><span class="annot"><a href="Free.Scoped.html#Scope"><span class="hs-identifier hs-var">Scope</span></a></span></span><span> </span><span id="local-6989586621679791548"><span class="annot"><a href="#local-6989586621679791548"><span class="hs-identifier hs-type">term</span></a></span></span><span> </span><span id="local-6989586621679791549"><span class="annot"><a href="#local-6989586621679791549"><span class="hs-identifier hs-type">var</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679791548"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Inc"><span class="hs-identifier hs-type">Inc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791549"><span class="hs-identifier hs-type">var</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span id="local-6989586621679791089"><span id="local-6989586621679791090"><span class="annot"><a href="Free.Scoped.html#instantiate"><span class="hs-identifier hs-type">instantiate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679791089"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791089"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791090"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791089"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Inc"><span class="hs-identifier hs-type">Inc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791090"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791089"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791090"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-29"></span><span id="instantiate"><span class="annot"><span class="annottext">instantiate :: forall (f :: * -&gt; *) a. Monad f =&gt; f a -&gt; f (Inc a) -&gt; f a
+</span><a href="Free.Scoped.html#instantiate"><span class="hs-identifier hs-var hs-var">instantiate</span></a></span></span><span> </span><span id="local-6989586621679791556"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679791556"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679791557"><span class="annot"><span class="annottext">f (Inc a)
+</span><a href="#local-6989586621679791557"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f (Inc a)
+</span><a href="#local-6989586621679791557"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f (Inc a) -&gt; (Inc a -&gt; f a) -&gt; f a
+forall a b. f a -&gt; (a -&gt; f b) -&gt; f b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Inc a -&gt; f a
+</span><a href="#local-6989586621679791558"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679791558"><span class="annot"><span class="annottext">g :: Inc a -&gt; f a
+</span><a href="#local-6989586621679791558"><span class="hs-identifier hs-var hs-var">g</span></a></span></span><span> </span><span class="annot"><span class="annottext">Inc a
+</span><a href="Free.Scoped.html#Z"><span class="hs-identifier hs-var">Z</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679791556"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="#local-6989586621679791558"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#S"><span class="hs-identifier hs-type">S</span></a></span><span> </span><span id="local-6989586621679791562"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791562"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791562"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679791097"><span id="local-6989586621679791098"><span class="annot"><a href="Free.Scoped.html#abstract"><span class="hs-identifier hs-type">abstract</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679791097"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791098"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791097"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791098"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791097"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791098"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Inc"><span class="hs-identifier hs-type">Inc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791097"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-35"></span><span id="abstract"><span class="annot"><span class="annottext">abstract :: forall a (f :: * -&gt; *). (Eq a, Functor f) =&gt; a -&gt; f a -&gt; f (Inc a)
+</span><a href="Free.Scoped.html#abstract"><span class="hs-identifier hs-var hs-var">abstract</span></a></span></span><span> </span><span id="local-6989586621679791567"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791567"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679791568"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679791568"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Inc a
+</span><a href="#local-6989586621679791569"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Inc a) -&gt; f a -&gt; f (Inc a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679791568"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679791569"><span class="annot"><span class="annottext">k :: a -&gt; Inc a
+</span><a href="#local-6989586621679791569"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679791572"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791572"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791567"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791572"><span class="hs-identifier hs-var">y</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Inc a
+forall var. Inc var
+</span><a href="Free.Scoped.html#Z"><span class="hs-identifier hs-var">Z</span></a></span><span>
+</span><span id="line-38"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Inc a
+forall var. var -&gt; Inc var
+</span><a href="Free.Scoped.html#S"><span class="hs-identifier hs-var">S</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791572"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="FS"><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-var">FS</span></a></span></span><span> </span><span id="local-6989586621679791119"><span class="annot"><a href="#local-6989586621679791119"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679791118"><span class="annot"><a href="#local-6989586621679791118"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Pure"><span class="annot"><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679791118"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Free"><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-var">Free</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791119"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791119"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679791118"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791119"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791118"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679791111"><span id="local-6989586621679791112"><span id="local-6989586621679791578"><span id="local-6989586621679791584"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679791111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679791108"><span class="annot"><a href="#local-6989586621679791108"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679791109"><span class="annot"><a href="#local-6989586621679791109"><span class="hs-identifier hs-type">y</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679791108"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679791109"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791112"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791108"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791109"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791112"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791111"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791115"><span id="local-6989586621679791594"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791115"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791115"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679791601"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; FS t a -&gt; FS t b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679791602"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679791602"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-type">Pure</span></a></span><span> </span><span id="local-6989586621679791603"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791603"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; FS t b
+forall (t :: * -&gt; * -&gt; *) a. a -&gt; FS t a
+</span><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679791602"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791603"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">fmap</span></span><span> </span><span id="local-6989586621679791604"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679791604"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-type">Free</span></a></span><span> </span><span id="local-6989586621679791605"><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791605"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) b) (FS t b) -&gt; FS t b
+forall (t :: * -&gt; * -&gt; *) a. t (Scope (FS t) a) (FS t a) -&gt; FS t a
+</span><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-var">Free</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Scope (FS t) a -&gt; Scope (FS t) b)
+-&gt; (FS t a -&gt; FS t b)
+-&gt; t (Scope (FS t) a) (FS t a)
+-&gt; t (Scope (FS t) b) (FS t b)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; t a c -&gt; t b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Inc a -&gt; Inc b) -&gt; Scope (FS t) a -&gt; Scope (FS t) b
+forall a b. (a -&gt; b) -&gt; FS t a -&gt; FS t b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; Inc a -&gt; Inc b
+forall a b. (a -&gt; b) -&gt; Inc a -&gt; Inc b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679791604"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; FS t a -&gt; FS t b
+forall a b. (a -&gt; b) -&gt; FS t a -&gt; FS t b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679791604"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791605"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791134"><span id="local-6989586621679791609"><span id="local-6989586621679791616"><span id="local-6989586621679791621"><span id="local-6989586621679791624"><span id="local-6989586621679791627"><span id="local-6989586621679791630"><span id="local-6989586621679791633"><span id="local-6989586621679791636"><span id="local-6989586621679791639"><span id="local-6989586621679791642"><span id="local-6989586621679791645"><span id="local-6989586621679791648"><span id="local-6989586621679791653"><span id="local-6989586621679791658"><span id="local-6989586621679791663"><span id="local-6989586621679791668"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679791134"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791134"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679791681"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; FS t a -&gt; m
+</span><a href="#local-6989586621679791681"><span class="hs-identifier hs-var hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679791683"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679791683"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-type">Pure</span></a></span><span> </span><span id="local-6989586621679791684"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791684"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679791683"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791684"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span id="local-6989586621679791685"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679791685"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-type">Free</span></a></span><span> </span><span id="local-6989586621679791686"><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791686"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Scope (FS t) a -&gt; m)
+-&gt; (FS t a -&gt; m) -&gt; t (Scope (FS t) a) (FS t a) -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; t a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Inc a -&gt; m) -&gt; Scope (FS t) a -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; FS t a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; Inc a -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Inc a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679791685"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; FS t a -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; FS t a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679791685"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791686"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791147"><span id="local-6989586621679791697"><span id="local-6989586621679791703"><span id="local-6989586621679791708"><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679791147"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791147"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679791726"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; FS t a -&gt; f (FS t b)
+</span><a href="#local-6989586621679791726"><span class="hs-identifier hs-var hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679791728"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679791728"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-type">Pure</span></a></span><span> </span><span id="local-6989586621679791729"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791729"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; FS t b
+forall (t :: * -&gt; * -&gt; *) a. a -&gt; FS t a
+</span><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; FS t b) -&gt; f b -&gt; f (FS t b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679791728"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791729"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">traverse</span></span><span> </span><span id="local-6989586621679791730"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679791730"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-type">Free</span></a></span><span> </span><span id="local-6989586621679791731"><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791731"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) b) (FS t b) -&gt; FS t b
+forall (t :: * -&gt; * -&gt; *) a. t (Scope (FS t) a) (FS t a) -&gt; FS t a
+</span><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-var">Free</span></a></span><span> </span><span class="annot"><span class="annottext">(t (Scope (FS t) b) (FS t b) -&gt; FS t b)
+-&gt; f (t (Scope (FS t) b) (FS t b)) -&gt; f (FS t b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">(Scope (FS t) a -&gt; f (Scope (FS t) b))
+-&gt; (FS t a -&gt; f (FS t b))
+-&gt; t (Scope (FS t) a) (FS t a)
+-&gt; f (t (Scope (FS t) b) (FS t b))
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Inc a -&gt; f (Inc b)) -&gt; Scope (FS t) a -&gt; f (Scope (FS t) b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; FS t a -&gt; f (FS t b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; Inc a -&gt; f (Inc b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Inc a -&gt; f (Inc b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679791730"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; FS t a -&gt; f (FS t b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; FS t a -&gt; f (FS t b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679791730"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791731"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791167"><span id="local-6989586621679791739"><span id="local-6989586621679791743"><span id="local-6989586621679791746"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791167"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791167"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679791749"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; FS t a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; FS t a
+forall (t :: * -&gt; * -&gt; *) a. a -&gt; FS t a
+</span><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679791752"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. FS t (a -&gt; b) -&gt; FS t a -&gt; FS t b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FS t (a -&gt; b) -&gt; FS t a -&gt; FS t b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m (a -&gt; b) -&gt; m a -&gt; m b
+</span><span class="hs-identifier hs-var">ap</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791169"><span id="local-6989586621679791758"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791169"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791169"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679791763"><span class="annot"><span class="annottext">return :: forall a. a -&gt; FS t a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">return</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; FS t a
+forall a. a -&gt; FS t a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-type">Pure</span></a></span><span> </span><span id="local-6989586621679791769"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791769"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679791770"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. FS t a -&gt; (a -&gt; FS t b) -&gt; FS t b
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679791771"><span class="annot"><span class="annottext">a -&gt; FS t b
+</span><a href="#local-6989586621679791771"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; FS t b
+</span><a href="#local-6989586621679791771"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679791769"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-type">Free</span></a></span><span> </span><span id="local-6989586621679791772"><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791772"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span id="local-6989586621679791773"><span class="annot"><span class="annottext">a -&gt; FS t b
+</span><a href="#local-6989586621679791773"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) b) (FS t b) -&gt; FS t b
+forall (t :: * -&gt; * -&gt; *) a. t (Scope (FS t) a) (FS t a) -&gt; FS t a
+</span><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-var">Free</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Scope (FS t) a -&gt; Scope (FS t) b)
+-&gt; (FS t a -&gt; FS t b)
+-&gt; t (Scope (FS t) a) (FS t a)
+-&gt; t (Scope (FS t) b) (FS t b)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; t a c -&gt; t b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope (FS t) a -&gt; (Inc a -&gt; Scope (FS t) b) -&gt; Scope (FS t) b
+forall a b. FS t a -&gt; (a -&gt; FS t b) -&gt; FS t b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; FS t b) -&gt; Inc a -&gt; Scope (FS t) b
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Inc a -&gt; f (Inc b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; FS t b
+</span><a href="#local-6989586621679791773"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FS t a -&gt; (a -&gt; FS t b) -&gt; FS t b
+forall a b. FS t a -&gt; (a -&gt; FS t b) -&gt; FS t b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; FS t b
+</span><a href="#local-6989586621679791773"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t (Scope (FS t) a) (FS t a)
+</span><a href="#local-6989586621679791772"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">data</span><span> </span><span id="Sum"><span class="annot"><a href="Free.Scoped.html#Sum"><span class="hs-identifier hs-var">Sum</span></a></span></span><span> </span><span id="local-6989586621679791232"><span class="annot"><a href="#local-6989586621679791232"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679791233"><span class="annot"><a href="#local-6989586621679791233"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span id="local-6989586621679791243"><span class="annot"><a href="#local-6989586621679791243"><span class="hs-identifier hs-type">scope</span></a></span></span><span> </span><span id="local-6989586621679791244"><span class="annot"><a href="#local-6989586621679791244"><span class="hs-identifier hs-type">term</span></a></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="InL"><span class="annot"><a href="Free.Scoped.html#InL"><span class="hs-identifier hs-var">InL</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791232"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791243"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791244"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="InR"><span class="annot"><a href="Free.Scoped.html#InR"><span class="hs-identifier hs-var">InR</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791233"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791243"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791244"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679791779"><span id="local-6989586621679791783"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Sum f g scope a -&gt; Sum f g scope b)
+-&gt; (forall a b. a -&gt; Sum f g scope b -&gt; Sum f g scope a)
+-&gt; Functor (Sum f g scope)
+forall a b. a -&gt; Sum f g scope b -&gt; Sum f g scope a
+forall a b. (a -&gt; b) -&gt; Sum f g scope a -&gt; Sum f g scope b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Functor (f scope), Functor (g scope)) =&gt;
+a -&gt; Sum f g scope b -&gt; Sum f g scope a
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Functor (f scope), Functor (g scope)) =&gt;
+(a -&gt; b) -&gt; Sum f g scope a -&gt; Sum f g scope b
+$cfmap :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Functor (f scope), Functor (g scope)) =&gt;
+(a -&gt; b) -&gt; Sum f g scope a -&gt; Sum f g scope b
+fmap :: forall a b. (a -&gt; b) -&gt; Sum f g scope a -&gt; Sum f g scope b
+$c&lt;$ :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Functor (f scope), Functor (g scope)) =&gt;
+a -&gt; Sum f g scope b -&gt; Sum f g scope a
+&lt;$ :: forall a b. a -&gt; Sum f g scope b -&gt; Sum f g scope a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791790"><span id="local-6989586621679791796"><span id="local-6989586621679791803"><span id="local-6989586621679791808"><span id="local-6989586621679791812"><span id="local-6989586621679791815"><span id="local-6989586621679791818"><span id="local-6989586621679791821"><span id="local-6989586621679791824"><span id="local-6989586621679791827"><span id="local-6989586621679791830"><span id="local-6989586621679791834"><span id="local-6989586621679791837"><span id="local-6989586621679791842"><span id="local-6989586621679791847"><span id="local-6989586621679791852"><span id="local-6989586621679791857"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; Sum f g scope m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Sum f g scope a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Sum f g scope a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a)
+-&gt; (forall a. Sum f g scope a -&gt; [a])
+-&gt; (forall a. Sum f g scope a -&gt; Bool)
+-&gt; (forall a. Sum f g scope a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; Sum f g scope a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; Sum f g scope a -&gt; a)
+-&gt; (forall a. Ord a =&gt; Sum f g scope a -&gt; a)
+-&gt; (forall a. Num a =&gt; Sum f g scope a -&gt; a)
+-&gt; (forall a. Num a =&gt; Sum f g scope a -&gt; a)
+-&gt; Foldable (Sum f g scope)
+forall a. Eq a =&gt; a -&gt; Sum f g scope a -&gt; Bool
+forall a. Num a =&gt; Sum f g scope a -&gt; a
+forall a. Ord a =&gt; Sum f g scope a -&gt; a
+forall m. Monoid m =&gt; Sum f g scope m -&gt; m
+forall a. Sum f g scope a -&gt; Bool
+forall a. Sum f g scope a -&gt; Int
+forall a. Sum f g scope a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Sum f g scope a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Eq a) =&gt;
+a -&gt; Sum f g scope a -&gt; Bool
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Num a) =&gt;
+Sum f g scope a -&gt; a
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Ord a) =&gt;
+Sum f g scope a -&gt; a
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope m.
+(Foldable (f scope), Foldable (g scope), Monoid m) =&gt;
+Sum f g scope m -&gt; m
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+Sum f g scope a -&gt; Bool
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+Sum f g scope a -&gt; Int
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+Sum f g scope a -&gt; [a]
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope m a.
+(Foldable (f scope), Foldable (g scope), Monoid m) =&gt;
+(a -&gt; m) -&gt; Sum f g scope a -&gt; m
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope b a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+$cfold :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope m.
+(Foldable (f scope), Foldable (g scope), Monoid m) =&gt;
+Sum f g scope m -&gt; m
+fold :: forall m. Monoid m =&gt; Sum f g scope m -&gt; m
+$cfoldMap :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope m a.
+(Foldable (f scope), Foldable (g scope), Monoid m) =&gt;
+(a -&gt; m) -&gt; Sum f g scope a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Sum f g scope a -&gt; m
+$cfoldMap' :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope m a.
+(Foldable (f scope), Foldable (g scope), Monoid m) =&gt;
+(a -&gt; m) -&gt; Sum f g scope a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Sum f g scope a -&gt; m
+$cfoldr :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+$cfoldr' :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a b.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+$cfoldl :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope b a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+$cfoldl' :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope b a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Sum f g scope a -&gt; b
+$cfoldr1 :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a
+$cfoldl1 :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+(a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Sum f g scope a -&gt; a
+$ctoList :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+Sum f g scope a -&gt; [a]
+toList :: forall a. Sum f g scope a -&gt; [a]
+$cnull :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+Sum f g scope a -&gt; Bool
+null :: forall a. Sum f g scope a -&gt; Bool
+$clength :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope)) =&gt;
+Sum f g scope a -&gt; Int
+length :: forall a. Sum f g scope a -&gt; Int
+$celem :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Eq a) =&gt;
+a -&gt; Sum f g scope a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; Sum f g scope a -&gt; Bool
+$cmaximum :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Ord a) =&gt;
+Sum f g scope a -&gt; a
+maximum :: forall a. Ord a =&gt; Sum f g scope a -&gt; a
+$cminimum :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Ord a) =&gt;
+Sum f g scope a -&gt; a
+minimum :: forall a. Ord a =&gt; Sum f g scope a -&gt; a
+$csum :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Num a) =&gt;
+Sum f g scope a -&gt; a
+sum :: forall a. Num a =&gt; Sum f g scope a -&gt; a
+$cproduct :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope a.
+(Foldable (f scope), Foldable (g scope), Num a) =&gt;
+Sum f g scope a -&gt; a
+product :: forall a. Num a =&gt; Sum f g scope a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791872"><span id="local-6989586621679791882"><span id="local-6989586621679791888"><span id="local-6989586621679791893"><span class="annot"><span class="annottext">Functor (Sum f g scope)
+Foldable (Sum f g scope)
+(Functor (Sum f g scope), Foldable (Sum f g scope)) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; Sum f g scope a -&gt; f (Sum f g scope b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    Sum f g scope (f a) -&gt; f (Sum f g scope a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; Sum f g scope a -&gt; m (Sum f g scope b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    Sum f g scope (m a) -&gt; m (Sum f g scope a))
+-&gt; Traversable (Sum f g scope)
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Sum f g scope (m a) -&gt; m (Sum f g scope a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Sum f g scope (f a) -&gt; f (Sum f g scope a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Sum f g scope a -&gt; m (Sum f g scope b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Sum f g scope a -&gt; f (Sum f g scope b)
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope.
+(Traversable (f scope), Traversable (g scope)) =&gt;
+Functor (Sum f g scope)
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope.
+(Traversable (f scope), Traversable (g scope)) =&gt;
+Foldable (Sum f g scope)
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (m :: * -&gt; *) a.
+(Traversable (f scope), Traversable (g scope), Monad m) =&gt;
+Sum f g scope (m a) -&gt; m (Sum f g scope a)
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (f :: * -&gt; *) a.
+(Traversable (f scope), Traversable (g scope), Applicative f) =&gt;
+Sum f g scope (f a) -&gt; f (Sum f g scope a)
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (m :: * -&gt; *) a
+       b.
+(Traversable (f scope), Traversable (g scope), Monad m) =&gt;
+(a -&gt; m b) -&gt; Sum f g scope a -&gt; m (Sum f g scope b)
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (f :: * -&gt; *) a
+       b.
+(Traversable (f scope), Traversable (g scope), Applicative f) =&gt;
+(a -&gt; f b) -&gt; Sum f g scope a -&gt; f (Sum f g scope b)
+$ctraverse :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (f :: * -&gt; *) a
+       b.
+(Traversable (f scope), Traversable (g scope), Applicative f) =&gt;
+(a -&gt; f b) -&gt; Sum f g scope a -&gt; f (Sum f g scope b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Sum f g scope a -&gt; f (Sum f g scope b)
+$csequenceA :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (f :: * -&gt; *) a.
+(Traversable (f scope), Traversable (g scope), Applicative f) =&gt;
+Sum f g scope (f a) -&gt; f (Sum f g scope a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Sum f g scope (f a) -&gt; f (Sum f g scope a)
+$cmapM :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (m :: * -&gt; *) a
+       b.
+(Traversable (f scope), Traversable (g scope), Monad m) =&gt;
+(a -&gt; m b) -&gt; Sum f g scope a -&gt; m (Sum f g scope b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Sum f g scope a -&gt; m (Sum f g scope b)
+$csequence :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope (m :: * -&gt; *) a.
+(Traversable (f scope), Traversable (g scope), Monad m) =&gt;
+Sum f g scope (m a) -&gt; m (Sum f g scope a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Sum f g scope (m a) -&gt; m (Sum f g scope a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679791900"><span id="local-6989586621679791902"><span class="annot"><span class="annottext">(forall x. Sum f g scope term -&gt; Rep (Sum f g scope term) x)
+-&gt; (forall x. Rep (Sum f g scope term) x -&gt; Sum f g scope term)
+-&gt; Generic (Sum f g scope term)
+forall x. Rep (Sum f g scope term) x -&gt; Sum f g scope term
+forall x. Sum f g scope term -&gt; Rep (Sum f g scope term) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope term x.
+Rep (Sum f g scope term) x -&gt; Sum f g scope term
+forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope term x.
+Sum f g scope term -&gt; Rep (Sum f g scope term) x
+$cfrom :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope term x.
+Sum f g scope term -&gt; Rep (Sum f g scope term) x
+from :: forall x. Sum f g scope term -&gt; Rep (Sum f g scope term) x
+$cto :: forall (f :: * -&gt; * -&gt; *) (g :: * -&gt; * -&gt; *) scope term x.
+Rep (Sum f g scope term) x -&gt; Sum f g scope term
+to :: forall x. Rep (Sum f g scope term) x -&gt; Sum f g scope term
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">GHC.Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679791232"><span id="local-6989586621679791233"><span id="local-6989586621679791910"><span id="local-6989586621679791914"><span id="local-6989586621679791918"><span class="hs-identifier">deriveBifunctor</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Sum</span></span></span></span></span></span><span>
+</span><span id="line-75"></span><span id="local-6989586621679791232"><span id="local-6989586621679791233"><span id="local-6989586621679791933"><span id="local-6989586621679791939"><span id="local-6989586621679791946"><span id="local-6989586621679791950"><span class="hs-identifier">deriveBifoldable</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Sum</span></span></span></span></span></span></span><span>
+</span><span id="line-76"></span><span id="local-6989586621679791232"><span id="local-6989586621679791233"><span id="local-6989586621679791982"><span class="hs-identifier">deriveBitraversable</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Sum</span></span></span></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">type</span><span> </span><span id="%3A%2B%3A"><span class="annot"><a href="Free.Scoped.html#%3A%2B%3A"><span class="hs-operator hs-var">(:+:)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Free.Scoped.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">data</span><span> </span><span id="Empty"><span class="annot"><a href="Free.Scoped.html#Empty"><span class="hs-identifier hs-var">Empty</span></a></span></span><span> </span><span id="local-6989586621679792001"><span class="annot"><a href="#local-6989586621679792001"><span class="hs-identifier hs-type">scope</span></a></span></span><span> </span><span id="local-6989586621679792002"><span class="annot"><a href="#local-6989586621679792002"><span class="hs-identifier hs-type">term</span></a></span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679792004"><span id="local-6989586621679792007"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; Empty scope a -&gt; Empty scope b)
+-&gt; (forall a b. a -&gt; Empty scope b -&gt; Empty scope a)
+-&gt; Functor (Empty scope)
+forall a b. a -&gt; Empty scope b -&gt; Empty scope a
+forall a b. (a -&gt; b) -&gt; Empty scope a -&gt; Empty scope b
+forall scope a b. a -&gt; Empty scope b -&gt; Empty scope a
+forall scope a b. (a -&gt; b) -&gt; Empty scope a -&gt; Empty scope b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall scope a b. (a -&gt; b) -&gt; Empty scope a -&gt; Empty scope b
+fmap :: forall a b. (a -&gt; b) -&gt; Empty scope a -&gt; Empty scope b
+$c&lt;$ :: forall scope a b. a -&gt; Empty scope b -&gt; Empty scope a
+&lt;$ :: forall a b. a -&gt; Empty scope b -&gt; Empty scope a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679792011"><span id="local-6989586621679792017"><span id="local-6989586621679792021"><span id="local-6989586621679792026"><span id="local-6989586621679792029"><span id="local-6989586621679792032"><span id="local-6989586621679792035"><span id="local-6989586621679792038"><span id="local-6989586621679792041"><span id="local-6989586621679792044"><span id="local-6989586621679792047"><span id="local-6989586621679792050"><span id="local-6989586621679792053"><span id="local-6989586621679792058"><span id="local-6989586621679792063"><span id="local-6989586621679792068"><span id="local-6989586621679792073"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; Empty scope m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a)
+-&gt; (forall a. Empty scope a -&gt; [a])
+-&gt; (forall a. Empty scope a -&gt; Bool)
+-&gt; (forall a. Empty scope a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; Empty scope a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; Empty scope a -&gt; a)
+-&gt; (forall a. Ord a =&gt; Empty scope a -&gt; a)
+-&gt; (forall a. Num a =&gt; Empty scope a -&gt; a)
+-&gt; (forall a. Num a =&gt; Empty scope a -&gt; a)
+-&gt; Foldable (Empty scope)
+forall a. Eq a =&gt; a -&gt; Empty scope a -&gt; Bool
+forall a. Num a =&gt; Empty scope a -&gt; a
+forall a. Ord a =&gt; Empty scope a -&gt; a
+forall m. Monoid m =&gt; Empty scope m -&gt; m
+forall a. Empty scope a -&gt; Bool
+forall a. Empty scope a -&gt; Int
+forall a. Empty scope a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a
+forall scope a. Eq a =&gt; a -&gt; Empty scope a -&gt; Bool
+forall scope a. Num a =&gt; Empty scope a -&gt; a
+forall scope a. Ord a =&gt; Empty scope a -&gt; a
+forall scope m. Monoid m =&gt; Empty scope m -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m
+forall scope a. Empty scope a -&gt; Bool
+forall scope a. Empty scope a -&gt; Int
+forall scope a. Empty scope a -&gt; [a]
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+forall scope a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a
+forall scope m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m
+forall scope b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+forall scope a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall scope m. Monoid m =&gt; Empty scope m -&gt; m
+fold :: forall m. Monoid m =&gt; Empty scope m -&gt; m
+$cfoldMap :: forall scope m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m
+$cfoldMap' :: forall scope m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Empty scope a -&gt; m
+$cfoldr :: forall scope a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+$cfoldr' :: forall scope a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+$cfoldl :: forall scope b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+$cfoldl' :: forall scope b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Empty scope a -&gt; b
+$cfoldr1 :: forall scope a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a
+$cfoldl1 :: forall scope a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Empty scope a -&gt; a
+$ctoList :: forall scope a. Empty scope a -&gt; [a]
+toList :: forall a. Empty scope a -&gt; [a]
+$cnull :: forall scope a. Empty scope a -&gt; Bool
+null :: forall a. Empty scope a -&gt; Bool
+$clength :: forall scope a. Empty scope a -&gt; Int
+length :: forall a. Empty scope a -&gt; Int
+$celem :: forall scope a. Eq a =&gt; a -&gt; Empty scope a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; Empty scope a -&gt; Bool
+$cmaximum :: forall scope a. Ord a =&gt; Empty scope a -&gt; a
+maximum :: forall a. Ord a =&gt; Empty scope a -&gt; a
+$cminimum :: forall scope a. Ord a =&gt; Empty scope a -&gt; a
+minimum :: forall a. Ord a =&gt; Empty scope a -&gt; a
+$csum :: forall scope a. Num a =&gt; Empty scope a -&gt; a
+sum :: forall a. Num a =&gt; Empty scope a -&gt; a
+$cproduct :: forall scope a. Num a =&gt; Empty scope a -&gt; a
+product :: forall a. Num a =&gt; Empty scope a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679792082"><span id="local-6989586621679792087"><span id="local-6989586621679792093"><span id="local-6989586621679792098"><span class="annot"><span class="annottext">Functor (Empty scope)
+Foldable (Empty scope)
+(Functor (Empty scope), Foldable (Empty scope)) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; Empty scope a -&gt; f (Empty scope b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    Empty scope (f a) -&gt; f (Empty scope a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; Empty scope a -&gt; m (Empty scope b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    Empty scope (m a) -&gt; m (Empty scope a))
+-&gt; Traversable (Empty scope)
+forall scope. Functor (Empty scope)
+forall scope. Foldable (Empty scope)
+forall scope (m :: * -&gt; *) a.
+Monad m =&gt;
+Empty scope (m a) -&gt; m (Empty scope a)
+forall scope (f :: * -&gt; *) a.
+Applicative f =&gt;
+Empty scope (f a) -&gt; f (Empty scope a)
+forall scope (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Empty scope a -&gt; m (Empty scope b)
+forall scope (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Empty scope a -&gt; f (Empty scope b)
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Empty scope (m a) -&gt; m (Empty scope a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Empty scope (f a) -&gt; f (Empty scope a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Empty scope a -&gt; m (Empty scope b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Empty scope a -&gt; f (Empty scope b)
+$ctraverse :: forall scope (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Empty scope a -&gt; f (Empty scope b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Empty scope a -&gt; f (Empty scope b)
+$csequenceA :: forall scope (f :: * -&gt; *) a.
+Applicative f =&gt;
+Empty scope (f a) -&gt; f (Empty scope a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+Empty scope (f a) -&gt; f (Empty scope a)
+$cmapM :: forall scope (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Empty scope a -&gt; m (Empty scope b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Empty scope a -&gt; m (Empty scope b)
+$csequence :: forall scope (m :: * -&gt; *) a.
+Monad m =&gt;
+Empty scope (m a) -&gt; m (Empty scope a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Empty scope (m a) -&gt; m (Empty scope a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span id="local-6989586621679792105"><span id="local-6989586621679792108"><span id="local-6989586621679792112"><span class="hs-identifier">deriveBifunctor</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Empty</span></span></span></span><span>
+</span><span id="line-83"></span><span id="local-6989586621679792118"><span id="local-6989586621679792124"><span id="local-6989586621679792128"><span id="local-6989586621679792130"><span class="hs-identifier">deriveBifoldable</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Empty</span></span></span></span></span><span>
+</span><span id="line-84"></span><span id="local-6989586621679792144"><span class="hs-identifier">deriveBitraversable</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Empty</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">data</span><span> </span><span id="AnnF"><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-var">AnnF</span></a></span></span><span> </span><span id="local-6989586621679791325"><span class="annot"><a href="#local-6989586621679791325"><span class="hs-identifier hs-type">ann</span></a></span></span><span> </span><span id="local-6989586621679791326"><span class="annot"><a href="#local-6989586621679791326"><span class="hs-identifier hs-type">term</span></a></span></span><span> </span><span id="local-6989586621679791327"><span class="annot"><a href="#local-6989586621679791327"><span class="hs-identifier hs-type">scope</span></a></span></span><span> </span><span id="local-6989586621679791328"><span class="annot"><a href="#local-6989586621679791328"><span class="hs-identifier hs-type">typedTerm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="AnnF"><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-var">AnnF</span></a></span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="annF"><span class="annot"><span class="annottext">forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+AnnF ann term scope typedTerm -&gt; ann typedTerm
+</span><a href="Free.Scoped.html#annF"><span class="hs-identifier hs-var hs-var">annF</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679791325"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791328"><span class="hs-identifier hs-type">typedTerm</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="termF"><span class="annot"><span class="annottext">forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+AnnF ann term scope typedTerm -&gt; term scope typedTerm
+</span><a href="Free.Scoped.html#termF"><span class="hs-identifier hs-var hs-var">termF</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679791326"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791327"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791328"><span class="hs-identifier hs-type">typedTerm</span></a></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679792158"><span id="local-6989586621679792163"><span id="local-6989586621679792167"><span class="annot"><span class="annottext">Int -&gt; AnnF ann term scope typedTerm -&gt; ShowS
+[AnnF ann term scope typedTerm] -&gt; ShowS
+AnnF ann term scope typedTerm -&gt; String
+(Int -&gt; AnnF ann term scope typedTerm -&gt; ShowS)
+-&gt; (AnnF ann term scope typedTerm -&gt; String)
+-&gt; ([AnnF ann term scope typedTerm] -&gt; ShowS)
+-&gt; Show (AnnF ann term scope typedTerm)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+(Show (ann typedTerm), Show (term scope typedTerm)) =&gt;
+Int -&gt; AnnF ann term scope typedTerm -&gt; ShowS
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+(Show (ann typedTerm), Show (term scope typedTerm)) =&gt;
+[AnnF ann term scope typedTerm] -&gt; ShowS
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+(Show (ann typedTerm), Show (term scope typedTerm)) =&gt;
+AnnF ann term scope typedTerm -&gt; String
+$cshowsPrec :: forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+(Show (ann typedTerm), Show (term scope typedTerm)) =&gt;
+Int -&gt; AnnF ann term scope typedTerm -&gt; ShowS
+showsPrec :: Int -&gt; AnnF ann term scope typedTerm -&gt; ShowS
+$cshow :: forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+(Show (ann typedTerm), Show (term scope typedTerm)) =&gt;
+AnnF ann term scope typedTerm -&gt; String
+show :: AnnF ann term scope typedTerm -&gt; String
+$cshowList :: forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+(Show (ann typedTerm), Show (term scope typedTerm)) =&gt;
+[AnnF ann term scope typedTerm] -&gt; ShowS
+showList :: [AnnF ann term scope typedTerm] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679792172"><span id="local-6989586621679792176"><span class="annot"><span class="annottext">(forall a b.
+ (a -&gt; b) -&gt; AnnF ann term scope a -&gt; AnnF ann term scope b)
+-&gt; (forall a b.
+    a -&gt; AnnF ann term scope b -&gt; AnnF ann term scope a)
+-&gt; Functor (AnnF ann term scope)
+forall a b. a -&gt; AnnF ann term scope b -&gt; AnnF ann term scope a
+forall a b.
+(a -&gt; b) -&gt; AnnF ann term scope a -&gt; AnnF ann term scope b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope a b.
+(Functor ann, Functor (term scope)) =&gt;
+a -&gt; AnnF ann term scope b -&gt; AnnF ann term scope a
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope a b.
+(Functor ann, Functor (term scope)) =&gt;
+(a -&gt; b) -&gt; AnnF ann term scope a -&gt; AnnF ann term scope b
+$cfmap :: forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope a b.
+(Functor ann, Functor (term scope)) =&gt;
+(a -&gt; b) -&gt; AnnF ann term scope a -&gt; AnnF ann term scope b
+fmap :: forall a b.
+(a -&gt; b) -&gt; AnnF ann term scope a -&gt; AnnF ann term scope b
+$c&lt;$ :: forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope a b.
+(Functor ann, Functor (term scope)) =&gt;
+a -&gt; AnnF ann term scope b -&gt; AnnF ann term scope a
+&lt;$ :: forall a b. a -&gt; AnnF ann term scope b -&gt; AnnF ann term scope a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><span class="hs-comment">-- | Important: does not compare the `annF` component!</span></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791356"><span id="local-6989586621679791357"><span id="local-6989586621679791358"><span id="local-6989586621679791359"><span id="local-6989586621679792183"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791356"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791357"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791358"><span class="hs-identifier hs-type">typedTerm</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791359"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791356"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791357"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791358"><span class="hs-identifier hs-type">typedTerm</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679792187"><span class="annot"><span class="annottext">== :: AnnF ann term scope typedTerm
+-&gt; AnnF ann term scope typedTerm -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var hs-var">(==)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">term scope typedTerm -&gt; term scope typedTerm -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span> </span><span class="annot"><span class="annottext">(term scope typedTerm -&gt; term scope typedTerm -&gt; Bool)
+-&gt; (AnnF ann term scope typedTerm -&gt; term scope typedTerm)
+-&gt; AnnF ann term scope typedTerm
+-&gt; AnnF ann term scope typedTerm
+-&gt; Bool
+forall b c a. (b -&gt; b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">`on`</span></span><span> </span><span class="annot"><span class="annottext">AnnF ann term scope typedTerm -&gt; term scope typedTerm
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+AnnF ann term scope typedTerm -&gt; term scope typedTerm
+</span><a href="Free.Scoped.html#termF"><span class="hs-identifier hs-var">termF</span></a></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791365"><span id="local-6989586621679791366"><span id="local-6989586621679792194"><span id="local-6989586621679792198"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791365"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791366"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791365"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791366"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>  </span><span id="local-6989586621679792203"><span class="annot"><span class="annottext">bimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; AnnF ann term a c -&gt; AnnF ann term b d
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bimap</span></span></span><span> </span><span id="local-6989586621679792204"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679792204"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679792205"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679792205"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span id="local-6989586621679792206"><span class="annot"><span class="annottext">ann c
+</span><a href="#local-6989586621679792206"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679792207"><span class="annot"><span class="annottext">term a c
+</span><a href="#local-6989586621679792207"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ann d -&gt; term b d -&gt; AnnF ann term b d
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+ann typedTerm
+-&gt; term scope typedTerm -&gt; AnnF ann term scope typedTerm
+</span><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-var">AnnF</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(c -&gt; d) -&gt; ann c -&gt; ann d
+forall a b. (a -&gt; b) -&gt; ann a -&gt; ann b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679792205"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ann c
+</span><a href="#local-6989586621679792206"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (c -&gt; d) -&gt; term a c -&gt; term b d
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; term a c -&gt; term b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679792204"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679792205"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">term a c
+</span><a href="#local-6989586621679792207"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="annot"><span class="hs-comment">-- | Important: does not fold over the 'annF' component!</span></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791374"><span id="local-6989586621679791375"><span id="local-6989586621679792210"><span id="local-6989586621679792217"><span id="local-6989586621679792220"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679791374"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791375"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791374"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679792225"><span class="annot"><span class="annottext">bifoldMap :: forall m a b.
+Monoid m =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; AnnF ann term a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span id="local-6989586621679792226"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679792226"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679792227"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679792227"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span id="local-6989586621679792228"><span class="annot"><span class="annottext">ann b
+</span><a href="#local-6989586621679792228"><span class="hs-identifier hs-var">_ty</span></a></span></span><span> </span><span id="local-6989586621679792229"><span class="annot"><span class="annottext">term a b
+</span><a href="#local-6989586621679792229"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">{- g ty &lt;&gt; -}</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (b -&gt; m) -&gt; term a b -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; term a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679792226"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679792227"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">term a b
+</span><a href="#local-6989586621679792229"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679791381"><span id="local-6989586621679791382"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679791381"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679791382"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791381"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791382"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621679792249"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c)
+-&gt; (b -&gt; f d) -&gt; AnnF ann term a b -&gt; f (AnnF ann term c d)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span id="local-6989586621679792250"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679792250"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679792251"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679792251"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span id="local-6989586621679792252"><span class="annot"><span class="annottext">ann b
+</span><a href="#local-6989586621679792252"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679792253"><span class="annot"><span class="annottext">term a b
+</span><a href="#local-6989586621679792253"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ann d -&gt; term c d -&gt; AnnF ann term c d
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+ann typedTerm
+-&gt; term scope typedTerm -&gt; AnnF ann term scope typedTerm
+</span><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-var">AnnF</span></a></span><span> </span><span class="annot"><span class="annottext">(ann d -&gt; term c d -&gt; AnnF ann term c d)
+-&gt; f (ann d) -&gt; f (term c d -&gt; AnnF ann term c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; f d) -&gt; ann b -&gt; f (ann d)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; ann a -&gt; f (ann b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679792251"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ann b
+</span><a href="#local-6989586621679792252"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">f (term c d -&gt; AnnF ann term c d)
+-&gt; f (term c d) -&gt; f (AnnF ann term c d)
+forall a b. f (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; term a b -&gt; f (term c d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; term a b -&gt; f (term c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679792250"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679792251"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">term a b
+</span><a href="#local-6989586621679792253"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span id="local-6989586621679791388"><span id="local-6989586621679791391"><span id="local-6989586621679791392"><span class="annot"><a href="Free.Scoped.html#transFS"><span class="hs-identifier hs-type">transFS</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791388"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679791389"><span class="annot"><a href="#local-6989586621679791389"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679791390"><span class="annot"><a href="#local-6989586621679791390"><span class="hs-identifier hs-type">t</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679791388"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791389"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791390"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679791391"><span class="hs-identifier hs-type">term'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791389"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791390"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791388"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791392"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791391"><span class="hs-identifier hs-type">term'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791392"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-109"></span><span id="transFS"><span class="annot"><span class="annottext">transFS :: forall (term :: * -&gt; * -&gt; *) (term' :: * -&gt; * -&gt; *) a.
+Bifunctor term =&gt;
+(forall s t. term s t -&gt; term' s t) -&gt; FS term a -&gt; FS term' a
+</span><a href="Free.Scoped.html#transFS"><span class="hs-identifier hs-var hs-var">transFS</span></a></span></span><span> </span><span id="local-6989586621679792259"><span class="annot"><span class="annottext">forall s t. term s t -&gt; term' s t
+</span><a href="#local-6989586621679792259"><span class="hs-identifier hs-var">phi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-type">Pure</span></a></span><span> </span><span id="local-6989586621679792260"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679792260"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; FS term' a
+forall (t :: * -&gt; * -&gt; *) a. a -&gt; FS t a
+</span><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679792260"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-type">Free</span></a></span><span> </span><span id="local-6989586621679792261"><span class="annot"><span class="annottext">term (Scope (FS term) a) (FS term a)
+</span><a href="#local-6989586621679792261"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">term' (Scope (FS term') a) (FS term' a) -&gt; FS term' a
+forall (t :: * -&gt; * -&gt; *) a. t (Scope (FS t) a) (FS t a) -&gt; FS t a
+</span><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-var">Free</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">term (Scope (FS term') a) (FS term' a)
+-&gt; term' (Scope (FS term') a) (FS term' a)
+forall s t. term s t -&gt; term' s t
+</span><a href="#local-6989586621679792259"><span class="hs-identifier hs-var">phi</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Scope (FS term) a -&gt; Scope (FS term') a)
+-&gt; (FS term a -&gt; FS term' a)
+-&gt; term (Scope (FS term) a) (FS term a)
+-&gt; term (Scope (FS term') a) (FS term' a)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; term a c -&gt; term b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall s t. term s t -&gt; term' s t)
+-&gt; Scope (FS term) a -&gt; Scope (FS term') a
+forall (term :: * -&gt; * -&gt; *) (term' :: * -&gt; * -&gt; *) a.
+Bifunctor term =&gt;
+(forall s t. term s t -&gt; term' s t) -&gt; FS term a -&gt; FS term' a
+</span><a href="Free.Scoped.html#transFS"><span class="hs-identifier hs-var">transFS</span></a></span><span> </span><span class="annot"><span class="annottext">term s t -&gt; term' s t
+forall s t. term s t -&gt; term' s t
+</span><a href="#local-6989586621679792259"><span class="hs-identifier hs-var">phi</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(forall s t. term s t -&gt; term' s t) -&gt; FS term a -&gt; FS term' a
+forall (term :: * -&gt; * -&gt; *) (term' :: * -&gt; * -&gt; *) a.
+Bifunctor term =&gt;
+(forall s t. term s t -&gt; term' s t) -&gt; FS term a -&gt; FS term' a
+</span><a href="Free.Scoped.html#transFS"><span class="hs-identifier hs-var">transFS</span></a></span><span> </span><span class="annot"><span class="annottext">term s t -&gt; term' s t
+forall s t. term s t -&gt; term' s t
+</span><a href="#local-6989586621679792259"><span class="hs-identifier hs-var">phi</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">term (Scope (FS term) a) (FS term a)
+</span><a href="#local-6989586621679792261"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span id="local-6989586621679791400"><span id="local-6989586621679791401"><span id="local-6989586621679791402"><span class="annot"><a href="Free.Scoped.html#untyped"><span class="hs-identifier hs-type">untyped</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791400"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791401"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#AnnF"><span class="hs-identifier hs-type">AnnF</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791400"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791401"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679791402"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791401"><span class="hs-identifier hs-type">term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791402"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-114"></span><span id="untyped"><span class="annot"><span class="annottext">untyped :: forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) a.
+(Functor ann, Bifunctor term) =&gt;
+FS (AnnF ann term) a -&gt; FS term a
+</span><a href="Free.Scoped.html#untyped"><span class="hs-identifier hs-var hs-var">untyped</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s t. AnnF ann term s t -&gt; term s t)
+-&gt; FS (AnnF ann term) a -&gt; FS term a
+forall (term :: * -&gt; * -&gt; *) (term' :: * -&gt; * -&gt; *) a.
+Bifunctor term =&gt;
+(forall s t. term s t -&gt; term' s t) -&gt; FS term a -&gt; FS term' a
+</span><a href="Free.Scoped.html#transFS"><span class="hs-identifier hs-var">transFS</span></a></span><span> </span><span class="annot"><span class="annottext">AnnF ann term s t -&gt; term s t
+forall s t. AnnF ann term s t -&gt; term s t
+forall (ann :: * -&gt; *) (term :: * -&gt; * -&gt; *) scope typedTerm.
+AnnF ann term scope typedTerm -&gt; term scope typedTerm
+</span><a href="Free.Scoped.html#termF"><span class="hs-identifier hs-var">termF</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Free.Scoped.html#ExtE"><span class="hs-identifier hs-type">ExtE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679791409"><span id="local-6989586621679791410"><span id="local-6989586621679791412"><span class="annot"><a href="#local-6989586621679791410"><span class="hs-identifier hs-type">ext</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791409"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Free.Scoped.html#%3A%2B%3A"><span class="hs-operator hs-type">:+:</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791410"><span class="hs-identifier hs-type">ext</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679791412"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791409"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Free.Scoped.html#%3A%2B%3A"><span class="hs-operator hs-type">:+:</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791410"><span class="hs-identifier hs-type">ext</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679791412"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679791409"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="Free.Scoped.html#%3A%2B%3A"><span class="hs-operator hs-type">:+:</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791410"><span class="hs-identifier hs-type">ext</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679791412"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">pattern</span><span> </span><span id="ExtE"><span id="%24mExtE"><span id="%24bExtE"><span class="annot"><span class="annottext">$mExtE :: forall {r} {ext :: * -&gt; * -&gt; *} {t :: * -&gt; * -&gt; *} {a}.
+FS (t :+: ext) a
+-&gt; (ext (Scope (FS (t :+: ext)) a) (FS (t :+: ext) a) -&gt; r)
+-&gt; ((# #) -&gt; r)
+-&gt; r
+$bExtE :: forall (ext :: * -&gt; * -&gt; *) (t :: * -&gt; * -&gt; *) a.
+ext (Scope (FS (t :+: ext)) a) (FS (t :+: ext) a)
+-&gt; FS (t :+: ext) a
+</span><a href="Free.Scoped.html#ExtE"><span class="hs-identifier hs-var hs-var hs-var">ExtE</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679792269"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Free.Scoped.html#Free"><span class="hs-identifier hs-type">Free</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#InR"><span class="hs-identifier hs-type">InR</span></a></span><span> </span><span id="local-6989586621679792269"><span class="annot"><a href="#local-6989586621679792269"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span id="local-6989586621679791417"><span id="local-6989586621679791418"><span class="annot"><a href="Free.Scoped.html#substitute"><span class="hs-identifier hs-type">substitute</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679791417"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791417"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791417"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679791418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Free.Scoped.html#FS"><span class="hs-identifier hs-type">FS</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791417"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679791418"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-120"></span><span id="substitute"><span class="annot"><span class="annottext">substitute :: forall (t :: * -&gt; * -&gt; *) a.
+Bifunctor t =&gt;
+FS t a -&gt; Scope (FS t) a -&gt; FS t a
+</span><a href="Free.Scoped.html#substitute"><span class="hs-identifier hs-var hs-var">substitute</span></a></span></span><span> </span><span id="local-6989586621679792273"><span class="annot"><span class="annottext">FS t a
+</span><a href="#local-6989586621679792273"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FS t (Inc a) -&gt; (Inc a -&gt; FS t a) -&gt; FS t a
+forall a b. FS t a -&gt; (a -&gt; FS t b) -&gt; FS t b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Inc a -&gt; FS t a
+</span><a href="#local-6989586621679792274"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679792274"><span class="annot"><span class="annottext">f :: Inc a -&gt; FS t a
+</span><a href="#local-6989586621679792274"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">Inc a
+</span><a href="Free.Scoped.html#Z"><span class="hs-identifier hs-var">Z</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FS t a
+</span><a href="#local-6989586621679792273"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><a href="#local-6989586621679792274"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Free.Scoped.html#S"><span class="hs-identifier hs-type">S</span></a></span><span> </span><span id="local-6989586621679792275"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679792275"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; FS t a
+forall (t :: * -&gt; * -&gt; *) a. a -&gt; FS t a
+</span><a href="Free.Scoped.html#Pure"><span class="hs-identifier hs-var">Pure</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679792275"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-124"></span></pre></body></html>
