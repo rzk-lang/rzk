@@ -60,6 +60,7 @@ SomeSectionName.  SectionName ::= VarIdent ;
 PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
 PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
+PatternTuple.     Pattern ::= "(" Pattern "," Pattern "," [Pattern] ")" ;
 separator nonempty Pattern "" ;
 
 -- Parameter introduction (for lambda abstractions)
@@ -77,6 +78,10 @@ ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
 ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
+
+-- Parameter declaration for Sigma types
+SigmaParam. SigmaParam ::= Pattern ":" Term ;
+separator nonempty SigmaParam "," ;
 
 Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
@@ -106,6 +111,7 @@ RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
+TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
@@ -115,6 +121,7 @@ TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
+Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;
@@ -149,6 +156,7 @@ ASCII_TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
 
 ASCII_TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
+ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 
 ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
 ASCII_Restriction. Restriction ::= Term "|->" Term ;
@@ -161,4 +169,6 @@ ASCII_Second.         Term6 ::= "second" Term7 ;
 -- Alternative Unicode syntax rules
 
 unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
+unicode_TypeSigmaTupleAlt. Term1 ::= "∑" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
+define unicode_TypeSigmaTupleAlt par pars t = TypeSigmaTuple par pars t ;

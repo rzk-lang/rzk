@@ -1,10 +1,10 @@
 name: rzk
-version: 0.7.4
+version: 0.7.5
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
 maintainer: "nickolay.kudasov@gmail.com"
-copyright: "2023 Nikolai Kudasov"
+copyright: "2023-2024 Nikolai Kudasov"
 
 extra-source-files:
   - README.md
@@ -28,7 +28,7 @@ flags:
 
 when:
   - condition: flag(lsp) && !impl(ghcjs)
-    cpp-options: -DLSP
+    cpp-options: -DLSP_ENABLED
 
 custom-setup:
   dependencies:

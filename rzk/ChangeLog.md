@@ -6,9 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.5 — 2024-08-18
+
+Minor changes:
+
+- Suport syntax sugar for nested Σ-types (see [#183](https://github.com/rzk-lang/rzk/pull/183))
+- Improve error reporting (see [#176](https://github.com/rzk-lang/rzk/pull/176) and [#179](https://github.com/rzk-lang/rzk/pull/179))
+
+Fixes:
+
+- Support newer `lsp` (specifically, `lsp-2.7.0.0`, see [#188](https://github.com/rzk-lang/rzk/pull/188))
+- Fix CI (see [#184](https://github.com/rzk-lang/rzk/pull/184))
+- Fix build of nix flake on aarch64-darwin (see [#181](https://github.com/rzk-lang/rzk/pull/181))
+- Small documentation fixes (see [#178](https://github.com/rzk-lang/rzk/pull/178))
+
 ## v0.7.4 — 2024-04-01
 
 Fixes:
+
 - Fix caching in Rzk Language Server, especially in presence of errors (see [#167](https://github.com/rzk-lang/rzk/pull/167))
 - Fix CI for the Rzk Playground (see [#174](https://github.com/rzk-lang/rzk/pull/174))
 
@@ -18,33 +33,37 @@ and a typo fix (see [#171](https://github.com/rzk-lang/rzk/pull/171)).
 ## v0.7.3 — 2023-12-16
 
 Fixes:
+
 - Fix overlapping edits in the formatter, hopefully making it idempotent (see [#160](https://github.com/rzk-lang/rzk/pull/160));
 - Fix formatter crashing the language server (see [#161](https://github.com/rzk-lang/rzk/pull/161));
 - Avoid unnecessary typechecking when semantics of a file has not changed (see [#159](https://github.com/rzk-lang/rzk/pull/159));
 - Stop typechecking after the first parse error (avoid invalid cache) (see [`68ab0b4`](https://github.com/rzk-lang/rzk/commit/68ab0b4dd3d627756e10adb55cb16845b08d09d9));
 
 Other:
+
 - Add unit tests for the formatter (see [#157](https://github.com/rzk-lang/rzk/pull/157));
 
 ## v0.7.2 — 2023-12-12
 
 Fixes:
+
 - Fixes for `rzk format`:
-    - Fix extra space after open parens in formatter (see [#155](https://github.com/rzk-lang/rzk/pull/155));
-    - Replace line string content with tokens when checking open parens (see [#156](https://github.com/rzk-lang/rzk/pull/156));
+  - Fix extra space after open parens in formatter (see [#155](https://github.com/rzk-lang/rzk/pull/155));
+  - Replace line string content with tokens when checking open parens (see [#156](https://github.com/rzk-lang/rzk/pull/156));
 - Throw an error when `rzk.yaml`'s `include` is empty (see [#154](https://github.com/rzk-lang/rzk/pull/154));
 
 Changes to the Rzk website:
-  - Support multiple languages in the documentation (see [#150](https://github.com/rzk-lang/rzk/pull/150));
-      - English is the default;
-      - Russian documentation is partially translated and is available at <http://rzk-lang.github.io/rzk/ru/>;
-  - Add a blog (see [#153](https://github.com/rzk-lang/rzk/pull/153) and [`e438820`](https://github.com/rzk-lang/rzk/commit/e4388202cea59531903c4c24b939841b2771ceb7));
-      - The blog is not versioned and is always available at <https://rzk-lang.github.io/rzk/en/blog/>;
-  - Add a new [Other proof assistants for HoTT](https://rzk-lang.github.io/rzk/en/v0.7.2/related/) page (also [in Russian](https://rzk-lang.github.io/rzk/ru/v0.7.2/related/));
-  - Add a new [Introduction to Dependent Types](https://rzk-lang.github.io/rzk/en/v0.7.2/getting-started/dependent-types.rzk/) page (also [in Russian](https://rzk-lang.github.io/rzk/ru/v0.7.2/getting-started/dependent-types.rzk/))
-  - Add (default) social cards
-  - Integrate ToC on the left
-  - Use Inria Sans for English, PT Sans for Russian
+
+- Support multiple languages in the documentation (see [#150](https://github.com/rzk-lang/rzk/pull/150));
+  - English is the default;
+  - Russian documentation is partially translated and is available at <http://rzk-lang.github.io/rzk/ru/>;
+- Add a blog (see [#153](https://github.com/rzk-lang/rzk/pull/153) and [`e438820`](https://github.com/rzk-lang/rzk/commit/e4388202cea59531903c4c24b939841b2771ceb7));
+  - The blog is not versioned and is always available at <https://rzk-lang.github.io/rzk/en/blog/>;
+- Add a new [Other proof assistants for HoTT](https://rzk-lang.github.io/rzk/en/v0.7.2/related/) page (also [in Russian](https://rzk-lang.github.io/rzk/ru/v0.7.2/related/));
+- Add a new [Introduction to Dependent Types](https://rzk-lang.github.io/rzk/en/v0.7.2/getting-started/dependent-types.rzk/) page (also [in Russian](https://rzk-lang.github.io/rzk/ru/v0.7.2/getting-started/dependent-types.rzk/))
+- Add (default) social cards
+- Integrate ToC on the left
+- Use Inria Sans for English, PT Sans for Russian
 
 ## v0.7.1 — 2023-12-08
 

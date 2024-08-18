@@ -71,6 +71,7 @@ transPattern x = case x of
   Language.Rzk.Syntax.Abs.PatternUnit _ -> failure x
   Language.Rzk.Syntax.Abs.PatternVar _ varident -> failure x
   Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> failure x
+  Language.Rzk.Syntax.Abs.PatternTuple _ pattern_1 pattern_2 patterns -> failure x
 
 transParam :: Show a => Language.Rzk.Syntax.Abs.Param' a -> Result
 transParam x = case x of
@@ -86,6 +87,10 @@ transParamDecl x = case x of
   Language.Rzk.Syntax.Abs.ParamTermShape _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.ParamTermTypeDeprecated _ pattern_ term -> failure x
   Language.Rzk.Syntax.Abs.ParamVarShapeDeprecated _ pattern_ term1 term2 -> failure x
+
+transSigmaParam :: Show a => Language.Rzk.Syntax.Abs.SigmaParam' a -> Result
+transSigmaParam x = case x of
+  Language.Rzk.Syntax.Abs.SigmaParam _ pattern_ term -> failure x
 
 transRestriction :: Show a => Language.Rzk.Syntax.Abs.Restriction' a -> Result
 transRestriction x = case x of
@@ -114,6 +119,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 term2 term3 term4 -> failure x
   Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeSigmaTuple _ sigmaparam sigmaparams term -> failure x
   Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
   Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
@@ -122,6 +128,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.App _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.Lambda _ params term -> failure x
   Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.Tuple _ term1 term2 terms -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
   Language.Rzk.Syntax.Abs.Unit _ -> failure x
@@ -143,6 +150,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeSigmaTuple _ sigmaparam sigmaparams term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Lambda _ params term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_First _ term -> failure x

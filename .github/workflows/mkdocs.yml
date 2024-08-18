@@ -2,7 +2,7 @@ name: MKDocs
 
 on:
   push:
-    branches: [develop,mkdocs-*]
+    branches: [develop, mkdocs-*]
     tags: [v*]
     paths:
       - .github/workflows/mkdocs.yml
@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: 🧰 Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.9"
           cache: "pip" # caching pip dependencies
@@ -38,15 +38,13 @@ jobs:
           chmod: 0755
 
       - name: Check Rzk files for each language
-        run:
-          for lang_dir in $(ls -d docs/docs/*/); do
-            pushd ${lang_dir} && rzk typecheck; popd ;
+        run: for lang_dir in $(ls -d docs/docs/*/); do
+          pushd ${lang_dir} && rzk typecheck; popd ;
           done
 
       - name: Check Rzk formatting for each language
-        run:
-          for lang_dir in $(ls -d docs/docs/*/); do
-            pushd ${lang_dir} && rzk format --check; popd ;
+        run: for lang_dir in $(ls -d docs/docs/*/); do
+          pushd ${lang_dir} && rzk format --check; popd ;
           done
 
       - name: 🔨 Install MkDocs Material and mike

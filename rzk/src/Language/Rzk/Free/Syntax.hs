@@ -173,6 +173,12 @@ toScopePattern pat bvars = toTerm $ \z ->
     bindings (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) _ = []
     bindings (Rzk.PatternVar _loc x)    t = [(varIdent x, t)]
     bindings (Rzk.PatternPair _loc l r) t = bindings l (First t) <> bindings r (Second t)
+    bindings (Rzk.PatternTuple loc p1 p2 ps) t = bindings (desugarTuple loc (reverse ps) p2 p1) t
+
+desugarTuple loc ps p2 p1 =
+  case ps of
+    []          -> Rzk.PatternPair loc p1 p2
+    pLast : ps' -> Rzk.PatternPair loc (desugarTuple loc ps' p2 p1) pLast
 
 toTerm :: (VarIdent -> Term a) -> Rzk.Term -> Term a
 toTerm bvars = go
@@ -209,7 +215,6 @@ toTerm bvars = go
         (Rzk.TypeFun loc (Rzk.ParamTermShape loc' (patternToTerm pat) cube tope) ret)
       t@(Rzk.Lambda loc ((Rzk.ParamPatternShapeDeprecated loc' pat cube tope):params) body) -> deprecated t
         (Rzk.Lambda loc ((Rzk.ParamPatternShape loc' [pat] cube tope):params) body)
-
       -- ASCII versions
       Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
       Rzk.ASCII_Cube2_0 loc -> go (Rzk.Cube2_0 loc)
@@ -223,6 +228,7 @@ toTerm bvars = go
 
       Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
+      Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
       Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
       Rzk.ASCII_First loc term -> go (Rzk.First loc term)
@@ -256,6 +262,8 @@ toTerm bvars = go
       Rzk.Unit _loc -> Unit
       Rzk.App _loc f x -> App (go f) (go x)
       Rzk.Pair _loc l r -> Pair (go l) (go r)
+      Rzk.Tuple _loc p1 p2 (p:ps) -> go (Rzk.Tuple _loc (Rzk.Pair _loc p1 p2) p ps)
+      Rzk.Tuple _loc p1 p2 [] -> go (Rzk.Pair _loc p1 p2)
       Rzk.First _loc term -> First (go term)
       Rzk.Second _loc term -> Second (go term)
       Rzk.Refl _loc -> Refl Nothing
@@ -280,11 +288,18 @@ toTerm bvars = go
       Rzk.TypeSigma _loc pat tA tB ->
         TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN -> 
+        go (Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _loc patX tX) ps tN)
+        where
+          patX = Rzk.PatternPair _loc patA patB
+          tX = Rzk.TypeSigma _loc patA tA tB
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ pat tA) [] tB -> go (Rzk.TypeSigma _loc pat tA tB)
+
       Rzk.Lambda _loc [] body -> go body
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
         Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
       Rzk.Lambda _loc (Rzk.ParamPatternType _ [] _ty : params) body ->
-        go (Rzk.Lambda _loc params body)
+        go (Rzk.Lambda _loc params body)                        
       Rzk.Lambda _loc (Rzk.ParamPatternType _ (pat:pats) ty : params) body ->
         Lambda (patternVar pat) (Just (go ty, Nothing))
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
@@ -317,6 +332,7 @@ patternToTerm = ptt
       Rzk.PatternVar loc x    -> Rzk.Var loc x
       Rzk.PatternPair loc l r -> Rzk.Pair loc (ptt l) (ptt r)
       Rzk.PatternUnit loc     -> Rzk.Unit loc
+      Rzk.PatternTuple loc p1 p2 ps -> patternToTerm (desugarTuple loc (reverse ps) p2 p1)
 
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp

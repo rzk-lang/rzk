@@ -72,6 +72,7 @@ data Pattern' a
     = PatternUnit a
     | PatternVar a (VarIdent' a)
     | PatternPair a (Pattern' a) (Pattern' a)
+    | PatternTuple a (Pattern' a) (Pattern' a) [Pattern' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Param = Param' BNFC'Position
@@ -89,6 +90,10 @@ data ParamDecl' a
     | ParamTermShape a (Term' a) (Term' a) (Term' a)
     | ParamTermTypeDeprecated a (Pattern' a) (Term' a)
     | ParamVarShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
+
+type SigmaParam = SigmaParam' BNFC'Position
+data SigmaParam' a = SigmaParam a (Pattern' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Restriction = Restriction' BNFC'Position
@@ -119,6 +124,7 @@ data Term' a
     | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
@@ -127,6 +133,7 @@ data Term' a
     | App a (Term' a) (Term' a)
     | Lambda a [Param' a] (Term' a)
     | Pair a (Term' a) (Term' a)
+    | Tuple a (Term' a) (Term' a) [Term' a]
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -148,6 +155,7 @@ data Term' a
     | ASCII_TopeOr a (Term' a) (Term' a)
     | ASCII_TypeFun a (ParamDecl' a) (Term' a)
     | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | ASCII_TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | ASCII_Lambda a [Param' a] (Term' a)
     | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | ASCII_First a (Term' a)
@@ -183,6 +191,9 @@ ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
 
 unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
 unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
+
+unicode_TypeSigmaTupleAlt :: a -> SigmaParam' a -> [SigmaParam' a] -> Term' a -> Term' a
+unicode_TypeSigmaTupleAlt = \ _a par pars t -> TypeSigmaTuple _a par pars t
 
 newtype VarIdentToken = VarIdentToken String
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Typeable, C.Generic, Data.String.IsString)
@@ -253,6 +264,7 @@ instance HasPosition Pattern where
     PatternUnit p -> p
     PatternVar p _ -> p
     PatternPair p _ _ -> p
+    PatternTuple p _ _ _ -> p
 
 instance HasPosition Param where
   hasPosition = \case
@@ -268,6 +280,10 @@ instance HasPosition ParamDecl where
     ParamTermShape p _ _ _ -> p
     ParamTermTypeDeprecated p _ _ -> p
     ParamVarShapeDeprecated p _ _ _ -> p
+
+instance HasPosition SigmaParam where
+  hasPosition = \case
+    SigmaParam p _ _ -> p
 
 instance HasPosition Restriction where
   hasPosition = \case
@@ -296,6 +312,7 @@ instance HasPosition Term where
     RecOrDeprecated p _ _ _ _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
+    TypeSigmaTuple p _ _ _ -> p
     TypeUnit p -> p
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p
@@ -304,6 +321,7 @@ instance HasPosition Term where
     App p _ _ -> p
     Lambda p _ _ -> p
     Pair p _ _ -> p
+    Tuple p _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p
@@ -325,6 +343,7 @@ instance HasPosition Term where
     ASCII_TopeOr p _ _ -> p
     ASCII_TypeFun p _ _ -> p
     ASCII_TypeSigma p _ _ _ -> p
+    ASCII_TypeSigmaTuple p _ _ _ -> p
     ASCII_Lambda p _ _ -> p
     ASCII_TypeExtensionDeprecated p _ _ -> p
     ASCII_First p _ -> p
