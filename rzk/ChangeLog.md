@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.5 — 2024-08-18
+
+Minor changes:
+
+- Suport syntax sugar for nested Σ-types (see [#183](https://github.com/rzk-lang/rzk/pull/183))
+- Improve error reporting (see [#176](https://github.com/rzk-lang/rzk/pull/176) and [#179](https://github.com/rzk-lang/rzk/pull/179))
+
+Fixes:
+
+- Support newer `lsp` (specifically, `lsp-2.7.0.0`, see [#188](https://github.com/rzk-lang/rzk/pull/188))
+- Fix CI (see [#184](https://github.com/rzk-lang/rzk/pull/184))
+- Fix build of nix flake on aarch64-darwin (see [#181](https://github.com/rzk-lang/rzk/pull/181))
+- Small documentation fixes (see [#178](https://github.com/rzk-lang/rzk/pull/178))
+
 ## v0.7.4 — 2024-04-01
 
 Fixes:

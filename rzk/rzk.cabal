@@ -5,7 +5,7 @@ cabal-version: 1.24
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.7.4
+version:        0.7.5
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -13,7 +13,7 @@ homepage:       https://github.com/rzk-lang/rzk#readme
 bug-reports:    https://github.com/rzk-lang/rzk/issues
 author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
-copyright:      2023 Nikolai Kudasov
+copyright:      2023-2024 Nikolai Kudasov
 license:        BSD3
 license-file:   LICENSE
 build-type:     Custom
