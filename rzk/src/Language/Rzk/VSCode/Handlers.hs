@@ -21,7 +21,8 @@ import           Control.Lens
 import           Control.Monad                 (forM_, when)
 import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 MonadError (throwError),
-                                                modifyError, runExceptT)
+                                                runExceptT)
+import           Control.Monad.Error.Class     (modifyError)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
 import           Data.List                     (isSuffixOf, sort, (\\))
