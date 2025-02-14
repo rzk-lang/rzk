@@ -1967,22 +1967,29 @@ unifyInCurrentContext mterm expected actual = performing action $
                       unifyTerms cube cube' -- FIXME: unifyCubes
                     enterScope orig' cube $ do
                       case ret' of
-                        -- UniverseTopeT{} ->
-                        --   (Just tope, Just tope') -> do
-                        --     topeNF <- nfT tope
-                        --     topeNF' <- nfT tope'
-                        --     unifyTopes topeNF topeNF'
-                        --   (Nothing, Nothing)      -> return ()
-                        --   (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
-                        --   (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
-                        _ -> case (mtope, mtope') of
-                          (Just tope, Just tope') -> do
-                            topeNF <- nfT tope
-                            topeNF' <- nfT tope'
-                            unifyTopes topeNF topeNF'
-                          (Nothing, Nothing)      -> return ()
-                          (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
-                          (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
+                        UniverseTopeT{} -> do
+                          -- This is the case for tope families (shapes)
+                          --
+                          -- (Λ → TOPE) <: (Δ → TOPE)
+                          -- since if φ : Λ → TOPE
+                          -- then φ ⊢ Δ
+                          --
+                          -- we DO NOT take tope context Φ into account!
+                          expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
+                          actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
+                          actualEntailsExpected <- [actualTopeNF] `entailM` expectedTopeNF
+                          unless actualEntailsExpected $
+                            issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
+                        _ -> do
+                          -- this is the case for Π-types and extension types
+                          --
+                          -- Ξ | Φ | Γ   ⊢   {t : I | φ} → A t   <:   {s : J | ψ} → B s
+                          -- when
+                          -- Ξ | Φ, ψ ⊢ φ
+                          expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
+                          actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
+                          localTope expectedTopeNF $
+                            contextEntails actualTopeNF
                       case mterm of
                         Nothing -> unifyTerms ret ret'
                         Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
