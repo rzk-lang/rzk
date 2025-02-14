@@ -1999,7 +1999,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                 case actual' of
                   TypeSigmaT _ty' orig' a' b' -> do
                     unify Nothing a a'
-                    enterScope orig' a $ unify Nothing b b'
+                    enterScope orig' a' $ unify Nothing b b'
                   _ -> err
 
               TypeIdT _ty x _tA y ->
@@ -2024,11 +2024,11 @@ unifyInCurrentContext mterm expected actual = performing action $
                       LambdaT ty' orig' _mparam' body' -> do
                         case stripTypeRestrictions (infoType ty') of
                           TypeFunT _ty' _origF' param' mtope' _ret' -> do
-                            unify Nothing param param'
+                            unify Nothing param param' -- we (should) have already checked this in types!
                             enterScope orig' param $ do
                               case (mtope, mtope') of
                                 (Just tope, Just tope') -> do
-                                  unify Nothing tope tope'
+                                  unify Nothing tope tope' -- we (should) have already checked this in types!
                                   localTope tope $ unify Nothing body body'
                                 (Nothing, Nothing) -> do
                                   unify Nothing body body'
