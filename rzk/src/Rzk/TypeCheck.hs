@@ -2467,10 +2467,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                 xty' <- typecheck xty universeT
                 unifyTerms tA xty'
               x' <- typecheck x tA
-              unifyTerms x' y
-              unifyTerms x' z
+              unifyTerms x' y >> unifyTerms y x'
+              unifyTerms x' z >> unifyTerms z x'
             when (isNothing mx) $
-              unifyTerms y z
+              unifyTerms y z >> unifyTerms z y
             return (reflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorUnexpectedRefl term ty
 
@@ -2524,7 +2524,15 @@ infer tt = performing (ActionInfer tt) $ case tt of
     lt <- typeOf l'
     rt <- typeOf r'
     typeOf lt >>= \case
+      --    Γ ⊢ l ⇒ (I : CUBE)
+      --    Γ ⊢ r ⇒ (J : CUBE)
+      -- ———————————————————————————
+      -- Γ ⊢ (l, r) ⇒ (I × J : CUBE)
       UniverseCubeT{} -> return (pairT (cubeProductT lt rt) l' r')
+      --    Γ ⊢ l ⇒ (A : U)
+      --    Γ ⊢ r ⇒ (B : U)
+      -- ———————————————————————————
+      -- Γ ⊢ (l, r) ⇒ (A × B : U)             where A × B = Σ (_ : A), B
       _ -> do
         -- NOTE: infer as a non-dependent pair!
         return (pairT (typeSigmaT Nothing lt (S <$> rt)) l' r')
@@ -2580,6 +2588,11 @@ infer tt = performing (ActionInfer tt) $ case tt of
     contextEntails topeBottomT
     return recBottomT
 
+  -- Γ ⊢ t ⇒ (T : K)
+  -- Γ ⊢ K ≡ U
+  -- —————————————
+  -- Γ ⊢ t ⇒ T ⇐ U
+
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
@@ -2605,12 +2618,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
             issueTypeError $ TypeErrorOther "tope params are illegal"
           _ -> do
             mapM_ checkNameShadowing orig
-            b' <- enterScope orig a' $ inferAs universeT b
+            b' <- enterScope orig a' $ typecheck b universeT
             return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         mapM_ checkNameShadowing orig
-        b' <- enterScope orig a' $ inferAs universeT b
+        b' <- enterScope orig a' $ typecheck b universeT
         return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
       TypeFunT _ty _orig cube mtope UniverseTopeT{} -> do
@@ -2618,7 +2631,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
-            b' <- inferAs universeT b
+            b' <- typecheck b universeT
             case mtope of
               Nothing -> return (typeFunT orig cube (Just tope') b')
               Just tope'' -> return (typeFunT orig cube (Just (topeAndT tope'' tope')) b')
@@ -2630,13 +2643,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     enterScope orig cube' $ do
       tope' <- typecheck tope topeT
       localTope tope' $ do
-        ret' <- inferAs universeT ret
+        ret' <- typecheck ret universeT
         return (typeFunT orig cube' (Just tope') ret')
 
   TypeSigma orig a b -> do
-    a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
+    a' <- typecheck a universeT
     mapM_ checkNameShadowing orig
-    b' <- enterScope orig a' $ inferAs universeT b
+    b' <- enterScope orig a' $ typecheck b universeT
     return (typeSigmaT orig a' b')
 
   TypeId x (Just tA) y -> do
@@ -2654,7 +2667,6 @@ infer tt = performing (ActionInfer tt) $ case tt of
   App f x -> do
     f' <- inferAs universeT f
     fmap stripTypeRestrictions (typeOf f') >>= \case
-      RecBottomT{} -> pure recBottomT -- FIXME: is this ok?
       TypeFunT _ty _orig a mtope b -> do
         x' <- typecheck x a
         let result = appT (substituteT x' b) f' x'
@@ -2739,7 +2751,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (idJT ret tA' a' tC' d' x' p')
 
   TypeAsc term ty -> do
-    ty' <- inferAs universeT ty
+    ty' <- inferAs universeT ty -- this works on types AND cubes
     term' <- typecheck term ty'
     return (typeAscT term' ty')
 
