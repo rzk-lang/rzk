@@ -64,6 +64,7 @@ ghc-options:
   - -Wpartial-fields
   - -Wredundant-constraints
   - -optP-Wno-nonportable-include-path
+  - -XDeriveDataTypeable
 
 library:
   source-dirs: src
