@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.5.1 — 2025-08-14
+
+Minor fix:
+
+- Support BNFC 2.9.6 ([#201](https://github.com/rzk-lang/rzk/pull/201))
+
 ## v0.7.5 — 2024-08-18
 
 Minor changes:
