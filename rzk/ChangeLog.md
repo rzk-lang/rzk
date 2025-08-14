@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.6 — 2025-08-14
+
+Minor fixes:
+
+- Support BNFC 2.9.6 (see [#201](https://github.com/rzk-lang/rzk/pull/201))
+- Fix typo in the sHoTT link (see [#194](https://github.com/rzk-lang/rzk/pull/194))
+- Fix tuple pattern syntax (see [#193](https://github.com/rzk-lang/rzk/pull/193) and [#191](https://github.com/rzk-lang/rzk/pull/191))
+
 ## v0.7.5 — 2024-08-18
 
 Minor changes:
