@@ -60,8 +60,10 @@ SomeSectionName.  SectionName ::= VarIdent ;
 PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
 PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
-PatternTuple.     Pattern ::= "(" Pattern "," Pattern "," [Pattern] ")" ;
+PatternTuple.     Pattern ::= "(" Pattern "," Pattern "," [Pattern1] ")" ;
 separator nonempty Pattern "" ;
+_. Pattern1 ::= Pattern ;
+separator nonempty Pattern1 "," ;
 
 -- Parameter introduction (for lambda abstractions)
 ParamPattern.      Param ::= Pattern ;

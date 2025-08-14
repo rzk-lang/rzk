@@ -341,6 +341,7 @@ unsafeTermToPattern = ttp
       Rzk.Unit loc                        -> Rzk.PatternUnit loc
       Rzk.Var loc x                       -> Rzk.PatternVar loc x
       Rzk.Pair loc l r                    -> Rzk.PatternPair loc (ttp l) (ttp r)
+      Rzk.Tuple loc t1 t2 ts              -> Rzk.PatternTuple loc (ttp t1) (ttp t2) (map ttp ts)
       term -> error ("ERROR: expected a pattern but got\n  " ++ Rzk.printTree term)
 
 fromTerm' :: Term' -> Rzk.Term

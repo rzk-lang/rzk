@@ -1,5 +1,5 @@
 name: rzk
-version: 0.7.5
+version: 0.7.6
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -64,6 +64,7 @@ ghc-options:
   - -Wpartial-fields
   - -Wredundant-constraints
   - -optP-Wno-nonportable-include-path
+  - -XDeriveDataTypeable
 
 library:
   source-dirs: src
