@@ -1,14 +1,16 @@
 name: rzk
-version: 0.7.5
+version: 0.7.6
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
 maintainer: "nickolay.kudasov@gmail.com"
-copyright: "2023-2024 Nikolai Kudasov"
+copyright: "2023-2025 Nikolai Kudasov"
 
-extra-source-files:
+extra-doc-files:
   - README.md
   - ChangeLog.md
+  
+extra-source-files:
   - grammar/Syntax.cf
 
 synopsis: An experimental proof assistant for synthetic ∞-categories
@@ -64,6 +66,9 @@ ghc-options:
   - -Wpartial-fields
   - -Wredundant-constraints
   - -optP-Wno-nonportable-include-path
+
+default-extensions:
+  - DeriveDataTypeable
 
 library:
   source-dirs: src
@@ -125,8 +130,8 @@ tests:
     main: doctests.hs
     other-modules: []
     dependencies:
-      - base
-      - doctest
-      - Glob
-      - QuickCheck
-      - template-haskell
+      base: ">= 4.11.0.0 && < 5.0"
+      doctest: ">= 0.21.0"
+      Glob: ">= 0.9.3"
+      QuickCheck: ">= 2.14"
+      template-haskell: ">= 2.14.0.0"
