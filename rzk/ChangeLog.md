@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.7 — 2025-11-04
+
+Important fixes:
+
+- Fix subtyping (automatic coercion for extension types and tope disjunction elimination) (see [#207](https://github.com/rzk-lang/rzk/pull/207))
+
+  1. Do not assume variance for the argument of function/type family application (fixes #206).
+  2. Separately check tope families and extension types (and $\Pi$-types), since, for tope families, variance of the argument is different.
+  3. Fix `refl` to check for equality, not subtyping.
+  4. Fix `inferAs` to perform `typecheck` instead (where appropriate).
+
+Minor fix:
+
+- Add version bounds for successful Hackage upload (see [`9aba39c`](https://github.com/rzk-lang/rzk/commit/9aba39c9d63799a00438774e947a986fe8bb9d69))
+
 ## v0.7.6 — 2025-08-14
 
 Minor fixes:
