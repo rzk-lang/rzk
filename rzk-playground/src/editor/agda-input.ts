@@ -176,6 +176,111 @@ const unicodeMap: Record<string, string> = {
     'setminus': '∖',
     'uplus': '⊎',
     
+    // Subscripts
+    '_0': '₀',
+    '_1': '₁',
+    '_2': '₂',
+    '_3': '₃',
+    '_4': '₄',
+    '_5': '₅',
+    '_6': '₆',
+    '_7': '₇',
+    '_8': '₈',
+    '_9': '₉',
+    '_i': 'ᵢ',
+    '_j': 'ⱼ',
+    '_k': 'ₖ',
+    '_n': 'ₙ',
+    '_p': 'ₚ',
+    '_s': 'ₛ',
+    '_t': 'ₜ',
+    '_x': 'ₓ',
+    '_a': 'ₐ',
+    '_e': 'ₑ',
+    '_h': 'ₕ',
+    '_o': 'ₒ',
+    '_r': 'ᵣ',
+    '_u': 'ᵤ',
+    '_v': 'ᵥ',
+    '_beta': 'ᵦ',
+    '_gamma': 'ᵧ',
+    '_rho': 'ᵨ',
+    '_phi': 'ᵩ',
+    '_chi': 'ᵪ',
+    '_+': '₊',
+    '_-': '₋',
+    '_=': '₌',
+    '_(': '₍',
+    '_)': '₎',
+    
+    // Superscripts
+    '^0': '⁰',
+    '^1': '¹',
+    '^2': '²',
+    '^3': '³',
+    '^4': '⁴',
+    '^5': '⁵',
+    '^6': '⁶',
+    '^7': '⁷',
+    '^8': '⁸',
+    '^9': '⁹',
+    '^i': 'ⁱ',
+    '^n': 'ⁿ',
+    '^+': '⁺',
+    '^-': '⁻',
+    '^=': '⁼',
+    '^(': '⁽',
+    '^)': '⁾',
+    '^a': 'ᵃ',
+    '^b': 'ᵇ',
+    '^d': 'ᵈ',
+    '^e': 'ᵉ',
+    '^g': 'ᵍ',
+    '^h': 'ʰ',
+    '^j': 'ʲ',
+    '^k': 'ᵏ',
+    '^l': 'ˡ',
+    '^m': 'ᵐ',
+    '^o': 'ᵒ',
+    '^p': 'ᵖ',
+    '^r': 'ʳ',
+    '^s': 'ˢ',
+    '^t': 'ᵗ',
+    '^u': 'ᵘ',
+    '^v': 'ᵛ',
+    '^w': 'ʷ',
+    '^x': 'ˣ',
+    '^y': 'ʸ',
+    '^z': 'ᶻ',
+    '^A': 'ᴬ',
+    '^B': 'ᴮ',
+    '^D': 'ᴰ',
+    '^E': 'ᴱ',
+    '^G': 'ᴳ',
+    '^H': 'ᴴ',
+    '^I': 'ᴵ',
+    '^J': 'ᴶ',
+    '^K': 'ᴷ',
+    '^L': 'ᴸ',
+    '^M': 'ᴹ',
+    '^N': 'ᴺ',
+    '^O': 'ᴼ',
+    '^P': 'ᴾ',
+    '^R': 'ᴿ',
+    '^T': 'ᵀ',
+    '^U': 'ᵁ',
+    '^V': 'ⱽ',
+    '^W': 'ᵂ',
+    '^alpha': 'ᵅ',
+    '^beta': 'ᵝ',
+    '^gamma': 'ᵞ',
+    '^delta': 'ᵟ',
+    '^epsilon': 'ᵋ',
+    '^theta': 'ᶿ',
+    '^iota': 'ᶥ',
+    '^phi': 'ᵠ',
+    '^chi': 'ᵡ',
+    
     // Type theory / Category theory
     'hom': '→',
     'comp': '∘',
@@ -300,7 +405,8 @@ const unicodeMap: Record<string, string> = {
 function findCommand(text: string, pos: number): { command: string; unicode: string; start: number; end: number } | null {
     // Look backwards from position to find backslash
     let start = pos - 1;
-    while (start >= 0 && /[a-zA-Z]/.test(text[start])) {
+    // Match letters, digits, underscore, or caret (for subscripts/superscripts)
+    while (start >= 0 && /[a-zA-Z0-9_^]/.test(text[start])) {
         start--;
     }
     
@@ -309,9 +415,30 @@ function findCommand(text: string, pos: number): { command: string; unicode: str
     }
     
     // Extract the command after backslash
+    // For subscripts/superscripts, we match _ or ^ followed by alphanumeric
+    // For regular commands, we match letters
     let end = start + 1;
-    while (end < text.length && /[a-zA-Z]/.test(text[end])) {
-        end++;
+    const firstChar = end < text.length ? text[end] : '';
+    
+    if (firstChar === '_' || firstChar === '^') {
+        // For subscripts/superscripts: match _ or ^ followed by alphanumeric or special characters
+        end++; // Skip the _ or ^
+        const nextChar = end < text.length ? text[end] : '';
+        // Check if it's a special character (single char) or alphanumeric (multi-char)
+        if (/[+\-=()]/.test(nextChar)) {
+            // Single special character
+            end++;
+        } else {
+            // Alphanumeric sequence (digits, letters, or multi-letter like "beta")
+            while (end < text.length && /[a-zA-Z0-9]/.test(text[end])) {
+                end++;
+            }
+        }
+    } else {
+        // For regular commands: match only letters
+        while (end < text.length && /[a-zA-Z]/.test(text[end])) {
+            end++;
+        }
     }
     
     if (end === start + 1) {
