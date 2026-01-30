@@ -49,7 +49,7 @@ jobs:
           restore-prefixes-first-match: |
             ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
             ${{ runner.os }}-nix-
-          gc-max-store-size: 7000000000
+          gc-max-store-size: 7G
           purge: true
           purge-prefixes: ${{ runner.os }}-nix-
           purge-created: 0
