@@ -1,4 +1,4 @@
-# Tope disjuction elimination
+# Tope disjunction elimination
 
 Following Riehl and Shulman's type theory[^1], `#!rzk rzk-1` introduces two primitive terms for disjunction elimination:
 
