@@ -60,7 +60,7 @@ import           Text.Read                     (readMaybe)
 
 -- | Given a list of file paths, reads them and parses them as Rzk modules,
 --   returning the same list of file paths but with the parsed module (or parse error)
-parseFiles :: [FilePath] -> IO [(FilePath, Either String Module)]
+parseFiles :: [FilePath] -> IO [(FilePath, Either T.Text Module)]
 parseFiles [] = pure []
 parseFiles (x:xs) = do
   errOrMod <- parseModuleFile x
@@ -70,7 +70,7 @@ parseFiles (x:xs) = do
 -- | Given the list of possible modules returned by `parseFiles`, this segregates the errors
 --   from the successfully parsed modules and returns them in separate lists so the errors
 --   can be reported and the modules can be typechecked.
-collectErrors :: [(FilePath, Either String Module)] -> ([(FilePath, String)], [(FilePath, Module)])
+collectErrors :: [(FilePath, Either T.Text Module)] -> ([(FilePath, T.Text)], [(FilePath, Module)])
 collectErrors [] = ([], [])
 collectErrors ((path, result) : paths) =
   case result of
@@ -86,6 +86,8 @@ maxDiagnosticCount = 100
 filePathToNormalizedUri :: FilePath -> NormalizedUri
 filePathToNormalizedUri = toNormalizedUri . filePathToUri
 
+tshow :: Show a => a -> T.Text
+tshow = T.pack . show
 
 typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
@@ -100,7 +102,7 @@ typecheckFromConfigFile = do
       eitherConfig <- liftIO $ Yaml.decodeFileEither @ProjectConfig rzkYamlPath
       case eitherConfig of
         Left err -> do
-          logError ("Invalid or missing rzk.yaml: " ++ Yaml.prettyPrintParseException err)
+          logError ("Invalid or missing rzk.yaml: " <> T.pack (Yaml.prettyPrintParseException err))
 
         Right config -> do
           logDebug "Starting typechecking"
@@ -112,8 +114,8 @@ typecheckFromConfigFile = do
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
-          logDebug ("Found " ++ show (length cachedPaths) ++ " files in the cache")
-          logDebug (show (length modifiedFiles) ++ " files have been modified")
+          logDebug ("Found " <> tshow (length cachedPaths) <> " files in the cache")
+          logDebug (tshow (length modifiedFiles) <> " files have been modified")
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
           tcResults <- liftIO $ try $ evaluate $
@@ -123,15 +125,15 @@ typecheckFromConfigFile = do
             Left (ex :: SomeException) -> do
               -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
               --  because exceptions are expected when the file has invalid syntax
-              logWarning ("Encountered an exception while typechecking:\n" ++ show ex)
+              logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
               return ([], [])
             Right (Left err) -> do
-              logError ("An impossible error happened! Please report a bug:\n" ++ ppTypeErrorInScopedContext' BottomUp err)
+              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
               return ([err], [])    -- sort of impossible
             Right (Right (checkedModules, errors)) -> do
                 -- cache well-typed modules
-                logInfo (show (length checkedModules) ++ " modules successfully typechecked")
-                logInfo (show (length errors) ++ " errors found")
+                logInfo (tshow (length checkedModules) <> " modules successfully typechecked")
+                logInfo (tshow (length errors) <> " errors found")
                 let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
                 cacheTypecheckedModules checkedModules'
                 return (errors, checkedModules)
@@ -166,7 +168,7 @@ typecheckFromConfigFile = do
                       (Range (Position line 0) (Position line 99)) -- 99 to reach end of line and be visible until we actually have information about it
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "type-error") -- diagnostic code
-                      Nothing                   -- diagonstic description
+                      Nothing                   -- diagnostic description
                       (Just "rzk")              -- A human-readable string describing the source of this diagnostic
                       (T.pack msg)
                       Nothing                   -- tags
@@ -184,19 +186,20 @@ typecheckFromConfigFile = do
 
         line = fromIntegral $ fromMaybe 0 $ extractLineNumber err
 
-    diagnosticOfParseError :: String -> Diagnostic
+    diagnosticOfParseError :: T.Text -> Diagnostic
     diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "parse-error")
                       Nothing
                       (Just "rzk")
-                      (T.pack err)
+                      err
                       Nothing
                       (Just [])
                       Nothing
       where
+        errStr = T.unpack err
         (errLine, errColumnStart, errColumnEnd) = fromMaybe (0, 0, 0) $
-          case words err of
+          case words errStr of
             -- Happy parse error
             (take 9 -> ["syntax", "error", "at", "line", lineStr, "column", columnStr, "before", token]) -> do
               line <- readMaybe (takeWhile isDigit lineStr)
@@ -227,7 +230,7 @@ provideCompletions req res = do
   when (isNothing root) $ logDebug "Not in a workspace. Cannot find root path for relative paths"
   let rootDir = fromMaybe "/" root
   cachedModules <- getCachedTypecheckedModules
-  logDebug ("Found " ++ show (length cachedModules) ++ " modules in the cache")
+  logDebug ("Found " <> tshow (length cachedModules) <> " modules in the cache")
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   -- Take all the modules up to and including the currently open one
   let modules = map ignoreErrors $ takeWhileInc ((/= currentFile) . fst) cachedModules
@@ -239,7 +242,7 @@ provideCompletions req res = do
             | otherwise = [x]
 
   let items = concatMap (declsToItems rootDir) modules
-  logDebug ("Sending " ++ show (length items) ++ " completion items")
+  logDebug ("Sending " <> T.pack (show (length items)) <> " completion items")
   res $ Right $ InL items
   where
     declsToItems :: FilePath -> (FilePath, [Decl']) -> [CompletionItem]
@@ -265,19 +268,19 @@ formattingEditToTextEdit (FormattingEdit startLine startCol endLine endCol newTe
       (Position (fromIntegral startLine - 1) (fromIntegral startCol - 1))
       (Position (fromIntegral endLine - 1) (fromIntegral endCol - 1))
     )
-    (T.pack newText)
+    newText
 
 formatDocument :: Handler LSP 'Method_TextDocumentFormatting
 formatDocument req res = do
   let doc = req ^. params . textDocument . uri . to toNormalizedUri
-  logInfo $ "Formatting document: " <> show doc
+  logInfo $ "Formatting document: " <> T.pack (show doc)
   ServerConfig {formatEnabled = fmtEnabled} <- getConfig
   if fmtEnabled then do
     mdoc <- getVirtualFile doc
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
       Just sourceCode -> do
-        let edits = formatTextEdits (filter (/= '\r') $ T.unpack sourceCode)
+        let edits = formatTextEdits (T.filter (/= '\r') sourceCode)
         return (Right $ map formattingEditToTextEdit edits)
     case possibleEdits of
 #if MIN_VERSION_lsp(2,7,0)
@@ -298,11 +301,11 @@ provideSemanticTokens req responder = do
   possibleTokens <- case virtualFileText <$> mdoc of
     Nothing         -> return (Left "Failed to get file content")
     Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
-      parseModuleSafe (filter (/= '\r') $ T.unpack sourceCode)
+      parseModuleSafe (T.filter (/= '\r') sourceCode)
   case possibleTokens of
     Left err -> do
       -- Exception occurred when parsing the module
-      logWarning ("Failed to tokenize file: " ++ err)
+      logWarning ("Failed to tokenize file: " <> err)
     Right tokens -> do
       let encoded = encodeTokens defaultSemanticTokensLegend $ relativizeTokens tokens
       case encoded of

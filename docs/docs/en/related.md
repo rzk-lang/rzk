@@ -63,7 +63,7 @@ Coq is implemented in OCaml.
 
 [Cubical Agda](https://agda.readthedocs.io/en/latest/language/cubical.html) is a mode extending Agda with a variety of features from Cubical Type Theory[^1] [^2].
 
-Although technical a mode within Agda, it is probably best seen as a separate language.
+Although technically a mode within Agda, it is probably best seen as a separate language.
 Cubical Agda (as well as other cubical proof assistants) supports a variant of extension types found in Rzk,
 albeit restricted to the use with cubical intervals.
 
@@ -81,13 +81,13 @@ Several formalizations in `cubicaltt` can be found at <https://github.com/mortbe
 
 ## Lean
 
-[Lean](https://lean-lang.org) is a teorem prover and a dependently typed programming language, based on the Calculus of Inductive Constructions.
+[Lean](https://lean-lang.org) is a theorem prover and a dependently typed programming language, based on the Calculus of Inductive Constructions.
 Similarly to Coq, Lean encourages heavy use of tactics and automation.
 
 Lean 2, similarly to Agda, supported a mode without uniqueness of identity proofs (UIP),
 which allowed for HoTT formalizations.
 Hence, a formalization of [HoTT in Lean 2](https://github.com/leanprover/lean2/tree/master/hott)[^4] exists.
-However, since Lean 2 is not supported anymore, the formalization is also unmantained.
+However, since Lean 2 is not supported anymore, the formalization is also unmaintained.
 
 Lean 3 and 4 has dropped the mode that allowed (direct) HoTT formalization.
 However, the [Ground Zero](https://github.com/forked-from-1kasper/ground_zero) project

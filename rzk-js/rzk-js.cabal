@@ -9,7 +9,7 @@ executable rzk-js
   main-is:             Main.hs
   ghcjs-options:
     -dedupe
-  build-depends:       base, rzk
+  build-depends:       base, rzk, text >=1.2.3.1
   if impl(ghcjs)
     build-depends:
       ghcjs-base, ghcjs-prim
