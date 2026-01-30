@@ -33,7 +33,7 @@ Minor fixes:
 
 Minor changes:
 
-- Suport syntax sugar for nested Σ-types (see [#183](https://github.com/rzk-lang/rzk/pull/183))
+- Support syntax sugar for nested Σ-types (see [#183](https://github.com/rzk-lang/rzk/pull/183))
 - Improve error reporting (see [#176](https://github.com/rzk-lang/rzk/pull/176) and [#179](https://github.com/rzk-lang/rzk/pull/179))
 
 Fixes:
