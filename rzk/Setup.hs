@@ -20,7 +20,7 @@ main = defaultMainWithHooks $ simpleUserHooks
   { hookedPrograms = [ bnfcProgram ]
   , postConf       = \args flags packageDesc localBuildInfo -> do
 #ifndef mingw32_HOST_OS
-      _ <- system "bnfc -d -p Language.Rzk --generic --functor -o src/ grammar/Syntax.cf"
+      _ <- system "bnfc -d -p Language.Rzk --generic --functor --text-token -o src/ grammar/Syntax.cf"
 #endif
       postConf simpleUserHooks args flags packageDesc localBuildInfo
   }

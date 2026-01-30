@@ -7,6 +7,8 @@ module Rzk.Main where
 
 import           Control.Monad        (forM, when)
 import           Data.List            (sort)
+import qualified Data.Text            as T
+import qualified Data.Text.IO         as T
 import qualified Data.Yaml            as Yaml
 import           System.Directory     (doesPathExist)
 import           System.FilePath.Glob (glob)
@@ -19,11 +21,11 @@ import           Rzk.TypeCheck
 
 parseStdin :: IO Rzk.Module
 parseStdin = do
-  result <- Rzk.parseModule <$> getContents
+  result <- Rzk.parseModule <$> T.getContents
   case result of
     Left err -> do
-      putStrLn ("An error occurred when parsing stdin")
-      error err
+      putStrLn "An error occurred when parsing stdin"
+      error (T.unpack err)
     Right rzkModule -> return rzkModule
 
 -- | Finds matches to the given pattern in the current working directory.
@@ -80,23 +82,23 @@ parseRzkFilesOrStdin = \case
     expandedPaths <- foldMap globNonEmpty paths
     forM expandedPaths $ \path -> do
       putStrLn ("Loading file " <> path)
-      result <- Rzk.parseModule <$> readFile path
+      result <- Rzk.parseModule <$> T.readFile path
       case result of
         Left err -> do
           putStrLn ("An error occurred when parsing file " <> path)
-          error err
+          error (T.unpack err)
         Right rzkModule -> return (path, rzkModule)
 
-typecheckString :: String -> Either String String
+typecheckString :: T.Text -> Either T.Text T.Text
 typecheckString moduleString = do
   rzkModule <- Rzk.parseModule moduleString
   case defaultTypeCheck (typecheckModules [rzkModule]) of
-    Left err -> Left $ unlines
+    Left err -> Left $ T.unlines
       [ "An error occurred when typechecking!"
       , "Rendering type error... (this may take a few seconds)"
-      , unlines
+      , T.unlines
         [ "Type Error:"
-        , ppTypeErrorInScopedContext' BottomUp err
+        , T.pack $ ppTypeErrorInScopedContext' BottomUp err
         ]
       ]
     Right _ -> pure "Everything is ok!"

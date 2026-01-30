@@ -21,48 +21,49 @@ import           Control.Exception          (Exception (..), SomeException,
                                              evaluate, try)
 
 import           Data.Char                  (isSpace)
-import qualified Data.List                  as List
+import qualified Data.Text                  as T
 
 import           Language.Rzk.Syntax.Abs
 import qualified Language.Rzk.Syntax.Layout as Layout
 import qualified Language.Rzk.Syntax.Print  as Print
 
-import           Language.Rzk.Syntax.Lex    (tokens, Token)
+import           Control.Arrow              (ArrowChoice (left))
+import           GHC.IO                     (unsafePerformIO)
+import           Language.Rzk.Syntax.Lex    (Token, tokens)
 import           Language.Rzk.Syntax.Par    (pModule, pTerm)
-import GHC.IO (unsafePerformIO)
 
-tryOrDisplayException :: Either String a -> IO (Either String a)
+tryOrDisplayException :: Either T.Text a -> IO (Either T.Text a)
 tryOrDisplayException = tryOrDisplayExceptionIO . evaluate
 
-tryOrDisplayExceptionIO :: IO (Either String a) -> IO (Either String a)
+tryOrDisplayExceptionIO :: IO (Either T.Text a) -> IO (Either T.Text a)
 tryOrDisplayExceptionIO x =
   try x >>= \case
-    Left (ex :: SomeException) -> return (Left (displayException ex))
+    Left (ex :: SomeException) -> return (Left (T.pack $ displayException ex))
     Right result               -> return result
 
-parseModuleSafe :: String -> IO (Either String Module)
+parseModuleSafe :: T.Text -> IO (Either T.Text Module)
 parseModuleSafe = tryOrDisplayException . parseModule
 
-parseModule :: String -> Either String Module
-parseModule = pModule . Layout.resolveLayout True . tokens . tryExtractMarkdownCodeBlocks "rzk"
+parseModule :: T.Text -> Either T.Text Module
+parseModule = left T.pack . pModule . Layout.resolveLayout True . tokens . tryExtractMarkdownCodeBlocks "rzk"
 
-parseModuleRzk :: String -> Either String Module
-parseModuleRzk = pModule . Layout.resolveLayout True . tokens
+parseModuleRzk :: T.Text -> Either T.Text Module
+parseModuleRzk = left T.pack . pModule . Layout.resolveLayout True . tokens
 
-parseModuleFile :: FilePath -> IO (Either String Module)
+parseModuleFile :: FilePath -> IO (Either T.Text Module)
 parseModuleFile path = do
   source <- readFile path
-  parseModuleSafe source
+  parseModuleSafe (T.pack source)
 
-parseTerm :: String -> Either String Term
-parseTerm = pTerm . tokens
+parseTerm :: T.Text -> Either T.Text Term
+parseTerm = left T.pack . pTerm . tokens
 
-tryExtractMarkdownCodeBlocks :: String -> String -> String
+tryExtractMarkdownCodeBlocks :: T.Text -> T.Text -> T.Text
 tryExtractMarkdownCodeBlocks alias input
-  | ("```" <> alias <> "\n") `List.isInfixOf` input = extractMarkdownCodeBlocks alias input
+  | ("```" <> alias <> "\n") `T.isInfixOf` input = extractMarkdownCodeBlocks alias input
   | otherwise = input
 
-data LineType = NonCode | CodeOf String
+data LineType = NonCode | CodeOf T.Text
 
 -- | Extract code for a given alias (e.g. "rzk" or "haskell") from a Markdown file
 -- by replacing any lines that do not belong to the code in that language with blank lines.
@@ -86,7 +87,7 @@ data LineType = NonCode | CodeOf String
 --   := U
 -- ```
 -- asda
--- >>> putStrLn $ extractMarkdownCodeBlocks "rzk" example
+-- >>> putStrLn $ T.unpack $ extractMarkdownCodeBlocks "rzk" example
 -- <BLANKLINE>
 -- <BLANKLINE>
 -- #lang rzk-1
@@ -98,8 +99,8 @@ data LineType = NonCode | CodeOf String
 -- <BLANKLINE>
 -- <BLANKLINE>
 -- <BLANKLINE>
-extractMarkdownCodeBlocks :: String -> String -> String
-extractMarkdownCodeBlocks alias = unlines . blankNonCode NonCode . map trim . lines
+extractMarkdownCodeBlocks :: T.Text -> T.Text -> T.Text
+extractMarkdownCodeBlocks alias = T.unlines . blankNonCode NonCode . map trim . T.lines
   where
     blankNonCode _prevType [] = []
     blankNonCode prevType (line : lines_) =
@@ -110,19 +111,20 @@ extractMarkdownCodeBlocks alias = unlines . blankNonCode NonCode . map trim . li
           | otherwise     -> ""   : blankNonCode prevType lines_
         NonCode -> "" : blankNonCode (identifyCodeBlockStart line) lines_
 
-    trim = List.dropWhileEnd isSpace
+    trim = T.dropWhileEnd isSpace
 
-identifyCodeBlockStart :: String -> LineType
+identifyCodeBlockStart :: T.Text -> LineType
 identifyCodeBlockStart line
   | prefix == "```" =
-      case words suffix of
-        []                          -> CodeOf "text" -- default to text
-        ('{':'.':lang) : _options   -> CodeOf lang   -- ``` {.rzk ...
-        "{" : ('.':lang) : _options -> CodeOf lang   -- ``` { .rzk ...
-        lang : _options             -> CodeOf lang   -- ```rzk ...
+      -- TODO: find if there is a better way to pattern match than pack/unpack
+      case map T.unpack $ T.words suffix of
+        []                           -> CodeOf "text" -- default to text
+        ('{': '.' : lang) : _options -> CodeOf (T.pack lang)   -- ``` {.rzk ...
+        "{" : ('.':lang) : _options  -> CodeOf (T.pack lang)   -- ``` { .rzk ...
+        lang : _options              -> CodeOf (T.pack lang)   -- ```rzk ...
   | otherwise = NonCode
   where
-    (prefix, suffix) = List.splitAt 3 line
+    (prefix, suffix) = T.splitAt 3 line
 
 -- * Making BNFC resolveLayout safer
 
