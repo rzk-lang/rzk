@@ -19,6 +19,7 @@ import qualified Prelude as C
   , Int, Maybe(..)
   )
 import qualified Data.String
+
 import qualified Data.Text
 import qualified Data.Data    as C (Data)
 import qualified GHC.Generics as C (Generic)
