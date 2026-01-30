@@ -24,12 +24,7 @@ This inequality is used to define shapes like simplices and to express directedn
 ## Example
 
 ```rzk
--- A 1-simplex (directed path) is defined using the inequality
-#define Δ¹
-  : 2 → TOPE
-  := \ t → TOP
-
--- A 2-simplex uses the inequality to express ordering
+-- A 2-simplex uses the inequality to take only half of the square
 #define Δ²
   : ( 2 × 2) → TOPE
   := \ (t , s) → s ≤ t
