@@ -32,10 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: ❄️ Install Nix
-        uses: nixbuild/nix-quick-install-action@v27
+        uses: nixbuild/nix-quick-install-action@v34
         with:
           nix_conf: |
             substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org
@@ -43,7 +43,7 @@ jobs:
             keep-outputs = true
 
       - name: 👝 Restore and Cache Nix store
-        uses: nix-community/cache-nix-action@v6
+        uses: nix-community/cache-nix-action@v7
         with:
           primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
           restore-prefixes-first-match: |
@@ -56,7 +56,7 @@ jobs:
           purge-primary-key: never
 
       - name: 👝 Restore and cache NodeJS deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
