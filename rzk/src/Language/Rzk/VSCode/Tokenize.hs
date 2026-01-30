@@ -63,6 +63,7 @@ tokenizePattern = \case
   PatternVar _loc var    -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]
   PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
   pat@(PatternUnit _loc) -> mkToken pat SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
+  PatternTuple _loc p1 p2 ps -> foldMap tokenizePattern (p1 : p2 : ps)
 
 tokenizeTope :: Term -> [SemanticTokenAbsolute]
 tokenizeTope = tokenizeTerm' (Just SemanticTokenTypes_String)
@@ -125,8 +126,17 @@ tokenizeTerm' varTokenType = go
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
+      TypeSigmaTuple loc p ps tN -> concat 
+        [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap tokenizeSigmaParam (p : ps)
+        , go tN ]
+      ASCII_TypeSigmaTuple loc p ps tN -> concat 
+        [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap tokenizeSigmaParam (p : ps)
+        , go tN ]
       TypeId _loc x a y -> foldMap go [x, a, y]
       TypeIdSimple _loc x y -> foldMap go [x, y]
+        
 
       TypeRestricted _loc type_ rs -> concat
         [ go type_
@@ -139,6 +149,7 @@ tokenizeTerm' varTokenType = go
       ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]
+      Tuple _loc p1 p2 ps -> foldMap go (p1:p2:ps)
       First loc t -> concat
         [ mkToken (VarIdent loc "π₁") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]
@@ -200,6 +211,11 @@ tokenizeParamDecl = \case
     , tokenizeTerm cube
     , tokenizeTope tope
     ]
+
+tokenizeSigmaParam :: SigmaParam -> [SemanticTokenAbsolute]
+tokenizeSigmaParam (SigmaParam _loc pat type_) = concat 
+  [ tokenizePattern pat 
+  , tokenizeTerm type_ ]
 
 mkToken :: (HasPosition a, Print a) => a -> SemanticTokenTypes -> [SemanticTokenModifiers] -> [SemanticTokenAbsolute]
 mkToken x tokenType tokenModifiers =

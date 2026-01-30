@@ -1,9 +1,12 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE CPP           #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
@@ -39,6 +42,7 @@ import           Language.LSP.VFS              (virtualFileText)
 import           System.FilePath               (makeRelative, (</>))
 import           System.FilePath.Glob          (compile, globDir)
 
+import           Data.Char                     (isDigit)
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
                                                 VarIdent (getVarIdent))
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
@@ -52,6 +56,7 @@ import           Rzk.Format                    (FormattingEdit (..),
                                                 formatTextEdits)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
+import           Text.Read                     (readMaybe)
 
 -- | Given a list of file paths, reads them and parses them as Rzk modules,
 --   returning the same list of file paths but with the parsed module (or parse error)
@@ -104,7 +109,8 @@ typecheckFromConfigFile = do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
 
-          cachedModules <- getCachedTypecheckedModules
+          typecheckedCachedModules <- getCachedTypecheckedModules
+          let cachedModules = map (\(path, RzkCachedModule{..}) -> (path, cachedModuleDecls)) typecheckedCachedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
@@ -128,13 +134,14 @@ typecheckFromConfigFile = do
                 -- cache well-typed modules
                 logInfo (tshow (length checkedModules) <> " modules successfully typechecked")
                 logInfo (tshow (length errors) <> " errors found")
-                cacheTypecheckedModules checkedModules
+                let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
+                cacheTypecheckedModules checkedModules'
                 return (errors, checkedModules)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
           -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
-          forM_ paths $ \path -> do
+          forM_ modifiedFiles $ \path -> do
             publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
           -- Report parse errors to the client
@@ -161,7 +168,7 @@ typecheckFromConfigFile = do
                       (Range (Position line 0) (Position line 99)) -- 99 to reach end of line and be visible until we actually have information about it
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "type-error") -- diagnostic code
-                      Nothing                   -- diagonstic description
+                      Nothing                   -- diagnostic description
                       (Just "rzk")              -- A human-readable string describing the source of this diagnostic
                       (T.pack msg)
                       Nothing                   -- tags
@@ -180,7 +187,7 @@ typecheckFromConfigFile = do
         line = fromIntegral $ fromMaybe 0 $ extractLineNumber err
 
     diagnosticOfParseError :: T.Text -> Diagnostic
-    diagnosticOfParseError err = Diagnostic (Range (Position 0 0) (Position 0 0))
+    diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "parse-error")
                       Nothing
@@ -189,6 +196,28 @@ typecheckFromConfigFile = do
                       Nothing
                       (Just [])
                       Nothing
+      where
+        errStr = T.unpack err
+        (errLine, errColumnStart, errColumnEnd) = fromMaybe (0, 0, 0) $
+          case words errStr of
+            -- Happy parse error
+            (take 9 -> ["syntax", "error", "at", "line", lineStr, "column", columnStr, "before", token]) -> do
+              line <- readMaybe (takeWhile isDigit lineStr)
+              columnStart <- readMaybe (takeWhile isDigit columnStr)
+              return (line - 1, columnStart - 1, columnStart + fromIntegral (length token) - 3)
+            -- Happy parse error due to lexer error
+            (take 7 -> ["syntax", "error", "at", "line", lineStr, "column", columnStr]) -> do
+              line <- readMaybe (takeWhile isDigit lineStr)
+              columnStart <- readMaybe (takeWhile isDigit columnStr)
+              return (line - 1, columnStart - 1, columnStart - 1)
+            -- BNFC layout resolver error
+            (take 14 -> ["Layout", "error", "at", "line", _lineStr, "column", _columnStr, "found", token, "at", "line", lineStr', "column", columnStr']) -> do
+              -- line <- readMaybe (takeWhile isDigit lineStr)
+              -- columnStart <- readMaybe (takeWhile isDigit columnStr)
+              line' <- readMaybe (takeWhile isDigit lineStr')
+              columnStart' <- readMaybe (takeWhile isDigit columnStr')
+              return (line' - 1, columnStart', columnStart' + fromIntegral (length token) - 2)
+            _ -> Nothing
 
 instance Default T.Text where def = ""
 instance Default CompletionItem
@@ -204,8 +233,9 @@ provideCompletions req res = do
   logDebug ("Found " <> tshow (length cachedModules) <> " modules in the cache")
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   -- Take all the modules up to and including the currently open one
-  let modules = takeWhileInc ((/= currentFile) . fst) cachedModules
+  let modules = map ignoreErrors $ takeWhileInc ((/= currentFile) . fst) cachedModules
         where
+          ignoreErrors (path, RzkCachedModule{..}) = (path, cachedModuleDecls)
           takeWhileInc _ [] = []
           takeWhileInc p (x:xs)
             | p x       = x : takeWhileInc p xs
@@ -218,7 +248,7 @@ provideCompletions req res = do
     declsToItems :: FilePath -> (FilePath, [Decl']) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
     declToItem :: FilePath -> FilePath -> Decl' -> CompletionItem
-    declToItem rootDir path (Decl name type' _ _ _) = def
+    declToItem rootDir path (Decl name type' _ _ _ _loc) = def
       & label .~ T.pack (printTree $ getVarIdent name)
       & detail ?~ T.pack (show type')
       & documentation ?~ InR (MarkupContent MarkupKind_Markdown $ T.pack $
@@ -253,7 +283,11 @@ formatDocument req res = do
         let edits = formatTextEdits (T.filter (/= '\r') sourceCode)
         return (Right $ map formattingEditToTextEdit edits)
     case possibleEdits of
+#if MIN_VERSION_lsp(2,7,0)
+      Left err    -> res $ Left $ TResponseError (InR ErrorCodes_InternalError) err Nothing
+#else
       Left err    -> res $ Left $ ResponseError (InR ErrorCodes_InternalError) err Nothing
+#endif
       Right edits -> do
         res $ Right $ InL edits
   else do
@@ -289,13 +323,15 @@ data IsChanged
 -- | Detects if the given path has changes in its declaration compared to what's in the cache
 isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
 isChanged cache path = toIsChanged $ do
-  cachedDecls <- maybeToEitherLSP $ lookup path cache
+  let cacheWithoutErrors = map (fmap cachedModuleDecls) cache
+  errors <- maybeToEitherLSP $ cachedModuleErrors <$> lookup path cache
+  cachedDecls <- maybeToEitherLSP $ cachedModuleDecls <$> lookup path cache
   module' <- toExceptTLifted $ parseModuleFile path
   e <- toExceptTLifted $ try @SomeException $ evaluate $
-    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cache) [(path, module')])
-  (checkedModules, _errors) <- toExceptT $ return e
+    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cacheWithoutErrors) [(path, module')])
+  (checkedModules, errors') <- toExceptT $ return e
   decls' <- maybeToEitherLSP $ lookup path checkedModules
-  return $ if decls' == cachedDecls
+  return $ if null errors' && null errors && decls' == cachedDecls
     then NotChanged
     else HasChanged
   where

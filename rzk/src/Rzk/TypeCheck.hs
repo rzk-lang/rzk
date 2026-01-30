@@ -1,12 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults -fno-warn-orphans #-}
-{-# LANGUAGE DeriveFoldable       #-}
-{-# LANGUAGE DeriveFunctor        #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TupleSections        #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Rzk.TypeCheck where
 
 import           Control.Applicative      ((<|>))
@@ -47,6 +45,7 @@ data Decl var = Decl
   , declValue        :: Maybe (TermT var)
   , declIsAssumption :: Bool
   , declUsedVars     :: [var]
+  , declLocation     :: Maybe LocationInfo
   } deriving Eq
 
 type Decl' = Decl VarIdent
@@ -137,7 +136,8 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
           term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT
-          let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars)
+          loc <- asks location
+          let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars) loc
           fmap (first (decl :)) $
             localDeclPrepared decl $ do
               Context{..} <- ask
@@ -156,7 +156,8 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
           ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
-          let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars)
+          loc <- asks location
+          let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars) loc
           fmap (first (decl :)) $
             localDeclPrepared decl $
               go (i + 1) moreCommands
@@ -193,7 +194,8 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           <> " Checking #assume " <> intercalate " " [ Rzk.printTree name | name <- names ] ) $ do
         withCommand command $ do
           ty' <- typecheck (toTerm' ty) universeT
-          let decls = [ Decl (varIdentAt path name) ty' Nothing True [] | name <- names ]
+          loc <- asks location
+          let decls = [ Decl (varIdentAt path name) ty' Nothing True [] loc | name <- names ]
           fmap (first (decls <>)) $
             localDeclsPrepared decls $
               go (i + 1) moreCommands
@@ -453,13 +455,16 @@ issueWarning message = do
   trace ("Warning: " <> message) $
     return ()
 
-issueTypeError :: TypeError var -> TypeCheck var a
-issueTypeError err = do
+fromTypeError :: TypeError var -> TypeCheck var (TypeErrorInScopedContext var)
+fromTypeError err = do
   context <- ask
-  throwError $ PlainTypeError $ TypeErrorInContext
+  return $ PlainTypeError $ TypeErrorInContext
     { typeErrorError = err
     , typeErrorContext = context
     }
+
+issueTypeError :: TypeError var -> TypeCheck var a
+issueTypeError err = fromTypeError err >>= throwError
 
 panicImpossible :: String -> a
 panicImpossible msg = error $ unlines
@@ -518,9 +523,9 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
     , "  " <> show (untyped term) ]
 
   ActionUnifyTerms expected actual ->
-    [ "unifying term"
+    [ "unifying term (expected)"
     , "  " <> show expected
-    , "with term"
+    , "with term (actual)"
     , "  " <> show actual ]
 
   ActionInfer term ->
@@ -578,7 +583,7 @@ unsafeTraceAction' n = traceAction' n . unsafeCoerce
 data LocationInfo = LocationInfo
   { locationFilePath :: Maybe FilePath
   , locationLine     :: Maybe Int
-  }
+  } deriving (Eq)
 
 data Verbosity
   = Debug
@@ -604,7 +609,8 @@ localRenderBackend v = local $ \Context{..} -> Context { renderBackend = v, .. }
 
 data Covariance
   = Covariant     -- ^ Positive position.
-  | Contravariant -- ^ Negative position
+  | Contravariant -- ^ Negative position.
+  | Invariant     -- ^ Unknown position.
 
 data RenderBackend
   = RenderSVG
@@ -625,6 +631,7 @@ data VarInfo var = VarInfo
   , varOrig                :: Maybe VarIdent
   , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
   , varDeclaredAssumptions :: [var]
+  , varLocation            :: Maybe LocationInfo
   } deriving (Functor, Foldable)
 
 data Context var = Context
@@ -702,26 +709,34 @@ withSection name sectionBody =
     (decls, errs) <- sectionBody
     localDeclsPrepared decls $
       performing (ActionCloseSection name) $ do
-        (\ decls' -> (decls', errs)) <$> endSection errs
+        result <- (Right <$> endSection errs) `catchError` (return . Left)
+        case result of
+          Left err              -> return ([], errs <> [err])
+          Right (decls', errs') -> return (decls', errs')
+        -- (\ decls' -> (decls', errs)) <$> endSection errs
 
 startSection :: Maybe Rzk.SectionName -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 startSection name = local $ \Context{..} -> Context
   { localScopes = ScopeInfo { scopeName = name, scopeVars = [] } : localScopes
   , .. }
 
-endSection :: [TypeErrorInScopedContext VarIdent] -> TypeCheck VarIdent [Decl']
+endSection :: [TypeErrorInScopedContext VarIdent] -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
 endSection errs = askCurrentScope >>= scopeToDecls errs
 
-scopeToDecls :: Eq var => [TypeErrorInScopedContext VarIdent] -> ScopeInfo var -> TypeCheck var [Decl var]
+scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
 scopeToDecls errs ScopeInfo{..} = do
-  decls <- collectScopeDecls errs [] scopeVars
+  (decls, errs') <- collectScopeDecls errs [] scopeVars
   -- only issue unused variable errors if there were no errors prior in the section
-  when (null errs) $ do
-    forM_ decls $ \Decl{..} -> do
-      let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
-      when (not (null unusedUsedVars)) $
-        issueTypeError $ TypeErrorUnusedUsedVariables unusedUsedVars declName
-  return decls
+  -- when (null errs) $ do
+  unusedErrors <- forM decls $ \Decl{..} -> do
+    let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
+    if null errs && not (null unusedUsedVars)
+      then do
+        err <- local (\c -> c { location = declLocation }) $
+          fromTypeError (TypeErrorUnusedUsedVariables unusedUsedVars declName)
+        return [err]
+      else return []
+  return (decls, errs' <> concat unusedErrors)
 
 insertExplicitAssumptionFor
   :: Eq var => var -> (var, VarInfo var) -> TermT var -> TermT var
@@ -740,6 +755,7 @@ insertExplicitAssumptionFor' a decl VarInfo{..}
       , varIsAssumption = varIsAssumption
       , varOrig = varOrig
       , varDeclaredAssumptions = varDeclaredAssumptions
+      , varLocation = varLocation
       }
 
 makeAssumptionExplicit
@@ -778,29 +794,38 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
       , varIsAssumption = varIsAssumption xInfo
       , varOrig = varOrig xInfo
       , varDeclaredAssumptions = varDeclaredAssumptions xInfo \\ [a]
+      , varLocation = varLocation xInfo
       }
     xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
 
-collectScopeDecls :: Eq var => [TypeErrorInScopedContext VarIdent] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var [Decl var]
+collectScopeDecls :: Eq var => [TypeErrorInScopedContext var] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
 collectScopeDecls errs recentVars (decl@(var, VarInfo{..}) : vars)
   | varIsAssumption = do
       (used, recentVars') <- makeAssumptionExplicit decl recentVars
       -- only issue unused vars error if there were no other errors previously
-      when (null errs) $ do
-        when (not used) $ do
-          issueTypeError $ TypeErrorUnusedVariable var varType
-      collectScopeDecls errs recentVars' vars
+      -- when (null errs) $ do
+      unusedErr <-
+        if null errs && not used
+          then local (\c -> c { location = varLocation }) $
+            pure <$> fromTypeError (TypeErrorUnusedVariable var varType)
+          else return []
+      collectScopeDecls (errs <> unusedErr) recentVars' vars
   | otherwise = do
       collectScopeDecls errs (decl : recentVars) vars
-collectScopeDecls _ recentVars [] = return (toDecl <$> recentVars)
+collectScopeDecls errs recentVars [] = do
+  loc <- asks location
+  return (toDecl loc <$> recentVars, errs)
   where
-    toDecl (var, VarInfo{..}) = Decl
+    toDecl loc (var, VarInfo{..}) = Decl
       { declName = var
       , declType = varType
       , declValue = varValue
       , declIsAssumption = varIsAssumption
       , declUsedVars = varDeclaredAssumptions
+      , declLocation = updatePosition (varOrig >>= fmap fst . Rzk.hasPosition . fromVarIdent) <$> loc -- FIXME
       }
+    updatePosition Nothing l       = l
+    updatePosition (Just lineNo) l = l { locationLine = Just lineNo }
 
 abstractAssumption :: Eq var => (var, VarInfo var) -> Decl var -> Decl var
 abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
@@ -809,6 +834,7 @@ abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
   , declValue = (\body -> lambdaT newDeclType varOrig Nothing (abstract var body)) <$> declValue
   , declIsAssumption = declIsAssumption
   , declUsedVars = declUsedVars
+  , declLocation = declLocation
   }
   where
     newDeclType = typeFunT varOrig varType Nothing (abstract var declType)
@@ -925,13 +951,13 @@ localDeclsPrepared [] = id
 localDeclsPrepared (decl : decls) = localDeclPrepared decl . localDeclsPrepared decls
 
 localDecl :: Decl VarIdent -> TypeCheck VarIdent a -> TypeCheck VarIdent a
-localDecl (Decl x ty term isAssumption vars) tc = do
+localDecl (Decl x ty term isAssumption vars loc) tc = do
   ty' <- whnfT ty
   term' <- traverse whnfT term
-  localDeclPrepared (Decl x ty' term' isAssumption vars) tc
+  localDeclPrepared (Decl x ty' term' isAssumption vars loc) tc
 
 localDeclPrepared :: Decl VarIdent -> TypeCheck VarIdent a -> TypeCheck VarIdent a
-localDeclPrepared (Decl x ty term isAssumption vars) tc = do
+localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
@@ -941,6 +967,7 @@ localDeclPrepared (Decl x ty term isAssumption vars) tc = do
       , varOrig = Just x
       , varIsAssumption = isAssumption
       , varDeclaredAssumptions = vars
+      , varLocation = loc
       }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
@@ -1302,17 +1329,23 @@ switchVariance = local $ \Context{..} -> Context
     where
       switch Covariant     = Contravariant
       switch Contravariant = Covariant
+      switch Invariant     = Invariant
+
+setVariance :: Covariance -> TypeCheck var a -> TypeCheck var a
+setVariance variance = local $ \Context{..} -> Context
+  { covariance = variance, .. }
 
 enterScopeContext :: Maybe VarIdent -> TermT var -> Context var -> Context (Inc var)
-enterScopeContext orig ty =
+enterScopeContext orig ty context =
   addVarInCurrentScope Z VarInfo
     { varType   = S <$> ty
     , varValue  = Nothing
     , varOrig   = orig
     , varIsAssumption = False
     , varDeclaredAssumptions = []
+    , varLocation = location context
     }
-  . fmap S
+    (S <$> context)
 
 enterScope :: Maybe VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig ty action = do
@@ -1520,7 +1553,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                       | TypeRestrictedT{} <- infoType info -> pure (AppT ty f' x)
                       | otherwise -> do
                           let ret' = substituteT x ret
-                          tryRestriction ret' >>= \case -- FIXME: to many unnecessary checks?
+                          tryRestriction ret' >>= \case -- FIXME: too many unnecessary checks?
                             Nothing  -> pure (AppT ty { infoType = ret' } f' x)
                             Just tt' -> whnfT tt'
                     _ -> pure (AppT ty f' x)
@@ -1776,7 +1809,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
               []   -> nfT type_
               rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
 
-checkDefinedVar :: Eq var => var -> TypeCheck var ()
+checkDefinedVar :: VarIdent -> TypeCheck VarIdent ()
 checkDefinedVar x = asks (lookup x . varInfos) >>= \case
   Nothing  -> issueTypeError $ TypeErrorUndefined x
   Just _ty -> return ()
@@ -1832,7 +1865,7 @@ unifyViaDecompose :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyViaDecompose expected actual | expected == actual = return ()
 unifyViaDecompose (AppT _ f x) (AppT _ g y) = do
   unify Nothing f g
-  unify Nothing x y
+  setVariance Invariant $ unify Nothing x y
 unifyViaDecompose _ _ = issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
@@ -1840,205 +1873,223 @@ unifyInCurrentContext mterm expected actual = performing action $
   unifyViaDecompose expected actual `catchError` \_ -> do      -- NOTE: this gives a small, but noticeable speedup
     expectedVal <- whnfT expected
     actualVal <- whnfT actual
-    (expected', actual') <- asks covariance >>= \case
-      Covariant     -> etaMatch mterm expectedVal actualVal
-      Contravariant -> swap <$> etaMatch mterm actualVal expectedVal
-    unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
-      case actual' of
-        RecBottomT{} -> return ()
-        RecOrT _ty rs' ->
-          case expected' of
-            RecOrT _ty rs -> sequence_ $
-              checkCoherence <$> rs <*> rs'
-            _ -> do
-              forM_ rs' $ \(tope, term) ->
-                localTope tope $
-                  unifyTerms expected' term
-        _ -> typeOf expected' >>= typeOf >>= \case
-          UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
-          _ -> do
-            let def = unless (expected' == actual') err
-                err =
-                  case mterm of
-                    Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
-                    Just term -> issueTypeError (TypeErrorUnify term expected' actual')
-                errS = do
-                  let expectedS = S <$> expected'
-                      actualS = S <$> actual'
-                  case mterm of
-                    Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
-                    Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
-            case expected' of
-              Pure{} -> def
-
-              UniverseT{} -> def
-              UniverseCubeT{} -> def
-              UniverseTopeT{} -> def
-
-              TypeUnitT{} -> def
-              UnitT{} -> return ()  -- Unit always unifies!
-
-              CubeUnitT{} -> def
-              CubeUnitStarT{} -> def
-              Cube2T{} -> def
-              Cube2_0T{} -> def
-              Cube2_1T{} -> def
-              CubeProductT _ l r ->
-                case actual' of
-                  CubeProductT _ l' r' -> do
-                    unifyTerms l l'
-                    unifyTerms r r'
-                  _ -> err
-
-              PairT _ty l r ->
-                case actual' of
-                  PairT _ty' l' r' -> do
-                    unifyTerms l l'
-                    unifyTerms r r'
-
-                  -- one part of eta-expansion for pairs
-                  -- FIXME: add symmetric version!
-                  _ -> err
-
-              FirstT _ty t ->
-                case actual' of
-                  FirstT _ty' t' -> unifyTerms t t'
-                  _              -> err
-
-              SecondT _ty t ->
-                case actual' of
-                  SecondT _ty' t' -> unifyTerms t t'
-                  _               -> err
-
-              TopeTopT{}    -> unifyTopes expected' actual'
-              TopeBottomT{} -> unifyTopes expected' actual'
-              TopeEQT{}     -> unifyTopes expected' actual'
-              TopeLEQT{}    -> unifyTopes expected' actual'
-              TopeAndT{}    -> unifyTopes expected' actual'
-              TopeOrT{}     -> unifyTopes expected' actual'
-
-              RecBottomT{} -> return () -- unifies with anything
-              RecOrT _ty rs ->
-                case actual' of
-                  -- ----------------------------------------------
-                  -- IMPORTANT: this pattern matching is redundant,
-                  -- but it is not obvious, so
-                  -- take care when refactoring!
-                  -- ----------------------------------------------
-  --                RecOrT _ty rs' -> sequence_ $
-  --                  checkCoherence <$> rs <*> rs'
-                  -- ----------------------------------------------
-                  _ -> do
-                    forM_ rs $ \(tope, term) ->
-                      localTope tope $
-                        unifyTerms term actual'
-
-              TypeFunT _ty _orig cube mtope ret ->
-                case actual' of
-                  TypeFunT _ty' orig' cube' mtope' ret' -> do
-                    switchVariance $  -- unifying in the negative position!
-                      unifyTerms cube cube' -- FIXME: unifyCubes
-                    enterScope orig' cube $ do
-                      case ret' of
-                        -- UniverseTopeT{} ->
-                        --   (Just tope, Just tope') -> do
-                        --     topeNF <- nfT tope
-                        --     topeNF' <- nfT tope'
-                        --     unifyTopes topeNF topeNF'
-                        --   (Nothing, Nothing)      -> return ()
-                        --   (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
-                        --   (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
-                        _ -> case (mtope, mtope') of
-                          (Just tope, Just tope') -> do
-                            topeNF <- nfT tope
-                            topeNF' <- nfT tope'
-                            unifyTopes topeNF topeNF'
-                          (Nothing, Nothing)      -> return ()
-                          (Just tope, Nothing)    -> nfT tope >>= (`unifyTopes` topeTopT)
-                          (Nothing, Just tope)    -> nfT tope >>= unifyTopes topeTopT
+    mea <- asks covariance >>= \case
+      Covariant     -> Just <$> etaMatch mterm expectedVal actualVal
+      Contravariant -> Just . swap <$> etaMatch mterm actualVal expectedVal
+      Invariant     -> traceTypeCheck Debug "invariant" $ do
+        -- FIXME: inefficient
+        traceTypeCheck Debug "invariant->covariant" $ 
+          setVariance Covariant     $ unifyInCurrentContext mterm expectedVal actualVal
+        traceTypeCheck Debug "invariant->contravariant" $ 
+          setVariance Contravariant $ unifyInCurrentContext mterm expectedVal actualVal
+        return Nothing
+    case mea of
+      Nothing -> return ()
+      Just (expected', actual') ->
+        unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
+          case actual' of
+            RecBottomT{} -> return ()
+            RecOrT _ty rs' ->
+              case expected' of
+                RecOrT _ty rs -> sequence_ $
+                  checkCoherence <$> rs <*> rs'
+                _ -> do
+                  forM_ rs' $ \(tope, term) ->
+                    localTope tope $
+                      unifyTerms expected' term
+            _ -> typeOf expected' >>= typeOf >>= \case
+              UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
+              _ -> do
+                let def = unless (expected' == actual') err
+                    err =
                       case mterm of
-                        Nothing -> unifyTerms ret ret'
-                        Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
-                  _ -> err
+                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
+                        Just term -> issueTypeError (TypeErrorUnify term expected' actual')
+                    errS = do
+                      let expectedS = S <$> expected'
+                          actualS = S <$> actual'
+                      case mterm of
+                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
+                        Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+                case expected' of
+                  Pure{} -> def
 
-              TypeSigmaT _ty _orig a b ->
-                case actual' of
-                  TypeSigmaT _ty' orig' a' b' -> do
-                    unify Nothing a a'
-                    enterScope orig' a $ unify Nothing b b'
-                  _ -> err
+                  UniverseT{} -> def
+                  UniverseCubeT{} -> def
+                  UniverseTopeT{} -> def
 
-              TypeIdT _ty x _tA y ->
-                case actual' of
-                  TypeIdT _ty' x' _tA' y' -> do
-                    -- unify Nothing tA tA' -- TODO: do we need this check?
-                    unify Nothing x x'
-                    unify Nothing y y'
-                  _ -> err
+                  TypeUnitT{} -> def
+                  UnitT{} -> return ()  -- Unit always unifies!
 
-              AppT _ty f x ->
-                case actual' of
-                  AppT _ty' f' x' -> do
-                    unify Nothing f f'
-                    unify Nothing x x'
-                  _ -> err
-
-              LambdaT ty _orig _mparam body ->
-                case stripTypeRestrictions (infoType ty) of
-                  TypeFunT _ty _origF param mtope _ret ->
+                  CubeUnitT{} -> def
+                  CubeUnitStarT{} -> def
+                  Cube2T{} -> def
+                  Cube2_0T{} -> def
+                  Cube2_1T{} -> def
+                  CubeProductT _ l r ->
                     case actual' of
-                      LambdaT ty' orig' _mparam' body' -> do
-                        case stripTypeRestrictions (infoType ty') of
-                          TypeFunT _ty' _origF' param' mtope' _ret' -> do
-                            unify Nothing param param'
-                            enterScope orig' param $ do
-                              case (mtope, mtope') of
-                                (Just tope, Just tope') -> do
-                                  unify Nothing tope tope'
-                                  localTope tope $ unify Nothing body body'
-                                (Nothing, Nothing) -> do
-                                  unify Nothing body body'
-                                _ -> errS
+                      CubeProductT _ l' r' -> do
+                        unifyTerms l l'
+                        unifyTerms r r'
+                      _ -> err
+
+                  PairT _ty l r ->
+                    case actual' of
+                      PairT _ty' l' r' -> do
+                        unifyTerms l l'
+                        unifyTerms r r'
+
+                      -- one part of eta-expansion for pairs
+                      -- FIXME: add symmetric version!
+                      _ -> err
+
+                  FirstT _ty t ->
+                    case actual' of
+                      FirstT _ty' t' -> unifyTerms t t'
+                      _              -> err
+
+                  SecondT _ty t ->
+                    case actual' of
+                      SecondT _ty' t' -> unifyTerms t t'
+                      _               -> err
+
+                  TopeTopT{}    -> unifyTopes expected' actual'
+                  TopeBottomT{} -> unifyTopes expected' actual'
+                  TopeEQT{}     -> unifyTopes expected' actual'
+                  TopeLEQT{}    -> unifyTopes expected' actual'
+                  TopeAndT{}    -> unifyTopes expected' actual'
+                  TopeOrT{}     -> unifyTopes expected' actual'
+
+                  RecBottomT{} -> return () -- unifies with anything
+                  RecOrT _ty rs ->
+                    case actual' of
+                      -- ----------------------------------------------
+                      -- IMPORTANT: this pattern matching is redundant,
+                      -- but it is not obvious, so
+                      -- take care when refactoring!
+                      -- ----------------------------------------------
+      --                RecOrT _ty rs' -> sequence_ $
+      --                  checkCoherence <$> rs <*> rs'
+                      -- ----------------------------------------------
+                      _ -> do
+                        forM_ rs $ \(tope, term) ->
+                          localTope tope $
+                            unifyTerms term actual'
+
+                  TypeFunT _ty _orig cube mtope ret ->
+                    case actual' of
+                      TypeFunT _ty' orig' cube' mtope' ret' -> do
+                        switchVariance $  -- unifying in the negative position!
+                          unifyTerms cube cube' -- FIXME: unifyCubes
+                        enterScope orig' cube $ do
+                          case ret' of
+                            UniverseTopeT{} -> do
+                              -- This is the case for tope families (shapes)
+                              --
+                              -- (Λ → TOPE) <: (Δ → TOPE)
+                              -- since if φ : Λ → TOPE
+                              -- then φ ⊢ Δ
+                              --
+                              -- we DO NOT take tope context Φ into account!
+                              expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
+                              actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
+                              actualEntailsExpected <- [actualTopeNF] `entailM` expectedTopeNF
+                              unless actualEntailsExpected $
+                                issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
+                            _ -> do
+                              -- this is the case for Π-types and extension types
+                              --
+                              -- Ξ | Φ | Γ   ⊢   {t : I | φ} → A t   <:   {s : J | ψ} → B s
+                              -- when
+                              -- Ξ | Φ, ψ ⊢ φ
+                              expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
+                              actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
+                              localTope expectedTopeNF $
+                                contextEntails actualTopeNF
+                          case mterm of
+                            Nothing -> unifyTerms ret ret'
+                            Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
+                      _ -> err
+
+                  TypeSigmaT _ty _orig a b ->
+                    case actual' of
+                      TypeSigmaT _ty' orig' a' b' -> do
+                        unify Nothing a a'
+                        enterScope orig' a' $ unify Nothing b b'
+                      _ -> err
+
+                  TypeIdT _ty x _tA y ->
+                    case actual' of
+                      TypeIdT _ty' x' _tA' y' -> do
+                        -- unify Nothing tA tA' -- TODO: do we need this check?
+                        unify Nothing x x'
+                        unify Nothing y y'
+                      _ -> err
+
+                  AppT _ty f x ->
+                    case actual' of
+                      AppT _ty' f' x' -> do
+                        unify Nothing f f'
+                        setVariance Invariant $
+                          unify Nothing x x'
+                      _ -> err
+
+                  LambdaT ty _orig _mparam body ->
+                    case stripTypeRestrictions (infoType ty) of
+                      TypeFunT _ty _origF param mtope _ret ->
+                        case actual' of
+                          LambdaT ty' orig' _mparam' body' -> do
+                            case stripTypeRestrictions (infoType ty') of
+                              TypeFunT _ty' _origF' param' mtope' _ret' -> do
+                                unify Nothing param param' -- we (should) have already checked this in types!
+                                enterScope orig' param $ do
+                                  case (mtope, mtope') of
+                                    (Just tope, Just tope') -> do
+                                      unify Nothing tope tope' -- we (should) have already checked this in types!
+                                      localTope tope $ unify Nothing body body'
+                                    (Nothing, Nothing) -> do
+                                      unify Nothing body body'
+                                    _ -> errS
+                              _ -> err
                           _ -> err
                       _ -> err
-                  _ -> err
 
-              ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
-                case actual' of
-                  ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
-                    -- unify Nothing tA tA' -- TODO: do we need this check?
-                    unify Nothing x x'
-                    unify Nothing y y'
-                  _ -> err
-              ReflT{} -> panicImpossible "refl with a non-identity type!"
+                  ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
+                    case actual' of
+                      ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
+                        -- unify Nothing tA tA' -- TODO: do we need this check?
+                        unify Nothing x x'
+                        unify Nothing y y'
+                      _ -> err
+                  ReflT{} -> panicImpossible "refl with a non-identity type!"
 
-              IdJT _ty a b c d e f ->
-                case actual' of
-                  IdJT _ty' a' b' c' d' e' f' -> do
-                    unify Nothing a a'
-                    unify Nothing b b'
-                    unify Nothing c c'
-                    unify Nothing d d'
-                    unify Nothing e e'
-                    unify Nothing f f'
-                  _ -> err
+                  IdJT _ty a b c d e f ->
+                    case actual' of
+                      IdJT _ty' a' b' c' d' e' f' -> do
+                        unify Nothing a a'
+                        unify Nothing b b'
+                        unify Nothing c c'
+                        unify Nothing d d'
+                        unify Nothing e e'
+                        unify Nothing f f'
+                      _ -> err
 
-              TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
+                  TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
 
-              TypeRestrictedT _ty ty rs ->
-                case actual' of
-                  TypeRestrictedT _ty' ty' rs' -> do
-                    unify mterm ty ty'
-                    sequence_
-                      [ localTope tope $ do
-                          -- FIXME: can do less entails checks?
-                          contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
-                          forM_ rs' $ \(tope', term') -> do
-                            localTope tope' $
-                              unify Nothing term term'
-                      | (tope, term) <- rs
-                      ]
-                  _ -> err    -- FIXME: need better unification for restrictions
+                  TypeRestrictedT _ty ty rs ->
+                    case actual' of
+                      TypeRestrictedT _ty' ty' rs' -> do
+                        unify mterm ty ty'
+                        sequence_
+                          [ localTope tope $ do
+                              -- FIXME: can do less entails checks?
+                              contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
+                              forM_ rs' $ \(tope', term') -> do
+                                localTope tope' $
+                                  unify Nothing term term'
+                          | (tope, term) <- rs
+                          ]
+                      _ -> err    -- FIXME: need better unification for restrictions
 
   where
     action = case mterm of
@@ -2433,10 +2484,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                 xty' <- typecheck xty universeT
                 unifyTerms tA xty'
               x' <- typecheck x tA
-              unifyTerms x' y
-              unifyTerms x' z
+              unifyTerms x' y >> unifyTerms y x'
+              unifyTerms x' z >> unifyTerms z x'
             when (isNothing mx) $
-              unifyTerms y z
+              unifyTerms y z >> unifyTerms z y
             return (reflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorUnexpectedRefl term ty
 
@@ -2490,7 +2541,15 @@ infer tt = performing (ActionInfer tt) $ case tt of
     lt <- typeOf l'
     rt <- typeOf r'
     typeOf lt >>= \case
+      --    Γ ⊢ l ⇒ (I : CUBE)
+      --    Γ ⊢ r ⇒ (J : CUBE)
+      -- ———————————————————————————
+      -- Γ ⊢ (l, r) ⇒ (I × J : CUBE)
       UniverseCubeT{} -> return (pairT (cubeProductT lt rt) l' r')
+      --    Γ ⊢ l ⇒ (A : U)
+      --    Γ ⊢ r ⇒ (B : U)
+      -- ———————————————————————————
+      -- Γ ⊢ (l, r) ⇒ (A × B : U)             where A × B = Σ (_ : A), B
       _ -> do
         -- NOTE: infer as a non-dependent pair!
         return (pairT (typeSigmaT Nothing lt (S <$> rt)) l' r')
@@ -2546,6 +2605,11 @@ infer tt = performing (ActionInfer tt) $ case tt of
     contextEntails topeBottomT
     return recBottomT
 
+  -- Γ ⊢ t ⇒ (T : K)
+  -- Γ ⊢ K ≡ U
+  -- —————————————
+  -- Γ ⊢ t ⇒ T ⇐ U
+
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
@@ -2571,12 +2635,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
             issueTypeError $ TypeErrorOther "tope params are illegal"
           _ -> do
             mapM_ checkNameShadowing orig
-            b' <- enterScope orig a' $ inferAs universeT b
+            b' <- enterScope orig a' $ typecheck b universeT
             return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         mapM_ checkNameShadowing orig
-        b' <- enterScope orig a' $ inferAs universeT b
+        b' <- enterScope orig a' $ typecheck b universeT
         return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
       TypeFunT _ty _orig cube mtope UniverseTopeT{} -> do
@@ -2584,7 +2648,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
-            b' <- inferAs universeT b
+            b' <- typecheck b universeT
             case mtope of
               Nothing -> return (typeFunT orig cube (Just tope') b')
               Just tope'' -> return (typeFunT orig cube (Just (topeAndT tope'' tope')) b')
@@ -2596,13 +2660,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     enterScope orig cube' $ do
       tope' <- typecheck tope topeT
       localTope tope' $ do
-        ret' <- inferAs universeT ret
+        ret' <- typecheck ret universeT
         return (typeFunT orig cube' (Just tope') ret')
 
   TypeSigma orig a b -> do
-    a' <- inferAs universeT a  -- FIXME: separate universe of universes from universe of types
+    a' <- typecheck a universeT
     mapM_ checkNameShadowing orig
-    b' <- enterScope orig a' $ inferAs universeT b
+    b' <- enterScope orig a' $ typecheck b universeT
     return (typeSigmaT orig a' b')
 
   TypeId x (Just tA) y -> do
@@ -2620,7 +2684,6 @@ infer tt = performing (ActionInfer tt) $ case tt of
   App f x -> do
     f' <- inferAs universeT f
     fmap stripTypeRestrictions (typeOf f') >>= \case
-      RecBottomT{} -> pure recBottomT -- FIXME: is this ok?
       TypeFunT _ty _orig a mtope b -> do
         x' <- typecheck x a
         let result = appT (substituteT x' b) f' x'
@@ -2705,7 +2768,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (idJT ret tA' a' tC' d' x' p')
 
   TypeAsc term ty -> do
-    ty' <- inferAs universeT ty
+    ty' <- inferAs universeT ty -- this works on types AND cubes
     term' <- typecheck term ty'
     return (typeAscT term' ty')
 

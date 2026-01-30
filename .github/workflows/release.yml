@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 🧰 Setup Stack
-        uses: freckle/stack-action@v4
+        uses: freckle/stack-action@v5
         with:
           fast: false
 
@@ -33,14 +33,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-13, macos-latest]
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 🧰 Setup Stack
-        uses: freckle/stack-action@v4
+        uses: freckle/stack-action@v5
         with:
           fast: false
 

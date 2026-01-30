@@ -1,9 +1,9 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/d1c3a8112f9d5d4840e0669727222e5fd9243451";
+    nixpkgs.url = "github:NixOS/nixpkgs/2436aaf8fad634ee66a6280fb82a19c1771c173f";
     miso = {
-      url = "github:dmjio/miso/49edf0677253bbcdd473422b5dd5b4beffd83910";
+      url = "github:dmjio/miso/8277ac79941825abaf50b917e074e3df7ef6d213";
       flake = false;
     };
     flake-compat = {
@@ -22,7 +22,7 @@
 
       rzk = "rzk";
       rzk-js = "rzk-js";
-      ghcVersion = "ghc962";
+      ghcVersion = "ghc963";
       rzk-src = (inputs.nix-filter {
         root = ./${rzk};
         include = [ "app" "src" "test" "package.yaml" ];

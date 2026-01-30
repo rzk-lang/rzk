@@ -1,11 +1,11 @@
 cabal-version: 1.24
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.7.3
+version:        0.7.7
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -13,14 +13,15 @@ homepage:       https://github.com/rzk-lang/rzk#readme
 bug-reports:    https://github.com/rzk-lang/rzk/issues
 author:         Nikolai Kudasov
 maintainer:     nickolay.kudasov@gmail.com
-copyright:      2023 Nikolai Kudasov
+copyright:      2023-2025 Nikolai Kudasov
 license:        BSD3
 license-file:   LICENSE
 build-type:     Custom
 extra-source-files:
+    grammar/Syntax.cf
+extra-doc-files:
     README.md
     ChangeLog.md
-    grammar/Syntax.cf
 
 source-repository head
   type: git
@@ -57,6 +58,8 @@ library
       Paths_rzk
   hs-source-dirs:
       src
+  default-extensions:
+      DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
@@ -76,7 +79,7 @@ library
     , yaml >=0.11.0.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
-    cpp-options: -DLSP
+    cpp-options: -DLSP_ENABLED
   if flag(lsp) && !impl(ghcjs)
     exposed-modules:
         Language.Rzk.VSCode.Config
@@ -101,6 +104,8 @@ executable rzk
       Paths_rzk
   hs-source-dirs:
       app
+  default-extensions:
+      DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
@@ -121,7 +126,7 @@ executable rzk
     , yaml >=0.11.0.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
-    cpp-options: -DLSP
+    cpp-options: -DLSP_ENABLED
   if !impl(ghcjs)
     build-depends:
         optparse-generic >=1.4.0
@@ -132,6 +137,8 @@ test-suite doctests
   main-is: doctests.hs
   hs-source-dirs:
       test
+  default-extensions:
+      DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
@@ -139,21 +146,21 @@ test-suite doctests
   build-tool-depends:
       BNFC:bnfc >=2.9.4.1
   build-depends:
-      Glob
-    , QuickCheck
+      Glob >=0.9.3
+    , QuickCheck >=2.14
     , array >=0.5.3.0
-    , base
+    , base >=4.11.0.0 && <5.0
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
     , directory >=1.2.7.0
-    , doctest
+    , doctest >=0.21.0
     , mtl >=2.2.2
-    , template-haskell
+    , template-haskell >=2.14.0.0
     , text >=1.2.3.1
     , yaml >=0.11.0.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
-    cpp-options: -DLSP
+    cpp-options: -DLSP_ENABLED
 
 test-suite rzk-test
   type: exitcode-stdio-1.0
@@ -163,6 +170,8 @@ test-suite rzk-test
       Paths_rzk
   hs-source-dirs:
       test
+  default-extensions:
+      DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
@@ -185,4 +194,4 @@ test-suite rzk-test
     , yaml >=0.11.0.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
-    cpp-options: -DLSP
+    cpp-options: -DLSP_ENABLED

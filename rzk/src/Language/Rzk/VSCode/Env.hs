@@ -3,12 +3,18 @@ module Language.Rzk.VSCode.Env where
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
 import           Language.LSP.Server
+import           Language.Rzk.Free.Syntax   (VarIdent)
 import           Language.Rzk.VSCode.Config (ServerConfig)
-import           Rzk.TypeCheck              (Decl')
+import           Rzk.TypeCheck              (Decl', TypeErrorInScopedContext)
 
-type RzkTypecheckCache = [(FilePath, [Decl'])]
+data RzkCachedModule = RzkCachedModule
+  { cachedModuleDecls  :: [Decl']
+  , cachedModuleErrors :: [TypeErrorInScopedContext VarIdent]
+  }
 
-data RzkEnv = RzkEnv
+type RzkTypecheckCache = [(FilePath, RzkCachedModule)]
+
+newtype RzkEnv = RzkEnv
   { rzkEnvTypecheckCache :: TVar RzkTypecheckCache
   }
 
@@ -17,7 +23,6 @@ defaultRzkEnv = do
   typecheckCache <- newTVarIO []
   return RzkEnv
     { rzkEnvTypecheckCache = typecheckCache }
-
 
 type LSP = LspT ServerConfig (ReaderT RzkEnv IO)
 

@@ -44,7 +44,7 @@ Aya реализована на Java.
 
     Мне неизвестны библиотеки формализации на Aya.
 
-## Семейство <b><span style="color: red">red</span>*</b>
+## Семейство <b><span style="color: red">red</span>\*</b>
 
 [<b><span style="color: #135cb7;">cool</span>tt</b>](https://github.com/redprl/cooltt),
 [<b><span style="color: red">red</span>tt</b>](https://github.com/redprl/redtt),
@@ -54,8 +54,8 @@ Aya реализована на Java.
 
 Существует формализация [математической библиотеки <b><span style="color: red">red</span>tt</b>](https://github.com/RedPRL/redtt/tree/master/library)
 
-Семейство решателей <b><span style="color: red">red</span>*</b> реализовано на языке программирования OCaml.
-Создатели семества решателей также работают над  [проектом <b><span style="color: rgb(133, 177, 96);">A.L.G.A.E.<span></b>](https://redprl.org/#algae),
+Семейство решателей <b><span style="color: red">red</span>\*</b> реализовано на языке программирования OCaml.
+Создатели семества решателей также работают над [проектом <b><span style="color: rgb(133, 177, 96);">A.L.G.A.E.<span></b>](https://redprl.org/#algae),
 который нацелен на реализацию ряда удобных библиотек (для OCaml) для помощи в реализации
 решателей теорем на основе проверки типов для ядра решателя.
 
@@ -70,6 +70,7 @@ Coq — это зрелый решатель теорем, основанный 
 Coq реализован на OCaml.
 
 ## Cubical Agda
+
 [Cubical Agda](https://agda.readthedocs.io/en/latest/language/cubical.html) (кубическая Агда)
 — это расширение Agda набором возможностей кубической теории типов[^1] [^2].
 
@@ -102,7 +103,12 @@ Lean 2, как и Agda, поддерживал режим без уникаль�
 Однако, Lean 2 больше не поддерживается и формализация, соответственно, тоже.
 
 Lean 3 и 4 убрали режим, допускающий (прямую) формализацию гомотопической теории типов.
-Однако, существует ныне неподдерживаемый [проект по переносу библиотеки HoTT с Lean 2 на Lean 3](https://github.com/gebner/hott3).
+Несмотря на это проект [Ground Zero](https://github.com/forked-from-1kasper/ground_zero)
+продолжает формализацию HoTT на Lean 4. Проект использует [проверку элиминации](https://github.com/forked-from-1kasper/ground_zero/blob/d8c41ea2910d81d3c1bf6c2762663473368016ab/GroundZero/Meta/HottTheory.lean),
+портированную из неподдерживаемого [проекта по переносу библиотеки HoTT с Lean 2 на Lean 3](https://github.com/gebner/hott3).
+Эта проверка позволяет поддерживать окружение HoTT, совместимое со стандартным окружением Lean (по крайней мере по убеждениям авторов проекта).
+В частности, попытка (напрямую) доказать принцип неразличимости доказательств равенства (Uniqueness of Identity Proofs)
+приводит к ошибки типизации в рамках проекта Ground Zero.
 
 Lean 2 и 3 реализованы на C++.
 Lean 4 реализован в основном на самом себе (и немного на C++)!
@@ -115,22 +121,19 @@ Lean 4 реализован в основном на самом себе (и н�
     <https://doi.org/10.4230/LIPIcs.TYPES.2015.5>
 
 [^2]:
-    Thierry Coquand, Simon Huber, and Anders Mörtberg.
-    2018. _On Higher Inductive Types in Cubical Type Theory_.
+    Thierry Coquand, Simon Huber, and Anders Mörtberg. 2018. _On Higher Inductive Types in Cubical Type Theory_.
     In Proceedings of the 33rd Annual ACM/IEEE Symposium on Logic in Computer Science (LICS '18).
     Association for Computing Machinery, New York, NY, USA, 255–264.
     <https://doi.org/10.1145/3209108.3209197>
 
 [^3]:
-    Andrej Bauer, Jason Gross, Peter LeFanu Lumsdaine, Michael Shulman, Matthieu Sozeau, and Bas Spitters.
-    2017. _The HoTT library: a formalization of homotopy type theory in Coq_.
+    Andrej Bauer, Jason Gross, Peter LeFanu Lumsdaine, Michael Shulman, Matthieu Sozeau, and Bas Spitters. 2017. _The HoTT library: a formalization of homotopy type theory in Coq_.
     In Proceedings of the 6th ACM SIGPLAN Conference on Certified Programs and Proofs (CPP 2017).
     Association for Computing Machinery, New York, NY, USA, 164–172.
     <https://doi.org/10.1145/3018610.3018615>
 
 [^4]:
-    Floris van Doorn, Jakob von Raumer & Ulrik Buchholtz.
-    2017. _Homotopy Type Theory in Lean_.
+    Floris van Doorn, Jakob von Raumer & Ulrik Buchholtz. 2017. _Homotopy Type Theory in Lean_.
     In: Ayala-Rincón, M., Muñoz, C.A. (eds) Interactive Theorem Proving. ITP 2017.
     Lecture Notes in Computer Science(), vol 10499. Springer, Cham.
     <https://doi.org/10.1007/978-3-319-66107-0_30>
