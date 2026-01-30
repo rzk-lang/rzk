@@ -166,7 +166,7 @@ typecheckFromConfigFile = do
                       (Range (Position line 0) (Position line 99)) -- 99 to reach end of line and be visible until we actually have information about it
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "type-error") -- diagnostic code
-                      Nothing                   -- diagonstic description
+                      Nothing                   -- diagnostic description
                       (Just "rzk")              -- A human-readable string describing the source of this diagnostic
                       (T.pack msg)
                       Nothing                   -- tags
