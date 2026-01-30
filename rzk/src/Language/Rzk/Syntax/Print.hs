@@ -18,6 +18,7 @@ import Prelude
   )
 import Data.Char ( Char, isSpace )
 import qualified Language.Rzk.Syntax.Abs
+import qualified Data.Text
 
 -- | The top-level printing method.
 
@@ -135,9 +136,9 @@ instance Print Double where
   prt _ x = doc (shows x)
 
 instance Print Language.Rzk.Syntax.Abs.VarIdentToken where
-  prt _ (Language.Rzk.Syntax.Abs.VarIdentToken i) = doc $ showString i
+  prt _ (Language.Rzk.Syntax.Abs.VarIdentToken i) = doc $ showString (Data.Text.unpack i)
 instance Print Language.Rzk.Syntax.Abs.HoleIdentToken where
-  prt _ (Language.Rzk.Syntax.Abs.HoleIdentToken i) = doc $ showString i
+  prt _ (Language.Rzk.Syntax.Abs.HoleIdentToken i) = doc $ showString (Data.Text.unpack i)
 instance Print (Language.Rzk.Syntax.Abs.Module' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.Module _ languagedecl commands -> prPrec i 0 (concatD [prt 0 languagedecl, prt 0 commands])

@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | The abstract syntax of language Syntax.
 
@@ -19,6 +20,7 @@ import qualified Prelude as C
   )
 import qualified Data.String
 
+import qualified Data.Text
 import qualified Data.Data    as C (Data)
 import qualified GHC.Generics as C (Generic)
 
@@ -194,10 +196,10 @@ unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
 unicode_TypeSigmaTupleAlt :: a -> SigmaParam' a -> [SigmaParam' a] -> Term' a -> Term' a
 unicode_TypeSigmaTupleAlt = \ _a par pars t -> TypeSigmaTuple _a par pars t
 
-newtype VarIdentToken = VarIdentToken String
+newtype VarIdentToken = VarIdentToken Data.Text.Text
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Generic, Data.String.IsString)
 
-newtype HoleIdentToken = HoleIdentToken String
+newtype HoleIdentToken = HoleIdentToken Data.Text.Text
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Generic, Data.String.IsString)
 
 -- | Start position (line, column) of something.

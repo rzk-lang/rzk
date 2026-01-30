@@ -1553,7 +1553,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                       | TypeRestrictedT{} <- infoType info -> pure (AppT ty f' x)
                       | otherwise -> do
                           let ret' = substituteT x ret
-                          tryRestriction ret' >>= \case -- FIXME: to many unnecessary checks?
+                          tryRestriction ret' >>= \case -- FIXME: too many unnecessary checks?
                             Nothing  -> pure (AppT ty { infoType = ret' } f' x)
                             Just tt' -> whnfT tt'
                     _ -> pure (AppT ty f' x)
