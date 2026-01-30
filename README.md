@@ -68,7 +68,7 @@ To check a multi-file project, you need to call `rzk typecheck` specifying the f
 rzk typecheck first.rzk second.rzk third.rzk
 ```
 
-A proper support for inter-file dependencies will be implemented in the future. Until then, it is recommented to start names of files with a number, ensuring correct order when using a wildcard (`*`). For example:
+A proper support for inter-file dependencies will be implemented in the future. Until then, it is recommended to start names of files with a number, ensuring correct order when using a wildcard (`*`). For example:
 
 ```console
 .

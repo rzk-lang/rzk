@@ -9,7 +9,7 @@ clean:
 
 src/Language/Rzk/Syntax/Test: src/Language/Rzk/Syntax.cf
 	cd src/ \
-		&& bnfc -d Language/Rzk/Syntax.cf -p Language.Rzk --makefile=Language/Rzk/Makefile --generic --functor \
+		&& bnfc -d Language/Rzk/Syntax.cf -p Language.Rzk --makefile=Language/Rzk/Makefile --generic --functor --text-token \
 		&& make --makefile=Language/Rzk/Makefile \
 		&& rm Language/Rzk/Syntax/Test.hs ; \
 		cd ../
