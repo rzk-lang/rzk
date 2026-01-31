@@ -42,18 +42,13 @@ jobs:
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8=
             keep-outputs = true
 
-      - name: 👝 Restore and Cache Nix store
-        uses: nix-community/cache-nix-action@v7
+      - name: 👝 Restore Nix store
+        uses: nix-community/cache-nix-action/restore@v7
         with:
           primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
           restore-prefixes-first-match: |
             ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
             ${{ runner.os }}-nix-
-          gc-max-store-size: 7G
-          purge: true
-          purge-prefixes: ${{ runner.os }}-nix-
-          purge-created: 0
-          purge-primary-key: never
 
       - name: 👝 Restore and cache NodeJS deps
         uses: actions/cache@v5
@@ -110,3 +105,14 @@ jobs:
           target-folder: playground
           clean: false
           single-commit: true
+
+      - if: always()
+        name: 👝 Save Nix store
+        uses: nix-community/cache-nix-action/save@v7
+        with:
+          primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          gc-max-store-size: 7G
+          purge: true
+          purge-prefixes: ${{ runner.os }}-nix-
+          purge-created: 0
+          purge-primary-key: never
