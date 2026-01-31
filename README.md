@@ -297,7 +297,6 @@ nix build .#rzk-js -o rzk-playground/public/rzk.js
 ### Develop
 
 1. Load `nodejs`
-
    - without flakes: `nix-shell`
    - with flakes: `nix develop`
 

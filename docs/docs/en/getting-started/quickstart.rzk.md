@@ -1,7 +1,7 @@
 # Quick introduction into Rzk
 
 !!! warning "Work-in-progress"
-    Documentation is a work in progress.
+Documentation is a work in progress.
 
 First, [install Rzk](install.md).
 

@@ -95,49 +95,46 @@ is a theorem that we can prove.
 Formally, we have the following constituents of the definition for product types and function types
 (for comparison):
 
-1. **Type formation**:
-
+1.  **Type formation**:
     - `#!rzk prod A B` is a type whenever `A` and `B` are types
     - `#!rzk A → B` is a type whenever `A` and `B` are types
 
-2. **Constructors (introduction rules)**:
-
+2.  **Constructors (introduction rules)**:
     - `#!rzk (x , y)` is a term of type `#!rzk prod A B` whenever `#!rzk x : A` and `#!rzk y : B`
     - `#!rzk \ x → y` is a term of type `#!rzk A → B` whenever for any `#!rzk x : A` we have `#!rzk y : B`
 
-3. **Eliminators (elimination rules)**:
-
+3.  **Eliminators (elimination rules)**:
     - Given `#!rzk z : prod A B`, we can _project_ the first and second components:
-        - `#!rzk first z : A` and `#!rzk second z : B`
-        - it is also possible to pattern match (deconstruct) in a function argument or when introducing a parameter, e.g.
+      - `#!rzk first z : A` and `#!rzk second z : B`
+      - it is also possible to pattern match (deconstruct) in a function argument or when introducing a parameter, e.g.
 
-            ```rzk
-            #define swap-prod₁
-              ( A B : U)
-              : prod A B → prod B A
-              := \ (x , y) → (y , x)
+        ```rzk
+        #define swap-prod₁
+          ( A B : U)
+          : prod A B → prod B A
+          := \ (x , y) → (y , x)
 
-            #define swap-prod₂
-              ( A B : U)
-              ( (x , y) : prod A B)
-              : prod B A
-              := ( y , x)
-            ```
+        #define swap-prod₂
+          ( A B : U)
+          ( (x , y) : prod A B)
+          : prod B A
+          := ( y , x)
+        ```
 
-        - more generally, eliminators come in a form of an _induction principle_, which we will discuss below
-          and can be defined in Rzk in terms of pattern matching or `#!rzk first` and `#!rzk second`:
+      - more generally, eliminators come in a form of an _induction principle_, which we will discuss below
+        and can be defined in Rzk in terms of pattern matching or `#!rzk first` and `#!rzk second`:
 
-            ```rzk
-            #define ind-prod
-              ( A B : U)
-              ( C : prod A B → U)
-              ( f : (a : A) → (b : B) → C (a , b))
-              : (z : prod A B) → C z
-              := \ (a , b) → f a b
-            ```
+        ```rzk
+        #define ind-prod
+          ( A B : U)
+          ( C : prod A B → U)
+          ( f : (a : A) → (b : B) → C (a , b))
+          : (z : prod A B) → C z
+          := \ (a , b) → f a b
+        ```
 
     - Given `#!rzk f : A → B`, we can _apply_ it to an argument of type `#!rzk a : A`:
-        - `#!rzk f a : B`
+      - `#!rzk f a : B`
 
     !!! warning "Built-in eliminators in Rzk"
 
@@ -153,16 +150,14 @@ Formally, we have the following constituents of the definition for product types
           := \ p → first p
         ```
 
-4. **Computation rules**:
-
+4.  **Computation rules**:
     - Projecting from a pair is computed as follows for any `#!rzk x : A` and `#!rzk y : B`:
-        - `#!rzk first (x , y) ≡ x`
-        - `#!rzk second (x , y) ≡ y`
+      - `#!rzk first (x , y) ≡ x`
+      - `#!rzk second (x , y) ≡ y`
     - Applying an lambda abstraction is computed by substituting the argument into a body:
       - `#!rzk (\ x → y) a ≡ y{x ↦ a}` when `#!rzk a : A` and for all `#!rzk x : A`, `#!rzk y : B`.
 
-5. **Uniqueness principle (optional)**:
-
+5.  **Uniqueness principle (optional)**:
     - For any `#!rzk z : prod A B`, we have `#!rzk z ≡ (first z, second z)`
       - This holds definitionally for product types and Σ-types in Rzk, but is provable in a weaker (propositional) form in HoTT Book
     - For any function `#!rzk f : A → B`, we have `#!rzk f ≡ \ x → f x`

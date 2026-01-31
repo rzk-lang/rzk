@@ -9,7 +9,7 @@ copyright: "2023-2025 Nikolai Kudasov"
 extra-doc-files:
   - README.md
   - ChangeLog.md
-  
+
 extra-source-files:
   - grammar/Syntax.cf
 

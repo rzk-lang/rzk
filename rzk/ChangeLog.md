@@ -11,7 +11,6 @@ and this project adheres to the
 Important fixes:
 
 - Fix subtyping (automatic coercion for extension types and tope disjunction elimination) (see [#207](https://github.com/rzk-lang/rzk/pull/207))
-
   1. Do not assume variance for the argument of function/type family application (fixes #206).
   2. Separately check tope families and extension types (and $\Pi$-types), since, for tope families, variance of the argument is different.
   3. Fix `refl` to check for equality, not subtyping.
@@ -160,7 +159,6 @@ This version improves the structure of the project, in particular w.r.t dependen
 This version contains a fix for the command line interface of `rzk`:
 
 - Fix command line `rzk typecheck` (see [#106](https://github.com/rzk-lang/rzk/pull/106))
-
   - Previous version ignored failures in the command line
     (the bug was introduced when allowing better autocompletion in LSP).
 
@@ -362,7 +360,6 @@ Otherwise, syntax is now made more flexible:
 10. Now it is possible to have type ascriptions: `t as T`. This can help with ensuring types of subexpressions in parts of formalizations, or to upcast types.
 
 11. New (better) commands are now supported:
-
     1. `#define <name> (<param>)* : <type> := <term>` — same as `#def`, but with full spelling of the word
     2. `#postulate <name> (<param>)* : <type>` — postulate an axiom
     3. `#check <term> : <type>` — typecheck an expression against a given type
@@ -370,7 +367,6 @@ Otherwise, syntax is now made more flexible:
     5. `#compute-nf <term>` — compute normal form of a term
     6. `#compute <term>` — alias for `#compute-whnf`
     7. `#set-option <option> = <value>` — set a (typechecker) option:
-
        - `#set-option "verbosity" = "silent"` — no log printing
        - `#set-option "verbosity" = "normal"` — log typechecking progress
        - `#set-option "verbosity" = "debug"` — log every intermediate action

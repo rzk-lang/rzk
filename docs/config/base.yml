@@ -3,7 +3,7 @@ repo_name: rzk-lang/rzk
 
 theme:
   name: material
-  custom_dir: '../../overrides/'
+  custom_dir: "../../overrides/"
   favicon: assets/images/favicon.png
   logo: assets/images/logo-1000x1000.png
   icon:
