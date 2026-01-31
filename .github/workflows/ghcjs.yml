@@ -45,17 +45,17 @@ jobs:
       - name: 👝 Restore Nix store
         uses: nix-community/cache-nix-action/restore@v7
         with:
-          primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          primary-key: ghcjs-nix-${{ runner.os }}-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
           restore-prefixes-first-match: |
-            ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
-            ${{ runner.os }}-nix-
+            ghcjs-nix-${{ runner.os }}-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+            ghcjs-nix-${{ runner.os }}-
 
       - name: 👝 Restore and cache NodeJS deps
         uses: actions/cache@v5
         with:
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          key: ghcjs-node-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-
+            ghcjs-node-${{ runner.os }}-
           path: |
             ~/.npm
 
@@ -110,9 +110,9 @@ jobs:
         name: 👝 Save Nix store
         uses: nix-community/cache-nix-action/save@v7
         with:
-          primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          primary-key: ghcjs-nix-${{ runner.os }}-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
           gc-max-store-size: 7G
           purge: true
-          purge-prefixes: ${{ runner.os }}-nix-
+          purge-prefixes: ghcjs-nix-${{ runner.os }}-
           purge-created: 0
           purge-primary-key: never
