@@ -1,72 +1,72 @@
-# Introduction
+# Введение
 
-`rzk` is an experimental proof assistant for synthetic ∞-categories.
-`rzk-1` is an early version of the language supported by `rzk`.
-The language is based on Riehl and Shulman's «Type Theory for Synthetic ∞-categories»[^1]. In this section, we introduce syntax, discuss features and some of the current limitations of the proof assistant.
+`rzk` — это экспериментальный решатель теорем для синтетических ∞-категорий.
+`rzk-1` — это ранняя версия языка, поддерживаемая `rzk`.
+Язык основан на «Теории типов для синтетических ∞-категорий» Рил и Шульмана[^1]. В этом разделе мы вводим синтаксис, обсуждаем возможности и некоторые текущие ограничения решателя теорем.
 
-Overall, a program in `rzk-1` consists of a language pragma (specifying that we use `rzk-1` and not one of the other languages[^2]) followed by a sequence of commands. For now, we will only use `#define` command.
+В целом, программа в `rzk-1` состоит из прагмы языка (указывающей, что мы используем `rzk-1`, а не один из других языков[^2]), за которой следует последовательность команд. Пока мы будем использовать только команду `#define`.
 
-Here is a small formalisation in an MLTT subset of `rzk-1`:
+Вот небольшая формализация в подмножестве MLTT `rzk-1`:
 
 ```rzk
 #lang rzk-1
 
--- Flipping the arguments of a function.
+-- Перестановка аргументов функции.
 #define flip
-    (A B : U)                         -- For any types A and B
-    (C : (x : A) -> (y : B) -> U)     -- and a type family C
-    (f : (x : A) -> (y : B) -> C x y) -- given a function f : A -> B -> C
-  : (y : B) -> (x : A) -> C x y       -- we construct a function of type B -> A -> C
-  := \y x -> f x y    -- by swapping the arguments
+    ( A B : U)                         -- Для любых типов A и B
+    ( C : (x : A) → (y : B) → U)     -- и семейства типов C
+    ( f : (x : A) → (y : B) → C x y) -- при заданной функции f : A -> B -> C
+  : ( y : B) → (x : A) → C x y       -- мы строим функцию типа B -> A -> C
+  := \ y x → f x y    -- путём перестановки аргументов
 
--- Flipping a function twice is the same as not doing anything
+-- Двойная перестановка функции — это то же самое, что ничего не делать
 #define flip-flip-is-id
-    (A B : U)                         -- For any types A and B
-    (C : (x : A) -> (y : B) -> U)     -- and a type family C
-    (f : (x : A) -> (y : B) -> C x y) -- given a function f : A -> B -> C
-  : f = flip B A (\y x -> C x y)
-          (flip A B C f)              -- flipping f twice is the same as f
-  := refl                             -- proof by reflexivity
+    ( A B : U)                         -- Для любых типов A и B
+    ( C : (x : A) → (y : B) → U)     -- и семейства типов C
+    ( f : (x : A) → (y : B) → C x y) -- при заданной функции f : A -> B -> C
+  : f = flip B A (\ y x → C x y)
+          ( flip A B C f)              -- двойная перестановка f — это то же самое, что f
+  := refl                             -- доказательство рефлексивностью
 ```
 
-Let us explain parts of this code:
+Обсудим основные части этого кода:
 
-1. `#!rzk #lang rzk-1` specifies that we are in using `#!rzk rzk-1` language;
-2. `#!rzk --` starts a comment line (until the end of the line);
-3. `#!rzk #define «name» : «type» := «term»` defines a name `«name»` to be equal to `«term»`; the proof assistant will typecheck `«term»` against type `«type»`;
-4. We define two terms here — `flip` and `flip-flip-is-id`;
-5. `flip` is a function that takes 4 arguments and returns a function of two arguments.
-6. `flip-flip-is-id` is a function that takes two types, a type family, and a function `f` and returns a value of an identity type `flip ... (flip ... f) = f`, indicating that flipping a function `f` twice gets us back to `f`.
+1. `#!rzk #lang rzk-1` указывает, что мы используем язык `#!rzk rzk-1`;
+2. `#!rzk --` начинает строку комментария (до конца строки);
+3. `#!rzk #define «name» : «type» := «term»` определяет имя `«name»` равным `«term»`; решатель теорем проверит тип `«term»` относительно типа `«type»`;
+4. Мы определяем здесь два терма — `flip` и `flip-flip-is-id`;
+5. `flip` — это функция, которая принимает 4 аргумента и возвращает функцию двух аргументов.
+6. `flip-flip-is-id` — это функция, которая принимает два типа, семейство типов и функцию `f` и возвращает значение типа тождества `flip ... (flip ... f) = f`, указывая, что двойная перестановка функции `f` возвращает нас к `f`.
 
-Similarly to the three layers in Riehl and Shulman's type theory, `rzk-1` has 3 universes:
+Аналогично трём слоям в теории типов Рил и Шульмана, `rzk-1` имеет 3 вселенные:
 
-- `CUBE` is the universe of cubes, corresponding to the cube layer;
-- `TOPE` is the universe of topes, corresponding to the tope layer;
-- `U` is the universe of types, corresponding to the types and terms layer.
+- `CUBE` — это вселенная кубов, соответствующая слою кубов;
+- `TOPE` — это вселенная топов, соответствующая слою топов;
+- `U` — это вселенная типов, соответствующая слою типов и термов.
 
-These are explained in the following sections.
+Они объясняются в следующих разделах.
 
-## Soundness
+## Корректность
 
-`rzk-1` assumes "type-in-type", that is `U` has type `U`.
-This is known to make the type system unsound (due to Russell and Curry-style paradoxes), however,
-it is sometimes considered acceptable in proof assistants.
-And, since it simplifies implementation, `rzk-1` embraces this assumption, at least for now.
+`rzk-1` предполагает "тип-в-типе", то есть `U` имеет тип `U`.
+Известно, что это делает систему типов некорректной (из-за парадоксов в стиле Рассела и Карри), однако,
+это иногда считается приемлемым в решателях теорем.
+И, поскольку это упрощает реализацию, `rzk-1` принимает это предположение, по крайней мере, пока.
 
-Moreover, `rzk-1` does not prevent cubes or topes to depend on types and terms. For example, the following definition typechecks:
+Более того, `rzk-1` не предотвращает зависимость кубов или топов от типов и термов. Например, следующее определение проходит проверку типов:
 
 ```rzk
 #define weird
-    (A : U)
-    (I : A -> CUBE)
-    (x y : A)
+    ( A : U)
+    ( I : A → CUBE)
+    ( x y : A)
   : CUBE
-  := I x * I y
+  := I x × I y
 ```
 
-This likely leads to another inconsistency, but it will probably not lead to bugs in actual proofs of interest,
-so current version embraces this lax treatment of universes.
+Это, вероятно, приводит к ещё одной несогласованности, но, скорее всего, не приведёт к ошибкам в реальных доказательствах, представляющих интерес,
+поэтому текущая версия принимает это свободное обращение с вселенными.
 
 [^1]: Emily Riehl & Michael Shulman. _A type theory for synthetic ∞-categories._ Higher Structures 1(1), 147-224. 2017. <https://arxiv.org/abs/1705.07442>
 
-[^2]: In version [:octicons-tag-24: v0.1.0](https://github.com/rzk-lang/rzk/releases/tag/v0.1.0), `rzk` has supported simply typed lambda calculus, PCF, and MLTT. However, those languages have been removed.
+[^2]: В версии [:octicons-tag-24: v0.1.0](https://github.com/rzk-lang/rzk/releases/tag/v0.1.0), `rzk` поддерживал просто типизированное лямбда-исчисление, PCF и MLTT. Однако эти языки были удалены.

@@ -13,7 +13,7 @@ Here are all the ways to build a tope:
     - top tope \(\top\) is written `#!rzk TOP`
     - bottom tope \(\bot\) is written `#!rzk BOT`
 
-3. Usa a tope connective:
+3. Use a tope connective:
     - tope conjunction \(\psi \land \phi\) is written `#!rzk psi /\ phi`
     - tope disjunction \(\psi \lor \phi\) is written `#!rzk psi \/ phi`
     - equality tope \(t \equiv s\) is written `#!rzk t === s`, whenever `#!rzk t` and `#!rzk s` are points of the same cube

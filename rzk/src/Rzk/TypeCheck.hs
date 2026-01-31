@@ -246,6 +246,7 @@ setOption optionName = const $ const $
 
 unsetOption :: String -> TypeCheck var a -> TypeCheck var a
 unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
+unsetOption "render" = localRenderBackend (renderBackend emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 

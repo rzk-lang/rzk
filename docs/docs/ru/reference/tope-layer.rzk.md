@@ -1,21 +1,21 @@
-# Tope layer
+# Слой топов
 
-All topes live in `#!rzk TOPE` universe.
+Все топы находятся во вселенной `#!rzk TOPE`.
 
-Here are all the ways to build a tope:
+Вот все способы построения топа:
 
-1. Introduce a variable, e.g. `#!rzk (psi : TOPE) -> ...`;
+1. Ввести переменную, например `#!rzk (psi : TOPE) -> ...`;
 
-    - Usually, topes depend on point variables from some cube(s). To indicate that, we usually introduce topes as "functions" from some cube to `#!rzk TOPE`. For example, `#!rzk (psi : I -> TOPE) -> ...`.
+    - Обычно топы зависят от переменных точек из некоторого куба (кубов). Чтобы указать это, мы обычно вводим топы как "функции" из некоторого куба в `#!rzk TOPE`. Например, `#!rzk (psi : I -> TOPE) -> ...`.
 
-2. Use a constant:
+2. Использовать константу:
 
-    - top tope \(\top\) is written `#!rzk TOP`
-    - bottom tope \(\bot\) is written `#!rzk BOT`
+    - верхний топ \(\top\) записывается как `#!rzk TOP`
+    - нижний топ \(\bot\) записывается как `#!rzk BOT`
 
-3. Usa a tope connective:
-    - tope conjunction \(\psi \land \phi\) is written `#!rzk psi /\ phi`
-    - tope disjunction \(\psi \lor \phi\) is written `#!rzk psi \/ phi`
-    - equality tope \(t \equiv s\) is written `#!rzk t === s`, whenever `#!rzk t` and `#!rzk s` are points of the same cube
-    - inequality tope \(t \leq s\) is written `#!rzk t <= s` whenever `#!rzk t : 2` and `#!rzk s : 2`
+3. Использовать соединительный оператор:
+    - конъюнкция топов \(\psi \land \phi\) записывается как `#!rzk psi /\ phi`
+    - дизъюнкция топов \(\psi \lor \phi\) записывается как `#!rzk psi \/ phi`
+    - топ равенства \(t \equiv s\) записывается как `#!rzk t === s`, когда `#!rzk t` и `#!rzk s` являются точками одного и того же куба
+    - топ неравенства \(t \leq s\) записывается как `#!rzk t <= s`, когда `#!rzk t : 2` и `#!rzk s : 2`
 

@@ -1,28 +1,28 @@
-# Cube layer
+# Слой кубов
 
 ```rzk
 #lang rzk-1
 ```
 
-All cubes live in `#!rzk CUBE` universe.
+Все кубы находятся во вселенной `#!rzk CUBE`.
 
-There are two built-in cubes:
+Есть два встроенных куба:
 
-1. `#!rzk 1` cube is a unit cube with a single point `#!rzk *_1`
-2. `#!rzk 2` cube is a [directed interval](builtins/directed-interval.rzk.md) cube with points `#!rzk 0_2` and `#!rzk 1_2`
+1. Куб `#!rzk 1` — это единичный куб с единственной точкой `#!rzk *_1`
+2. Куб `#!rzk 2` — это куб [направленного интервала](builtins/directed-interval.rzk.md) с точками `#!rzk 0_2` и `#!rzk 1_2`
 
-It is also possible to have `#!rzk CUBE` variables and make products of cubes:
+Также возможно иметь переменные `#!rzk CUBE` и делать произведения кубов:
 
-1. `#!rzk I * J`  is a product of cubes `#!rzk I` and `#!rzk J`
-2. `#!rzk (t, s)` is a point in `#!rzk I * J` if `#!rzk t : I` and `#!rzk s : J`
-3. if `#!rzk ts : I * J`, then `#!rzk first ts : I` and `#!rzk second ts : J`
+1. `#!rzk I * J`  — это произведение кубов `#!rzk I` и `#!rzk J`
+2. `#!rzk (t, s)` — это точка в `#!rzk I * J`, если `#!rzk t : I` и `#!rzk s : J`
+3. если `#!rzk ts : I * J`, то `#!rzk first ts : I` и `#!rzk second ts : J`
 
-You can usually use `#!rzk (t, s)` both as a pattern, and a construction of a pair of points:
+Обычно вы можете использовать `#!rzk (t, s)` как в качестве паттерна, так и в качестве конструкции пары точек:
 
 ```rzk
--- Swap point components of a point in a cube I × I
+-- Перестановка компонент точки в кубе I × I
 #define swap
     ( I : CUBE)
   : ( I × I) → I × I
-  := \ ( t , s) → (s , t)
+  := \ (t , s) → (s , t)
 ```
