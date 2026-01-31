@@ -79,7 +79,7 @@ jobs:
         run: nix run .#release-rzk-playground
 
       - name: 🔨 Save flake from garbage collection
-        run: nix run .#save-flake
+        run: nix profile add .#save-flake
 
       - name: '🚀 Publish JS "binaries" (${{ github.ref_name }})'
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
