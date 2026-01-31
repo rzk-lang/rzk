@@ -3,10 +3,10 @@
 Разделы и переменные позволяют упростить определения, вынося общие предположения.
 
 !!! info "Переменные в стиле Coq"
-`rzk` реализует переменные аналогично
-<a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">команде `Variable` в Coq</a>.
-Важное отличие заключается в том, что `rzk` не позволяет определениям использовать переменные неявно и добавляет аннотации `uses (...)` для обеспечения того, чтобы такие зависимости не были случайными.
-Это, возможно, несколько связано с <a href="https://coq.inria.fr/refman/proofs/writing-proofs/equality.html#coq:exn.Section-variable-‘ident’-occurs-implicitly-in-global-declaration-‘qualid’-present-in-hypothesis-‘ident’" target="_blank">этим сообщением об ошибке в Coq</a>.
+    `rzk` реализует переменные аналогично
+    <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">команде `Variable` в Coq</a>.
+    Важное отличие заключается в том, что `rzk` не позволяет определениям использовать переменные неявно и добавляет аннотации `uses (...)` для обеспечения того, чтобы такие зависимости не были случайными.
+    Это, возможно, несколько связано с <a href="https://coq.inria.fr/refman/proofs/writing-proofs/equality.html#coq:exn.Section-variable-‘ident’-occurs-implicitly-in-global-declaration-‘qualid’-present-in-hypothesis-‘ident’" target="_blank">этим сообщением об ошибке в Coq</a>.
 
 Это литературный файл `rzk`:
 
@@ -129,4 +129,4 @@ used in definition of
 ```
 
 !!! warning "Отсутствие отступов"
-`rzk` в настоящее время не поддерживает отступы, поэтому все определения и команды внутри раздела (включая вложенные разделы) должны начинаться с начала строки.
+    `rzk` в настоящее время не поддерживает отступы, поэтому все определения и команды внутри раздела (включая вложенные разделы) должны начинаться с начала строки.
