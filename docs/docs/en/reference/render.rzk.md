@@ -34,21 +34,37 @@ The SVG pictures can be inserted directly into `.md` files before a correspondin
 
 ```html
 <style>
-.rzk-render { transition: transform .2s; /* Animation */ }
-.rzk-render:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+  .rzk-render {
+    transition: transform 0.2s; /* Animation */
+  }
+  .rzk-render:hover {
+    transform: scale(
+      1.5
+    ); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */
+  }
 </style>
 
 <!-- Definitions for the SVG images above -->
 <svg width="0" height="0">
   <defs>
-    <style data-bx-fonts="Noto Serif">@import url(https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap);</style>
-    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5"
-      markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <style data-bx-fonts="Noto Serif">
+      @import url(https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap);
+    </style>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="5"
+      refY="5"
+      markerWidth="5"
+      markerHeight="5"
+      orient="auto-start-reverse"
+    >
       <path d="M 0 2 L 5 5 L 0 8 z" stroke="purple" fill="purple" />
     </marker>
   </defs>
   <style>
-    text, textPath {
+    text,
+    textPath {
       font-family: Noto Serif;
       font-size: 28px;
       dominant-baseline: middle;
@@ -70,6 +86,7 @@ Topes are visualised with <span style="color: orange">**orange**</span> color:
   : ( 2 × 2) → TOPE
   := \ (t , s) → s ≤ t
 ```
+
 <br><br>
 Boundary of a tope:
 
@@ -89,6 +106,7 @@ The busiest tope diagram involves the entire 3D cube:
   : ( 2 × 2 × 2) → TOPE
   := \ _ → TOP
 ```
+
 <br><br><br>
 
 ```rzk
@@ -99,6 +117,7 @@ The busiest tope diagram involves the entire 3D cube:
 ```
 
 <br><br>
+
 ### Visualising Simplicial Types
 
 Types are visualised with <span style="color: blue">**blue**</span> color. Recognised parameter part (e.g. fixed endpoints, edges, faces with clear labels) are visualised with <span style="color: purple">**purple**</span> color. When a type is constructed by taking a part of another shape, the rest of the larger shape is colored using <span style="color: gray">**gray**</span> color.

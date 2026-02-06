@@ -35,21 +35,37 @@ SVG изображения могут быть вставлены непосре
 
 ```html
 <style>
-.rzk-render { transition: transform .2s; /* Анимация */ }
-.rzk-render:hover { transform: scale(1.5); /* (150% увеличение - Примечание: если увеличение слишком большое, оно выйдет за пределы области просмотра) */ }
+  .rzk-render {
+    transition: transform 0.2s; /* Анимация */
+  }
+  .rzk-render:hover {
+    transform: scale(
+      1.5
+    ); /* (150% увеличение - Примечание: если увеличение слишком большое, оно выйдет за пределы области просмотра) */
+  }
 </style>
 
 <!-- Определения для SVG изображений выше -->
 <svg width="0" height="0">
   <defs>
-    <style data-bx-fonts="Noto Serif">@import url(https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap);</style>
-    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5"
-      markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <style data-bx-fonts="Noto Serif">
+      @import url(https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap);
+    </style>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="5"
+      refY="5"
+      markerWidth="5"
+      markerHeight="5"
+      orient="auto-start-reverse"
+    >
       <path d="M 0 2 L 5 5 L 0 8 z" stroke="purple" fill="purple" />
     </marker>
   </defs>
   <style>
-    text, textPath {
+    text,
+    textPath {
       font-family: Noto Serif;
       font-size: 28px;
       dominant-baseline: middle;
@@ -71,6 +87,7 @@ SVG изображения могут быть вставлены непосре
   : ( 2 × 2) → TOPE
   := \ (t , s) → s ≤ t
 ```
+
 <br><br>
 Граница топа:
 
@@ -90,6 +107,7 @@ SVG изображения могут быть вставлены непосре
   : ( 2 × 2 × 2) → TOPE
   := \ _ → TOP
 ```
+
 <br><br><br>
 
 ```rzk
@@ -100,6 +118,7 @@ SVG изображения могут быть вставлены непосре
 ```
 
 <br><br>
+
 ### Визуализация симплициальных типов
 
 Типы визуализируются <span style="color: blue">**синим**</span> цветом.

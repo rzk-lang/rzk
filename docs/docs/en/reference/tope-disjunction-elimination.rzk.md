@@ -10,4 +10,3 @@ Following Riehl and Shulman's type theory[^1], `#!rzk rzk-1` introduces two prim
     `#!rzk recOR(psi, phi, a_psi, a_phi)` corresponds to \(\mathsf{rec}_\lor^{\psi, \phi}(a_\psi, a_\phi)\), is well-typed when `#!rzk a_psi` is definitionally equal to `#!rzk a_phi` under `#!rzk psi /\ phi`. However, this syntax is deprecated since it is easy to confuse which tope relates to which term.
 
 [^1]: Emily Riehl & Michael Shulman. _A type theory for synthetic ∞-categories._ Higher Structures 1(1), 147-224. 2017. <https://arxiv.org/abs/1705.07442>
-

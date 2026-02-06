@@ -20,17 +20,17 @@ Consider the following definitions:
 
 ```rzk
 #define compose₁
-  (A B C : U)
-  (g : B -> C)
-  (f : A -> B)
-  : A -> C
-  := \x -> g (f x)
+  ( A B C : U)
+  ( g : B → C)
+  ( f : A → B)
+  : A → C
+  := \ x → g (f x)
 
 #define twice₁
-  (A : U)
-  (h : A -> A)
-  : A -> A
-  := \x -> h (h x)
+  ( A : U)
+  ( h : A → A)
+  : A → A
+  := \ x → h (h x)
 ```
 
 Since it might be common to introduce types `A`, `B`, and `C`, we can declare these are variables:
@@ -39,15 +39,15 @@ Since it might be common to introduce types `A`, `B`, and `C`, we can declare th
 #variables A B C : U
 
 #define compose₂
-  (g : B -> C)
-  (f : A -> B)
-  : A -> C
-  := \x -> g (f x)
+  ( g : B → C)
+  ( f : A → B)
+  : A → C
+  := \ x → g (f x)
 
 #define twice₂
-  (h : A -> A)
-  : A -> A
-  := \x -> h (h x)
+  ( h : A → A)
+  : A → A
+  := \ x → h (h x)
 ```
 
 The `#variables` command here introduces assumptions, which can be used in the following definitions. Importantly, after checking a file (module), all definitions will have the assumptions used (explicitly or implicitly) attached as bound variables.
@@ -57,13 +57,15 @@ The `#variables` command here introduces assumptions, which can be used in the f
 We can try going even further and declare variables `f`, `g`, `h`, and `x`:
 
 ```rzk
-#variable g : B -> C
-#variable f : A -> B
-#variable h : A -> A
+#variable g : B → C
+#variable f : A → B
+#variable h : A → A
 #variable x : A
 
 -- #define bad-compose₃ : C := g (f x)  -- ERROR: implicit assumptions A and B
-#define twice₃ : A := h (h x)
+#define twice₃
+  : A
+  := h (h x)
 ```
 
 Note how this definition of `bad-compose₃` is implicitly dependent on the types `A` and `B`, which is promptly noted by `rzk`, which issues an error (if we uncomment the corresponding line):
@@ -78,7 +80,9 @@ used in definition of
 To let `rzk` know that this is not accidental, we can add `uses (...)` annotation to specify a list of variables implicitly used in the definition:
 
 ```rzk
-#define compose₃ uses (A B) : C := g (f x)
+#define compose₃ uses (A B)
+  : C
+  := g (f x)
 ```
 
 ## Sections
@@ -89,16 +93,18 @@ To introduce assumption variables temporarily inside of one file, you can use se
 #section example-1
 
 #variables X Y Z : U
-#variable k : X -> X
+#variable k : X → X
 #variable x' : X
 
 #define compose₄
-  (g : Y -> Z)
-  (f : X -> Y)
-  : X -> Z
-  := \x -> g (f x)
+  ( g : Y → Z)
+  ( f : X → Y)
+  : X → Z
+  := \ x → g (f x)
 
-#define twice₄ : X := k (k x')
+#define twice₄
+  : X
+  := k (k x')
 
 #end example-1
 ```
@@ -111,15 +117,15 @@ Now, once outside of the section, `compose₄` and `twice₄` obtain correspondi
 -- twice₄ : (X : U) -> (k : X -> X) -> (x' : X) -> X
 
 #define twice₅
-  (T : U)
-  (e : T -> T)
-  : T -> T
+  ( T : U)
+  ( e : T → T)
+  : T → T
   := compose₄ T T T e e
 
 #define identity
-  (T : U)
-  : T -> T
-  := twice₄ T (\t -> t)
+  ( T : U)
+  : T → T
+  := twice₄ T (\ t → t)
 ```
 
 !!! warning "Lack of indentation"

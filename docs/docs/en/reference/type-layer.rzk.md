@@ -8,8 +8,8 @@
 
 Function (dependent product) types \(\prod_{x : A} B\) are written `#!rzk (x : A) -> B x`. Values of function types are \(\lambda\)-abstractions written in one of the following ways:
 
-  - `#!rzk \x -> <body>` — this is usually fine;
-  - `#!rzk \(x : A) -> <body>` — this sometimes helps the typechecker.
+- `#!rzk \x -> <body>` — this is usually fine;
+- `#!rzk \(x : A) -> <body>` — this sometimes helps the typechecker.
 
 ## Dependent sums
 
@@ -35,14 +35,13 @@ Any identity type has value `#!rzk refl_{x : A}` whose type is `#!rzk x =_{A} x`
 Path induction is done using \(\mathcal{J}\) path eliminator:
 
 - for
-    - any type \(A\) and \(a : A\),
-    - type family \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\) and
-    - \(d : C(a,\mathsf{refl}_a)\) and
-    - \(x : A\) and \(p : a =_A x\)
+  - any type \(A\) and \(a : A\),
+  - type family \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\) and
+  - \(d : C(a,\mathsf{refl}_a)\) and
+  - \(x : A\) and \(p : a =_A x\)
 - we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\)
 
 In `#!rzk rzk-1` we write `#!rzk idJ(A, a, C, d, x, p)`
 
 !!! warning
     `#!rzk idJ` is not valid syntax without exactly 6-tuple provided as an argument!
-

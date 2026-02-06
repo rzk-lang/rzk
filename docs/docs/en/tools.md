@@ -14,6 +14,7 @@ as it is considered the primary use case and has most support from the developer
 
 See [rzk-lang/mkdocs-plugin-rzk](https://github.com/rzk-lang/mkdocs-plugin-rzk).
 MkDocs plugin enhances documentation build from literate Rzk Markdown files:
+
 - adds diagram rendering (experimental)
 - adds definition anchors (helpful to have "permalinks" to definitions)
 
