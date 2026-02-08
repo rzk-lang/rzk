@@ -52,8 +52,7 @@ import           Language.Rzk.VSCode.Config    (ServerConfig (ServerConfig, form
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
-import           Rzk.Format                    (FormattingEdit (..),
-                                                formatTextEdits)
+import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 import           Text.Read                     (readMaybe)
@@ -261,14 +260,14 @@ provideCompletions req res = do
         line = maybe 0 fst pos'
         _col = maybe 0 snd pos'
 
-formattingEditToTextEdit :: FormattingEdit -> TextEdit
-formattingEditToTextEdit (FormattingEdit startLine startCol endLine endCol newText) =
-  TextEdit
-    (Range
-      (Position (fromIntegral startLine - 1) (fromIntegral startCol - 1))
-      (Position (fromIntegral endLine - 1) (fromIntegral endCol - 1))
-    )
-    newText
+-- | Full-document range for LSP (0-based line and character).
+fullDocumentRange :: T.Text -> Range
+fullDocumentRange source =
+  let lines = T.lines source
+      lineCount = length lines
+      endLine = max 0 (lineCount - 1)
+      endCharacter = if lineCount > 0 then fromIntegral (T.length (last lines)) else 0
+  in Range (Position 0 0) (Position (fromIntegral endLine) endCharacter)
 
 formatDocument :: Handler LSP 'Method_TextDocumentFormatting
 formatDocument req res = do
@@ -280,8 +279,10 @@ formatDocument req res = do
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
       Just sourceCode -> do
-        let edits = formatTextEdits (T.filter (/= '\r') sourceCode)
-        return (Right $ map formattingEditToTextEdit edits)
+        let source = T.filter (/= '\r') sourceCode
+            formatted = format source
+            range = fullDocumentRange source
+        return (Right [TextEdit range formatted])
     case possibleEdits of
 #if MIN_VERSION_lsp(2,7,0)
       Left err    -> res $ Left $ TResponseError (InR ErrorCodes_InternalError) err Nothing

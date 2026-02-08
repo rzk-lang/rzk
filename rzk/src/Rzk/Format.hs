@@ -13,7 +13,7 @@ LSP server.
 module Rzk.Format (
   FormattingEdit (FormattingEdit),
   formatTextEdits,
-  format, formatFile, formatFileWrite,
+  format, formatDocument, formatFile, formatFileWrite,
   isWellFormatted, isWellFormattedFile,
   normalizeTabs,
 ) where
@@ -313,6 +313,12 @@ format :: T.Text -> T.Text
 format contents =
   let normalized = normalizeTabs contents
   in applyTextEdits (formatTextEdits normalized) normalized
+
+-- | Same as 'format'. Use this when replacing the entire document (e.g. from
+--   the language server), so that tab normalization and all formatting rules
+--   are applied correctly instead of applying incremental edits to tabbed source.
+formatDocument :: T.Text -> T.Text
+formatDocument = format
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO T.Text
