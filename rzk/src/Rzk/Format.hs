@@ -149,12 +149,14 @@ formatTextEdits contents =
       )
       where
         lastPrevToken = listToMaybe (reverse (lineTokensBefore (allTokens s) line col))
+        prevTokenText = getTokenText =<< lastPrevToken
         -- Every assumption on its own line: newline before each ( at depth 0 in a definition, but only when
-        -- there is non-whitespace before ( on the same line (no double newline on re-format), and not after "uses".
+        -- there is non-whitespace before ( on the same line (no double newline on re-format), and not after
+        -- "uses" or "→"/"->" (so wrapped type continuations like "→ ( I : U)" stay on the same line; idempotent).
         assumptionEdits
           | parensDepth s == 0 && definingName s
             && not (T.all (== ' ') (T.take (col - 1) (contentLines line)))
-            && (getTokenText =<< lastPrevToken) /= Just "uses"
+            && prevTokenText `notElem` [Just "uses", Just "→", Just "->"]
           = let spacesBeforeParen = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) (contentLines line))
             in [ FormattingEdit line (col - spacesBeforeParen) line col "\n  " ]
           | otherwise = []
@@ -428,13 +430,24 @@ formatOnePass contents =
       formatted = applyTextEdits (formatTextEdits normalized) normalized
   in wrapLongLines formatted
 
+-- | Repeat 'formatOnePass' until the output is stable (fixed point).
+--   Ensures idempotency: format x == format (format x).
+--   Stops after a bounded number of iterations to avoid infinite loops.
+formatUntilStable :: Int -> T.Text -> T.Text
+formatUntilStable maxIters contents =
+  go maxIters (formatOnePass contents) contents
+  where
+    go n current previous
+      | n <= 0           = current
+      | current == previous = current
+      | otherwise        = go (n - 1) (formatOnePass current) current
+
 -- | Format Rzk code, returning the formatted version.
 --   Tabs are normalized to single spaces before formatting.
 --   Lines are wrapped to fit within the 80-character limit.
---   A second pass is run after wrapping so spacing (e.g. space after '(')
---   is applied to continuation lines produced by the wrap.
+--   Formatting is repeated until the result is stable (idempotent).
 format :: T.Text -> T.Text
-format contents = formatOnePass (formatOnePass contents)
+format contents = formatUntilStable 5 (formatOnePass contents)
 
 -- | Same as 'format'. Use this when replacing the entire document (e.g. from
 --   the language server), so that tab normalization and all formatting rules
