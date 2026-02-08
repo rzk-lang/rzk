@@ -19,6 +19,7 @@ module Rzk.Format (
 ) where
 
 import           Data.List               (sort)
+import           Data.Maybe              (listToMaybe)
 
 import qualified Data.Text               as T
 import qualified Data.Text.IO            as T
@@ -28,6 +29,16 @@ import           Language.Rzk.Syntax     (resolveLayout,
 import           Language.Rzk.Syntax.Lex (Posn (Pn), Tok (..),
                                           TokSymbol (TokSymbol), Token (PT),
                                           tokens)
+
+-- | Extract text from a token (symbol or identifier) for format rules.
+getTokenText :: Token -> Maybe T.Text
+getTokenText (PT _ (TK (TokSymbol t _))) = Just t
+getTokenText (PT _ (T_VarIdentToken t))  = Just t
+getTokenText _                            = Nothing
+
+-- | Line length limit (style guide). Names may exceed this.
+lineLengthLimit :: Int
+lineLengthLimit = 80
 
 -- | All indices are 1-based (as received from the lexer)
 -- Note: LSP uses 0-based indices
@@ -123,18 +134,32 @@ formatTextEdits contents =
     go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
     -- TODO: similarly for other commands
 
+    -- Every assumption on its own line: newline before each ( at depth 0 after the first, in a definition
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
-      | precededBySingleCharOnly && spacesAfter /= 1 && not isLastNonSpaceChar
-        = FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
-        : go (incParensDepth s) tks
-      -- Remove extra spaces if it's not the first open paren on a new line
-      | not precededBySingleCharOnly && spacesAfter > 0
-        = FormattingEdit line spaceCol line (spaceCol + spacesAfter) ""
-        : go (incParensDepth s) tks
-      | otherwise = go (incParensDepth s) tks
-      -- TODO: Split after 80 chars
+      = assumptionEdits ++
+      ( case () of
+          _ | precededBySingleCharOnly && spacesAfter /= 1 && not isLastNonSpaceChar
+            -> FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
+               : go (incParensDepth s) tks
+          _ | not precededBySingleCharOnly && spacesAfter > 0
+            -> FormattingEdit line spaceCol line (spaceCol + spacesAfter) ""
+               : go (incParensDepth s) tks
+          _ -> go (incParensDepth s) tks
+      )
       where
+        lastPrevToken = listToMaybe (reverse (lineTokensBefore (allTokens s) line col))
+        prevTokenText = getTokenText =<< lastPrevToken
+        -- Every assumption on its own line: newline before each ( at depth 0 in a definition, but only when
+        -- there is non-whitespace before ( on the same line (no double newline on re-format), and not after
+        -- "uses" or "→"/"->" (so wrapped type continuations like "→ ( I : U)" stay on the same line; idempotent).
+        assumptionEdits
+          | parensDepth s == 0 && definingName s
+            && not (T.all (== ' ') (T.take (col - 1) (contentLines line)))
+            && prevTokenText `notElem` [Just "uses", Just "→", Just "->"]
+          = let spacesBeforeParen = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) (contentLines line))
+            in [ FormattingEdit line (col - spacesBeforeParen) line col "\n  " ]
+          | otherwise = []
         spaceCol = col + 1
         lineContent = contentLines line
         precededBySingleCharOnly = all isPunctuation (lineTokensBefore (allTokens s) line col)
@@ -344,12 +369,85 @@ applyTextEdit (FormattingEdit sl sc el ec newText) oldText =
 applyTextEdits :: [FormattingEdit] -> T.Text -> T.Text
 applyTextEdits edits contents = foldr applyTextEdit contents (sort edits)
 
+-- | Wrap long lines to fit within 'lineLengthLimit' (style guide).
+--   Breaks at the last space, comma, or → before the limit; continuation gets +2 indent.
+--   When a line ends in a comment ( -- ...), only the code part is wrapped and the
+--   comment is placed on the continuation line starting at the same column.
+--   Comments are allowed to run over the limit; we only wrap when the code part exceeds it.
+--   Lines with no break point (e.g. long names) are left unchanged.
+wrapLongLines :: T.Text -> T.Text
+wrapLongLines = T.unlines . map (wrapLine lineLengthLimit) . T.lines
+
+-- | Split at first " -- " (line comment); second part includes " -- ".
+splitLineComment :: T.Text -> (T.Text, T.Text)
+splitLineComment line =
+  case T.breakOn " -- " line of
+    (_code, comment) | T.null comment -> (line, T.empty)
+    (code, comment)  -> (code, comment)
+
+wrapLine :: Int -> T.Text -> T.Text
+wrapLine limit line =
+  let indent = T.takeWhile (== ' ') line
+      indentLen = T.length indent
+      (contentRaw, commentPart) = splitLineComment (T.drop indentLen line)
+      -- Only wrap when code (incl. indent) exceeds limit; comments may run over
+      codeOnlyLen = indentLen + T.length contentRaw
+      overLimit = if T.null commentPart then T.length line > limit else codeOnlyLen > limit
+  in if not overLimit then line
+     else
+      let -- When there's a comment, only consider code (no trailing spaces) for break
+          content = if T.null commentPart then contentRaw else T.stripEnd contentRaw
+          contentMax = min (T.length content) (limit - indentLen)
+          segment = T.take contentMax content
+          isBreak c = c == ' ' || c == ',' || c == '→'
+          lastBreak = if contentMax <= 0 then Nothing
+                      else let idx = contentMax - 1
+                           in if isBreak (T.index segment idx) then Just idx
+                              else case T.findIndex isBreak (T.reverse segment) of
+                                     Nothing -> Nothing
+                                     Just r  -> Just (contentMax - 1 - r)
+          continuationIndent = indent <> T.replicate 2 " "
+          commentStartCol = indentLen + T.length contentRaw
+      in case lastBreak of
+           Nothing -> line
+           Just i  ->
+             let firstPart = indent <> T.take (i + 1) content
+                 rest = T.drop (i + 1) content
+                 restTrimmed = T.dropWhile (== ' ') rest
+                 line1 = T.stripEnd firstPart
+                 contLineContent = continuationIndent <> restTrimmed
+                 spacesForComment = commentStartCol - T.length contLineContent
+                 line2Content = if T.null commentPart
+                               then contLineContent
+                               else contLineContent <> T.replicate (max 0 spacesForComment) " " <> commentPart
+                 line2 = wrapLine limit line2Content
+             in line1 <> "\n" <> line2
+
+-- | One round: normalize tabs, apply structural edits, wrap long lines.
+formatOnePass :: T.Text -> T.Text
+formatOnePass contents =
+  let normalized = normalizeTabs contents
+      formatted = applyTextEdits (formatTextEdits normalized) normalized
+  in wrapLongLines formatted
+
+-- | Repeat 'formatOnePass' until the output is stable (fixed point).
+--   Ensures idempotency: format x == format (format x).
+--   Stops after a bounded number of iterations to avoid infinite loops.
+formatUntilStable :: Int -> T.Text -> T.Text
+formatUntilStable maxIters contents =
+  go maxIters (formatOnePass contents) contents
+  where
+    go n current previous
+      | n <= 0           = current
+      | current == previous = current
+      | otherwise        = go (n - 1) (formatOnePass current) current
+
 -- | Format Rzk code, returning the formatted version.
 --   Tabs are normalized to single spaces before formatting.
+--   Lines are wrapped to fit within the 80-character limit.
+--   Formatting is repeated until the result is stable (idempotent).
 format :: T.Text -> T.Text
-format contents =
-  let normalized = normalizeTabs contents
-  in applyTextEdits (formatTextEdits normalized) normalized
+format contents = formatUntilStable 5 (formatOnePass contents)
 
 -- | Same as 'format'. Use this when replacing the entire document (e.g. from
 --   the language server), so that tab normalization and all formatting rules
@@ -371,7 +469,9 @@ formatFileWrite path = formatFile path >>= T.writeFile path
 --   This is useful for automation tasks.
 --   Tabs are normalized to single spaces before checking.
 isWellFormatted :: T.Text -> Bool
-isWellFormatted src = null (formatTextEdits (normalizeTabs src))
+isWellFormatted src =
+  let normalized = normalizeTabs src
+  in format normalized == normalized
 
 -- | Same as 'isWellFormatted', but reads the source code from a file.
 isWellFormattedFile :: FilePath -> IO Bool

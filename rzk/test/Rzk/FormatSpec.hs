@@ -24,8 +24,7 @@ spec :: Spec
 spec = do
   describe "Formatter" $ do
     it "Puts definition assumptions, conclusion, and construction on separate lines" $ do
-      -- formats "definition-structure"
-      pendingWith "Doesn't currently place assumptions on a new line"
+      formats "definition-structure"
 
     it "Replaces common ASCII sequences with their unicode equivalent" $ do
       formats "unicode"
@@ -56,4 +55,5 @@ spec = do
 
     it "Fixes indentation" pending
 
-    it "Wraps long lines" pending
+    it "Wraps long lines (including over 160 characters)" $ do
+      formats "line-wrap"
