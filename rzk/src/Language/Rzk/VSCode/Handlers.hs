@@ -263,10 +263,10 @@ provideCompletions req res = do
 -- | Full-document range for LSP (0-based line and character).
 fullDocumentRange :: T.Text -> Range
 fullDocumentRange source =
-  let lines = T.lines source
-      lineCount = length lines
+  let sourceLines = T.lines source
+      lineCount = length sourceLines
       endLine = max 0 (lineCount - 1)
-      endCharacter = if lineCount > 0 then fromIntegral (T.length (last lines)) else 0
+      endCharacter = if lineCount > 0 then fromIntegral (T.length (last sourceLines)) else 0
   in Range (Position 0 0) (Position (fromIntegral endLine) endCharacter)
 
 formatDocument :: Handler LSP 'Method_TextDocumentFormatting
