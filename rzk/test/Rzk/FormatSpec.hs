@@ -45,6 +45,9 @@ spec = do
     it "Aligns colons in split context with parameter name (issue #215)" $ do
       formats "context-colon-align"
 
+    it "Inserts newline after =_{ ... }" $ do
+      formats "identity-type-eq-brace"
+
     it "Doesn't fail on empty inputs" $ do
       formats "empty"
 
