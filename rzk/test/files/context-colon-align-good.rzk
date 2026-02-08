@@ -1,0 +1,5 @@
+#def demo
+  ( A
+    : U)
+  : U
+  := A

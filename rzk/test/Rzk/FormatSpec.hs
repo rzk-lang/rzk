@@ -42,6 +42,9 @@ spec = do
     it "Adds relevant spaces to structure constructions like a tree" $ do
       formats "tree-structure"
 
+    it "Aligns colons in split context with parameter name (issue #215)" $ do
+      formats "context-colon-align"
+
     it "Doesn't fail on empty inputs" $ do
       formats "empty"
 
