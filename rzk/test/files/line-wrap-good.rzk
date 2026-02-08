@@ -1,12 +1,39 @@
 #lang rzk-1
 
-#def f (A : U) (B : U) (C : U) (D : U) (E : U) (F : U) (G : U) (H : U) (I : U)
+#def f
+  ( A : U)
+  ( B : U)
+  ( C : U)
+  ( D : U)
+  ( E : U)
+  ( F : U)
+  ( G : U)
+  ( H : U)
+  ( I : U)
   ( J : U)
   : U
   := unit
 
-#def g (A : U) (B : U) (C : U) (D : U) (E : U) (F : U) (G : U) (H : U) (I : U)
-  ( J : U) (K : U) (L : U) (M : U) (N : U) (O : U) (P : U) (Q : U) (R : U) (S :
-    U) (T : U)
+#def g
+  ( A : U)
+  ( B : U)
+  ( C : U)
+  ( D : U)
+  ( E : U)
+  ( F : U)
+  ( G : U)
+  ( H : U)
+  ( I : U)
+  ( J : U)
+  ( K : U)
+  ( L : U)
+  ( M : U)
+  ( N : U)
+  ( O : U)
+  ( P : U)
+  ( Q : U)
+  ( R : U)
+  ( S : U)
+  ( T : U)
   : U
   := unit

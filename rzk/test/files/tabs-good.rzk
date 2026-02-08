@@ -1,5 +1,6 @@
 #lang rzk-1
 
-#def id (A : U)
+#def id
+  ( A : U)
   : A
   := A

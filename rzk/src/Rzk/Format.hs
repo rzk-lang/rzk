@@ -19,6 +19,7 @@ module Rzk.Format (
 ) where
 
 import           Data.List               (sort)
+import           Data.Maybe              (listToMaybe)
 
 import qualified Data.Text               as T
 import qualified Data.Text.IO            as T
@@ -28,6 +29,12 @@ import           Language.Rzk.Syntax     (resolveLayout,
 import           Language.Rzk.Syntax.Lex (Posn (Pn), Tok (..),
                                           TokSymbol (TokSymbol), Token (PT),
                                           tokens)
+
+-- | Extract text from a token (symbol or identifier) for format rules.
+getTokenText :: Token -> Maybe T.Text
+getTokenText (PT _ (TK (TokSymbol t _))) = Just t
+getTokenText (PT _ (T_VarIdentToken t))  = Just t
+getTokenText _                            = Nothing
 
 -- | Line length limit (style guide). Names may exceed this.
 lineLengthLimit :: Int
@@ -127,17 +134,30 @@ formatTextEdits contents =
     go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
     -- TODO: similarly for other commands
 
+    -- Every assumption on its own line: newline before each ( at depth 0 after the first, in a definition
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
-      | precededBySingleCharOnly && spacesAfter /= 1 && not isLastNonSpaceChar
-        = FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
-        : go (incParensDepth s) tks
-      -- Remove extra spaces if it's not the first open paren on a new line
-      | not precededBySingleCharOnly && spacesAfter > 0
-        = FormattingEdit line spaceCol line (spaceCol + spacesAfter) ""
-        : go (incParensDepth s) tks
-      | otherwise = go (incParensDepth s) tks
+      = assumptionEdits ++
+      ( case () of
+          _ | precededBySingleCharOnly && spacesAfter /= 1 && not isLastNonSpaceChar
+            -> FormattingEdit line spaceCol line (spaceCol + spacesAfter) " "
+               : go (incParensDepth s) tks
+          _ | not precededBySingleCharOnly && spacesAfter > 0
+            -> FormattingEdit line spaceCol line (spaceCol + spacesAfter) ""
+               : go (incParensDepth s) tks
+          _ -> go (incParensDepth s) tks
+      )
       where
+        lastPrevToken = listToMaybe (reverse (lineTokensBefore (allTokens s) line col))
+        -- Every assumption on its own line: newline before each ( at depth 0 in a definition, but only when
+        -- there is non-whitespace before ( on the same line (no double newline on re-format), and not after "uses".
+        assumptionEdits
+          | parensDepth s == 0 && definingName s
+            && not (T.all (== ' ') (T.take (col - 1) (contentLines line)))
+            && (getTokenText =<< lastPrevToken) /= Just "uses"
+          = let spacesBeforeParen = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) (contentLines line))
+            in [ FormattingEdit line (col - spacesBeforeParen) line col "\n  " ]
+          | otherwise = []
         spaceCol = col + 1
         lineContent = contentLines line
         precededBySingleCharOnly = all isPunctuation (lineTokensBefore (allTokens s) line col)
