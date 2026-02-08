@@ -261,13 +261,21 @@ provideCompletions req res = do
         _col = maybe 0 snd pos'
 
 -- | Full-document range for LSP (0-based line and character).
+--   End position is exclusive. Computed from the actual text so that every
+--   character (including trailing newlines) is included; using T.lines would
+--   drop trailing newlines and leave them in place after the edit (extra blank line).
 fullDocumentRange :: T.Text -> Range
-fullDocumentRange source =
-  let sourceLines = T.lines source
-      lineCount = length sourceLines
-      endLine = max 0 (lineCount - 1)
-      endCharacter = if lineCount > 0 then fromIntegral (T.length (last sourceLines)) else 0
-  in Range (Position 0 0) (Position (fromIntegral endLine) endCharacter)
+fullDocumentRange source
+  | T.null source = Range (Position 0 0) (Position 0 0)
+  | otherwise =
+      let newlineCount = T.count (T.singleton '\n') source
+          endLine = newlineCount
+          -- Length of last line (after last newline); if no newline, whole text is one line
+          endCharacter
+            | T.last source == '\n' = 0
+            | Just i <- T.findIndex (== '\n') (T.reverse source) = fromIntegral i
+            | otherwise = fromIntegral (T.length source)
+      in Range (Position 0 0) (Position (fromIntegral endLine) endCharacter)
 
 formatDocument :: Handler LSP 'Method_TextDocumentFormatting
 formatDocument req res = do
@@ -281,8 +289,23 @@ formatDocument req res = do
       Just sourceCode -> do
         let source = T.filter (/= '\r') sourceCode
             formatted = format source
+            -- Preserve trailing newlines of the source so formatting is idempotent.
+            formatted'
+              | T.null source = formatted
+              | otherwise =
+                  let inputTrailing = T.length (T.takeWhileEnd (== '\n') source)
+                      outTrailing = T.length (T.takeWhileEnd (== '\n') formatted)
+                  in if outTrailing > inputTrailing
+                     then T.dropEnd (outTrailing - inputTrailing) formatted
+                     else if outTrailing < inputTrailing
+                          then formatted <> T.replicate (inputTrailing - outTrailing) (T.singleton '\n')
+                          else formatted
+            -- Never send trailing newlines: some clients add one when applying a
+            -- full-document edit, so we send content ending with no newline to avoid
+            -- an extra blank line on each format.
+            formatted'' = T.dropWhileEnd (== '\n') formatted'
             range = fullDocumentRange source
-        return (Right [TextEdit range formatted])
+        return (Right [TextEdit range formatted''])
     case possibleEdits of
 #if MIN_VERSION_lsp(2,7,0)
       Left err    -> res $ Left $ TResponseError (InR ErrorCodes_InternalError) err Nothing

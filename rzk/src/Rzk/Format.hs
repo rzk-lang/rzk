@@ -48,10 +48,12 @@ pattern TokenIdent :: T.Text -> Int -> Int -> Token
 pattern TokenIdent s line col <- PT (Pn _ line col) (T_VarIdentToken s)
 
 data FormatState = FormatState
-  { parensDepth  :: Int  -- ^ The level of parentheses nesting
-  , definingName :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
-  , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
-  , allTokens    :: [Token] -- ^ The full array of tokens after resolving the layout
+  { parensDepth      :: Int  -- ^ The level of parentheses nesting
+  , definingName     :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
+  , lambdaArrow      :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
+  , eqBraceDepth     :: Int  -- ^ Depth inside =_{ ... }; 0 = not inside, 1 = at top level after =_{
+  , eqBraceOnOwnLine :: Bool -- ^ True if the current =_{ started at the beginning of its line (after spaces)
+  , allTokens        :: [Token] -- ^ The full array of tokens after resolving the layout
   }
 
 -- | Replace every tab character with a single space.
@@ -66,7 +68,7 @@ formatTextEdits contents =
     Left _err     -> [] -- TODO: log error (in a CLI and LSP friendly way)
     Right allToks -> go (initialState {allTokens = allToks}) allToks
   where
-    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, allTokens = [] }
+    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents
@@ -159,6 +161,41 @@ formatTextEdits contents =
           [ (not isFirstNonSpaceChar && spacesBefore > 0,
               FormattingEdit line (col - spacesBefore) line col "")
           ]
+
+    -- Enter =_{ ... } (identity type with explicit type): track depth for newline-after-} rule (style guide)
+    -- Only apply newline-after-} when the outermost =_{ is on its own line. Increment depth for nesting.
+    go s (Token "=_{" line col : tks)
+      = go (s { eqBraceDepth = eqBraceDepth s + 1, eqBraceOnOwnLine = if eqBraceDepth s == 0 then isOnOwnLine else eqBraceOnOwnLine s }) tks
+      where
+        lineContent = contentLines line
+        isOnOwnLine = T.all (== ' ') (T.take (col - 1) lineContent)
+
+    -- Count braces inside =_{ ... } so we detect the closing }
+    go s (Token "{" _line _col : tks)
+      = go (s { eqBraceDepth = if eqBraceDepth s > 0 then eqBraceDepth s + 1 else 0 }) tks
+
+    -- Newline after the closing } of =_{ ... } only when =_{ was on its own line (style guide)
+    go s (Token "}" line col : tks)
+      = eqBraceEdits ++ go s' tks
+      where
+        closingEqBrace = eqBraceDepth s == 1
+        onOwnLine = eqBraceOnOwnLine s
+        s' | eqBraceDepth s > 0 = s { eqBraceDepth = eqBraceDepth s - 1, eqBraceOnOwnLine = if eqBraceDepth s == 1 then False else eqBraceOnOwnLine s }
+           | otherwise         = s
+        lineContent = contentLines line
+        braceEndCol = col + 1  -- 1-based column right after "}"
+        afterBrace = T.drop (braceEndCol - 1) lineContent
+        spacesAfter = T.length $ T.takeWhile (== ' ') afterBrace
+        isLastOnLine = T.all (== ' ') afterBrace
+        eqBraceEdits
+          | closingEqBrace && onOwnLine && not isLastOnLine
+          = [ FormattingEdit line braceEndCol line (braceEndCol + spacesAfter) "\n  " ]
+          | closingEqBrace && onOwnLine && isLastOnLine
+          = let nextLine = if line < length (T.lines rzkBlocks) then contentLines (line + 1) else ""
+                spacesNextLine = T.length $ T.takeWhile (== ' ') nextLine
+            in if spacesNextLine /= 2 then [ FormattingEdit (line + 1) 1 (line + 1) (1 + spacesNextLine) "  " ] else []
+          | otherwise
+          = []
 
     -- line break before : (only the top-level one) and one space after
     go s (Token ":" line col : tks)
