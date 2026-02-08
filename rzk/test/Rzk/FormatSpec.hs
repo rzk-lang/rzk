@@ -56,4 +56,5 @@ spec = do
 
     it "Fixes indentation" pending
 
-    it "Wraps long lines" pending
+    it "Wraps long lines (including over 160 characters)" $ do
+      formats "line-wrap"
