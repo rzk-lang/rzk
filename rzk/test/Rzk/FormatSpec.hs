@@ -48,6 +48,9 @@ spec = do
     it "Doesn't fail on empty inputs" $ do
       formats "empty"
 
+    it "Normalizes tabs to spaces" $ do
+      formats "tabs"
+
     it "Fixes indentation" pending
 
     it "Wraps long lines" pending

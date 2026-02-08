@@ -15,6 +15,7 @@ module Rzk.Format (
   formatTextEdits,
   format, formatFile, formatFileWrite,
   isWellFormatted, isWellFormattedFile,
+  normalizeTabs,
 ) where
 
 import           Data.List               (sort)
@@ -53,7 +54,12 @@ data FormatState = FormatState
   , allTokens    :: [Token] -- ^ The full array of tokens after resolving the layout
   }
 
--- TODO: replace all tabs with 1 space before processing
+-- | Replace every tab character with a single space.
+--   Call this before 'formatTextEdits' so that the lexer and edit positions
+--   are consistent (BNFC column counts are undefined when the source contains tabs).
+normalizeTabs :: T.Text -> T.Text
+normalizeTabs = T.replace "\t" " "
+
 formatTextEdits :: T.Text -> [FormattingEdit]
 formatTextEdits contents =
   case resolveLayout True (tokens rzkBlocks) of
@@ -63,7 +69,7 @@ formatTextEdits contents =
     initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
-    rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
+    rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents
     contentLines line = T.lines rzkBlocks !! (line - 1) -- Sorry
     lineTokensBefore toks line col = filter isBefore toks
       where
@@ -87,10 +93,8 @@ formatTextEdits contents =
     go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
     go s (Token "#lang" langLine langCol : Token "rzk-1" rzkLine rzkCol : tks)
-      -- FIXME: Tab characters break this because BNFC increases the column number to the next multiple of 8
-      -- Should probably check the first field of Pn (always incremented by 1)
-      -- Or `tabSize` param sent along the formatting request
-      -- But we should probably convert tabs to spaces first before any other formatting
+      -- Tab characters would break column counts (BNFC uses next multiple of 8); call 'format'
+      -- or pass 'normalizeTabs' output to 'formatTextEdits' so input is tab-free.
       = edits ++ go s tks
       where
         edits = map snd $ filter fst
@@ -304,8 +308,11 @@ applyTextEdits :: [FormattingEdit] -> T.Text -> T.Text
 applyTextEdits edits contents = foldr applyTextEdit contents (sort edits)
 
 -- | Format Rzk code, returning the formatted version.
+--   Tabs are normalized to single spaces before formatting.
 format :: T.Text -> T.Text
-format = applyTextEdits =<< formatTextEdits
+format contents =
+  let normalized = normalizeTabs contents
+  in applyTextEdits (formatTextEdits normalized) normalized
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO T.Text
@@ -319,8 +326,9 @@ formatFileWrite path = formatFile path >>= T.writeFile path
 
 -- | Check if the given Rzk source code is well formatted.
 --   This is useful for automation tasks.
+--   Tabs are normalized to single spaces before checking.
 isWellFormatted :: T.Text -> Bool
-isWellFormatted src = null (formatTextEdits src)
+isWellFormatted src = null (formatTextEdits (normalizeTabs src))
 
 -- | Same as 'isWellFormatted', but reads the source code from a file.
 isWellFormattedFile :: FilePath -> IO Bool
