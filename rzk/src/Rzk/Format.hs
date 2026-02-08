@@ -401,14 +401,20 @@ wrapLine limit line =
                  line2 = wrapLine limit line2Content
              in line1 <> "\n" <> line2
 
--- | Format Rzk code, returning the formatted version.
---   Tabs are normalized to single spaces before formatting.
---   Lines are wrapped to fit within the 80-character limit.
-format :: T.Text -> T.Text
-format contents =
+-- | One round: normalize tabs, apply structural edits, wrap long lines.
+formatOnePass :: T.Text -> T.Text
+formatOnePass contents =
   let normalized = normalizeTabs contents
       formatted = applyTextEdits (formatTextEdits normalized) normalized
   in wrapLongLines formatted
+
+-- | Format Rzk code, returning the formatted version.
+--   Tabs are normalized to single spaces before formatting.
+--   Lines are wrapped to fit within the 80-character limit.
+--   A second pass is run after wrapping so spacing (e.g. space after '(')
+--   is applied to continuation lines produced by the wrap.
+format :: T.Text -> T.Text
+format contents = formatOnePass (formatOnePass contents)
 
 -- | Same as 'format'. Use this when replacing the entire document (e.g. from
 --   the language server), so that tab normalization and all formatting rules
