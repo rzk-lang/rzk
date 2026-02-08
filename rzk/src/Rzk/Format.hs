@@ -177,9 +177,22 @@ formatTextEdits contents =
           , (not isLastNonSpaceChar && spacesAfter /= 1,
               FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
+        -- When colon is on its own line inside parentheses, align with parameter name on previous line (issue #215)
+        prevLine = if line > 1 then contentLines (line - 1) else ""
+        paramNameCol =
+          case T.findIndex (== '(') prevLine of
+            Just parenIdx ->
+              let afterParen = T.drop (parenIdx + 1) prevLine
+                  spacesAfterParen = T.length (T.takeWhile (== ' ') afterParen)
+              in parenIdx + 2 + spacesAfterParen  -- 1-based column of first char of param name
+            Nothing -> 2  -- fallback: 1 space (column 2)
+        alignSpaces = T.replicate (paramNameCol - 1) " "
         normalEdits = map snd $ filter fst
-          -- 1 space before :
-          [ (spacesBefore /= 1, FormattingEdit line (col - spacesBefore) line col " ")
+          -- Inside parens with colon on its own line: align with param name; else 1 space before :
+          [ (isFirstNonSpaceChar && parensDepth s > 0 && spacesBefore /= paramNameCol - 1,
+              FormattingEdit line 1 line col alignSpaces)
+          , (not isFirstNonSpaceChar && spacesBefore /= 1,
+              FormattingEdit line (col - spacesBefore) line col " ")
           -- 1 space after
           , (not isLastNonSpaceChar && spacesAfter /= 1,
               FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
