@@ -34,9 +34,10 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``Sigma`` | ``TOP``
   | ``TOPE`` | ``U`` | ``Unit`` | ``as``
-  | ``first`` | ``idJ`` | ``recBOT`` | ``recOR``
-  | ``refl`` | ``second`` | ``unit`` | ``uses``
-  | ``Σ`` | ``π₁`` | ``π₂`` |
+  | ``first`` | ``flip`` | ``idJ`` | ``inv``
+  | ``mod`` | ``recBOT`` | ``recOR`` | ``refl``
+  | ``second`` | ``unflip`` | ``uninv`` | ``unit``
+  | ``uses`` | ``Σ`` | ``π₁`` | ``π₂``
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -45,12 +46,14 @@ The symbols used in Syntax are the following:
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
   | ( | ) | , | |
-  | { | } | ↦ | 1
-  | *₁ | 2 | 0₂ | 1₂
-  | × | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | [ | ] | <
-  | > | #let | #in | \
+  | { | } | ↦ | _b
+  | _# | _op | _id | /
+  | 1 | *₁ | 2 | 0₂
+  | 1₂ | × | ⊤ | ⊥
+  | ≡ | ≤ | ∧ | ∨
+  | → | =_{ | [ | ]
+  | < | > | #let | #in
+  | \ | <| | |> | $extract$
   | refl_{ | * | *_1 | 0_2
   | 1_2 | === | <= | /\
   | \/ | -> | |-> | ∑
@@ -107,6 +110,7 @@ All other symbols are terminals.
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``)``
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``|`` //Term// ``)``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
+  |  |  **|**  | ``(`` //[Pattern]// ``:`` //Modality// //Term// ``)``
   | //[Param]// | -> | //Param//
   |  |  **|**  | //Param// //[Param]//
   | //Bind// | -> | //Pattern//
@@ -117,13 +121,21 @@ All other symbols are terminals.
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
   |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
+  |  |  **|**  | ``(`` //Term// ``:`` //Modality// //Term// ``)``
   | //SigmaParam// | -> | //Pattern// ``:`` //Term//
+  |  |  **|**  | //Pattern// ``:`` //Modality// //Term//
   | //[SigmaParam]// | -> | //SigmaParam//
   |  |  **|**  | //SigmaParam// ``,`` //[SigmaParam]//
   | //Restriction// | -> | //Term// ``↦`` //Term//
   |  |  **|**  | //Term// ``|->`` //Term//
   | //[Restriction]// | -> | //Restriction//
   |  |  **|**  | //Restriction// ``,`` //[Restriction]//
+  | //Modality// | -> | ``_b``
+  |  |  **|**  | ``_#``
+  |  |  **|**  | ``_op``
+  |  |  **|**  | ``_id``
+  | //ModComp// | -> | //Modality//
+  |  |  **|**  | //Modality// ``/`` //Modality//
   | //Term7// | -> | ``U``
   |  |  **|**  | ``CUBE``
   |  |  **|**  | ``TOPE``
@@ -141,6 +153,8 @@ All other symbols are terminals.
   |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
+  |  |  **|**  | ``mod`` //Modality// //Term7//
+  |  |  **|**  | ``<|`` //Modality// ``|`` //Term// ``|>``
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``
@@ -169,27 +183,35 @@ All other symbols are terminals.
   | //Term2// | -> | //Term3// ``∨`` //Term2//
   |  |  **|**  | //Term3//
   |  |  **|**  | //Term3// ``\/`` //Term2//
-  | //Term1// | -> | //ParamDecl// ``→`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
-  |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
-  |  |  **|**  | //Term2// ``=`` //Term2//
-  |  |  **|**  | ``#let`` //Bind// ``:=`` //Term// ``#in`` //Term//
-  |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
-  |  |  **|**  | //Term2//
-  |  |  **|**  | //ParamDecl// ``->`` //Term1//
-  |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Sigma`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
-  |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``∑`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
-  | //Term6// | -> | //Term6// ``[`` //[Restriction]// ``]``
+  | //Term6// | -> | ``inv`` //Term7//
+  |  |  **|**  | ``uninv`` //Term7//
+  |  |  **|**  | ``flip`` //Term7//
+  |  |  **|**  | ``unflip`` //Term7//
+  |  |  **|**  | //Term6// ``[`` //[Restriction]// ``]``
   |  |  **|**  | //Term6// //Term7//
+  |  |  **|**  | ``$extract$`` //ModComp// //Term7//
   |  |  **|**  | ``π₁`` //Term7//
   |  |  **|**  | ``π₂`` //Term7//
   |  |  **|**  | //Term7//
   |  |  **|**  | ``first`` //Term7//
   |  |  **|**  | ``second`` //Term7//
+  | //Term1// | -> | //ParamDecl// ``→`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Modality// //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
+  |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
+  |  |  **|**  | //Term2// ``=`` //Term2//
+  |  |  **|**  | ``#let`` //Bind// ``:=`` //Term// ``#in`` //Term//
+  |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
+  |  |  **|**  | ``#let`` ``mod`` //ModComp// //Bind// ``:=`` //Term// ``#in`` //Term//
+  |  |  **|**  | //Term2//
+  |  |  **|**  | //ParamDecl// ``->`` //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Modality// //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
+  |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
+  |  |  **|**  | ``∑`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   | //Term// | -> | //Term2// ``as`` //Term1//
   |  |  **|**  | //Term1//
   | //[Term]// | -> | //Term//

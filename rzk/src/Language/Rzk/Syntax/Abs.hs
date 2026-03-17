@@ -83,6 +83,7 @@ data Param' a
     | ParamPatternType a [Pattern' a] (Term' a)
     | ParamPatternShape a [Pattern' a] (Term' a) (Term' a)
     | ParamPatternShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
+    | ParamPatternModalType a [Pattern' a] (Modality' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Bind = Bind' BNFC'Position
@@ -98,16 +99,28 @@ data ParamDecl' a
     | ParamTermShape a (Term' a) (Term' a) (Term' a)
     | ParamTermTypeDeprecated a (Pattern' a) (Term' a)
     | ParamVarShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
+    | ParamTermModalType a (Term' a) (Modality' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type SigmaParam = SigmaParam' BNFC'Position
-data SigmaParam' a = SigmaParam a (Pattern' a) (Term' a)
+data SigmaParam' a
+    = SigmaParam a (Pattern' a) (Term' a)
+    | SigmaParamModal a (Pattern' a) (Modality' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Restriction = Restriction' BNFC'Position
 data Restriction' a
     = Restriction a (Term' a) (Term' a)
     | ASCII_Restriction a (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type Modality = Modality' BNFC'Position
+data Modality' a = Flat a | Sharp a | Op a | Id a
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type ModComp = ModComp' BNFC'Position
+data ModComp' a
+    = Single a (Modality' a) | Comp a (Modality' a) (Modality' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Term = Term' BNFC'Position
@@ -127,11 +140,16 @@ data Term' a
     | TopeLEQ a (Term' a) (Term' a)
     | TopeAnd a (Term' a) (Term' a)
     | TopeOr a (Term' a) (Term' a)
+    | TopeInv a (Term' a)
+    | TopeUninv a (Term' a)
+    | CubeFlip a (Term' a)
+    | CubeUnflip a (Term' a)
     | RecBottom a
     | RecOr a [Restriction' a]
     | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | TypeSigmaModal a (Pattern' a) (Modality' a) (Term' a) (Term' a)
     | TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | TypeUnit a
     | TypeId a (Term' a) (Term' a) (Term' a)
@@ -143,6 +161,10 @@ data Term' a
     | Lambda a [Param' a] (Term' a)
     | Pair a (Term' a) (Term' a)
     | Tuple a (Term' a) (Term' a) [Term' a]
+    | ModApp a (Modality' a) (Term' a)
+    | ModType a (Modality' a) (Term' a)
+    | ModExtract a (ModComp' a) (Term' a)
+    | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -164,6 +186,7 @@ data Term' a
     | ASCII_TopeOr a (Term' a) (Term' a)
     | ASCII_TypeFun a (ParamDecl' a) (Term' a)
     | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | ASCII_TypeSigmaModal a (Pattern' a) (Modality' a) (Term' a) (Term' a)
     | ASCII_TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | ASCII_Lambda a [Param' a] (Term' a)
     | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
@@ -281,6 +304,7 @@ instance HasPosition Param where
     ParamPatternType p _ _ -> p
     ParamPatternShape p _ _ _ -> p
     ParamPatternShapeDeprecated p _ _ _ -> p
+    ParamPatternModalType p _ _ _ -> p
 
 instance HasPosition Bind where
   hasPosition = \case
@@ -294,15 +318,29 @@ instance HasPosition ParamDecl where
     ParamTermShape p _ _ _ -> p
     ParamTermTypeDeprecated p _ _ -> p
     ParamVarShapeDeprecated p _ _ _ -> p
+    ParamTermModalType p _ _ _ -> p
 
 instance HasPosition SigmaParam where
   hasPosition = \case
     SigmaParam p _ _ -> p
+    SigmaParamModal p _ _ _ -> p
 
 instance HasPosition Restriction where
   hasPosition = \case
     Restriction p _ _ -> p
     ASCII_Restriction p _ _ -> p
+
+instance HasPosition Modality where
+  hasPosition = \case
+    Flat p -> p
+    Sharp p -> p
+    Op p -> p
+    Id p -> p
+
+instance HasPosition ModComp where
+  hasPosition = \case
+    Single p _ -> p
+    Comp p _ _ -> p
 
 instance HasPosition Term where
   hasPosition = \case
@@ -321,11 +359,16 @@ instance HasPosition Term where
     TopeLEQ p _ _ -> p
     TopeAnd p _ _ -> p
     TopeOr p _ _ -> p
+    TopeInv p _ -> p
+    TopeUninv p _ -> p
+    CubeFlip p _ -> p
+    CubeUnflip p _ -> p
     RecBottom p -> p
     RecOr p _ -> p
     RecOrDeprecated p _ _ _ _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
+    TypeSigmaModal p _ _ _ _ -> p
     TypeSigmaTuple p _ _ _ -> p
     TypeUnit p -> p
     TypeId p _ _ _ -> p
@@ -337,6 +380,10 @@ instance HasPosition Term where
     Lambda p _ _ -> p
     Pair p _ _ -> p
     Tuple p _ _ _ -> p
+    ModApp p _ _ -> p
+    ModType p _ _ -> p
+    ModExtract p _ _ -> p
+    LetMod p _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p
@@ -358,6 +405,7 @@ instance HasPosition Term where
     ASCII_TopeOr p _ _ -> p
     ASCII_TypeFun p _ _ -> p
     ASCII_TypeSigma p _ _ _ -> p
+    ASCII_TypeSigmaModal p _ _ _ _ -> p
     ASCII_TypeSigmaTuple p _ _ _ -> p
     ASCII_Lambda p _ _ -> p
     ASCII_TypeExtensionDeprecated p _ _ -> p

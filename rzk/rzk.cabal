@@ -5,7 +5,7 @@ cabal-version: 1.24
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.7.7
+version:        0.7.7-moded
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -179,7 +179,7 @@ library
       src
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -225,7 +225,7 @@ executable rzk
       app
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -258,7 +258,7 @@ test-suite doctests
       test
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -292,7 +292,7 @@ test-suite rzk-test
       test
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
