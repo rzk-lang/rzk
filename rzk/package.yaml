@@ -1,5 +1,5 @@
 name: rzk
-version: 0.7.7
+version: 0.7.7-moded
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -59,6 +59,7 @@ ghc-options:
   - -Wall
   - -Wcompat
   - -Widentities
+  - -Werror=missing-fields
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   # - -Wmissing-export-lists

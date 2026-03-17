@@ -150,6 +150,7 @@ tokenizeTerm' varTokenType = go
         [ foldMap tokenizeParam params
         , go body ]
       Let _loc bind val expr -> concat [tokenizeBind bind, go val, go expr]
+      LetMod _loc _comp bind val expr -> concat [tokenizeBind bind, go val, go expr]
       ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]
@@ -184,9 +185,14 @@ tokenizeTerm' varTokenType = go
 
       TypeAsc _loc t type_ -> foldMap go [t, type_]
 
+      ModType _loc _ type_ -> foldMap go [type_]
+      ModApp _loc _ te -> foldMap go [te]
+      ModExtract _loc _ te -> foldMap go [te]
+
       RecOrDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
       TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
       ASCII_TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
+
 
 tokenizeRestriction :: Restriction -> [SemanticTokenAbsolute]
 tokenizeRestriction (Restriction _loc tope term) = concat

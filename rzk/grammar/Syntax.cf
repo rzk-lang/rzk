@@ -66,10 +66,11 @@ _. Pattern1 ::= Pattern ;
 separator nonempty Pattern1 "," ;
 
 -- Parameter introduction for lambda abstractions
-ParamPattern.      Param ::= Pattern ;
-ParamPatternType.  Param ::= "(" [Pattern] ":" Term ")" ;
-ParamPatternShape. Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
+ParamPattern.          Param ::= Pattern ;
+ParamPatternType.      Param ::= "(" [Pattern] ":" Term ")" ;
+ParamPatternShape.     Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
 ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
+ParamPatternModalType. Param ::= "(" [Pattern] ":" Modality Term ")" ;
 separator nonempty Param "" ;
 
 -- Name introduction for let bindings
@@ -77,20 +78,32 @@ BindPattern.      Bind ::= Pattern ;
 BindPatternType.  Bind ::= Pattern ":" Term  ;
 
 -- Parameter declaration for functions and extension types
-ParamType.          ParamDecl ::= Term6 ;
-ParamTermType.      ParamDecl ::= "(" Term ":" Term ")" ;
-ParamTermShape.     ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
+ParamType.             ParamDecl ::= Term6 ;
+ParamTermType.         ParamDecl ::= "(" Term ":" Term ")" ;
+ParamTermShape.        ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
 ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
 ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
+ParamTermModalType.    ParamDecl ::= "(" Term ":" Modality Term ")" ;
 
 -- Parameter declaration for Sigma types
-SigmaParam. SigmaParam ::= Pattern ":" Term ;
+SigmaParam.      SigmaParam ::= Pattern ":" Term ;
+SigmaParamModal. SigmaParam ::= Pattern ":" Modality Term ;
 separator nonempty SigmaParam "," ;
 
 Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
+
+-- Modalities 
+Flat.    Modality ::= "_b" ;
+Sharp.   Modality ::= "_#" ;
+Op.      Modality ::= "_op" ;
+Id.      Modality ::= "_id" ;
+
+
+Single.  ModComp ::= Modality ;
+Comp.    ModComp ::= Modality "/" Modality ;
 
 -- Universes
 Universe.       Term7 ::= "U" ;
@@ -110,6 +123,10 @@ TopeEQ.         Term4 ::= Term5 "≡" Term5 ;
 TopeLEQ.        Term4 ::= Term5 "≤" Term5 ;
 TopeAnd.        Term3 ::= Term4 "∧" Term3 ;
 TopeOr.         Term2 ::= Term3 "∨" Term2 ;
+TopeInv.        Term6 ::= "inv" Term7 ;
+TopeUninv.      Term6 ::= "uninv" Term7 ;
+CubeFlip.       Term6 ::= "flip" Term7 ;
+CubeUnflip.     Term6 ::= "unflip" Term7 ;
 -- Tope disjunction elimination
 RecBottom.        Term7 ::= "recBOT" ;
 RecOr.            Term7 ::= "recOR" "(" [Restriction] ")" ;
@@ -117,6 +134,7 @@ RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
+TypeSigmaModal. Term1 ::= "Σ" "(" Pattern ":" Modality Term ")" "," Term1 ;
 TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
@@ -129,6 +147,10 @@ App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
 Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
+ModApp.         Term7 ::= "mod" Modality Term7 ;
+ModType.        Term7 ::= "<|" Modality "|" Term "|>" ;
+ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
+LetMod.         Term1 ::= "#let" "mod" ModComp Bind ":=" Term "#in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;
@@ -163,6 +185,7 @@ ASCII_TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
 
 ASCII_TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
+ASCII_TypeSigmaModal. Term1 ::= "Sigma" "(" Pattern ":" Modality Term ")" "," Term1 ;
 ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 
 ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
