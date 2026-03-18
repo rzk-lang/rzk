@@ -85,6 +85,7 @@ data TermF scope term
     | TypeSigmaF (Maybe VarIdent) term scope
     | TypeIdF term (Maybe term) term
     | AppF term term
+    | LetF (Maybe VarIdent) (Maybe term) term scope
     | LambdaF (Maybe VarIdent) (Maybe (term, Maybe scope)) scope
     | PairF term term
     | FirstF term
@@ -300,7 +301,7 @@ toTerm bvars = go
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
         Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
       Rzk.Lambda _loc (Rzk.ParamPatternType _ [] _ty : params) body ->
-        go (Rzk.Lambda _loc params body)                        
+        go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternType _ (pat:pats) ty : params) body ->
         Lambda (patternVar pat) (Just (go ty, Nothing))
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
@@ -314,7 +315,10 @@ toTerm bvars = go
               _ -> id
          in lint' $ Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
               (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' pats cube tope : params) body))
-
+      Rzk.Let _loc (Rzk.BindPattern _ pat) val expr ->
+        Let (patternVar pat) Nothing (go val) (toScopePattern pat bvars expr)
+      Rzk.Let _loc (Rzk.BindPatternType _ pat ty) val expr -> 
+        Let (patternVar pat) (Just (go ty)) (go val) (toScopePattern pat bvars expr)
       Rzk.TypeRestricted _loc ty rs ->
         TypeRestricted (go ty) $ flip map rs $ \case
           Rzk.Restriction _loc tope term       -> (go tope, go term)
@@ -408,7 +412,10 @@ fromTermWith' used vars = go
       Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
         Rzk.Lambda loc [Rzk.ParamPatternShape loc [Rzk.PatternVar loc (fromVarIdent x)] (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda loc (Maybe (term, Maybe scope)) scope
-
+      Let z Nothing val scope -> withFresh z $ \(x, xs) -> 
+        Rzk.Let loc (Rzk.BindPattern loc (Rzk.PatternVar loc (fromVarIdent  x))) (go val) (fromScope' x used xs scope)
+      Let z (Just ty) val scope -> withFresh z $ \(x, xs) -> 
+        Rzk.Let loc (Rzk.BindPatternType loc (Rzk.PatternVar loc (fromVarIdent  x)) (go ty)) (go val) (fromScope' x used xs scope)
       Pair l r -> Rzk.Pair loc (go l) (go r)
       First term -> Rzk.First loc (go term)
       Second term -> Rzk.Second loc (go term)

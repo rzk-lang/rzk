@@ -65,12 +65,16 @@ separator nonempty Pattern "" ;
 _. Pattern1 ::= Pattern ;
 separator nonempty Pattern1 "," ;
 
--- Parameter introduction (for lambda abstractions)
+-- Parameter introduction for lambda abstractions
 ParamPattern.      Param ::= Pattern ;
 ParamPatternType.  Param ::= "(" [Pattern] ":" Term ")" ;
 ParamPatternShape. Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
 ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
 separator nonempty Param "" ;
+
+-- Name introduction for let bindings
+BindPattern.      Bind ::= Pattern ;
+BindPatternType.  Bind ::= Pattern ":" Term  ;
 
 -- Parameter declaration for functions and extension types
 ParamType.          ParamDecl ::= Term6 ;
@@ -120,6 +124,7 @@ TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
 TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 -- Terms
+Let.            Term1 ::= "#let" Bind ":=" Term "#in" Term ;
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;

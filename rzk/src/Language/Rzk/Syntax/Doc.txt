@@ -50,10 +50,10 @@ The symbols used in Syntax are the following:
   | × | ⊤ | ⊥ | ≡
   | ≤ | ∧ | ∨ | →
   | =_{ | [ | ] | <
-  | > | \ | refl_{ | *
-  | *_1 | 0_2 | 1_2 | ===
-  | <= | /\ | \/ | ->
-  | |-> | ∑ |  |
+  | > | #let | #in | \
+  | refl_{ | * | *_1 | 0_2
+  | 1_2 | === | <= | /\
+  | \/ | -> | |-> | ∑
 
 ===Comments===
 Single-line comments begin with --. Multiple-line comments are enclosed with {- and -}.
@@ -109,6 +109,8 @@ All other symbols are terminals.
   |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   | //[Param]// | -> | //Param//
   |  |  **|**  | //Param// //[Param]//
+  | //Bind// | -> | //Pattern//
+  |  |  **|**  | //Pattern// ``:`` //Term//
   | //ParamDecl// | -> | //Term6//
   |  |  **|**  | ``(`` //Term// ``:`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``:`` //Term// ``|`` //Term// ``)``
@@ -172,6 +174,7 @@ All other symbols are terminals.
   |  |  **|**  | ``Σ`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
   |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
   |  |  **|**  | //Term2// ``=`` //Term2//
+  |  |  **|**  | ``#let`` //Bind// ``:=`` //Term// ``#in`` //Term//
   |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
   |  |  **|**  | //Term2//
   |  |  **|**  | //ParamDecl// ``->`` //Term1//

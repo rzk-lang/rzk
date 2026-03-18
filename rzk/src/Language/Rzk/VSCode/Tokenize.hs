@@ -43,6 +43,11 @@ tokenizeCommand command = case command of
   CommandSection    _loc _nameStart -> []
   CommandSectionEnd _loc _nameEnd -> []
 
+tokenizeBind :: Bind -> [SemanticTokenAbsolute]
+tokenizeBind = \case
+  BindPattern _loc pat -> tokenizePattern pat
+  BindPatternType _loc pat type_ -> concat [tokenizePattern pat, tokenizeTerm type_]
+
 tokenizeParam :: Param -> [SemanticTokenAbsolute]
 tokenizeParam = \case
   ParamPattern _loc pat -> tokenizePattern pat
@@ -126,18 +131,16 @@ tokenizeTerm' varTokenType = go
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
-      TypeSigmaTuple loc p ps tN -> concat 
+      TypeSigmaTuple loc p ps tN -> concat
         [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , foldMap tokenizeSigmaParam (p : ps)
         , go tN ]
-      ASCII_TypeSigmaTuple loc p ps tN -> concat 
+      ASCII_TypeSigmaTuple loc p ps tN -> concat
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , foldMap tokenizeSigmaParam (p : ps)
         , go tN ]
       TypeId _loc x a y -> foldMap go [x, a, y]
       TypeIdSimple _loc x y -> foldMap go [x, y]
-        
-
       TypeRestricted _loc type_ rs -> concat
         [ go type_
         , foldMap tokenizeRestriction rs ]
@@ -146,6 +149,7 @@ tokenizeTerm' varTokenType = go
       Lambda _loc params body -> concat
         [ foldMap tokenizeParam params
         , go body ]
+      Let _loc bind val expr -> concat [tokenizeBind bind, go val, go expr]
       ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]
@@ -213,8 +217,8 @@ tokenizeParamDecl = \case
     ]
 
 tokenizeSigmaParam :: SigmaParam -> [SemanticTokenAbsolute]
-tokenizeSigmaParam (SigmaParam _loc pat type_) = concat 
-  [ tokenizePattern pat 
+tokenizeSigmaParam (SigmaParam _loc pat type_) = concat
+  [ tokenizePattern pat
   , tokenizeTerm type_ ]
 
 mkToken :: (HasPosition a, Print a) => a -> SemanticTokenTypes -> [SemanticTokenModifiers] -> [SemanticTokenAbsolute]
