@@ -24,6 +24,7 @@ module Language.Rzk.Syntax.Par
   , pListPattern1
   , pParam
   , pListParam
+  , pBind
   , pParamDecl
   , pSigmaParam
   , pListSigmaParam
@@ -64,6 +65,7 @@ import qualified Data.Text
 %name pListPattern1_internal ListPattern1
 %name pParam_internal Param
 %name pListParam_internal ListParam
+%name pBind_internal Bind
 %name pParamDecl_internal ParamDecl
 %name pSigmaParam_internal SigmaParam
 %name pListSigmaParam_internal ListSigmaParam
@@ -90,75 +92,77 @@ import qualified Data.Text
   '#def'           { PT _ (TS _ 6)             }
   '#define'        { PT _ (TS _ 7)             }
   '#end'           { PT _ (TS _ 8)             }
-  '#lang'          { PT _ (TS _ 9)             }
-  '#postulate'     { PT _ (TS _ 10)            }
-  '#section'       { PT _ (TS _ 11)            }
-  '#set-option'    { PT _ (TS _ 12)            }
-  '#unset-option'  { PT _ (TS _ 13)            }
-  '#variable'      { PT _ (TS _ 14)            }
-  '#variables'     { PT _ (TS _ 15)            }
-  '('              { PT _ (TS _ 16)            }
-  ')'              { PT _ (TS _ 17)            }
-  '*'              { PT _ (TS _ 18)            }
-  '*_1'            { PT _ (TS _ 19)            }
-  '*₁'             { PT _ (TS _ 20)            }
-  ','              { PT _ (TS _ 21)            }
-  '->'             { PT _ (TS _ 22)            }
-  '/\\'            { PT _ (TS _ 23)            }
-  '0_2'            { PT _ (TS _ 24)            }
-  '0₂'             { PT _ (TS _ 25)            }
-  '1'              { PT _ (TS _ 26)            }
-  '1_2'            { PT _ (TS _ 27)            }
-  '1₂'             { PT _ (TS _ 28)            }
-  '2'              { PT _ (TS _ 29)            }
-  ':'              { PT _ (TS _ 30)            }
-  ':='             { PT _ (TS _ 31)            }
-  ';'              { PT _ (TS _ 32)            }
-  '<'              { PT _ (TS _ 33)            }
-  '<='             { PT _ (TS _ 34)            }
-  '='              { PT _ (TS _ 35)            }
-  '==='            { PT _ (TS _ 36)            }
-  '=_{'            { PT _ (TS _ 37)            }
-  '>'              { PT _ (TS _ 38)            }
-  'BOT'            { PT _ (TS _ 39)            }
-  'CUBE'           { PT _ (TS _ 40)            }
-  'Sigma'          { PT _ (TS _ 41)            }
-  'TOP'            { PT _ (TS _ 42)            }
-  'TOPE'           { PT _ (TS _ 43)            }
-  'U'              { PT _ (TS _ 44)            }
-  'Unit'           { PT _ (TS _ 45)            }
-  '['              { PT _ (TS _ 46)            }
-  '\\'             { PT _ (TS _ 47)            }
-  '\\/'            { PT _ (TS _ 48)            }
-  ']'              { PT _ (TS _ 49)            }
-  'as'             { PT _ (TS _ 50)            }
-  'first'          { PT _ (TS _ 51)            }
-  'idJ'            { PT _ (TS _ 52)            }
-  'recBOT'         { PT _ (TS _ 53)            }
-  'recOR'          { PT _ (TS _ 54)            }
-  'refl'           { PT _ (TS _ 55)            }
-  'refl_{'         { PT _ (TS _ 56)            }
-  'rzk-1'          { PT _ (TS _ 57)            }
-  'second'         { PT _ (TS _ 58)            }
-  'unit'           { PT _ (TS _ 59)            }
-  'uses'           { PT _ (TS _ 60)            }
-  '{'              { PT _ (TS _ 61)            }
-  '|'              { PT _ (TS _ 62)            }
-  '|->'            { PT _ (TS _ 63)            }
-  '}'              { PT _ (TS _ 64)            }
-  '×'              { PT _ (TS _ 65)            }
-  'Σ'              { PT _ (TS _ 66)            }
-  'π₁'             { PT _ (TS _ 67)            }
-  'π₂'             { PT _ (TS _ 68)            }
-  '→'              { PT _ (TS _ 69)            }
-  '↦'              { PT _ (TS _ 70)            }
-  '∑'              { PT _ (TS _ 71)            }
-  '∧'              { PT _ (TS _ 72)            }
-  '∨'              { PT _ (TS _ 73)            }
-  '≡'              { PT _ (TS _ 74)            }
-  '≤'              { PT _ (TS _ 75)            }
-  '⊤'              { PT _ (TS _ 76)            }
-  '⊥'              { PT _ (TS _ 77)            }
+  '#in'            { PT _ (TS _ 9)             }
+  '#lang'          { PT _ (TS _ 10)            }
+  '#let'           { PT _ (TS _ 11)            }
+  '#postulate'     { PT _ (TS _ 12)            }
+  '#section'       { PT _ (TS _ 13)            }
+  '#set-option'    { PT _ (TS _ 14)            }
+  '#unset-option'  { PT _ (TS _ 15)            }
+  '#variable'      { PT _ (TS _ 16)            }
+  '#variables'     { PT _ (TS _ 17)            }
+  '('              { PT _ (TS _ 18)            }
+  ')'              { PT _ (TS _ 19)            }
+  '*'              { PT _ (TS _ 20)            }
+  '*_1'            { PT _ (TS _ 21)            }
+  '*₁'             { PT _ (TS _ 22)            }
+  ','              { PT _ (TS _ 23)            }
+  '->'             { PT _ (TS _ 24)            }
+  '/\\'            { PT _ (TS _ 25)            }
+  '0_2'            { PT _ (TS _ 26)            }
+  '0₂'             { PT _ (TS _ 27)            }
+  '1'              { PT _ (TS _ 28)            }
+  '1_2'            { PT _ (TS _ 29)            }
+  '1₂'             { PT _ (TS _ 30)            }
+  '2'              { PT _ (TS _ 31)            }
+  ':'              { PT _ (TS _ 32)            }
+  ':='             { PT _ (TS _ 33)            }
+  ';'              { PT _ (TS _ 34)            }
+  '<'              { PT _ (TS _ 35)            }
+  '<='             { PT _ (TS _ 36)            }
+  '='              { PT _ (TS _ 37)            }
+  '==='            { PT _ (TS _ 38)            }
+  '=_{'            { PT _ (TS _ 39)            }
+  '>'              { PT _ (TS _ 40)            }
+  'BOT'            { PT _ (TS _ 41)            }
+  'CUBE'           { PT _ (TS _ 42)            }
+  'Sigma'          { PT _ (TS _ 43)            }
+  'TOP'            { PT _ (TS _ 44)            }
+  'TOPE'           { PT _ (TS _ 45)            }
+  'U'              { PT _ (TS _ 46)            }
+  'Unit'           { PT _ (TS _ 47)            }
+  '['              { PT _ (TS _ 48)            }
+  '\\'             { PT _ (TS _ 49)            }
+  '\\/'            { PT _ (TS _ 50)            }
+  ']'              { PT _ (TS _ 51)            }
+  'as'             { PT _ (TS _ 52)            }
+  'first'          { PT _ (TS _ 53)            }
+  'idJ'            { PT _ (TS _ 54)            }
+  'recBOT'         { PT _ (TS _ 55)            }
+  'recOR'          { PT _ (TS _ 56)            }
+  'refl'           { PT _ (TS _ 57)            }
+  'refl_{'         { PT _ (TS _ 58)            }
+  'rzk-1'          { PT _ (TS _ 59)            }
+  'second'         { PT _ (TS _ 60)            }
+  'unit'           { PT _ (TS _ 61)            }
+  'uses'           { PT _ (TS _ 62)            }
+  '{'              { PT _ (TS _ 63)            }
+  '|'              { PT _ (TS _ 64)            }
+  '|->'            { PT _ (TS _ 65)            }
+  '}'              { PT _ (TS _ 66)            }
+  '×'              { PT _ (TS _ 67)            }
+  'Σ'              { PT _ (TS _ 68)            }
+  'π₁'             { PT _ (TS _ 69)            }
+  'π₂'             { PT _ (TS _ 70)            }
+  '→'              { PT _ (TS _ 71)            }
+  '↦'              { PT _ (TS _ 72)            }
+  '∑'              { PT _ (TS _ 73)            }
+  '∧'              { PT _ (TS _ 74)            }
+  '∨'              { PT _ (TS _ 75)            }
+  '≡'              { PT _ (TS _ 76)            }
+  '≤'              { PT _ (TS _ 77)            }
+  '⊤'              { PT _ (TS _ 78)            }
+  '⊥'              { PT _ (TS _ 79)            }
   L_quoted         { PT _ (TL _)               }
   L_VarIdentToken  { PT _ (T_VarIdentToken _)  }
   L_HoleIdentToken { PT _ (T_HoleIdentToken _) }
@@ -266,6 +270,11 @@ ListParam
   : Param { (fst $1, (:[]) (snd $1)) }
   | Param ListParam { (fst $1, (:) (snd $1) (snd $2)) }
 
+Bind :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Bind) }
+Bind
+  : Pattern { (fst $1, Language.Rzk.Syntax.Abs.BindPattern (fst $1) (snd $1)) }
+  | Pattern ':' Term { (fst $1, Language.Rzk.Syntax.Abs.BindPatternType (fst $1) (snd $1) (snd $3)) }
+
 ParamDecl :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.ParamDecl) }
 ParamDecl
   : Term6 { (fst $1, Language.Rzk.Syntax.Abs.ParamType (fst $1) (snd $1)) }
@@ -361,6 +370,7 @@ Term1
   | 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
   | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
+  | '#let' Bind ':=' Term '#in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Let (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
   | '\\' ListParam '→' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | Term2 { (fst $1, (snd $1)) }
   | ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TypeFun (fst $1) (snd $1) (snd $3)) }
@@ -454,6 +464,9 @@ pParam = fmap snd . pParam_internal
 
 pListParam :: [Token] -> Err [Language.Rzk.Syntax.Abs.Param]
 pListParam = fmap snd . pListParam_internal
+
+pBind :: [Token] -> Err Language.Rzk.Syntax.Abs.Bind
+pBind = fmap snd . pBind_internal
 
 pParamDecl :: [Token] -> Err Language.Rzk.Syntax.Abs.ParamDecl
 pParamDecl = fmap snd . pParamDecl_internal

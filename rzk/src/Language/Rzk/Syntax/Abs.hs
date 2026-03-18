@@ -85,6 +85,12 @@ data Param' a
     | ParamPatternShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
+type Bind = Bind' BNFC'Position
+data Bind' a
+    = BindPattern a (Pattern' a)
+    | BindPatternType a (Pattern' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
 type ParamDecl = ParamDecl' BNFC'Position
 data ParamDecl' a
     = ParamType a (Term' a)
@@ -132,6 +138,7 @@ data Term' a
     | TypeIdSimple a (Term' a) (Term' a)
     | TypeRestricted a (Term' a) [Restriction' a]
     | TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
+    | Let a (Bind' a) (Term' a) (Term' a)
     | App a (Term' a) (Term' a)
     | Lambda a [Param' a] (Term' a)
     | Pair a (Term' a) (Term' a)
@@ -275,6 +282,11 @@ instance HasPosition Param where
     ParamPatternShape p _ _ _ -> p
     ParamPatternShapeDeprecated p _ _ _ -> p
 
+instance HasPosition Bind where
+  hasPosition = \case
+    BindPattern p _ -> p
+    BindPatternType p _ _ -> p
+
 instance HasPosition ParamDecl where
   hasPosition = \case
     ParamType p _ -> p
@@ -320,6 +332,7 @@ instance HasPosition Term where
     TypeIdSimple p _ _ -> p
     TypeRestricted p _ _ -> p
     TypeExtensionDeprecated p _ _ -> p
+    Let p _ _ _ -> p
     App p _ _ -> p
     Lambda p _ _ -> p
     Pair p _ _ -> p

@@ -80,6 +80,11 @@ transParam x = case x of
   Language.Rzk.Syntax.Abs.ParamPatternShape _ patterns term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated _ pattern_ term1 term2 -> failure x
 
+transBind :: Show a => Language.Rzk.Syntax.Abs.Bind' a -> Result
+transBind x = case x of
+  Language.Rzk.Syntax.Abs.BindPattern _ pattern_ -> failure x
+  Language.Rzk.Syntax.Abs.BindPatternType _ pattern_ term -> failure x
+
 transParamDecl :: Show a => Language.Rzk.Syntax.Abs.ParamDecl' a -> Result
 transParamDecl x = case x of
   Language.Rzk.Syntax.Abs.ParamType _ term -> failure x
@@ -125,6 +130,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> failure x
   Language.Rzk.Syntax.Abs.TypeExtensionDeprecated _ paramdecl term -> failure x
+  Language.Rzk.Syntax.Abs.Let _ bind term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.App _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.Lambda _ params term -> failure x
   Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x

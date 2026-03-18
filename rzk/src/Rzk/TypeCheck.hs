@@ -1558,6 +1558,9 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                             Nothing  -> pure (AppT ty { infoType = ret' } f' x)
                             Just tt' -> whnfT tt'
                     _ -> pure (AppT ty f' x)
+              
+              LetT _ty _orig _mparam val body ->
+                whnfT (substituteT val body)
 
               FirstT ty t ->
                 whnfT t >>= \case
@@ -1673,7 +1676,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     | TypeFunT _ty _origF param mtope _ret <- infoType ty ->
         LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
   LambdaT{} -> panicImpossible "lambda with a non-function type in the tope layer"
-
+  LetT{} -> panicImpossible "let in a tope layer"
   TypeFunT{} -> panicImpossible "exposed function type in the tope layer"
   TypeSigmaT{} -> panicImpossible "dependent sum type in the tope layer"
   TypeIdT{} -> panicImpossible "identity type in the tope layer"
@@ -1754,6 +1757,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
                     <$> (AppT ty <$> nfT f' <*> nfT x)
                     <*> nfT (substituteT x tope)
                 _ -> AppT ty <$> nfT f' <*> nfT x
+          LetT _ty _orig _mparam val body ->
+            nfT (substituteT val body)
           LambdaT ty orig _mparam body -> do
             case stripTypeRestrictions (infoType ty) of
               TypeFunT _ty _orig param mtope _ret -> do
@@ -2054,6 +2059,8 @@ unifyInCurrentContext mterm expected actual = performing action $
                               _ -> err
                           _ -> err
                       _ -> err
+                  
+                  LetT{} -> panicImpossible "let at the root of WHNF"
 
                   ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
                     case actual' of
@@ -2279,6 +2286,17 @@ lambdaT ty orig mparam body = t
       , infoWHNF  = Just t
       }
 
+
+letT :: TermT var -> Maybe VarIdent -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
+letT ty orig mparam val body = t 
+  where 
+    t = LetT info orig mparam val body 
+    info = TypeInfo
+      { infoType = ty
+      , infoNF = Nothing
+      , infoWHNF = Nothing 
+      }
+
 appT :: TermT var -> TermT var -> TermT var -> TermT var
 appT ty f x = t
   where
@@ -2463,7 +2481,18 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                 return (lambdaT ty' orig (Just (param', mtope')) body')
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
-
+      Let orig annot val body -> do
+        val' <- case annot of
+          Nothing -> infer val
+          Just bindType -> do
+            bindType' <- typecheck bindType universeT
+            typecheck val bindType'
+        bindTy <- typeOf val'
+        (body', ret) <- enterScope orig bindTy $ do
+          body' <- typecheck body (S <$> ty')
+          ret <- typeOf body'
+          return (body', ret)
+        return (letT (substituteT val' ret) orig (Just bindTy) val' body')
       Pair l r ->
         case ty' of
           CubeProductT _ty a b -> do
@@ -2734,7 +2763,18 @@ infer tt = performing (ActionInfer tt) $ case tt of
       body' <- localTope tope' $ infer body
       ret <- typeOf body'
       return (lambdaT (typeFunT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
-
+  Let orig annot val body -> do
+    val' <- case annot of 
+      Nothing -> infer val
+      Just ty -> do 
+        bindTy <- typecheck ty universeT
+        typecheck val bindTy
+    bindTy <- typeOf val'
+    (body', ret) <- enterScope orig bindTy $ do
+      body' <- infer body
+      ret <- typeOf body'
+      return (body', ret)
+    return (letT (substituteT val' ret) orig (Just bindTy) val' body')
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do
     x' <- inferAs universeT x

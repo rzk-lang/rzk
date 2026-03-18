@@ -217,6 +217,11 @@ instance Print [Language.Rzk.Syntax.Abs.Param' a] where
   prt _ [x] = concatD [prt 0 x]
   prt _ (x:xs) = concatD [prt 0 x, prt 0 xs]
 
+instance Print (Language.Rzk.Syntax.Abs.Bind' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.BindPattern _ pattern_ -> prPrec i 0 (concatD [prt 0 pattern_])
+    Language.Rzk.Syntax.Abs.BindPatternType _ pattern_ term -> prPrec i 0 (concatD [prt 0 pattern_, doc (showString ":"), prt 0 term])
+
 instance Print (Language.Rzk.Syntax.Abs.ParamDecl' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.ParamType _ term -> prPrec i 0 (concatD [prt 6 term])
@@ -272,6 +277,7 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> prPrec i 1 (concatD [prt 2 term1, doc (showString "="), prt 2 term2])
     Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> prPrec i 6 (concatD [prt 6 term, doc (showString "["), prt 0 restrictions, doc (showString "]")])
     Language.Rzk.Syntax.Abs.TypeExtensionDeprecated _ paramdecl term -> prPrec i 7 (concatD [doc (showString "<"), prt 0 paramdecl, doc (showString "\8594"), prt 0 term, doc (showString ">")])
+    Language.Rzk.Syntax.Abs.Let _ bind term1 term2 -> prPrec i 1 (concatD [doc (showString "#let"), prt 0 bind, doc (showString ":="), prt 0 term1, doc (showString "#in"), prt 0 term2])
     Language.Rzk.Syntax.Abs.App _ term1 term2 -> prPrec i 6 (concatD [prt 6 term1, prt 7 term2])
     Language.Rzk.Syntax.Abs.Lambda _ params term -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 params, doc (showString "\8594"), prt 1 term])
     Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> prPrec i 7 (concatD [doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ")")])
