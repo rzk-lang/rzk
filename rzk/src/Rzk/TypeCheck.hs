@@ -2488,11 +2488,9 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             bindType' <- typecheck bindType universeT
             typecheck val bindType'
         bindTy <- typeOf val'
-        (body', ret) <- enterScope orig bindTy $ do
-          body' <- typecheck body (S <$> ty')
-          ret <- typeOf body'
-          return (body', ret)
-        return (letT (substituteT val' ret) orig (Just bindTy) val' body')
+        body' <- typecheck (substitute val body) ty'  
+        ret <- typeOf body'
+        return (letT ret orig (Just bindTy) val' (S <$> body'))
       Pair l r ->
         case ty' of
           CubeProductT _ty a b -> do
@@ -2770,11 +2768,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
         bindTy <- typecheck ty universeT
         typecheck val bindTy
     bindTy <- typeOf val'
-    (body', ret) <- enterScope orig bindTy $ do
-      body' <- infer body
-      ret <- typeOf body'
-      return (body', ret)
-    return (letT (substituteT val' ret) orig (Just bindTy) val' body')
+    body' <- infer (substitute val body)
+    ret <- typeOf body'
+    return (letT ret orig (Just bindTy) val' (S <$> body'))
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do
     x' <- inferAs universeT x
