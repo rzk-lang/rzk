@@ -21,17 +21,8 @@ main = defaultMainWithHooks $ simpleUserHooks
   , postConf       = \args flags packageDesc localBuildInfo -> do
 #ifndef mingw32_HOST_OS
       _ <- system "bnfc -d -p Language.Rzk --generic --functor --text-token -o src/ grammar/Syntax.cf"
-      _ <- system "alex --ghc src/Language/Rzk/Syntax/Lex.x"
-      _ <- system "happy --array --info --ghc --coerce src/Language/Rzk/Syntax/Par.y"
 #endif
       postConf simpleUserHooks args flags packageDesc localBuildInfo
-  , preBuild       = \args flags -> do
-#ifndef mingw32_HOST_OS
-      _ <- system "bnfc -d -p Language.Rzk --generic --functor --text-token -o src/ grammar/Syntax.cf"
-      _ <- system "alex --ghc src/Language/Rzk/Syntax/Lex.x"
-      _ <- system "happy --array --info --ghc --coerce src/Language/Rzk/Syntax/Par.y"
-#endif
-      preBuild simpleUserHooks args flags
   }
 
 -- | TODO: This should be in Cabal.Distribution.Simple.Program.Builtin.
