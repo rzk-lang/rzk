@@ -1336,11 +1336,11 @@ setVariance :: Covariance -> TypeCheck var a -> TypeCheck var a
 setVariance variance = local $ \Context{..} -> Context
   { covariance = variance, .. }
 
-enterScopeContext :: Maybe VarIdent -> TermT var -> Context var -> Context (Inc var)
-enterScopeContext orig ty context =
+enterScopeContext :: Maybe VarIdent -> TermT var -> Maybe (TermT var) -> Context var -> Context (Inc var)
+enterScopeContext orig ty val context =
   addVarInCurrentScope Z VarInfo
     { varType   = S <$> ty
-    , varValue  = Nothing
+    , varValue  = fmap (\v -> S <$> v) val
     , varOrig   = orig
     , varIsAssumption = False
     , varDeclaredAssumptions = []
@@ -1350,7 +1350,14 @@ enterScopeContext orig ty context =
 
 enterScope :: Maybe VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig ty action = do
-  newContext <- asks (enterScopeContext orig ty)
+  newContext <- asks (enterScopeContext orig ty Nothing)
+  lift $ withExceptT (ScopedTypeError orig) $
+    runReaderT action newContext
+
+enterScopeWithBind :: Maybe VarIdent -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b 
+enterScopeWithBind orig ty val action = do
+  newContext <- asks (enterScopeContext orig ty (Just val))
+
   lift $ withExceptT (ScopedTypeError orig) $
     runReaderT action newContext
 
@@ -2488,9 +2495,9 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             bindType' <- typecheck bindType universeT
             typecheck val bindType'
         bindTy <- typeOf val'
-        body' <- typecheck (substitute val body) ty'  
-        ret <- typeOf body'
-        return (letT ret orig (Just bindTy) val' (S <$> body'))
+        body' <- enterScopeWithBind orig bindTy val' $ do 
+          typecheck body (S <$> ty')
+        return (letT ty' orig (Just bindTy) val' body')
       Pair l r ->
         case ty' of
           CubeProductT _ty a b -> do
@@ -2762,15 +2769,16 @@ infer tt = performing (ActionInfer tt) $ case tt of
       ret <- typeOf body'
       return (lambdaT (typeFunT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
   Let orig annot val body -> do
-    val' <- case annot of 
+    val' <- case annot of
       Nothing -> infer val
-      Just ty -> do 
+      Just ty -> do
         bindTy <- typecheck ty universeT
         typecheck val bindTy
     bindTy <- typeOf val'
-    body' <- infer (substitute val body)
-    ret <- typeOf body'
-    return (letT ret orig (Just bindTy) val' (S <$> body'))
+    enterScopeWithBind orig bindTy val' $ do 
+      body' <- infer body
+      ret <- typeOf body'
+      return (letT (substituteT val' ret) orig (Just bindTy) val' body')
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do
     x' <- inferAs universeT x
@@ -3063,7 +3071,7 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
 
 renderForSubShapeSVG
   :: Eq var
-  => String
+  => String 
   -> Int
   -> [var]
   -> var
