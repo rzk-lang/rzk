@@ -1340,7 +1340,7 @@ enterScopeContext :: Maybe VarIdent -> TermT var -> Maybe (TermT var) -> Context
 enterScopeContext orig ty val context =
   addVarInCurrentScope Z VarInfo
     { varType   = S <$> ty
-    , varValue  = fmap (\v -> S <$> v) val
+    , varValue  = fmap (S <$>) val
     , varOrig   = orig
     , varIsAssumption = False
     , varDeclaredAssumptions = []
