@@ -486,6 +486,7 @@ data Action var
   | ActionNF (TermT var)
   | ActionCheckCoherence (TermT var, TermT var) (TermT var, TermT var)
   | ActionCloseSection (Maybe Rzk.SectionName)
+  | ActionCheckLetValue (Maybe VarIdent)
   deriving (Functor, Foldable)
 
 type Action' = Action VarIdent
@@ -573,6 +574,10 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
   ActionCloseSection (Just sectionName) ->
     [ "closing #section " <> Rzk.printTree sectionName
     , "and collecting assumptions (variables)"]
+
+  ActionCheckLetValue orig ->
+    [ "checking the local definition "
+        <> maybe "_" (Rzk.printTree . getVarIdent) orig ]
 
 
 traceAction' :: Int -> Action' -> a -> a
@@ -2489,13 +2494,13 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
       Let orig annot val body -> do
-        val' <- case annot of
+        val' <- performing (ActionCheckLetValue orig) $ case annot of
           Nothing -> infer val
           Just bindType -> do
             bindType' <- typecheck bindType universeT
             typecheck val bindType'
         bindTy <- typeOf val'
-        body' <- enterScopeWithBind orig bindTy val' $ do 
+        body' <- enterScopeWithBind orig bindTy val' $ do
           typecheck body (S <$> ty')
         return (letT ty' orig (Just bindTy) val' body')
       Pair l r ->
@@ -2769,13 +2774,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
       ret <- typeOf body'
       return (lambdaT (typeFunT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
   Let orig annot val body -> do
-    val' <- case annot of
+    val' <- performing (ActionCheckLetValue orig) $ case annot of
       Nothing -> infer val
       Just ty -> do
         bindTy <- typecheck ty universeT
         typecheck val bindTy
     bindTy <- typeOf val'
-    enterScopeWithBind orig bindTy val' $ do 
+    enterScopeWithBind orig bindTy val' $ do
       body' <- infer body
       ret <- typeOf body'
       return (letT (substituteT val' ret) orig (Just bindTy) val' body')
