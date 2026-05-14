@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "local context"
+  - "entails"
+regression_for:
+  - issueTypeError-1292-1302-contextEntailedBy-entails

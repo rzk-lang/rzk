@@ -1,0 +1,5 @@
+#lang rzk-1
+
+#set-option "render" = "latex"
+
+#define x : U := U

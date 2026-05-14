@@ -1,0 +1,5 @@
+#lang rzk-1
+
+#section foo
+
+#define x : U := U

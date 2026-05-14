@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorImplicitAssumption
+message_contains:
+  - "implicit assumption"
+regression_for:
+  - docs-en-reference-sections
+  - matrix-implicit-assumption

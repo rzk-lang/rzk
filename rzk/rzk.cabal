@@ -1,6 +1,6 @@
 cabal-version: 1.24
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.39.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -19,6 +19,75 @@ license-file:   LICENSE
 build-type:     Custom
 extra-source-files:
     grammar/Syntax.cf
+    test/typecheck/SCHEMA.md
+    test/typecheck/REGRESSIONS.md
+    test/typecheck/ISSUE_TYPE_ERROR_COVERAGE.md
+    test/typecheck/cases/happy-check.rzk
+    test/typecheck/cases/happy-refl-path.rzk
+    test/typecheck/cases/ill-bare-lambda-compute.rzk
+    test/typecheck/cases/ill-bare-refl-compute.rzk
+    test/typecheck/cases/ill-duplicate.rzk
+    test/typecheck/cases/ill-implicit.rzk
+    test/typecheck/cases/ill-invalid-arg-type-bot.rzk
+    test/typecheck/cases/ill-not-function.rzk
+    test/typecheck/cases/ill-not-pair-first-unit.rzk
+    test/typecheck/cases/ill-not-pair-second-unit.rzk
+    test/typecheck/cases/ill-param-untyped-pattern.rzk
+    test/typecheck/cases/ill-render-latex-define.rzk
+    test/typecheck/cases/ill-section-end-mismatch.rzk
+    test/typecheck/cases/ill-section-not-closed.rzk
+    test/typecheck/cases/ill-section-unexpected-end.rzk
+    test/typecheck/cases/ill-set-option-render.rzk
+    test/typecheck/cases/ill-set-option-unknown.rzk
+    test/typecheck/cases/ill-set-option-verbosity.rzk
+    test/typecheck/cases/ill-tope-not-satisfied-rec-bot.rzk
+    test/typecheck/cases/ill-tope-param-lambda.rzk
+    test/typecheck/cases/ill-tope-param-typefun.rzk
+    test/typecheck/cases/ill-undefined.rzk
+    test/typecheck/cases/ill-unexpected-lambda.rzk
+    test/typecheck/cases/ill-unexpected-pair.rzk
+    test/typecheck/cases/ill-unexpected-refl.rzk
+    test/typecheck/cases/ill-unify-terms-path.rzk
+    test/typecheck/cases/ill-unify.rzk
+    test/typecheck/cases/ill-unset-option-unknown.rzk
+    test/typecheck/cases/ill-unused-assumption.rzk
+    test/typecheck/cases/multimodule-first-error/bad.rzk
+    test/typecheck/cases/multimodule-first-error/lib.rzk
+    test/typecheck/cases/multimodule-two-ok/lib.rzk
+    test/typecheck/cases/multimodule-two-ok/user.rzk
+    test/typecheck/cases/happy-check.expect.yaml
+    test/typecheck/cases/happy-refl-path.expect.yaml
+    test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
+    test/typecheck/cases/ill-bare-refl-compute.expect.yaml
+    test/typecheck/cases/ill-duplicate.expect.yaml
+    test/typecheck/cases/ill-implicit.expect.yaml
+    test/typecheck/cases/ill-invalid-arg-type-bot.expect.yaml
+    test/typecheck/cases/ill-not-function.expect.yaml
+    test/typecheck/cases/ill-not-pair-first-unit.expect.yaml
+    test/typecheck/cases/ill-not-pair-second-unit.expect.yaml
+    test/typecheck/cases/ill-param-untyped-pattern.expect.yaml
+    test/typecheck/cases/ill-render-latex-define.expect.yaml
+    test/typecheck/cases/ill-section-end-mismatch.expect.yaml
+    test/typecheck/cases/ill-section-not-closed.expect.yaml
+    test/typecheck/cases/ill-section-unexpected-end.expect.yaml
+    test/typecheck/cases/ill-set-option-render.expect.yaml
+    test/typecheck/cases/ill-set-option-unknown.expect.yaml
+    test/typecheck/cases/ill-set-option-verbosity.expect.yaml
+    test/typecheck/cases/ill-tope-not-satisfied-rec-bot.expect.yaml
+    test/typecheck/cases/ill-tope-param-lambda.expect.yaml
+    test/typecheck/cases/ill-tope-param-typefun.expect.yaml
+    test/typecheck/cases/ill-undefined.expect.yaml
+    test/typecheck/cases/ill-unexpected-lambda.expect.yaml
+    test/typecheck/cases/ill-unexpected-pair.expect.yaml
+    test/typecheck/cases/ill-unexpected-refl.expect.yaml
+    test/typecheck/cases/ill-unify-terms-path.expect.yaml
+    test/typecheck/cases/ill-unify.expect.yaml
+    test/typecheck/cases/ill-unset-option-unknown.expect.yaml
+    test/typecheck/cases/ill-unused-assumption.expect.yaml
+    test/typecheck/cases/literate-fence/expect.yaml
+    test/typecheck/cases/multimodule-first-error/expect.yaml
+    test/typecheck/cases/multimodule-two-ok/expect.yaml
+    test/typecheck/cases/literate-fence/doc.rzk.md
 extra-doc-files:
     README.md
     ChangeLog.md
@@ -167,6 +236,7 @@ test-suite rzk-test
   main-is: Spec.hs
   other-modules:
       Rzk.FormatSpec
+      Rzk.TypeCheckSpec
       Paths_rzk
   hs-source-dirs:
       test
@@ -180,18 +250,20 @@ test-suite rzk-test
       BNFC:bnfc >=2.9.4.1
   build-depends:
       Glob >=0.9.3
+    , aeson
     , array >=0.5.3.0
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
     , directory >=1.2.7.0
+    , filepath
     , hspec
     , hspec-discover
     , mtl >=2.2.2
     , rzk
     , template-haskell >=2.14.0.0
     , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , yaml
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED

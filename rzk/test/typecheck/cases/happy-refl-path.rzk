@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#define self-path (A : U) (x : A)
+  : x =_{A} x
+  := refl_{x}
+
+#check self-path : (A : U) -> (x : A) -> x =_{A} x

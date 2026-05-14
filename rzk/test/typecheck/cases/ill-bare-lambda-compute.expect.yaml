@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorCannotInferBareLambda
+message_contains:
+  - "cannot infer the type of the argument"
+regression_for:
+  - issueTypeError-2703

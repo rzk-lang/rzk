@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorCannotInferBareRefl
+message_contains:
+  - "cannot infer the type of term"
+regression_for:
+  - issueTypeError-2738
