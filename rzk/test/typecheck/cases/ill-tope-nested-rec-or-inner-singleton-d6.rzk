@@ -1,0 +1,18 @@
+#lang rzk-1
+
+-- Ill counterpart to `happy-tope-nested-rec-or-d6.rzk`: **identical** nested binary `recOR`
+-- except the **rightmost leaf** along the all-`1₂` corner (`t0 ≡ 1₂`, …, `t5 ≡ 1₂`),
+-- where `u` is replaced by `unit`, so the branch infers `Unit` instead of `U` and
+-- `recOR` inference fails only after processing the full tree (see error at innermost branch).
+
+#define u : U := Unit
+
+-- coordinate t0
+-- coordinate t1
+-- coordinate t2
+-- coordinate t3
+-- coordinate t4
+-- coordinate t5
+
+#define ill (t0 : 2 | (t0 === 0_2) \/ (t0 === 1_2)) (t1 : 2 | (t1 === 0_2) \/ (t1 === 1_2)) (t2 : 2 | (t2 === 0_2) \/ (t2 === 1_2)) (t3 : 2 | (t3 === 0_2) \/ (t3 === 1_2)) (t4 : 2 | (t4 === 0_2) \/ (t4 === 1_2)) (t5 : 2 | (t5 === 0_2) \/ (t5 === 1_2)) : U
+  := recOR( t0 === 0_2 |-> recOR( t1 === 0_2 |-> recOR( t2 === 0_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ), t2 === 1_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ) ), t1 === 1_2 |-> recOR( t2 === 0_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ), t2 === 1_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ) ) ), t0 === 1_2 |-> recOR( t1 === 0_2 |-> recOR( t2 === 0_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ), t2 === 1_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ) ), t1 === 1_2 |-> recOR( t2 === 0_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ) ), t2 === 1_2 |-> recOR( t3 === 0_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ) ), t3 === 1_2 |-> recOR( t4 === 0_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> u ), t4 === 1_2 |-> recOR( t5 === 0_2 |-> u, t5 === 1_2 |-> unit ) ) ) ) ) )

@@ -1,0 +1,4 @@
+status: ok
+regression_for:
+  - nested-recOR-checkCoherence-cartesian
+  - TypeCheck.hs-1893-1896-RecOrT-unify

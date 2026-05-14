@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- Inner `recOR` on `t2` must cover both endpoints while `t2 ≡ 0 ∨ t2 ≡ 1` holds.
+-- A singleton inner `recOR` leaves `contextEquiv` (`TypeCheck.hs` ~1312–1325)
+-- unsatisfied on the `t1 ≡ 0₂` face.
+
+#define u : U := Unit
+
+#define illNestedRecOrSingleton (t1 : 2 | (t1 === 0_2) \/ (t1 === 1_2)) (t2 : 2 | (t2 === 0_2) \/ (t2 === 1_2)) : U
+  := recOR( t1 === 0_2 |-> recOR( t2 === 0_2 |-> u )
+          , t1 === 1_2 |-> recOR( t2 === 0_2 |-> u, t2 === 1_2 |-> u ) )
