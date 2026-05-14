@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- Nested `recOR`: each outer branch typechecks an inner `recOR` under a stronger
+-- tope (`localTope` in `infer` for `RecOr`, `TypeCheck.hs` ~2614–2626). When two
+-- such values are unified and both WHNF to `RecOrT`, the checker pairs **every**
+-- outer branch with **every** other-side branch via `checkCoherence` (~1893–1896,
+-- ~2790–2797), i.e. a Cartesian grid, and each `checkCoherence` intersects the
+-- two guards with `topeAndT` before unifying branch bodies again — so nesting
+-- depth multiplies work sharply (see also `ill-tope-nested-rec-or-inner-singleton`).
+
+#define u : U := Unit
+
+#define nest2 (t1 : 2 | (t1 === 0_2) \/ (t1 === 1_2)) (t2 : 2 | (t2 === 0_2) \/ (t2 === 1_2)) : U
+  := recOR( t1 === 0_2 |-> recOR( t2 === 0_2 |-> u, t2 === 1_2 |-> u )
+          , t1 === 1_2 |-> recOR( t2 === 0_2 |-> u, t2 === 1_2 |-> u ) )

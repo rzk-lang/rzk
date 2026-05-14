@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+message_contains:
+  - "cannot unify"
+regression_for:
+  - nested-recOR-bad-leaf-all-ones-corner
