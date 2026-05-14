@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "unifying"
+  - "does not entail"
+regression_for:
+  - issueTypeError-1999-tope-family-unify-without-local-Phi

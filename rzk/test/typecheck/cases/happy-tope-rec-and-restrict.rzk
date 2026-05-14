@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- `recOR` with a disjunctive shape so `contextEquiv` matches the union of branch guards.
+#define u : U := Unit -> Unit
+
+#define happyRecOrBoundary (t : 2 | (t === 0_2) \/ (t === 1_2)) : U
+  := recOR( t === 0_2 |-> u, t === 1_2 |-> u )
+
+-- Contradictory guard: context entails `⊥`, so `recBOT` is well-typed.
+#define happyRecBotContradiction (t : 2 | (t === 0_2) /\ (t === 1_2)) : U
+  := recBOT
+
+-- Trivial restriction (always `contextEntailedBy` from `TOP`).
+#define happyRestrictedUnitTrivial : Unit [ TOP |-> unit ]
+  := unit
