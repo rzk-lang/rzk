@@ -1,0 +1,26 @@
+#lang rzk-1
+
+-- Well-typed examples exercising shape guards, `<=` on `2`, product cubes, and
+-- `TypeRestricted` / diagonal dependency (entailment succeeds in `entailM` / `solveRHSM`).
+
+#define u : U := Unit -> Unit
+
+-- Applying at an endpoint satisfies the guard (`contextEntails` on substituted tope).
+#define happyShapeApp (f : (t : 2 | t === 0_2) -> U) : U
+  := f 0_2
+
+-- Directed-interval guard.
+#define happyLeqShape (t : 2 | 0_2 <= t) : U
+  := u
+
+-- Conjunction of inequalities (interval segment as a subshape).
+#define happyLeqSegment (t : 2 | (0_2 <= t) /\ (t <= 1_2)) : U
+  := u
+
+-- Product cube: face where the first component is pinned (`TopeEQT` on pairs).
+#define happyProductFace (ts : 2 * 2 | first ts === 0_2) : U
+  := u
+
+-- Dependent restriction: under `v ≡ a`, the clause `a ≡ 0₂` is consistent.
+#define happyDiagonalRestrict (a : 2) : (v : 2 | a === v) -> Unit [ a === 0_2 |-> unit ]
+  := \ v -> unit

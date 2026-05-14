@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "unifying"
+  - "does not entail"
+  - "π₁"
+regression_for:
+  - issueTypeError-1999-tope-family-unify-5d-generated-lemmas

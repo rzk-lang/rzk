@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - tope-high-dim-cubes-4d-5d-shape-prod-boundaries

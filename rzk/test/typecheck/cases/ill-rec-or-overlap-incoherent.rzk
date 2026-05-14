@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Overlapping branch guards: `checkCoherence` runs under `t ≡ 0₂ ∧ t ≡ 0₂` and
+-- requires the two branch payloads to unify (`TypeCheck.hs` ~2785–2796).
+
+#define u : U := Unit -> Unit
+
+#define overlapIncoherent (t : 2 | t === 0_2) : U
+  := recOR( t === 0_2 |-> Unit, t === 0_2 |-> u )
