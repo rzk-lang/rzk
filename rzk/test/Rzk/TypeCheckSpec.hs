@@ -23,8 +23,8 @@ import           Rzk.TypeCheck              (Context (..), Decl', LocationInfo (
                                            OutputDirection (..), TypeError (..),
                                            TypeErrorInContext (..),
                                            TypeErrorInScopedContext (..),
-                                           defaultTypeCheck,
-                                           ppTypeErrorInScopedContext',
+                                           Verbosity (..), defaultTypeCheck,
+                                           localVerbosity, ppTypeErrorInScopedContext',
                                            typecheckModulesWithLocation,
                                            typecheckModulesWithLocation')
 
@@ -117,11 +117,13 @@ loadModules ((relPath, absPath) : rest) = do
     Left err -> pure $ Left (T.unpack err)
     Right m  -> fmap (fmap ((relPath, m) :)) $ loadModules rest
 
+-- | Run the checker with @verbosity = Silent@ so @traceTypeCheck Normal@ does not
+-- clutter @stack test@ output (CLI keeps default @Normal@ via @emptyContext@).
 runStrict :: [(FilePath, Rzk.Module)] -> Either (TypeErrorInScopedContext VarIdent) [(FilePath, [Decl'])]
-runStrict = defaultTypeCheck . typecheckModulesWithLocation
+runStrict = defaultTypeCheck . localVerbosity Silent . typecheckModulesWithLocation
 
 runCollect :: [(FilePath, Rzk.Module)] -> Either (TypeErrorInScopedContext VarIdent) ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent])
-runCollect = defaultTypeCheck . typecheckModulesWithLocation'
+runCollect = defaultTypeCheck . localVerbosity Silent . typecheckModulesWithLocation'
 
 assertExpect :: String -> Expect -> Either (TypeErrorInScopedContext VarIdent) [(FilePath, [Decl'])] -> IO ()
 assertExpect _label Expect{..} (Right _) | expectStatus /= "ok" =
