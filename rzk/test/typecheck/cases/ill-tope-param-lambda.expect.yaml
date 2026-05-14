@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "tope params are illegal"
+regression_for:
+  - issueTypeError-2712-Lambda-TOPE-param

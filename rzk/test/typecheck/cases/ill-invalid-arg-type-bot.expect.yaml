@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorInvalidArgumentType
+message_contains:
+  - "invalid function parameter type"
+regression_for:
+  - issueTypeError-2656-2722

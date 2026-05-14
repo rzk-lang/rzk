@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "not closed with an #end"
+regression_for:
+  - issueTypeError-217-splitSectionCommands

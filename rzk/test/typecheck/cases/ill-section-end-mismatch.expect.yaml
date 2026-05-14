@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "unexpected #end"
+  - "expecting #end"
+regression_for:
+  - issueTypeError-224
