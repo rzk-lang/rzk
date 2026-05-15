@@ -4,4 +4,4 @@ message_contains:
   - "unexpected #end"
   - "no section was declared"
 regression_for:
-  - issueTypeError-211
+  - section-unexpected-end

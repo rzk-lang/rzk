@@ -3,4 +3,4 @@ error_tag: TypeErrorUnexpectedLambda
 message_contains:
   - "unexpected lambda"
 regression_for:
-  - issueTypeError-2465
+  - unexpected-lambda-in-check

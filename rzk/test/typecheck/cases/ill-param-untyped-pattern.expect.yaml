@@ -3,4 +3,4 @@ error_tag: TypeErrorOther
 message_contains:
   - "untyped pattern in parameters"
 regression_for:
-  - issueTypeError-260-paramToParamDecl
+  - param-untyped-pattern

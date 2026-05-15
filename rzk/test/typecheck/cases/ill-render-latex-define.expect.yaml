@@ -4,4 +4,4 @@ message_contains:
   - "latex"
   - "not yet supported"
 regression_for:
-  - issueTypeError-147-RenderLaTeX
+  - render-latex-unsupported

@@ -2,7 +2,7 @@
 
 -- Same pattern as `ill-tope-not-satisfied-tope-family-subtyping`, but the domain is
 -- the 4-cube with the directed 4-simplex `Δ⁴`. Unification checks `entailM` **without**
--- extending local Φ (`TypeCheck.hs` ~1994–1999), so a constant `TOPE` family is rejected.
+-- extending local Φ, so a constant `TOPE` family is rejected.
 
 #define Δ⁴
   : ( 2 × 2 × 2 × 2) → TOPE

@@ -4,4 +4,4 @@ message_contains:
   - "unexpected #end"
   - "expecting #end"
 regression_for:
-  - issueTypeError-224
+  - section-end-mismatch

@@ -1,7 +1,8 @@
 #lang rzk-1
 
--- Applying a `Δ⁵`-guarded function on the full 5-cube: `contextEntails` on the substituted
--- simplex predicate (`TypeCheck.hs` ~2698), analogous to `ill-tope-not-satisfied-app-shape`.
+-- Applying a `Δ⁵`-guarded function on the full 5-cube: after application, `contextEntails`
+-- must derive the substituted simplex guard from the local tope context (fails here).
+-- Same judgment as `ill-tope-not-satisfied-app-shape`, higher dimension.
 
 #define u : U := Unit -> Unit
 

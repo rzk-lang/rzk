@@ -3,4 +3,4 @@ error_tag: TypeErrorNotPair
 message_contains:
   - "cube product or dependent pair"
 regression_for:
-  - issueTypeError-2576-Second
+  - Second-not-pair
