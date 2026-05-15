@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- [#13](https://github.com/rzk-lang/rzk/issues/13): the stated path type used the wrong `flip` instantiation (`flip A B (flip A B f)` instead of `flip B A (flip A B f)`).
+
+#define flip (A : U) (B : U) (f : (x : A) → (y : B) → A) : (y : B) → (x : A) → A
+  := \ y → \ x → f x y
+
+#define illIssue13FlipFlipWrong (A : U) (B : U) (f : (x : A) → (y : B) → A)
+  : flip A B (flip A B f) =_{(x : A) → (y : B) → A} f
+  := \ _ → refl
