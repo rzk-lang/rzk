@@ -29,10 +29,13 @@ A type in modality `#!rzk m` is written `#!rzk <| m | A |>`. A term of that type
 
 ```rzk
 #def sharp-pure (A : U) (x : A)
-  : <| _# | A |> := mod _# x
+  : <| _# | A |>
+  := mod _# x
 
-#def sharp-map (A B : U) (f : A → B) : <| _# | A |> → <| _# | B |> :=
-  \(x : _# A) → mod _# (f x)
+#def sharp-map (A B : U) (f : A → B)
+  : <| _# | A |> → <| _# | B |>
+  :=
+  \ (x : _# A) → mod _# (f x)
 ```
 
 To use a crisp hypothesis, annotate the domain with `#!rzk _b` (compare `#!rzk b-extract` and `#!rzk b-map` below).
@@ -42,16 +45,24 @@ To use a crisp hypothesis, annotate the domain with `#!rzk _b` (compare `#!rzk b
 Modal assumptions are written on ordinary function arrows: `#!rzk (x : m A) → B`, not as a separate arrow form. For example, a function that maps crisp elements of `#!rzk A` into `#!rzk B` has type `#!rzk _b A → B`, and a map between modal types uses `#!rzk (x : m A) → …` together with `#!rzk mod m`:
 
 ```rzk
-#def b-extract (A : _b U) (x : _b A) : A := x
+#def b-extract (A : _b U) (x : _b A)
+  : A
+  := x
 
-#def b-map (A B : _b U) (f : _b A → B) : <| _b | A |> → <| _b | B |> :=
-  \(x : _b A) → mod _b (f x)
+#def b-map (A B : _b U) (f : _b A → B)
+  : <| _b | A |> → <| _b | B |>
+  :=
+  \ (x : _b A) → mod _b (f x)
 
-#def b-dup (A : _b U) (x : _b A) : <| _b | <| _b | A |> |> :=
+#def b-dup (A : _b U) (x : _b A)
+  : <| _b | <| _b | A |> |>
+  :=
   mod _b (mod _b x)
 
-#def op-map (A B : _op U) (f : _op A → B) : <| _op | A |> → <| _op | B |> :=
-  \(x : _op A) → mod _op (f x)
+#def op-map (A B : _op U) (f : _op A → B)
+  : <| _op | A |> → <| _op | B |>
+  :=
+  \ (x : _op A) → mod _op (f x)
 ```
 
 ## Modal `#!rzk #let`
@@ -65,12 +76,16 @@ Modal bindings use `#!rzk #let mod ext/inn … #in`, where:
 You can pattern-match on `#!rzk mod` in the binder, as in `#!rzk double-op`:
 
 ```rzk
-#def double-op (A : U) (x : <| _op | <| _op | A |> |>) : A :=
+#def double-op (A : U) (x : <| _op | <| _op | A |> |>)
+  : A
+  :=
   #let mod _op x_1 := x #in
   #let mod _op / _op x_2 := x_1 #in
   x_2
 
-#def sharp-join (A : U) (a : <| _# | <| _# | A |> |>) : <| _# | A |> :=
+#def sharp-join (A : U) (a : <| _# | <| _# | A |> |>)
+  : <| _# | A |>
+  :=
   #let mod _# x_1 := a #in
   #let mod _# / _# x_2 := x_1 #in
   mod _# x_2
