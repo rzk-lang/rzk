@@ -1,0 +1,10 @@
+status: error
+error_tag: TypeErrorUndefined
+message_contains:
+  - "undefined variable"
+  - "no-such"
+modules:
+  - lib.rzk
+  - bad.rzk
+regression_for:
+  - pr-167-multifile-order

@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Single-branch `recOR` on unrestricted `t : 2`: `contextEquiv` requires `⊤` to match
+-- `t ≡ 0₂ ∨ ⊥` (`contextEquiv` after `recOR`).
+
+#define u : U := Unit -> Unit
+
+#define openSingleton (t : 2) : U
+  := recOR( t === 0_2 |-> u )

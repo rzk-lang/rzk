@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+message_contains:
+  - "cannot unify"
+regression_for:
+  - "https://github.com/rzk-lang/rzk/issues/206"
+  - "https://github.com/rzk-lang/rzk/pull/207"

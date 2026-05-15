@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- Subtyping for `(t : …) → TOPE` compares normalised shape topes without extending the
+-- local tope context Φ. A family defined on the full interval does not satisfy a
+-- stricter shape here, even if the body ignores `t`.
+
+#define wide : (t : 2) -> TOPE
+  := \ t -> TOP
+
+#check wide : (t : 2 | t === 0_2) -> TOPE

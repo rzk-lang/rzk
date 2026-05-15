@@ -1,0 +1,14 @@
+#lang rzk-1
+
+-- 5-cube + `Δ⁵`: the solver normalises the chain to a large conjunction of inequalities
+-- and generated `≤`/`∨` lemmas on nested `π₁`/`π₂` projections (`generateTopesForPointsM`
+-- in `solveRHSM`). Still `⊤` does not `entailM` that formula without `Δ⁵` in Φ.
+
+#define Δ⁵
+  : ( 2 × 2 × 2 × 2 × 2) → TOPE
+  := \ ((((t1 , t2) , t3) , t4) , t5) → t5 <= t4 /\ t4 <= t3 /\ t3 <= t2 /\ t2 <= t1
+
+#define wide5 : (p : 2 * 2 * 2 * 2 * 2) -> TOPE
+  := \ p → TOP
+
+#check wide5 : (p : 2 * 2 * 2 * 2 * 2 | Δ⁵ p) -> TOPE

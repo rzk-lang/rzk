@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorInvalidArgumentType
+message_contains:
+  - "invalid function parameter type"
+regression_for:
+  - invalid-argument-type-bottom

@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+message_contains:
+  - "cannot unify term"
+regression_for:
+  - unify-terms-path

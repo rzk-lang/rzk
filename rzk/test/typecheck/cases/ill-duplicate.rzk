@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#define dup
+  : U
+  := U
+
+#define dup
+  : U
+  := U

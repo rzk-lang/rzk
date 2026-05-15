@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#postulate A : U
+
+#postulate a : A
+
+#postulate b : A
+
+#check refl_{a} : b =_{A} a

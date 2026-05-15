@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+message_contains:
+  - "coherence"
+regression_for:
+  - checkCoherence-recOR-overlapping-guards

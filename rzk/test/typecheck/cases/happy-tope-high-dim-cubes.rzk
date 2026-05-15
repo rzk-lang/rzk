@@ -1,0 +1,60 @@
+#lang rzk-1
+
+-- Directed ``2``-cube products up to dimension 5, chain-inequality "simplices" Δ⁴/Δ⁵,
+-- `shape-prod` over 4D×2D and 5D×1D, simple boundary-style disjunctions on Δ⁴/Δ⁵,
+-- and shape-indexed functions (exercises `TopeLEQT`, `TopeAndT`, `TopeOrT`,
+-- nested pairs, and `localTope` on high-dimensional guards).
+
+#define u : U := Unit -> Unit
+
+#define Δ¹
+  : 2 → TOPE
+  := \ t → TOP
+
+#define Δ²
+  : ( 2 × 2) → TOPE
+  := \ (t , s) → s <= t
+
+#define Δ⁴
+  : ( 2 × 2 × 2 × 2) → TOPE
+  := \ (((t1 , t2) , t3) , t4) → t4 <= t3 /\ t3 <= t2 /\ t2 <= t1
+
+#define Δ⁵
+  : ( 2 × 2 × 2 × 2 × 2) → TOPE
+  := \ ((((t1 , t2) , t3) , t4) , t5) → t5 <= t4 /\ t4 <= t3 /\ t3 <= t2 /\ t2 <= t1
+
+#define Δ⁵-cap
+  : ( 2 × 2 × 2 × 2 × 2) → TOPE
+  := \ ((((t1 , t2) , t3) , t4) , t5) → (t5 <= t4 /\ t4 <= t3 /\ t3 <= t2 /\ t2 <= t1) /\ (t5 === 0_2)
+
+#define shape-prod
+  ( I J : CUBE)
+  ( ψ : I → TOPE)
+  ( χ : J → TOPE)
+  : ( I × J) → TOPE
+  := \ (t , s) → ψ t /\ χ s
+
+#define Δ⁴×Δ²
+  : ( ( 2 × 2 × 2 × 2) × (2 × 2)) → TOPE
+  := shape-prod (2 * 2 * 2 * 2) (2 * 2) Δ⁴ Δ²
+
+#define Δ⁵×Δ¹
+  : ( ( 2 × 2 × 2 × 2 × 2) × 2) → TOPE
+  := shape-prod (2 * 2 * 2 * 2 * 2) 2 Δ⁵ Δ¹
+
+#define ∂Δ⁴-simple
+  : Δ⁴ → TOPE
+  := \ (((t1 , t2) , t3) , t4) → (t1 === 0_2 \/ t1 === 1_2) \/ (t4 === 0_2 \/ t4 === 1_2)
+
+#define ∂Δ⁵-simple
+  : Δ⁵ → TOPE
+  := \ ((((t1 , t2) , t3) , t4) , t5) → (t1 === 0_2 \/ t1 === 1_2) \/ (t5 === 0_2 \/ t5 === 1_2)
+
+#define on4 (q : 2 * 2 * 2 * 2 | Δ⁴ q) : U
+  := u
+
+#define on5 (p : 2 * 2 * 2 * 2 * 2 | Δ⁵ p) : U
+  := u
+
+#define on5cap (p : 2 * 2 * 2 * 2 * 2 | Δ⁵-cap p) : U
+  := u
