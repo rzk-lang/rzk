@@ -1706,6 +1706,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                   []   -> whnfT type_  -- get rid of restrictions at BOT
                   rs'' -> TypeRestrictedT ty <$> whnfT type_ <*> pure rs''
 
+              _ -> panicImpossible "unexpected term in WHNF"
+
 nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   Pure var ->
@@ -1985,6 +1987,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
             case catMaybes rs' of
               []   -> nfT type_
               rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
+
+          _ -> panicImpossible "unexpected term in NF"
 
 checkDefinedVar :: VarIdent -> TypeCheck VarIdent ()
 checkDefinedVar x = asks (lookup x . varInfos) >>= \case
@@ -2304,6 +2308,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                         when (ext' /= ext) $ err
                         unify Nothing te te'
                       _ -> err
+                  _ -> panicImpossible "unexpected term in UNIFY"
 
 
   where
@@ -2858,8 +2863,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
     topLevel <- isTopLevelVar x
     unless topLevel $ do
       varMod <- modalityOfVar x
-      varLocks <- locksOfVar x
-      when (not (coe varMod varLocks)) $ issueTypeError $ TypeErrorOther $ "unaccessible var with modality " ++ show varMod ++ " under locks " ++ show varLocks
+      locks <- locksOfVar x
+      when (not (coe varMod locks)) $ issueTypeError $ TypeErrorOther $ "unaccessible var with modality " ++ show varMod ++ " under locks " ++ show locks
     pure (Pure x)
 
   Universe     -> pure universeT
@@ -3577,6 +3582,7 @@ rotateX theta = Matrix3D
   0 (cos theta) (- sin theta)
   0 (sin theta) (cos theta)
 
+rotateY :: Floating a => a -> Matrix3D a
 rotateY theta = Matrix3D
   (cos theta) 0 (sin theta)
   0 1 0
