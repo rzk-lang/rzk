@@ -26,6 +26,7 @@ nav:
       - Cube layer: reference/cube-layer.rzk.md
       - Tope layer: reference/tope-layer.rzk.md
       - Dependent types: reference/type-layer.rzk.md
+      - Modalities (experimental): reference/modalities.rzk.md
       - Tope disjunction elimination: reference/tope-disjunction-elimination.rzk.md
       - Extension types: reference/extension-types.rzk.md
       - Organizational features:
