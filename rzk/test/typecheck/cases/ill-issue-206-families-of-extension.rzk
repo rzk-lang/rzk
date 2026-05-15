@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Regression: [#206](https://github.com/rzk-lang/rzk/issues/206) / [#207](https://github.com/rzk-lang/rzk/pull/207).
+-- `families-of A` is `A → U`. Equating it to `families-of (A [ t ≡ 1₂ ↦ x ])` used to succeed via the
+-- buggy `App` subtyping path fixed in #207. Minimal `bad` example from
+-- [issue #206 (comment)](https://github.com/rzk-lang/rzk/issues/206#issuecomment-3482693809).
+
+#define families-of (A : U) : U
+  := A → U
+
+#define illBadFamiliesOf (A : U) (x : A) : (t : 2) → families-of A =_{U} families-of (A [ t === 1_2 |-> x ])
+  := \ _ → refl
