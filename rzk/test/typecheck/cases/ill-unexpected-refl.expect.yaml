@@ -3,4 +3,4 @@ error_tag: TypeErrorUnexpectedRefl
 message_contains:
   - "unexpected refl"
 regression_for:
-  - issueTypeError-2493
+  - unexpected-refl-in-check

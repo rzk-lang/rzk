@@ -3,4 +3,4 @@ error_tag: TypeErrorOther
 message_contains:
   - "unknown render backend"
 regression_for:
-  - issueTypeError-243
+  - set-option-render

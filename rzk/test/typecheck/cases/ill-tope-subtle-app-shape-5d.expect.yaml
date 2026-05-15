@@ -4,4 +4,4 @@ message_contains:
   - "is included in (entails) the tope"
   - "Δ⁵"
 regression_for:
-  - issueTypeError-1302-contextEntails-app-5d-simplex
+  - contextEntails-app-5d-simplex

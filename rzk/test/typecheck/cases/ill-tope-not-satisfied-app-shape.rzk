@@ -1,7 +1,7 @@
 #lang rzk-1
 
 -- Applying a function typed on a strict shape requires the corresponding tope in the
--- local context (see `contextEntails` after application, `TypeCheck.hs` ~2698).
+-- local context (`contextEntails` on the guard after substituting the argument).
 
 #define app (f : (t : 2 | t === 0_2) -> U) (x : 2) : U
   := f x

@@ -3,4 +3,4 @@ error_tag: TypeErrorTopeNotSatisfied
 message_contains:
   - "equivalent to the union"
 regression_for:
-  - issueTypeError-1321-contextEquiv-recOR-singleton
+  - contextEquiv-recOR-singleton

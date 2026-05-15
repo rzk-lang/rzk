@@ -1,7 +1,8 @@
 #lang rzk-1
 
 -- `recOR` requires the local tope context to match the disjunction of branch guards
--- (`contextEquiv`, `TypeCheck.hs` ~1312–1325). On the full 5-cube only `⊤` holds, so
+-- (`contextEquiv`: local Φ must be equivalent to the disjunction of branch guards).
+-- On the full 5-cube only `⊤` holds, so
 -- pinning the *first* coordinate to `0₂` or `1₂` is not entailed (interior points).
 
 #define u : U := Unit -> Unit

@@ -1,7 +1,7 @@
 #lang rzk-1
 
 -- After the branches of `recOR`, the checker requires the local tope context to be
--- equivalent to the disjunction of branch guard topes (`contextEquiv`, ~1312–1325).
+-- equivalent to the disjunction of branch guard topes (`contextEquiv`).
 -- With only `⊤` on `t : 2`, the boundary `t ≡ 0 ∨ t ≡ 1` is not entailed.
 
 #define boundaryUnit (t : 2) : U

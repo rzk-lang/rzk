@@ -4,4 +4,4 @@ message_contains:
   - "equivalent to the union"
   - "recOR"
 regression_for:
-  - issueTypeError-1321-1324-contextEquiv-recOR
+  - contextEquiv-recOR-boundary
