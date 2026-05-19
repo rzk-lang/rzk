@@ -13,7 +13,7 @@ Formalizations that use this syntax include the [sHoTT `diruniv` branch](https:/
 
 ## Modalities in Rzk
 
-Currently RZK supports 3 modalities:
+Currently Rzk supports 3 modalities:
 
 | Description | ASCII syntax | Unicode syntax |
 |-------------|-------------|----------------|
