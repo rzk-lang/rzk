@@ -4,5 +4,5 @@
 #def not-modal-let-mod (A : U) (x : A)
   : A
   :=
-  #let mod _# y := x #in
+  let mod _# y := x in
   y

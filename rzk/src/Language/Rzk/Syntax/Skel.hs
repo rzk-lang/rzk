@@ -86,11 +86,6 @@ transBind x = case x of
   Language.Rzk.Syntax.Abs.BindPattern _ pattern_ -> failure x
   Language.Rzk.Syntax.Abs.BindPatternType _ pattern_ term -> failure x
 
-transBind :: Show a => Language.Rzk.Syntax.Abs.Bind' a -> Result
-transBind x = case x of
-  Language.Rzk.Syntax.Abs.BindPattern _ pattern_ -> failure x
-  Language.Rzk.Syntax.Abs.BindPatternType _ pattern_ term -> failure x
-
 transParamDecl :: Show a => Language.Rzk.Syntax.Abs.ParamDecl' a -> Result
 transParamDecl x = case x of
   Language.Rzk.Syntax.Abs.ParamType _ term -> failure x

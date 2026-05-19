@@ -29,7 +29,7 @@ $u = [. \n]          -- universal: any character
 
 -- Symbols and non-identifier-like reserved words
 
-@rsyms = \ᵒ \ᵖ | \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | \♭ | \_ "b" | \♯ | \_ \# | \_ "op" | \_ "id" | \/ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \# "let" | \# "in" | \\ | \< \| | \| \> | \$ "extract" \$ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
+@rsyms = \ᵒ \ᵖ | \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | \♭ | \_ "b" | \♯ | \_ \# | \_ "op" | \_ "id" | \/ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | \< \| | \| \> | \$ "extract" \$ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
 
 :-
 
@@ -167,44 +167,45 @@ eitherResIdent tv s = treeFind resWords
 -- | The keywords and symbols of the language organized as binary search tree.
 resWords :: BTree
 resWords =
-  b "TOPE" 48
-    (b "," 24
-       (b "#postulate" 12
+  b "Unit" 48
+    (b "/" 24
+       (b "#set-option" 12
           (b "#def" 6
              (b "#compute" 3
                 (b "#check" 2 (b "#assume" 1 N N) N)
                 (b "#compute-whnf" 5 (b "#compute-nf" 4 N N) N))
-             (b "#in" 9
+             (b "#lang" 9
                 (b "#end" 8 (b "#define" 7 N N) N)
-                (b "#let" 11 (b "#lang" 10 N N) N)))
-          (b "$extract$" 18
-             (b "#unset-option" 15
-                (b "#set-option" 14 (b "#section" 13 N N) N)
-                (b "#variables" 17 (b "#variable" 16 N N) N))
-             (b "*" 21
-                (b ")" 20 (b "(" 19 N N) N) (b "*\8321" 23 (b "*_1" 22 N N) N))))
-       (b ";" 36
-          (b "1" 30
-             (b "/\\" 27
-                (b "/" 26 (b "->" 25 N N) N) (b "0\8322" 29 (b "0_2" 28 N N) N))
-             (b "2" 33
-                (b "1\8322" 32 (b "1_2" 31 N N) N) (b ":=" 35 (b ":" 34 N N) N)))
-          (b "=_{" 42
-             (b "<|" 39
-                (b "<=" 38 (b "<" 37 N N) N) (b "===" 41 (b "=" 40 N N) N))
-             (b "CUBE" 45
-                (b "BOT" 44 (b ">" 43 N N) N) (b "TOP" 47 (b "Sigma" 46 N N) N)))))
+                (b "#section" 11 (b "#postulate" 10 N N) N)))
+          (b ")" 18
+             (b "#variables" 15
+                (b "#variable" 14 (b "#unset-option" 13 N N) N)
+                (b "(" 17 (b "$extract$" 16 N N) N))
+             (b "*\8321" 21
+                (b "*_1" 20 (b "*" 19 N N) N) (b "->" 23 (b "," 22 N N) N))))
+       (b "<=" 36
+          (b "1\8322" 30
+             (b "0\8322" 27
+                (b "0_2" 26 (b "/\\" 25 N N) N) (b "1_2" 29 (b "1" 28 N N) N))
+             (b ":=" 33
+                (b ":" 32 (b "2" 31 N N) N) (b "<" 35 (b ";" 34 N N) N)))
+          (b "BOT" 42
+             (b "===" 39
+                (b "=" 38 (b "<|" 37 N N) N) (b ">" 41 (b "=_{" 40 N N) N))
+             (b "TOP" 45
+                (b "Sigma" 44 (b "CUBE" 43 N N) N)
+                (b "U" 47 (b "TOPE" 46 N N) N)))))
     (b "uninv" 72
-       (b "first" 60
-          (b "]" 54
-             (b "[" 51
-                (b "Unit" 50 (b "U" 49 N N) N) (b "\\/" 53 (b "\\" 52 N N) N))
-             (b "_id" 57
-                (b "_b" 56 (b "_#" 55 N N) N) (b "as" 59 (b "_op" 58 N N) N)))
+       (b "idJ" 60
+          (b "_b" 54
+             (b "\\/" 51
+                (b "\\" 50 (b "[" 49 N N) N) (b "_#" 53 (b "]" 52 N N) N))
+             (b "as" 57
+                (b "_op" 56 (b "_id" 55 N N) N)
+                (b "flip" 59 (b "first" 58 N N) N)))
           (b "recOR" 66
-             (b "inv" 63
-                (b "idJ" 62 (b "flip" 61 N N) N)
-                (b "recBOT" 65 (b "mod" 64 N N) N))
+             (b "let" 63
+                (b "inv" 62 (b "in" 61 N N) N) (b "recBOT" 65 (b "mod" 64 N N) N))
              (b "rzk-1" 69
                 (b "refl_{" 68 (b "refl" 67 N N) N)
                 (b "unflip" 71 (b "second" 70 N N) N))))

@@ -27,15 +27,15 @@
 #def double-op (A : U) (x : <| _op | <| _op | A |> |>)
   : A
   :=
-  #let mod _op x_1 := x #in
-  #let mod _op / _op x_2 := x_1 #in
+  let mod _op x_1 := x in
+  let mod _op / _op x_2 := x_1 in
   x_2
 
 #def sharp-join (A : U) (a : <| _# | <| _# | A |> |>)
   : <| _# | A |>
   :=
-  #let mod _# x_1 := a #in
-  #let mod _# / _# x_2 := x_1 #in
+  let mod _# x_1 := a in
+  let mod _# / _# x_2 := x_1 in
   mod _# x_2
 
 #def flat-to-sharp (A : _b U) (x : _b A)
@@ -53,13 +53,13 @@
 #def id-join (A : U) (a : <| _id | <| _id | A |> |>)
   : <| _id | A |>
   :=
-  #let mod _id x_1 := a #in
-  #let mod _id / _id x_2 := x_1 #in
+  let mod _id x_1 := a in
+  let mod _id / _id x_2 := x_1 in
   mod _id x_2
 
 #def op-op-is-id (A : U) (x : <| _op | <| _op | A |> |>)
   : <| _id | A |>
   :=
-  #let mod _op x_1 := x #in
-  #let mod _op / _op x_2 := x_1 #in
+  let mod _op x_1 := x in
+  let mod _op / _op x_2 := x_1 in
   mod _id x_2

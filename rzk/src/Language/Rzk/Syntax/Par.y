@@ -96,61 +96,61 @@ import qualified Data.Text
   '#def'           { PT _ (TS _ 6)             }
   '#define'        { PT _ (TS _ 7)             }
   '#end'           { PT _ (TS _ 8)             }
-  '#in'            { PT _ (TS _ 9)             }
-  '#lang'          { PT _ (TS _ 10)            }
-  '#let'           { PT _ (TS _ 11)            }
-  '#postulate'     { PT _ (TS _ 12)            }
-  '#section'       { PT _ (TS _ 13)            }
-  '#set-option'    { PT _ (TS _ 14)            }
-  '#unset-option'  { PT _ (TS _ 15)            }
-  '#variable'      { PT _ (TS _ 16)            }
-  '#variables'     { PT _ (TS _ 17)            }
-  '$extract$'      { PT _ (TS _ 18)            }
-  '('              { PT _ (TS _ 19)            }
-  ')'              { PT _ (TS _ 20)            }
-  '*'              { PT _ (TS _ 21)            }
-  '*_1'            { PT _ (TS _ 22)            }
-  '*₁'             { PT _ (TS _ 23)            }
-  ','              { PT _ (TS _ 24)            }
-  '->'             { PT _ (TS _ 25)            }
-  '/'              { PT _ (TS _ 26)            }
-  '/\\'            { PT _ (TS _ 27)            }
-  '0_2'            { PT _ (TS _ 28)            }
-  '0₂'             { PT _ (TS _ 29)            }
-  '1'              { PT _ (TS _ 30)            }
-  '1_2'            { PT _ (TS _ 31)            }
-  '1₂'             { PT _ (TS _ 32)            }
-  '2'              { PT _ (TS _ 33)            }
-  ':'              { PT _ (TS _ 34)            }
-  ':='             { PT _ (TS _ 35)            }
-  ';'              { PT _ (TS _ 36)            }
-  '<'              { PT _ (TS _ 37)            }
-  '<='             { PT _ (TS _ 38)            }
-  '<|'             { PT _ (TS _ 39)            }
-  '='              { PT _ (TS _ 40)            }
-  '==='            { PT _ (TS _ 41)            }
-  '=_{'            { PT _ (TS _ 42)            }
-  '>'              { PT _ (TS _ 43)            }
-  'BOT'            { PT _ (TS _ 44)            }
-  'CUBE'           { PT _ (TS _ 45)            }
-  'Sigma'          { PT _ (TS _ 46)            }
-  'TOP'            { PT _ (TS _ 47)            }
-  'TOPE'           { PT _ (TS _ 48)            }
-  'U'              { PT _ (TS _ 49)            }
-  'Unit'           { PT _ (TS _ 50)            }
-  '['              { PT _ (TS _ 51)            }
-  '\\'             { PT _ (TS _ 52)            }
-  '\\/'            { PT _ (TS _ 53)            }
-  ']'              { PT _ (TS _ 54)            }
-  '_#'             { PT _ (TS _ 55)            }
-  '_b'             { PT _ (TS _ 56)            }
-  '_id'            { PT _ (TS _ 57)            }
-  '_op'            { PT _ (TS _ 58)            }
-  'as'             { PT _ (TS _ 59)            }
-  'first'          { PT _ (TS _ 60)            }
-  'flip'           { PT _ (TS _ 61)            }
-  'idJ'            { PT _ (TS _ 62)            }
-  'inv'            { PT _ (TS _ 63)            }
+  '#lang'          { PT _ (TS _ 9)             }
+  '#postulate'     { PT _ (TS _ 10)            }
+  '#section'       { PT _ (TS _ 11)            }
+  '#set-option'    { PT _ (TS _ 12)            }
+  '#unset-option'  { PT _ (TS _ 13)            }
+  '#variable'      { PT _ (TS _ 14)            }
+  '#variables'     { PT _ (TS _ 15)            }
+  '$extract$'      { PT _ (TS _ 16)            }
+  '('              { PT _ (TS _ 17)            }
+  ')'              { PT _ (TS _ 18)            }
+  '*'              { PT _ (TS _ 19)            }
+  '*_1'            { PT _ (TS _ 20)            }
+  '*₁'             { PT _ (TS _ 21)            }
+  ','              { PT _ (TS _ 22)            }
+  '->'             { PT _ (TS _ 23)            }
+  '/'              { PT _ (TS _ 24)            }
+  '/\\'            { PT _ (TS _ 25)            }
+  '0_2'            { PT _ (TS _ 26)            }
+  '0₂'             { PT _ (TS _ 27)            }
+  '1'              { PT _ (TS _ 28)            }
+  '1_2'            { PT _ (TS _ 29)            }
+  '1₂'             { PT _ (TS _ 30)            }
+  '2'              { PT _ (TS _ 31)            }
+  ':'              { PT _ (TS _ 32)            }
+  ':='             { PT _ (TS _ 33)            }
+  ';'              { PT _ (TS _ 34)            }
+  '<'              { PT _ (TS _ 35)            }
+  '<='             { PT _ (TS _ 36)            }
+  '<|'             { PT _ (TS _ 37)            }
+  '='              { PT _ (TS _ 38)            }
+  '==='            { PT _ (TS _ 39)            }
+  '=_{'            { PT _ (TS _ 40)            }
+  '>'              { PT _ (TS _ 41)            }
+  'BOT'            { PT _ (TS _ 42)            }
+  'CUBE'           { PT _ (TS _ 43)            }
+  'Sigma'          { PT _ (TS _ 44)            }
+  'TOP'            { PT _ (TS _ 45)            }
+  'TOPE'           { PT _ (TS _ 46)            }
+  'U'              { PT _ (TS _ 47)            }
+  'Unit'           { PT _ (TS _ 48)            }
+  '['              { PT _ (TS _ 49)            }
+  '\\'             { PT _ (TS _ 50)            }
+  '\\/'            { PT _ (TS _ 51)            }
+  ']'              { PT _ (TS _ 52)            }
+  '_#'             { PT _ (TS _ 53)            }
+  '_b'             { PT _ (TS _ 54)            }
+  '_id'            { PT _ (TS _ 55)            }
+  '_op'            { PT _ (TS _ 56)            }
+  'as'             { PT _ (TS _ 57)            }
+  'first'          { PT _ (TS _ 58)            }
+  'flip'           { PT _ (TS _ 59)            }
+  'idJ'            { PT _ (TS _ 60)            }
+  'in'             { PT _ (TS _ 61)            }
+  'inv'            { PT _ (TS _ 62)            }
+  'let'            { PT _ (TS _ 63)            }
   'mod'            { PT _ (TS _ 64)            }
   'recBOT'         { PT _ (TS _ 65)            }
   'recOR'          { PT _ (TS _ 66)            }
@@ -426,9 +426,9 @@ Term1
   | 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
   | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
   | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
-  | '#let' Bind ':=' Term '#in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Let (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | 'let' Bind ':=' Term 'in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Let (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
   | '\\' ListParam '→' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
-  | '#let' 'mod' ModComp Bind ':=' Term '#in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.LetMod (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $4) (snd $6) (snd $8)) }
+  | 'let' 'mod' ModComp Bind ':=' Term 'in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.LetMod (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $4) (snd $6) (snd $8)) }
   | Term2 { (fst $1, (snd $1)) }
   | ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TypeFun (fst $1) (snd $1) (snd $3)) }
   | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
