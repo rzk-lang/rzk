@@ -13,6 +13,7 @@ on:
 permissions:
   contents: write
 
+
 jobs:
   mkdocs:
     name: "Build and Deploy MkDocs to GitHub Pages"
