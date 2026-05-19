@@ -5,77 +5,77 @@
 #def un
   : Unit
   :=
-  #let k := unit #in
+  let k := unit in
   k
 
 #def seq_let
   : Unit
-  := 
-  #let a := unit #in
-  #let b := unit #in
+  :=
+  let a := unit in
+  let b := unit in
   ( \ (x : Unit) → unit) (first (a , b))
 
 #def scopes_let
   : Unit
   :=
-  #let outer :=
-    #let a := unit #in
-    #let b :=
-      #let cube := 0₂ #in
+  let outer :=
+    let a := unit in
+    let b :=
+      let cube := 0₂ in
       unit
-    #in b
-  #in
-  #let x := unit #in
+    in b
+  in
+  let x := unit in
   x
 
 #def nested_let
   : Unit
   :=
-  #let x :=
-    #let y := unit #in
+  let x :=
+    let y := unit in
     y
-  #in
+  in
   x
 
 #def shadowing
   : Σ ( _ : Unit) , Unit
   :=
-  #let x := unit #in
-  #let x := (unit , unit) #in
+  let x := unit in
+  let x := (unit , unit) in
   x
 
 #def shadowing_nested
   : Unit
   :=
-  #let x := unit #in
-  #let y :=
-    #let x := unit #in
+  let x := unit in
+  let y :=
+    let x := unit in
     x
-  #in
+  in
   y
 
 #def let_in_lambda
   : Unit
   :=
   ( \ (u : Unit) →
-    #let x := u #in
+    let x := u in
     x
   ) unit
 
 #def lambda_in_let
   : Unit
   :=
-  #let f := (\ (x : Unit) → x) #in
+  let f := (\ (x : Unit) → x) in
   f unit
 
 
 #def let_in_sig
   :
-  ( A : U) → A → #let y := A #in y
+  ( A : U) → A → let y := A in y
   :=
   \ (A : U) →
   \ (x : A) →
-    #let y := x #in
+    let y := x in
     y
 
 #def typed_let
@@ -84,26 +84,26 @@
   :=
   \ (A : U) →
   \ (x : A) →
-    #let y : A := x #in
+    let y : A := x in
     y
 
 #def type_alias
   : Unit
   :=
-  #let T := Unit #in
-  #let x : T := unit #in
+  let T := Unit in
+  let x : T := unit in
   x
 
 #def pair_destruct
   : Unit
   :=
-  #let p := (unit , unit) #in
-  #let (a , b) := p #in
+  let p := (unit , unit) in
+  let (a , b) := p in
   a
 
 #def nested_pair
   : Unit
   :=
-  #let p := (unit , (unit , unit)) #in
-  #let (x , (y , z)) := p #in
+  let p := (unit , (unit , unit)) in
+  let (x , (y , z)) := p in
   y
