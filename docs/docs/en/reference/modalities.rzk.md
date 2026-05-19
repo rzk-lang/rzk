@@ -68,8 +68,8 @@ A type in modality `#!rzk µ` is written `#!rzk <| µ | A |>`, where `#!rzk A` i
 
 ```rzk
 #def sharp-pure₁ (A : U) (x : A)
-  : <| _# | A |>
-  := mod _# x
+  : <| ♯ | A |>
+  := mod ♯ x
 ```
 
 This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any variable accessible under `#!rzk id` (i.e. any ordinary variable) is also accessible under `#!rzk _#`. For `#!rzk _b` there is no such coercion, so the analogous definition is ill-typed:
@@ -95,20 +95,20 @@ It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!
 
 ```rzk
 
-#def flat-extract (A : <| _b | U |>) (x : let mod _b Ab := A in <| _b | Ab |>)
-  : let mod _b Ab := A in Ab
-  := let mod _b xb := x in xb
+#def flat-extract (A : <| ♭ | U |>) (x : let mod ♭ Ab := A in <| ♭ | Ab |>)
+  : let mod ♭ Ab := A in Ab
+  := let mod ♭ xb := x in xb
 
 ```
 
 Using `#!rzk let mod` you can define the modal сomposition \(\langle \mu | \langle \nu | A \rangle \rangle \to \langle \mu \cdot \nu | A \rangle\). A concrete example is `#!rzk double-op`:
 
 ```rzk
-#def double-op (A : U) (x : <| _op | <| _op | A |> |>)
+#def double-op (A : U) (x : <| ᵒᵖ | <| ᵒᵖ | A |> |>)
   : A
   :=
-  let mod _op x_1 := x in
-  let mod _op / _op x_2 := x_1 in
+  let mod ᵒᵖ x_1 := x in
+  let mod ᵒᵖ / ᵒᵖ x_2 := x_1 in
   x_2
 
 ```
@@ -119,14 +119,14 @@ Modal parameter annotations `#!rzk (x : m A)` are syntactic sugar that makes def
 For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are much cleaner than the explicit `#!rzk let mod` version shown above:
 
 ```rzk
-#def b-extract₁ (A : _b U) (x : _b A)
+#def b-extract₁ (A : ♭ U) (x : ♭ A)
   : A
   := x
 
-#def b-map₁ (A B : _b U) (f : _b A → B)
-  : <| _b | A |> → <| _b | B |>
+#def b-map₁ (A B : ♭ U) (f : ♭ A → B)
+  : <| ♭ | A |> → <| ♭ | B |>
   :=
-  \ (x : _b A) → mod _b (f x)
+  \ (x : ♭ A) → mod ♭ (f x)
 
 ```
 
@@ -135,32 +135,36 @@ For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are
 Below is a small self-contained example of modal syntax. The combinators follow the S4-style structure: each modality comes with extract/map/join operations where the mode theory allows it. Note that `#!rzk ♭` carries a **comonadic** structure (`b-extract`, `b-map`, `b-dup`), while `#!rzk ♯` carries a **monadic** structure (`sharp-pure`, `sharp-map`, `sharp-join`).
 
 ```rzk
-#def b-extract (A : _b U) (x : _b A) : A := x
+#def b-extract (A : ♭ U) (x : ♭ A)
+  : A
+  := x
 
-#def b-map (A B : _b U) (f : _b A → B)
-  : <| _b | A |> → <| _b | B |>
-  := \ (x : _b A) → mod _b (f x)
+#def b-map (A B : ♭ U) (f : ♭ A → B)
+  : <| ♭ | A |> → <| ♭ | B |>
+  := \ (x : ♭ A) → mod ♭ (f x)
 
-#def b-dup (A : _b U) (x : _b A)
-  : <| _b | <| _b | A |> |>
-  := mod _b (mod _b x)
+#def b-dup (A : ♭ U) (x : ♭ A)
+  : <| ♭ | <| ♭ | A |> |>
+  := mod ♭ (mod ♭ x)
 
-#def op-map (A B : _op U) (f : _op A → B)
-  : <| _op | A |> → <| _op | B |>
-  := \ (x : _op A) → mod _op (f x)
+#def op-map (A B : ᵒᵖ U) (f : ᵒᵖ A → B)
+  : <| ᵒᵖ | A |> → <| ᵒᵖ | B |>
+  := \ (x : ᵒᵖ A) → mod ᵒᵖ (f x)
 
-#def sharp-pure (A : U) (x : A) : <| _# | A |> := mod _# x
+#def sharp-pure (A : U) (x : A)
+  : <| ♯ | A |>
+  := mod ♯ x
 
 #def sharp-map (A B : U) (f : A → B)
-  : <| _# | A |> → <| _# | B |>
-  := \ (x : _# A) → mod _# (f x)
+  : <| ♯ | A |> → <| ♯ | B |>
+  := \ (x : ♯ A) → mod ♯ (f x)
 
-#def sharp-join (A : U) (a : <| _# | <| _# | A |> |>)
-  : <| _# | A |>
+#def sharp-join (A : U) (a : <| ♯ | <| ♯ | A |> |>)
+  : <| ♯ | A |>
   :=
-  let mod _# x_1 := a in
-  let mod _# / _# x_2 := x_1 in
-  mod _# x_2
+  let mod ♯ x_1 := a in
+  let mod ♯ / ♯ x_2 := x_1 in
+  mod ♯ x_2
 ```
 
 ## How the typechecker uses modalities
