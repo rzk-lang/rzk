@@ -64,7 +64,7 @@ graph TB
 
 ## Modal types and introduction
 
-A type in modality `#!rzk m` is written `#!rzk <| m | A |>`, where `#!rzk A` is checked under `#!rzk m`. A term of that type is introduced with `#!rzk mod m t`, where `#!rzk t` is checked in a context “under” modality `#!rzk m`:
+A type in modality `#!rzk µ` is written `#!rzk <| µ | A |>`, where `#!rzk A` is checked under `#!rzk µ`. A term of that type is introduced with `#!rzk mod µ t`, where `#!rzk t` is checked in a context “under” modality `#!rzk µ`:
 
 ```rzk
 #def sharp-pure (A : U) (x : A)
