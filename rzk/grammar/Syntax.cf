@@ -95,11 +95,14 @@ separator nonempty SigmaParam "," ;
 Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
 
--- Modalities 
-Flat.    Modality ::= "_b" ;
-Sharp.   Modality ::= "_#" ;
-Op.      Modality ::= "_op" ;
-Id.      Modality ::= "_id" ;
+-- Modalities (Unicode canonical forms + ASCII alternatives)
+Flat.        Modality ::= "♭" ;
+ASCII_Flat.  Modality ::= "_b" ;
+Sharp.       Modality ::= "♯" ;
+ASCII_Sharp. Modality ::= "_#" ;
+Op.          Modality ::= "ᵒᵖ" ;
+ASCII_Op.    Modality ::= "_op" ;
+Id.          Modality ::= "_id" ;
 
 
 Single.  ModComp ::= Modality ;
@@ -142,7 +145,7 @@ TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
 TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 -- Terms
-Let.            Term1 ::= "#let" Bind ":=" Term "#in" Term ;
+Let.            Term1 ::= "let" Bind ":=" Term "in" Term ;
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
@@ -150,7 +153,7 @@ Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
 ModApp.         Term7 ::= "mod" Modality Term7 ;
 ModType.        Term7 ::= "<|" Modality "|" Term "|>" ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
-LetMod.         Term1 ::= "#let" "mod" ModComp Bind ":=" Term "#in" Term ;
+LetMod.         Term1 ::= "let" "mod" ModComp Bind ":=" Term "in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;

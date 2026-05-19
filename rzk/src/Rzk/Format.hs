@@ -92,6 +92,9 @@ formatTextEdits contents =
       , ("0_2", "0₂")
       , ("1_2", "1₂")
       , ("*", "×")
+      , ("_b", "♭")
+      , ("_#", "♯")
+      , ("_op", "ᵒᵖ")
       ]
     go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
@@ -124,9 +127,9 @@ formatTextEdits contents =
     go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
     -- TODO: similarly for other commands
 
-    go s (Token "#let" _ _ : tks) = go (s { letDepth = letDepth s + 1 }) tks
+    go s (Token "let" _ _ : tks) = go (s { letDepth = letDepth s + 1 }) tks
 
-    go s (Token "#in" _ _ : tks) = go (s { letDepth = max 0 (letDepth s - 1) }) tks
+    go s (Token "in" _ _ : tks) = go (s { letDepth = max 0 (letDepth s - 1) }) tks
 
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
