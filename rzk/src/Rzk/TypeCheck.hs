@@ -1715,9 +1715,6 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
               
               LetT _ty _orig _mparam val body ->
                 whnfT (substituteT val body)
-
-              LetT _ty _orig _mparam val body ->
-                whnfT (substituteT val body)
               LetModT ty _orig ext inn _mparam val body -> do
                 val' <- whnfT val >>= \case
                   ModAppT _ _ t -> whnfT t
@@ -1764,8 +1761,6 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                 case filter ((/= topeBottomT) . fst) rs' of
                   []   -> whnfT type_  -- get rid of restrictions at BOT
                   rs'' -> TypeRestrictedT ty <$> whnfT type_ <*> pure rs''
-
-              _ -> panicImpossible "unexpected term in WHNF"
 
 nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
@@ -2049,8 +2044,6 @@ nfT tt = performing (ActionNF tt) $ case tt of
               []   -> nfT type_
               rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
 
-          _ -> panicImpossible "unexpected term in NF"
-
 checkDefinedVar :: VarIdent -> TypeCheck VarIdent ()
 checkDefinedVar x = asks (lookup x . varInfos) >>= \case
   Nothing  -> issueTypeError $ TypeErrorUndefined x
@@ -2311,8 +2304,6 @@ unifyInCurrentContext mterm expected actual = performing action $
                           _ -> err
                       _ -> err
                   
-                  LetT{} -> panicImpossible "let at the root of WHNF"
-
                   LetT{} -> panicImpossible "let at the root of WHNF"
                   LetModT{} -> panicImpossible "let-mod at the root of WHNF"
 

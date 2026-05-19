@@ -92,12 +92,6 @@ data Bind' a
     | BindPatternType a (Pattern' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
-type Bind = Bind' BNFC'Position
-data Bind' a
-    = BindPattern a (Pattern' a)
-    | BindPatternType a (Pattern' a) (Term' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
 type ParamDecl = ParamDecl' BNFC'Position
 data ParamDecl' a
     = ParamType a (Term' a)
@@ -318,11 +312,6 @@ instance HasPosition Param where
     ParamPatternShape p _ _ _ -> p
     ParamPatternShapeDeprecated p _ _ _ -> p
     ParamPatternModalType p _ _ _ -> p
-
-instance HasPosition Bind where
-  hasPosition = \case
-    BindPattern p _ -> p
-    BindPatternType p _ _ -> p
 
 instance HasPosition Bind where
   hasPosition = \case
