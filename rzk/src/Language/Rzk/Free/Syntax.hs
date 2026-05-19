@@ -66,10 +66,13 @@ fromVarIdent (VarIdent (Rzk.VarIdent (RzkPosition _file pos) ident)) = Rzk.VarId
 data TModality = Sharp | Flat | Op | Id deriving (Eq, Show)
 
 toModality :: Rzk.Modality -> TModality
-toModality (Rzk.Sharp _)  = Sharp
-toModality (Rzk.Flat _) = Flat
-toModality (Rzk.Op _)  = Op
-toModality (Rzk.Id _) = Id
+toModality Rzk.Sharp{}       = Sharp
+toModality Rzk.ASCII_Sharp{} = Sharp
+toModality Rzk.Flat{}        = Flat
+toModality Rzk.ASCII_Flat{}  = Flat
+toModality Rzk.Op{}          = Op
+toModality Rzk.ASCII_Op{}    = Op
+toModality Rzk.Id{}          = Id
 
 modCompToMods :: Rzk.ModComp -> (TModality, TModality)
 modCompToMods (Rzk.Single _ m)      = (Id, toModality m)
