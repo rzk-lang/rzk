@@ -1,0 +1,65 @@
+#lang rzk-1
+
+#def sharp-pure (A : U) (x : A)
+  : <| _# | A |>
+  := mod _# x
+
+#def sharp-map (A B : U) (f : A → B)
+  : <| _# | A |> → <| _# | B |>
+  := \ (x : _# A) → mod _# (f x)
+
+#def b-extract (A : _b U) (x : _b A)
+  : A
+  := x
+
+#def b-map (A B : _b U) (f : _b A → B)
+  : <| _b | A |> → <| _b | B |>
+  := \ (x : _b A) → mod _b (f x)
+
+#def b-dup (A : _b U) (x : _b A)
+  : <| _b | <| _b | A |> |>
+  := mod _b (mod _b x)
+
+#def op-map (A B : _op U) (f : _op A → B)
+  : <| _op | A |> → <| _op | B |>
+  := \ (x : _op A) → mod _op (f x)
+
+#def double-op (A : U) (x : <| _op | <| _op | A |> |>)
+  : A
+  :=
+  #let mod _op x_1 := x #in
+  #let mod _op / _op x_2 := x_1 #in
+  x_2
+
+#def sharp-join (A : U) (a : <| _# | <| _# | A |> |>)
+  : <| _# | A |>
+  :=
+  #let mod _# x_1 := a #in
+  #let mod _# / _# x_2 := x_1 #in
+  mod _# x_2
+
+#def flat-to-sharp (A : _b U) (x : _b A)
+  : <| _# | A |>
+  := mod _# x
+
+#def id-pure (A : U) (x : A)
+  : <| _id | A |>
+  := mod _id x
+
+#def id-map (A B : U) (f : A → B)
+  : <| _id | A |> → <| _id | B |>
+  := \ (x : _id A) → mod _id (f x)
+
+#def id-join (A : U) (a : <| _id | <| _id | A |> |>)
+  : <| _id | A |>
+  :=
+  #let mod _id x_1 := a #in
+  #let mod _id / _id x_2 := x_1 #in
+  mod _id x_2
+
+#def op-op-is-id (A : U) (x : <| _op | <| _op | A |> |>)
+  : <| _id | A |>
+  :=
+  #let mod _op x_1 := x #in
+  #let mod _op / _op x_2 := x_1 #in
+  mod _id x_2

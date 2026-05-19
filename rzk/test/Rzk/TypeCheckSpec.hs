@@ -70,6 +70,7 @@ typeErrorConstructorName = \case
   TypeErrorUnify{}                -> "TypeErrorUnify"
   TypeErrorUnifyTerms{}           -> "TypeErrorUnifyTerms"
   TypeErrorNotPair{}              -> "TypeErrorNotPair"
+  TypeErrorNotModal{}             -> "TypeErrorNotModal"
   TypeErrorNotFunction{}          -> "TypeErrorNotFunction"
   TypeErrorUnexpectedLambda{}     -> "TypeErrorUnexpectedLambda"
   TypeErrorUnexpectedPair{}       -> "TypeErrorUnexpectedPair"

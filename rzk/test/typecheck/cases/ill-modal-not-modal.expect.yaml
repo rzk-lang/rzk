@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorNotModal
+message_contains:
+  - "expected modal type"
