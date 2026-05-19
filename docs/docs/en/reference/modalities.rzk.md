@@ -67,15 +67,14 @@ graph TB
 A type in modality `#!rzk µ` is written `#!rzk <| µ | A |>`, where `#!rzk A` is checked under `#!rzk µ`. A term of that type is introduced with `#!rzk mod µ t`, where `#!rzk t` is checked in a context “under” modality `#!rzk µ`:
 
 ```rzk
-#def sharp-pure (A : U) (x : A)
+#def sharp-pure₁ (A : U) (x : A)
   : <| _# | A |>
   := mod _# x
-
 ```
 
 This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any variable accessible under `#!rzk id` (i.e. any ordinary variable) is also accessible under `#!rzk _#`. For `#!rzk _b` there is no such coercion, so the analogous definition is ill-typed:
 
-```{.rzk .unchecked}
+```{.unchecked .rzk}
 -- ill-typed
 #def bad-flat-pure (A : U) (x : A)
   : <| _b | A |>
@@ -92,11 +91,11 @@ Modal bindings use `#!rzk let mod ext/inn x := value in body`, where:
 
 If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let mod _id/m x := value in body`.
 
-It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk b-extract` is the opposite of `#!rzk sharp-pure` — it is definable precisely because there is a coercion \(\flat \Rightarrow id\):
+It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk flat-extract` is the opposite of `#!rzk sharp-pure` — it is definable precisely because there is a coercion \(\flat \Rightarrow id\):
 
 ```rzk
 
-#def b-extract (A : <| _b | U |>) (x : let mod _b Ab := A in <| _b | Ab |>)
+#def flat-extract (A : <| _b | U |>) (x : let mod _b Ab := A in <| _b | Ab |>)
   : let mod _b Ab := A in Ab
   := let mod _b xb := x in xb
 
@@ -120,11 +119,11 @@ Modal parameter annotations `#!rzk (x : m A)` are syntactic sugar that makes def
 For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are much cleaner than the explicit `#!rzk let mod` version shown above:
 
 ```rzk
-#def b-extract (A : _b U) (x : _b A)
+#def b-extract₁ (A : _b U) (x : _b A)
   : A
   := x
 
-#def b-map (A B : _b U) (f : _b A → B)
+#def b-map₁ (A B : _b U) (f : _b A → B)
   : <| _b | A |> → <| _b | B |>
   :=
   \ (x : _b A) → mod _b (f x)
@@ -178,7 +177,7 @@ If a variable's modality cannot be coerced into the current lock accumulator, th
 
 ## Modalities at tope level
 
-### Inversion of arrows with op 
+### Inversion of arrows with op
 
 Modalities are also available at the cube and tope layers. Their mechanics are the same as for modal types at the dependent type layer. Additionally, there are operators for inverting cubes and topes.
 
