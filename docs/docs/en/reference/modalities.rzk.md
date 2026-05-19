@@ -182,9 +182,9 @@ If a variable's modality cannot be coerced into the current lock accumulator, th
 
 Modalities are also available at the cube and tope layers. Their mechanics are the same as for modal types at the dependent type layer. Additionally, there are operators for inverting cubes and topes.
 
-The equivalence between `#!rzk 2` and `#!rzk <| _op | 2 |>` is witnessed by `#!rzk flip` and `#!rzk unflip`. In particular, `#!rzk flip 0₂` reduces to `#!rzk mod _op 1₂` and vice versa.
+The equivalence between `#!rzk 2` and `#!rzk <| _op | 2 |>` is witnessed by `#!rzk flipᵒᵖ` and `#!rzk unflipᵒᵖ`. In particular, `#!rzk flipᵒᵖ 0₂` reduces to `#!rzk mod _op 1₂` and vice versa.
 
-The equivalence between `#!rzk TOPE` and `#!rzk <| _op | TOPE |>` is witnessed by `#!rzk inv` and `#!rzk uninv`, which reverse the direction of inequalities.
+The equivalence between `#!rzk TOPE` and `#!rzk <| _op | TOPE |>` is witnessed by `#!rzk invᵒᵖ` and `#!rzk uninvᵒᵖ`, which reverse the direction of inequalities.
 
 Here is an example of a function that inverts a morphism using the `#!rzk _op` modality:
 
@@ -195,7 +195,7 @@ Here is an example of a function that inverts a morphism using the `#!rzk _op` m
   ( y : _op B)
   ( h : _op (t : 2) → B [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ])
   : ( ( t : 2) → <| _op | B |> [ t ≡ 0₂ ↦ mod _op y , t ≡ 1₂ ↦ mod _op x ])
-  := \ t → let mod _op s := flip t in mod _op (h s)
+  := \ t → let mod _op s := flipᵒᵖ t in mod _op (h s)
 ```
 
 ### Discrete interval elimination

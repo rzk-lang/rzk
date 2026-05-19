@@ -95,6 +95,10 @@ formatTextEdits contents =
       , ("_b", "♭")
       , ("_#", "♯")
       , ("_op", "ᵒᵖ")
+      , ("flip_op", "flipᵒᵖ")
+      , ("unflip_op", "unflipᵒᵖ")
+      , ("inv_op", "invᵒᵖ")
+      , ("uninv_op", "uninvᵒᵖ")
       ]
     go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
