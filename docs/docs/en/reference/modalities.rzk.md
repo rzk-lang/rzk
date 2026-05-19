@@ -75,13 +75,12 @@ A type in modality `#!rzk µ` is written `#!rzk <| µ | A |>`, where `#!rzk A` i
 
 This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any variable accessible under `#!rzk id` (i.e. any ordinary variable) is also accessible under `#!rzk _#`. For `#!rzk _b` there is no such coercion, so the analogous definition is ill-typed:
 
-```rzk
--- ill-typed 
--- #def bad-flat-pure (A : U) (x : A)
---   : <| _b | A |>
---   := mod _b x
+```{.rzk .unchecked}
+-- ill-typed
+#def bad-flat-pure (A : U) (x : A)
+  : <| _b | A |>
+  := mod _b x
 
-```
 ## Modal `#!rzk let mod`
 
 Modal `#!rzk let mod` is the elimination principle for modal types.
