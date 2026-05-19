@@ -124,7 +124,7 @@ TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
 TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 -- Terms
-Let.            Term1 ::= "#let" Bind ":=" Term "#in" Term ;
+Let.            Term1 ::= "let" Bind ":=" Term "in" Term ;
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;

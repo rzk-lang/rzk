@@ -20,6 +20,29 @@ To access components of a dependent pair `#!rzk p`, use `#!rzk first p` and `#!r
 !!! warning
     `#!rzk first` and `#!rzk second` are not valid syntax without an argument!
 
+## Let bindings
+
+Local definitions are written `#!rzk let x := val in body` and can carry an optional type annotation `#!rzk let x : A := val in body`. The bound name is in scope in `#!rzk body` only.
+
+```rzk
+#def example-let
+  : Unit
+  :=
+  let x := unit in
+  let y : Unit := x in
+  y
+```
+
+Patterns are supported in the binder, so you can destructure a pair directly:
+
+```rzk
+#def example-let-pair
+  : Unit
+  :=
+  let (a , b) := (unit , unit) in
+  a
+```
+
 ## Identity types
 
 Identity (path) type \(x =_A y\) is written `#!rzk x =_{A} y`.
