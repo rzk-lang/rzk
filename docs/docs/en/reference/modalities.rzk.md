@@ -88,7 +88,7 @@ Modal `#!rzk let mod` is the elimination principle for modal types.
 Modal bindings use `#!rzk let mod ext/inn x := value in body`, where:
 
 - `#!rzk ext` is the modality used when **checking** `#!rzk value`
-- `#!rzk inn` is the modality of the **bound** type `#!rzk <| inn | T |>`, which is the type of `#!rzk value`
+- `#!rzk inn` is the modality of the **bound** type `#!rzk <| inn | T |>`, which is the type of `#!rzk x`
 - `#!rzk body` is checked with `#!rzk x` \(:^{ext \cdot inn}\) `#!rzk T` in context
 
 If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let mod _id/m x := value in body`.
