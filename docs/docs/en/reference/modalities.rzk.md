@@ -80,14 +80,14 @@ This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any 
 #def bad-flat-pure (A : U) (x : A)
   : <| _b | A |>
   := mod _b x
+```
 
 ## Modal `#!rzk let mod`
 
 Modal `#!rzk let mod` is the elimination principle for modal types.
 Modal bindings use `#!rzk let mod ext/inn x := value in body`, where:
 
-- `#!rzk ext` is the modality used when **checking** `#!rzk value`
-- `#!rzk inn` is the modality of the **bound** type `#!rzk <| inn | T |>`, which is the type of `#!rzk x`
+- `#!rzk value` is checked against `#!rzk <| inn | T |>` under an **`ext`-lock**
 - `#!rzk body` is checked with `#!rzk x` \(:^{ext \cdot inn}\) `#!rzk T` in context
 
 If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let mod _id/m x := value in body`.
@@ -186,10 +186,10 @@ The equivalence between `#!rzk 2` and `#!rzk <| _op | 2 |>` is witnessed by `#!r
 
 The equivalence between `#!rzk TOPE` and `#!rzk <| _op | TOPE |>` is witnessed by `#!rzk invᵒᵖ` and `#!rzk uninvᵒᵖ`, which reverse the direction of inequalities.
 
-Here is an example of a function that inverts a morphism using the `#!rzk _op` modality:
+Here is an example of a function that reverses the direction of a morphism using the `#!rzk _op` modality:
 
 ```
-#def hom-to-op-hom
+#def op-hom-to-hom
   ( B : _op U)
   ( x : _op B)
   ( y : _op B)
