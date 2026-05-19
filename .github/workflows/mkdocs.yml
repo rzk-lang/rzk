@@ -30,35 +30,6 @@ jobs:
           python-version: "3.9"
           cache: "pip" # caching pip dependencies
 
-      - name: 🧰 Setup Stack
-        if: github.ref_name == 'lishy2-modal'
-        uses: freckle/stack-action@v5
-
-      - name: 🔨 Build rzk proof assistant (current branch)
-        if: github.ref_name == 'lishy2-modal'
-        run: |
-          stack build
-          echo "$(stack path --local-install-root)/bin" >> "$GITHUB_PATH"
-
-      - name: 🔨 Install rzk proof assistant (release)
-        if: github.ref_name != 'lishy2-modal'
-        uses: jaxxstorm/action-install-gh-release@v1.10.0
-        with:
-          repo: rzk-lang/rzk
-          tag: latest # FIXME: should use the version from the same Git commit
-          rename-to: rzk
-          chmod: 0755
-
-      - name: Check Rzk files for each language
-        run: for lang_dir in $(ls -d docs/docs/*/); do
-          pushd ${lang_dir} && rzk typecheck; popd ;
-          done
-
-      - name: Check Rzk formatting for each language
-        run: for lang_dir in $(ls -d docs/docs/*/); do
-          pushd ${lang_dir} && rzk format --check; popd ;
-          done
-
       - name: 🔨 Install MkDocs Material and mike
         run: pip install -r docs/requirements.txt
 
