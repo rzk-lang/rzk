@@ -1869,31 +1869,27 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       ModAppT _ Op inner -> case inner of
         TopeLEQT _ x y ->
           nfTope $
-            modAppT (typeModalT universeT Op topeT) Op
               (topeLEQT
                 (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op y))
                 (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op x)))
 
         TopeEQT _ x y ->
           nfTope $
-            modAppT (typeModalT universeT Op topeT) Op
               (topeEQT
                 (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op y))
                 (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op x)))
 
         TopeAndT _ phi psi ->
           nfTope $
-            modAppT (typeModalT universeT Op topeT) Op
               (topeAndT
-                (modExtractT topeT Id Op (topeUninvT phi))
-                (modExtractT topeT Id Op (topeUninvT psi)))
+                (topeUninvT phi)
+                (topeUninvT psi))
 
         TopeOrT _ phi psi ->
           nfTope $
-            modAppT (typeModalT universeT Op topeT) Op
               (topeOrT
-                (modExtractT topeT Id Op (topeUninvT phi))
-                (modExtractT topeT Id Op (topeUninvT psi)))
+                (topeUninvT phi)
+                (topeUninvT psi))
 
         inner' ->
           pure $
