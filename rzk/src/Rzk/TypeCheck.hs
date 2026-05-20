@@ -1871,15 +1871,15 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
           nfTope $
             modAppT (typeModalT universeT Op topeT) Op
               (topeLEQT
-                (modExtractT topeT Id Op (cubeUnflipT y))
-                (modExtractT topeT Id Op (cubeUnflipT x)))
+                (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op y))
+                (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op x)))
 
         TopeEQT _ x y ->
           nfTope $
             modAppT (typeModalT universeT Op topeT) Op
               (topeEQT
-                (modExtractT topeT Id Op (cubeUnflipT y))
-                (modExtractT topeT Id Op (cubeUnflipT x)))
+                (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op y))
+                (cubeUnflipT (modAppT (typeModalT cubeT Op cube2T) Op x)))
 
         TopeAndT _ phi psi ->
           nfTope $
