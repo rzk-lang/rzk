@@ -1926,8 +1926,11 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   LetModT _ty _orig ext inn _mparam val body -> do
     val' <- nfTope val >>= \case
       ModAppT _ _ t -> return t
-      b' -> 
-        pure (modExtractT ext inn b')
+      b' -> do 
+        ty <- typeOf b' >>= \case 
+          TypeModalT _ _ t -> pure t
+          _ -> panicImpossible "not modal in letmod"
+        pure (modExtractT ty ext inn b')
     nfTope (substituteT val' body)
 
   TypeModalT ty md inner -> TypeModalT ty md <$> nfTope inner
