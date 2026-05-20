@@ -1929,7 +1929,10 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     | TypeFunT _ty _origF param mtope _ret <- infoType ty ->
         LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
   LambdaT{} -> panicImpossible "lambda with a non-function type in the tope layer"
-  ModAppT ty md b -> ModAppT ty md <$> nfTope b
+  ModAppT ty md b -> 
+    nfTope b >>= \case 
+      ModExtractT _ ext inn t | comp ext inn == md -> pure t
+      b' -> pure $ ModAppT ty md b'  
   ModExtractT ty app ext b ->  
     nfTope b >>= \case
       ModAppT _ _ t -> pure t
