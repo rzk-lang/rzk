@@ -1311,6 +1311,12 @@ solveRHSM topes tope =
           , tope `elem` topes
           , topeEQT r l `elem` topes
           ] -> return True
+    TopeEQT  _ty l r -> do 
+      lType <- typeOf l 
+      rType <- typeOf r 
+      return $ case (lType, rType) of
+        (CubeUnitT{}, CubeUnitT{}) -> True 
+        _ -> False
     TopeLEQT _ty l r
       | l == r -> return True
       | solveRHS topes (topeEQT l r) -> return True
