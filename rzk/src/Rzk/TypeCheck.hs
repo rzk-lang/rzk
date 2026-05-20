@@ -1866,27 +1866,42 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
 
   TopeUninvT ty t ->
     nfTope t >>= \case
-      TopeLEQT _ x y -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeLEQT
-            (modExtractT topeT Id Op (cubeUnflipT y))
-            (modExtractT topeT Id Op (cubeUnflipT x)))
-      TopeEQT _ x y -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeEQT
-            (modExtractT topeT Id Op (cubeUnflipT y))
-            (modExtractT topeT Id Op (cubeUnflipT x)))
-      TopeAndT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeAndT
-            (modExtractT topeT Id Op (topeUninvT phi))
-            (modExtractT topeT Id Op (topeUninvT psi)))
-      TopeOrT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeOrT
-            (modExtractT topeT Id Op (topeUninvT phi))
-            (modExtractT topeT Id Op (topeUninvT psi)))
-      t' -> pure (TopeUninvT ty t')
+      ModAppT _ Op inner -> case inner of
+        TopeLEQT _ x y ->
+          nfTope $
+            modAppT (typeModalT universeT Op topeT) Op
+              (topeLEQT
+                (modExtractT topeT Id Op (cubeUnflipT y))
+                (modExtractT topeT Id Op (cubeUnflipT x)))
+
+        TopeEQT _ x y ->
+          nfTope $
+            modAppT (typeModalT universeT Op topeT) Op
+              (topeEQT
+                (modExtractT topeT Id Op (cubeUnflipT y))
+                (modExtractT topeT Id Op (cubeUnflipT x)))
+
+        TopeAndT _ phi psi ->
+          nfTope $
+            modAppT (typeModalT universeT Op topeT) Op
+              (topeAndT
+                (modExtractT topeT Id Op (topeUninvT phi))
+                (modExtractT topeT Id Op (topeUninvT psi)))
+
+        TopeOrT _ phi psi ->
+          nfTope $
+            modAppT (typeModalT universeT Op topeT) Op
+              (topeOrT
+                (modExtractT topeT Id Op (topeUninvT phi))
+                (modExtractT topeT Id Op (topeUninvT psi)))
+
+        inner' ->
+          pure $
+            TopeUninvT ty
+              (modAppT (typeModalT universeT Op topeT) Op inner')
+
+      t' ->
+        pure (TopeUninvT ty t')
 
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> nfTope term
