@@ -1221,13 +1221,18 @@ generateTopesForPointsM points = do
           , y <- points'
           , x /= y ]
         ]
+  stars <- forM points $ \x -> do 
+    xType <- typeOf x 
+    return $ if (xType == cubeUnitT) 
+      then [topeEQT x cubeUnitStarT] 
+      else []
   topes <- forM pairs $ \(x, y) -> do
     xType <- typeOf x
     yType <- typeOf y
     return $ if (xType == cube2T) && (yType == cube2T)
       then [topeOrT (topeLEQT x y) (topeLEQT y x)]
       else []
-  return (concat topes)
+  return (concat (topes ++ stars))
 
 allTopePoints :: Eq var => TermT var -> [TermT var]
 allTopePoints = nubTermT . foldMap subPoints . nubTermT . topePoints
