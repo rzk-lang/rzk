@@ -2941,7 +2941,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     t' <- typecheck t cube2T
     return (cubeFlipT t')
   CubeUnflip t -> do
-    t' <- typecheck t (typeModalT cube2T Op cube2T)
+    t' <- typecheck t (typeModalT cubeT Op cube2T)
     return (cubeUnflipT t')
 
   Pair l r -> do
@@ -3015,7 +3015,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (topeInvT t')
 
   TopeUninv t -> do
-    t' <- typecheck t topeT
+    t' <- typecheck t (typeModalT universeT Op topeT )
     return (topeUninvT t')
 
   RecBottom -> do
