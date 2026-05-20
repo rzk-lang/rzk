@@ -1253,6 +1253,7 @@ subPoints = \case
   p@Pure{} -> [p]
   p@(Free (AnnF TypeInfo{..} _))
     | Cube2T{} <- infoType -> [p]
+    | CubeUnitT{} <- infoType -> [p]
   _ -> []
 
 -- | Simplify the context, including disjunctions. See also 'simplifyLHS'.
