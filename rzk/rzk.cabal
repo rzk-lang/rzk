@@ -5,7 +5,7 @@ cabal-version: 1.24
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.7.7
+version:        0.7.7-moded
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -19,6 +19,135 @@ license-file:   LICENSE
 build-type:     Custom
 extra-source-files:
     grammar/Syntax.cf
+    test/typecheck/SCHEMA.md
+    test/typecheck/cases/happy-check.rzk
+    test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
+    test/typecheck/cases/happy-modal-basics.rzk
+    test/typecheck/cases/happy-modal-inv.rzk
+    test/typecheck/cases/happy-refl-path.rzk
+    test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
+    test/typecheck/cases/happy-tope-high-dim-cubes.rzk
+    test/typecheck/cases/happy-tope-nested-rec-or-d4.rzk
+    test/typecheck/cases/happy-tope-nested-rec-or-d5.rzk
+    test/typecheck/cases/happy-tope-nested-rec-or-d6.rzk
+    test/typecheck/cases/happy-tope-nested-rec-or.rzk
+    test/typecheck/cases/happy-tope-rec-and-restrict.rzk
+    test/typecheck/cases/happy-tope-shapes.rzk
+    test/typecheck/cases/ill-bare-lambda-compute.rzk
+    test/typecheck/cases/ill-bare-refl-compute.rzk
+    test/typecheck/cases/ill-duplicate.rzk
+    test/typecheck/cases/ill-implicit.rzk
+    test/typecheck/cases/ill-invalid-arg-type-bot.rzk
+    test/typecheck/cases/ill-issue-13-flip-flip-wrong.rzk
+    test/typecheck/cases/ill-issue-206-families-of-extension.rzk
+    test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
+    test/typecheck/cases/ill-modal-b-no-dist.rzk
+    test/typecheck/cases/ill-modal-not-modal.rzk
+    test/typecheck/cases/ill-modal-op-unaccessible.rzk
+    test/typecheck/cases/ill-modal-unaccessible.rzk
+    test/typecheck/cases/ill-not-function.rzk
+    test/typecheck/cases/ill-not-pair-first-unit.rzk
+    test/typecheck/cases/ill-not-pair-second-unit.rzk
+    test/typecheck/cases/ill-param-untyped-pattern.rzk
+    test/typecheck/cases/ill-rec-or-overlap-incoherent.rzk
+    test/typecheck/cases/ill-render-latex-define.rzk
+    test/typecheck/cases/ill-section-end-mismatch.rzk
+    test/typecheck/cases/ill-section-not-closed.rzk
+    test/typecheck/cases/ill-section-unexpected-end.rzk
+    test/typecheck/cases/ill-set-option-render.rzk
+    test/typecheck/cases/ill-set-option-unknown.rzk
+    test/typecheck/cases/ill-set-option-verbosity.rzk
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d4.rzk
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d5.rzk
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d6.rzk
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton.rzk
+    test/typecheck/cases/ill-tope-not-satisfied-app-shape.rzk
+    test/typecheck/cases/ill-tope-not-satisfied-rec-bot.rzk
+    test/typecheck/cases/ill-tope-not-satisfied-rec-or-boundary-equiv.rzk
+    test/typecheck/cases/ill-tope-not-satisfied-rec-or-open-singleton.rzk
+    test/typecheck/cases/ill-tope-not-satisfied-tope-family-subtyping.rzk
+    test/typecheck/cases/ill-tope-param-lambda.rzk
+    test/typecheck/cases/ill-tope-param-typefun.rzk
+    test/typecheck/cases/ill-tope-subtle-app-shape-5d.rzk
+    test/typecheck/cases/ill-tope-subtle-rec-or-5d-boundary.rzk
+    test/typecheck/cases/ill-tope-subtle-tope-family-4d.rzk
+    test/typecheck/cases/ill-tope-subtle-tope-family-5d.rzk
+    test/typecheck/cases/ill-undefined.rzk
+    test/typecheck/cases/ill-unexpected-lambda.rzk
+    test/typecheck/cases/ill-unexpected-pair.rzk
+    test/typecheck/cases/ill-unexpected-refl.rzk
+    test/typecheck/cases/ill-unify-terms-path.rzk
+    test/typecheck/cases/ill-unify.rzk
+    test/typecheck/cases/ill-unset-option-unknown.rzk
+    test/typecheck/cases/ill-unused-assumption.rzk
+    test/typecheck/cases/multimodule-first-error/bad.rzk
+    test/typecheck/cases/multimodule-first-error/lib.rzk
+    test/typecheck/cases/multimodule-two-ok/lib.rzk
+    test/typecheck/cases/multimodule-two-ok/user.rzk
+    test/typecheck/cases/happy-check.expect.yaml
+    test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
+    test/typecheck/cases/happy-modal-basics.expect.yaml
+    test/typecheck/cases/happy-modal-inv.expect.yaml
+    test/typecheck/cases/happy-refl-path.expect.yaml
+    test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
+    test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml
+    test/typecheck/cases/happy-tope-nested-rec-or-d4.expect.yaml
+    test/typecheck/cases/happy-tope-nested-rec-or-d5.expect.yaml
+    test/typecheck/cases/happy-tope-nested-rec-or-d6.expect.yaml
+    test/typecheck/cases/happy-tope-nested-rec-or.expect.yaml
+    test/typecheck/cases/happy-tope-rec-and-restrict.expect.yaml
+    test/typecheck/cases/happy-tope-shapes.expect.yaml
+    test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
+    test/typecheck/cases/ill-bare-refl-compute.expect.yaml
+    test/typecheck/cases/ill-duplicate.expect.yaml
+    test/typecheck/cases/ill-implicit.expect.yaml
+    test/typecheck/cases/ill-invalid-arg-type-bot.expect.yaml
+    test/typecheck/cases/ill-issue-13-flip-flip-wrong.expect.yaml
+    test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
+    test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
+    test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
+    test/typecheck/cases/ill-modal-not-modal.expect.yaml
+    test/typecheck/cases/ill-modal-op-unaccessible.expect.yaml
+    test/typecheck/cases/ill-modal-unaccessible.expect.yaml
+    test/typecheck/cases/ill-not-function.expect.yaml
+    test/typecheck/cases/ill-not-pair-first-unit.expect.yaml
+    test/typecheck/cases/ill-not-pair-second-unit.expect.yaml
+    test/typecheck/cases/ill-param-untyped-pattern.expect.yaml
+    test/typecheck/cases/ill-rec-or-overlap-incoherent.expect.yaml
+    test/typecheck/cases/ill-render-latex-define.expect.yaml
+    test/typecheck/cases/ill-section-end-mismatch.expect.yaml
+    test/typecheck/cases/ill-section-not-closed.expect.yaml
+    test/typecheck/cases/ill-section-unexpected-end.expect.yaml
+    test/typecheck/cases/ill-set-option-render.expect.yaml
+    test/typecheck/cases/ill-set-option-unknown.expect.yaml
+    test/typecheck/cases/ill-set-option-verbosity.expect.yaml
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d4.expect.yaml
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d5.expect.yaml
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d6.expect.yaml
+    test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton.expect.yaml
+    test/typecheck/cases/ill-tope-not-satisfied-app-shape.expect.yaml
+    test/typecheck/cases/ill-tope-not-satisfied-rec-bot.expect.yaml
+    test/typecheck/cases/ill-tope-not-satisfied-rec-or-boundary-equiv.expect.yaml
+    test/typecheck/cases/ill-tope-not-satisfied-rec-or-open-singleton.expect.yaml
+    test/typecheck/cases/ill-tope-not-satisfied-tope-family-subtyping.expect.yaml
+    test/typecheck/cases/ill-tope-param-lambda.expect.yaml
+    test/typecheck/cases/ill-tope-param-typefun.expect.yaml
+    test/typecheck/cases/ill-tope-subtle-app-shape-5d.expect.yaml
+    test/typecheck/cases/ill-tope-subtle-rec-or-5d-boundary.expect.yaml
+    test/typecheck/cases/ill-tope-subtle-tope-family-4d.expect.yaml
+    test/typecheck/cases/ill-tope-subtle-tope-family-5d.expect.yaml
+    test/typecheck/cases/ill-undefined.expect.yaml
+    test/typecheck/cases/ill-unexpected-lambda.expect.yaml
+    test/typecheck/cases/ill-unexpected-pair.expect.yaml
+    test/typecheck/cases/ill-unexpected-refl.expect.yaml
+    test/typecheck/cases/ill-unify-terms-path.expect.yaml
+    test/typecheck/cases/ill-unify.expect.yaml
+    test/typecheck/cases/ill-unset-option-unknown.expect.yaml
+    test/typecheck/cases/ill-unused-assumption.expect.yaml
+    test/typecheck/cases/literate-fence/expect.yaml
+    test/typecheck/cases/multimodule-first-error/expect.yaml
+    test/typecheck/cases/multimodule-two-ok/expect.yaml
+    test/typecheck/cases/literate-fence/doc.rzk.md
 extra-doc-files:
     README.md
     ChangeLog.md
@@ -60,7 +189,7 @@ library
       src
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -106,7 +235,7 @@ executable rzk
       app
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -139,7 +268,7 @@ test-suite doctests
       test
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -167,12 +296,13 @@ test-suite rzk-test
   main-is: Spec.hs
   other-modules:
       Rzk.FormatSpec
+      Rzk.TypeCheckSpec
       Paths_rzk
   hs-source-dirs:
       test
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
@@ -180,18 +310,20 @@ test-suite rzk-test
       BNFC:bnfc >=2.9.6.2
   build-depends:
       Glob >=0.9.3
+    , aeson
     , array >=0.5.3.0
     , base >=4.7 && <5
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
     , directory >=1.2.7.0
+    , filepath
     , hspec
     , hspec-discover
     , mtl >=2.2.2
     , rzk
     , template-haskell >=2.14.0.0
     , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , yaml
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED

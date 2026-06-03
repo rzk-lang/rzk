@@ -1,0 +1,5 @@
+#lang rzk-1
+
+#set-option "verbosity" = "loud"
+
+#define x : U := U

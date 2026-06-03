@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- Simplest test: phi_op should unify with the inverted tope
+-- so refl typechecks if the substitution is correct
+
+#compute-nf inv_op (0_2 === 0_2)
+
+#def test-lt-mod-inv
+  ( i : 2)
+  : let mod _op q := invᵒᵖ (i ≡ 0₂) in let mod _op fi := flip_op i in <| _op | (q = (fi === 1_2)) |>
+  := mod _op refl
+
+

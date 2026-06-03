@@ -24,18 +24,21 @@ module Language.Rzk.Syntax.Par
   , pListPattern1
   , pParam
   , pListParam
+  , pBind
   , pParamDecl
   , pSigmaParam
   , pListSigmaParam
   , pRestriction
   , pListRestriction
+  , pModality
+  , pModComp
   , pTerm7
   , pTerm5
   , pTerm4
   , pTerm3
   , pTerm2
-  , pTerm1
   , pTerm6
+  , pTerm1
   , pTerm
   , pListTerm
   ) where
@@ -64,18 +67,21 @@ import qualified Data.Text
 %name pListPattern1_internal ListPattern1
 %name pParam_internal Param
 %name pListParam_internal ListParam
+%name pBind_internal Bind
 %name pParamDecl_internal ParamDecl
 %name pSigmaParam_internal SigmaParam
 %name pListSigmaParam_internal ListSigmaParam
 %name pRestriction_internal Restriction
 %name pListRestriction_internal ListRestriction
+%name pModality_internal Modality
+%name pModComp_internal ModComp
 %name pTerm7_internal Term7
 %name pTerm5_internal Term5
 %name pTerm4_internal Term4
 %name pTerm3_internal Term3
 %name pTerm2_internal Term2
-%name pTerm1_internal Term1
 %name pTerm6_internal Term6
+%name pTerm1_internal Term1
 %name pTerm_internal Term
 %name pListTerm_internal ListTerm
 -- no lexer declaration
@@ -97,68 +103,90 @@ import qualified Data.Text
   '#unset-option'  { PT _ (TS _ 13)            }
   '#variable'      { PT _ (TS _ 14)            }
   '#variables'     { PT _ (TS _ 15)            }
-  '('              { PT _ (TS _ 16)            }
-  ')'              { PT _ (TS _ 17)            }
-  '*'              { PT _ (TS _ 18)            }
-  '*_1'            { PT _ (TS _ 19)            }
-  '*₁'             { PT _ (TS _ 20)            }
-  ','              { PT _ (TS _ 21)            }
-  '->'             { PT _ (TS _ 22)            }
-  '/\\'            { PT _ (TS _ 23)            }
-  '0_2'            { PT _ (TS _ 24)            }
-  '0₂'             { PT _ (TS _ 25)            }
-  '1'              { PT _ (TS _ 26)            }
-  '1_2'            { PT _ (TS _ 27)            }
-  '1₂'             { PT _ (TS _ 28)            }
-  '2'              { PT _ (TS _ 29)            }
-  ':'              { PT _ (TS _ 30)            }
-  ':='             { PT _ (TS _ 31)            }
-  ';'              { PT _ (TS _ 32)            }
-  '<'              { PT _ (TS _ 33)            }
-  '<='             { PT _ (TS _ 34)            }
-  '='              { PT _ (TS _ 35)            }
-  '==='            { PT _ (TS _ 36)            }
-  '=_{'            { PT _ (TS _ 37)            }
-  '>'              { PT _ (TS _ 38)            }
-  'BOT'            { PT _ (TS _ 39)            }
-  'CUBE'           { PT _ (TS _ 40)            }
-  'Sigma'          { PT _ (TS _ 41)            }
-  'TOP'            { PT _ (TS _ 42)            }
-  'TOPE'           { PT _ (TS _ 43)            }
-  'U'              { PT _ (TS _ 44)            }
-  'Unit'           { PT _ (TS _ 45)            }
-  '['              { PT _ (TS _ 46)            }
-  '\\'             { PT _ (TS _ 47)            }
-  '\\/'            { PT _ (TS _ 48)            }
-  ']'              { PT _ (TS _ 49)            }
-  'as'             { PT _ (TS _ 50)            }
-  'first'          { PT _ (TS _ 51)            }
-  'idJ'            { PT _ (TS _ 52)            }
-  'recBOT'         { PT _ (TS _ 53)            }
-  'recOR'          { PT _ (TS _ 54)            }
-  'refl'           { PT _ (TS _ 55)            }
-  'refl_{'         { PT _ (TS _ 56)            }
-  'rzk-1'          { PT _ (TS _ 57)            }
-  'second'         { PT _ (TS _ 58)            }
-  'unit'           { PT _ (TS _ 59)            }
-  'uses'           { PT _ (TS _ 60)            }
-  '{'              { PT _ (TS _ 61)            }
-  '|'              { PT _ (TS _ 62)            }
-  '|->'            { PT _ (TS _ 63)            }
-  '}'              { PT _ (TS _ 64)            }
-  '×'              { PT _ (TS _ 65)            }
-  'Σ'              { PT _ (TS _ 66)            }
-  'π₁'             { PT _ (TS _ 67)            }
-  'π₂'             { PT _ (TS _ 68)            }
-  '→'              { PT _ (TS _ 69)            }
-  '↦'              { PT _ (TS _ 70)            }
-  '∑'              { PT _ (TS _ 71)            }
-  '∧'              { PT _ (TS _ 72)            }
-  '∨'              { PT _ (TS _ 73)            }
-  '≡'              { PT _ (TS _ 74)            }
-  '≤'              { PT _ (TS _ 75)            }
-  '⊤'              { PT _ (TS _ 76)            }
-  '⊥'              { PT _ (TS _ 77)            }
+  '$extract$'      { PT _ (TS _ 16)            }
+  '('              { PT _ (TS _ 17)            }
+  ')'              { PT _ (TS _ 18)            }
+  '*'              { PT _ (TS _ 19)            }
+  '*_1'            { PT _ (TS _ 20)            }
+  '*₁'             { PT _ (TS _ 21)            }
+  ','              { PT _ (TS _ 22)            }
+  '->'             { PT _ (TS _ 23)            }
+  '/'              { PT _ (TS _ 24)            }
+  '/\\'            { PT _ (TS _ 25)            }
+  '0_2'            { PT _ (TS _ 26)            }
+  '0₂'             { PT _ (TS _ 27)            }
+  '1'              { PT _ (TS _ 28)            }
+  '1_2'            { PT _ (TS _ 29)            }
+  '1₂'             { PT _ (TS _ 30)            }
+  '2'              { PT _ (TS _ 31)            }
+  ':'              { PT _ (TS _ 32)            }
+  ':='             { PT _ (TS _ 33)            }
+  ';'              { PT _ (TS _ 34)            }
+  '<'              { PT _ (TS _ 35)            }
+  '<='             { PT _ (TS _ 36)            }
+  '<|'             { PT _ (TS _ 37)            }
+  '='              { PT _ (TS _ 38)            }
+  '==='            { PT _ (TS _ 39)            }
+  '=_{'            { PT _ (TS _ 40)            }
+  '>'              { PT _ (TS _ 41)            }
+  'BOT'            { PT _ (TS _ 42)            }
+  'CUBE'           { PT _ (TS _ 43)            }
+  'Sigma'          { PT _ (TS _ 44)            }
+  'TOP'            { PT _ (TS _ 45)            }
+  'TOPE'           { PT _ (TS _ 46)            }
+  'U'              { PT _ (TS _ 47)            }
+  'Unit'           { PT _ (TS _ 48)            }
+  '['              { PT _ (TS _ 49)            }
+  '\\'             { PT _ (TS _ 50)            }
+  '\\/'            { PT _ (TS _ 51)            }
+  ']'              { PT _ (TS _ 52)            }
+  '_#'             { PT _ (TS _ 53)            }
+  '_b'             { PT _ (TS _ 54)            }
+  '_id'            { PT _ (TS _ 55)            }
+  '_op'            { PT _ (TS _ 56)            }
+  'as'             { PT _ (TS _ 57)            }
+  'first'          { PT _ (TS _ 58)            }
+  'flip_op'        { PT _ (TS _ 59)            }
+  'flipᵒᵖ'         { PT _ (TS _ 60)            }
+  'idJ'            { PT _ (TS _ 61)            }
+  'in'             { PT _ (TS _ 62)            }
+  'inv_op'         { PT _ (TS _ 63)            }
+  'invᵒᵖ'          { PT _ (TS _ 64)            }
+  'let'            { PT _ (TS _ 65)            }
+  'mod'            { PT _ (TS _ 66)            }
+  'recBOT'         { PT _ (TS _ 67)            }
+  'recOR'          { PT _ (TS _ 68)            }
+  'refl'           { PT _ (TS _ 69)            }
+  'refl_{'         { PT _ (TS _ 70)            }
+  'rzk-1'          { PT _ (TS _ 71)            }
+  'second'         { PT _ (TS _ 72)            }
+  'unflip_op'      { PT _ (TS _ 73)            }
+  'unflipᵒᵖ'       { PT _ (TS _ 74)            }
+  'uninv_op'       { PT _ (TS _ 75)            }
+  'uninvᵒᵖ'        { PT _ (TS _ 76)            }
+  'unit'           { PT _ (TS _ 77)            }
+  'uses'           { PT _ (TS _ 78)            }
+  '{'              { PT _ (TS _ 79)            }
+  '|'              { PT _ (TS _ 80)            }
+  '|->'            { PT _ (TS _ 81)            }
+  '|>'             { PT _ (TS _ 82)            }
+  '}'              { PT _ (TS _ 83)            }
+  '×'              { PT _ (TS _ 84)            }
+  'Σ'              { PT _ (TS _ 85)            }
+  'π₁'             { PT _ (TS _ 86)            }
+  'π₂'             { PT _ (TS _ 87)            }
+  'ᵒᵖ'             { PT _ (TS _ 88)            }
+  '→'              { PT _ (TS _ 89)            }
+  '↦'              { PT _ (TS _ 90)            }
+  '∑'              { PT _ (TS _ 91)            }
+  '∧'              { PT _ (TS _ 92)            }
+  '∨'              { PT _ (TS _ 93)            }
+  '≡'              { PT _ (TS _ 94)            }
+  '≤'              { PT _ (TS _ 95)            }
+  '⊤'              { PT _ (TS _ 96)            }
+  '⊥'              { PT _ (TS _ 97)            }
+  '♭'              { PT _ (TS _ 98)            }
+  '♯'              { PT _ (TS _ 99)            }
   L_quoted         { PT _ (TL _)               }
   L_VarIdentToken  { PT _ (T_VarIdentToken _)  }
   L_HoleIdentToken { PT _ (T_HoleIdentToken _) }
@@ -260,11 +288,17 @@ Param
   | '(' ListPattern ':' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '(' ListPattern ':' Term '|' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternShape (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
   | '{' Pattern ':' Term '|' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '(' ListPattern ':' Modality Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamPatternModalType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $5)) }
 
 ListParam :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.Param]) }
 ListParam
   : Param { (fst $1, (:[]) (snd $1)) }
   | Param ListParam { (fst $1, (:) (snd $1) (snd $2)) }
+
+Bind :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Bind) }
+Bind
+  : Pattern { (fst $1, Language.Rzk.Syntax.Abs.BindPattern (fst $1) (snd $1)) }
+  | Pattern ':' Term { (fst $1, Language.Rzk.Syntax.Abs.BindPatternType (fst $1) (snd $1) (snd $3)) }
 
 ParamDecl :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.ParamDecl) }
 ParamDecl
@@ -274,10 +308,12 @@ ParamDecl
   | '{' Pattern ':' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamTermTypeDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '{' '(' Pattern ':' Term ')' '|' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamVarShapeDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
   | '{' Pattern ':' Term '|' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.paramVarShapeDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '(' Term ':' Modality Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ParamTermModalType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $5)) }
 
 SigmaParam :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.SigmaParam) }
 SigmaParam
   : Pattern ':' Term { (fst $1, Language.Rzk.Syntax.Abs.SigmaParam (fst $1) (snd $1) (snd $3)) }
+  | Pattern ':' Modality Term { (fst $1, Language.Rzk.Syntax.Abs.SigmaParamModal (fst $1) (snd $1) (snd $3) (snd $4)) }
 
 ListSigmaParam :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Syntax.Abs.SigmaParam]) }
 ListSigmaParam
@@ -293,6 +329,21 @@ ListRestriction :: { (Language.Rzk.Syntax.Abs.BNFC'Position, [Language.Rzk.Synta
 ListRestriction
   : Restriction { (fst $1, (:[]) (snd $1)) }
   | Restriction ',' ListRestriction { (fst $1, (:) (snd $1) (snd $3)) }
+
+Modality :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Modality) }
+Modality
+  : '♭' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Flat (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '_b' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Flat (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '♯' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Sharp (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '_#' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Sharp (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | 'ᵒᵖ' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Op (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '_op' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Op (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+  | '_id' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Id (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
+
+ModComp :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.ModComp) }
+ModComp
+  : Modality { (fst $1, Language.Rzk.Syntax.Abs.Single (fst $1) (snd $1)) }
+  | Modality '/' Modality { (fst $1, Language.Rzk.Syntax.Abs.Comp (fst $1) (snd $1) (snd $3)) }
 
 Term7 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term7
@@ -313,6 +364,8 @@ Term7
   | '<' ParamDecl '→' Term '>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeExtensionDeprecated (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '(' Term ',' Term ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Pair (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | '(' Term ',' Term ',' ListTerm ')' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Tuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | 'mod' Modality Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ModApp (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3)) }
+  | '<|' Modality '|' Term '|>' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ModType (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
   | 'unit' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Unit (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Refl (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1))) }
   | 'refl_{' Term '}' { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ReflTerm (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
@@ -354,31 +407,44 @@ Term2
   | Term3 { (fst $1, (snd $1)) }
   | Term3 '\\/' Term2 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TopeOr (fst $1) (snd $1) (snd $3)) }
 
-Term1 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
-Term1
-  : ParamDecl '→' Term1 { (fst $1, Language.Rzk.Syntax.Abs.TypeFun (fst $1) (snd $1) (snd $3)) }
-  | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
-  | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
-  | '\\' ListParam '→' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
-  | Term2 { (fst $1, (snd $1)) }
-  | ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TypeFun (fst $1) (snd $1) (snd $3)) }
-  | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | '\\' ListParam '->' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
-  | '∑' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-  | '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaTupleAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
-
 Term6 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term6
-  : Term6 '[' ListRestriction ']' { (fst $1, Language.Rzk.Syntax.Abs.TypeRestricted (fst $1) (snd $1) (snd $3)) }
+  : 'invᵒᵖ' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TopeInv (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'inv_op' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ascii_TopeInv (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'uninvᵒᵖ' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TopeUninv (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'uninv_op' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ascii_TopeUninv (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'flipᵒᵖ' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CubeFlip (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'flip_op' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ascii_CubeFlip (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'unflipᵒᵖ' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.CubeUnflip (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | 'unflip_op' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ascii_CubeUnflip (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+  | Term6 '[' ListRestriction ']' { (fst $1, Language.Rzk.Syntax.Abs.TypeRestricted (fst $1) (snd $1) (snd $3)) }
   | Term6 Term7 { (fst $1, Language.Rzk.Syntax.Abs.App (fst $1) (snd $1) (snd $2)) }
+  | '$extract$' ModComp Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ModExtract (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $3)) }
   | 'π₁' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.First (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | 'π₂' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Second (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | Term7 { (fst $1, (snd $1)) }
   | 'first' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_First (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
   | 'second' Term7 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Second (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2)) }
+
+Term1 :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
+Term1
+  : ParamDecl '→' Term1 { (fst $1, Language.Rzk.Syntax.Abs.TypeFun (fst $1) (snd $1) (snd $3)) }
+  | 'Σ' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | 'Σ' '(' Pattern ':' Modality Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaModal (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $6) (snd $9)) }
+  | 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | Term2 '=_{' Term '}' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeId (fst $1) (snd $1) (snd $3) (snd $5)) }
+  | Term2 '=' Term2 { (fst $1, Language.Rzk.Syntax.Abs.TypeIdSimple (fst $1) (snd $1) (snd $3)) }
+  | 'let' Bind ':=' Term 'in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Let (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4) (snd $6)) }
+  | '\\' ListParam '→' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | 'let' 'mod' ModComp Bind ':=' Term 'in' Term { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.LetMod (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $4) (snd $6) (snd $8)) }
+  | Term2 { (fst $1, (snd $1)) }
+  | ParamDecl '->' Term1 { (fst $1, Language.Rzk.Syntax.Abs.ASCII_TypeFun (fst $1) (snd $1) (snd $3)) }
+  | 'Sigma' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigma (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | 'Sigma' '(' Pattern ':' Modality Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigmaModal (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $6) (snd $9)) }
+  | 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_TypeSigmaTuple (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | '\\' ListParam '->' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.ASCII_Lambda (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $2) (snd $4)) }
+  | '∑' '(' Pattern ':' Term ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
+  | '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 { (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1), Language.Rzk.Syntax.Abs.unicode_TypeSigmaTupleAlt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol $1)) (snd $3) (snd $5) (snd $8)) }
 
 Term :: { (Language.Rzk.Syntax.Abs.BNFC'Position, Language.Rzk.Syntax.Abs.Term) }
 Term
@@ -455,6 +521,9 @@ pParam = fmap snd . pParam_internal
 pListParam :: [Token] -> Err [Language.Rzk.Syntax.Abs.Param]
 pListParam = fmap snd . pListParam_internal
 
+pBind :: [Token] -> Err Language.Rzk.Syntax.Abs.Bind
+pBind = fmap snd . pBind_internal
+
 pParamDecl :: [Token] -> Err Language.Rzk.Syntax.Abs.ParamDecl
 pParamDecl = fmap snd . pParamDecl_internal
 
@@ -469,6 +538,12 @@ pRestriction = fmap snd . pRestriction_internal
 
 pListRestriction :: [Token] -> Err [Language.Rzk.Syntax.Abs.Restriction]
 pListRestriction = fmap snd . pListRestriction_internal
+
+pModality :: [Token] -> Err Language.Rzk.Syntax.Abs.Modality
+pModality = fmap snd . pModality_internal
+
+pModComp :: [Token] -> Err Language.Rzk.Syntax.Abs.ModComp
+pModComp = fmap snd . pModComp_internal
 
 pTerm7 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
 pTerm7 = fmap snd . pTerm7_internal
@@ -485,11 +560,11 @@ pTerm3 = fmap snd . pTerm3_internal
 pTerm2 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
 pTerm2 = fmap snd . pTerm2_internal
 
-pTerm1 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
-pTerm1 = fmap snd . pTerm1_internal
-
 pTerm6 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
 pTerm6 = fmap snd . pTerm6_internal
+
+pTerm1 :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
+pTerm1 = fmap snd . pTerm1_internal
 
 pTerm :: [Token] -> Err Language.Rzk.Syntax.Abs.Term
 pTerm = fmap snd . pTerm_internal

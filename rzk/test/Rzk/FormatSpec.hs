@@ -54,6 +54,9 @@ spec = do
     it "Normalizes tabs to spaces" $ do
       formats "tabs"
 
+    it "Let bindings formatting differs from defenitions" $ do
+      formats "let"
+
     it "Fixes indentation" pending
 
     it "Wraps long lines" pending

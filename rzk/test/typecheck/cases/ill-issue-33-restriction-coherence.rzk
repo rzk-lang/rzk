@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- [#33](https://github.com/rzk-lang/rzk/issues/33): a restricted codomain needs coherence where two
+-- restriction faces overlap (`first ts ≡ 0₂` meets `first ts ≡ second ts` at `(0₂, 0₂)`).
+
+#postulate A : U
+
+#postulate x : A
+
+#postulate y : A
+
+#postulate z : A
+
+#postulate illIssue33Restriction : (ts : 2 * 2) → A
+  [ first ts === 0_2 |-> x , first ts === second ts |-> z ]

@@ -1,0 +1,5 @@
+status: ok
+regression_for:
+  - contextEquiv-recOR-disjunctive-shape
+  - contextEntails-recBOT-under-contradiction
+  - contextEntailedBy-TypeRestricted-TOP

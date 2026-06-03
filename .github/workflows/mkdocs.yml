@@ -2,7 +2,7 @@ name: MKDocs
 
 on:
   push:
-    branches: [develop, mkdocs-*]
+    branches: [develop, lishy2-modal, mkdocs-*]
     tags: [v*]
     paths:
       - .github/workflows/mkdocs.yml
@@ -29,7 +29,18 @@ jobs:
           python-version: "3.9"
           cache: "pip" # caching pip dependencies
 
-      - name: 🔨 Install rzk proof assistant
+      - name: 🧰 Setup Stack
+        if: github.ref_name == 'lishy2-modal'
+        uses: freckle/stack-action@v5
+
+      - name: 🔨 Build rzk proof assistant (current branch)
+        if: github.ref_name == 'lishy2-modal'
+        run: |
+          stack build
+          echo "$(stack path --local-install-root)/bin" >> "$GITHUB_PATH"
+
+      - name: 🔨 Install rzk proof assistant (release)
+        if: github.ref_name != 'lishy2-modal'
         uses: jaxxstorm/action-install-gh-release@v1.10.0
         with:
           repo: rzk-lang/rzk
@@ -56,7 +67,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
 
       - name: 🚀 Deploy with mike (${{ github.ref_name }}, latest)
-        if: ${{ github.ref_name != 'develop' && !startsWith(github.ref_name, 'mkdocs') }}
+        if: ${{ github.ref_name != 'develop' && !startsWith(github.ref_name, 'mkdocs') && !startsWith(github.ref_name, 'lishy2-modal') }}
         run: |
           for config in $(ls docs/config/*/mkdocs.yml); do
             mike deploy --push --update-aliases --config-file ${config} ${{ github.ref_name }} latest;
@@ -64,7 +75,7 @@ jobs:
           done
 
       - name: 🚀 Deploy with mike (${{ github.ref_name }})
-        if: ${{ github.ref_name == 'develop' || startsWith(github.ref_name, 'mkdocs') }}
+        if: ${{ github.ref_name == 'develop' || startsWith(github.ref_name, 'mkdocs') || startsWith(github.ref_name, 'lishy2-modal') }}
         run: |
           for config in $(ls docs/config/*/mkdocs.yml); do
             mike deploy --push --config-file ${config} ${{ github.ref_name }};

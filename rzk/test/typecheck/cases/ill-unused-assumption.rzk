@@ -1,0 +1,13 @@
+#lang rzk-1
+
+#section sec-unused
+
+#variables A : U
+
+#variable unused-var : A
+
+#define only-type
+  : U
+  := A
+
+#end sec-unused

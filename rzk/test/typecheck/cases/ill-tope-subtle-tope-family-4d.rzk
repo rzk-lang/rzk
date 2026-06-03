@@ -1,0 +1,14 @@
+#lang rzk-1
+
+-- Same pattern as `ill-tope-not-satisfied-tope-family-subtyping`, but the domain is
+-- the 4-cube with the directed 4-simplex `Δ⁴`. Unification checks `entailM` **without**
+-- extending local Φ, so a constant `TOPE` family is rejected.
+
+#define Δ⁴
+  : ( 2 × 2 × 2 × 2) → TOPE
+  := \ (((t1 , t2) , t3) , t4) → t4 <= t3 /\ t3 <= t2 /\ t2 <= t1
+
+#define wide4 : (p : 2 * 2 * 2 * 2) -> TOPE
+  := \ p → TOP
+
+#check wide4 : (p : 2 * 2 * 2 * 2 | Δ⁴ p) -> TOPE

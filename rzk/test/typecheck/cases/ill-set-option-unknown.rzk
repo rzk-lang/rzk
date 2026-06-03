@@ -1,0 +1,3 @@
+#lang rzk-1
+
+#set-option "frobnitz" = "1"

@@ -1,0 +1,29 @@
+#lang rzk-1
+
+-- [#9](https://github.com/rzk-lang/rzk/issues/9): `relfunext2` used to expand wrongly when a later parameter shadowed the type family name.
+-- The old repro ended with `(r : relfunext2) → relfunext2 := λ r → r` and failed to typecheck; with correct binding / expansion it succeeds.
+-- (Use the parameter name `w` and body `w` to avoid accidental shadowing of binders inside `relfunext2`.)
+
+#define prod (A : U) (B : U) : U
+  := ∑ (x : A), B
+
+#define isweq (A : U) (B : U) (f : A → B) : U
+  := ∑ (g : B → A), prod ((x : A) → g (f x) =_{A} x) ((y : B) → f (g y) =_{B} y)
+
+#define weq (A : U) (B : U) : U
+  := ∑ (f : A → B), isweq A B f
+
+-- [RS17, Proposition 4.8] (shape as in `rzk-playground/.../example.rzk`).
+#define relfunext2 : U
+  := (I : CUBE)
+  → (psi : I → TOPE)
+  → (phi : psi → TOPE)
+  → (A : psi → U)
+  → (a : (t : phi) → A t)
+  → (f : (t : psi) → A t [ phi t |-> a t ])
+  → (g : (t : psi) → A t [ phi t |-> a t ])
+  → weq (f = g)
+        ((t : psi) → (f t =_{A t} g t) [ phi t |-> refl ])
+
+#define happyIssue9Relfunext2Id (w : relfunext2) : relfunext2
+  := w

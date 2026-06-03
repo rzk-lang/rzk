@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorUnusedVariable
+message_contains:
+  - "unused variable"
+regression_for:
+  - pr-179
+  - matrix-unused-variable

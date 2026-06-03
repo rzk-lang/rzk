@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#define unit-type
+  : U
+  := Unit
+
+#check U : unit-type

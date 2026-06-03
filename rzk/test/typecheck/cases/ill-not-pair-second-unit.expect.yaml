@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorNotPair
+message_contains:
+  - "cube product or dependent pair"
+regression_for:
+  - Second-not-pair

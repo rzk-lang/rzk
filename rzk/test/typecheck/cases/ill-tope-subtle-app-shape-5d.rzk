@@ -1,0 +1,17 @@
+#lang rzk-1
+
+-- Applying a `Δ⁵`-guarded function on the full 5-cube: after application, `contextEntails`
+-- must derive the substituted simplex guard from the local tope context (fails here).
+-- Same judgment as `ill-tope-not-satisfied-app-shape`, higher dimension.
+
+#define u : U := Unit -> Unit
+
+#define Δ⁵
+  : ( 2 × 2 × 2 × 2 × 2) → TOPE
+  := \ ((((t1 , t2) , t3) , t4) , t5) → t5 <= t4 /\ t4 <= t3 /\ t3 <= t2 /\ t2 <= t1
+
+#define fΔ⁵ : (p : 2 * 2 * 2 * 2 * 2 | Δ⁵ p) -> U
+  := \ p → u
+
+#define illAppΔ⁵ : (p : 2 * 2 * 2 * 2 * 2) -> U
+  := \ p → fΔ⁵ p

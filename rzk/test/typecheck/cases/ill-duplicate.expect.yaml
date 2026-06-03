@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorDuplicateTopLevel
+message_contains:
+  - "duplicate top-level definition"
+regression_for:
+  - matrix-duplicate-toplevel

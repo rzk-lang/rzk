@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#define exported-type
+  : U
+  := Unit
+
+#define exported-id (A : U)
+  : A → A
+  := \ x → x
