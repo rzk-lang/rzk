@@ -5,7 +5,7 @@ cabal-version: 1.24
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.7.7
+version:        0.7.7-moded
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -20,10 +20,10 @@ build-type:     Custom
 extra-source-files:
     grammar/Syntax.cf
     test/typecheck/SCHEMA.md
-    test/typecheck/REGRESSIONS.md
-    test/typecheck/ISSUE_TYPE_ERROR_COVERAGE.md
     test/typecheck/cases/happy-check.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
+    test/typecheck/cases/happy-modal-basics.rzk
+    test/typecheck/cases/happy-modal-inv.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
     test/typecheck/cases/happy-tope-high-dim-cubes.rzk
@@ -41,6 +41,10 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.rzk
     test/typecheck/cases/ill-issue-206-families-of-extension.rzk
     test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
+    test/typecheck/cases/ill-modal-b-no-dist.rzk
+    test/typecheck/cases/ill-modal-not-modal.rzk
+    test/typecheck/cases/ill-modal-op-unaccessible.rzk
+    test/typecheck/cases/ill-modal-unaccessible.rzk
     test/typecheck/cases/ill-not-function.rzk
     test/typecheck/cases/ill-not-pair-first-unit.rzk
     test/typecheck/cases/ill-not-pair-second-unit.rzk
@@ -82,6 +86,8 @@ extra-source-files:
     test/typecheck/cases/multimodule-two-ok/user.rzk
     test/typecheck/cases/happy-check.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
+    test/typecheck/cases/happy-modal-basics.expect.yaml
+    test/typecheck/cases/happy-modal-inv.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
     test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml
@@ -99,6 +105,10 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.expect.yaml
     test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
     test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
+    test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
+    test/typecheck/cases/ill-modal-not-modal.expect.yaml
+    test/typecheck/cases/ill-modal-op-unaccessible.expect.yaml
+    test/typecheck/cases/ill-modal-unaccessible.expect.yaml
     test/typecheck/cases/ill-not-function.expect.yaml
     test/typecheck/cases/ill-not-pair-first-unit.expect.yaml
     test/typecheck/cases/ill-not-pair-second-unit.expect.yaml
@@ -179,12 +189,12 @@ library
       src
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:bnfc >=2.9.4.1
+      BNFC:bnfc >=2.9.6.2
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -225,12 +235,12 @@ executable rzk
       app
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:bnfc >=2.9.4.1
+      BNFC:bnfc >=2.9.6.2
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -258,12 +268,12 @@ test-suite doctests
       test
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:bnfc >=2.9.4.1
+      BNFC:bnfc >=2.9.6.2
   build-depends:
       Glob >=0.9.3
     , QuickCheck >=2.14
@@ -292,12 +302,12 @@ test-suite rzk-test
       test
   default-extensions:
       DeriveDataTypeable
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tools:
       alex >=3.2.4
     , happy >=1.19.9
   build-tool-depends:
-      BNFC:bnfc >=2.9.4.1
+      BNFC:bnfc >=2.9.6.2
   build-depends:
       Glob >=0.9.3
     , aeson

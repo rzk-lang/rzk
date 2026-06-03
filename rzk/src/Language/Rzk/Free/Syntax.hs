@@ -63,9 +63,34 @@ varIdentAt path (Rzk.VarIdent pos ident) = VarIdent (Rzk.VarIdent (RzkPosition p
 fromVarIdent :: VarIdent -> Rzk.VarIdent
 fromVarIdent (VarIdent (Rzk.VarIdent (RzkPosition _file pos) ident)) = Rzk.VarIdent pos ident
 
+data TModality = Sharp | Flat | Op | Id deriving (Eq, Show)
+
+toModality :: Rzk.Modality -> TModality
+toModality Rzk.Sharp{}       = Sharp
+toModality Rzk.ASCII_Sharp{} = Sharp
+toModality Rzk.Flat{}        = Flat
+toModality Rzk.ASCII_Flat{}  = Flat
+toModality Rzk.Op{}          = Op
+toModality Rzk.ASCII_Op{}    = Op
+toModality Rzk.Id{}          = Id
+
+modCompToMods :: Rzk.ModComp -> (TModality, TModality)
+modCompToMods (Rzk.Single _ m)      = (Id, toModality m)
+modCompToMods (Rzk.Comp _ ext inn)  = (toModality ext, toModality inn)
+
+fromMod :: TModality -> Rzk.Modality
+fromMod Sharp = Rzk.Sharp Nothing
+fromMod Flat  = Rzk.Flat Nothing
+fromMod Op    = Rzk.Op Nothing
+fromMod Id    = Rzk.Id Nothing
+
+modsToModComp :: TModality -> TModality -> Rzk.ModComp
+modsToModComp Id inn  = Rzk.Single Nothing (fromMod inn)
+modsToModComp ext inn = Rzk.Comp Nothing (fromMod ext) (fromMod inn)
+
 data TermF scope term
     = UniverseF
-    | UniverseCubeF
+    | UniverseCubeF 
     | UniverseTopeF
     | CubeUnitF
     | CubeUnitStarF
@@ -73,18 +98,23 @@ data TermF scope term
     | Cube2_0F
     | Cube2_1F
     | CubeProductF term term
+    | CubeFlipF term
+    | CubeUnflipF term
     | TopeTopF
     | TopeBottomF
     | TopeEQF term term
     | TopeLEQF term term
     | TopeAndF term term
     | TopeOrF term term
+    | TopeInvF term 
+    | TopeUninvF term
     | RecBottomF
     | RecOrF [(term, term)]
     | TypeFunF (Maybe VarIdent) term (Maybe scope) scope
     | TypeSigmaF (Maybe VarIdent) term scope
     | TypeIdF term (Maybe term) term
     | AppF term term
+    | LetF (Maybe VarIdent) (Maybe term) term scope
     | LambdaF (Maybe VarIdent) (Maybe (term, Maybe scope)) scope
     | PairF term term
     | FirstF term
@@ -95,6 +125,10 @@ data TermF scope term
     | TypeUnitF
     | TypeAscF term term
     | TypeRestrictedF term [(term, term)]
+    | TypeModalF TModality term
+    | ModAppF TModality term
+    | ModExtractF TModality TModality term
+    | LetModF (Maybe VarIdent) TModality TModality (Maybe term) term scope
     deriving (Eq, Functor, Foldable, Traversable)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
@@ -229,6 +263,7 @@ toTerm bvars = go
 
       Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
+      Rzk.ASCII_TypeSigmaModal _loc pat md ty body -> go (Rzk.TypeSigmaModal _loc pat md ty body)
       Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
       Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
@@ -253,6 +288,10 @@ toTerm bvars = go
       Rzk.TopeLEQ _loc l r -> TopeLEQ (go l) (go r)
       Rzk.TopeAnd _loc l r -> TopeAnd (go l) (go r)
       Rzk.TopeOr _loc l r -> TopeOr (go l) (go r)
+      Rzk.TopeInv _loc t -> TopeInv (go t)
+      Rzk.TopeUninv _loc t -> TopeUninv (go t)
+      Rzk.CubeFlip _loc t -> CubeFlip (go t)
+      Rzk.CubeUnflip _loc t -> CubeUnflip (go t)
       Rzk.RecBottom _loc -> RecBottom
       Rzk.RecOr _loc rs -> RecOr $ flip map rs $ \case
         Rzk.Restriction _loc tope term       -> (go tope, go term)
@@ -272,35 +311,66 @@ toTerm bvars = go
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
-
+      Rzk.TypeFun _loc (Rzk.ParamTermModalType loc' patTerm md ty) ret ->
+        let pat    = unsafeTermToPattern patTerm
+            letRet = Rzk.LetMod loc' (Rzk.Single loc' md)
+                       (Rzk.BindPattern loc' pat) (patternToTerm pat) ret
+        in go (Rzk.TypeFun _loc (Rzk.ParamTermType loc' patTerm (Rzk.ModType loc' md ty)) letRet)
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = unsafeTermToPattern patTerm
-         in TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
+        in TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
       t@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm cube tope) ret) ->
         let lint' = case tope of
               Rzk.App _loc fun arg | void arg == void patTerm ->
                 lint t (Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)
               _ -> id
             pat = unsafeTermToPattern patTerm
-         in lint' $ TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
+        in lint' $ TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
         TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
 
       Rzk.TypeSigma _loc pat tA tB ->
         TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN -> 
+      Rzk.TypeSigmaModal _loc pat md ty body ->
+        let letBody = Rzk.LetMod _loc (Rzk.Single _loc md)
+                        (Rzk.BindPattern _loc pat) (patternToTerm pat) body
+        in go (Rzk.TypeSigma _loc pat (Rzk.ModType _loc md ty) letBody)
+
+
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal loc' pat md ty) rest body ->
+        let tailSigma = case rest of
+              []       -> body
+              [sp]     -> sigmaParamToTypeSigma _loc sp body
+              (sp:sps) -> Rzk.TypeSigmaTuple _loc sp sps body
+            letTail   = Rzk.LetMod loc' (Rzk.Single loc' md)
+                          (Rzk.BindPattern loc' pat) (patternToTerm pat) tailSigma
+        in go (Rzk.TypeSigma _loc pat (Rzk.ModType loc' md ty) letTail)
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) (mp@(Rzk.SigmaParamModal{}) : rest) body ->
+        go (Rzk.TypeSigma _loc patA tA (case rest of
+              []  -> sigmaParamToTypeSigma _loc mp body
+              _   -> Rzk.TypeSigmaTuple _loc mp rest body))
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) ((Rzk.SigmaParam _ patB tB) : ps) tN ->
         go (Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _loc patX tX) ps tN)
         where
           patX = Rzk.PatternPair _loc patA patB
           tX = Rzk.TypeSigma _loc patA tA tB
       Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ pat tA) [] tB -> go (Rzk.TypeSigma _loc pat tA tB)
-
+      Rzk.Lambda _loc (Rzk.ParamPatternModalType _ [] _md _ty : params) body ->
+        go (Rzk.Lambda _loc params body)
+      Rzk.Lambda _loc (Rzk.ParamPatternModalType loc' (pat:pats) md ty : params) body ->
+        let inner   = Rzk.Lambda _loc
+                        (if null pats then params
+                         else Rzk.ParamPatternModalType loc' pats md ty : params)
+                        body
+            letBody = Rzk.LetMod loc' (Rzk.Single loc' md)
+                        (Rzk.BindPattern loc' pat) (patternToTerm pat) inner
+        in go (Rzk.Lambda _loc [Rzk.ParamPatternType loc' [pat] (Rzk.ModType loc' md ty)] letBody)
       Rzk.Lambda _loc [] body -> go body
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
         Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
       Rzk.Lambda _loc (Rzk.ParamPatternType _ [] _ty : params) body ->
-        go (Rzk.Lambda _loc params body)                        
+        go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternType _ (pat:pats) ty : params) body ->
         Lambda (patternVar pat) (Just (go ty, Nothing))
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
@@ -314,13 +384,25 @@ toTerm bvars = go
               _ -> id
          in lint' $ Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
               (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' pats cube tope : params) body))
-
+      Rzk.Let _loc (Rzk.BindPattern _ pat) val expr ->
+        Let (patternVar pat) Nothing (go val) (toScopePattern pat bvars expr)
+      Rzk.Let _loc (Rzk.BindPatternType _ pat ty) val expr -> 
+        Let (patternVar pat) (Just (go ty)) (go val) (toScopePattern pat bvars expr)
       Rzk.TypeRestricted _loc ty rs ->
         TypeRestricted (go ty) $ flip map rs $ \case
           Rzk.Restriction _loc tope term       -> (go tope, go term)
           Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
 
       Rzk.Hole _loc _ident -> error "holes are not supported"
+      Rzk.ModApp _loc md body -> ModApp (toModality md) (go body)
+      Rzk.ModType _loc md ty -> TypeModal (toModality md) (go ty)
+      Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
+      Rzk.LetMod _loc comp (Rzk.BindPattern _ pat) val body ->
+        let (ext, inn) = modCompToMods comp
+        in LetMod (patternVar pat) ext inn Nothing (go val) (toScopePattern pat bvars body)
+      Rzk.LetMod _loc comp (Rzk.BindPatternType _ pat ty) val body ->
+        let (ext, inn) = modCompToMods comp
+        in LetMod (patternVar pat) ext inn (Just (go ty)) (go val) (toScopePattern pat bvars body)
 
     patternVar (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) = Nothing
     patternVar (Rzk.PatternVar _loc x)                    = Just (varIdent x)
@@ -335,6 +417,7 @@ patternToTerm = ptt
       Rzk.PatternUnit loc     -> Rzk.Unit loc
       Rzk.PatternTuple loc p1 p2 ps -> patternToTerm (desugarTuple loc (reverse ps) p2 p1)
 
+
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp
   where
@@ -344,6 +427,11 @@ unsafeTermToPattern = ttp
       Rzk.Pair loc l r                    -> Rzk.PatternPair loc (ttp l) (ttp r)
       Rzk.Tuple loc t1 t2 ts              -> Rzk.PatternTuple loc (ttp t1) (ttp t2) (map ttp ts)
       term -> error ("ERROR: expected a pattern but got\n  " ++ Rzk.printTree term)
+
+sigmaParamToTypeSigma :: Rzk.BNFC'Position -> Rzk.SigmaParam -> Rzk.Term -> Rzk.Term
+sigmaParamToTypeSigma loc sp body = case sp of
+  Rzk.SigmaParam      _ pat ty      -> Rzk.TypeSigma      loc pat ty body
+  Rzk.SigmaParamModal _ pat md ty  -> Rzk.TypeSigmaModal loc pat md ty body
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
@@ -368,6 +456,13 @@ fromTermWith' used vars = go
 
     loc = Nothing
 
+    goMod :: TModality -> Rzk.Modality  
+    goMod Sharp = Rzk.Sharp loc
+    goMod Flat = Rzk.Flat loc 
+    goMod Op = Rzk.Op loc
+    goMod Id = Rzk.Id loc 
+
+
     go :: Term' -> Rzk.Term
     go = \case
       Pure z -> Rzk.Var loc (fromVarIdent z)
@@ -387,6 +482,10 @@ fromTermWith' used vars = go
       TopeLEQ l r -> Rzk.TopeLEQ loc (go l) (go r)
       TopeAnd l r -> Rzk.TopeAnd loc (go l) (go r)
       TopeOr l r -> Rzk.TopeOr loc (go l) (go r)
+      TopeInv t -> Rzk.TopeInv loc (go t)
+      TopeUninv t -> Rzk.TopeUninv loc (go t)
+      CubeFlip t -> Rzk.CubeFlip loc (go t)
+      CubeUnflip t -> Rzk.CubeUnflip loc (go t)
       RecBottom -> Rzk.RecBottom loc
       RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
 
@@ -408,7 +507,10 @@ fromTermWith' used vars = go
       Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
         Rzk.Lambda loc [Rzk.ParamPatternShape loc [Rzk.PatternVar loc (fromVarIdent x)] (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda loc (Maybe (term, Maybe scope)) scope
-
+      Let z Nothing val scope -> withFresh z $ \(x, xs) -> 
+        Rzk.Let loc (Rzk.BindPattern loc (Rzk.PatternVar loc (fromVarIdent  x))) (go val) (fromScope' x used xs scope)
+      Let z (Just ty) val scope -> withFresh z $ \(x, xs) -> 
+        Rzk.Let loc (Rzk.BindPatternType loc (Rzk.PatternVar loc (fromVarIdent  x)) (go ty)) (go val) (fromScope' x used xs scope)
       Pair l r -> Rzk.Pair loc (go l) (go r)
       First term -> Rzk.First loc (go term)
       Second term -> Rzk.Second loc (go term)
@@ -421,6 +523,18 @@ fromTermWith' used vars = go
       TypeAsc l r -> Rzk.TypeAsc loc (go l) (go r)
       TypeRestricted ty rs ->
         Rzk.TypeRestricted loc (go ty) (map (\(tope, term) -> (Rzk.Restriction loc (go tope) (go term))) rs)
+      TypeModal m ty -> Rzk.ModType loc (goMod m) (go ty)
+      ModApp m ty -> Rzk.ModApp loc (goMod m) (go ty)
+      ModExtract ma mb t -> Rzk.ModExtract loc (Rzk.Comp loc (goMod ma) (goMod mb)) (go t)
+      LetMod z ext inn Nothing val scope -> withFresh z $ \(x, xs) ->
+        Rzk.LetMod loc (modsToModComp ext inn)
+          (Rzk.BindPattern loc (Rzk.PatternVar loc (fromVarIdent x)))
+          (go val) (fromScope' x used xs scope)
+      LetMod z ext inn (Just ty) val scope -> withFresh z $ \(x, xs) ->
+        Rzk.LetMod loc (modsToModComp ext inn)
+          (Rzk.BindPatternType loc (Rzk.PatternVar loc (fromVarIdent x)) (go ty))
+          (go val) (fromScope' x used xs scope)
+
 
 defaultVarIdents :: [VarIdent]
 defaultVarIdents =

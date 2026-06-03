@@ -26,6 +26,7 @@ nav:
       - Слой кубов: reference/cube-layer.rzk.md
       - Слой форм: reference/tope-layer.rzk.md
       - Зависимые типы: reference/type-layer.rzk.md
+      - Модальности (экспериментально): reference/modalities.rzk.md
       - Устранение объединений форм: reference/tope-disjunction-elimination.rzk.md
       - Типы-расширения: reference/extension-types.rzk.md
       - Организация кода:

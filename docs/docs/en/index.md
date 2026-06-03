@@ -16,7 +16,7 @@ as well as some tooling around it (such as a VS Code extension and a language se
 ### Formalizing ∞-category theory
 
 A big portion of the original paper (up to the ∞-categorical Yoneda lemma) has been formalized in Rzk (see [Yoneda for ∞-categories](https://emilyriehl.github.io/yoneda/)[^2]).
-More formalization results are under way (see [sHoTT](https://rzk-lang.github.io/sHoTT/)).
+More formalization results are under way (see [sHoTT](https://rzk-lang.github.io/sHoTT/)), including Triangulated Type Theory with modalities on the [`diruniv` branch](https://github.com/LIshy2/sHoTT/tree/diruniv) (documented in the [modalities reference](reference/modalities.rzk.md)).
 There are also some efforts to formalize the HoTT Book in Rzk (see [hottbook](https://rzk-lang.github.io/hottbook/)).
 
 ### Using Rzk

@@ -49,6 +49,7 @@ pattern TokenIdent s line col <- PT (Pn _ line col) (T_VarIdentToken s)
 
 data FormatState = FormatState
   { parensDepth      :: Int  -- ^ The level of parentheses nesting
+  , letDepth         :: Int  -- ^ The level of #let nesting
   , definingName     :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
   , lambdaArrow      :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   , eqBraceDepth     :: Int  -- ^ Depth inside =_{ ... }; 0 = not inside, 1 = at top level after =_{
@@ -68,7 +69,7 @@ formatTextEdits contents =
     Left _err     -> [] -- TODO: log error (in a CLI and LSP friendly way)
     Right allToks -> go (initialState {allTokens = allToks}) allToks
   where
-    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
+    initialState = FormatState { parensDepth = 0, letDepth  = 0, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents
@@ -91,6 +92,13 @@ formatTextEdits contents =
       , ("0_2", "0₂")
       , ("1_2", "1₂")
       , ("*", "×")
+      , ("_b", "♭")
+      , ("_#", "♯")
+      , ("_op", "ᵒᵖ")
+      , ("flip_op", "flipᵒᵖ")
+      , ("unflip_op", "unflipᵒᵖ")
+      , ("inv_op", "invᵒᵖ")
+      , ("uninv_op", "uninvᵒᵖ")
       ]
     go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
@@ -122,6 +130,10 @@ formatTextEdits contents =
     -- #def is an alias for #define
     go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
     -- TODO: similarly for other commands
+
+    go s (Token "let" _ _ : tks) = go (s { letDepth = letDepth s + 1 }) tks
+
+    go s (Token "in" _ _ : tks) = go (s { letDepth = max 0 (letDepth s - 1) }) tks
 
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
@@ -202,7 +214,7 @@ formatTextEdits contents =
       | isDefinitionTypeSeparator = typeSepEdits ++ go (s {definingName = False}) tks
       | otherwise                 = normalEdits ++ go s tks
       where
-        isDefinitionTypeSeparator = parensDepth s == 0 && definingName s
+        isDefinitionTypeSeparator = parensDepth s == 0 && letDepth s == 0 && definingName s
         lineContent = contentLines line
         isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
         isLastNonSpaceChar = T.all (== ' ') (T.drop col lineContent)
@@ -239,22 +251,25 @@ formatTextEdits contents =
               FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
-    -- Line break before := and one space after
+    -- Line break before := (only the top-level one) and one space after
     go s (Token ":=" line col : tks)
-      = edits ++ go s tks
+      | letDepth s == 0 = defEdits ++ edits ++ go s tks
+      | otherwise = edits ++ go s tks
       where
         lineContent = contentLines line
         isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
         spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop (col + 1) lineContent)
         spacesBefore = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) lineContent)
-        edits = map snd $ filter fst
-            -- Ensure line break before `:=`
+        defEdits = map snd $ filter fst
+            -- Ensure line break before `:=` for #def
           [ (not isFirstNonSpaceChar, FormattingEdit line (col - spacesBefore) line col "\n  ")
             -- Ensure 2 spaces before `:=` (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2,
               FormattingEdit line 1 line col "  ")
+          ]
+        edits = map snd $ filter fst
             -- Ensure exactly one space after
-          , (T.length lineContent > col + 2 && spacesAfter /= 1,
+          [ (T.length lineContent > col + 2 && spacesAfter /= 1, 
               FormattingEdit line (col + 2) line (col + 2 + spacesAfter) " ")
           ]
 

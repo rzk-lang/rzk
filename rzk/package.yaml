@@ -1,5 +1,5 @@
 name: rzk
-version: 0.7.7
+version: 0.7.7-moded
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -13,8 +13,6 @@ extra-doc-files:
 extra-source-files:
   - grammar/Syntax.cf
   - test/typecheck/SCHEMA.md
-  - test/typecheck/REGRESSIONS.md
-  - test/typecheck/ISSUE_TYPE_ERROR_COVERAGE.md
   - test/typecheck/cases/**/*.rzk
   - test/typecheck/cases/**/*.expect.yaml
   - test/typecheck/cases/**/*.yaml
@@ -48,7 +46,7 @@ custom-setup:
 build-tools:
   alex: ">= 3.2.4"
   happy: ">= 1.19.9"
-  BNFC:bnfc: ">= 2.9.4.1"
+  BNFC:bnfc: ">= 2.9.6.2"
 
 dependencies:
   array: ">= 0.5.3.0"
@@ -66,6 +64,7 @@ ghc-options:
   - -Wall
   - -Wcompat
   - -Widentities
+  - -Werror=missing-fields
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   # - -Wmissing-export-lists
