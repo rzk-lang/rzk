@@ -25,6 +25,7 @@ extra-source-files:
     test/typecheck/cases/happy-check.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-modal-basics.rzk
+    test/typecheck/cases/happy-modal-inv.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
     test/typecheck/cases/happy-tope-high-dim-cubes.rzk
@@ -88,6 +89,7 @@ extra-source-files:
     test/typecheck/cases/happy-check.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
+    test/typecheck/cases/happy-modal-inv.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
     test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml

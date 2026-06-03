@@ -1,4 +1,4 @@
 status: error
-error_tag: TypeErrorOther
+error_tag: TypeErrorUnaccessibleVar
 message_contains:
-  - "unaccessible var"
+  - "variable is not accessible"
