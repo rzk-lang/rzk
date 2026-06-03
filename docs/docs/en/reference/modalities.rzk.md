@@ -4,7 +4,7 @@
 #lang rzk-1
 ```
 
-Rzk’s **modal extension** supports reasoning in the style of **Triangulated Type Theory** (TTT), introduced by Gratzer, Weinberger, and Buchholtz[^ttt] as an enrichment of simplicial type theory with modalities \(\flat\), \(\sharp\), and \(op\). The extension is implemented on branch `lishy2-modal` by Islam Talipov, using a **parameterized mode theory** (composition and coercion of modes) layered on top of Rzk’s existing cube, tope, and type layers.
+Rzk's **modal extension** supports reasoning in the style of **Triangulated Type Theory** (TTT), introduced by Gratzer, Weinberger, and Buchholtz[^ttt] as an enrichment of simplicial type theory with modalities \(\flat\), \(\sharp\), and \(op\). The extension is implemented on branch `lishy2-modal` by Islam Talipov[^hottuf26], using a **parameterized mode theory** (composition and coercion of modes) layered on top of Rzk’s existing cube, tope, and type layers.
 
 Formalizations that use this syntax include the [sHoTT `diruniv` branch](https://github.com/LIshy2/sHoTT/tree/diruniv), in particular [modal API examples](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/15-modalities.rzk) and a development of directed univalence ([`17-diruniv.rzk`](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/17-diruniv.rzk)).
 
@@ -212,6 +212,15 @@ The discrete interval `#!rzk <| _b | 2 |>` can be treated as a Boolean type. A c
     (i === 1_2) |-> y)
 ```
 
+## Known unsoundness footgun: don't postulate `√` on `2`
+
+!!! danger "Do not postulate `√` ("`2` is tiny") on the cube `2`"
+    When formalizing Triangulated Type Theory[^ttt], the natural-looking next step after introducing modalities is to postulate the **amazing right adjoint** `√` to the path-space functor `(2 → −)` — equivalently, the assertion that the directed interval `2` is **tiny**. **This is unsound on the standard RS17 model.**
+
+    The reason is structural. In the standard simplicial-set model `PSh(∆)`, the directed interval is realized by the representable `y([1])`, and **`(−)^I` has no right adjoint** — concretely, exponentiation by `y([1])` does not preserve pushouts (see [Gratzer–Weinberger–Buchholtz §1.3 and §3](https://arxiv.org/abs/2407.09146), footnote 7). Rzk's cube `2` inherits exactly that totally-ordered structure, so postulating `√` on `2` — or any `is-tiny(2)` formulation — contradicts the model.
+
+    The planned **`𝕀`** primitive — a bounded distributive lattice cube, per GWB §1.3 — is the **sound place** to postulate `√`. Until `𝕀` ships, TT⊲ formalizations with `√`-on-`2` can potentially be unsound (if the underlying tope solver ever relies on the total order).
+
 ## Axioms and larger formalizations
 
 Many principles of TTT are not built into Rzk as primitive rules; they are introduced as `#postulate` in libraries. On the sHoTT `diruniv` branch, examples include crisp induction for `#!rzk _b` and axioms for the directed interval modality. The directed-univalence development in [`17-diruniv.rzk`](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/17-diruniv.rzk) is the reference corpus for how modal syntax is used at scale; this page does not reproduce that proof.
@@ -219,9 +228,11 @@ Many principles of TTT are not built into Rzk as primitive rules; they are intro
 ## Related reading
 
 - [Gratzer, Weinberger & Buchholtz — *Directed univalence in simplicial homotopy type theory*](https://arxiv.org/abs/2407.09146) (TTT)
+- [Talipov & Kudasov — *Towards Formalization of Directed Univalence in Rzk proof assistant*](https://hott-uf.github.io/2026/abstracts/HoTTUF_2026_paper_22.pdf) — HoTT/UF 2026 contributed talk on this extension
 - [sHoTT `diruniv`](https://github.com/LIshy2/sHoTT/tree/diruniv) — formalizations using Rzk modalities
 - [Introduction](introduction.rzk.md) — cube, tope, and type layers
 - [Dependent types](type-layer.rzk.md) — functions, sums, and identity types without modalities
 
 [^ttt]: Daniel Gratzer, Jonathan Weinberger, Ulrik Buchholtz. _Directed univalence in simplicial homotopy type theory._ arXiv:2407.09146, 2024 (revised 2026). <https://arxiv.org/abs/2407.09146>
 
+[^hottuf26]: Islam Talipov and Nikolai Kudasov. _Towards Formalization of Directed Univalence in Rzk proof assistant._ Contributed talk, HoTT/UF 2026. <https://hott-uf.github.io/2026/abstracts/HoTTUF_2026_paper_22.pdf>
