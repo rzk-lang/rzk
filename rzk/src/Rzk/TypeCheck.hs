@@ -277,6 +277,9 @@ data TypeError var
   | TypeErrorUnifyTerms (TermT var) (TermT var)
   | TypeErrorNotPair (TermT var) (TermT var)
   | TypeErrorNotModal (Term var) TModality (TermT var)
+  | TypeErrorModalityMismatch TModality TModality (Term var)
+  | TypeErrorUnaccessibleVar var TModality TModality
+  | TypeErrorNotTypeInModal (TermT var)
   | TypeErrorNotFunction (TermT var) (TermT var)
   | TypeErrorUnexpectedLambda (Term var) (TermT var)
   | TypeErrorUnexpectedPair (Term var) (TermT var)
@@ -336,6 +339,23 @@ ppTypeError' = \case
     , "  " <> show (untyped ty)
     , "for term"
     , "  " <> show term
+    ]
+  TypeErrorModalityMismatch expected actual term -> block TopDown
+    [ "modality mismatch"
+    , "  expected " <> show expected
+    , "  but got  " <> show actual
+    , "for term"
+    , "  " <> show term
+    ]
+  TypeErrorUnaccessibleVar _var varMod locks -> block TopDown
+    [ "variable is not accessible"
+    , "  variable has modality " <> show varMod
+    , "  but is used under locks " <> show locks
+    ]
+  TypeErrorNotTypeInModal ty -> block TopDown
+    [ "expected a type inside modal type"
+    , "but got"
+    , "  " <> show (untyped ty)
     ]
 
   TypeErrorUnexpectedLambda term ty -> block TopDown
@@ -1032,7 +1052,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
-    update context = addVarInCurrentScope x VarInfo
+    update = addVarInCurrentScope x VarInfo
       { varType = ty
       , varValue = term
       , varOrig = Just x
@@ -1042,7 +1062,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
       , varIsTopLevel = True
       , varDeclaredAssumptions = vars
       , varLocation = loc
-      } context
+      }
 
 type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
 
@@ -2937,7 +2957,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
       ModApp md body -> case ty' of
         TypeModalT _ty md' tpe -> do
             when (md /= md') $ issueTypeError $
-              TypeErrorOther $ "modality mismatch: expected " ++ show md' ++ " but got " ++ show md
+              TypeErrorModalityMismatch md' md term
             body' <- enterModality md $ typecheck body tpe
             return $ modAppT ty' md body'
         _ -> issueTypeError $ TypeErrorNotModal term md ty'
@@ -2972,7 +2992,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     unless topLevel $ do
       varMod <- modalityOfVar x
       locks <- locksOfVar x
-      when (not (coe varMod locks)) $ issueTypeError $ TypeErrorOther $ "unaccessible var with modality " ++ show varMod ++ " under locks " ++ show locks
+      when (not (coe varMod locks)) $ issueTypeError $ TypeErrorUnaccessibleVar x varMod locks
     pure (Pure x)
 
   Universe     -> pure universeT
@@ -3288,7 +3308,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       UniverseT {} -> pure universeTy 
       UniverseCubeT {} -> pure universeTy 
       UniverseTopeT {} -> pure universeTy
-      _ -> issueTypeError $ TypeErrorOther "not a type inside modal type"
+      _ -> issueTypeError $ TypeErrorNotTypeInModal universeTy
     return (typeModalT universeTy md ty')
   ModApp md term -> do
     term' <- enterModality md $ infer term
