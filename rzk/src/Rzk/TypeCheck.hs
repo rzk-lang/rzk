@@ -1846,30 +1846,36 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   TopeEQT  ty l r -> TopeEQT  ty <$> nfTope l <*> nfTope r
   TopeLEQT ty l r -> TopeLEQT ty <$> nfTope l <*> nfTope r
 
-  TopeInvT ty t -> 
-    nfTope t >>= \case
-      TopeUninvT _ phi -> pure phi
-      TopeLEQT _ x y -> nfTope $
+  TopeInvT ty t ->
+    -- Match And/Or on the *unnormalized* input: nfTope of a shape-restricted
+    -- App produces a TopeAnd via shape-side-condition propagation, and
+    -- distributing inv over that synthetic conjunction loops forever because
+    -- the recursive topeInvT renormalizes the same App back into a TopeAnd.
+    case t of
+      TopeAndT _ phi psi -> nfTope $
         modAppT (typeModalT universeT Op topeT) Op
-          (topeLEQT 
-            (modExtractT topeT Id Op (cubeFlipT y))
-            (modExtractT topeT Id Op (cubeFlipT x)))
-      TopeEQT _ x y -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeEQT 
-            (modExtractT topeT Id Op (cubeFlipT y))
-            (modExtractT topeT Id Op (cubeFlipT x)))
-      TopeAndT _ phi psi -> nfTope $ 
-        modAppT (typeModalT universeT Op topeT) Op 
-          (topeAndT 
+          (topeAndT
             (modExtractT topeT Id Op (topeInvT phi))
             (modExtractT topeT Id Op (topeInvT psi)))
       TopeOrT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op 
-          (topeOrT 
+        modAppT (typeModalT universeT Op topeT) Op
+          (topeOrT
             (modExtractT topeT Id Op (topeInvT phi))
             (modExtractT topeT Id Op (topeInvT psi)))
-      t' -> pure (TopeInvT ty t')
+      _ ->
+        nfTope t >>= \case
+          TopeUninvT _ phi -> pure phi
+          TopeLEQT _ x y -> nfTope $
+            modAppT (typeModalT universeT Op topeT) Op
+              (topeLEQT
+                (modExtractT topeT Id Op (cubeFlipT y))
+                (modExtractT topeT Id Op (cubeFlipT x)))
+          TopeEQT _ x y -> nfTope $
+            modAppT (typeModalT universeT Op topeT) Op
+              (topeEQT
+                (modExtractT topeT Id Op (cubeFlipT y))
+                (modExtractT topeT Id Op (cubeFlipT x)))
+          t' -> pure (TopeInvT ty t')
 
   TopeUninvT ty t ->
     nfTope t >>= \case
