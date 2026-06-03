@@ -20,8 +20,6 @@ build-type:     Custom
 extra-source-files:
     grammar/Syntax.cf
     test/typecheck/SCHEMA.md
-    test/typecheck/REGRESSIONS.md
-    test/typecheck/ISSUE_TYPE_ERROR_COVERAGE.md
     test/typecheck/cases/happy-check.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-modal-basics.rzk

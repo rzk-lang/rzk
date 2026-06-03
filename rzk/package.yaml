@@ -13,8 +13,6 @@ extra-doc-files:
 extra-source-files:
   - grammar/Syntax.cf
   - test/typecheck/SCHEMA.md
-  - test/typecheck/REGRESSIONS.md
-  - test/typecheck/ISSUE_TYPE_ERROR_COVERAGE.md
   - test/typecheck/cases/**/*.rzk
   - test/typecheck/cases/**/*.expect.yaml
   - test/typecheck/cases/**/*.yaml
