@@ -10,14 +10,14 @@ and this project adheres to the
 
 Major changes:
 
-- Experimental **modal extension** for reasoning in the style of Triangulated Type Theory by Islam Talipov (see [#225](https://github.com/rzk-lang/rzk/pull/225) and [#224](https://github.com/rzk-lang/rzk/pull/224)):
+- Experimental **modal extension** by [Islam Talipov](https://github.com/LIshy2) for reasoning in the style of Triangulated Type Theory (see [#225](https://github.com/rzk-lang/rzk/pull/225) and [#224](https://github.com/rzk-lang/rzk/pull/224)):
   - Four modalities: discretization `#!rzk _b` (`#!rzk ♭`), codiscretization `#!rzk _#` (`#!rzk ♯`), orientation reversal `#!rzk _op` (`#!rzk ᵒᵖ`), and identity `#!rzk _id`, composed by a fixed mode theory.
   - Modal types `#!rzk <| m | A |>`, introduction form `#!rzk mod m x`, and the eliminator `#!rzk let mod m x := … in …`.
   - Modal tope axioms (`#!rzk inv`/`#!rzk uninv`, `#!rzk flip`/`#!rzk unflip`) with η-rules and reductions for the cube/tope layer under `#!rzk _op`.
   - New documentation page [Modalities (experimental)](https://rzk-lang.github.io/rzk/en/v0.8.0/reference/modalities.rzk/) (also [in Russian](https://rzk-lang.github.io/rzk/ru/v0.8.0/reference/modalities.rzk/)).
 
   !!! warning "Known unsoundness footgun"
-      Users formalizing Triangulated Type Theory (arXiv:2407.09146) must **not** postulate the amazing right adjoint `√` to `#!rzk (2 → -)` (or any "tininess of `2`") on the existing cube `#!rzk 2` — this is unsound in the standard RS17 model because `#!rzk 2` carries a totally-ordered tope layer (GWB §1.3). A sound place to assert `√` (a lattice cube `𝕀_w`) is planned for the next release.
+      Users formalizing Triangulated Type Theory must **not** postulate the amazing right adjoint `√` to `#!rzk (2 → -)` (or any "tininess of `2`") on the existing cube `#!rzk 2` — this is unsound in the standard RS17 model because `#!rzk 2` carries a totally-ordered tope layer (GWB §1.3). A sound place to assert `√` (a lattice cube `𝕀`) is planned for the next release.
 
 - Experimental **`let`-bindings** at the MLTT level (see [#222](https://github.com/rzk-lang/rzk/pull/222)), with formatter support and tests. Documented in [Let bindings](https://rzk-lang.github.io/rzk/en/v0.8.0/reference/let-bindings.rzk/).
 
@@ -28,17 +28,17 @@ Other changes:
 - Run BNFC with `--text-token` and bump the Stack resolver to `lts-24.34` (see [#221](https://github.com/rzk-lang/rzk/pull/221)).
 - Add an agda-input-like extension to input Unicode symbols in the Rzk Playground, including superscript and subscript symbols (see [#210](https://github.com/rzk-lang/rzk/pull/210)).
 
-Formatter fixes:
+Fixes:
 
 - Apply a prettier formatter pass (see [#214](https://github.com/rzk-lang/rzk/pull/214)).
 - Fix formatting for colon in parameters/parens (see [#216](https://github.com/rzk-lang/rzk/pull/216), fixes [#215](https://github.com/rzk-lang/rzk/issues/215)).
 - Normalize tabs to spaces in the formatter; use whole-document formatting with LSP (see [#217](https://github.com/rzk-lang/rzk/pull/217)).
 - Insert newline after `=_{…}` if it was on its own line; avoid an extra trailing newline (see [#218](https://github.com/rzk-lang/rzk/pull/218)).
+- Fix `#unset-option` for `render`.
 
 Documentation:
 
 - Add commands documentation and complete the Russian translation of the Reference section (see [#211](https://github.com/rzk-lang/rzk/pull/211)).
-- Fix `#unset-option` for `render`.
 - Translate documentation for modalities and let-bindings into Russian.
 
 CI / infrastructure:
