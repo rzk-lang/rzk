@@ -16,6 +16,12 @@ To enable rendering, set the option `"render"` to `"svg"` or `"latex"` (to disab
 #set-option "render" = "none"  -- disable rendering
 ```
 
+For the remainder of this page we use SVG rendering:
+
+```rzk
+#set-option "render" = "svg"
+```
+
 Rendering is completely automatic, and works in the following situations:
 
 1. Mapping from a shape (including curried mappings), up to 3 dimensions, only in products of `2` cubes;
