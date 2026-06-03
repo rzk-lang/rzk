@@ -44,7 +44,7 @@ Similarly to the three layers in Riehl and Shulman's type theory, `rzk-1` has 3 
 - `TOPE` is the universe of topes, corresponding to the tope layer;
 - `U` is the universe of types, corresponding to the types and terms layer.
 
-On branch `lishy2-modal`, Rzk also supports an experimental **modal extension** (modalities such as `#!rzk _b`, `#!rzk _#`, and `#!rzk _op`) for Triangulated Type Theory; see [Modalities (experimental)](modalities.rzk.md).
+Starting with v0.8, Rzk also supports an experimental **modal extension** (modalities such as `#!rzk _b`, `#!rzk _#`, and `#!rzk _op`) for Triangulated Type Theory; see [Modalities (experimental)](modalities.rzk.md).
 
 These are explained in the following sections.
 
