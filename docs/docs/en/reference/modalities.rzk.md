@@ -4,12 +4,12 @@
 #lang rzk-1
 ```
 
-Rzk's **modal extension** supports reasoning in the style of **Triangulated Type Theory** (TTT), introduced by Gratzer, Weinberger, and Buchholtz[^ttt] as an enrichment of simplicial type theory with modalities \(\flat\), \(\sharp\), and \(op\). The extension is implemented on branch `lishy2-modal` by Islam Talipov[^hottuf26], using a **parameterized mode theory** (composition and coercion of modes) layered on top of Rzk’s existing cube, tope, and type layers.
+Rzk's **modal extension** supports reasoning in the style of **Triangulated Type Theory** (TTT), introduced by Gratzer, Weinberger, and Buchholtz[^ttt] as an enrichment of simplicial type theory with modalities \(\flat\), \(\sharp\), and \(op\). The extension was implemented by Islam Talipov[^hottuf26], using a **parameterized mode theory** (composition and coercion of modes) layered on top of Rzk’s existing cube, tope, and type layers. It ships with Rzk v0.8 and remains experimental.
 
 Formalizations that use this syntax include the [sHoTT `diruniv` branch](https://github.com/LIshy2/sHoTT/tree/diruniv), in particular [modal API examples](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/15-modalities.rzk) and a development of directed univalence ([`17-diruniv.rzk`](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/17-diruniv.rzk)).
 
 !!! warning "Experimental"
-    Modalities are not yet on the main `develop` branch or in published Rzk releases. Build Rzk from `lishy2-modal` to typecheck examples on this page.
+    Modalities are an experimental extension shipped in Rzk v0.8. The surface syntax and the mode theory may still change in future releases.
 
 ## Modalities in Rzk
 
