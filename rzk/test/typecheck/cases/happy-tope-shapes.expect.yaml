@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - entailM-solveRHSM-shape-endpoint-leq-product-diagonal

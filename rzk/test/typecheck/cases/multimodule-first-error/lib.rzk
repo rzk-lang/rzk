@@ -1,0 +1,5 @@
+#lang rzk-1
+
+#define ok-def
+  : U
+  := U

@@ -1,9 +1,11 @@
 # Tope disjuction elimination along identity paths
 
-\(\mathsf{rec}_{\lor}^{\ψ,\φ}(a_\ψ, a*\φ)\) (written `recOR(ψ, φ, a_psi, a_phi)` in the code)
-is well-typed when \(a*\ψ\) and \(a*\φ\) are \_definitionally equal* on \(\ψ \land \φ\).
+\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)\) (written `recOR(psi, phi, a_psi, a_phi)` in the code)
+is well-typed when \(a_\psi\) and \(a_\phi\) are _definitionally equal_ on \(\psi \land \phi\).
 Sometimes this is too strong since many terms are not _definitionally_ equal, but only equal up to a path.
-Luckily, assuming relative function extensionality, we can define a weaker version of \(rec*{\lor}\) (`recOR`), which we call `recId`, that can work in presence of a witness of type \(\prod*{t : I \mid \ψ \land \φ} a*\ψ = a*\φ\).
+Luckily, assuming relative function extensionality, we can define a weaker version of \(rec_{\lor}\) (`recOR`),
+which we call `recId`, that can work in presence of a witness of type
+\(\prod_{t : I \mid \psi \land \phi} a_\psi = a_\phi\).
 
 ## Prerequisites
 

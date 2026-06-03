@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnexpectedRefl
+message_contains:
+  - "unexpected refl"
+regression_for:
+  - unexpected-refl-in-check

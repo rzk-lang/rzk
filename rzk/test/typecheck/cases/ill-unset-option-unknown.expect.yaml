@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "unknown option"
+regression_for:
+  - unset-option-unknown

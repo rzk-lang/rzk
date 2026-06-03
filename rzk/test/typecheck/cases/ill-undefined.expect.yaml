@@ -1,0 +1,5 @@
+status: error
+error_tag: TypeErrorUndefined
+message_contains:
+  - "undefined variable"
+  - "notARealName"

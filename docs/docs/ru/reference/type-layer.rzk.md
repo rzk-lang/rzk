@@ -1,48 +1,70 @@
-# Types and terms
+# Типы и термы
 
 ```rzk
 #lang rzk-1
 ```
 
-## Functions (dependent products)
+## Функции (зависимые произведения)
 
-Function (dependent product) types \(\prod_{x : A} B\) are written `#!rzk (x : A) -> B x`. Values of function types are \(\lambda\)-abstractions written in one of the following ways:
+Типы функций (зависимых произведений) \(\prod_{x : A} B\) записываются как `#!rzk (x : A) -> B x`. Значения типов функций — это \(\lambda\)-абстракции, записанные одним из следующих способов:
 
-  - `#!rzk \x -> <body>` — this is usually fine;
-  - `#!rzk \(x : A) -> <body>` — this sometimes helps the typechecker.
+- `#!rzk \x -> <body>` — это обычно подходит;
+- `#!rzk \(x : A) -> <body>` — это иногда помогает проверщику типов.
 
-## Dependent sums
+## Зависимые суммы
 
-Dependent sum type \(\sum_{x : A} B\) is written `#!rzk ∑ (x : A), B` or `#!rzk Sigma (x : A), B`. Values of dependent sum types are pairs written as `#!rzk (x, y)`.
+Тип зависимой суммы \(\sum_{x : A} B\) записывается как `#!rzk ∑ (x : A), B` или `#!rzk Sigma (x : A), B`. Значения типов зависимых сумм — это пары, записанные как `#!rzk (x, y)`.
 
-To access components of a dependent pair `#!rzk p`, use `#!rzk first p` and `#!rzk second p`.
-
-!!! warning
-    `#!rzk first` and `#!rzk second` are not valid syntax without an argument!
-
-## Identity types
-
-Identity (path) type \(x =_A y\) is written `#!rzk x =_{A} y`.
-
-!!! tip
-    Specifying the type `#!rzk A` is optional: `#!rzk x = y` is valid syntax!
-
-Any identity type has value `#!rzk refl_{x : A}` whose type is `#!rzk x =_{A} x` whenever `#!rzk x : A`
-
-!!! tip
-    Specifying term and type of `#!rzk refl_{x : A}` is optional: `#!rzk refl_{x}` and `#!rzk refl` are both valid syntax.
-
-Path induction is done using \(\mathcal{J}\) path eliminator:
-
-- for
-    - any type \(A\) and \(a : A\),
-    - type family \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\) and
-    - \(d : C(a,\mathsf{refl}_a)\) and
-    - \(x : A\) and \(p : a =_A x\)
-- we have \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\)
-
-In `#!rzk rzk-1` we write `#!rzk idJ(A, a, C, d, x, p)`
+Чтобы получить доступ к компонентам зависимой пары `#!rzk p`, используйте `#!rzk first p` и `#!rzk second p`.
 
 !!! warning
-    `#!rzk idJ` is not valid syntax without exactly 6-tuple provided as an argument!
+    `#!rzk first` и `#!rzk second` не являются валидным синтаксисом без аргумента!
 
+## Локальные определения (`let`)
+
+Локальные определения записываются как `#!rzk let x := val in body` и могут нести необязательную аннотацию типа: `#!rzk let x : A := val in body`. Связываемое имя находится в области видимости только в `#!rzk body`.
+
+```rzk
+#def example-let
+  : Unit
+  :=
+  let x := unit in
+  let y : Unit := x in
+  y
+```
+
+В связке поддерживаются образцы, поэтому можно прямо разобрать пару:
+
+```rzk
+#def example-let-pair
+  : Unit
+  :=
+  let (a , b) := (unit , unit) in
+  a
+```
+
+## Типы-тождества
+
+Тип-тождество (путь) \(x =_A y\) записывается как `#!rzk x =_{A} y`.
+
+!!! tip
+    Указание типа `#!rzk A` необязательно: `#!rzk x = y` — это валидный синтаксис!
+
+Для любого значения существует конструктор `#!rzk refl_{x : A}`, тип которого — `#!rzk x =_{A} x`, когда `#!rzk x : A`
+
+!!! tip
+    Указание терма и типа `#!rzk refl_{x : A}` необязательно: `#!rzk refl_{x}` и `#!rzk refl` — оба валидные выражения.
+
+Индукция по путям выполняется с использованием элиминатора путей \(\mathcal{J}\):
+
+- для
+  - любого типа \(A\) и \(a : A\),
+  - семейства типов \(C : \prod_{x : A} ((a =_A x) \to \mathcal{U})\) и
+  - \(d : C(a,\mathsf{refl}_a)\) и
+  - \(x : A\) и \(p : a =_A x\)
+- мы имеем \(\mathcal{J}(A, a, C, d, x, p) : C(x, p)\)
+
+В `#!rzk rzk-1` мы пишем `#!rzk idJ(A, a, C, d, x, p)`
+
+!!! warning
+    `#!rzk idJ` не является валидным синтаксисом без ровно 6-ти аргументов в скобках!

@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "equivalent to the union"
+  - "recOR"
+regression_for:
+  - contextEquiv-recOR-boundary

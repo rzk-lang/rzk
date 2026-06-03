@@ -1,0 +1,73 @@
+#lang rzk-1
+
+-- Adapted from sHoTT `src/simplicial-hott/02-simplicial-type-theory.rzk.md` (simplices,
+-- boundaries, inner horns, `shape-prod`). Uses ASCII `<=` for the directed interval.
+-- Exercises `TOPE`, products, `∧` / `∨`, and dependent shape composition.
+
+#define Δ¹
+  : 2 → TOPE
+  := \ t → TOP
+
+#define Δ²
+  : ( 2 × 2) → TOPE
+  := \ (t , s) → s <= t
+
+#define Δ³
+  : ( 2 × 2 × 2) → TOPE
+  := \ ((t1 , t2) , t3) → t3 <= t2 /\ t2 <= t1
+
+#define ∂Δ¹
+  : Δ¹ → TOPE
+  := \ t → (t === 0_2 \/ t === 1_2)
+
+#define ∂Δ²
+  : Δ² → TOPE
+  :=
+    \ (t , s) → (s === 0_2 \/ t === 1_2 \/ s === t)
+
+#define Λ
+  : ( 2 × 2) → TOPE
+  := \ (t , s) → (s === 0_2 \/ t === 1_2)
+
+#define Λ²₁
+  : Δ² → TOPE
+  := \ (s , t) → Λ (s , t)
+
+#define Λ³₁
+  : Δ³ → TOPE
+  := \ ((t1 , t2) , t3) → t3 === 0_2 \/ t2 === t1 \/ t1 === 1_2
+
+#define Λ³₂
+  : Δ³ → TOPE
+  := \ ((t1 , t2) , t3) → t3 === 0_2 \/ t3 === t2 \/ t1 === 1_2
+
+#define shape-prod
+  ( I J : CUBE)
+  ( ψ : I → TOPE)
+  ( χ : J → TOPE)
+  : ( I × J) → TOPE
+  := \ (t , s) → ψ t /\ χ s
+
+#define Δ¹×Δ¹
+  : ( 2 × 2) → TOPE
+  := shape-prod 2 2 Δ¹ Δ¹
+
+#define ∂□
+  : ( 2 × 2) → TOPE
+  := \ (t , s) → ((∂Δ¹ t) /\ (Δ¹ s)) \/ ((Δ¹ t) /\ (∂Δ¹ s))
+
+#define ∂Δ¹×Δ¹
+  : ( 2 × 2) → TOPE
+  := shape-prod 2 2 ∂Δ¹ Δ¹
+
+#define Δ¹×∂Δ¹
+  : ( 2 × 2) → TOPE
+  := shape-prod 2 2 Δ¹ ∂Δ¹
+
+#define Δ²×Δ¹
+  : ( 2 × 2 × 2) → TOPE
+  := shape-prod (2 * 2) 2 Δ² Δ¹
+
+#define Δ³×Δ²
+  : ( ( 2 × 2 × 2) × (2 × 2)) → TOPE
+  := shape-prod (2 * 2 * 2) (2 * 2) Δ³ Δ²

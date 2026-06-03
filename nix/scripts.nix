@@ -1,4 +1,4 @@
-{ pkgs, packages }:
+{ pkgs, packages, inputs }:
 let scripts =
   {
     build-rzk-js = pkgs.writeShellApplication {
@@ -20,32 +20,31 @@ let scripts =
         '';
     };
 
-    save-flake = pkgs.writeShellApplication {
-      name = "save-flake";
-      runtimeInputs = [ pkgs.jq ];
-      text = ''
-        # save flake inputs - # https://github.com/NixOS/nix/issues/4250#issuecomment-1146878407
-
-        mkdir -p "/nix/var/nix/gcroots/per-user/$USER"
-        
-        gc_root_prefix="/nix/var/nix/gcroots/per-user/$USER/$(systemd-escape -p "$PWD")-flake-"
-        echo "Adding per-user gcroots..."
-        rm -f "$gc_root_prefix"*
-        nix flake archive --json 2>/dev/null \
-          | jq -r '.inputs | to_entries[] | "ln -fsT "+.value.path+" \"'"$gc_root_prefix"'"+.key+"\""' \
-          | while read -r line; \
-            do
-              eval "$line"
-            done
-      
-        # save scripts
-
-        nix profile install --profile "$gc_root_prefix""${scripts.save-flake.name}" .#${scripts.save-flake.name}
-        nix profile install --profile "$gc_root_prefix""${scripts.release-rzk-playground.name}" .#${scripts.release-rzk-playground.name}
-
-        printf "Entries saved with prefix %s\n" "$gc_root_prefix"
-      '';
-    };
+    save-flake = 
+      let 
+        cache-nix-action = pkgs.fetchgit {
+          url = "https://github.com/nix-community/cache-nix-action";
+          nonConeMode = true;
+          fetchSubmodules = false;
+          sparseCheckout = [
+            "saveFromGC.nix"
+          ];
+          hash = "sha256-jl5OdBJTG6DXohERmZQmziSs439HF07xJAdPRdFpATw=";
+        };
+        saveFromGC = import "${cache-nix-action}/saveFromGC.nix";
+      in
+        (saveFromGC {
+          inherit pkgs inputs;
+          inputsInclude = [
+            "flake-utils"
+            "nixpkgs"
+            "miso"
+            "nix-filter"
+          ];
+          derivationsAttrs = {
+            inherit (scripts) release-rzk-playground;
+          };
+        }).package;
 
     release-rzk-playground = pkgs.writeShellApplication {
       name = "release-rzk-playground";

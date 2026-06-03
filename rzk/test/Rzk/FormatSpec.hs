@@ -4,14 +4,15 @@ Description : Tests related to the formatter module
 -}
 module Rzk.FormatSpec where
 
+import qualified Data.Text.IO as T
 import           Test.Hspec
 
-import           Rzk.Format (format, isWellFormatted)
+import           Rzk.Format   (format, isWellFormatted)
 
 formatsTo :: FilePath -> FilePath -> Expectation
 formatsTo beforePath afterPath = do
-  beforeSrc <- readFile ("test/files/" ++ beforePath)
-  afterSrc <- readFile ("test/files/" ++ afterPath)
+  beforeSrc <- T.readFile ("test/files/" ++ beforePath)
+  afterSrc <- T.readFile ("test/files/" ++ afterPath)
   format beforeSrc `shouldBe` afterSrc
   isWellFormatted afterSrc `shouldBe` True -- idempotency
 
@@ -41,8 +42,20 @@ spec = do
     it "Adds relevant spaces to structure constructions like a tree" $ do
       formats "tree-structure"
 
+    it "Aligns colons in split context with parameter name (issue #215)" $ do
+      formats "context-colon-align"
+
+    it "Inserts newline after =_{ ... }" $ do
+      formats "identity-type-eq-brace"
+
     it "Doesn't fail on empty inputs" $ do
       formats "empty"
+
+    it "Normalizes tabs to spaces" $ do
+      formats "tabs"
+
+    it "Let bindings formatting differs from defenitions" $ do
+      formats "let"
 
     it "Fixes indentation" pending
 

@@ -6,6 +6,7 @@ import { color, oneDark } from './theme';
 import { Dispatch, SetStateAction, useState } from 'react';
 import { centerCursor } from './cursor-height';
 import { language } from './parser';
+import { agdaInput } from './agda-input';
 
 async function setInitialText(setText: Dispatch<SetStateAction<string>>) {
     const params = new URLSearchParams(window.location.search);
@@ -85,7 +86,8 @@ export function Editor({
                     backgroundColor: `${existsSelection ? "transparent" : color.activeLine} !important`
                 },
             }),
-            language
+            language,
+            agdaInput()
         ]}
     />;
 }

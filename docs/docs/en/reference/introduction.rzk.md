@@ -13,19 +13,19 @@ Here is a small formalisation in an MLTT subset of `rzk-1`:
 
 -- Flipping the arguments of a function.
 #define flip
-    (A B : U)                         -- For any types A and B
-    (C : (x : A) -> (y : B) -> U)     -- and a type family C
-    (f : (x : A) -> (y : B) -> C x y) -- given a function f : A -> B -> C
-  : (y : B) -> (x : A) -> C x y       -- we construct a function of type B -> A -> C
-  := \y x -> f x y    -- by swapping the arguments
+    ( A B : U)                         -- For any types A and B
+    ( C : (x : A) → (y : B) → U)     -- and a type family C
+    ( f : (x : A) → (y : B) → C x y) -- given a function f : A -> B -> C
+  : ( y : B) → (x : A) → C x y       -- we construct a function of type B -> A -> C
+  := \ y x → f x y    -- by swapping the arguments
 
 -- Flipping a function twice is the same as not doing anything
 #define flip-flip-is-id
-    (A B : U)                         -- For any types A and B
-    (C : (x : A) -> (y : B) -> U)     -- and a type family C
-    (f : (x : A) -> (y : B) -> C x y) -- given a function f : A -> B -> C
-  : f = flip B A (\y x -> C x y)
-          (flip A B C f)              -- flipping f twice is the same as f
+    ( A B : U)                         -- For any types A and B
+    ( C : (x : A) → (y : B) → U)     -- and a type family C
+    ( f : (x : A) → (y : B) → C x y) -- given a function f : A -> B -> C
+  : f = flip B A (\ y x → C x y)
+          ( flip A B C f)              -- flipping f twice is the same as f
   := refl                             -- proof by reflexivity
 ```
 
@@ -44,6 +44,8 @@ Similarly to the three layers in Riehl and Shulman's type theory, `rzk-1` has 3 
 - `TOPE` is the universe of topes, corresponding to the tope layer;
 - `U` is the universe of types, corresponding to the types and terms layer.
 
+Starting with v0.8, Rzk also supports an experimental **modal extension** (modalities such as `#!rzk _b`, `#!rzk _#`, and `#!rzk _op`) for Triangulated Type Theory; see [Modalities (experimental)](modalities.rzk.md).
+
 These are explained in the following sections.
 
 ## Soundness
@@ -57,11 +59,11 @@ Moreover, `rzk-1` does not prevent cubes or topes to depend on types and terms. 
 
 ```rzk
 #define weird
-    (A : U)
-    (I : A -> CUBE)
-    (x y : A)
+    ( A : U)
+    ( I : A → CUBE)
+    ( x y : A)
   : CUBE
-  := I x * I y
+  := I x × I y
 ```
 
 This likely leads to another inconsistency, but it will probably not lead to bugs in actual proofs of interest,

@@ -13,62 +13,72 @@ LSP server.
 module Rzk.Format (
   FormattingEdit (FormattingEdit),
   formatTextEdits,
-  format, formatFile, formatFileWrite,
+  format, formatDocument, formatFile, formatFileWrite,
   isWellFormatted, isWellFormattedFile,
+  normalizeTabs,
 ) where
 
-import           Data.List                  (elemIndex, sort)
+import           Data.List               (sort)
 
-import qualified Data.Text                  as T
-import qualified Data.Text.IO               as T
+import qualified Data.Text               as T
+import qualified Data.Text.IO            as T
 
-import           Language.Rzk.Syntax        (tryExtractMarkdownCodeBlocks,
-                                             resolveLayout)
-import           Language.Rzk.Syntax.Lex    (Posn (Pn), Tok (..),
-                                             TokSymbol (TokSymbol),
-                                             Token (PT), tokens)
+import           Language.Rzk.Syntax     (resolveLayout,
+                                          tryExtractMarkdownCodeBlocks)
+import           Language.Rzk.Syntax.Lex (Posn (Pn), Tok (..),
+                                          TokSymbol (TokSymbol), Token (PT),
+                                          tokens)
 
 -- | All indices are 1-based (as received from the lexer)
 -- Note: LSP uses 0-based indices
-data FormattingEdit = FormattingEdit Int Int Int Int String
+data FormattingEdit = FormattingEdit Int Int Int Int T.Text
   deriving (Eq, Ord, Show)
 
 -- TODO: more patterns, e.g. for identifiers and literals
-pattern Symbol :: String -> Tok
+pattern Symbol :: T.Text -> Tok
 pattern Symbol s <- TK (TokSymbol s _)
 
-pattern Token :: String -> Int -> Int -> Token
+pattern Token :: T.Text -> Int -> Int -> Token
 pattern Token s line col <- PT (Pn _ line col) (Symbol s)
 
 -- pattern TokenSym :: String -> Int -> Int -> Token
 -- pattern TokenSym s line col <- PT (Pn _ line col) (Symbol s)
 
-pattern TokenIdent :: String -> Int -> Int -> Token
+pattern TokenIdent :: T.Text -> Int -> Int -> Token
 pattern TokenIdent s line col <- PT (Pn _ line col) (T_VarIdentToken s)
 
 data FormatState = FormatState
-  { parensDepth  :: Int  -- ^ The level of parentheses nesting
-  , definingName :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
-  , lambdaArrow  :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
-  , allTokens    :: [Token] -- ^ The full array of tokens after resolving the layout
+  { parensDepth      :: Int  -- ^ The level of parentheses nesting
+  , letDepth         :: Int  -- ^ The level of #let nesting
+  , definingName     :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
+  , lambdaArrow      :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
+  , eqBraceDepth     :: Int  -- ^ Depth inside =_{ ... }; 0 = not inside, 1 = at top level after =_{
+  , eqBraceOnOwnLine :: Bool -- ^ True if the current =_{ started at the beginning of its line (after spaces)
+  , allTokens        :: [Token] -- ^ The full array of tokens after resolving the layout
   }
 
--- TODO: replace all tabs with 1 space before processing
-formatTextEdits :: String -> [FormattingEdit]
+-- | Replace every tab character with a single space.
+--   Call this before 'formatTextEdits' so that the lexer and edit positions
+--   are consistent (BNFC column counts are undefined when the source contains tabs).
+normalizeTabs :: T.Text -> T.Text
+normalizeTabs = T.replace "\t" " "
+
+formatTextEdits :: T.Text -> [FormattingEdit]
 formatTextEdits contents =
   case resolveLayout True (tokens rzkBlocks) of
-    Left _err -> [] -- TODO: log error (in a CLI and LSP friendly way)
+    Left _err     -> [] -- TODO: log error (in a CLI and LSP friendly way)
     Right allToks -> go (initialState {allTokens = allToks}) allToks
   where
-    initialState = FormatState { parensDepth = 0, definingName = False, lambdaArrow = False, allTokens = [] }
+    initialState = FormatState { parensDepth = 0, letDepth  = 0, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
-    rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents -- TODO: replace tabs with spaces
-    contentLines line = lines rzkBlocks !! (line - 1) -- Sorry
+    rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents
+    contentLines line = T.lines rzkBlocks !! (line - 1) -- Sorry
     lineTokensBefore toks line col = filter isBefore toks
       where
         isBefore (PT (Pn _ l c) _) = l == line && c < col
         isBefore _                 = False
+    unicodeTokens :: [(T.Text, T.Text)]
     unicodeTokens =
       [ ("->", "→")
       , ("|->", "↦")
@@ -82,14 +92,19 @@ formatTextEdits contents =
       , ("0_2", "0₂")
       , ("1_2", "1₂")
       , ("*", "×")
+      , ("_b", "♭")
+      , ("_#", "♯")
+      , ("_op", "ᵒᵖ")
+      , ("flip_op", "flipᵒᵖ")
+      , ("unflip_op", "unflipᵒᵖ")
+      , ("inv_op", "invᵒᵖ")
+      , ("uninv_op", "uninvᵒᵖ")
       ]
     go :: FormatState -> [Token] -> [FormattingEdit]
     go _ [] = []
     go s (Token "#lang" langLine langCol : Token "rzk-1" rzkLine rzkCol : tks)
-      -- FIXME: Tab characters break this because BNFC increases the column number to the next multiple of 8
-      -- Should probably check the first field of Pn (always incremented by 1)
-      -- Or `tabSize` param sent along the formatting request
-      -- But we should probably convert tabs to spaces first before any other formatting
+      -- Tab characters would break column counts (BNFC uses next multiple of 8); call 'format'
+      -- or pass 'normalizeTabs' output to 'formatTextEdits' so input is tab-free.
       = edits ++ go s tks
       where
         edits = map snd $ filter fst
@@ -116,6 +131,10 @@ formatTextEdits contents =
     go s (Token "#def" line col : tks) = go s (PT (Pn 0 line col) (TK (TokSymbol "#define" 0)):tks)
     -- TODO: similarly for other commands
 
+    go s (Token "let" _ _ : tks) = go (s { letDepth = letDepth s + 1 }) tks
+
+    go s (Token "in" _ _ : tks) = go (s { letDepth = max 0 (letDepth s - 1) }) tks
+
     -- Ensure exactly one space after the first open paren of a line
     go s (Token "(" line col : tks)
       | precededBySingleCharOnly && spacesAfter /= 1 && not isLastNonSpaceChar
@@ -131,7 +150,8 @@ formatTextEdits contents =
         spaceCol = col + 1
         lineContent = contentLines line
         precededBySingleCharOnly = all isPunctuation (lineTokensBefore (allTokens s) line col)
-        singleCharUnicodeTokens = filter (\(_, unicode) -> length unicode == 1) unicodeTokens
+        singleCharUnicodeTokens = filter (\(_, unicode) -> T.length unicode == 1) unicodeTokens
+        punctuations :: [T.Text]
         punctuations = concat
           [ map fst singleCharUnicodeTokens -- ASCII sequences will be converted soon
           , map snd singleCharUnicodeTokens
@@ -139,33 +159,68 @@ formatTextEdits contents =
           ]
         isPunctuation (Token tk _ _) = tk `elem` punctuations
         isPunctuation _              = False
-        spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
-        isLastNonSpaceChar = all (== ' ') (drop col lineContent)
+        spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop col lineContent)
+        isLastNonSpaceChar = T.all (== ' ') (T.drop col lineContent)
 
     -- Remove any space before the closing paren
     go s (Token ")" line col : tks)
       = edits ++ go (decParensDepth s) tks
       where
         lineContent = contentLines line
-        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
-        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
+        isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
+        spacesBefore = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) lineContent)
         edits = map snd $ filter fst
           [ (not isFirstNonSpaceChar && spacesBefore > 0,
               FormattingEdit line (col - spacesBefore) line col "")
           ]
+
+    -- Enter =_{ ... } (identity type with explicit type): track depth for newline-after-} rule (style guide)
+    -- Only apply newline-after-} when the outermost =_{ is on its own line. Increment depth for nesting.
+    go s (Token "=_{" line col : tks)
+      = go (s { eqBraceDepth = eqBraceDepth s + 1, eqBraceOnOwnLine = if eqBraceDepth s == 0 then isOnOwnLine else eqBraceOnOwnLine s }) tks
+      where
+        lineContent = contentLines line
+        isOnOwnLine = T.all (== ' ') (T.take (col - 1) lineContent)
+
+    -- Count braces inside =_{ ... } so we detect the closing }
+    go s (Token "{" _line _col : tks)
+      = go (s { eqBraceDepth = if eqBraceDepth s > 0 then eqBraceDepth s + 1 else 0 }) tks
+
+    -- Newline after the closing } of =_{ ... } only when =_{ was on its own line (style guide)
+    go s (Token "}" line col : tks)
+      = eqBraceEdits ++ go s' tks
+      where
+        closingEqBrace = eqBraceDepth s == 1
+        onOwnLine = eqBraceOnOwnLine s
+        s' | eqBraceDepth s > 0 = s { eqBraceDepth = eqBraceDepth s - 1, eqBraceOnOwnLine = if eqBraceDepth s == 1 then False else eqBraceOnOwnLine s }
+           | otherwise         = s
+        lineContent = contentLines line
+        braceEndCol = col + 1  -- 1-based column right after "}"
+        afterBrace = T.drop (braceEndCol - 1) lineContent
+        spacesAfter = T.length $ T.takeWhile (== ' ') afterBrace
+        isLastOnLine = T.all (== ' ') afterBrace
+        eqBraceEdits
+          | closingEqBrace && onOwnLine && not isLastOnLine
+          = [ FormattingEdit line braceEndCol line (braceEndCol + spacesAfter) "\n  " ]
+          | closingEqBrace && onOwnLine && isLastOnLine
+          = let nextLine = if line < length (T.lines rzkBlocks) then contentLines (line + 1) else ""
+                spacesNextLine = T.length $ T.takeWhile (== ' ') nextLine
+            in if spacesNextLine /= 2 then [ FormattingEdit (line + 1) 1 (line + 1) (1 + spacesNextLine) "  " ] else []
+          | otherwise
+          = []
 
     -- line break before : (only the top-level one) and one space after
     go s (Token ":" line col : tks)
       | isDefinitionTypeSeparator = typeSepEdits ++ go (s {definingName = False}) tks
       | otherwise                 = normalEdits ++ go s tks
       where
-        isDefinitionTypeSeparator = parensDepth s == 0 && definingName s
+        isDefinitionTypeSeparator = parensDepth s == 0 && letDepth s == 0 && definingName s
         lineContent = contentLines line
-        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
-        isLastNonSpaceChar = all (== ' ') (drop col lineContent)
-        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
+        isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
+        isLastNonSpaceChar = T.all (== ' ') (T.drop col lineContent)
+        spacesBefore = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) lineContent)
         spaceCol = col + 1
-        spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
+        spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop col lineContent)
         typeSepEdits = map snd $ filter fst
           -- Ensure line break before : (and remove any spaces before)
           [ (not isFirstNonSpaceChar, FormattingEdit line (col - spacesBefore) line col "\n  ")
@@ -175,30 +230,46 @@ formatTextEdits contents =
           , (not isLastNonSpaceChar && spacesAfter /= 1,
               FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
+        -- When colon is on its own line inside parentheses, align with parameter name on previous line (issue #215)
+        prevLine = if line > 1 then contentLines (line - 1) else ""
+        paramNameCol =
+          case T.findIndex (== '(') prevLine of
+            Just parenIdx ->
+              let afterParen = T.drop (parenIdx + 1) prevLine
+                  spacesAfterParen = T.length (T.takeWhile (== ' ') afterParen)
+              in parenIdx + 2 + spacesAfterParen  -- 1-based column of first char of param name
+            Nothing -> 2  -- fallback: 1 space (column 2)
+        alignSpaces = T.replicate (paramNameCol - 1) " "
         normalEdits = map snd $ filter fst
-          -- 1 space before :
-          [ (spacesBefore /= 1, FormattingEdit line (col - spacesBefore) line col " ")
+          -- Inside parens with colon on its own line: align with param name; else 1 space before :
+          [ (isFirstNonSpaceChar && parensDepth s > 0 && spacesBefore /= paramNameCol - 1,
+              FormattingEdit line 1 line col alignSpaces)
+          , (not isFirstNonSpaceChar && spacesBefore /= 1,
+              FormattingEdit line (col - spacesBefore) line col " ")
           -- 1 space after
           , (not isLastNonSpaceChar && spacesAfter /= 1,
               FormattingEdit line spaceCol line (spaceCol + spacesAfter) " ")
           ]
 
-    -- Line break before := and one space after
+    -- Line break before := (only the top-level one) and one space after
     go s (Token ":=" line col : tks)
-      = edits ++ go s tks
+      | letDepth s == 0 = defEdits ++ edits ++ go s tks
+      | otherwise = edits ++ go s tks
       where
         lineContent = contentLines line
-        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
-        spacesAfter = length $ takeWhile (== ' ') (drop (col + 1) lineContent)
-        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
-        edits = map snd $ filter fst
-            -- Ensure line break before `:=`
+        isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
+        spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop (col + 1) lineContent)
+        spacesBefore = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) lineContent)
+        defEdits = map snd $ filter fst
+            -- Ensure line break before `:=` for #def
           [ (not isFirstNonSpaceChar, FormattingEdit line (col - spacesBefore) line col "\n  ")
             -- Ensure 2 spaces before `:=` (if already on a new line)
           , (isFirstNonSpaceChar && spacesBefore /= 2,
               FormattingEdit line 1 line col "  ")
+          ]
+        edits = map snd $ filter fst
             -- Ensure exactly one space after
-          , (length lineContent > col + 2 && spacesAfter /= 1,
+          [ (T.length lineContent > col + 2 && spacesAfter /= 1, 
               FormattingEdit line (col + 2) line (col + 2 + spacesAfter) " ")
           ]
 
@@ -207,8 +278,8 @@ formatTextEdits contents =
       = edits ++ go (s { lambdaArrow = True }) tks
       where
         lineContent = contentLines line
-        spacesAfter = length $ takeWhile (== ' ') (drop col lineContent)
-        isLastNonSpaceChar = all (== ' ') (drop col lineContent)
+        spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop col lineContent)
+        isLastNonSpaceChar = T.all (== ' ') (T.drop col lineContent)
         spaceCol = col + 1
         edits = map snd $ filter fst
           [ (not isLastNonSpaceChar && spacesAfter /= 1,
@@ -225,17 +296,17 @@ formatTextEdits contents =
            | otherwise = s
         isArrow = tk `elem` ["->", "→"]
         lineContent = contentLines line
-        spacesBefore = length $ takeWhile (== ' ') (reverse $ take (col - 1) lineContent)
-        spacesAfter = length $ takeWhile (== ' ') (drop (col + length tk - 1) lineContent)
-        isFirstNonSpaceChar = all (== ' ') (take (col - 1) lineContent)
-        isLastNonSpaceChar = all (== ' ') (drop (col + length tk - 1) lineContent)
+        spacesBefore = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) lineContent)
+        spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop (col + T.length tk - 1) lineContent)
+        isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
+        isLastNonSpaceChar = T.all (== ' ') (T.drop (col + T.length tk - 1) lineContent)
         prevLine
           | line > 0 = contentLines (line - 1)
           | otherwise = ""
         nextLine
-          | line + 1 < length (lines rzkBlocks) = contentLines (line + 1)
+          | line + 1 < length (T.lines rzkBlocks) = contentLines (line + 1)
           | otherwise = ""
-        spacesNextLine = length $ takeWhile (== ' ') nextLine
+        spacesNextLine = T.length $ T.takeWhile (== ' ') nextLine
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
           | tk `elem` ["->", "→", ",", "*", "×", "="] = concatMap snd $ filter fst
@@ -244,71 +315,81 @@ formatTextEdits contents =
                   [FormattingEdit line (col - spacesBefore) line col " "])
               -- Ensure exactly one space after (unless last char in line)
               , (not isLastNonSpaceChar && spacesAfter /= 1,
-                  [FormattingEdit line (col + length tk) line (col + length tk + spacesAfter) " "])
+                  [FormattingEdit line (col + T.length tk) line (col + T.length tk + spacesAfter) " "])
               -- If last char in line, move it to next line (except for lambda arrow)
               , (isLastNonSpaceChar && not (lambdaArrow s),
                   -- This is split into 2 edits to avoid possible overlap with unicode replacement
                   -- 1. Add a new line (with relevant spaces) before the token
                   [ FormattingEdit line (col - spacesBefore) line col $
-                      "\n" ++ replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) ' '
+                      "\n" <> T.replicate (2 `max` (spacesNextLine - (spacesNextLine `min` 2))) " "
                   -- 2. Replace the new line and spaces after the token with a single space
-                  , FormattingEdit line (col + length tk) (line + 1) (spacesNextLine + 1) " "
+                  , FormattingEdit line (col + T.length tk) (line + 1) (spacesNextLine + 1) " "
                   ])
               -- If lambda -> is first char in line, move it to the previous line
               , (isFirstNonSpaceChar && isArrow && lambdaArrow s,
-                  [FormattingEdit (line - 1) (length prevLine + 1) line (col + length tk + spacesAfter) $
-                    " " ++ tk ++ "\n" ++ replicate spacesBefore ' '])
+                  [FormattingEdit (line - 1) (T.length prevLine + 1) line (col + T.length tk + spacesAfter) $
+                    " " <> tk <> "\n" <> T.replicate spacesBefore " "])
               ]
           | otherwise = []
         unicodeEdits
           | Just unicodeToken <- tk `lookup` unicodeTokens =
-              [ FormattingEdit line col line (col + length tk) unicodeToken
+              [ FormattingEdit line col line (col + T.length tk) unicodeToken
               ]
           | otherwise = []
 
     go s (_:tks) = go s tks
 
 -- Adapted from https://hackage.haskell.org/package/lsp-types-2.1.0.0/docs/Language-LSP-Protocol-Types.html#g:7
-applyTextEdit :: FormattingEdit -> String -> String
+applyTextEdit :: FormattingEdit -> T.Text -> T.Text
 applyTextEdit (FormattingEdit sl sc el ec newText) oldText =
   let (_, afterEnd) = splitAtPos (el-1, ec -1) oldText
       (beforeStart, _) = splitAtPos (sl-1, sc-1) oldText
    in mconcat [beforeStart, newText, afterEnd]
  where
-  splitAtPos :: (Int, Int) -> String -> (String, String)
-  splitAtPos (l, c) t = let index = c + startLineIndex l t in splitAt index t
+  splitAtPos :: (Int, Int) -> T.Text -> (T.Text, T.Text)
+  splitAtPos (l, c) t = let index = c + startLineIndex l t in T.splitAt index t
 
-  startLineIndex :: Int -> String -> Int
+  startLineIndex :: Int -> T.Text -> Int
   startLineIndex 0 _ = 0
   startLineIndex line t' =
-    case elemIndex '\n' t' of
-      Just i  -> i + 1 + startLineIndex (line - 1) (drop (i + 1) t')
-      Nothing -> length t'
+    case T.findIndex (=='\n') t' of
+      Just i  -> i + 1 + startLineIndex (line - 1) (T.drop (i + 1) t')
+      Nothing -> T.length t'
 
-applyTextEdits :: [FormattingEdit] -> String -> String
+applyTextEdits :: [FormattingEdit] -> T.Text -> T.Text
 applyTextEdits edits contents = foldr applyTextEdit contents (sort edits)
 
 -- | Format Rzk code, returning the formatted version.
-format :: String -> String
-format = applyTextEdits =<< formatTextEdits
+--   Tabs are normalized to single spaces before formatting.
+format :: T.Text -> T.Text
+format contents =
+  let normalized = normalizeTabs contents
+  in applyTextEdits (formatTextEdits normalized) normalized
+
+-- | Same as 'format'. Use this when replacing the entire document (e.g. from
+--   the language server), so that tab normalization and all formatting rules
+--   are applied correctly instead of applying incremental edits to tabbed source.
+formatDocument :: T.Text -> T.Text
+formatDocument = format
 
 -- | Format Rzk code from a file
-formatFile :: FilePath -> IO String
+formatFile :: FilePath -> IO T.Text
 formatFile path = do
   contents <- T.readFile path
-  return (format (T.unpack contents))
+  return (format contents)
 
 -- | Format the file and write the result back to the file.
 formatFileWrite :: FilePath -> IO ()
-formatFileWrite path = formatFile path >>= writeFile path
+formatFileWrite path = formatFile path >>= T.writeFile path
 
 -- | Check if the given Rzk source code is well formatted.
 --   This is useful for automation tasks.
-isWellFormatted :: String -> Bool
-isWellFormatted src = null (formatTextEdits src)
+--   Tabs are normalized to single spaces before checking.
+isWellFormatted :: T.Text -> Bool
+isWellFormatted src = null (formatTextEdits (normalizeTabs src))
 
 -- | Same as 'isWellFormatted', but reads the source code from a file.
 isWellFormattedFile :: FilePath -> IO Bool
 isWellFormattedFile path = do
   contents <- T.readFile path
-  return (isWellFormatted (T.unpack contents))
+  return (isWellFormatted contents)

@@ -1,5 +1,5 @@
 name: rzk
-version: 0.7.7
+version: 0.8.0
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -9,9 +9,14 @@ copyright: "2023-2025 Nikolai Kudasov"
 extra-doc-files:
   - README.md
   - ChangeLog.md
-  
+
 extra-source-files:
   - grammar/Syntax.cf
+  - test/typecheck/SCHEMA.md
+  - test/typecheck/cases/**/*.rzk
+  - test/typecheck/cases/**/*.expect.yaml
+  - test/typecheck/cases/**/*.yaml
+  - test/typecheck/cases/**/*.md
 
 synopsis: An experimental proof assistant for synthetic ∞-categories
 category: Dependent Types # same as Agda
@@ -41,7 +46,7 @@ custom-setup:
 build-tools:
   alex: ">= 3.2.4"
   happy: ">= 1.19.9"
-  BNFC:bnfc: ">= 2.9.4.1"
+  BNFC:bnfc: ">= 2.9.6.2"
 
 dependencies:
   array: ">= 0.5.3.0"
@@ -59,6 +64,7 @@ ghc-options:
   - -Wall
   - -Wcompat
   - -Widentities
+  - -Werror=missing-fields
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   # - -Wmissing-export-lists
@@ -121,9 +127,12 @@ tests:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
+      - aeson
+      - filepath
       - rzk
       - hspec
       - hspec-discover
+      - yaml
 
   doctests:
     source-dirs: test

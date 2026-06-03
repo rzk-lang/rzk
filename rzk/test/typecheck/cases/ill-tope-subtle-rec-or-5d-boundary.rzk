@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- `recOR` requires the local tope context to match the disjunction of branch guards
+-- (`contextEquiv`: local Φ must be equivalent to the disjunction of branch guards).
+-- On the full 5-cube only `⊤` holds, so
+-- pinning the *first* coordinate to `0₂` or `1₂` is not entailed (interior points).
+
+#define u : U := Unit -> Unit
+
+#define illRecOr5dBoundary : ( 2 * 2 * 2 * 2 * 2) -> U
+  := \ ((((t1 , t2) , t3) , t4) , t5) → recOR( t1 === 0_2 |-> u, t1 === 1_2 |-> u )

@@ -1,0 +1,19 @@
+#lang rzk-1
+
+-- Fiber type: Σ (a : A), a =_{ A } x, with =_{ on its own line
+#def fiber
+  ( A : U)
+  ( x : A)
+  : Σ ( a : A)
+  , ( a
+  =_{ A } x)
+  := ( x , refl_{x})
+
+-- Path-over-path: p =_{ (x =_{ A } y) } p (nested =_{}, outer on its own line)
+#def path-over-path
+  ( A : U)
+  ( x y : A)
+  ( p : x =_{ A } y)
+  : p
+  =_{ ( x =_{ A } y) } p
+  := refl_{p}

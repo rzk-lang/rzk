@@ -1,72 +1,74 @@
-# Sections and Variables
+# Разделы и переменные
 
-Sections and variables allow to simplify definitions by factoring out common assumptions.
+Разделы и переменные позволяют упростить определения, вынося общие предположения.
 
-!!! info "Coq-style variables"
-    `rzk` implements variables similarly to
-    <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">`Variable` command in Coq</a>.
-    An important difference is that `rzk` does not allow definitions to use variables implicitly and adds `uses (...)` annotations to ensure such dependencies are not accidental.
-    This is, perhaps, somewhat related to <a href="https://coq.inria.fr/refman/proofs/writing-proofs/equality.html#coq:exn.Section-variable-‘ident’-occurs-implicitly-in-global-declaration-‘qualid’-present-in-hypothesis-‘ident’" target="_blank">this error message in Coq</a>.
+!!! info "Переменные в стиле Coq"
+    `rzk` реализует переменные аналогично
+    <a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank">команде `Variable` в Coq</a>.
+    Важное отличие заключается в том, что `rzk` не позволяет определениям использовать переменные неявно и добавляет аннотации `uses (...)` для обеспечения того, чтобы такие зависимости не были случайными.
+    Это, возможно, несколько связано с <a href="https://coq.inria.fr/refman/proofs/writing-proofs/equality.html#coq:exn.Section-variable-‘ident’-occurs-implicitly-in-global-declaration-‘qualid’-present-in-hypothesis-‘ident’" target="_blank">этим сообщением об ошибке в Coq</a>.
 
-This is a literate `rzk` file:
+Это литературный файл `rzk`:
 
 ```rzk
 #lang rzk-1
 ```
 
-## Variables
+## Переменные
 
-Consider the following definitions:
+Рассмотрим следующие определения:
 
 ```rzk
 #define compose₁
-  (A B C : U)
-  (g : B -> C)
-  (f : A -> B)
-  : A -> C
-  := \x -> g (f x)
+  ( A B C : U)
+  ( g : B → C)
+  ( f : A → B)
+  : A → C
+  := \ x → g (f x)
 
 #define twice₁
-  (A : U)
-  (h : A -> A)
-  : A -> A
-  := \x -> h (h x)
+  ( A : U)
+  ( h : A → A)
+  : A → A
+  := \ x → h (h x)
 ```
 
-Since it might be common to introduce types `A`, `B`, and `C`, we can declare these are variables:
+Поскольку типы `A`, `B` и `C` будут использоваться в нескольких определениях, мы можем объявить их как переменные:
 
 ```rzk
 #variables A B C : U
 
 #define compose₂
-  (g : B -> C)
-  (f : A -> B)
-  : A -> C
-  := \x -> g (f x)
+  ( g : B → C)
+  ( f : A → B)
+  : A → C
+  := \ x → g (f x)
 
 #define twice₂
-  (h : A -> A)
-  : A -> A
-  := \x -> h (h x)
+  ( h : A → A)
+  : A → A
+  := \ x → h (h x)
 ```
 
-The `#variables` command here introduces assumptions, which can be used in the following definitions. Importantly, after checking a file (module), all definitions will have the assumptions used (explicitly or implicitly) attached as bound variables.
+Команда `#variables` здесь вводит предположения, которые могут использоваться в следующих определениях. Важно, что после проверки файла (модуля) все определения будут иметь прикреплённые предположения, использованные (явно или неявно), как связанные переменные.
 
-### Implicitly used variables (and `uses`)
+### Неявно используемые переменные (и `uses`)
 
-We can try going even further and declare variables `f`, `g`, `h`, and `x`:
+Мы можем попытаться пойти ещё дальше и объявить переменные `f`, `g`, `h` и `x`:
 
 ```rzk
-#variable g : B -> C
-#variable f : A -> B
-#variable h : A -> A
+#variable g : B → C
+#variable f : A → B
+#variable h : A → A
 #variable x : A
 
--- #define bad-compose₃ : C := g (f x)  -- ERROR: implicit assumptions A and B
-#define twice₃ : A := h (h x)
+-- #define bad-compose₃ : C := g (f x)  -- ОШИБКА: неявные предположения A и B
+#define twice₃
+  : A
+  := h (h x)
 ```
 
-Note how this definition of `bad-compose₃` is implicitly dependent on the types `A` and `B`, which is promptly noted by `rzk`, which issues an error (if we uncomment the corresponding line):
+Обратите внимание, что `bad-compose₃` неявно зависит от типов `A` и `B`, что сразу отмечается `rzk`, который выдаёт ошибку (если мы раскомментируем соответствующую строку):
 
 ```text
 implicit assumption
@@ -75,52 +77,56 @@ used in definition of
   bad-compose₃
 ```
 
-To let `rzk` know that this is not accidental, we can add `uses (...)` annotation to specify a list of variables implicitly used in the definition:
+Чтобы дать `rzk` знать, что это не случайно, мы можем добавить аннотацию `uses (...)` для указания списка переменных, неявно используемых в определении:
 
 ```rzk
-#define compose₃ uses (A B) : C := g (f x)
+#define compose₃ uses (A B)
+  : C
+  := g (f x)
 ```
 
-## Sections
+## Разделы
 
-To introduce assumption variables temporarily inside of one file, you can use sections:
+Чтобы временно ввести переменные предположений внутри одного файла, вы можете использовать разделы:
 
 ```rzk
 #section example-1
 
 #variables X Y Z : U
-#variable k : X -> X
+#variable k : X → X
 #variable x' : X
 
 #define compose₄
-  (g : Y -> Z)
-  (f : X -> Y)
-  : X -> Z
-  := \x -> g (f x)
+  ( g : Y → Z)
+  ( f : X → Y)
+  : X → Z
+  := \ x → g (f x)
 
-#define twice₄ : X := k (k x')
+#define twice₄
+  : X
+  := k (k x')
 
 #end example-1
 ```
 
-Now, once outside of the section, `compose₄` and `twice₄` obtain corresponding parameters
-(only those used, explicitly or implicitly):
+Теперь, вне раздела, `compose₄` и `twice₄` получают соответствующие параметры
+(только те, которые использованы, явно или неявно):
 
 ```rzk
 -- compose₄ : (X : U) -> (Y : U) -> (Z : U) -> (g : Y -> Z) -> (f : X -> Y) -> (X -> Z)
 -- twice₄ : (X : U) -> (k : X -> X) -> (x' : X) -> X
 
 #define twice₅
-  (T : U)
-  (e : T -> T)
-  : T -> T
+  ( T : U)
+  ( e : T → T)
+  : T → T
   := compose₄ T T T e e
 
 #define identity
-  (T : U)
-  : T -> T
-  := twice₄ T (\t -> t)
+  ( T : U)
+  : T → T
+  := twice₄ T (\ t → t)
 ```
 
-!!! warning "Lack of indentation"
-    `rzk` currently does not support indentation, so all definitions and commands inside a section (including nested sections) have to start at the beginning of a line.
+!!! warning "Отсутствие отступов"
+    `rzk` в настоящее время не поддерживает отступы, поэтому все определения и команды внутри раздела (включая вложенные разделы) должны начинаться с начала строки.

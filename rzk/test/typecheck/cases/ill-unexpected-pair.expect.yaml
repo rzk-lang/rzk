@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnexpectedPair
+message_contains:
+  - "unexpected pair"
+regression_for:
+  - unexpected-pair-in-check

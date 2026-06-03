@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "unifying"
+  - "does not entail"
+  - "π₁"
+regression_for:
+  - tope-family-5d-without-local-Phi

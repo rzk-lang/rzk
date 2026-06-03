@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorUnaccessibleVar
+message_contains:
+  - "variable is not accessible"

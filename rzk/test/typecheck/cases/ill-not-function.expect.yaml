@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorNotFunction
+message_contains:
+  - "expected a function"
+regression_for:
+  - matrix-not-function

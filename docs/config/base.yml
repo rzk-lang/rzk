@@ -3,7 +3,7 @@ repo_name: rzk-lang/rzk
 
 theme:
   name: material
-  custom_dir: '../../overrides/'
+  custom_dir: "../../overrides/"
   favicon: assets/images/favicon.png
   logo: assets/images/logo-1000x1000.png
   icon:
@@ -48,12 +48,17 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - toc:
       permalink: true
   - pymdownx.arithmatex:
       generic: true
   - attr_list
+  - md_in_html
 
 extra:
   version:

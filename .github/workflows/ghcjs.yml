@@ -32,35 +32,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: ❄️ Install Nix
-        uses: nixbuild/nix-quick-install-action@v27
+        uses: cachix/install-nix-action@v31.9.0
         with:
-          nix_conf: |
+          extra_nix_config: |
             substituters = https://cache.nixos.org/ https://cache.iog.io https://nix-community.cachix.org https://miso-haskell.cachix.org
             trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= miso-haskell.cachix.org-1:6N2DooyFlZOHUfJtAx1Q09H0P5XXYzoxxQYiwn6W1e8=
             keep-outputs = true
+            accept-flake-config = true
 
-      - name: 👝 Restore and Cache Nix store
-        uses: nix-community/cache-nix-action@v5
+      - name: 👝 Restore Nix store
+        uses: nix-community/cache-nix-action/restore@v7
         with:
-          primary-key: ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          primary-key: ghcjs-nix-${{ runner.os }}-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
           restore-prefixes-first-match: |
-            ${{ runner.os }}-nix-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
-            ${{ runner.os }}-nix-
-          gc-max-store-size: 7000000000
-          purge: true
-          purge-prefixes: ${{ runner.os }}-nix-
-          purge-created: 0
-          purge-primary-key: never
+            ghcjs-nix-${{ runner.os }}-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+            ghcjs-nix-${{ runner.os }}-
 
       - name: 👝 Restore and cache NodeJS deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          key: ghcjs-node-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-
+            ghcjs-node-${{ runner.os }}-
           path: |
             ~/.npm
 
@@ -79,7 +75,7 @@ jobs:
         run: nix run .#release-rzk-playground
 
       - name: 🔨 Save flake from garbage collection
-        run: nix run .#save-flake
+        run: nix profile add .#save-flake
 
       - name: '🚀 Publish JS "binaries" (${{ github.ref_name }})'
         if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
@@ -110,3 +106,14 @@ jobs:
           target-folder: playground
           clean: false
           single-commit: true
+
+      - if: always()
+        name: 👝 Save Nix store
+        uses: nix-community/cache-nix-action/save@v7
+        with:
+          primary-key: ghcjs-nix-${{ runner.os }}-${{ hashfiles('./flake.nix', './flake.lock', '.github/workflows/ghcjs.yml', './rzk/rzk.cabal') }}
+          gc-max-store-size: 7G
+          purge: true
+          purge-prefixes: ghcjs-nix-${{ runner.os }}-
+          purge-created: 0
+          purge-primary-key: never

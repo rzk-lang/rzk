@@ -1,52 +1,77 @@
-# Rendering Diagrams
+# Визуализация диаграмм
 
-Starting from version `0.3.0`, `rzk` supports rendering of topes, types, and terms as diagrams.
+Начиная с версии `0.3.0`, `rzk` поддерживает визуализацию топов, типов и термов в виде диаграмм.
 
-This is a literate `rzk` file:
+Это литературный файл `rzk`:
 
 ```rzk
 #lang rzk-1
 ```
 
-To enable rendering, enable option `"render" = "svg"` (to disable, `"render" = "none"`):
+Чтобы включить визуализацию диаграм, установите опцию `"render"` в `"svg"` или `"latex"` (чтобы отключить, используйте `"none"`):
 
 ```rzk
-#set-option "render" = "svg"  -- enable rendering in SVG
+#set-option "render" = "svg"  -- включить рендеринг диаграм в SVG
+#set-option "render" = "latex"  -- включить рендеринг диаграм в LaTeX
+#set-option "render" = "none"  -- отключить рендеринг диаграм
 ```
 
-Rendering is completely automatic, and works in the following situations:
+Для остальной части этой страницы используется SVG-рендеринг:
 
-1. Mapping from a shape (including curried mappings), up to 3 dimensions, only in products of `2` cubes;
-2. Type of mapping from a shape (including curried mappings), up to 3 dimensions, only in products of `2` cubes.
-3. Mappings from a shape that is a section of an existing shape.
+```rzk
+#set-option "render" = "svg"
+```
 
-The rendering assigns the following colors:
+Визуализация полностью автоматическая и работает в следующих ситуациях:
 
-- purple is assigned for parameters (context) variables;
-- blue is used for fillings for types (e.g. for `hom` and `hom2`);
-- red is used for terms (e.g. `Segal-comp-witness`);
-- orange is used for shapes in the tope layer;
-- grey is used for discarded parts of a (larger) mapping (e.g. when extracting a diagonal/face from a larger shape).
+1. Отображение из формы (включая каррированные отображения), до 3 измерений, только в произведениях направленных интервалов `2`;
+2. Тип отображения из формы (включая каррированные отображения), до 3 измерений, только в произведениях направленных интервалов `2`.
+3. Отображения из формы, которая является сечением существующей формы.
 
-The SVG pictures can be inserted directly into `.md` files before a corresponding `rzk` code block. At the bottom of a markdown file, you might want to add stylization, e.g.:
+Визуализация присваивает следующие цвета:
+
+- фиолетовый присваивается переменным параметров (контекста);
+- синий используется для заполнений типов (например, для `hom` и `hom2`);
+- красный используется для термов (например, `Segal-comp-witness`);
+- оранжевый используется для фигур в слое топов;
+- серый используется для отброшенных частей (большего) отображения (например, при извлечении диагонали/грани из большей формы).
+
+SVG изображения могут быть вставлены непосредственно в файлы `.md` перед соответствующим блоком кода `rzk`.
+Внизу `.md` файла вы можете добавить стилизацию, используя HTML-тег `<style>` и стили CSS, например:
 
 ```html
 <style>
-.rzk-render { transition: transform .2s; /* Animation */ }
-.rzk-render:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+  .rzk-render {
+    transition: transform 0.2s; /* Анимация */
+  }
+  .rzk-render:hover {
+    transform: scale(
+      1.5
+    ); /* (150% увеличение - Примечание: если увеличение слишком большое, оно выйдет за пределы области просмотра) */
+  }
 </style>
 
-<!-- Definitions for the SVG images above -->
+<!-- Определения для SVG изображений выше -->
 <svg width="0" height="0">
   <defs>
-    <style data-bx-fonts="Noto Serif">@import url(https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap);</style>
-    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5"
-      markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+    <style data-bx-fonts="Noto Serif">
+      @import url(https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap);
+    </style>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="5"
+      refY="5"
+      markerWidth="5"
+      markerHeight="5"
+      orient="auto-start-reverse"
+    >
       <path d="M 0 2 L 5 5 L 0 8 z" stroke="purple" fill="purple" />
     </marker>
   </defs>
   <style>
-    text, textPath {
+    text,
+    textPath {
       font-family: Noto Serif;
       font-size: 28px;
       dominant-baseline: middle;
@@ -56,111 +81,126 @@ The SVG pictures can be inserted directly into `.md` files before a correspondin
 </svg>
 ```
 
-## Examples
+## Примеры
 
-### Visualising Simplicial Topes
+### Визуализация симплициальных топов
 
-Topes are visualised with <span style="color: orange">**orange**</span> color:
+Топы визуализируются <span style="color: orange">**оранжевым**</span> цветом:
 
 ```rzk
--- 2-simplex
-#define Δ² : (2 * 2) -> TOPE
-  := \(t, s) -> s <= t
+-- 2-симплекс
+#define Δ²
+  : ( 2 × 2) → TOPE
+  := \ (t , s) → s ≤ t
 ```
+
 <br><br>
-Boundary of a tope:
+Граница топа:
 
 ```rzk
--- boundary of a 2-simplex
-#define ∂Δ² : Δ² -> TOPE
-  := \(t, s) -> s === 0_2 \/ t === 1_2 \/ s === t
+-- граница 2-симплекса
+#define ∂Δ²
+  : Δ² → TOPE
+  := \ (t , s) → s ≡ 0₂ ∨ t ≡ 1₂ ∨ s ≡ t
 ```
 
-The busiest tope diagram involves the entire 3D cube:
+Самая сложная диаграмма топа включает весь 3D куб:
 <br><br>
 
 ```rzk
--- 3-dim cube
-#define 2³ : (2 * 2 * 2) -> TOPE
-  := \_ -> TOP
+-- 3-мерный куб
+#define 2³
+  : ( 2 × 2 × 2) → TOPE
+  := \ _ → TOP
 ```
+
 <br><br><br>
 
 ```rzk
--- 3-simplex
-#define Δ³ : (2 * 2 * 2) -> TOPE
-  := \((t1, t2), t3) -> t3 <= t2 /\ t2 <= t1
+-- 3-симплекс
+#define Δ³
+  : ( 2 × 2 × 2) → TOPE
+  := \ ((t1 , t2) , t3) → t3 ≤ t2 ∧ t2 ≤ t1
 ```
 
 <br><br>
-### Visualising Simplicial Types
 
-Types are visualised with <span style="color: blue">**blue**</span> color. Recognised parameter part (e.g. fixed endpoints, edges, faces with clear labels) are visualised with <span style="color: purple">**purple**</span> color. When a type is constructed by taking a part of another shape, the rest of the larger shape is colored using <span style="color: gray">**gray**</span> color.
+### Визуализация симплициальных типов
+
+Типы визуализируются <span style="color: blue">**синим**</span> цветом.
+Распознанная параметрическая часть (например, фиксированные конечные точки, рёбра, грани с явными метками) визуализируется <span style="color: purple">**фиолетовым**</span> цветом.
+Когда тип строится путём взятия части другой формы,
+остальная часть большей формы окрашивается <span style="color: gray">**серым**</span> цветом.
 
 ```rzk
--- [RS17, Definition 5.1]
--- The type of arrows in A from x to y.
+-- [RS17, Определение 5.1]
+-- Тип стрелок в A от x до y.
 #define hom
-  (A : U)   -- A type.
-  (x y : A) -- Two points in A.
-  : U                   -- (hom A x y) is a 1-simplex (an arrow)
-  := (t : 2) -> A [    -- in A where
-    t === 0_2 |-> x,    -- * the left endpoint is exactly x
-    t === 1_2 |-> y     -- * the right endpoint is exactly y
+  ( A : U)   -- Тип A.
+  ( x y : A) -- Две точки в A.
+  : U                   -- (hom A x y) это 1-симплекс (стрелка)
+  := (t : 2) → A [ -- в A, где
+    t ≡ 0₂ ↦ x , -- * левая конечная точка точно x
+    t ≡ 1₂ ↦ y     -- * правая конечная точка точно y
   ]
 ```
 
 ```rzk
--- [RS17, Definition 5.2]
--- the type of commutative triangles in A
+-- [RS17, Определение 5.2]
+-- тип коммутативных треугольников в A
 #define hom2
-  (A : U)           -- A type.
-  (x y z : A)       -- Three points in A.
-  (f : hom A x y)   -- An arrow in A from x to y.
-  (g : hom A y z)   -- An arrow in A from y to z.
-  (h : hom A x z)   -- An arrow in A from x to z.
-  : U                           -- (hom2 A x y z f g h) is a 2-simplex (triangle)
-  := { (t1, t2) : Δ² } -> A [   -- in A where
-    t2 === 0_2 |-> f t1,        -- * the top edge is exactly f,
-    t1 === 1_2 |-> g t2,        -- * the right edge is exactly g, and
-    t2 === t1  |-> h t2         -- * the diagonal is exactly h
+  ( A : U)           -- Тип A.
+  ( x y z : A)       -- Три точки в A.
+  ( f : hom A x y)   -- Стрелка в A от x до y.
+  ( g : hom A y z)   -- Стрелка в A от y до z.
+  ( h : hom A x z)   -- Стрелка в A от x до z.
+  : U                           -- (hom2 A x y z f g h) это 2-симплекс (треугольник)
+  := ((t1 , t2) : Δ²) → A [   -- в A, где
+    t2 ≡ 0₂ ↦ f t1 , -- * верхнее ребро точно f,
+    t1 ≡ 1₂ ↦ g t2 , -- * правое ребро точно g, и
+    t2 ≡ t1  ↦ h t2  -- * диагональ точно h
   ]
 ```
 
-### Visualising Terms of Simplicial Types
+### Визуализация термов симплициальных типов
 
-Terms (with non-trivial labels) are visualised with <span style="color: red">**red**</span> color (you can see a detailed label on hover). Recognised parameter part (e.g. fixed endpoints, edges, faces with clear labels) are visualised with <span style="color: purple">**purple**</span> color. When a term is constructed by taking a part of another shape, the rest of the larger shape is colored using <span style="color: gray">**gray**</span> color.
+Термы (с нетривиальными метками) визуализируются <span style="color: red">**красным**</span> цветом (вы можете увидеть детальную метку при наведении).
+Распознанная параметрическая часть (например, фиксированные конечные точки, рёбра, грани с явными метками) визуализируется <span style="color: purple">**фиолетовым**</span> цветом.
+Когда терм строится путём взятия части другой формы, остальная часть большей формы окрашивается <span style="color: gray">**серым**</span> цветом.
 
-We can visualise terms that fill a shape:
+Мы можем визуализировать термы, которые заполняют форму:
 
 ```rzk
 #define square
-  (A : U)
-  (x y z : A)
-  (f : hom A x y)
-  (g : hom A y z)
-  (h : hom A x z)
-  (a : Sigma (h' : hom A x z), hom2 A x y z f g h')
-  : (2 * 2) -> A
-  := \(t, s) -> recOR( s <= t |-> second a (t, s) , t <= s |-> second a (s, t))
+  ( A : U)
+  ( x y z : A)
+  ( f : hom A x y)
+  ( g : hom A y z)
+  ( h : hom A x z)
+  ( a : Σ (h' : hom A x z) , hom2 A x y z f g h')
+  : ( 2 × 2) → A
+  := \ (t , s) → recOR(s ≤ t ↦ second a (t , s) , t ≤ s ↦ second a (s , t))
 ```
 
-If a term is extracted as a part of a larger shape, generally, the whole shape will be shown (in gray):
+Если терм извлекается как часть большей формы, как правило, будет показана вся форма (серым цветом):
 
 ```rzk
 #define face
-  (A : U)
-  (x y z : A)
-  (f : hom A x y)
-  (a : Sigma (g : hom A y z), {((t1, t2), t3) : 2 * 2 * 2 | t3 <= t1 \/ t2 <= t1} -> A [ t1 === 0_2 |-> f t2, t1 === 1_2 |-> g t3 ])
-  : Δ² -> A
-  := \(t, s) -> second a ((t, t), s)
+  ( A : U)
+  ( x y z : A)
+  ( f : hom A x y)
+  ( a : Σ (g : hom A y z)
+        , ( ( ( t1 , t2) , t3) : 2 × 2 × 2 | t3 ≤ t1 ∨ t2 ≤ t1)
+          → A [ t1 ≡ 0₂ ↦ f t2
+              , t1 ≡ 1₂ ↦ g t3 ])
+  : Δ² → A
+  := \ (t , s) → second a ((t , t) , s)
 ```
 
 <!-- Style for the SVG images above -->
 <style>
-.rzk-render { transition: transform .2s; /* Animation */ }
-.rzk-render:hover { transform: scale(1.5); /* (150% zoom - Note: if the zoom is too large, it will go outside of the viewport) */ }
+.rzk-render { transition: transform .2s; /* Анимация */ }
+.rzk-render:hover { transform: scale(1.5); /* (150% увеличение - Примечание: если увеличение слишком большое, оно выйдет за пределы области просмотра) */ }
 </style>
 
 <!-- Definitions for the SVG images above -->

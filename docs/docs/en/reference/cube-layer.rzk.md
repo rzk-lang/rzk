@@ -13,7 +13,7 @@ There are two built-in cubes:
 
 It is also possible to have `#!rzk CUBE` variables and make products of cubes:
 
-1. `#!rzk I * J`  is a product of cubes `#!rzk I` and `#!rzk J`
+1. `#!rzk I * J` is a product of cubes `#!rzk I` and `#!rzk J`
 2. `#!rzk (t, s)` is a point in `#!rzk I * J` if `#!rzk t : I` and `#!rzk s : J`
 3. if `#!rzk ts : I * J`, then `#!rzk first ts : I` and `#!rzk second ts : J`
 

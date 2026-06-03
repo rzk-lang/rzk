@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "is included in (entails) the tope"
+regression_for:
+  - contextEntails-app-substituted-tope

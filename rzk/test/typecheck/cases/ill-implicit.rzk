@@ -1,0 +1,11 @@
+#lang rzk-1
+
+#variables A B C : U
+
+#variable g : B → C
+#variable f : A → B
+#variable x : A
+
+#define bad-compose
+  : C
+  := g (f x)
