@@ -410,8 +410,7 @@ ppTypeError' = \case
     [ "local context is not included in (does not entail) the tope"
     , "  " <> show (untyped tope)
     , "in local context (normalised)"
-    , intercalate "\n" (map ("  " <>) (map show topes))
-    , intercalate "\n" (map ("  " <>) (map show (generateTopesForPoints (allTopePoints tope))))] -- FIXME: remove
+    , intercalate "\n" (map ("  " <>) (map show topes))] -- FIXME: remove
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
     , "  " <> show (untyped expected)
@@ -2655,15 +2654,15 @@ cubeIT = CubeIT TypeInfo
 
 cubeI_0T :: TermT var
 cubeI_0T = CubeI_0T TypeInfo
-  { infoType = cubeT
-  , infoNF = Just cubeIT
-  , infoWHNF = Just cubeIT }
+  { infoType = cubeIT
+  , infoNF = Just cubeI_0T
+  , infoWHNF = Just cubeI_0T }
 
 cubeI_1T :: TermT var
 cubeI_1T = CubeI_1T TypeInfo
-  { infoType = cubeT
-  , infoNF = Just cubeIT
-  , infoWHNF = Just cubeIT }
+  { infoType = cubeIT
+  , infoNF = Just cubeI_1T
+  , infoWHNF = Just cubeI_1T }
 
 cubeFlipT :: TermT var -> TermT var -> TermT var
 cubeFlipT cubeTy t = CubeFlipT info t
