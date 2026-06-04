@@ -1123,6 +1123,12 @@ generateFlipAxioms = \case
   TopeEQT _ Cube2_0T{} t -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_1T]
   TopeEQT _ t Cube2_1T{} -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_0T]
   TopeEQT _ Cube2_1T{} t -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_0T]
+
+  TopeEQT _ t CubeI_0T{} -> [topeEQT (modExtractT cubeIT Id Op (cubeFlipT cubeIT t)) cubeI_1T]
+  TopeEQT _ CubeI_0T{} t -> [topeEQT (modExtractT cubeIT Id Op (cubeFlipT cubeIT t)) cubeI_1T]
+  TopeEQT _ t CubeI_1T{} -> [topeEQT (modExtractT cubeIT Id Op (cubeFlipT cubeIT t)) cubeI_0T]
+  TopeEQT _ CubeI_1T{} t -> [topeEQT (modExtractT cubeIT Id Op (cubeFlipT cubeIT t)) cubeI_0T]
+
   _ -> []
 
 generateInvAxioms :: TermT var -> [TermT var]
@@ -1147,12 +1153,14 @@ generateTopesForModalCubeVarsM = do
     ty' <- whnfT (varType info)
     case ty' of
       TypeModalT _ Flat inner -> do
-        inner' <- whnfT inner
-        if inner' == cube2T
-          then do
+        whnfT inner >>= \case 
+          Cube2T{} -> do
             let pt = modExtractT cube2T Id Flat (Pure var)
             return [topeOrT (topeEQT pt cube2_0T) (topeEQT pt cube2_1T)]
-          else return []
+          CubeIT{} -> do
+            let pt = modExtractT cubeIT Id Flat (Pure var)
+            return [topeOrT (topeEQT pt cubeI_0T) (topeEQT pt cubeI_1T)]
+          _ -> return []
       _ -> return []
 
 entailTraceM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
@@ -1839,18 +1847,22 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   -- cube layer with computation
   CubeProductT _ty l r -> cubeProductT <$> nfTope l <*> nfTope r
 
-  CubeFlipT _ t ->         
+  CubeFlipT ty t -> 
     nfTope t >>= \case
-      CubeUnflipT _ t' -> pure t'     
+      CubeUnflipT _ t' -> pure t'
       Cube2_0T{}       -> pure (modAppT (typeModalT cubeT Op cube2T) Op cube2_1T)  
-      Cube2_1T{}       -> pure (modAppT (typeModalT cubeT Op cube2T) Op cube2_0T) 
-      t'               -> pure (cubeFlipT cube2T t')
+      Cube2_1T{}       -> pure (modAppT (typeModalT cubeT Op cube2T) Op cube2_0T)
+      CubeI_0T{}       -> pure (modAppT (typeModalT cubeT Op cubeIT) Op cubeI_1T)
+      CubeI_1T{}       -> pure (modAppT (typeModalT cubeT Op cubeIT) Op cubeI_0T)
+      t'               -> pure (CubeFlipT ty t')
 
-  CubeUnflipT ty t ->
+  CubeUnflipT ty t -> 
     nfTope t >>= \case
       CubeFlipT _ t'          -> pure t'  
       ModAppT _ Op Cube2_0T{} -> pure cube2_1T 
-      ModAppT _ Op Cube2_1T{} -> pure cube2_0T 
+      ModAppT _ Op Cube2_1T{} -> pure cube2_0T
+      ModAppT _ Op CubeI_0T{} -> pure cubeI_1T 
+      ModAppT _ Op CubeI_1T{} -> pure cubeI_0T 
       t'                      -> pure (CubeUnflipT ty t')
 
   -- tope layer constants
