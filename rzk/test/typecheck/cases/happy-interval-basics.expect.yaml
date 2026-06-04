@@ -1,0 +1,5 @@
+status: ok
+regression_for:
+  - interval-cube-basics
+  - covariance-2-and-I
+  - totality-on-2
