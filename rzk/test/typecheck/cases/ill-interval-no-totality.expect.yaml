@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+regression_for:
+  - interval-no-total-order
