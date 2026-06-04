@@ -142,6 +142,9 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.Cube2 _ -> failure x
   Language.Rzk.Syntax.Abs.Cube2_0 _ -> failure x
   Language.Rzk.Syntax.Abs.Cube2_1 _ -> failure x
+  Language.Rzk.Syntax.Abs.CubeI _ -> failure x
+  Language.Rzk.Syntax.Abs.CubeI_0 _ -> failure x
+  Language.Rzk.Syntax.Abs.CubeI_1 _ -> failure x
   Language.Rzk.Syntax.Abs.CubeProduct _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TopeTop _ -> failure x
   Language.Rzk.Syntax.Abs.TopeBottom _ -> failure x
@@ -187,6 +190,9 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ASCII_CubeUnitStar _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Cube2_0 _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Cube2_1 _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_CubeI _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_CubeI_0 _ -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_CubeI_1 _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TopeTop _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TopeBottom _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TopeEQ _ term1 term2 -> failure x

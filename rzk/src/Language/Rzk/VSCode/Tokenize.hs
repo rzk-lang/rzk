@@ -108,6 +108,13 @@ tokenizeTerm' varTokenType = go
       Cube2_1{}            -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
       ASCII_Cube2_1{}      -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
 
+      CubeI{}              -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
+      CubeI_0{}            -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_CubeI_0{}      -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      CubeI_1{}            -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_CubeI_1{}      -> mkToken term SemanticTokenTypes_EnumMember [SemanticTokenModifiers_DefaultLibrary]
+      ASCII_CubeI{}        -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
+
       CubeProduct _loc l r -> foldMap go [l, r]
 
       TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]

@@ -97,6 +97,9 @@ data TermF scope term
     | Cube2F
     | Cube2_0F
     | Cube2_1F
+    | CubeIF 
+    | CubeI_0F 
+    | CubeI_1F
     | CubeProductF term term
     | CubeFlipF term
     | CubeUnflipF term
@@ -280,6 +283,12 @@ toTerm bvars = go
       Rzk.Cube2 _loc -> Cube2
       Rzk.Cube2_0 _loc -> Cube2_0
       Rzk.Cube2_1 _loc -> Cube2_1
+      Rzk.CubeI _loc -> CubeI
+      Rzk.CubeI_0 _loc -> CubeI_0
+      Rzk.CubeI_1 _loc -> CubeI_1
+      Rzk.ASCII_CubeI _loc -> CubeI
+      Rzk.ASCII_CubeI_0 _loc -> CubeI_0
+      Rzk.ASCII_CubeI_1 _loc -> CubeI_1
       Rzk.CubeProduct _loc l r -> CubeProduct (go l) (go r)
       Rzk.TopeTop _loc -> TopeTop
       Rzk.TopeBottom _loc -> TopeBottom
@@ -505,6 +514,9 @@ fromTermWith' used vars = go
       Cube2 -> Rzk.Cube2 loc
       Cube2_0 -> Rzk.Cube2_0 loc
       Cube2_1 -> Rzk.Cube2_1 loc
+      CubeI -> Rzk.CubeI loc
+      CubeI_0 -> Rzk.CubeI_0 loc
+      CubeI_1 -> Rzk.CubeI_1 loc
       CubeProduct l r -> Rzk.CubeProduct loc (go l) (go r)
       TopeTop -> Rzk.TopeTop loc
       TopeBottom -> Rzk.TopeBottom loc
