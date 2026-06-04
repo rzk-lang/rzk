@@ -1102,7 +1102,6 @@ unwrapModalTopes :: [TermT var] -> [TermT var]
 unwrapModalTopes = concatMap $ \case
   TypeModalT _ _md inner -> [inner]
   _ -> []
-
 entailM :: Eq var => [TermT var] -> TermT var -> TypeCheck var Bool
 entailM topes tope = do
   -- genTopes <- generateTopesForPointsM (allTopePoints tope)
@@ -1192,6 +1191,7 @@ generateTopes :: Eq var => [TermT var] -> [TermT var] -> [TermT var]
 generateTopes newTopes oldTopes
   | topeBottomT `elem` newTopes = []
   | topeEQT cube2_0T cube2_1T `elem` newTopes = [topeBottomT]
+  | topeEQT cubeI_0T cubeI_0T `elem` newTopes = [topeBottomT]
   | length oldTopes > 100 = []    -- FIXME
   | otherwise = concat
       [  -- symmetry EQ
@@ -1257,21 +1257,18 @@ generateTopes newTopes oldTopes
       , [ topeEQT x y | TopeLEQT _ty x y@Cube2_0T{} <- newTopes ]
         -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
       , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
-      ]
+      , [ topeEQT x y | TopeLEQT _ty x y@CubeI_0T{} <- newTopes ]
+        -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
+      , [ topeEQT x y | TopeLEQT _ty x@CubeI_1T{} y <- newTopes ]
 
-generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
-generateTopesForPoints points = nubTermT $ concat
-  [ [ topeOrT (topeLEQT x y) (topeLEQT y x)
-    | x : points' <- tails (filter (`notElem` [cube2_0T, cube2_1T]) points)
-    , y <- points'
-    , x /= y ]
-  ]
+
+      ]
 
 generateTopesForPointsM :: Eq var => [TermT var] -> TypeCheck var [TermT var]
 generateTopesForPointsM points = do
   let pairs = nub $ concat
         [ [ (x, y)
-          | x : points' <- tails (filter (`notElem` [cube2_0T, cube2_1T]) points)
+          | x : points' <- tails (filter (`notElem` [cube2_0T, cube2_1T, cubeI_0T, cubeI_1T]) points)
           , y <- points'
           , x /= y ]
         ]
@@ -1562,6 +1559,9 @@ etaMatch  mterm expected (TypeRestrictedT _ty ty _rs) = etaMatch mterm expected 
 etaMatch (Just term) expected@TypeRestrictedT{} actual =
   etaMatch (Just term) expected (typeRestrictedT actual [(topeTopT, term)])
 -- ------------------------------------
+-- | Subtyping on interval
+etaMatch _mterm CubeIT{} Cube2T{} = pure (cubeIT, cubeIT)
+-- ------------------------------------
 etaMatch _mterm expected@LambdaT{} actual@LambdaT{} = pure (expected, actual)
 etaMatch _mterm expected@PairT{}   actual@PairT{}   = pure (expected, actual)
 etaMatch _mterm expected@LambdaT{} actual = do
@@ -1675,6 +1675,9 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   Cube2T{} -> pure tt
   Cube2_0T{} -> pure tt
   Cube2_1T{} -> pure tt
+  CubeIT{} -> pure tt 
+  CubeI_0T{} -> pure tt
+  CubeI_1T{} -> pure tt
   CubeFlipT{} -> nfTope tt
   CubeUnflipT{} -> nfTope tt
 
@@ -1826,6 +1829,9 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   Cube2T{} -> pure tt
   Cube2_0T{} -> pure tt
   Cube2_1T{} -> pure tt
+  CubeIT{} -> pure tt 
+  CubeI_0T{} -> pure tt
+  CubeI_1T{} -> pure tt
 
   -- type layer constants
   TypeUnitT{} -> pure tt
@@ -1877,6 +1883,16 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     -- distributing inv over that synthetic conjunction loops forever because
     -- the recursive topeInvT renormalizes the same App back into a TopeAnd.
     case t of
+      TopeAndT _ phi psi -> nfTope $
+        modAppT (typeModalT universeT Op topeT) Op
+          (topeLEQT
+            (modExtractT topeT Id Op (cubeFlipT y))
+            (modExtractT topeT Id Op (cubeFlipT x)))
+      TopeEQT _ x y -> nfTope $
+        modAppT (typeModalT universeT Op topeT) Op
+          (topeEQT
+            (modExtractT topeT Id Op (cubeFlipT y))
+            (modExtractT topeT Id Op (cubeFlipT x)))
       TopeAndT _ phi psi -> nfTope $
         modAppT (typeModalT universeT Op topeT) Op
           (topeAndT
@@ -2028,6 +2044,9 @@ nfT tt = performing (ActionNF tt) $ case tt of
   Cube2T{} -> pure tt
   Cube2_0T{} -> pure tt
   Cube2_1T{} -> pure tt
+  CubeIT{} -> pure tt 
+  CubeI_0T{} -> pure tt
+  CubeI_1T{} -> pure tt
 
   -- cube layer with computation
   CubeProductT{} -> nfTope tt
@@ -2293,6 +2312,9 @@ unifyInCurrentContext mterm expected actual = performing action $
                   Cube2T{} -> def
                   Cube2_0T{} -> def
                   Cube2_1T{} -> def
+                  CubeIT{} -> def
+                  CubeI_0T{} -> def
+                  CubeI_1T{} -> def
                   CubeProductT _ l r ->
                     case actual' of
                       CubeProductT _ l' r' -> do
@@ -2503,9 +2525,10 @@ localTope tope tc = do
         _ | tope' `elem` localTopes -> const tc     -- no new information added!
           | otherwise -> id
   refine $ do
-    local (f tope' localTopesNF) tc
+    entailsBottom <- (tope' : localTopesNF) `entailM` topeBottomT
+    local (f tope' entailsBottom) tc
   where
-    f tope' localTopes' Context{..} = Context
+    f tope' entailsBottom Context{..} = Context
       { localTopes = tope : localTopes
       , localTopesNF = tope' : localTopesNF
       , localTopesNFUnion = map nubTermT
@@ -2514,8 +2537,6 @@ localTope tope tc = do
           , old <- localTopesNFUnion ]
       , localTopesEntailBottom = entailsBottom
       , .. }
-      where
-        entailsBottom = (tope' : localTopes') `entail` topeBottomT
 
 universeT :: TermT var
 universeT = iterate f (panicImpossible msg) !! 30
@@ -2625,6 +2646,24 @@ cube2_1T = Cube2_1T TypeInfo
   { infoType = cube2T
   , infoNF = Just cube2_1T
   , infoWHNF = Just cube2_1T }
+
+cubeIT :: TermT var
+cubeIT = CubeIT TypeInfo
+  { infoType = cubeT
+  , infoNF = Just cubeIT
+  , infoWHNF = Just cubeIT }
+
+cubeI_0T :: TermT var
+cubeI_0T = CubeI_0T TypeInfo
+  { infoType = cubeT
+  , infoNF = Just cubeIT
+  , infoWHNF = Just cubeIT }
+
+cubeI_1T :: TermT var
+cubeI_1T = CubeI_1T TypeInfo
+  { infoType = cubeT
+  , infoNF = Just cubeIT
+  , infoWHNF = Just cubeIT }
 
 cubeFlipT :: TermT var -> TermT var -> TermT var
 cubeFlipT cubeTy t = CubeFlipT info t
@@ -3049,6 +3088,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
   Cube2 -> pure cube2T
   Cube2_0 -> pure cube2_0T
   Cube2_1 -> pure cube2_1T
+
+  CubeI -> pure cubeIT
+  CubeI_0 -> pure cubeI_0T
+  CubeI_1 -> pure cubeI_1T
   CubeProduct l r -> do
     l' <- typecheck l cubeT
     r' <- typecheck r cubeT
@@ -3112,9 +3155,14 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (topeEQT l' r')
 
   TopeLEQ l r -> do
-    l' <- typecheck l cube2T
-    r' <- typecheck r cube2T
-    return (topeLEQT l' r')
+    l' <- infer l
+    r' <- infer r
+    lTy <- typeOf l' 
+    rTy <- typeOf r' 
+    case (lTy, rTy) of
+      (CubeIT{}, CubeIT{}) -> return (topeLEQT l' r')
+      (Cube2T{}, Cube2T{}) -> return (topeLEQT l' r')
+      _ -> issueTypeError $ TypeErrorOther "leq arguments must be 2 or I"
 
   TopeAnd l r -> do
     l' <- typecheck l topeT

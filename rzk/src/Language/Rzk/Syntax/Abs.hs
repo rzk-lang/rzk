@@ -153,6 +153,9 @@ data Term' a
     | Cube2 a
     | Cube2_0 a
     | Cube2_1 a
+    | CubeI a
+    | CubeI_0 a
+    | CubeI_1 a
     | CubeProduct a (Term' a) (Term' a)
     | TopeTop a
     | TopeBottom a
@@ -198,6 +201,9 @@ data Term' a
     | ASCII_CubeUnitStar a
     | ASCII_Cube2_0 a
     | ASCII_Cube2_1 a
+    | ASCII_CubeI a
+    | ASCII_CubeI_0 a
+    | ASCII_CubeI_1 a
     | ASCII_TopeTop a
     | ASCII_TopeBottom a
     | ASCII_TopeEQ a (Term' a) (Term' a)
@@ -401,6 +407,9 @@ instance HasPosition Term where
     Cube2 p -> p
     Cube2_0 p -> p
     Cube2_1 p -> p
+    CubeI p -> p
+    CubeI_0 p -> p
+    CubeI_1 p -> p
     CubeProduct p _ _ -> p
     TopeTop p -> p
     TopeBottom p -> p
@@ -446,6 +455,9 @@ instance HasPosition Term where
     ASCII_CubeUnitStar p -> p
     ASCII_Cube2_0 p -> p
     ASCII_Cube2_1 p -> p
+    ASCII_CubeI p -> p
+    ASCII_CubeI_0 p -> p
+    ASCII_CubeI_1 p -> p
     ASCII_TopeTop p -> p
     ASCII_TopeBottom p -> p
     ASCII_TopeEQ p _ _ -> p
