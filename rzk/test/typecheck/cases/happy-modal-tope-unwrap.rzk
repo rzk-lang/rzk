@@ -1,0 +1,32 @@
+#lang rzk-1
+
+-- Test logical relationships between modal topes and plain topes.
+
+-- 1. <| _op | phi |> and uninv_op(phi) are equivalent:
+--    given <| _op | phi |> we can derive uninv_op(phi), and vice versa.
+
+#def test-op-unwrap-to-uninv
+  (i : 2)
+  : let mod _op q := inv_op (i === 0_2) in
+    let mod _op fi := flip_op i in
+    <| _op | (q = (fi === 1_2)) |>
+  := mod _op refl
+
+-- 2. <| _b | phi |> implies phi:
+--    a flat-restricted extension type is a subtype of the plain-restricted one.
+--    If i : _b 2, the tope (i === 0_2) is flat-accessible, so the restriction holds.
+
+#def test-flat-implies-plain
+  (A : _b U)
+  (a : _b A)
+  : (i : <| _b | 2 |> | let mod _b _i := i in _i === 0_2) -> let mod _b _i := i in A [_i === 0_2 |-> a]
+  := \ i -> a
+
+-- 3. phi implies <| _# | phi |>:
+--    a plain tope can be lifted into a sharp-modal tope.
+
+#def test-plain-implies-sharp
+  (A : U)
+  (a : A)
+  : (i : 2 | i === 0_2) -> <| _# | A |>
+  := \ i -> mod _# a
