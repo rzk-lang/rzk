@@ -3,3 +3,4 @@
 #def bad-use-under-flat (A : U) (x : A)
   : _b A
   := mod _b x
+

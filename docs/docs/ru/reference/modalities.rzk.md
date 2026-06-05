@@ -236,3 +236,4 @@ graph TB
 [^ttt]: Daniel Gratzer, Jonathan Weinberger, Ulrik Buchholtz. _Directed univalence in simplicial homotopy type theory._ arXiv:2407.09146, 2024 (исправл. 2026). <https://arxiv.org/abs/2407.09146>
 
 [^hottuf26]: Islam Talipov, Nikolai Kudasov. _Towards Formalization of Directed Univalence in Rzk proof assistant._ Представленный доклад, HoTT/UF 2026. <https://hott-uf.github.io/2026/abstracts/HoTTUF_2026_paper_22.pdf>
+
