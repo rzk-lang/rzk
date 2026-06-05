@@ -1930,8 +1930,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
                 yTy <- typeOf y
                 nfTope $
                   (topeLEQT
-                    (cubeUnflipT xTy (modAppT (typeModalT xTy Op cube2T) Op y))
-                    (cubeUnflipT yTy (modAppT (typeModalT yTy Op cube2T) Op x)))
+                    (cubeUnflipT xTy (modAppT (typeModalT cubeT Op xTy) Op y))
+                    (cubeUnflipT yTy (modAppT (typeModalT cubeT Op yTy) Op x)))
               TopeEQT _ x y -> do
                 xTy <- typeOf x
                 yTy <- typeOf y
