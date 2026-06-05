@@ -1940,6 +1940,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       _ ->
         nfTope t >>= \case
           TopeInvT _ phi -> pure phi
+          t'@(ModAppT _ Op _) -> nfTope (TopeUninvT ty t')
           t' -> pure (TopeUninvT ty t')
 
   -- type ascriptions are ignored, since we already have a typechecked term
