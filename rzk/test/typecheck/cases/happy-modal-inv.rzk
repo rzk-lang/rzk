@@ -7,7 +7,7 @@
 
 #def test-lt-mod-inv
   ( i : 2)
-  : let mod _op q := invᵒᵖ (i ≡ 0₂) in let mod _op fi := flip_op i in <| _op | (q = (fi === 1_2)) |>
+  : let mod _op q := invᵒᵖ (i ≡ 0₂) in let mod _op fi := flip_op i in _op (q = (fi === 1_2))
   := mod _op refl
 
 

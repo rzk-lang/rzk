@@ -62,10 +62,15 @@ tokenizeParam = \case
     [ tokenizePattern pat
     , tokenizeTerm cube
     , tokenizeTope tope ]
-  ParamPatternModalType _loc pats md ty -> concat
+  ParamPatternModalType _loc pats mc ty -> concat
     [ foldMap tokenizePattern pats
-    , tokenizeModality md
+    , tokenizeModalColon mc
     , tokenizeTerm ty ]
+  ParamPatternModalShape _loc pats mc cube tope -> concat
+    [ foldMap tokenizePattern pats
+    , tokenizeModalColon mc
+    , tokenizeTerm cube
+    , tokenizeTope tope ]
 
 tokenizePattern :: Pattern -> [SemanticTokenAbsolute]
 tokenizePattern = \case
@@ -135,19 +140,14 @@ tokenizeTerm' varTokenType = go
         [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , foldMap go [a, b] ]
-      TypeSigmaModal loc pat md a b -> concat
+      TypeSigmaModal loc pat mc a b -> concat
         [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
-        , tokenizeModality md
+        , tokenizeModalColon mc
         , foldMap go [a, b] ]
       ASCII_TypeSigma loc pat a b -> concat
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
-        , foldMap go [a, b] ]
-      ASCII_TypeSigmaModal loc pat md a b -> concat
-        [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizePattern pat
-        , tokenizeModality md
         , foldMap go [a, b] ]
       TypeSigmaTuple loc p ps tN -> concat
         [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
@@ -239,10 +239,13 @@ tokenizeParamDecl = \case
     , tokenizeTerm cube
     , tokenizeTope tope
     ]
-  ParamTermModalType _loc pat md type_ -> concat
-    [ tokenizeTerm pat
-    , tokenizeModality md
-    , tokenizeTerm type_ ]
+  ParamTermModalType _loc pat mc type_ -> concat
+    [ tokenizeTerm pat, tokenizeModalColon mc, tokenizeTerm type_ ]
+  ParamTermModalShape _loc pat mc cube tope -> concat
+    [ tokenizeTerm pat, tokenizeModalColon mc, tokenizeTerm cube, tokenizeTope tope ]
+
+tokenizeModalColon :: ModalColon -> [SemanticTokenAbsolute]
+tokenizeModalColon mc = mkToken mc SemanticTokenTypes_Decorator []
 
 tokenizeModality :: Modality -> [SemanticTokenAbsolute]
 tokenizeModality md = mkToken md SemanticTokenTypes_Decorator []
@@ -257,9 +260,9 @@ tokenizeSigmaParam = \case
   SigmaParam _loc pat type_ -> concat
     [ tokenizePattern pat
     , tokenizeTerm type_ ]
-  SigmaParamModal _loc pat md type_ -> concat
+  SigmaParamModal _loc pat mc type_ -> concat
     [ tokenizePattern pat
-    , tokenizeModality md
+    , tokenizeModalColon mc
     , tokenizeTerm type_ ]
 
 mkToken :: (HasPosition a, Print a) => a -> SemanticTokenTypes -> [SemanticTokenModifiers] -> [SemanticTokenAbsolute]

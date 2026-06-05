@@ -263,7 +263,6 @@ toTerm bvars = go
 
       Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
-      Rzk.ASCII_TypeSigmaModal _loc pat md ty body -> go (Rzk.TypeSigmaModal _loc pat md ty body)
       Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
       Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
@@ -311,11 +310,18 @@ toTerm bvars = go
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
-      Rzk.TypeFun _loc (Rzk.ParamTermModalType loc' patTerm md ty) ret ->
-        let pat    = unsafeTermToPattern patTerm
+      Rzk.TypeFun _loc (Rzk.ParamTermModalType loc' patTerm mc ty) ret ->
+        let md     = modalColonModality mc
+            pat    = unsafeTermToPattern patTerm
             letRet = Rzk.LetMod loc' (Rzk.Single loc' md)
                        (Rzk.BindPattern loc' pat) (patternToTerm pat) ret
         in go (Rzk.TypeFun _loc (Rzk.ParamTermType loc' patTerm (Rzk.ModType loc' md ty)) letRet)
+      Rzk.TypeFun _loc (Rzk.ParamTermModalShape loc' patTerm mc cube tope) ret ->
+        let md      = modalColonModality mc
+            pat     = unsafeTermToPattern patTerm
+            letMod body = Rzk.LetMod loc' (Rzk.Single loc' md)
+                            (Rzk.BindPattern loc' pat) (patternToTerm pat) body
+        in go (Rzk.TypeFun _loc (Rzk.ParamTermShape loc' patTerm (Rzk.ModType loc' md cube) (letMod tope)) (letMod ret))
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = unsafeTermToPattern patTerm
         in TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
@@ -332,14 +338,16 @@ toTerm bvars = go
       Rzk.TypeSigma _loc pat tA tB ->
         TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.TypeSigmaModal _loc pat md ty body ->
-        let letBody = Rzk.LetMod _loc (Rzk.Single _loc md)
+      Rzk.TypeSigmaModal _loc pat mc ty body ->
+        let md = modalColonModality mc
+            letBody = Rzk.LetMod _loc (Rzk.Single _loc md)
                         (Rzk.BindPattern _loc pat) (patternToTerm pat) body
         in go (Rzk.TypeSigma _loc pat (Rzk.ModType _loc md ty) letBody)
 
 
-      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal loc' pat md ty) rest body ->
-        let tailSigma = case rest of
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal loc' pat mc ty) rest body ->
+        let md = modalColonModality mc
+            tailSigma = case rest of
               []       -> body
               [sp]     -> sigmaParamToTypeSigma _loc sp body
               (sp:sps) -> Rzk.TypeSigmaTuple _loc sp sps body
@@ -356,16 +364,28 @@ toTerm bvars = go
           patX = Rzk.PatternPair _loc patA patB
           tX = Rzk.TypeSigma _loc patA tA tB
       Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ pat tA) [] tB -> go (Rzk.TypeSigma _loc pat tA tB)
-      Rzk.Lambda _loc (Rzk.ParamPatternModalType _ [] _md _ty : params) body ->
+      Rzk.Lambda _loc (Rzk.ParamPatternModalType _ [] _mc _ty : params) body ->
         go (Rzk.Lambda _loc params body)
-      Rzk.Lambda _loc (Rzk.ParamPatternModalType loc' (pat:pats) md ty : params) body ->
-        let inner   = Rzk.Lambda _loc
+      Rzk.Lambda _loc (Rzk.ParamPatternModalType loc' (pat:pats) mc ty : params) body ->
+        let md      = modalColonModality mc
+            inner   = Rzk.Lambda _loc
                         (if null pats then params
-                         else Rzk.ParamPatternModalType loc' pats md ty : params)
+                         else Rzk.ParamPatternModalType loc' pats mc ty : params)
                         body
             letBody = Rzk.LetMod loc' (Rzk.Single loc' md)
                         (Rzk.BindPattern loc' pat) (patternToTerm pat) inner
         in go (Rzk.Lambda _loc [Rzk.ParamPatternType loc' [pat] (Rzk.ModType loc' md ty)] letBody)
+      Rzk.Lambda _loc (Rzk.ParamPatternModalShape _ [] _mc _cube _tope : params) body ->
+        go (Rzk.Lambda _loc params body)
+      Rzk.Lambda _loc (Rzk.ParamPatternModalShape loc' (pat:pats) mc cube tope : params) body ->
+        let md      = modalColonModality mc
+            inner   = Rzk.Lambda _loc
+                        (if null pats then params
+                         else Rzk.ParamPatternModalShape loc' pats mc cube tope : params)
+                        body
+            letMod b = Rzk.LetMod loc' (Rzk.Single loc' md)
+                         (Rzk.BindPattern loc' pat) (patternToTerm pat) b
+        in go (Rzk.Lambda _loc [Rzk.ParamPatternShape loc' [pat] (Rzk.ModType loc' md cube) (letMod tope)] (letMod inner))
       Rzk.Lambda _loc [] body -> go body
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
         Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
@@ -418,6 +438,16 @@ patternToTerm = ptt
       Rzk.PatternTuple loc p1 p2 ps -> patternToTerm (desugarTuple loc (reverse ps) p2 p1)
 
 
+modalColonModality :: Rzk.ModalColon -> Rzk.Modality
+modalColonModality = \case
+  Rzk.ModalColonFlat loc        -> Rzk.Flat loc
+  Rzk.ModalColonSharp loc       -> Rzk.Sharp loc
+  Rzk.ModalColonOp loc          -> Rzk.Op loc
+  Rzk.ModalColonId loc          -> Rzk.Id loc
+  Rzk.ASCII_ModalColonFlat loc  -> Rzk.Flat loc
+  Rzk.ASCII_ModalColonSharp loc -> Rzk.Sharp loc
+  Rzk.ASCII_ModalColonOp loc    -> Rzk.Op loc
+
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp
   where
@@ -431,7 +461,7 @@ unsafeTermToPattern = ttp
 sigmaParamToTypeSigma :: Rzk.BNFC'Position -> Rzk.SigmaParam -> Rzk.Term -> Rzk.Term
 sigmaParamToTypeSigma loc sp body = case sp of
   Rzk.SigmaParam      _ pat ty      -> Rzk.TypeSigma      loc pat ty body
-  Rzk.SigmaParamModal _ pat md ty  -> Rzk.TypeSigmaModal loc pat md ty body
+  Rzk.SigmaParamModal _ pat mc ty  -> Rzk.TypeSigmaModal loc pat mc ty body
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t

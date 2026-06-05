@@ -29,7 +29,7 @@ $u = [. \n]          -- universal: any character
 
 -- Symbols and non-identifier-like reserved words
 
-@rsyms = \ᵒ \ᵖ | "inv" \ᵒ \ᵖ | "uninv" \ᵒ \ᵖ | "flip" \ᵒ \ᵖ | "unflip" \ᵒ \ᵖ | \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | \♭ | \_ "b" | \♯ | \_ \# | \_ "op" | \_ "id" | \/ | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | \< \| | \| \> | \$ "extract" \$ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
+@rsyms = \ᵒ \ᵖ | "inv" \ᵒ \ᵖ | "uninv" \ᵒ \ᵖ | "flip" \ᵒ \ᵖ | "unflip" \ᵒ \ᵖ | \Σ | \π \₁ | \π \₂ | \# "lang" | \; | "rzk" \- "1" | \# "set" \- "option" | \= | \# "unset" \- "option" | \# "check" | \: | \# "compute" | \# "compute" \- "whnf" | \# "compute" \- "nf" | \# "postulate" | \# "assume" | \# "variable" | \# "variables" | \# "section" | \# "end" | \# "define" | \: \= | \# "def" | \( | \) | \, | \| | \{ | \} | \↦ | \♭ | \_ "b" | \♯ | \_ \# | \_ "op" | \_ "id" | \/ | \: \♭ | \: \♯ | \: \ᵒ \ᵖ | \: \_ "id" | \: \_ "b" | \: \_ \# | \: \_ "op" | "1" | \* \₁ | "2" | "0" \₂ | "1" \₂ | \× | \⊤ | \⊥ | \≡ | \≤ | \∧ | \∨ | \→ | \= \_ \{ | \[ | \] | \< | \> | \\ | \$ "extract" \$ | "refl" \_ \{ | \* | \* \_ "1" | "0" \_ "2" | "1" \_ "2" | \= \= \= | \< \= | \/ \\ | \\ \/ | \- \> | \| \- \> | \∑
 
 :-
 
@@ -167,65 +167,69 @@ eitherResIdent tv s = treeFind resWords
 -- | The keywords and symbols of the language organized as binary search tree.
 resWords :: BTree
 resWords =
-  b "\\" 50
-    (b "/\\" 25
-       (b "#unset-option" 13
+  b "U" 53
+    (b "0\8322" 27
+       (b "#variable" 14
           (b "#define" 7
              (b "#compute-nf" 4
                 (b "#check" 2 (b "#assume" 1 N N) (b "#compute" 3 N N))
                 (b "#def" 6 (b "#compute-whnf" 5 N N) N))
-             (b "#postulate" 10
-                (b "#lang" 9 (b "#end" 8 N N) N)
-                (b "#set-option" 12 (b "#section" 11 N N) N)))
-          (b "*" 19
-             (b "$extract$" 16
-                (b "#variables" 15 (b "#variable" 14 N N) N)
-                (b ")" 18 (b "(" 17 N N) N))
-             (b "," 22
-                (b "*\8321" 21 (b "*_1" 20 N N) N) (b "/" 24 (b "->" 23 N N) N))))
-       (b "=" 38
-          (b ":" 32
-             (b "1_2" 29
-                (b "0\8322" 27 (b "0_2" 26 N N) (b "1" 28 N N))
-                (b "2" 31 (b "1\8322" 30 N N) N))
-             (b "<" 35
-                (b ";" 34 (b ":=" 33 N N) N) (b "<|" 37 (b "<=" 36 N N) N)))
-          (b "Sigma" 44
-             (b ">" 41
-                (b "=_{" 40 (b "===" 39 N N) N) (b "CUBE" 43 (b "BOT" 42 N N) N))
-             (b "U" 47
-                (b "TOPE" 46 (b "TOP" 45 N N) N) (b "[" 49 (b "Unit" 48 N N) N)))))
-    (b "uninv_op" 75
-       (b "inv_op" 63
-          (b "as" 57
-             (b "_b" 54
-                (b "]" 52 (b "\\/" 51 N N) (b "_#" 53 N N))
-                (b "_op" 56 (b "_id" 55 N N) N))
-             (b "flip\7506\7510" 60
-                (b "flip_op" 59 (b "first" 58 N N) N)
-                (b "in" 62 (b "idJ" 61 N N) N)))
-          (b "refl" 69
-             (b "mod" 66
-                (b "let" 65 (b "inv\7506\7510" 64 N N) N)
-                (b "recOR" 68 (b "recBOT" 67 N N) N))
-             (b "second" 72
-                (b "rzk-1" 71 (b "refl_{" 70 N N) N)
-                (b "unflip\7506\7510" 74 (b "unflip_op" 73 N N) N))))
-       (b "\7506\7510" 88
-          (b "|>" 82
-             (b "{" 79
-                (b "unit" 77 (b "uninv\7506\7510" 76 N N) (b "uses" 78 N N))
-                (b "|->" 81 (b "|" 80 N N) N))
-             (b "\931" 85
-                (b "\215" 84 (b "}" 83 N N) N)
-                (b "\960\8322" 87 (b "\960\8321" 86 N N) N)))
-          (b "\8801" 94
-             (b "\8721" 91
-                (b "\8614" 90 (b "\8594" 89 N N) N)
-                (b "\8744" 93 (b "\8743" 92 N N) N))
-             (b "\8869" 97
-                (b "\8868" 96 (b "\8804" 95 N N) N)
-                (b "\9839" 99 (b "\9837" 98 N N) N)))))
+             (b "#section" 11
+                (b "#lang" 9 (b "#end" 8 N N) (b "#postulate" 10 N N))
+                (b "#unset-option" 13 (b "#set-option" 12 N N) N)))
+          (b "*\8321" 21
+             (b ")" 18
+                (b "$extract$" 16 (b "#variables" 15 N N) (b "(" 17 N N))
+                (b "*_1" 20 (b "*" 19 N N) N))
+             (b "/" 24
+                (b "->" 23 (b "," 22 N N) N) (b "0_2" 26 (b "/\\" 25 N N) N))))
+       (b ":\9839" 40
+          (b ":_#" 34
+             (b "2" 31
+                (b "1_2" 29 (b "1" 28 N N) (b "1\8322" 30 N N))
+                (b ":=" 33 (b ":" 32 N N) N))
+             (b ":_op" 37
+                (b ":_id" 36 (b ":_b" 35 N N) N)
+                (b ":\9837" 39 (b ":\7506\7510" 38 N N) N)))
+          (b ">" 47
+             (b "=" 44
+                (b "<" 42 (b ";" 41 N N) (b "<=" 43 N N))
+                (b "=_{" 46 (b "===" 45 N N) N))
+             (b "Sigma" 50
+                (b "CUBE" 49 (b "BOT" 48 N N) N)
+                (b "TOPE" 52 (b "TOP" 51 N N) N)))))
+    (b "unflip_op" 79
+       (b "flip\7506\7510" 66
+          (b "_b" 60
+             (b "\\/" 57
+                (b "[" 55 (b "Unit" 54 N N) (b "\\" 56 N N))
+                (b "_#" 59 (b "]" 58 N N) N))
+             (b "as" 63
+                (b "_op" 62 (b "_id" 61 N N) N)
+                (b "flip_op" 65 (b "first" 64 N N) N)))
+          (b "recBOT" 73
+             (b "inv\7506\7510" 70
+                (b "in" 68 (b "idJ" 67 N N) (b "inv_op" 69 N N))
+                (b "mod" 72 (b "let" 71 N N) N))
+             (b "refl_{" 76
+                (b "refl" 75 (b "recOR" 74 N N) N)
+                (b "second" 78 (b "rzk-1" 77 N N) N))))
+       (b "\960\8322" 92
+          (b "|" 86
+             (b "unit" 83
+                (b "uninv_op" 81
+                   (b "unflip\7506\7510" 80 N N) (b "uninv\7506\7510" 82 N N))
+                (b "{" 85 (b "uses" 84 N N) N))
+             (b "\215" 89
+                (b "}" 88 (b "|->" 87 N N) N)
+                (b "\960\8321" 91 (b "\931" 90 N N) N)))
+          (b "\8801" 99
+             (b "\8721" 96
+                (b "\8594" 94 (b "\7506\7510" 93 N N) (b "\8614" 95 N N))
+                (b "\8744" 98 (b "\8743" 97 N N) N))
+             (b "\8869" 102
+                (b "\8868" 101 (b "\8804" 100 N N) N)
+                (b "\9839" 104 (b "\9837" 103 N N) N)))))
   where
   b s n = B bs (TS bs n)
     where

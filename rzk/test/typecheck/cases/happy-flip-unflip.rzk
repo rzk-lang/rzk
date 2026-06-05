@@ -1,22 +1,22 @@
 #lang rzk-1
 
--- Test: <| _op | flip(i) === 0_2 |> is equivalent to (i === 1_2)
+-- Test: _op (flip(i) === 0_2) is equivalent to (i === 1_2)
 -- Verified via propositional equality of topes under _op
 
 #def test-flip-tope-equiv
   (i : 2)
   : let mod _op q := inv_op (i === 1_2) in
     let mod _op fi := flip_op i in
-    <| _op | (q = (fi === 0_2)) |>
+    _op (q = (fi === 0_2))
   := mod _op refl
 
--- Symmetric case: <| _op | flip(i) === 1_2 |> is equivalent to (i === 0_2)
+-- Symmetric case: _op (flip(i) === 1_2) is equivalent to (i === 0_2)
 
 #def test-flip-tope-equiv-sym
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    <| _op | (q = (fi === 1_2)) |>
+    _op (q = (fi === 1_2))
   := mod _op refl
 
 -- flip/unflip with 2: inv roundtrip
@@ -25,5 +25,5 @@
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    <| _op | (q = (fi === 1_2)) |>
+    _op (q = (fi === 1_2))
   := mod _op refl

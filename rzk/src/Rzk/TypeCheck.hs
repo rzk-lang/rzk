@@ -259,8 +259,10 @@ paramToParamDecl (Rzk.ParamPatternType loc pats ty) = pure
   [ Rzk.ParamTermType loc (patternToTerm pat) ty | pat <- pats ]
 paramToParamDecl Rzk.ParamPattern{} = issueTypeError $
   TypeErrorOther "untyped pattern in parameters"
-paramToParamDecl (Rzk.ParamPatternModalType loc pats md ty) = pure
-  [ Rzk.ParamTermModalType loc (patternToTerm pat) md ty | pat <- pats ] 
+paramToParamDecl (Rzk.ParamPatternModalType loc pats mc ty) = pure
+  [ Rzk.ParamTermModalType loc (patternToTerm pat) mc ty | pat <- pats ]
+paramToParamDecl (Rzk.ParamPatternModalShape loc pats mc cube tope) = pure
+  [ Rzk.ParamTermModalShape loc (patternToTerm pat) mc cube tope | pat <- pats ]
 
 addParamDecls :: [Rzk.ParamDecl] -> Rzk.Term -> Rzk.Term
 addParamDecls [] = id
@@ -308,6 +310,13 @@ data TypeErrorInScopedContext var
 
 type TypeError' = TypeError VarIdent
 
+ppModality :: TModality -> String
+ppModality = \case
+  Flat  -> "♭"
+  Sharp -> "♯"
+  Op    -> "ᵒᵖ"
+  Id    -> "_id"
+
 ppTypeError' :: TypeError' -> String
 ppTypeError' = \case
   TypeErrorOther msg -> msg
@@ -334,7 +343,7 @@ ppTypeError' = \case
         _          -> ""
     ]
   TypeErrorNotModal term m ty -> block TopDown
-    [ "expected modal type with <| " ++ show m ++ " | ? |>"
+    [ "expected modal type " <> ppModality m <> " ?"
     , "but got type"
     , "  " <> show (untyped ty)
     , "for term"
@@ -342,15 +351,14 @@ ppTypeError' = \case
     ]
   TypeErrorModalityMismatch expected actual term -> block TopDown
     [ "modality mismatch"
-    , "  expected " <> show expected
-    , "  but got  " <> show actual
+    , "  expected " <> ppModality expected
+    , "  but got  " <> ppModality actual
     , "for term"
     , "  " <> show term
     ]
   TypeErrorUnaccessibleVar _var varMod locks -> block TopDown
-    [ "variable is not accessible"
-    , "  variable has modality " <> show varMod
-    , "  but is used under locks " <> show locks
+    [ "unaccessible var with modality " <> ppModality varMod
+    , "  under locks " <> ppModality locks
     ]
   TypeErrorNotTypeInModal ty -> block TopDown
     [ "expected a type inside modal type"

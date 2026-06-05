@@ -1,11 +1,11 @@
 #lang rzk-1
 
 
-#def b-extract (A : _b U) (x : _b A)
+#def b-extract (A :_b U) (x :_b A)
   : A
   := x
 
-#def ill-b-typed (A B : U) (f : A → <| _b | B |>)
-  : <| _b | A → B |>
+#def ill-b-typed (A B : U) (f : A → _b B)
+  : _b (A → B)
   :=
   mod _b (\ (x : A) → b-extract B (f x))
