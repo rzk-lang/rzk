@@ -1086,13 +1086,6 @@ traceStartAndFinish :: Show a => String -> a -> a
 traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
   (\x -> trace ("finish [" <> tag <> "] with " <> show x) x)
 
-entail :: Eq var => [TermT var] -> TermT var -> Bool
-entail topes tope = all (`solveRHS` tope) $
-  saturateTopes (allTopePoints tope) <$>
-    simplifyLHSwithDisjunctions topes'
-  where
-    topes' = nubTermT (topes <> generateTopesForPoints (allTopePoints tope))
-
 -- | TODO: Unstable hack. If a tope was checked under the current modality
 -- and under the modality in the modal type, it should be derivable in the
 -- current context. Should be fixed with modal annotations on local topes
@@ -1894,16 +1887,22 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     -- distributing inv over that synthetic conjunction loops forever because
     -- the recursive topeInvT renormalizes the same App back into a TopeAnd.
     case t of
-      TopeAndT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeLEQT
-            (modExtractT topeT Id Op (cubeFlipT y))
-            (modExtractT topeT Id Op (cubeFlipT x)))
-      TopeEQT _ x y -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeEQT
-            (modExtractT topeT Id Op (cubeFlipT y))
-            (modExtractT topeT Id Op (cubeFlipT x)))
+      TopeLEQT _ x y -> do
+        xTy <- typeOf x
+        yTy <- typeOf y
+        nfTope $
+          modAppT (typeModalT universeT Op topeT) Op
+            (topeLEQT
+              (modExtractT topeT Id Op (cubeFlipT xTy y))
+              (modExtractT topeT Id Op (cubeFlipT yTy x)))
+      TopeEQT _ x y -> do
+        xTy <- typeOf x
+        yTy <- typeOf y
+        nfTope $
+          modAppT (typeModalT universeT Op topeT) Op
+            (topeEQT
+              (modExtractT topeT Id Op (cubeFlipT xTy y))
+              (modExtractT topeT Id Op (cubeFlipT yTy x)))
       TopeAndT _ phi psi -> nfTope $
         modAppT (typeModalT universeT Op topeT) Op
           (topeAndT

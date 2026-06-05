@@ -32,14 +32,15 @@ HoleIdentToken literals are recognized by the regular expression
 The set of reserved words is the set of terminals appearing in the grammar. Those reserved words that consist of non-letter characters are called symbols, and they are treated in a different way from those that are similar to identifiers. The lexer follows rules familiar from languages like Haskell, C, and Java, including longest match and spacing conventions.
 
 The reserved words used in Syntax are the following:
-  | ``BOT`` | ``CUBE`` | ``Sigma`` | ``TOP``
-  | ``TOPE`` | ``U`` | ``Unit`` | ``as``
-  | ``first`` | ``flip_op`` | ``flipᵒᵖ`` | ``idJ``
-  | ``in`` | ``inv_op`` | ``invᵒᵖ`` | ``let``
-  | ``mod`` | ``recBOT`` | ``recOR`` | ``refl``
-  | ``second`` | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op``
-  | ``uninvᵒᵖ`` | ``unit`` | ``uses`` | ``Σ``
-  | ``π₁`` | ``π₂`` | ``ᵒᵖ`` |
+  | ``BOT`` | ``CUBE`` | ``II`` | ``Sigma``
+  | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
+  | ``as`` | ``first`` | ``flip_op`` | ``flipᵒᵖ``
+  | ``idJ`` | ``in`` | ``inv_op`` | ``invᵒᵖ``
+  | ``let`` | ``mod`` | ``recBOT`` | ``recOR``
+  | ``refl`` | ``second`` | ``unflip_op`` | ``unflipᵒᵖ``
+  | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit`` | ``uses``
+  | ``Σ`` | ``π₁`` | ``π₂`` | ``ᵒᵖ``
+  | ``𝕀`` |  |  |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -53,12 +54,13 @@ The symbols used in Syntax are the following:
   | _id | / | :♭ | :♯
   | :ᵒᵖ | :_id | :_b | :_#
   | :_op | 1 | *₁ | 2
-  | 0₂ | 1₂ | × | ⊤
-  | ⊥ | ≡ | ≤ | ∧
-  | ∨ | → | =_{ | [
-  | ] | < | > | \
-  | $extract$ | refl_{ | * | *_1
-  | 0_2 | 1_2 | === | <=
+  | 0₂ | 1₂ | 0ᵢ | 1ᵢ
+  | × | ⊤ | ⊥ | ≡
+  | ≤ | ∧ | ∨ | →
+  | =_{ | [ | ] | <
+  | > | \ | $extract$ | refl_{
+  | * | *_1 | 0_2 | 1_2
+  | 0_I | 1_I | === | <=
   | /\ | \/ | -> | |->
   | ∑ |  |  |
 
@@ -160,6 +162,9 @@ All other symbols are terminals.
   |  |  **|**  | ``2``
   |  |  **|**  | ``0₂``
   |  |  **|**  | ``1₂``
+  |  |  **|**  | ``𝕀``
+  |  |  **|**  | ``0ᵢ``
+  |  |  **|**  | ``1ᵢ``
   |  |  **|**  | ``⊤``
   |  |  **|**  | ``⊥``
   |  |  **|**  | ``recBOT``
@@ -182,6 +187,9 @@ All other symbols are terminals.
   |  |  **|**  | ``*_1``
   |  |  **|**  | ``0_2``
   |  |  **|**  | ``1_2``
+  |  |  **|**  | ``II``
+  |  |  **|**  | ``0_I``
+  |  |  **|**  | ``1_I``
   |  |  **|**  | ``TOP``
   |  |  **|**  | ``BOT``
   |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
