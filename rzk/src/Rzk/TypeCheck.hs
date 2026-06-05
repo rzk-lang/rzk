@@ -1113,10 +1113,10 @@ entailM topes tope = do
 
 generateFlipAxioms :: TermT var -> [TermT var]
 generateFlipAxioms = \case
-  TopeEQT _ t Cube2_0T{} -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT t)) cube2_1T]
-  TopeEQT _ Cube2_0T{} t -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT t)) cube2_1T]
-  TopeEQT _ t Cube2_1T{} -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT t)) cube2_0T]
-  TopeEQT _ Cube2_1T{} t -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT t)) cube2_0T]
+  TopeEQT _ t Cube2_0T{} -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_1T]
+  TopeEQT _ Cube2_0T{} t -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_1T]
+  TopeEQT _ t Cube2_1T{} -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_0T]
+  TopeEQT _ Cube2_1T{} t -> [topeEQT (modExtractT cube2T Id Op (cubeFlipT cube2T t)) cube2_0T]
   _ -> []
 
 generateInvAxioms :: TermT var -> [TermT var]
@@ -1831,7 +1831,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       CubeUnflipT _ t' -> pure t'     
       Cube2_0T{}       -> pure (modAppT (typeModalT cubeT Op cube2T) Op cube2_1T)  
       Cube2_1T{}       -> pure (modAppT (typeModalT cubeT Op cube2T) Op cube2_0T) 
-      t'               -> pure (cubeFlipT t')
+      t'               -> pure (cubeFlipT cube2T t')
 
   CubeUnflipT ty t ->
     nfTope t >>= \case

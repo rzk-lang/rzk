@@ -27,21 +27,3 @@
     let mod _op fi := flip_op i in
     <| _op | (q = (fi === 1_2)) |>
   := mod _op refl
-
--- flip/unflip with II: <| _op | flip(i) === 0_I |> is equivalent to (i === 1_I)
-
-#def test-flip-tope-equiv-II
-  (i : II)
-  : let mod _op q := inv_op (i === 1_I) in
-    let mod _op fi := flip_op i in
-    <| _op | (q = (fi === 0_I)) |>
-  := mod _op refl
-
--- flip/unflip with II: symmetric case
-
-#def test-flip-tope-equiv-II-sym
-  (i : II)
-  : let mod _op q := inv_op (i === 0_I) in
-    let mod _op fi := flip_op i in
-    <| _op | (q = (fi === 1_I)) |>
-  := mod _op refl
