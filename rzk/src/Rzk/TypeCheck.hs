@@ -1101,7 +1101,7 @@ entailM topes tope = do
   discreteAxioms <- generateTopesForModalCubeVarsM
   invAxioms <- mapM nfTope (concatMap generateInvAxioms topes)
   let sharpAxioms   = concatMap generateSharpAxioms topes
-      unwrapped     = unwrapModalTopes (topes <> invAxioms)
+      unwrapped     = unwrapModalTopes topes
       topes'    = nubTermT (topes <> discreteAxioms <> invAxioms <> sharpAxioms <> unwrapped)
       topes''   = simplifyLHSwithDisjunctions topes'
       topes'''  = saturateTopes (allTopePoints tope) <$> topes''
@@ -1372,6 +1372,8 @@ solveRHSM topes tope =
       <$> solveRHSM topes l
       <*> solveRHSM topes r
     _ | tope `elem` topes -> return True
+    TopeInvT{}   -> nfTope tope >>= solveRHSM topes
+    TopeUninvT{} -> nfTope tope >>= solveRHSM topes
     TopeOrT  _ l r -> do
       l' <- solveRHSM topes l
       r' <- solveRHSM topes r
