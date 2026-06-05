@@ -1372,8 +1372,16 @@ solveRHSM topes tope =
       <$> solveRHSM topes l
       <*> solveRHSM topes r
     _ | tope `elem` topes -> return True
-    TopeInvT{}   -> nfTope tope >>= solveRHSM topes
-    TopeUninvT{} -> nfTope tope >>= solveRHSM topes
+    TopeInvT{} -> do
+      tope' <- nfTope tope
+      case tope' of
+        TopeInvT{} -> return False
+        _          -> solveRHSM topes tope'
+    TopeUninvT{} -> do
+      tope' <- nfTope tope
+      case tope' of
+        TopeUninvT{} -> return False
+        _            -> solveRHSM topes tope'
     TopeOrT  _ l r -> do
       l' <- solveRHSM topes l
       r' <- solveRHSM topes r
