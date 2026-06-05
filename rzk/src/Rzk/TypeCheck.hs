@@ -1191,7 +1191,7 @@ generateTopes :: Eq var => [TermT var] -> [TermT var] -> [TermT var]
 generateTopes newTopes oldTopes
   | topeBottomT `elem` newTopes = []
   | topeEQT cube2_0T cube2_1T `elem` newTopes = [topeBottomT]
-  | topeEQT cubeI_0T cubeI_0T `elem` newTopes = [topeBottomT]
+  | topeEQT cubeI_0T cubeI_1T `elem` newTopes = [topeBottomT]
   | length oldTopes > 100 = []    -- FIXME
   | otherwise = concat
       [  -- symmetry EQ
@@ -1261,7 +1261,15 @@ generateTopes newTopes oldTopes
         -- FIXME: consequence of LEM for LEQ and antisymmetry for LEQ
       , [ topeEQT x y | TopeLEQT _ty x@CubeI_1T{} y <- newTopes ]
 
-
+        -- subtyping 2 <: II: endpoints and order of 2 lift to II
+      , [ topeEQT x cubeI_0T | TopeEQT _ty x Cube2_0T{} <- newTopes ]
+      , [ topeEQT cubeI_0T x | TopeEQT _ty Cube2_0T{} x <- newTopes ]
+      , [ topeEQT x cubeI_1T | TopeEQT _ty x Cube2_1T{} <- newTopes ]
+      , [ topeEQT cubeI_1T x | TopeEQT _ty Cube2_1T{} x <- newTopes ]
+      , [ topeLEQT x cubeI_0T | TopeLEQT _ty x Cube2_0T{} <- newTopes ]
+      , [ topeLEQT cubeI_0T x | TopeLEQT _ty Cube2_0T{} x <- newTopes ]
+      , [ topeLEQT x cubeI_1T | TopeLEQT _ty x Cube2_1T{} <- newTopes ]
+      , [ topeLEQT cubeI_1T x | TopeLEQT _ty Cube2_1T{} x <- newTopes ]
       ]
 
 generateTopesForPointsM :: Eq var => [TermT var] -> TypeCheck var [TermT var]
@@ -2380,7 +2388,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                       TypeFunT _ty' orig' cube' mtope' ret' -> do
                         switchVariance $  -- unifying in the negative position!
                           unifyTerms cube cube' -- FIXME: unifyCubes
-                        enterScope orig' cube $ do
+                        enterScope orig' cube' $ do
                           case ret' of
                             UniverseTopeT{} -> do
                               -- This is the case for tope families (shapes)

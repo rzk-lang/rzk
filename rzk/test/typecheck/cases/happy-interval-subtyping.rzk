@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- 2 is a subtype of II, but NOT the other way around.
+-- Trying to use an II-path where a 2-arrow is expected should fail.
+
+#define arr2
+  (A : U) (x y : A)
+  : U
+  := (t : 2) -> A [ t === 0_2 |-> x , t === 1_2 |-> y ]
+
+#define bad-II-to-2
+  (A : U) (x y : A)
+  (p : (t : II) -> A [ t === 0_I |-> x , t === 1_I |-> y ])
+  : arr2 A x y
+  := p

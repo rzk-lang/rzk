@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+regression_for:
+  - interval-no-subtype-II-to-2
