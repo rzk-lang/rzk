@@ -3097,11 +3097,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (cubeProductT l' r')
 
   CubeFlip t -> do
-    t' <- typecheck t cube2T
-    return $ cubeFlipT cube2T t' 
+    t' <- infer t 
+    typeOf t' >>= \case
+      CubeIT{} -> pure $ cubeFlipT cubeIT t'
+      Cube2T{} -> pure $ cubeFlipT cube2T t'
+      _ -> issueTypeError $ TypeErrorOther "expected interval type: 2 or II"
   CubeUnflip t -> do
-    t' <- typecheck t cube2T
-    return $ cubeUnflipT cube2T t' 
+    t' <- infer t
+    typeOf t' >>= \case
+      CubeIT{} -> pure $ cubeUnflipT cubeIT t'
+      Cube2T{} -> pure $ cubeUnflipT cube2T t'        
+      _ -> issueTypeError $ TypeErrorOther "expected interval type: 2 or II"
   Pair l r -> do
     l' <- infer l
     r' <- infer r
