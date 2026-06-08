@@ -1,6 +1,0 @@
-#lang rzk-1
-
-#def bad-use-under-op (A : U) (x : A)
-  : _op A
-  := mod _op x
-

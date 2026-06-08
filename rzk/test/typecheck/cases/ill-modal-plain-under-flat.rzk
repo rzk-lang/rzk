@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Plain var not accessible under flat
+#def ill-plain-under-flat
+  (A : U) (x : A)
+  : _b A
+  := mod _b x

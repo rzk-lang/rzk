@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Sharp var not accessible at plain level
+#def ill-sharp-at-plain
+  (A :_# U) (x :_# A)
+  : A
+  := x

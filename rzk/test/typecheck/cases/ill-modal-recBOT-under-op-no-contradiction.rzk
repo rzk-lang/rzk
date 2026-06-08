@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- recBOT under op without contradiction: tope not accessible
+#def ill-recBOT-under-op-no-contradiction
+  (A :_op U) (i : 2)
+  : (i : 2 | i === 0_2) -> _op A
+  := \ _ -> mod _op recBOT

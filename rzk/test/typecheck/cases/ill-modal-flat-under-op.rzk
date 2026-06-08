@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Flat var not accessible under op
+#def ill-flat-under-op
+  (A :_b U) (a :_b A)
+  : _op A
+  := mod _op a

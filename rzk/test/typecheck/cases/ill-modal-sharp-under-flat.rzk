@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Sharp var not accessible under flat
+#def ill-sharp-under-flat
+  (A :_# U) (x :_# A)
+  : _b A
+  := mod _b x
