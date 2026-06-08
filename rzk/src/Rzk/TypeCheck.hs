@@ -410,7 +410,7 @@ ppTypeError' = \case
     [ "local context is not included in (does not entail) the tope"
     , "  " <> show (untyped tope)
     , "in local context (normalised)"
-    , intercalate "\n" (map (("  " <>) . show) topes)]
+    , intercalate "\n" (map (("  " <>) . show) topes)] -- FIXME: remove
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
     , "  " <> show (untyped expected)
@@ -711,7 +711,11 @@ instance ModeTheory TModality where
   coe Flat Sharp = True
   coe a b        = a == b
 
-data ModalTope var = ModalTope { tModAccum :: TModality, tModVar :: TModality, tTope :: TermT var } deriving (Functor, Foldable, Eq)
+data ModalTope var = ModalTope
+  { tModAccum :: TModality
+  , tModVar   :: TModality
+  , tTope     :: TermT var
+  } deriving (Functor, Foldable, Eq)
 
 data Context var = Context
   { localScopes            :: [ScopeInfo var]
@@ -742,14 +746,12 @@ applyModalityToTopes :: TModality -> [ModalTope var] -> [ModalTope var]
 applyModalityToTopes md topes = map (\ModalTope{..} -> ModalTope{tModAccum = comp tModAccum md, ..}) topes
 
 applyModality :: TModality -> Context var -> Context var
-applyModality md Context{..} =
-  Context {
-    localScopes = applyModalityToScopes md localScopes,
-    localTopes = applyModalityToTopes md localTopes,
-    localTopesNF = applyModalityToTopes md localTopesNF,
-    localTopesNFUnion = map (applyModalityToTopes md) localTopesNFUnion,
-    ..
-  }
+applyModality md Context{..} = Context
+  { localScopes = applyModalityToScopes md localScopes
+  , localTopes = applyModalityToTopes md localTopes
+  , localTopesNF = applyModalityToTopes md localTopesNF
+  , localTopesNFUnion = map (applyModalityToTopes md) localTopesNFUnion
+  , .. }
 
 emptyTopeContext :: [ModalTope var]
 emptyTopeContext =
