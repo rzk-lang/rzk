@@ -3179,14 +3179,20 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (topeEQT l' r')
 
   TopeLEQ l r -> do
-    l' <- infer l
-    r' <- infer r
-    lTy <- typeOf l' 
-    rTy <- typeOf r' 
+    l' <- inferAs cubeT l
+    r' <- inferAs cubeT r
+    lTy <- typeOf l'
+    rTy <- typeOf r'
     case (lTy, rTy) of
-      (CubeIT{}, CubeIT{}) -> return (topeLEQT l' r')
       (Cube2T{}, Cube2T{}) -> return (topeLEQT l' r')
-      _ -> issueTypeError $ TypeErrorOther "leq arguments must be 2 or I"
+      (CubeIT{}, CubeIT{}) -> return (topeLEQT l' r')
+      (CubeIT{}, Cube2T{}) -> do
+        r'' <- typecheck r cubeIT
+        return (topeLEQT l' r'')
+      (Cube2T{}, CubeIT{}) -> do
+        l'' <- typecheck l cubeIT
+        return (topeLEQT l'' r')
+      _ -> issueTypeError $ TypeErrorOther "leq arguments must be of type 2 or I"
 
   TopeAnd l r -> do
     l' <- typecheck l topeT
