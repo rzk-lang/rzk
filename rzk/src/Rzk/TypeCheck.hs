@@ -3116,17 +3116,23 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return (cubeProductT l' r')
 
   CubeFlip t -> do
-    t' <- infer t 
+    t' <- infer t
     typeOf t' >>= \case
       CubeIT{} -> pure $ cubeFlipT cubeIT t'
       Cube2T{} -> pure $ cubeFlipT cube2T t'
-      _ -> issueTypeError $ TypeErrorOther "expected interval type: 2 or II"
+      ty -> do
+        tyStr <- ppTermInContext ty
+        issueTypeError $ TypeErrorOther $
+          "flip expects an interval cube (2 or 𝕀); got " <> tyStr
   CubeUnflip t -> do
     t' <- infer t
     typeOf t' >>= \case
       CubeIT{} -> pure $ cubeUnflipT cubeIT t'
-      Cube2T{} -> pure $ cubeUnflipT cube2T t'        
-      _ -> issueTypeError $ TypeErrorOther "expected interval type: 2 or II"
+      Cube2T{} -> pure $ cubeUnflipT cube2T t'
+      ty -> do
+        tyStr <- ppTermInContext ty
+        issueTypeError $ TypeErrorOther $
+          "unflip expects an interval cube (2 or 𝕀); got " <> tyStr
   Pair l r -> do
     l' <- infer l
     r' <- infer r
@@ -3192,7 +3198,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
       (Cube2T{}, CubeIT{}) -> do
         l'' <- typecheck l cubeIT
         return (topeLEQT l'' r')
-      _ -> issueTypeError $ TypeErrorOther "leq arguments must be of type 2 or I"
+      _ -> do
+        lStr <- ppTermInContext lTy
+        rStr <- ppTermInContext rTy
+        issueTypeError $ TypeErrorOther $
+          "the (t ≤ s) tope expects points in interval cubes (2 or 𝕀); got "
+            <> lStr <> " and " <> rStr
 
   TopeAnd l r -> do
     l' <- typecheck l topeT
