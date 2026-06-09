@@ -21,9 +21,13 @@ extra-source-files:
     grammar/Syntax.cf
     test/typecheck/SCHEMA.md
     test/typecheck/cases/happy-check.rzk
+    test/typecheck/cases/happy-flip-unflip.rzk
+    test/typecheck/cases/happy-interval-basics.rzk
+    test/typecheck/cases/happy-interval-subtyping.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-inv.rzk
+    test/typecheck/cases/happy-modal-tope-unwrap.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
     test/typecheck/cases/happy-tope-high-dim-cubes.rzk
@@ -37,6 +41,8 @@ extra-source-files:
     test/typecheck/cases/ill-bare-refl-compute.rzk
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-implicit.rzk
+    test/typecheck/cases/ill-interval-no-totality.rzk
+    test/typecheck/cases/ill-interval-subtyping.rzk
     test/typecheck/cases/ill-invalid-arg-type-bot.rzk
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.rzk
     test/typecheck/cases/ill-issue-206-families-of-extension.rzk
@@ -85,9 +91,13 @@ extra-source-files:
     test/typecheck/cases/multimodule-two-ok/lib.rzk
     test/typecheck/cases/multimodule-two-ok/user.rzk
     test/typecheck/cases/happy-check.expect.yaml
+    test/typecheck/cases/happy-flip-unflip.expect.yaml
+    test/typecheck/cases/happy-interval-basics.expect.yaml
+    test/typecheck/cases/happy-interval-subtyping.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-inv.expect.yaml
+    test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
     test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml
@@ -101,6 +111,8 @@ extra-source-files:
     test/typecheck/cases/ill-bare-refl-compute.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-implicit.expect.yaml
+    test/typecheck/cases/ill-interval-no-totality.expect.yaml
+    test/typecheck/cases/ill-interval-subtyping.expect.yaml
     test/typecheck/cases/ill-invalid-arg-type-bot.expect.yaml
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.expect.yaml
     test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
