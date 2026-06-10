@@ -1345,7 +1345,7 @@ simplifyLHSwithDisjunctions topes = map nubTermT $
   case topes of
     [] -> [[]]
     (ModalTope _ _ TopeTopT{}) : topes' -> simplifyLHSwithDisjunctions topes'
-    (ModalTope _ _ TopeBottomT{}) : _  -> [[plainTope topeBottomT]]
+    (ModalTope mAcc mVar TopeBottomT{}) : _  -> [[ModalTope mAcc mVar topeBottomT]]
     (ModalTope mAcc mVar (TopeAndT _ l r)) : topes' -> simplifyLHSwithDisjunctions ((ModalTope mAcc mVar l) : (ModalTope mAcc mVar r) : topes')
 
     -- NOTE: it is inefficient to expand disjunctions immediately
