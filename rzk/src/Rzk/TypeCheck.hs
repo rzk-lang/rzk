@@ -1381,10 +1381,11 @@ solveRHSM modalTopes goal =
   in case goal of
     _ | topeBottomT `elem` topes -> return True
     TopeTopT{}     -> return True
-    TypeModalT _ty md inTope ->
+    TypeModalT _ty md inTope -> do
       let shifted = applyModalityToTopes md modalTopes
           resaturated = saturateTopes [] shifted
-      in solveRHSM resaturated inTope
+      resaturatedInv <- saturateInv resaturated
+      solveRHSM resaturatedInv inTope
     TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y') ->
       solveRHSM modalTopes $ topeAndT
         (topeEQT x x')
