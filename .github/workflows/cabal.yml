@@ -1,0 +1,93 @@
+name: Cabal (Hackage drift check)
+
+# Verifies that `cabal update && cabal build` against the live Hackage index
+# still works. This is the lane that would have caught issue #220 (lsp-2.8
+# breaking the build) before a user reported it. The Stack lane shields itself
+# with a pinned resolver, so it cannot.
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/cabal.yml
+      - cabal.project
+      - rzk/**
+  pull_request:
+    branches: [develop]
+    paths:
+      - .github/workflows/cabal.yml
+      - cabal.project
+      - rzk/**
+  schedule:
+    # Mondays 06:00 UTC — catches Hackage releases that land between PRs.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cabal:
+    name: "cabal ${{ matrix.bounds }} (GHC ${{ matrix.ghc }})"
+    runs-on: ubuntu-latest
+    # Advisory: do not block PRs when a transitive dep ships a breaking release.
+    # A failure here is a signal to bump bounds, not a reason to stall unrelated work.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Newest: catches upstream breakage like lsp-2.8 (#220).
+          - ghc: "9.10.3"
+            bounds: "newest"
+            constraint-flag: ""
+          # Oldest: catches drift in the lower bounds declared in rzk.cabal.
+          - ghc: "9.10.3"
+            bounds: "oldest"
+            constraint-flag: "--prefer-oldest"
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Set up GHC ${{ matrix.ghc }}
+        uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-update: true
+
+      - name: 🔧 Configure the build
+        run: |
+          cabal configure ${{ matrix.constraint-flag }} \
+            --enable-tests --enable-benchmarks \
+            --disable-documentation
+          cabal build rzk ${{ matrix.constraint-flag }} --dry-run
+
+      - name: 💾 Restore cached dependencies
+        uses: actions/cache/restore@v4
+        id: cache
+        env:
+          key: cabal-${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-${{ matrix.bounds }}
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
+          restore-keys: ${{ env.key }}-
+
+      - name: 🔨 Build dependencies
+        run: cabal build rzk ${{ matrix.constraint-flag }} --only-dependencies
+
+      - name: 💾 Save cached dependencies
+        uses: actions/cache/save@v4
+        # Only write the cache when we actually fetched something new; avoids
+        # racing concurrent jobs on the same key.
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: 🔨 Build rzk
+        run: cabal build rzk ${{ matrix.constraint-flag }}
+
+      - name: 🧪 Test rzk
+        run: cabal test rzk ${{ matrix.constraint-flag }} --test-show-details=direct
