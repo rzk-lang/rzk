@@ -1,6 +1,6 @@
-cabal-version: 1.24
+cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.39.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -203,16 +203,17 @@ library
       Rzk.TypeCheck
   other-modules:
       Paths_rzk
+  autogen-modules:
+      Paths_rzk
   hs-source-dirs:
       src
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
-  build-tools:
-      alex >=3.2.4
-    , happy >=1.19.9
   build-tool-depends:
       BNFC:bnfc >=2.9.6.2
+    , alex:alex >=3.2.4
+    , happy:happy >=1.19.9
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -250,16 +251,17 @@ executable rzk
   main-is: Main.hs
   other-modules:
       Paths_rzk
+  autogen-modules:
+      Paths_rzk
   hs-source-dirs:
       app
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
-  build-tools:
-      alex >=3.2.4
-    , happy >=1.19.9
   build-tool-depends:
       BNFC:bnfc >=2.9.6.2
+    , alex:alex >=3.2.4
+    , happy:happy >=1.19.9
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -288,11 +290,10 @@ test-suite doctests
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
-  build-tools:
-      alex >=3.2.4
-    , happy >=1.19.9
   build-tool-depends:
       BNFC:bnfc >=2.9.6.2
+    , alex:alex >=3.2.4
+    , happy:happy >=1.19.9
   build-depends:
       Glob >=0.9.3
     , QuickCheck >=2.14
@@ -301,8 +302,9 @@ test-suite doctests
     , bifunctors >=5.5.3
     , bytestring >=0.10.8.2
     , directory >=1.2.7.0
-    , doctest >=0.21.0
+    , doctest-parallel >=0.3
     , mtl >=2.2.2
+    , rzk
     , template-haskell >=2.14.0.0
     , text >=1.2.3.1
     , yaml >=0.11.0.0
@@ -317,16 +319,17 @@ test-suite rzk-test
       Rzk.FormatSpec
       Rzk.TypeCheckSpec
       Paths_rzk
+  autogen-modules:
+      Paths_rzk
   hs-source-dirs:
       test
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
-  build-tools:
-      alex >=3.2.4
-    , happy >=1.19.9
   build-tool-depends:
       BNFC:bnfc >=2.9.6.2
+    , alex:alex >=3.2.4
+    , happy:happy >=1.19.9
     , hspec-discover:hspec-discover
   build-depends:
       Glob >=0.9.3

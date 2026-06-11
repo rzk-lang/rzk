@@ -1,1 +1,6 @@
 packages: rzk rzk-js
+
+-- Required by doctest-parallel: it spawns GHCi to test examples, and needs
+-- cabal to emit a package environment file so the spawned GHCi sees the
+-- project library (rzk) and its dependencies.
+write-ghc-environment-files: always

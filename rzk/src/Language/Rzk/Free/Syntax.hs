@@ -586,6 +586,10 @@ defaultVarIdents =
   where
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+-- >>> import qualified Data.Text as T
+
 -- | Given a list of used variable names in the current context,
 -- generate a unique fresh name based on a given one.
 --

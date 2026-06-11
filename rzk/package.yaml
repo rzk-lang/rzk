@@ -78,6 +78,8 @@ default-extensions:
 
 library:
   source-dirs: src
+  generated-other-modules:
+    - Paths_rzk
   when:
     - condition: false
       other-modules:
@@ -143,7 +145,8 @@ tests:
     other-modules: []
     dependencies:
       base: ">= 4.11.0.0 && < 5.0"
-      doctest: ">= 0.21.0"
+      doctest-parallel: ">= 0.3"
+      rzk:
       Glob: ">= 0.9.3"
       QuickCheck: ">= 2.14"
       template-haskell: ">= 2.14.0.0"

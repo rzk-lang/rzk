@@ -89,5 +89,13 @@ jobs:
       - name: 🔨 Build rzk
         run: cabal build rzk ${{ matrix.constraint-flag }}
 
-      - name: 🧪 Test rzk
-        run: cabal test rzk ${{ matrix.constraint-flag }} --test-show-details=direct
+      - name: 🧪 Test rzk (hspec)
+        run: cabal test rzk:rzk-test ${{ matrix.constraint-flag }} --test-show-details=direct
+
+      - name: 🧪 Test rzk (doctests)
+        # doctest-parallel spawns GHCi and needs the cabal-generated package
+        # environment file to stay on disk while the test runs. `cabal test`
+        # tears it down too early (doctest-parallel issue #22), so we invoke
+        # the doctest binary directly via `cabal run` — which preserves the env
+        # file and gives GHCi access to the rzk-0.8.0-inplace package.
+        run: cabal run rzk:doctests ${{ matrix.constraint-flag }}
