@@ -176,9 +176,9 @@ source-repository head
 
 custom-setup
   setup-depends:
-      Cabal >=2.4.0.1 && <4.0
-    , base >=4.11.0.0 && <5.0
-    , process >=1.6.3.0
+      Cabal >=3.10.1.0 && <4.0
+    , base >=4.18.0.0 && <5.0
+    , process >=1.6.17.0
 
 flag lsp
   description: Build with LSP support (only available with GHC, not GHCJS).
@@ -215,16 +215,16 @@ library
     , alex:alex >=3.2.4
     , happy:happy >=1.19.9
   build-depends:
-      Glob >=0.9.3
-    , array >=0.5.3.0
-    , base >=4.7 && <5
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
-    , mtl >=2.2.2
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml >=0.11.0.0
+      Glob >=0.10.1
+    , array >=0.5.5.0
+    , base >=4.18.0.0 && <5
+    , bifunctors >=5.6.1
+    , bytestring >=0.11.5.0
+    , directory >=1.3.8.0
+    , mtl >=2.3.1
+    , template-haskell >=2.20.0.0
+    , text >=2.0.2
+    , yaml >=0.11.11.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
@@ -237,15 +237,15 @@ library
         Language.Rzk.VSCode.Lsp
         Language.Rzk.VSCode.Tokenize
     build-depends:
-        aeson >=1.4.2.0
+        aeson >=2.0.0.0
       , co-log-core >=0.3.2.0
       , data-default-class >=0.1.2.0
-      , filepath >=1.4.2.1
-      , lens >=4.17
-      , lsp >=2.2.0.0
-      , lsp-types >=2.0.2.0
+      , filepath >=1.4.100.0
+      , lens >=5.0.1
+      , lsp >=2.4.0.0
+      , lsp-types >=2.1.1.0
       , mtl >=2.3.1
-      , stm >=2.5.0.0
+      , stm >=2.5.1.0
 
 executable rzk
   main-is: Main.hs
@@ -263,24 +263,24 @@ executable rzk
     , alex:alex >=3.2.4
     , happy:happy >=1.19.9
   build-depends:
-      Glob >=0.9.3
-    , array >=0.5.3.0
-    , base >=4.7 && <5
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
-    , mtl >=2.2.2
+      Glob >=0.10.1
+    , array >=0.5.5.0
+    , base >=4.18.0.0 && <5
+    , bifunctors >=5.6.1
+    , bytestring >=0.11.5.0
+    , directory >=1.3.8.0
+    , mtl >=2.3.1
     , rzk
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , template-haskell >=2.20.0.0
+    , text >=2.0.2
+    , yaml >=0.11.11.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
   if !impl(ghcjs)
     build-depends:
-        optparse-generic >=1.4.0
-      , with-utf8 >=1.0.2.4
+        optparse-generic >=1.4.7
+      , with-utf8 >=1.0.3.0
 
 test-suite doctests
   type: exitcode-stdio-1.0
@@ -295,19 +295,19 @@ test-suite doctests
     , alex:alex >=3.2.4
     , happy:happy >=1.19.9
   build-depends:
-      Glob >=0.9.3
-    , QuickCheck >=2.14
-    , array >=0.5.3.0
-    , base >=4.11.0.0 && <5.0
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
+      Glob >=0.10.1
+    , QuickCheck >=2.14.3
+    , array >=0.5.5.0
+    , base >=4.18.0.0 && <5.0
+    , bifunctors >=5.6.1
+    , bytestring >=0.11.5.0
+    , directory >=1.3.8.0
     , doctest-parallel >=0.3
-    , mtl >=2.2.2
+    , mtl >=2.3.1
     , rzk
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , template-haskell >=2.20.0.0
+    , text >=2.0.2
+    , yaml >=0.11.11.0
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
@@ -332,20 +332,20 @@ test-suite rzk-test
     , happy:happy >=1.19.9
     , hspec-discover:hspec-discover
   build-depends:
-      Glob >=0.9.3
+      Glob >=0.10.1
     , aeson
-    , array >=0.5.3.0
-    , base >=4.7 && <5
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
+    , array >=0.5.5.0
+    , base >=4.18.0.0 && <5
+    , bifunctors >=5.6.1
+    , bytestring >=0.11.5.0
+    , directory >=1.3.8.0
     , filepath
     , hspec
     , hspec-discover
-    , mtl >=2.2.2
+    , mtl >=2.3.1
     , rzk
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
+    , template-haskell >=2.20.0.0
+    , text >=2.0.2
     , yaml
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
