@@ -42,7 +42,12 @@ jobs:
             bounds: "newest"
             constraint-flag: ""
           # Oldest: catches drift in the lower bounds declared in rzk.cabal.
-          - ghc: "9.10.3"
+          # Pinned to GHC 9.6.3 (the version the Nix flake pins) because that's
+          # the project's de facto minimum — base-4.18 is wide enough for the
+          # oldest-allowed versions of our deps (e.g. with-utf8 1.0.2.4 caps
+          # base < 4.19). Newer GHCs ship a base that no published `--prefer-
+          # oldest` plan can satisfy.
+          - ghc: "9.6.3"
             bounds: "oldest"
             constraint-flag: "--prefer-oldest"
 
