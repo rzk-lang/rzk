@@ -48,7 +48,7 @@ import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
 import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
                                                 parseModuleFile,
                                                 parseModuleSafe, printTree)
-import           Language.Rzk.VSCode.Config    (ServerConfig (ServerConfig, formatEnabled))
+import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
@@ -282,7 +282,7 @@ formatDocument :: Handler LSP 'Method_TextDocumentFormatting
 formatDocument req res = do
   let doc = req ^. params . textDocument . uri . to toNormalizedUri
   logInfo $ "Formatting document: " <> T.pack (show doc)
-  ServerConfig {formatEnabled = fmtEnabled} <- getConfig
+  RzkConfig.ServerConfig {RzkConfig.formatEnabled = fmtEnabled} <- getConfig
   if fmtEnabled then do
     mdoc <- getVirtualFile doc
     possibleEdits <- case virtualFileText <$> mdoc of

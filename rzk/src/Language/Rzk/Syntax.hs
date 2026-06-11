@@ -65,6 +65,10 @@ tryExtractMarkdownCodeBlocks alias input
 
 data LineType = NonCode | CodeOf T.Text
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+-- >>> import qualified Data.Text as T
+
 -- | Extract code for a given alias (e.g. "rzk" or "haskell") from a Markdown file
 -- by replacing any lines that do not belong to the code in that language with blank lines.
 -- This way the line numbers are preserved correctly from the original file.

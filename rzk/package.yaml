@@ -44,10 +44,14 @@ custom-setup:
     process: ">= 1.6.3.0"
 
 build-tools:
-  alex: ">= 3.2.4"
-  happy: ">= 1.19.9"
+  alex:alex: ">= 3.2.4"
+  happy:happy: ">= 1.19.9"
   BNFC:bnfc: ">= 2.9.6.2"
 
+# Lower bounds here are loose so the package builds under the GHCJS path
+# (miso's pinned Nixpkgs ships an older Haskell package set). The
+# GHC-9.6.3-coherent floors live in cabal.project's `constraints:` block,
+# which is read by cabal but not by cabal2nix → Nix.
 dependencies:
   array: ">= 0.5.3.0"
   base: ">= 4.7 && < 5"
@@ -78,6 +82,8 @@ default-extensions:
 
 library:
   source-dirs: src
+  generated-other-modules:
+    - Paths_rzk
   when:
     - condition: false
       other-modules:
@@ -93,15 +99,15 @@ library:
         - Language.Rzk.VSCode.Lsp
         - Language.Rzk.VSCode.Tokenize
       dependencies:
-        aeson: ">= 1.4.2.0"
+        aeson: ">= 2.0.0.0"
         co-log-core: ">= 0.3.2.0"
         data-default-class: ">= 0.1.2.0"
-        filepath: ">= 1.4.2.1"
-        lens: ">= 4.17"
-        lsp: ">= 2.2.0.0"
-        lsp-types: ">= 2.0.2.0"
+        filepath: ">= 1.4.100.0"
+        lens: ">= 5.0.1"
+        lsp: ">= 2.4.0.0"
+        lsp-types: ">= 2.1.1.0"
         mtl: ">= 2.3.1"
-        stm: ">= 2.5.0.0"
+        stm: ">= 2.5.1.0"
 
 executables:
   rzk:
@@ -116,8 +122,8 @@ executables:
     when:
       - condition: "!impl(ghcjs)"
         dependencies:
-          with-utf8: ">= 1.0.2.4"
-          optparse-generic: ">= 1.4.0"
+          with-utf8: ">= 1.0.3.0"
+          optparse-generic: ">= 1.4.7"
 
 tests:
   rzk-test:
@@ -127,6 +133,8 @@ tests:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+    build-tools:
+      hspec-discover:hspec-discover: ">= 0"
     dependencies:
       - aeson
       - filepath
@@ -141,7 +149,8 @@ tests:
     other-modules: []
     dependencies:
       base: ">= 4.11.0.0 && < 5.0"
-      doctest: ">= 0.21.0"
+      doctest-parallel: ">= 0.3"
+      rzk:
       Glob: ">= 0.9.3"
       QuickCheck: ">= 2.14"
       template-haskell: ">= 2.14.0.0"

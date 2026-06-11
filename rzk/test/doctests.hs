@@ -1,7 +1,5 @@
--- doctests/Main.hs
+import           System.Environment (getArgs)
+import           Test.DocTest       (mainFromCabal)
 
-import           Test.DocTest
-
--- This test suite exists only to add dependencies
 main :: IO ()
-main = doctest ["src"]
+main = mainFromCabal "rzk" =<< getArgs

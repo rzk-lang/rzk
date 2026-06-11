@@ -1,1 +1,51 @@
 packages: rzk rzk-js
+
+-- Required by doctest-parallel: it spawns GHCi to test examples, and needs
+-- cabal to emit a package environment file so the spawned GHCi sees the
+-- project library (rzk) and its dependencies.
+write-ghc-environment-files: always
+
+-- Floors that the cabal solver respects but cabal2nix does not — keeping
+-- them here (rather than in package.yaml) means the GHCJS Nix build path,
+-- which reads only the .cabal file via cabal2nix and uses miso's older
+-- pinned Haskell package set, isn't asked to satisfy GHC-9.6.3-era bounds.
+--
+-- The first group are bumps to direct deps that align with GHC-9.6.3 / the
+-- aeson-2 era. The second group floors transitive deps so `cabal build
+-- --prefer-oldest` (CI's lower-bounds-drift guard) doesn't reach for pre-
+-- base-4 versions of GHC-era libraries. Bump only when a new oldest-lane
+-- failure points at another stale transitive.
+constraints:
+    array >= 0.5.5.0
+  , base >= 4.18.0.0
+  , bifunctors >= 5.6.1
+  , bytestring >= 0.11.5.0
+  , directory >= 1.3.8.0
+  , Glob >= 0.10.1
+  , mtl >= 2.3.1
+  , template-haskell >= 2.20.0.0
+  , text >= 2.0.2
+  , yaml >= 0.11.11.0
+  , Cabal >= 3.10.1.0
+  , QuickCheck >= 2.14.3
+  , process >= 1.6.17.0
+  , monad-control >= 1.0.3.1
+  , safe-exceptions >= 0.1.7.4
+  , transformers-base >= 0.4.6
+  , shelly >= 1.12.1
+  , unix >= 2.8.1.0
+  , unix-compat >= 0.7
+  , th-env >= 0.1.1
+  , hashable >= 1.4.0.0
+  , ansi-terminal >= 0.11
+  , optparse-applicative >= 0.17
+  , ansi-wl-pprint >= 0.6.9
+  , tasty >= 1.4.3
+  , tagged >= 0.8
+  , smallcheck >= 1.2.1.1
+  , logict >= 0.8
+  , regex >= 1.1.0.0
+  , regex-tdfa >= 1.3.2
+  , void >= 0.7.3
+  , data-default-instances-base >= 0.2.0
+  , data-default >= 0.7.1.1
