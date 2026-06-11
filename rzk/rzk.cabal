@@ -1,6 +1,6 @@
 cabal-version: 1.24
 
--- This file has been generated from package.yaml by hpack version 0.39.1.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -27,6 +27,9 @@ extra-source-files:
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-inv.rzk
+    test/typecheck/cases/happy-modal-op-bot-entails-bot.rzk
+    test/typecheck/cases/happy-modal-op-top-collapses.rzk
+    test/typecheck/cases/happy-modal-sharp-bot-entails-bot.rzk
     test/typecheck/cases/happy-modal-tope-unwrap.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
@@ -97,6 +100,9 @@ extra-source-files:
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-inv.expect.yaml
+    test/typecheck/cases/happy-modal-op-bot-entails-bot.expect.yaml
+    test/typecheck/cases/happy-modal-op-top-collapses.expect.yaml
+    test/typecheck/cases/happy-modal-sharp-bot-entails-bot.expect.yaml
     test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
@@ -321,6 +327,7 @@ test-suite rzk-test
     , happy >=1.19.9
   build-tool-depends:
       BNFC:bnfc >=2.9.6.2
+    , hspec-discover:hspec-discover
   build-depends:
       Glob >=0.9.3
     , aeson

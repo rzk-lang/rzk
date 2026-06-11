@@ -127,6 +127,8 @@ tests:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+    build-tools:
+      hspec-discover:hspec-discover: ">= 0"
     dependencies:
       - aeson
       - filepath
