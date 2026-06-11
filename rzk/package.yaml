@@ -44,8 +44,8 @@ custom-setup:
     process: ">= 1.6.3.0"
 
 build-tools:
-  alex: ">= 3.2.4"
-  happy: ">= 1.19.9"
+  alex:alex: ">= 3.2.4"
+  happy:happy: ">= 1.19.9"
   BNFC:bnfc: ">= 2.9.6.2"
 
 dependencies:
