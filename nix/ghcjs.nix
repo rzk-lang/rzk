@@ -14,7 +14,12 @@ let
         hpack = pkgs.hpack;
         rzk = (
           (pkgsMiso.haskell.lib.overrideCabal
-            (prev.callCabal2nix rzk rzk-src { })
+            # doctest-parallel is a test-only dependency and the GHCJS Haskell
+            # package set does not expose it. doCheck = false in mkDerivation
+            # above ensures the test-suite is never built, so the null is never
+            # dereferenced — but cabal2nix still requires every cabal-listed
+            # dependency to be passed as a function argument.
+            (prev.callCabal2nix rzk rzk-src { doctest-parallel = null; })
             (x: {
               isLibrary = true;
               isExecutable = false;
@@ -41,7 +46,7 @@ let
     overrides = final: prev: {
       integer-gmp = final.integer-gmp_1_1;
       rzk = overrideCabal
-        (final.callCabal2nix rzk rzk-src { })
+        (final.callCabal2nix rzk rzk-src { doctest-parallel = null; })
         (x: {
           isLibrary = true;
           isExecutable = false;
