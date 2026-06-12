@@ -722,7 +722,7 @@ data Context var = Context
   , localTopes             :: [ModalTope var]
   , localTopesNF           :: [ModalTope var]
   , localTopesNFUnion      :: [[ModalTope var]]
-  , localTopesEntailBottom :: Bool
+  , localTopesEntailBottom :: Maybe Bool
   , actionStack            :: [Action var]
   , currentCommand         :: Maybe Rzk.Command
   , location               :: Maybe LocationInfo
@@ -767,7 +767,7 @@ emptyContext = Context
   , localTopes = emptyTopeContext
   , localTopesNF = emptyTopeContext
   , localTopesNFUnion = [emptyTopeContext]
-  , localTopesEntailBottom = False
+  , localTopesEntailBottom = Just False
   , actionStack = []
   , currentCommand = Nothing
   , location = Nothing
@@ -1150,8 +1150,7 @@ generateTopesForModalCubeVarsM :: Eq var => TypeCheck var [ModalTope var]
 generateTopesForModalCubeVarsM = do
   infos <- asks varInfos
   fmap (nubTermT . concat) $ forM infos $ \(var, info) -> do
-    ty' <- whnfT (varType info)
-    case ty' of
+    whnfT (varType info) >>= \case
       TypeModalT _ Flat inner -> do
         whnfT inner >>= \case
           Cube2T{} -> do
@@ -1186,10 +1185,14 @@ saturateTopes _points topes =
 
 saturateInv :: Eq var => [ModalTope var] -> TypeCheck var [ModalTope var]
 saturateInv modalTopes = do
+    -- FIXME: this is a workaround; ideally we should regenerate all topes
+    -- on EVERY modality change in any layer, but that would produce too many;
+    -- for now we also invert topes that were accessible before the modality shift
     let accessible = filterAccessible modalTopes
-    invResults <- forM accessible $ \mt -> do
+        accessibleById = filter (\mt -> coe (tModVar mt) Id) modalTopes
+    invResults <- forM (nubTermT (accessible <> accessibleById)) $ \mt -> do
       nf <- nfTope $ modExtractT topeT Id Op (topeInvT (tTope mt))
-      return $ ModalTope Id Op nf
+      return $ ModalTope (tModAccum mt) Op nf
     let accessibleUnderOp = filter (\mt -> coe (tModVar mt) (comp (tModAccum mt) Op)) modalTopes
     uninvResults <- forM accessibleUnderOp $ \(ModalTope acc var' phi) -> do
       nf <- nfTope $ topeUninvT (modAppT topeT Op phi)
@@ -1581,11 +1584,10 @@ enterScopeWithBind orig md ty val action = do
     runReaderT action newContext
 
 enterModality :: Eq var => TModality -> TypeCheck var b -> TypeCheck var b
+enterModality Id action = action
 enterModality md action = do
   newContext <- asks (applyModality md)
-  let newTopes = localTopesNF newContext
-  entailsBottom <- newTopes `entailM` topeBottomT
-  let newContext' = newContext { localTopesEntailBottom = entailsBottom }
+  let newContext' = newContext { localTopesEntailBottom = Nothing }
   lift $ runReaderT action newContext'
 
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
@@ -1747,6 +1749,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   TypeFunT{} -> pure tt
   TypeSigmaT{} -> pure tt
   TypeIdT{} -> pure tt
+  TypeModalT{} -> pure tt
   RecBottomT{} -> pure tt
   TypeUnitT{} -> pure tt
   UnitT{} -> pure tt
@@ -1770,11 +1773,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
       -- now we are in the type layer
       _ -> fmap termIsWHNF $ do
-        -- check if we are in the empty context
-        inBottom <- asks localTopesEntailBottom
-        if inBottom
-           then pure recBottomT -- if so, reduce to recBOT
-           else tryRestriction typeOf_tt >>= \case
+        tryRestriction typeOf_tt >>= \case
             Just tt' -> whnfT tt'
             Nothing -> case tt of
               t@(Pure var) ->
@@ -1806,8 +1805,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
               LetT _ty _orig _mparam val body ->
                 whnfT (substituteT val body)
               LetModT _ty _orig app inn _mparam val body -> do
-                val' <- whnfT val >>= \case
-                  ModAppT _ md t | md == inn -> whnfT t
+                val' <- (enterModality app $ whnfT val) >>= \case
+                  ModAppT _ md t | md == inn -> enterModality md $ whnfT t
                   b' -> do
                     bty <- typeOf b' >>= \case
                       TypeModalT _ _ t -> pure t
@@ -1823,16 +1822,13 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                 whnfT t >>= \case
                   PairT _ _l r -> whnfT r
                   t'           -> pure (SecondT ty t')
-              TypeModalT ty md b -> do
-                b' <- whnfT b
-                pure (TypeModalT ty md b')
               ModAppT ty md b -> do
-                whnfT b >>= \case
-                  ModExtractT _ _ inn t | inn == md -> whnfT t
+                (enterModality md $ whnfT b) >>= \case
+                  ModExtractT _ app inn t | inn == md -> enterModality (comp md app) $ whnfT t
                   b' -> pure $ ModAppT ty md b'
               ModExtractT ty app inn b -> do
-                whnfT b >>= \case
-                  ModAppT _ md t | inn == md -> whnfT t
+                (enterModality app $ whnfT b) >>= \case
+                  ModAppT _ md t | inn == md -> enterModality inn $ whnfT t
                   b' -> pure (ModExtractT ty app inn b')
               IdJT ty tA a tC d x p ->
                 whnfT p >>= \case
@@ -2065,15 +2061,15 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
         LambdaT ty orig (Just (param, mtope)) <$> enterScope orig param (nfTope body)
   LambdaT{} -> panicImpossible "lambda with a non-function type in the tope layer"
   ModAppT ty md b ->
-    nfTope b >>= \case
+    (enterModality md $ nfTope b) >>= \case
       ModExtractT _ _ inn t | inn == md -> pure t
       b' -> pure $ ModAppT ty md b'
   ModExtractT ty app inn b ->
-    nfTope b >>= \case
+    (enterModality app $ nfTope b) >>= \case
       ModAppT _ md t | inn == md -> pure t
       b' -> pure $ ModExtractT ty app inn b'
   LetModT _ty _orig app inn _mparam val body -> do
-    val' <- nfTope val >>= \case
+    val' <- (enterModality app $ nfTope val) >>= \case
       ModAppT _ md t | md == inn -> return t
       b' -> do
         ty <- typeOf b' >>= \case
@@ -2082,7 +2078,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
         pure (modExtractT ty app inn b')
     nfTope (substituteT val' body)
 
-  TypeModalT ty md inner -> TypeModalT ty md <$> nfTope inner
+  TypeModalT ty md inner -> TypeModalT ty md <$> (enterModality md $ nfTope inner)
   LetT _ty _orig _mparam val body -> nfTope (substituteT val body)
   TypeFunT{} -> panicImpossible "exposed function type in the tope layer"
   TypeSigmaT{} -> panicImpossible "dependent sum type in the tope layer"
@@ -2143,11 +2139,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
 
   -- now we are in the type layer
   _ -> do
-    -- check if we are in the empty context
-    inBottom <- asks localTopesEntailBottom
-    if inBottom
-       then pure recBottomT -- if so, reduce to recBOT
-       else typeOf tt >>= tryRestriction >>= \case
+    typeOf tt >>= tryRestriction >>= \case
         Just tt' -> nfT tt'
         Nothing -> case tt of
           t@(Pure var) ->
@@ -2174,8 +2166,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
           LetT _ty _orig _mparam val body ->
             nfT (substituteT val body)
           LetModT _ty _orig app inn _mparam val body -> do
-            val' <- whnfT val >>= \case
-              ModAppT _ md t | md == inn -> nfT t
+            val' <- (enterModality app $ whnfT val) >>= \case
+              ModAppT _ md t | md == inn -> enterModality md $ nfT t
               b' -> do
                 bty <- typeOf b' >>= \case
                   TypeModalT _ _ t -> pure t
@@ -2225,16 +2217,16 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 | [tt'] <- nubTermT (map snd rs) -> nfT tt'
                 | otherwise -> pure tt
           TypeModalT ty md b -> do
-            b' <- nfT b
+            b' <- enterModality md $ nfT b
             pure (TypeModalT ty md b')
           ModAppT ty md b -> do
-            whnfT b >>= \case
-              ModExtractT _ _ inn t | inn == md -> nfT t
-              b' -> ModAppT ty md <$> nfT b'
+            (enterModality md $ whnfT b) >>= \case
+              ModExtractT _ app inn t | inn == md -> enterModality (comp inn app) $ nfT t
+              b' -> ModAppT ty md <$> (enterModality md $ nfT b')
           ModExtractT ty app inn b -> do
-            whnfT b >>= \case
-              ModAppT _ md t | inn == md -> nfT t
-              b' -> ModExtractT ty app inn <$> nfT b'
+            (enterModality app $ whnfT b) >>= \case
+              ModAppT _ md t | inn == md -> enterModality (comp inn app) $ nfT t
+              b' -> ModExtractT ty app inn <$> (enterModality app $ nfT b') 
           TypeRestrictedT ty type_ rs -> do
             rs' <- forM rs $ \(tope, term) -> do
               nfTope tope >>= \case
@@ -2322,253 +2314,257 @@ unifyViaDecompose (AppT _ f x) (AppT _ g y) = do
 unifyViaDecompose _ _ = issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
-unifyInCurrentContext mterm expected actual = performing action $
-  unifyViaDecompose expected actual `catchError` \_ -> do      -- NOTE: this gives a small, but noticeable speedup
-    expectedVal <- whnfT expected
-    actualVal <- whnfT actual
-    mea <- asks covariance >>= \case
-      Covariant     -> Just <$> etaMatch mterm expectedVal actualVal
-      Contravariant -> Just . swap <$> etaMatch mterm actualVal expectedVal
-      Invariant     -> traceTypeCheck Debug "invariant" $ do
-        -- FIXME: inefficient
-        traceTypeCheck Debug "invariant->covariant" $
-          setVariance Covariant     $ unifyInCurrentContext mterm expectedVal actualVal
-        traceTypeCheck Debug "invariant->contravariant" $
-          setVariance Contravariant $ unifyInCurrentContext mterm expectedVal actualVal
-        return Nothing
-    case mea of
-      Nothing -> return ()
-      Just (expected', actual') ->
-        unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
-          case actual' of
-            RecBottomT{} -> return ()
-            RecOrT _ty rs' ->
-              case expected' of
-                RecOrT _ty rs -> sequence_ $
-                  checkCoherence <$> rs <*> rs'
-                _ -> do
-                  forM_ rs' $ \(tope, term) ->
-                    localTope tope $
-                      unifyTerms expected' term
-            _ -> typeOf expected' >>= typeOf >>= \case
-              UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
-              _ -> do
-                let def = unless (expected' == actual') err
-                    err =
-                      case mterm of
-                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
-                        Just term -> issueTypeError (TypeErrorUnify term expected' actual')
-                    errS = do
-                      let expectedS = S <$> expected'
-                          actualS = S <$> actual'
-                      case mterm of
-                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
-                        Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+unifyInCurrentContext mterm expected actual = performing action $ do
+  inBottom <- asks localTopesEntailBottom >>= \case
+    Just b  -> return b
+    Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  unless inBottom $
+    unifyViaDecompose expected actual `catchError` \_ -> do      -- NOTE: this gives a small, but noticeable speedup
+      expectedVal <- whnfT expected
+      actualVal <- whnfT actual
+      mea <- asks covariance >>= \case
+        Covariant     -> Just <$> etaMatch mterm expectedVal actualVal
+        Contravariant -> Just . swap <$> etaMatch mterm actualVal expectedVal
+        Invariant     -> traceTypeCheck Debug "invariant" $ do
+          -- FIXME: inefficient
+          traceTypeCheck Debug "invariant->covariant" $
+            setVariance Covariant     $ unifyInCurrentContext mterm expectedVal actualVal
+          traceTypeCheck Debug "invariant->contravariant" $
+            setVariance Contravariant $ unifyInCurrentContext mterm expectedVal actualVal
+          return Nothing
+      case mea of
+        Nothing -> return ()
+        Just (expected', actual') ->
+          unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
+            case actual' of
+              RecBottomT{} -> return ()
+              RecOrT _ty rs' ->
                 case expected' of
-                  Pure{} -> def
+                  RecOrT _ty rs -> sequence_ $
+                    checkCoherence <$> rs <*> rs'
+                  _ -> do
+                    forM_ rs' $ \(tope, term) ->
+                      localTope tope $
+                        unifyTerms expected' term
+              _ -> typeOf expected' >>= typeOf >>= \case
+                UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
+                _ -> do
+                  let def = unless (expected' == actual') err
+                      err =
+                        case mterm of
+                          Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
+                          Just term -> issueTypeError (TypeErrorUnify term expected' actual')
+                      errS = do
+                        let expectedS = S <$> expected'
+                            actualS = S <$> actual'
+                        case mterm of
+                          Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
+                          Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+                  case expected' of
+                    Pure{} -> def
 
-                  UniverseT{} -> def
-                  UniverseCubeT{} -> def
-                  UniverseTopeT{} -> def
+                    UniverseT{} -> def
+                    UniverseCubeT{} -> def
+                    UniverseTopeT{} -> def
 
-                  TypeUnitT{} -> def
-                  UnitT{} -> return ()  -- Unit always unifies!
+                    TypeUnitT{} -> def
+                    UnitT{} -> return ()  -- Unit always unifies!
 
-                  CubeUnitT{} -> def
-                  CubeUnitStarT{} -> def
-                  Cube2T{} -> def
-                  Cube2_0T{} -> def
-                  Cube2_1T{} -> def
-                  CubeIT{} -> def
-                  CubeI_0T{} -> def
-                  CubeI_1T{} -> def
-                  CubeProductT _ l r ->
-                    case actual' of
-                      CubeProductT _ l' r' -> do
-                        unifyTerms l l'
-                        unifyTerms r r'
-                      _ -> err
+                    CubeUnitT{} -> def
+                    CubeUnitStarT{} -> def
+                    Cube2T{} -> def
+                    Cube2_0T{} -> def
+                    Cube2_1T{} -> def
+                    CubeIT{} -> def
+                    CubeI_0T{} -> def
+                    CubeI_1T{} -> def
+                    CubeProductT _ l r ->
+                      case actual' of
+                        CubeProductT _ l' r' -> do
+                          unifyTerms l l'
+                          unifyTerms r r'
+                        _ -> err
 
-                  PairT _ty l r ->
-                    case actual' of
-                      PairT _ty' l' r' -> do
-                        unifyTerms l l'
-                        unifyTerms r r'
+                    PairT _ty l r ->
+                      case actual' of
+                        PairT _ty' l' r' -> do
+                          unifyTerms l l'
+                          unifyTerms r r'
 
-                      -- one part of eta-expansion for pairs
-                      -- FIXME: add symmetric version!
-                      _ -> err
+                        -- one part of eta-expansion for pairs
+                        -- FIXME: add symmetric version!
+                        _ -> err
 
-                  FirstT _ty t ->
-                    case actual' of
-                      FirstT _ty' t' -> unifyTerms t t'
-                      _              -> err
+                    FirstT _ty t ->
+                      case actual' of
+                        FirstT _ty' t' -> unifyTerms t t'
+                        _              -> err
 
-                  SecondT _ty t ->
-                    case actual' of
-                      SecondT _ty' t' -> unifyTerms t t'
-                      _               -> err
+                    SecondT _ty t ->
+                      case actual' of
+                        SecondT _ty' t' -> unifyTerms t t'
+                        _               -> err
 
-                  TopeTopT{}    -> unifyTopes expected' actual'
-                  TopeBottomT{} -> unifyTopes expected' actual'
-                  TopeEQT{}     -> unifyTopes expected' actual'
-                  TopeLEQT{}    -> unifyTopes expected' actual'
-                  TopeAndT{}    -> unifyTopes expected' actual'
-                  TopeOrT{}     -> unifyTopes expected' actual'
+                    TopeTopT{}    -> unifyTopes expected' actual'
+                    TopeBottomT{} -> unifyTopes expected' actual'
+                    TopeEQT{}     -> unifyTopes expected' actual'
+                    TopeLEQT{}    -> unifyTopes expected' actual'
+                    TopeAndT{}    -> unifyTopes expected' actual'
+                    TopeOrT{}     -> unifyTopes expected' actual'
 
-                  RecBottomT{} -> return () -- unifies with anything
-                  RecOrT _ty rs ->
-                    case actual' of
-                      -- ----------------------------------------------
-                      -- IMPORTANT: this pattern matching is redundant,
-                      -- but it is not obvious, so
-                      -- take care when refactoring!
-                      -- ----------------------------------------------
-      --                RecOrT _ty rs' -> sequence_ $
-      --                  checkCoherence <$> rs <*> rs'
-                      -- ----------------------------------------------
-                      _ -> do
-                        forM_ rs $ \(tope, term) ->
-                          localTope tope $
-                            unifyTerms term actual'
+                    RecBottomT{} -> return () -- unifies with anything
+                    RecOrT _ty rs ->
+                      case actual' of
+                        -- ----------------------------------------------
+                        -- IMPORTANT: this pattern matching is redundant,
+                        -- but it is not obvious, so
+                        -- take care when refactoring!
+                        -- ----------------------------------------------
+        --                RecOrT _ty rs' -> sequence_ $
+        --                  checkCoherence <$> rs <*> rs'
+                        -- ----------------------------------------------
+                        _ -> do
+                          forM_ rs $ \(tope, term) ->
+                            localTope tope $
+                              unifyTerms term actual'
 
-                  TypeFunT _ty _orig cube mtope ret ->
-                    case actual' of
-                      TypeFunT _ty' orig' cube' mtope' ret' -> do
-                        switchVariance $  -- unifying in the negative position!
-                          unifyTerms cube cube' -- FIXME: unifyCubes
-                        enterScope orig' cube' $ do
-                          case ret' of
-                            UniverseTopeT{} -> do
-                              -- This is the case for tope families (shapes)
-                              --
-                              -- (Λ → TOPE) <: (Δ → TOPE)
-                              -- since if φ : Λ → TOPE
-                              -- then φ ⊢ Δ
-                              --
-                              -- we DO NOT take tope context Φ into account!
-                              expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
-                              actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                              actualEntailsExpected <- [plainTope actualTopeNF] `entailM` expectedTopeNF
-                              unless actualEntailsExpected $
-                                issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
-                            _ -> do
-                              -- this is the case for Π-types and extension types
-                              --
-                              -- Ξ | Φ | Γ   ⊢   {t : I | φ} → A t   <:   {s : J | ψ} → B s
-                              -- when
-                              -- Ξ | Φ, ψ ⊢ φ
-                              expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
-                              actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                              localTope expectedTopeNF $
-                                contextEntails actualTopeNF
-                          case mterm of
-                            Nothing -> unifyTerms ret ret'
-                            Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
-                      _ -> err
+                    TypeFunT _ty _orig cube mtope ret ->
+                      case actual' of
+                        TypeFunT _ty' orig' cube' mtope' ret' -> do
+                          switchVariance $  -- unifying in the negative position!
+                            unifyTerms cube cube' -- FIXME: unifyCubes
+                          enterScope orig' cube' $ do
+                            case ret' of
+                              UniverseTopeT{} -> do
+                                -- This is the case for tope families (shapes)
+                                --
+                                -- (Λ → TOPE) <: (Δ → TOPE)
+                                -- since if φ : Λ → TOPE
+                                -- then φ ⊢ Δ
+                                --
+                                -- we DO NOT take tope context Φ into account!
+                                expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
+                                actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
+                                actualEntailsExpected <- [plainTope actualTopeNF] `entailM` expectedTopeNF
+                                unless actualEntailsExpected $
+                                  issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
+                              _ -> do
+                                -- this is the case for Π-types and extension types
+                                --
+                                -- Ξ | Φ | Γ   ⊢   {t : I | φ} → A t   <:   {s : J | ψ} → B s
+                                -- when
+                                -- Ξ | Φ, ψ ⊢ φ
+                                expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
+                                actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
+                                localTope expectedTopeNF $
+                                  contextEntails actualTopeNF
+                            case mterm of
+                              Nothing -> unifyTerms ret ret'
+                              Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
+                        _ -> err
 
-                  TypeSigmaT _ty _orig a b ->
-                    case actual' of
-                      TypeSigmaT _ty' orig' a' b' -> do
-                        unify Nothing a a'
-                        enterScope orig' a' $ unify Nothing b b'
-                      _ -> err
+                    TypeSigmaT _ty _orig a b ->
+                      case actual' of
+                        TypeSigmaT _ty' orig' a' b' -> do
+                          unify Nothing a a'
+                          enterScope orig' a' $ unify Nothing b b'
+                        _ -> err
 
-                  TypeIdT _ty x _tA y ->
-                    case actual' of
-                      TypeIdT _ty' x' _tA' y' -> do
-                        -- unify Nothing tA tA' -- TODO: do we need this check?
-                        unify Nothing x x'
-                        unify Nothing y y'
-                      _ -> err
-
-                  AppT _ty f x ->
-                    case actual' of
-                      AppT _ty' f' x' -> do
-                        unify Nothing f f'
-                        setVariance Invariant $
+                    TypeIdT _ty x _tA y ->
+                      case actual' of
+                        TypeIdT _ty' x' _tA' y' -> do
+                          -- unify Nothing tA tA' -- TODO: do we need this check?
                           unify Nothing x x'
-                      _ -> err
+                          unify Nothing y y'
+                        _ -> err
 
-                  LambdaT ty _orig _mparam body ->
-                    case stripTypeRestrictions (infoType ty) of
-                      TypeFunT _ty _origF param mtope _ret ->
-                        case actual' of
-                          LambdaT ty' orig' _mparam' body' -> do
-                            case stripTypeRestrictions (infoType ty') of
-                              TypeFunT _ty' _origF' param' mtope' _ret' -> do
-                                unify Nothing param param' -- we (should) have already checked this in types!
-                                enterScope orig' param $ do
-                                  case (mtope, mtope') of
-                                    (Just tope, Just tope') -> do
-                                      unify Nothing tope tope' -- we (should) have already checked this in types!
-                                      localTope tope $ unify Nothing body body'
-                                    (Nothing, Nothing) -> do
-                                      unify Nothing body body'
-                                    _ -> errS
-                              _ -> err
-                          _ -> err
-                      _ -> err
+                    AppT _ty f x ->
+                      case actual' of
+                        AppT _ty' f' x' -> do
+                          unify Nothing f f'
+                          setVariance Invariant $
+                            unify Nothing x x'
+                        _ -> err
 
-                  LetT{} -> panicImpossible "let at the root of WHNF"
-                  LetModT{} -> panicImpossible "let-mod at the root of WHNF"
+                    LambdaT ty _orig _mparam body ->
+                      case stripTypeRestrictions (infoType ty) of
+                        TypeFunT _ty _origF param mtope _ret ->
+                          case actual' of
+                            LambdaT ty' orig' _mparam' body' -> do
+                              case stripTypeRestrictions (infoType ty') of
+                                TypeFunT _ty' _origF' param' mtope' _ret' -> do
+                                  unify Nothing param param' -- we (should) have already checked this in types!
+                                  enterScope orig' param $ do
+                                    case (mtope, mtope') of
+                                      (Just tope, Just tope') -> do
+                                        unify Nothing tope tope' -- we (should) have already checked this in types!
+                                        localTope tope $ unify Nothing body body'
+                                      (Nothing, Nothing) -> do
+                                        unify Nothing body body'
+                                      _ -> errS
+                                _ -> err
+                            _ -> err
+                        _ -> err
 
-                  ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
-                    case actual' of
-                      ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
-                        -- unify Nothing tA tA' -- TODO: do we need this check?
-                        unify Nothing x x'
-                        unify Nothing y y'
-                      _ -> err
-                  ReflT{} -> panicImpossible "refl with a non-identity type!"
+                    LetT{} -> panicImpossible "let at the root of WHNF"
+                    LetModT{} -> panicImpossible "let-mod at the root of WHNF"
 
-                  IdJT _ty a b c d e f ->
-                    case actual' of
-                      IdJT _ty' a' b' c' d' e' f' -> do
-                        unify Nothing a a'
-                        unify Nothing b b'
-                        unify Nothing c c'
-                        unify Nothing d d'
-                        unify Nothing e e'
-                        unify Nothing f f'
-                      _ -> err
+                    ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
+                      case actual' of
+                        ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
+                          -- unify Nothing tA tA' -- TODO: do we need this check?
+                          unify Nothing x x'
+                          unify Nothing y y'
+                        _ -> err
+                    ReflT{} -> panicImpossible "refl with a non-identity type!"
 
-                  TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
+                    IdJT _ty a b c d e f ->
+                      case actual' of
+                        IdJT _ty' a' b' c' d' e' f' -> do
+                          unify Nothing a a'
+                          unify Nothing b b'
+                          unify Nothing c c'
+                          unify Nothing d d'
+                          unify Nothing e e'
+                          unify Nothing f f'
+                        _ -> err
 
-                  TypeRestrictedT _ty ty rs ->
-                    case actual' of
-                      TypeRestrictedT _ty' ty' rs' -> do
-                        unify mterm ty ty'
-                        sequence_
-                          [ localTope tope $ do
-                              -- FIXME: can do less entails checks?
-                              contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
-                              forM_ rs' $ \(tope', term') -> do
-                                localTope tope' $
-                                  unify Nothing term term'
-                          | (tope, term) <- rs
-                          ]
-                      _ -> err    -- FIXME: need better unification for restrictions
-                  TypeModalT _ty m ty ->
-                    case actual' of
-                      TypeModalT _ty' m' ty' -> do
-                        when (m' /= m) $ err
-                        unify Nothing ty ty'
-                      _ -> err
-                  ModAppT _ty m ty ->
-                    case actual' of
-                      ModAppT _ty' m' ty' -> do
-                        when (m' /= m) $ err
-                        unify Nothing ty ty'
-                      _ -> err
-                  ModExtractT _ty app inn te ->
-                    case actual' of
-                      ModExtractT _ty' app' inn' te' -> do
-                        when (app' /= app) $ err
-                        when (inn' /= inn) $ err
-                        unify Nothing te te'
-                      _ -> err
-                  _ -> panicImpossible "unexpected term in UNIFY"
+                    TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
+
+                    TypeRestrictedT _ty ty rs ->
+                      case actual' of
+                        TypeRestrictedT _ty' ty' rs' -> do
+                          unify mterm ty ty'
+                          sequence_
+                            [ localTope tope $ do
+                                -- FIXME: can do less entails checks?
+                                contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
+                                forM_ rs' $ \(tope', term') -> do
+                                  localTope tope' $
+                                    unify Nothing term term'
+                            | (tope, term) <- rs
+                            ]
+                        _ -> err    -- FIXME: need better unification for restrictions
+                    TypeModalT _ty m ty ->
+                      case actual' of
+                        TypeModalT _ty' m' ty' -> do
+                          when (m' /= m) $ err
+                          enterModality m $ unify Nothing ty ty'
+                        _ -> err
+                    ModAppT _ty m ty ->
+                      case actual' of
+                        ModAppT _ty' m' ty' -> do
+                          when (m' /= m) $ err
+                          enterModality m $ unify Nothing ty ty'
+                        _ -> err
+                    ModExtractT _ty app inn te ->
+                      case actual' of
+                        ModExtractT _ty' app' inn' te' -> do
+                          when (app' /= app) $ err
+                          when (inn' /= inn) $ err
+                          enterModality app $ unify Nothing te te'
+                        _ -> err
+                    _ -> panicImpossible "unexpected term in UNIFY"
 
 
   where
@@ -2603,7 +2599,7 @@ localTope tope tc = do
           [ new <> old
           | new <- simplifyLHSwithDisjunctions [tope']
           , old <- localTopesNFUnion ]
-      , localTopesEntailBottom = entailsBottom
+      , localTopesEntailBottom = Just entailsBottom
       , .. }
 
 universeT :: TermT var
