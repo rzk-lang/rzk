@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- An undefined variable must not be admitted under an absurd hypothesis either:
+-- the body is checked for well-formedness before recBOT is accepted.
+#define illRecBotUndefined (A : U) (t : 2 | (t === 0_2) /\ (t === 1_2)) : A
+  := nonexistent
