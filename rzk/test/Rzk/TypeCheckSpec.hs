@@ -82,6 +82,7 @@ typeErrorConstructorName = \case
   TypeErrorCannotInferBareRefl{}  -> "TypeErrorCannotInferBareRefl"
   TypeErrorUndefined{}           -> "TypeErrorUndefined"
   TypeErrorTopeNotSatisfied{}    -> "TypeErrorTopeNotSatisfied"
+  TypeErrorTopeContextDisjoint{} -> "TypeErrorTopeContextDisjoint"
   TypeErrorTopesNotEquivalent{}  -> "TypeErrorTopesNotEquivalent"
   TypeErrorInvalidArgumentType{} -> "TypeErrorInvalidArgumentType"
   TypeErrorDuplicateTopLevel{}   -> "TypeErrorDuplicateTopLevel"

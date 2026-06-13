@@ -3,4 +3,4 @@ error_tag: TypeErrorTopeNotSatisfied
 message_contains:
   - "union of the topes"
 regression_for:
-  - nested-recOR-contextEntailsUnion-inner-singleton
+  - recOR-coverage-required

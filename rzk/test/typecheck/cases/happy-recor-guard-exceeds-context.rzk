@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- `recOR` requires its branch guards to COVER the local tope context
+-- (`context ⊢ ⋁ guards`), not to be contained in it. A guard may strictly exceed
+-- the context, as long as the guards together still cover it.
+
+#define u : U := Unit -> Unit
+
+-- The single guard `t ≡ 0 ∨ t ≡ 1` strictly exceeds the context `t ≡ 0`, but it
+-- covers it, so the case split is well-typed.
+#define guardExceedsContext (t : 2 | t === 0_2) : U
+  := recOR( (t === 0_2) \/ (t === 1_2) |-> u )

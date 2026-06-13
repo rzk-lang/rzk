@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- A recOR branch guard disjoint from the local tope context is a dead branch: its
+-- overlap with the context is ⊥, so the branch can never apply. This is rejected.
+-- Here the guard `t ≡ 1` cannot hold in the context `t ≡ 0`.
+#define u : U := Unit -> Unit
+
+#define guardDisjoint (t : 2 | t === 0_2) : U
+  := recOR( t === 1_2 |-> u, t === 0_2 |-> u )

@@ -290,6 +290,7 @@ data TypeError var
   | TypeErrorCannotInferBareRefl (Term var)
   | TypeErrorUndefined var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
+  | TypeErrorTopeContextDisjoint (TermT var) [TermT var]
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   | TypeErrorInvalidArgumentType (Term var) (TermT var)
   | TypeErrorDuplicateTopLevel [VarIdent] VarIdent
@@ -411,6 +412,13 @@ ppTypeError' = \case
     , "  " <> show (untyped tope)
     , "in local context (normalised)"
     , intercalate "\n" (map ("  " <>) (map show topes))] -- FIXME: remove
+  TypeErrorTopeContextDisjoint tope topes -> block TopDown
+    [ "the tope"
+    , "  " <> show (untyped tope)
+    , "is disjoint from the local tope context (their conjunction is the empty tope ⊥),"
+    , "so this restriction face or recOR branch is vacuous everywhere"
+    , "in local context (normalised)"
+    , intercalate "\n" (map ("  " <>) (map show topes))]
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
     , "  " <> show (untyped expected)
@@ -519,7 +527,7 @@ data Action var
   | ActionInfer (Term var)
   | ActionContextEntailedBy [TermT var] (TermT var)
   | ActionContextEntails [TermT var] (TermT var)
-  | ActionContextEquiv [TermT var] [TermT var]
+  | ActionContextEntailsUnion [TermT var] [TermT var]
   | ActionWHNF (TermT var)
   | ActionNF (TermT var)
   | ActionCheckCoherence (TermT var, TermT var) (TermT var, TermT var)
@@ -584,10 +592,10 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
     , "is included in (entails) the tope"
     , "  " <> show (untyped term) ]
 
-  ActionContextEquiv ctxTopes terms ->
+  ActionContextEntailsUnion ctxTopes terms ->
     [ "checking if local context"
     , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
-    , "is equivalent to the union of the topes"
+    , "is included in (entails) the union of the topes"
     , intercalate "\n" (map (("  " <>) . show . untyped) terms) ]
 
   ActionWHNF term ->
@@ -1460,17 +1468,6 @@ checkEntails l r = do  -- FIXME: add action
   r' <- nfTope r
   [l'] `entailM` r'
 
-contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
-contextEntailedBy tope = do
-  ctxTopes <- asks localTopes
-  performing (ActionContextEntailedBy ctxTopes tope) $ do
-    contextTopes <- asks localTopesNF
-    restrictionTope <- nfTope tope
-    let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
-    [restrictionTope] `entailM` contextTopesRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
-      True -> return ()
-
 contextEntails :: Eq var => TermT var -> TypeCheck var ()
 contextEntails tope = do
   ctxTopes <- asks localTopes
@@ -1488,20 +1485,56 @@ topesEquiv expected actual = performing (ActionUnifyTerms expected actual) $ do
     <$> [expected'] `entailM` actual'
     <*> [actual'] `entailM` expected'
 
-contextEquiv :: Eq var => [TermT var] -> TypeCheck var ()
-contextEquiv topes = do
+-- | Check that the local tope context is included in (entails) the union of
+-- the given topes. This is the COVERAGE obligation of @recOR@: every point of the
+-- context must be covered by some branch guard.
+--
+-- Note that only coverage is required, not equivalence: branch guards may overhang
+-- the context (e.g. when splitting with an already-defined shape), so we do not
+-- require @OR(guards) |- context@.
+contextEntailsUnion :: Eq var => [TermT var] -> TypeCheck var ()
+contextEntailsUnion topes = do
   ctxTopes <- asks localTopes
-  performing (ActionContextEquiv ctxTopes topes) $ do
+  performing (ActionContextEntailsUnion ctxTopes topes) $ do
     contextTopes <- asks localTopesNF
-    recTopes <- mapM nfTope topes
-    let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
-        recTopesRHS     = foldr topeOrT topeBottomT recTopes
-    contextTopes `entailM` recTopesRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes recTopesRHS
+    topesNF <- mapM nfTope topes
+    let unionRHS = foldr topeOrT topeBottomT topesNF
+    contextTopes `entailM` unionRHS >>= \case
+      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
       True -> return ()
-    recTopes `entailM` contextTopesRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied recTopes contextTopesRHS
-      True -> return ()
+
+-- | Diagnose a recOR branch guard or restriction face against the local tope
+-- context. There are three cases, by how the tope relates to the context:
+--
+--   * DISJOINT — the tope and a consistent context have empty overlap (their
+--     conjunction is ⊥). The face/branch is then vacuous everywhere, so this is a
+--     hard error.
+--   * OVERHANG — the tope is not entailed by the context but still overlaps it.
+--     This is allowed and often intentional (e.g. splitting or restricting with an
+--     already-defined shape, whose faces live on the whole cube rather than being
+--     relativised to the context), so we only emit a non-fatal hint. The hint is
+--     gated at 'Normal' verbosity, hence silent under 'Silent' (e.g. in tests).
+--   * CONTAINED — the tope entails the context: nothing to report.
+checkTopeAgainstContext :: Eq var => String -> TermT var -> TypeCheck var ()
+checkTopeAgainstContext what tope = do
+  ctxEntailsBottom <- asks localTopesEntailBottom
+  unless ctxEntailsBottom $ do          -- a contradictory context is handled elsewhere (recBOT)
+    ctxTopes <- asks (filter (/= topeTopT) . localTopesNF)
+    disjoint <- (tope : ctxTopes) `entailM` topeBottomT
+    if disjoint
+      then issueTypeError (TypeErrorTopeContextDisjoint tope ctxTopes)
+      else do
+        entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
+        unless entailed $ do
+          topeStr <- ppTermInContext tope
+          ctxStrs <- mapM ppTermInContext ctxTopes
+          traceTypeCheck Normal
+            (intercalate "\n" $
+              [ "Warning: " <> what <> " overhangs the local tope context"
+              , "  " <> topeStr
+              , "is not entailed by the local context (normalised)"
+              ] <> map ("  " <>) ctxStrs)
+            (return ())
 
 switchVariance :: TypeCheck var a -> TypeCheck var a
 switchVariance = local $ \Context{..} -> Context
@@ -2955,8 +2988,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
 
     TypeRestrictedT _ty ty' rs -> do
       term' <- typecheck term ty'
-      contextEntailedBy (foldr topeOrT topeBottomT (map fst rs))
+      -- NOTE: restriction faces need not be contained in the local tope context.
+      -- Each face is checked only on its overlap with the context below, so an
+      -- overhanging face is harmless (we only hint); a face disjoint from the context
+      -- is vacuous, however, and is reported as an error by checkTopeAgainstContext.
       forM_ rs $ \(tope, rterm) -> do
+        checkTopeAgainstContext "restriction face" tope
         localTope tope $
           unifyTerms rterm term'
       return term'    -- FIXME: correct?
@@ -3235,7 +3272,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
-      contextEntailedBy tope'
+      -- NOTE: branch guards need not be contained in the context. recOR requires
+      -- only coverage (context |- OR(guards)), enforced by contextEntailsUnion below;
+      -- a guard may overhang the context (e.g. when splitting with a named shape).
+      -- checkTopeAgainstContext warns on overhang and errors only if the guard is
+      -- disjoint from the context (a vacuous branch).
+      checkTopeAgainstContext "recOR branch guard" tope'
       localTope tope' $ do
         term' <- inferAs universeT term
         ty <- typeOf term'
@@ -3243,7 +3285,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     let rs' = map (fmap fst) ttts
         ts  = map (fmap snd) ttts
     sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
-    contextEquiv (map fst ttts)
+    contextEntailsUnion (map fst ttts)
     return (recOrT (recOrT universeT ts) rs')
 
   TypeFun orig a Nothing b -> do
