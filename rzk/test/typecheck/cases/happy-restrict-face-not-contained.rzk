@@ -1,17 +1,16 @@
 #lang rzk-1
 
--- Restriction faces need not lie within the local tope context.
--- The checker constrains the term only on `context ∧ face`; where the face falls
--- outside the context the restriction is vacuous. Following Riehl–Shulman, there
--- is no requirement that the face be contained in (entailed by) the context.
-
--- The face `t ≡ 1` is disjoint from the context `t ≡ 0`. Their overlap is ⊥, so the
--- restriction `↦ unit` constrains the term nowhere and the definition typechecks.
-#define faceDisjoint (t : 2 | t === 0_2) : Unit [ t === 1_2 |-> unit ]
-  := unit
+-- Restriction faces need not lie within the local tope context. The checker
+-- constrains the term only on `context ∧ face`, so a face that overhangs the
+-- context (extends beyond it while still overlapping) is allowed. Following
+-- Riehl–Shulman, there is no requirement that the face be contained in (entailed
+-- by) the context. Overhang only triggers a non-fatal warning.
+--
+-- (A face *disjoint* from the context is a different matter: it is vacuous and is
+-- rejected — see `ill-restrict-face-disjoint`.)
 
 -- The face `first t ≡ 0 ∨ second t ≡ 0` strictly exceeds the context `first t ≡ 0`,
--- yet overlaps it. The restriction is checked on the overlap and accepted.
+-- yet overlaps it (on `first t ≡ 0`). The restriction is checked on the overlap.
 #define faceOverhang (t : 2 * 2 | first t === 0_2)
   : Unit [ (first t === 0_2) \/ (second t === 0_2) |-> unit ]
   := unit

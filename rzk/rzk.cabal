@@ -59,7 +59,9 @@ extra-source-files:
     test/typecheck/cases/ill-param-untyped-pattern.rzk
     test/typecheck/cases/ill-rec-or-overlap-incoherent.rzk
     test/typecheck/cases/ill-recor-coverage-required.rzk
+    test/typecheck/cases/ill-recor-guard-disjoint.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
+    test/typecheck/cases/ill-restrict-face-disjoint.rzk
     test/typecheck/cases/ill-section-end-mismatch.rzk
     test/typecheck/cases/ill-section-not-closed.rzk
     test/typecheck/cases/ill-section-unexpected-end.rzk
@@ -132,7 +134,9 @@ extra-source-files:
     test/typecheck/cases/ill-param-untyped-pattern.expect.yaml
     test/typecheck/cases/ill-rec-or-overlap-incoherent.expect.yaml
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
+    test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
+    test/typecheck/cases/ill-restrict-face-disjoint.expect.yaml
     test/typecheck/cases/ill-section-end-mismatch.expect.yaml
     test/typecheck/cases/ill-section-not-closed.expect.yaml
     test/typecheck/cases/ill-section-unexpected-end.expect.yaml

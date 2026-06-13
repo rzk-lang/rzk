@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorTopeContextDisjoint
+regression_for:
+  - recOR-branch-guard-disjoint-from-context

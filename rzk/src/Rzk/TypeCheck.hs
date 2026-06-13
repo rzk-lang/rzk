@@ -290,6 +290,7 @@ data TypeError var
   | TypeErrorCannotInferBareRefl (Term var)
   | TypeErrorUndefined var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
+  | TypeErrorTopeContextDisjoint (TermT var) [TermT var]
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   | TypeErrorInvalidArgumentType (Term var) (TermT var)
   | TypeErrorDuplicateTopLevel [VarIdent] VarIdent
@@ -411,6 +412,13 @@ ppTypeError' = \case
     , "  " <> show (untyped tope)
     , "in local context (normalised)"
     , intercalate "\n" (map ("  " <>) (map show topes))] -- FIXME: remove
+  TypeErrorTopeContextDisjoint tope topes -> block TopDown
+    [ "the tope"
+    , "  " <> show (untyped tope)
+    , "is disjoint from the local tope context (their conjunction is the empty tope ⊥),"
+    , "so this restriction face or recOR branch is vacuous everywhere"
+    , "in local context (normalised)"
+    , intercalate "\n" (map ("  " <>) (map show topes))]
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
     , "  " <> show (untyped expected)
@@ -1495,28 +1503,38 @@ contextEntailsUnion topes = do
       False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
       True -> return ()
 
--- | Emit a non-fatal warning when a tope does not entail the local tope context
--- conjunction, i.e. the tope overhangs the context (part of it lies outside).
+-- | Diagnose a recOR branch guard or restriction face against the local tope
+-- context. There are three cases, by how the tope relates to the context:
 --
--- Overhang is allowed and often intentional, e.g. when splitting or restricting
--- with an already-defined shape such as the boundary of a simplex, whose faces are
--- expressed on the whole cube rather than relativised to the current context. This
--- is therefore only a hint and never fails typechecking. It is gated at 'Normal'
--- verbosity, so it stays silent under 'Silent' (e.g. in the test suite).
-warnTopeOverhang :: Eq var => String -> TermT var -> TypeCheck var ()
-warnTopeOverhang what tope = do
-  entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
-  unless entailed $ do
-    topeStr  <- ppTermInContext tope
+--   * DISJOINT — the tope and a consistent context have empty overlap (their
+--     conjunction is ⊥). The face/branch is then vacuous everywhere, so this is a
+--     hard error.
+--   * OVERHANG — the tope is not entailed by the context but still overlaps it.
+--     This is allowed and often intentional (e.g. splitting or restricting with an
+--     already-defined shape, whose faces live on the whole cube rather than being
+--     relativised to the context), so we only emit a non-fatal hint. The hint is
+--     gated at 'Normal' verbosity, hence silent under 'Silent' (e.g. in tests).
+--   * CONTAINED — the tope entails the context: nothing to report.
+checkTopeAgainstContext :: Eq var => String -> TermT var -> TypeCheck var ()
+checkTopeAgainstContext what tope = do
+  ctxEntailsBottom <- asks localTopesEntailBottom
+  unless ctxEntailsBottom $ do          -- a contradictory context is handled elsewhere (recBOT)
     ctxTopes <- asks (filter (/= topeTopT) . localTopesNF)
-    ctxStrs  <- mapM ppTermInContext ctxTopes
-    traceTypeCheck Normal
-      (intercalate "\n" $
-        [ "Warning: " <> what <> " overhangs the local tope context"
-        , "  " <> topeStr
-        , "is not entailed by the local context (normalised)"
-        ] <> map ("  " <>) ctxStrs)
-      (return ())
+    disjoint <- (tope : ctxTopes) `entailM` topeBottomT
+    if disjoint
+      then issueTypeError (TypeErrorTopeContextDisjoint tope ctxTopes)
+      else do
+        entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
+        unless entailed $ do
+          topeStr <- ppTermInContext tope
+          ctxStrs <- mapM ppTermInContext ctxTopes
+          traceTypeCheck Normal
+            (intercalate "\n" $
+              [ "Warning: " <> what <> " overhangs the local tope context"
+              , "  " <> topeStr
+              , "is not entailed by the local context (normalised)"
+              ] <> map ("  " <>) ctxStrs)
+            (return ())
 
 switchVariance :: TypeCheck var a -> TypeCheck var a
 switchVariance = local $ \Context{..} -> Context
@@ -2971,10 +2989,11 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
     TypeRestrictedT _ty ty' rs -> do
       term' <- typecheck term ty'
       -- NOTE: restriction faces need not be contained in the local tope context.
-      -- Each face is checked only on its overlap with the context below, so a face
-      -- that overhangs the context is harmless; we only emit a non-fatal hint.
+      -- Each face is checked only on its overlap with the context below, so an
+      -- overhanging face is harmless (we only hint); a face disjoint from the context
+      -- is vacuous, however, and is reported as an error by checkTopeAgainstContext.
       forM_ rs $ \(tope, rterm) -> do
-        warnTopeOverhang "restriction face" tope
+        checkTopeAgainstContext "restriction face" tope
         localTope tope $
           unifyTerms rterm term'
       return term'    -- FIXME: correct?
@@ -3255,9 +3274,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
       tope' <- typecheck tope topeT
       -- NOTE: branch guards need not be contained in the context. recOR requires
       -- only coverage (context |- OR(guards)), enforced by contextEntailsUnion below;
-      -- a guard may overhang the context (e.g. when splitting with a named shape), so
-      -- we only emit a non-fatal overhang hint rather than failing.
-      warnTopeOverhang "recOR branch guard" tope'
+      -- a guard may overhang the context (e.g. when splitting with a named shape).
+      -- checkTopeAgainstContext warns on overhang and errors only if the guard is
+      -- disjoint from the context (a vacuous branch).
+      checkTopeAgainstContext "recOR branch guard" tope'
       localTope tope' $ do
         term' <- inferAs universeT term
         ty <- typeOf term'
