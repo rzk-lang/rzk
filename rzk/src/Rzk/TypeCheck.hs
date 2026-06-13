@@ -519,7 +519,7 @@ data Action var
   | ActionInfer (Term var)
   | ActionContextEntailedBy [TermT var] (TermT var)
   | ActionContextEntails [TermT var] (TermT var)
-  | ActionContextEquiv [TermT var] [TermT var]
+  | ActionContextEntailsUnion [TermT var] [TermT var]
   | ActionWHNF (TermT var)
   | ActionNF (TermT var)
   | ActionCheckCoherence (TermT var, TermT var) (TermT var, TermT var)
@@ -584,10 +584,10 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
     , "is included in (entails) the tope"
     , "  " <> show (untyped term) ]
 
-  ActionContextEquiv ctxTopes terms ->
+  ActionContextEntailsUnion ctxTopes terms ->
     [ "checking if local context"
     , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
-    , "is equivalent to the union of the topes"
+    , "is included in (entails) the union of the topes"
     , intercalate "\n" (map (("  " <>) . show . untyped) terms) ]
 
   ActionWHNF term ->
@@ -1477,19 +1477,24 @@ topesEquiv expected actual = performing (ActionUnifyTerms expected actual) $ do
     <$> [expected'] `entailM` actual'
     <*> [actual'] `entailM` expected'
 
-contextEquiv :: Eq var => [TermT var] -> TypeCheck var ()
-contextEquiv topes = do
+-- | Check that the local tope context is included in (entails) the union of
+-- the given topes. This is the COVERAGE obligation of @recOR@: every point of the
+-- context must be covered by some branch guard.
+--
+-- Note that only coverage is required, not equivalence: branch guards may overhang
+-- the context (e.g. when splitting with an already-defined shape), so we do not
+-- require @OR(guards) |- context@. A former reverse check here was in any case
+-- vacuous, since TOP is always in 'localTopesNF' and so @OR(context)@ reduces to
+-- TOP. (Formerly named @contextEquiv@.)
+contextEntailsUnion :: Eq var => [TermT var] -> TypeCheck var ()
+contextEntailsUnion topes = do
   ctxTopes <- asks localTopes
-  performing (ActionContextEquiv ctxTopes topes) $ do
+  performing (ActionContextEntailsUnion ctxTopes topes) $ do
     contextTopes <- asks localTopesNF
-    recTopes <- mapM nfTope topes
-    let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
-        recTopesRHS     = foldr topeOrT topeBottomT recTopes
-    contextTopes `entailM` recTopesRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes recTopesRHS
-      True -> return ()
-    recTopes `entailM` contextTopesRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied recTopes contextTopesRHS
+    topesNF <- mapM nfTope topes
+    let unionRHS = foldr topeOrT topeBottomT topesNF
+    contextTopes `entailM` unionRHS >>= \case
+      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
       True -> return ()
 
 switchVariance :: TypeCheck var a -> TypeCheck var a
@@ -3229,7 +3234,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
       -- NOTE: branch guards need not be contained in the context. recOR requires
-      -- only coverage (context |- OR(guards)), enforced by contextEquiv below; a
+      -- only coverage (context |- OR(guards)), enforced by contextEntailsUnion below; a
       -- guard may exceed the context. (A former 'contextEntailedBy' guard here was
       -- vacuous: TOP is always in localTopesNF, so OR(context) reduces to TOP.)
       localTope tope' $ do
@@ -3239,7 +3244,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     let rs' = map (fmap fst) ttts
         ts  = map (fmap snd) ttts
     sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
-    contextEquiv (map fst ttts)
+    contextEntailsUnion (map fst ttts)
     return (recOrT (recOrT universeT ts) rs')
 
   TypeFun orig a Nothing b -> do

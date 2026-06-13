@@ -10,7 +10,7 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
 
 # Regression tests
 
-Fixture comments and `regression_for` use stable prose (which judgment fails, which helper such as `contextEquiv` / `checkCoherence`) — not `TypeCheck.hs` line numbers. See `SCHEMA.md`.
+Fixture comments and `regression_for` use stable prose (which judgment fails, which helper such as `contextEntailsUnion` / `checkCoherence`) — not `TypeCheck.hs` line numbers. See `SCHEMA.md`.
 
 | Pointer | Fixture(s) | Notes |
 |---------|------------|--------|
@@ -18,7 +18,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Issue [#9](https://github.com/rzk-lang/rzk/issues/9) type expansion / shadowing | `happy-issue-9-relfunext2-id` | `relfunext2` + `(w : relfunext2) → relfunext2 := w` |
 | Issue [#13](https://github.com/rzk-lang/rzk/issues/13) insufficient `flip` checking | `ill-issue-13-flip-flip-wrong` | Wrong `flip A B (flip A B f)` vs `f` path type |
 | Issue [#33](https://github.com/rzk-lang/rzk/issues/33) restriction coherence | `ill-issue-33-restriction-coherence` | Overlapping restriction faces on `2 × 2` |
-| Tope context folding: faces/guards need not be contained in the context | `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `ill-recor-coverage-required` | `recOR` requires only *coverage* (`context ⊢ ⋁ guards` via `contextEquiv`); restriction faces need no containment. The old `contextEntailedBy` / `contextEquiv` `tope ⊢ ⋁ context` check was vacuous (`⊤ ∈ localTopesNF`). |
+| Tope context folding: faces/guards need not be contained in the context | `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `ill-recor-coverage-required` | `recOR` requires only *coverage* (`context ⊢ ⋁ guards`, via `contextEntailsUnion`); restriction faces need no containment. The removed `contextEntailedBy` guard and the dropped reverse check of the former `contextEquiv` (now `contextEntailsUnion`) both tested `tope ⊢ ⋁ context`, which is vacuous (`⊤ ∈ localTopesNF`, so `⋁ context` reduces to `⊤`). |
 | PR [#167](https://github.com/rzk-lang/rzk/pull/167) multi-file / cache | `multimodule-first-error/`, `multimodule-two-ok/` | Strict pipeline: error in module B stops after failing file |
 | PR [#179](https://github.com/rzk-lang/rzk/pull/179) unused variable errors | `ill-unused-assumption` | Section assumption unused at `#end` |
 | PR [#115](https://github.com/rzk-lang/rzk/pull/115) `typecheckModules` | `multimodule-two-ok` | Ordered modules share context |
