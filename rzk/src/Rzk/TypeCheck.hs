@@ -1483,9 +1483,7 @@ topesEquiv expected actual = performing (ActionUnifyTerms expected actual) $ do
 --
 -- Note that only coverage is required, not equivalence: branch guards may overhang
 -- the context (e.g. when splitting with an already-defined shape), so we do not
--- require @OR(guards) |- context@. A former reverse check here was in any case
--- vacuous, since TOP is always in 'localTopesNF' and so @OR(context)@ reduces to
--- TOP. (Formerly named @contextEquiv@.)
+-- require @OR(guards) |- context@.
 contextEntailsUnion :: Eq var => [TermT var] -> TypeCheck var ()
 contextEntailsUnion topes = do
   ctxTopes <- asks localTopes
@@ -1496,6 +1494,29 @@ contextEntailsUnion topes = do
     contextTopes `entailM` unionRHS >>= \case
       False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
       True -> return ()
+
+-- | Emit a non-fatal warning when a tope does not entail the local tope context
+-- conjunction, i.e. the tope overhangs the context (part of it lies outside).
+--
+-- Overhang is allowed and often intentional, e.g. when splitting or restricting
+-- with an already-defined shape such as the boundary of a simplex, whose faces are
+-- expressed on the whole cube rather than relativised to the current context. This
+-- is therefore only a hint and never fails typechecking. It is gated at 'Normal'
+-- verbosity, so it stays silent under 'Silent' (e.g. in the test suite).
+warnTopeOverhang :: Eq var => String -> TermT var -> TypeCheck var ()
+warnTopeOverhang what tope = do
+  entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
+  unless entailed $ do
+    topeStr  <- ppTermInContext tope
+    ctxTopes <- asks (filter (/= topeTopT) . localTopesNF)
+    ctxStrs  <- mapM ppTermInContext ctxTopes
+    traceTypeCheck Normal
+      (intercalate "\n" $
+        [ "Warning: " <> what <> " overhangs the local tope context"
+        , "  " <> topeStr
+        , "is not entailed by the local context (normalised)"
+        ] <> map ("  " <>) ctxStrs)
+      (return ())
 
 switchVariance :: TypeCheck var a -> TypeCheck var a
 switchVariance = local $ \Context{..} -> Context
@@ -2950,11 +2971,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
     TypeRestrictedT _ty ty' rs -> do
       term' <- typecheck term ty'
       -- NOTE: restriction faces need not be contained in the local tope context.
-      -- Each face is checked only on its overlap with the context just below, so a
-      -- face that falls partly or wholly outside the context is harmless. (A former
-      -- 'contextEntailedBy' guard here checked 'OR(faces) |- OR(context)', which was
-      -- vacuous: TOP is always in localTopesNF, so OR(context) reduces to TOP.)
+      -- Each face is checked only on its overlap with the context below, so a face
+      -- that overhangs the context is harmless; we only emit a non-fatal hint.
       forM_ rs $ \(tope, rterm) -> do
+        warnTopeOverhang "restriction face" tope
         localTope tope $
           unifyTerms rterm term'
       return term'    -- FIXME: correct?
@@ -3234,9 +3254,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
       -- NOTE: branch guards need not be contained in the context. recOR requires
-      -- only coverage (context |- OR(guards)), enforced by contextEntailsUnion below; a
-      -- guard may exceed the context. (A former 'contextEntailedBy' guard here was
-      -- vacuous: TOP is always in localTopesNF, so OR(context) reduces to TOP.)
+      -- only coverage (context |- OR(guards)), enforced by contextEntailsUnion below;
+      -- a guard may overhang the context (e.g. when splitting with a named shape), so
+      -- we only emit a non-fatal overhang hint rather than failing.
+      warnTopeOverhang "recOR branch guard" tope'
       localTope tope' $ do
         term' <- inferAs universeT term
         ty <- typeOf term'
