@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Coverage is the sole tope obligation for `recOR`: the disjunction of branch
+-- guards must entail (cover) the local tope context. Here the context is the
+-- non-trivial boundary `t ≡ 0 ∨ t ≡ 1`, but the single guard `t ≡ 0` covers only
+-- half of it, so `contextEquiv` reports that the context is not equivalent to the
+-- union of the guards.
+
+#define u : U := Unit -> Unit
+
+#define guardsUndercover (t : 2 | (t === 0_2) \/ (t === 1_2)) : U
+  := recOR( t === 0_2 |-> u )
