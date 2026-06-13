@@ -1460,17 +1460,6 @@ checkEntails l r = do  -- FIXME: add action
   r' <- nfTope r
   [l'] `entailM` r'
 
-contextEntailedBy :: Eq var => TermT var -> TypeCheck var ()
-contextEntailedBy tope = do
-  ctxTopes <- asks localTopes
-  performing (ActionContextEntailedBy ctxTopes tope) $ do
-    contextTopes <- asks localTopesNF
-    restrictionTope <- nfTope tope
-    let contextTopesRHS = foldr topeOrT topeBottomT contextTopes
-    [restrictionTope] `entailM` contextTopesRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
-      True -> return ()
-
 contextEntails :: Eq var => TermT var -> TypeCheck var ()
 contextEntails tope = do
   ctxTopes <- asks localTopes
@@ -2955,7 +2944,11 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
 
     TypeRestrictedT _ty ty' rs -> do
       term' <- typecheck term ty'
-      contextEntailedBy (foldr topeOrT topeBottomT (map fst rs))
+      -- NOTE: restriction faces need not be contained in the local tope context.
+      -- Each face is checked only on its overlap with the context just below, so a
+      -- face that falls partly or wholly outside the context is harmless. (A former
+      -- 'contextEntailedBy' guard here checked 'OR(faces) |- OR(context)', which was
+      -- vacuous: TOP is always in localTopesNF, so OR(context) reduces to TOP.)
       forM_ rs $ \(tope, rterm) -> do
         localTope tope $
           unifyTerms rterm term'
@@ -3235,7 +3228,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RecOr rs -> do
     ttts <- forM rs $ \(tope, term) -> do
       tope' <- typecheck tope topeT
-      contextEntailedBy tope'
+      -- NOTE: branch guards need not be contained in the context. recOR requires
+      -- only coverage (context |- OR(guards)), enforced by contextEquiv below; a
+      -- guard may exceed the context. (A former 'contextEntailedBy' guard here was
+      -- vacuous: TOP is always in localTopesNF, so OR(context) reduces to TOP.)
       localTope tope' $ do
         term' <- inferAs universeT term
         ty <- typeOf term'
