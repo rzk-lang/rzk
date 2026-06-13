@@ -29,6 +29,7 @@ extra-source-files:
     test/typecheck/cases/happy-modal-inv.rzk
     test/typecheck/cases/happy-modal-tope-unwrap.rzk
     test/typecheck/cases/happy-recor-guard-exceeds-context.rzk
+    test/typecheck/cases/happy-recor-split-simplex-overhang.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
@@ -104,6 +105,7 @@ extra-source-files:
     test/typecheck/cases/happy-modal-inv.expect.yaml
     test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
     test/typecheck/cases/happy-recor-guard-exceeds-context.expect.yaml
+    test/typecheck/cases/happy-recor-split-simplex-overhang.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml

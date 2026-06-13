@@ -1,0 +1,22 @@
+#lang rzk-1
+
+-- Overhang is useful for reusing already-defined shapes. Here we split the
+-- 2-simplex Δ² = { (t , s) : 2 × 2 | s ≤ t } into its two halves by the total-order
+-- topes `t ≤ s` and `s ≤ t`. These topes are defined on the whole square, not
+-- relativised to Δ², so the guard `t ≤ s` overhangs Δ² (its overlap with the
+-- context is the diagonal `t ≡ s`). The two guards still cover Δ², so the case
+-- split is well-typed; only a non-fatal overhang warning is emitted.
+--
+-- Being able to write the global total-order topes directly — rather than
+-- intersecting each with Δ² by hand — is exactly what overhang support buys us.
+-- This mirrors `join-square-arrow` / `meet-square-arrow` (RS17 Proposition 3.5) in
+-- sHoTT, which split by the same topes over the full square 2 × 2.
+
+#def Δ² : (2 * 2) -> TOPE
+  := \ (t , s) -> s <= t
+
+#define split-2simplex
+  ( A : U)
+  ( f : (2 * 2) -> A)
+  : ( (t , s) : Δ²) -> A
+  := \ (t , s) -> recOR ( t <= s |-> f (t , s) , s <= t |-> f (t , s) )
