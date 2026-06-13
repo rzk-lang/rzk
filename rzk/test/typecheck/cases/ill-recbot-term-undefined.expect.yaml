@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorUndefined
+regression_for:
+  - recBOT-term-must-be-well-typed

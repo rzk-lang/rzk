@@ -28,6 +28,7 @@ extra-source-files:
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-inv.rzk
     test/typecheck/cases/happy-modal-tope-unwrap.rzk
+    test/typecheck/cases/happy-recbot-term-wellformed.rzk
     test/typecheck/cases/happy-recor-guard-exceeds-context.rzk
     test/typecheck/cases/happy-recor-split-simplex-overhang.rzk
     test/typecheck/cases/happy-refl-path.rzk
@@ -59,6 +60,8 @@ extra-source-files:
     test/typecheck/cases/ill-not-pair-second-unit.rzk
     test/typecheck/cases/ill-param-untyped-pattern.rzk
     test/typecheck/cases/ill-rec-or-overlap-incoherent.rzk
+    test/typecheck/cases/ill-recbot-term-not-function.rzk
+    test/typecheck/cases/ill-recbot-term-undefined.rzk
     test/typecheck/cases/ill-recor-coverage-required.rzk
     test/typecheck/cases/ill-recor-guard-disjoint.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
@@ -104,6 +107,7 @@ extra-source-files:
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-inv.expect.yaml
     test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
+    test/typecheck/cases/happy-recbot-term-wellformed.expect.yaml
     test/typecheck/cases/happy-recor-guard-exceeds-context.expect.yaml
     test/typecheck/cases/happy-recor-split-simplex-overhang.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
@@ -135,6 +139,8 @@ extra-source-files:
     test/typecheck/cases/ill-not-pair-second-unit.expect.yaml
     test/typecheck/cases/ill-param-untyped-pattern.expect.yaml
     test/typecheck/cases/ill-rec-or-overlap-incoherent.expect.yaml
+    test/typecheck/cases/ill-recbot-term-not-function.expect.yaml
+    test/typecheck/cases/ill-recbot-term-undefined.expect.yaml
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
     test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
