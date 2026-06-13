@@ -2984,6 +2984,11 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
   whnfT ty >>= \case
 
     RecBottomT{} -> do
+      -- Even under an absurd tope context (where the expected type collapses to
+      -- recBOT), the term must still be well-formed in its own right, so that
+      -- ill-typed bodies are not silently admitted under a false hypothesis. We
+      -- synthesise its type, discard the result, and keep the recBOT elaboration.
+      _ <- infer term
       return recBottomT
 
     TypeRestrictedT _ty ty' rs -> do
