@@ -1,0 +1,81 @@
+name: WASM (build rzk library with the GHC WebAssembly backend)
+
+# Verifies that the `rzk` library cross-compiles to wasm32-wasi with the GHC
+# WebAssembly backend. This is the toolchain `haskell-miso` uses for its
+# browser frontend, so this lane guards the "rzk-as-a-wasm-library" use case
+# the way ghcjs.yml guards the GHCJS playground build. LSP is off here (the
+# `lsp` cabal flag pulls in the `lsp` package, which we don't need — and want
+# to keep off — for a frontend library), exactly like the GHCJS build.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - .github/workflows/wasm.yml
+      - cabal.project
+      - rzk/**
+  pull_request:
+    branches: [develop]
+    paths:
+      - .github/workflows/wasm.yml
+      - cabal.project
+      - rzk/**
+  workflow_dispatch: # allow triggering this workflow manually
+
+permissions:
+  contents: read
+
+jobs:
+  build-with-wasm:
+    name: "Build rzk library with the GHC WASM backend"
+    runs-on: ubuntu-latest
+    # Advisory: this lane depends on an external ghc-wasm-meta tarball download
+    # and is a signal that the wasm/frontend use case still builds, not a gate
+    # on unrelated work. Same stance as the cabal.yml Hackage-drift lane.
+    continue-on-error: true
+    env:
+      # GHC WASM flavour to install. wasm32-wasi-ghc 9.12 is the version
+      # haskell-miso currently targets; bump together with miso.
+      FLAVOUR: "9.12"
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Install the GHC WASM toolchain (ghc-wasm-meta)
+        run: |
+          cd "$(mktemp -d)"
+          curl -f -L --retry 5 \
+            https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/archive/master/ghc-wasm-meta-master.tar.gz \
+            | tar xz --strip-components=1
+          ./setup.sh
+          # Export wasm32-wasi-{ghc,cabal,...} and the env vars they need to
+          # every later step in this job.
+          ~/.ghc-wasm/add_to_github_path.sh
+
+      - name: 💾 Restore cached wasm cabal store
+        uses: actions/cache@v4
+        with:
+          # wasm32-wasi-cabal keeps an isolated store under ~/.ghc-wasm so it
+          # never touches a host cabal store.
+          path: ~/.ghc-wasm/.cabal/store
+          key: wasm-cabal-${{ runner.os }}-ghc${{ env.FLAVOUR }}-${{ hashFiles('rzk/rzk.cabal', 'cabal.project') }}
+          restore-keys: |
+            wasm-cabal-${{ runner.os }}-ghc${{ env.FLAVOUR }}-
+
+      - name: 🔧 Adapt the package for the WASM backend
+        # The GHC WASM backend cannot run a Custom Setup.hs: cabal compiles
+        # Setup.hs to a .wasm module and then has no way to execute it (the
+        # link even fails — the wasm RTS has no threaded variant). The Custom
+        # setup only regenerates the parser/lexer with BNFC+alex+happy, and
+        # those outputs are committed, so for this lane we switch the library
+        # to build-type: Simple and drop the .x/.y so no preprocessor runs and
+        # the committed Lex.hs/Par.hs are used as-is. This mirrors the
+        # "remove lexer and parser generator files" step in ghcjs.yml.
+        run: |
+          rm -f rzk/src/Language/Rzk/Syntax/Lex.x rzk/src/Language/Rzk/Syntax/Par.y
+          sed -i 's/^build-type: *Custom/build-type:    Simple/' rzk/rzk.cabal
+          grep -n '^build-type' rzk/rzk.cabal
+
+      - name: 🔨 Build rzk library (LSP off)
+        run: wasm32-wasi-cabal build rzk:lib:rzk --flags=-lsp
