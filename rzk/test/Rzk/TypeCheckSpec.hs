@@ -80,6 +80,8 @@ typeErrorConstructorName = \case
   TypeErrorUnexpectedRefl{}       -> "TypeErrorUnexpectedRefl"
   TypeErrorCannotInferBareLambda{} -> "TypeErrorCannotInferBareLambda"
   TypeErrorCannotInferBareRefl{}  -> "TypeErrorCannotInferBareRefl"
+  TypeErrorCannotInferHole{}      -> "TypeErrorCannotInferHole"
+  TypeErrorUnsolvedHole{}         -> "TypeErrorUnsolvedHole"
   TypeErrorUndefined{}           -> "TypeErrorUndefined"
   TypeErrorTopeNotSatisfied{}    -> "TypeErrorTopeNotSatisfied"
   TypeErrorTopeContextDisjoint{} -> "TypeErrorTopeContextDisjoint"

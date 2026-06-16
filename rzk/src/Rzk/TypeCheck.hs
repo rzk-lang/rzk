@@ -11,6 +11,10 @@ import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, join, unless, when)
 import           Control.Monad.Except
 import           Control.Monad.Reader
+-- An explicit list: a bare 'Control.Monad.Writer' import also re-exports
+-- 'Data.Monoid' (incl. 'First'/'Last') on some mtl versions, which clashes with
+-- the 'First'/'Last' term patterns from 'Language.Rzk.Free.Syntax'.
+import           Control.Monad.Writer     (WriterT, runWriterT, tell)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
@@ -36,7 +40,21 @@ instance IsString TermT' where
 defaultTypeCheck
   :: TypeCheck var a
   -> Either (TypeErrorInScopedContext var) a
-defaultTypeCheck tc = runExcept (runReaderT tc emptyContext)
+defaultTypeCheck = fmap fst . defaultTypeCheckWithHoles' emptyContext
+
+-- | Like 'defaultTypeCheck', but runs in lenient hole mode ('allowHoles') and
+-- also returns the holes recorded during checking (with their goal and context).
+defaultTypeCheckWithHoles
+  :: TypeCheck var a
+  -> Either (TypeErrorInScopedContext var) (a, [HoleInfo])
+defaultTypeCheckWithHoles = defaultTypeCheckWithHoles' (allowHoles emptyContext)
+
+defaultTypeCheckWithHoles'
+  :: Context var
+  -> TypeCheck var a
+  -> Either (TypeErrorInScopedContext var) (a, [HoleInfo])
+defaultTypeCheckWithHoles' ctx tc =
+  runExcept (runWriterT (runReaderT tc ctx))
 
 -- FIXME: merge with VarInfo
 data Decl var = Decl
@@ -71,6 +89,20 @@ typecheckModulesWithLocation' = \case
         localDeclsPrepared decls $ do
           (decls', errors) <- typecheckModulesWithLocation' ms
           return ((path, decls) : decls', errors)
+
+-- | Typecheck modules in lenient hole mode, returning the elaborated
+-- declarations, any type errors, and the holes recorded (each with its goal and
+-- local context). This is the structured goal/context query consumed by the
+-- LSP and the game. Strict callers (the default CLI path, CI) keep using
+-- 'typecheckModulesWithLocation', where holes are 'TypeErrorUnsolvedHole'.
+typecheckModulesWithHoles
+  :: [(FilePath, Rzk.Module)]
+  -> Either (TypeErrorInScopedContext VarIdent)
+            ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent], [HoleInfo])
+typecheckModulesWithHoles modules =
+  flatten <$> defaultTypeCheckWithHoles (typecheckModulesWithLocation' modules)
+  where
+    flatten ((decls, errs), holes) = (decls, errs, holes)
 
 typecheckModulesWithLocation :: [(FilePath, Rzk.Module)] -> TypeCheck VarIdent [(FilePath, [Decl'])]
 typecheckModulesWithLocation = \case
@@ -288,6 +320,8 @@ data TypeError var
   | TypeErrorUnexpectedRefl (Term var) (TermT var)
   | TypeErrorCannotInferBareLambda (Term var)
   | TypeErrorCannotInferBareRefl (Term var)
+  | TypeErrorCannotInferHole (Term var)
+  | TypeErrorUnsolvedHole (Maybe VarIdent) (TermT var)
   | TypeErrorUndefined var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
   | TypeErrorTopeContextDisjoint (TermT var) [TermT var]
@@ -404,6 +438,16 @@ ppTypeError' = \case
   TypeErrorCannotInferBareRefl term -> block TopDown
     [ "cannot infer the type of term"
     , "  " <> show term
+    ]
+  TypeErrorCannotInferHole term -> block TopDown
+    [ "cannot infer the type of a hole"
+    , "  " <> show term
+    , "a hole is only allowed where its type is already known (checking position)"
+    ]
+  TypeErrorUnsolvedHole mname goal -> block TopDown
+    [ "found an unsolved hole" <> maybe "" (\name -> " ?" <> show name) mname
+    , "expected type (goal):"
+    , "  " <> show (untyped goal)
     ]
   TypeErrorUndefined var -> block TopDown
     [ "undefined variable: " <> show (Pure var :: Term') ]
@@ -546,6 +590,48 @@ ppTermInContext term =  do
   origs <- asks varOrigs
   return (show (untyped (toRzkVarIdent origs <$> term)))
 
+-- | Classify a (WHNF) type as a cube, so cube variables (e.g. @t : 2@) are
+-- shown separately from ordinary term variables in a hole's context.
+isCubeType :: TermT var -> Bool
+isCubeType = \case
+  CubeUnitT{}     -> True
+  Cube2T{}        -> True
+  CubeIT{}        -> True
+  CubeProductT{}  -> True
+  UniverseCubeT{} -> True
+  _               -> False
+
+-- | Record the goal and local context at a hole (lenient mode only). The goal,
+-- the local hypotheses, and the tope assumptions are all rendered to
+-- user-facing 'VarIdent' names here — reusing the same resolution as
+-- 'ppTermInContext' — so the resulting 'HoleInfo' is independent of the De
+-- Bruijn scope. The global environment is deliberately excluded (only
+-- @varIsTopLevel == False@ locals are kept), and locals are split into cube
+-- variables and ordinary term variables.
+recordHole :: Eq var => Maybe VarIdent -> TermT var -> TypeCheck var ()
+recordHole mname goalTy = do
+  goal'     <- whnfT goalTy
+  locals    <- asks (filter (not . varIsTopLevel . snd) . varInfos)
+  cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
+  topes     <- asks (filter (/= topeTopT) . localTopes)
+  origs     <- asks varOrigs
+  loc       <- asks location
+  varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
+  let mapping  = zip (nub (varsList ++ map fst locals)) defaultVarIdents
+      name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
+      render t = untyped (name <$> t)
+      entries  = [ HoleEntry (name v) (render (varType info)) | (v, info) <- locals ]
+      flagged  = zip cubeFlags entries
+  lift $ tell
+    [ HoleInfo
+        { holeName     = mname
+        , holeGoal     = render goal'
+        , holeTermVars = [ e | (False, e) <- flagged ]
+        , holeCubeVars = [ e | (True,  e) <- flagged ]
+        , holeTopes    = map render topes
+        , holeLocation = loc
+        } ]
+
 ppSomeAction :: Eq var => [(var, Maybe VarIdent)] -> Int -> Action var -> String
 ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
   where
@@ -635,7 +721,7 @@ unsafeTraceAction' n = traceAction' n . unsafeCoerce
 data LocationInfo = LocationInfo
   { locationFilePath :: Maybe FilePath
   , locationLine     :: Maybe Int
-  } deriving (Eq)
+  } deriving (Eq, Show)
 
 data Verbosity
   = Debug
@@ -731,6 +817,10 @@ data Context var = Context
   , verbosity              :: Verbosity
   , covariance             :: Covariance
   , renderBackend          :: Maybe RenderBackend
+  , holesAreErrors         :: Bool
+    -- ^ When 'True' (the default), an unfilled hole is reported as a
+    -- 'TypeErrorUnsolvedHole'; finished work (and CI) must have no holes. The
+    -- lenient mode ('allowHoles') instead records each hole's goal and context.
   } deriving (Functor, Foldable)
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
@@ -760,7 +850,14 @@ emptyContext = Context
   , verbosity = Normal
   , covariance = Covariant
   , renderBackend = Nothing
+  , holesAreErrors = True
   }
+
+-- | Switch to lenient hole mode: record each hole's goal and context instead
+-- of reporting it as an error. Used by the structured goal/context query and
+-- the @--allow-holes@ CLI mode; the default (strict) mode rejects holes.
+allowHoles :: Context var -> Context var
+allowHoles ctx = ctx { holesAreErrors = False }
 
 askCurrentScope :: TypeCheck var (ScopeInfo var)
 askCurrentScope = asks localScopes >>= \case
@@ -1079,7 +1176,32 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
       , varLocation = loc
       }
 
-type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
+-- | A binding shown in a hole's local context: the display name and its type,
+-- already rendered with user-facing 'VarIdent' names (see 'HoleInfo').
+data HoleEntry = HoleEntry
+  { holeEntryName :: VarIdent
+  , holeEntryType :: Term'
+  } deriving (Eq, Show)
+
+-- | The structured goal and context at a hole, recorded in lenient mode (see
+-- 'allowHoles'). Everything is rendered to user-facing 'VarIdent' names at
+-- record time, so 'HoleInfo' is independent of the De Bruijn scope it came
+-- from. Local hypotheses are split into ordinary term variables and cube
+-- variables (the cube/tope layer is specific to Rzk); the global environment is
+-- deliberately excluded — it belongs in a searchable inventory, not the goal
+-- panel.
+data HoleInfo = HoleInfo
+  { holeName     :: Maybe VarIdent  -- ^ the @?name@, if the hole was named
+  , holeGoal     :: Term'           -- ^ expected type (the goal), kept symbolic
+  , holeTermVars :: [HoleEntry]     -- ^ local hypotheses whose type is not a cube
+  , holeCubeVars :: [HoleEntry]     -- ^ local cube variables (type is a cube)
+  , holeTopes    :: [Term']         -- ^ local tope assumptions (excluding ⊤)
+  , holeLocation :: Maybe LocationInfo
+  } deriving (Eq, Show)
+
+type TypeCheck var =
+  ReaderT (Context var)
+    (WriterT [HoleInfo] (Except (TypeErrorInScopedContext var)))
 
 freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
 freeVarsT_ term = do
@@ -1566,14 +1688,27 @@ enterScopeContext orig md ty val context =
 enterScope :: Maybe VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig ty action = do
   newContext <- asks (enterScopeContext orig Id ty Nothing)
-  lift $ withExceptT (ScopedTypeError orig) $
-    runReaderT action newContext
+  closeScope orig (runReaderT action newContext)
 
 enterScopeWithBind :: Maybe VarIdent -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeWithBind orig md ty val action = do
   newContext <- asks (enterScopeContext orig md ty (Just val))
-  lift $ withExceptT (ScopedTypeError orig) $
-    runReaderT action newContext
+  closeScope orig (runReaderT action newContext)
+
+-- | Run a sub-scope computation and lift it back to the enclosing scope: close
+-- the error channel one binder with 'ScopedTypeError' (as before), and re-emit
+-- the holes it recorded. 'HoleInfo' is already rendered to 'VarIdent' names, so
+-- no De Bruijn re-indexing is needed — only a plain re-'tell'. On a thrown
+-- error the sub-scope's holes are dropped, which is intended: holes only matter
+-- on the success path (lenient mode), and strict mode wants the error anyway.
+closeScope
+  :: Maybe VarIdent
+  -> WriterT [HoleInfo] (Except (TypeErrorInScopedContext (Inc var))) b
+  -> TypeCheck var b
+closeScope orig inner = do
+  (b, holes) <- lift . lift . withExceptT (ScopedTypeError orig) $ runWriterT inner
+  lift (tell holes)
+  return b
 
 enterModality :: TModality -> TypeCheck var b -> TypeCheck var b
 enterModality md action = do
@@ -1769,6 +1904,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
            else tryRestriction typeOf_tt >>= \case
             Just tt' -> whnfT tt'
             Nothing -> case tt of
+              -- a hole is opaque: it never reduces, it is already a normal form
+              HoleT{} -> pure tt
               t@(Pure var) ->
                 valueOfVar var >>= \case
                   Nothing   -> pure t
@@ -1851,6 +1988,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
 nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
+  HoleT{} -> pure tt
   Pure var ->
     valueOfVar var >>= \case
       Nothing   -> return tt
@@ -2134,6 +2272,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
        else typeOf tt >>= tryRestriction >>= \case
         Just tt' -> nfT tt'
         Nothing -> case tt of
+          -- a hole is opaque: it never reduces, it is already a normal form
+          HoleT{} -> pure tt
           t@(Pure var) ->
             valueOfVar var >>= \case
               Nothing   -> pure t
@@ -2980,8 +3120,19 @@ modExtractT ty app inn term = t
       }
 
 typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
-typecheck term ty = performing (ActionTypeCheck term ty) $ do
-  whnfT ty >>= \case
+typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
+  -- A hole is checked against a known type (this is checking position): in
+  -- strict mode it is reported as an unsolved hole; in lenient mode its goal
+  -- and context are recorded and it is treated as inhabiting the expected type.
+  Hole mname -> do
+    reject <- asks holesAreErrors
+    if reject
+      then issueTypeError (TypeErrorUnsolvedHole mname ty)
+      else do
+        recordHole mname ty
+        return (HoleT TypeInfo{ infoType = ty, infoWHNF = Nothing, infoNF = Nothing } mname)
+
+  _ -> whnfT ty >>= \case
 
     RecBottomT{} -> do
       -- Even under an absurd tope context (where the expected type collapses to
@@ -3130,6 +3281,7 @@ inferAs expectedKind term = do
 
 infer :: Eq var => Term var -> TypeCheck var (TermT var)
 infer tt = performing (ActionInfer tt) $ case tt of
+  Hole _mname -> issueTypeError (TypeErrorCannotInferHole tt)
   Pure x -> do
     topLevel <- isTopLevelVar x
     unless topLevel $ do

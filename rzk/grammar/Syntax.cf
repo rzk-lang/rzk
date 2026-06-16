@@ -5,7 +5,7 @@ layout toplevel ;
 
 token VarIdentToken ((char - ["-?!.\\;,#\"][)(}{><| \t\n\r"]) (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
 
-token HoleIdentToken '?' ;
+token HoleIdentToken ('?' (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
 
 Module. Module ::= LanguageDecl [Command] ;
 

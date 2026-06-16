@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A hole in inference position (here applied as a function) has no known type,
+-- so it is reported rather than guessed (no metavariables).
+#define f : (A : U) -> A -> A
+  := \ A x -> ? x

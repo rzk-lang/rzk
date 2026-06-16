@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnsolvedHole
+message_contains:
+  - "found an unsolved hole"
+regression_for:
+  - holes-strict-mode

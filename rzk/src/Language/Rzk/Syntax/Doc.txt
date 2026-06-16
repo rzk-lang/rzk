@@ -25,7 +25,8 @@ VarIdentToken literals are recognized by the regular expression
  "#(),;<>[\]{|}"])*`````
 
 HoleIdentToken literals are recognized by the regular expression
-`````'?'`````
+`````'?' (char - ["
+ "#(),;<>[\]{|}"])*`````
 
 
 ===Reserved words and symbols===
