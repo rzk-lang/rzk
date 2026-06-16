@@ -111,11 +111,14 @@ diagnoseTypeError dir err = Diagnostic
   , diagnosticMessage  = ppTypeErrorInScopedContext' dir err
   }
 
--- | A structured diagnostic for a hole: a 'SeverityHint' carrying the hole's
--- goal and local context.
+-- | A structured diagnostic for a hole, carrying the hole's goal and local
+-- context. Uses 'SeverityInformation' rather than 'SeverityHint': editors
+-- (VS Code in particular) render hints almost invisibly — no entry in the
+-- problems panel and only a faint decoration — whereas the whole point of a
+-- hole diagnostic is to show its goal where the user can see it.
 diagnoseHole :: HoleInfo -> Diagnostic
 diagnoseHole hole = Diagnostic
-  { diagnosticSeverity = SeverityHint
+  { diagnosticSeverity = SeverityInformation
   , diagnosticCode     = "hole"
   , diagnosticLocation = holeLocation hole
   , diagnosticMessage  = ppHoleInfo hole
