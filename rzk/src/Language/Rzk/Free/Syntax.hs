@@ -63,6 +63,19 @@ varIdentAt path (Rzk.VarIdent pos ident) = VarIdent (Rzk.VarIdent (RzkPosition p
 fromVarIdent :: VarIdent -> Rzk.VarIdent
 fromVarIdent (VarIdent (Rzk.VarIdent (RzkPosition _file pos) ident)) = Rzk.VarIdent pos ident
 
+-- | The display name of a hole from its surface token text. The token includes
+-- the leading @?@; an anonymous hole (bare @?@) has no name.
+holeName :: T.Text -> Maybe VarIdent
+holeName tok =
+  case T.drop 1 tok of
+    name | T.null name -> Nothing
+         | otherwise   -> Just (fromString (T.unpack name))
+
+-- | The surface token text (including the leading @?@) for a hole name.
+holeIdentToken :: Maybe VarIdent -> T.Text
+holeIdentToken Nothing  = "?"
+holeIdentToken (Just x) = "?" <> T.pack (show x)
+
 data TModality = Sharp | Flat | Op | Id deriving (Eq, Show)
 
 toModality :: Rzk.Modality -> TModality
@@ -132,6 +145,7 @@ data TermF scope term
     | ModAppF TModality term
     | ModExtractF TModality TModality term
     | LetModF (Maybe VarIdent) TModality TModality (Maybe term) term scope
+    | HoleF (Maybe VarIdent)
     deriving (Eq, Functor, Foldable, Traversable)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
@@ -422,7 +436,8 @@ toTerm bvars = go
           Rzk.Restriction _loc tope term       -> (go tope, go term)
           Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
 
-      Rzk.Hole _loc _ident -> error "holes are not supported"
+      Rzk.Hole _loc (Rzk.HoleIdent _ (Rzk.HoleIdentToken tok)) ->
+        Hole (holeName tok)
       Rzk.ModApp _loc md body -> ModApp (toModality md) (go body)
       Rzk.ModType _loc md ty -> TypeModal (toModality md) (go ty)
       Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
@@ -530,6 +545,8 @@ fromTermWith' used vars = go
       CubeUnflip t -> Rzk.CubeUnflip loc (go t)
       RecBottom -> Rzk.RecBottom loc
       RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
+
+      Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
       TypeFun z arg Nothing ret -> withFresh z $ \(x, xs) ->
         Rzk.TypeFun loc (Rzk.ParamTermType loc (Rzk.Var loc (fromVarIdent x)) (go arg)) (fromScope' x used xs ret)
