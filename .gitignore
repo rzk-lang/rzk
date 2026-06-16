@@ -36,3 +36,11 @@ __pycache__
 *.log
 rzk/doc/
 /rzk-playground-release
+
+# Intermediate BNFC outputs. `make -C rzk regen-parser` writes these, feeds them
+# to alex/happy to produce the committed Lex.hs/Par.hs, then deletes them; this
+# ignore is a safety net in case a regen is interrupted before that cleanup.
+# They must not be committed: a build-type: Simple build would otherwise try to
+# run alex/happy on them (and fail without those tools).
+rzk/src/Language/Rzk/Syntax/Lex.x
+rzk/src/Language/Rzk/Syntax/Par.y
