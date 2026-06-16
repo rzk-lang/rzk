@@ -318,6 +318,7 @@ test-suite rzk-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Rzk.DiagnosticSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
       Rzk.TypeCheckSpec
