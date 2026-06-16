@@ -15,6 +15,7 @@ import           Control.Monad.Reader
 -- 'Data.Monoid' (incl. 'First'/'Last') on some mtl versions, which clashes with
 -- the 'First'/'Last' term patterns from 'Language.Rzk.Free.Syntax'.
 import           Control.Monad.Writer     (WriterT, runWriterT, tell)
+import           Data.Bifoldable          (bifoldr)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
@@ -606,6 +607,16 @@ isCubeType = \case
 isHoleT :: TermT var -> Bool
 isHoleT HoleT{} = True
 isHoleT _       = False
+
+-- | Does this term contain a hole anywhere (including nested, e.g. @f ?@)?
+-- Used to keep unification lenient around incomplete terms: a term with an
+-- unfilled hole cannot be meaningfully compared, so a unification that would
+-- otherwise fail is deferred. Evaluated only on the failure path.
+containsHole :: TermT var -> Bool
+containsHole = \case
+  HoleT{}             -> True
+  Pure{}              -> False
+  Free (AnnF _ termf) -> bifoldr ((||) . containsHole) ((||) . containsHole) False termf
 
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
@@ -2488,16 +2499,26 @@ unifyInCurrentContext mterm expected actual = performing action $
               UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
               _ -> do
                 let def = unless (expected' == actual') err
-                    err =
-                      case mterm of
-                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
-                        Just term -> issueTypeError (TypeErrorUnify term expected' actual')
-                    errS = do
-                      let expectedS = S <$> expected'
-                          actualS = S <$> actual'
-                      case mterm of
-                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
-                        Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+                    -- A hole stands for a term of the expected type, so a
+                    -- unification that would otherwise fail is deferred when
+                    -- either side still contains an (unfilled) hole — including
+                    -- one nested in a larger term, e.g. @f ?@ checked against an
+                    -- extension-type boundary. Lazy: only runs on the failure path.
+                    holePresent = containsHole expected' || containsHole actual'
+                    err
+                      | holePresent = return ()
+                      | otherwise =
+                          case mterm of
+                            Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
+                            Just term -> issueTypeError (TypeErrorUnify term expected' actual')
+                    errS
+                      | holePresent = return ()
+                      | otherwise = do
+                          let expectedS = S <$> expected'
+                              actualS = S <$> actual'
+                          case mterm of
+                            Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
+                            Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
                 case expected' of
                   Pure{} -> def
 
@@ -2702,6 +2723,9 @@ unifyInCurrentContext mterm expected actual = performing action $
                         when (inn' /= inn) $ err
                         unify Nothing te te'
                       _ -> err
+                  -- defensive: a hole nested anywhere also defers here rather
+                  -- than panicking on an otherwise unexpected shape
+                  _ | holePresent -> return ()
                   _ -> panicImpossible "unexpected term in UNIFY"
 
 
