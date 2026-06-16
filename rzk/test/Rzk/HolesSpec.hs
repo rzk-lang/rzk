@@ -71,8 +71,21 @@ spec = do
 
     -- A hole used as the argument of a shape-restricted function: the
     -- shape-membership tope (psi ?) mentions the hole and cannot be decided, so
-    -- it is deferred rather than reported as TypeErrorTopeNotSatisfied.
-    it "handles a hole as a cube argument to a shape-restricted function" $ do
+    -- it is deferred rather than reported as TypeErrorTopeNotSatisfied. The goal
+    -- is the shape (s : I | psi s), captured in holeGoalShape.
+    it "records the shape goal for a hole argument to a shape-restricted function" $ do
       case holesOf "#lang rzk-1\n#define t : (I : CUBE) -> (psi : I -> TOPE) -> (A : U) -> (a : (s : I | psi s) -> A) -> (t : I) -> A\n  := \\ I psi A a t -> a ?\n" of
-        [h] -> show (holeGoal h) `shouldBe` "I"
+        [h] -> do
+          show (holeGoal h) `shouldBe` "I"
+          case holeGoalShape h of
+            Just (s, tope) -> do
+              show s `shouldBe` "s"
+              show tope `shouldBe` "psi s"
+            Nothing -> expectationFailure "expected a shape goal (holeGoalShape)"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- An ordinary (non-shape) hole has no shape goal.
+    it "leaves holeGoalShape empty for an ordinary hole" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
+        [h] -> holeGoalShape h `shouldBe` Nothing
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
