@@ -42,17 +42,19 @@ instance ToJSON Severity where
     SeverityInformation -> "information"
     SeverityHint        -> "hint"
 
-instance ToJSON LocationInfo where
-  toJSON (LocationInfo path line) = object
-    [ "file" .= path
-    , "line" .= line
-    ]
+-- | Encode a location as JSON. A plain helper rather than a @ToJSON@ instance,
+-- to avoid an orphan instance ('LocationInfo' is defined in "Rzk.TypeCheck").
+locationToJSON :: LocationInfo -> Value
+locationToJSON (LocationInfo path line) = object
+  [ "file" .= path
+  , "line" .= line
+  ]
 
 instance ToJSON Diagnostic where
   toJSON Diagnostic{..} = object
     [ "severity" .= diagnosticSeverity
     , "code"     .= diagnosticCode
-    , "location" .= diagnosticLocation
+    , "location" .= fmap locationToJSON diagnosticLocation
     , "message"  .= diagnosticMessage
     ]
 

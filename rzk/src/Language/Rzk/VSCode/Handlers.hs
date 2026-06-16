@@ -24,9 +24,8 @@ import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 modifyError, runExceptT)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
-import           Data.Function                 (on)
-import           Data.List                     (groupBy, isSuffixOf, sort,
-                                                sortOn, (\\))
+import           Data.List                     (isSuffixOf, sort, (\\))
+import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
@@ -120,8 +119,8 @@ typecheckFromConfigFile = do
           logDebug (tshow (length modifiedFiles) <> " files have been modified")
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
-          -- Run in lenient hole mode so holes are collected (and shown as hints)
-          -- rather than reported as errors while editing.
+          -- Run in lenient hole mode so holes are collected (and surfaced as
+          -- hints) rather than reported as errors while editing.
           tcResults <- liftIO $ try $ evaluate $
             defaultTypeCheckWithHoles (typecheckModulesWithLocationIncremental cachedModules parsedModules)
 
@@ -134,14 +133,14 @@ typecheckFromConfigFile = do
             Right (Left err) -> do
               logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
               return ([err], [])    -- sort of impossible
-            Right (Right ((checkedModules, errors), holes)) -> do
+            Right (Right ((checkedModules, errors), foundHoles)) -> do
                 -- cache well-typed modules
                 logInfo (tshow (length checkedModules) <> " modules successfully typechecked")
                 logInfo (tshow (length errors) <> " errors found")
-                logInfo (tshow (length holes) <> " holes found")
+                logInfo (tshow (length foundHoles) <> " holes found")
                 let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
                 cacheTypecheckedModules checkedModules'
-                return (errors, holes)
+                return (errors, foundHoles)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
@@ -162,10 +161,11 @@ typecheckFromConfigFile = do
               holeDiagnostics = [ (path, diagnosticOfHole hole)
                                 | hole <- holeInfos
                                 , Just path <- [holeLocation hole >>= locationFilePath] ]
+              -- group by file path (NE.groupAllWith sorts then groups, and
+              -- yields NonEmpty groups so taking the key is total)
               diagnosticsByFile =
-                map (\grp -> (fst (head grp), map snd grp)) $
-                groupBy ((==) `on` fst) $
-                sortOn fst (errDiagnostics <> holeDiagnostics)
+                map (\grp -> (fst (NE.head grp), map snd (NE.toList grp))) $
+                NE.groupAllWith fst (errDiagnostics <> holeDiagnostics)
           forM_ diagnosticsByFile $ \(path, diags) ->
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource diags)
   where
