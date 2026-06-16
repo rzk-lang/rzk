@@ -44,6 +44,8 @@ extra-source-files:
     test/typecheck/cases/ill-bare-lambda-compute.rzk
     test/typecheck/cases/ill-bare-refl-compute.rzk
     test/typecheck/cases/ill-duplicate.rzk
+    test/typecheck/cases/ill-hole-infer.rzk
+    test/typecheck/cases/ill-hole-unsolved.rzk
     test/typecheck/cases/ill-implicit.rzk
     test/typecheck/cases/ill-interval-no-totality.rzk
     test/typecheck/cases/ill-interval-subtyping.rzk
@@ -123,6 +125,8 @@ extra-source-files:
     test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
     test/typecheck/cases/ill-bare-refl-compute.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
+    test/typecheck/cases/ill-hole-infer.expect.yaml
+    test/typecheck/cases/ill-hole-unsolved.expect.yaml
     test/typecheck/cases/ill-implicit.expect.yaml
     test/typecheck/cases/ill-interval-no-totality.expect.yaml
     test/typecheck/cases/ill-interval-subtyping.expect.yaml
@@ -311,6 +315,7 @@ test-suite rzk-test
   main-is: Spec.hs
   other-modules:
       Rzk.FormatSpec
+      Rzk.HolesSpec
       Rzk.TypeCheckSpec
       Paths_rzk
   autogen-modules:

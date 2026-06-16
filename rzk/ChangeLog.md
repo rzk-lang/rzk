@@ -8,6 +8,10 @@ and this project adheres to the
 
 ## Unreleased
 
+Added:
+
+- **Typed holes and a structured goal/context query.** Write `?` (or a named `?goal`) for an unfilled subterm. By default `rzk typecheck` reports any hole as an error, so finished work and CI never admit holes; `rzk typecheck --allow-holes` instead prints, for each hole, its expected type (the goal) and local context — local term variables, cube variables, and tope assumptions, with the global environment excluded. The same data is available to library consumers (the playground/game and the LSP) via `typecheckModulesWithHoles` returning structured `HoleInfo` values. Holes are checked only where their type is known (checking position); a hole in inference position is reported rather than guessed.
+
 Other changes:
 
 - Build `rzk` with `build-type: Simple` instead of `Custom`, so the package now builds under the **GHC WebAssembly backend** (a `Custom` `Setup.hs` cannot run there) and no longer requires BNFC, `alex`, or `happy` to install (e.g. from Hackage). The parser and lexer are still generated from `grammar/Syntax.cf`, but out of band: run `make -C rzk regen-parser` after editing the grammar. A new `Parser up-to-date` CI workflow regenerates from the grammar and fails on drift, and the WASM/GHCJS CI lanes no longer patch the package before building.

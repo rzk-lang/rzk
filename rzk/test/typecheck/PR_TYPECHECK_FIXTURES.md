@@ -7,6 +7,7 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
 - **Bad commands/sections/render:** options (`ill-set-option-*`, `ill-unset-option-unknown`), sections (`ill-section-*`), LaTeX define (`ill-render-latex-define`).
 - **UNSAT topes/shapes/`recOR`:** `ill-tope-not-satisfied-*`, `ill-tope-subtle-*`, `ill-rec-or-overlap-incoherent`, `ill-recor-coverage-required`, `ill-restrict-face-disjoint`, `ill-recor-guard-disjoint`, nested `recOR` (`ill-tope-nested-rec-or-inner-singleton`; `*-inner-singleton-d{4,5,6}`) (exhibit exponential slowdown).
 - **recBOT body well-formedness:** `ill-recbot-term-not-function`, `ill-recbot-term-undefined` (ill-typed bodies must not be admitted under an absurd hypothesis).
+- **Holes (strict mode):** `ill-hole-unsolved` (a hole is an error by default), `ill-hole-infer` (a hole in inference position cannot be guessed). The lenient mode and the structured goal/context query are covered by `Rzk.HolesSpec`, not by YAML fixtures.
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 
 # Regression tests
@@ -29,6 +30,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Commit ac9b6d89 refl / check | `happy-refl-path` | `refl_{x}` and identity `#check` |
 | Docs: sections / implicit | `ill-implicit` | `TypeErrorImplicitAssumption` |
 | Coverage matrix | `ill-unify`, `ill-undefined`, `ill-duplicate`, `ill-not-function`, `happy-check` | Core `TypeError` constructors |
+| Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
 
 # Test schema
 

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A hole in checking position is rejected in the default (strict) mode, so
+-- finished work and CI never admit unfilled holes.
+#define f : (A : U) -> A -> A
+  := \ A a -> ?
