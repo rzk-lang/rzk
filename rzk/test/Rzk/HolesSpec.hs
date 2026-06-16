@@ -60,3 +60,19 @@ spec = do
       case holesOf "#lang rzk-1\n#define t : (A : U) -> (a : A) -> a =_{A} a\n  := \\ A a -> refl_{?}\n" of
         [h] -> show (holeGoal h) `shouldBe` "A"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A hole nested inside a larger term (`f ?`) checked against an
+    -- extension-type boundary: the boundary face is unified against `f ?`, which
+    -- must be deferred rather than reported as a mismatch.
+    it "handles a nested hole under an extension-type boundary" $ do
+      case holesOf "#lang rzk-1\n#define t : (A : U) -> (f : A -> A) -> (a : A) -> (t : 2) -> A [ t === 0_2 |-> a ]\n  := \\ A f a t -> f ?\n" of
+        [h] -> show (holeGoal h) `shouldBe` "A"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A hole used as the argument of a shape-restricted function: the
+    -- shape-membership tope (psi ?) mentions the hole and cannot be decided, so
+    -- it is deferred rather than reported as TypeErrorTopeNotSatisfied.
+    it "handles a hole as a cube argument to a shape-restricted function" $ do
+      case holesOf "#lang rzk-1\n#define t : (I : CUBE) -> (psi : I -> TOPE) -> (A : U) -> (a : (s : I | psi s) -> A) -> (t : I) -> A\n  := \\ I psi A a t -> a ?\n" of
+        [h] -> show (holeGoal h) `shouldBe` "I"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

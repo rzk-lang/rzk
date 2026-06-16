@@ -15,6 +15,7 @@ import           Control.Monad.Reader
 -- 'Data.Monoid' (incl. 'First'/'Last') on some mtl versions, which clashes with
 -- the 'First'/'Last' term patterns from 'Language.Rzk.Free.Syntax'.
 import           Control.Monad.Writer     (WriterT, runWriterT, tell)
+import           Data.Bifoldable          (bifoldr)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
@@ -606,6 +607,16 @@ isCubeType = \case
 isHoleT :: TermT var -> Bool
 isHoleT HoleT{} = True
 isHoleT _       = False
+
+-- | Does this term contain a hole anywhere (including nested, e.g. @f ?@)?
+-- Used to keep unification lenient around incomplete terms: a term with an
+-- unfilled hole cannot be meaningfully compared, so a unification that would
+-- otherwise fail is deferred. Evaluated only on the failure path.
+containsHole :: TermT var -> Bool
+containsHole = \case
+  HoleT{}             -> True
+  Pure{}              -> False
+  Free (AnnF _ termf) -> bifoldr ((||) . containsHole) ((||) . containsHole) False termf
 
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
@@ -1602,7 +1613,10 @@ contextEntails tope = do
   performing (ActionContextEntails ctxTopes tope) $ do
     topeIsEntailed <- checkTope tope
     topes' <- asks localTopesNF
-    unless topeIsEntailed $
+    -- When a hole is used in a cube/tope position (e.g. as the argument of a
+    -- shape-restricted function), the tope being checked mentions the hole and
+    -- cannot be decided. Treat it as satisfied (defer) rather than failing.
+    unless (topeIsEntailed || containsHole tope) $
       issueTypeError $ TypeErrorTopeNotSatisfied topes' tope
 
 topesEquiv :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
@@ -1628,8 +1642,10 @@ contextEntailsUnion topes = do
     topesNF <- mapM nfTope topes
     let unionRHS = foldr topeOrT topeBottomT topesNF
     contextTopes `entailM` unionRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
-      True -> return ()
+      -- a guard mentioning an (unfilled) hole can't be decided; defer coverage
+      False | not (any containsHole topesNF) ->
+        issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
+      _ -> return ()
 
 -- | Diagnose a recOR branch guard or restriction face against the local tope
 -- context. There are three cases, by how the tope relates to the context:
@@ -1649,7 +1665,8 @@ checkTopeAgainstContext what tope = do
   unless ctxEntailsBottom $ do          -- a contradictory context is handled elsewhere (recBOT)
     ctxTopes <- asks (filter (/= topeTopT) . localTopesNF)
     disjoint <- (tope : ctxTopes) `entailM` topeBottomT
-    if disjoint
+    -- a face/guard mentioning an (unfilled) hole can't be decided; defer
+    if disjoint && not (containsHole tope)
       then issueTypeError (TypeErrorTopeContextDisjoint tope ctxTopes)
       else do
         entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
@@ -2488,16 +2505,26 @@ unifyInCurrentContext mterm expected actual = performing action $
               UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
               _ -> do
                 let def = unless (expected' == actual') err
-                    err =
-                      case mterm of
-                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
-                        Just term -> issueTypeError (TypeErrorUnify term expected' actual')
-                    errS = do
-                      let expectedS = S <$> expected'
-                          actualS = S <$> actual'
-                      case mterm of
-                        Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
-                        Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
+                    -- A hole stands for a term of the expected type, so a
+                    -- unification that would otherwise fail is deferred when
+                    -- either side still contains an (unfilled) hole — including
+                    -- one nested in a larger term, e.g. @f ?@ checked against an
+                    -- extension-type boundary. Lazy: only runs on the failure path.
+                    holePresent = containsHole expected' || containsHole actual'
+                    err
+                      | holePresent = return ()
+                      | otherwise =
+                          case mterm of
+                            Nothing   -> issueTypeError (TypeErrorUnifyTerms expected' actual')
+                            Just term -> issueTypeError (TypeErrorUnify term expected' actual')
+                    errS
+                      | holePresent = return ()
+                      | otherwise = do
+                          let expectedS = S <$> expected'
+                              actualS = S <$> actual'
+                          case mterm of
+                            Nothing   -> issueTypeError (TypeErrorUnifyTerms expectedS actualS)
+                            Just term -> issueTypeError (TypeErrorUnify (S <$> term) expectedS actualS)
                 case expected' of
                   Pure{} -> def
 
@@ -2584,7 +2611,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                               expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                               actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
                               actualEntailsExpected <- [actualTopeNF] `entailM` expectedTopeNF
-                              unless actualEntailsExpected $
+                              unless (actualEntailsExpected || containsHole expectedTopeNF || containsHole actualTopeNF) $
                                 issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
                             _ -> do
                               -- this is the case for Π-types and extension types
@@ -2702,6 +2729,9 @@ unifyInCurrentContext mterm expected actual = performing action $
                         when (inn' /= inn) $ err
                         unify Nothing te te'
                       _ -> err
+                  -- defensive: a hole nested anywhere also defers here rather
+                  -- than panicking on an otherwise unexpected shape
+                  _ | holePresent -> return ()
                   _ -> panicImpossible "unexpected term in UNIFY"
 
 
