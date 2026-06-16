@@ -1613,7 +1613,10 @@ contextEntails tope = do
   performing (ActionContextEntails ctxTopes tope) $ do
     topeIsEntailed <- checkTope tope
     topes' <- asks localTopesNF
-    unless topeIsEntailed $
+    -- When a hole is used in a cube/tope position (e.g. as the argument of a
+    -- shape-restricted function), the tope being checked mentions the hole and
+    -- cannot be decided. Treat it as satisfied (defer) rather than failing.
+    unless (topeIsEntailed || containsHole tope) $
       issueTypeError $ TypeErrorTopeNotSatisfied topes' tope
 
 topesEquiv :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
@@ -1639,8 +1642,10 @@ contextEntailsUnion topes = do
     topesNF <- mapM nfTope topes
     let unionRHS = foldr topeOrT topeBottomT topesNF
     contextTopes `entailM` unionRHS >>= \case
-      False -> issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
-      True -> return ()
+      -- a guard mentioning an (unfilled) hole can't be decided; defer coverage
+      False | not (any containsHole topesNF) ->
+        issueTypeError $ TypeErrorTopeNotSatisfied contextTopes unionRHS
+      _ -> return ()
 
 -- | Diagnose a recOR branch guard or restriction face against the local tope
 -- context. There are three cases, by how the tope relates to the context:
@@ -1660,7 +1665,8 @@ checkTopeAgainstContext what tope = do
   unless ctxEntailsBottom $ do          -- a contradictory context is handled elsewhere (recBOT)
     ctxTopes <- asks (filter (/= topeTopT) . localTopesNF)
     disjoint <- (tope : ctxTopes) `entailM` topeBottomT
-    if disjoint
+    -- a face/guard mentioning an (unfilled) hole can't be decided; defer
+    if disjoint && not (containsHole tope)
       then issueTypeError (TypeErrorTopeContextDisjoint tope ctxTopes)
       else do
         entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
@@ -2605,7 +2611,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                               expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                               actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
                               actualEntailsExpected <- [actualTopeNF] `entailM` expectedTopeNF
-                              unless actualEntailsExpected $
+                              unless (actualEntailsExpected || containsHole expectedTopeNF || containsHole actualTopeNF) $
                                 issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
                             _ -> do
                               -- this is the case for Π-types and extension types
