@@ -38,10 +38,10 @@ spec = do
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
   describe "diagnoseHole" $ do
-    it "produces an information-severity diagnostic carrying the goal" $ do
+    it "produces a warning-severity diagnostic carrying the goal" $ do
       case diagnose "#lang rzk-1\n#define g : (A : U) -> A -> A\n  := \\ A a -> ?goal\n" of
         [d] -> do
-          diagnosticSeverity d `shouldBe` SeverityInformation
+          diagnosticSeverity d `shouldBe` SeverityWarning
           diagnosticCode d `shouldBe` "hole"
           ("goal" `isInfixOf` diagnosticMessage d) `shouldBe` True
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))

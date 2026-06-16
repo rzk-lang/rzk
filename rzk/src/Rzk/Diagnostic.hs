@@ -112,13 +112,14 @@ diagnoseTypeError dir err = Diagnostic
   }
 
 -- | A structured diagnostic for a hole, carrying the hole's goal and local
--- context. Uses 'SeverityInformation' rather than 'SeverityHint': editors
--- (VS Code in particular) render hints almost invisibly — no entry in the
--- problems panel and only a faint decoration — whereas the whole point of a
--- hole diagnostic is to show its goal where the user can see it.
+-- context. A hole is an unfilled obligation, so it is a 'SeverityWarning' —
+-- mirroring Agda's yellow \"unsolved\" highlight, and visible in the editor's
+-- problems panel (unlike 'SeverityHint', which editors render almost
+-- invisibly). Finished work still rejects holes outright: the strict default
+-- of @rzk typecheck@ reports them as errors (cf. Agda's @--safe@).
 diagnoseHole :: HoleInfo -> Diagnostic
 diagnoseHole hole = Diagnostic
-  { diagnosticSeverity = SeverityInformation
+  { diagnosticSeverity = SeverityWarning
   , diagnosticCode     = "hole"
   , diagnosticLocation = holeLocation hole
   , diagnosticMessage  = ppHoleInfo hole
