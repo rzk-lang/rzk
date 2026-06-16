@@ -24,7 +24,9 @@ import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 modifyError, runExceptT)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
-import           Data.List                     (isSuffixOf, sort, (\\))
+import           Data.Function                 (on)
+import           Data.List                     (groupBy, isSuffixOf, sort,
+                                                sortOn, (\\))
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
@@ -52,6 +54,7 @@ import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
+import qualified Rzk.Diagnostic                as Diag
 import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
@@ -117,10 +120,12 @@ typecheckFromConfigFile = do
           logDebug (tshow (length modifiedFiles) <> " files have been modified")
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
+          -- Run in lenient hole mode so holes are collected (and shown as hints)
+          -- rather than reported as errors while editing.
           tcResults <- liftIO $ try $ evaluate $
-            defaultTypeCheck (typecheckModulesWithLocationIncremental cachedModules parsedModules)
+            defaultTypeCheckWithHoles (typecheckModulesWithLocationIncremental cachedModules parsedModules)
 
-          (typeErrors, _checkedModules) <- case tcResults of
+          (typeErrors, holeInfos) <- case tcResults of
             Left (ex :: SomeException) -> do
               -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
               --  because exceptions are expected when the file has invalid syntax
@@ -129,13 +134,14 @@ typecheckFromConfigFile = do
             Right (Left err) -> do
               logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
               return ([err], [])    -- sort of impossible
-            Right (Right (checkedModules, errors)) -> do
+            Right (Right ((checkedModules, errors), holes)) -> do
                 -- cache well-typed modules
                 logInfo (tshow (length checkedModules) <> " modules successfully typechecked")
                 logInfo (tshow (length errors) <> " errors found")
+                logInfo (tshow (length holes) <> " holes found")
                 let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
                 cacheTypecheckedModules checkedModules'
-                return (errors, checkedModules)
+                return (errors, holes)
 
           -- Reset all published diags
           -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
@@ -147,13 +153,21 @@ typecheckFromConfigFile = do
           forM_ parseErrors $ \(path, err) -> do
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError err])
 
-          -- TODO: collect all errors for one file in one list
-
-          -- Report typechecking errors to the client
-          forM_ typeErrors $ \err -> do
-            let errPath = filepathOfTypeError err
-                errDiagnostic = diagnosticOfTypeError err
-            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri errPath) Nothing (partitionBySource [errDiagnostic])
+          -- Report typechecking errors and holes to the client, grouped by file
+          -- so all diagnostics for a file are published in a single call
+          -- (publishDiagnostics replaces a source's diagnostics per URI, so
+          -- publishing them one at a time would clobber all but the last).
+          let errDiagnostics  = [ (filepathOfTypeError err, diagnosticOfTypeError err)
+                                | err <- typeErrors ]
+              holeDiagnostics = [ (path, diagnosticOfHole hole)
+                                | hole <- holeInfos
+                                , Just path <- [holeLocation hole >>= locationFilePath] ]
+              diagnosticsByFile =
+                map (\grp -> (fst (head grp), map snd grp)) $
+                groupBy ((==) `on` fst) $
+                sortOn fst (errDiagnostics <> holeDiagnostics)
+          forM_ diagnosticsByFile $ \(path, diags) ->
+            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource diags)
   where
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
@@ -162,28 +176,37 @@ typecheckFromConfigFile = do
         _         -> error "the impossible happened! Please contact Abdelrahman immediately!!!"
     filepathOfTypeError (ScopedTypeError _orig err) = filepathOfTypeError err
 
-    diagnosticOfTypeError :: TypeErrorInScopedContext VarIdent -> Diagnostic
-    diagnosticOfTypeError err = Diagnostic
-                      (Range (Position line 0) (Position line 99)) -- 99 to reach end of line and be visible until we actually have information about it
-                      (Just DiagnosticSeverity_Error)
-                      (Just $ InR "type-error") -- diagnostic code
+    -- Map a structured library diagnostic to an LSP diagnostic. The range is
+    -- line-level (whole line), reflecting the granularity rzk currently retains.
+    lspDiagnosticOf :: Diag.Diagnostic -> Diagnostic
+    lspDiagnosticOf d = Diagnostic
+                      (Range (Position line 0) (Position line 99)) -- 99 to reach end of line and be visible until we actually have column information
+                      (Just (lspSeverity (Diag.diagnosticSeverity d)))
+                      (Just (InR (T.pack (Diag.diagnosticCode d))))
                       Nothing                   -- diagnostic description
                       (Just "rzk")              -- A human-readable string describing the source of this diagnostic
-                      (T.pack msg)
+                      (T.pack (Diag.diagnosticMessage d))
                       Nothing                   -- tags
                       (Just [])                 -- related information
                       Nothing                   -- data that is preserved between different calls
       where
-        msg = ppTypeErrorInScopedContext' TopDown err
-
-        extractLineNumber :: TypeErrorInScopedContext var -> Maybe Int
-        extractLineNumber (PlainTypeError e)    = do
-          loc <- location (typeErrorContext e)
+        line = fromIntegral $ fromMaybe 0 $ do
+          loc <- Diag.diagnosticLocation d
           lineNo <- locationLine loc
           return (lineNo - 1) -- VS Code indexes lines from 0, but locationLine starts with 1
-        extractLineNumber (ScopedTypeError _ e) = extractLineNumber e
 
-        line = fromIntegral $ fromMaybe 0 $ extractLineNumber err
+    lspSeverity :: Diag.Severity -> DiagnosticSeverity
+    lspSeverity = \case
+      Diag.SeverityError       -> DiagnosticSeverity_Error
+      Diag.SeverityWarning     -> DiagnosticSeverity_Warning
+      Diag.SeverityInformation -> DiagnosticSeverity_Information
+      Diag.SeverityHint        -> DiagnosticSeverity_Hint
+
+    diagnosticOfTypeError :: TypeErrorInScopedContext VarIdent -> Diagnostic
+    diagnosticOfTypeError = lspDiagnosticOf . Diag.diagnoseTypeError TopDown
+
+    diagnosticOfHole :: HoleInfo -> Diagnostic
+    diagnosticOfHole = lspDiagnosticOf . Diag.diagnoseHole
 
     diagnosticOfParseError :: T.Text -> Diagnostic
     diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))
