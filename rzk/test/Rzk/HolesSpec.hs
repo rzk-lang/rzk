@@ -6,6 +6,7 @@
 -- between term variables and cube variables).
 module Rzk.HolesSpec (spec) where
 
+import           Data.List           (isInfixOf)
 import qualified Data.Text           as T
 
 import qualified Language.Rzk.Syntax as Rzk
@@ -88,4 +89,16 @@ spec = do
     it "leaves holeGoalShape empty for an ordinary hole" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
         [h] -> holeGoalShape h `shouldBe` Nothing
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A hole checked directly against an extension type shows its boundary in
+    -- the goal (the extension type is a real restricted type, carried in
+    -- holeGoal — not a shape, so holeGoalShape stays empty).
+    it "shows the extension-type boundary in the goal" $ do
+      case holesOf "#lang rzk-1\n#define t : (A : U) -> (a : A) -> (t : 2) -> A [ t === 0_2 |-> a ]\n  := \\ A a t -> ?\n" of
+        [h] -> do
+          holeGoalShape h `shouldBe` Nothing
+          let goal = show (holeGoal h)
+          ("A [" `isInfixOf` goal) `shouldBe` True   -- a restricted type, not bare A
+          ("↦ a" `isInfixOf` goal) `shouldBe` True   -- the boundary face is present
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
