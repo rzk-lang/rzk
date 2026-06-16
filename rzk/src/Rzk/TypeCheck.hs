@@ -288,6 +288,8 @@ data TypeError var
   | TypeErrorUnexpectedRefl (Term var) (TermT var)
   | TypeErrorCannotInferBareLambda (Term var)
   | TypeErrorCannotInferBareRefl (Term var)
+  | TypeErrorCannotInferHole (Term var)
+  | TypeErrorUnsolvedHole (Maybe VarIdent) (TermT var)
   | TypeErrorUndefined var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
   | TypeErrorTopeContextDisjoint (TermT var) [TermT var]
@@ -404,6 +406,16 @@ ppTypeError' = \case
   TypeErrorCannotInferBareRefl term -> block TopDown
     [ "cannot infer the type of term"
     , "  " <> show term
+    ]
+  TypeErrorCannotInferHole term -> block TopDown
+    [ "cannot infer the type of a hole"
+    , "  " <> show term
+    , "a hole is only allowed where its type is already known (checking position)"
+    ]
+  TypeErrorUnsolvedHole mname goal -> block TopDown
+    [ "found an unsolved hole" <> maybe "" (\name -> " ?" <> show name) mname
+    , "expected type (goal):"
+    , "  " <> show (untyped goal)
     ]
   TypeErrorUndefined var -> block TopDown
     [ "undefined variable: " <> show (Pure var :: Term') ]
@@ -1769,6 +1781,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
            else tryRestriction typeOf_tt >>= \case
             Just tt' -> whnfT tt'
             Nothing -> case tt of
+              -- a hole is opaque: it never reduces, it is already a normal form
+              HoleT{} -> pure tt
               t@(Pure var) ->
                 valueOfVar var >>= \case
                   Nothing   -> pure t
@@ -1851,6 +1865,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
 nfTope :: Eq var => TermT var -> TypeCheck var (TermT var)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
+  HoleT{} -> pure tt
   Pure var ->
     valueOfVar var >>= \case
       Nothing   -> return tt
@@ -2134,6 +2149,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
        else typeOf tt >>= tryRestriction >>= \case
         Just tt' -> nfT tt'
         Nothing -> case tt of
+          -- a hole is opaque: it never reduces, it is already a normal form
+          HoleT{} -> pure tt
           t@(Pure var) ->
             valueOfVar var >>= \case
               Nothing   -> pure t
@@ -3130,6 +3147,7 @@ inferAs expectedKind term = do
 
 infer :: Eq var => Term var -> TypeCheck var (TermT var)
 infer tt = performing (ActionInfer tt) $ case tt of
+  Hole _mname -> issueTypeError (TypeErrorCannotInferHole tt)
   Pure x -> do
     topLevel <- isTopLevelVar x
     unless topLevel $ do
