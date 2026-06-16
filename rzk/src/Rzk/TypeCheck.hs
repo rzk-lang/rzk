@@ -626,28 +626,65 @@ containsHole = \case
 -- @varIsTopLevel == False@ locals are kept), and locals are split into cube
 -- variables and ordinary term variables.
 recordHole :: Eq var => Maybe VarIdent -> TermT var -> TypeCheck var ()
-recordHole mname goalTy = do
+recordHole mname goalTy = recordHoleShape mname goalTy Nothing
+
+-- | Record a hole. When the hole is the argument of a shape-restricted function
+-- its goal is a /shape/: the cube @goalTy@ together with a membership tope. The
+-- tope is a scope over the shape's bound variable (the third argument carries
+-- the declared binder name, if any, and the tope); it is rendered under that
+-- binder so the goal reads @(binder : goalTy | tope)@.
+recordHoleShape
+  :: Eq var
+  => Maybe VarIdent
+  -> TermT var
+  -> Maybe (Maybe VarIdent, TermT (Inc var))
+  -> TypeCheck var ()
+recordHoleShape mname goalTy mshape = do
   goal'     <- whnfT goalTy
   locals    <- asks (filter (not . varIsTopLevel . snd) . varInfos)
   cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
   topes     <- asks (filter (/= topeTopT) . localTopes)
   origs     <- asks varOrigs
   loc       <- asks location
+  let shapeTope     = snd <$> mshape
+      shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
-  let mapping  = zip (nub (varsList ++ map fst locals)) defaultVarIdents
+  let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
       render t = untyped (name <$> t)
       entries  = [ HoleEntry (name v) (render (varType info)) | (v, info) <- locals ]
       flagged  = zip cubeFlags entries
+      -- binder name for the shape: the declared name if any, else a default
+      shapeBinder   = fromMaybe (fromString "t") (mshape >>= fst)
+      nameInc Z     = shapeBinder
+      nameInc (S v) = name v
+      goalShape = (\t -> (shapeBinder, untyped (nameInc <$> t))) <$> shapeTope
   lift $ tell
     [ HoleInfo
-        { holeName     = mname
-        , holeGoal     = render goal'
-        , holeTermVars = [ e | (False, e) <- flagged ]
-        , holeCubeVars = [ e | (True,  e) <- flagged ]
-        , holeTopes    = map render topes
-        , holeLocation = loc
+        { holeName      = mname
+        , holeGoal      = render goal'
+        , holeGoalShape = goalShape
+        , holeTermVars  = [ e | (False, e) <- flagged ]
+        , holeCubeVars  = [ e | (True,  e) <- flagged ]
+        , holeTopes     = map render topes
+        , holeLocation  = loc
         } ]
+
+-- | Check a hole that appears as the argument of a shape-restricted function,
+-- whose domain is the cube @cube@ restricted by @tope@ (a scope over the
+-- domain's bound variable). Mirrors the hole case of 'typecheck', but records
+-- the shape as the hole's goal so the diagnostic shows @(binder : cube | tope)@.
+checkHoleAgainstShape
+  :: Eq var
+  => Maybe VarIdent -> Maybe VarIdent -> TermT var -> TermT (Inc var)
+  -> TypeCheck var (TermT var)
+checkHoleAgainstShape mname orig cube tope = do
+  reject <- asks holesAreErrors
+  if reject
+    then issueTypeError (TypeErrorUnsolvedHole mname cube)
+    else do
+      recordHoleShape mname cube (Just (orig, tope))
+      return (HoleT TypeInfo{ infoType = cube, infoWHNF = Nothing, infoNF = Nothing } mname)
 
 ppSomeAction :: Eq var => [(var, Maybe VarIdent)] -> Int -> Action var -> String
 ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
@@ -1208,12 +1245,18 @@ data HoleEntry = HoleEntry
 -- deliberately excluded — it belongs in a searchable inventory, not the goal
 -- panel.
 data HoleInfo = HoleInfo
-  { holeName     :: Maybe VarIdent  -- ^ the @?name@, if the hole was named
-  , holeGoal     :: Term'           -- ^ expected type (the goal), kept symbolic
-  , holeTermVars :: [HoleEntry]     -- ^ local hypotheses whose type is not a cube
-  , holeCubeVars :: [HoleEntry]     -- ^ local cube variables (type is a cube)
-  , holeTopes    :: [Term']         -- ^ local tope assumptions (excluding ⊤)
-  , holeLocation :: Maybe LocationInfo
+  { holeName      :: Maybe VarIdent  -- ^ the @?name@, if the hole was named
+  , holeGoal      :: Term'           -- ^ expected type (the goal), kept symbolic
+  , holeGoalShape :: Maybe (VarIdent, Term')
+    -- ^ when the goal is a /shape/ (the hole is the argument of a
+    -- shape-restricted function), the shape's bound variable and its tope: the
+    -- goal then reads @(binder : holeGoal | tope)@. 'Nothing' for an ordinary
+    -- goal. (Extension-type goals need no special handling — they are already a
+    -- restricted type in 'holeGoal'.)
+  , holeTermVars  :: [HoleEntry]     -- ^ local hypotheses whose type is not a cube
+  , holeCubeVars  :: [HoleEntry]     -- ^ local cube variables (type is a cube)
+  , holeTopes     :: [Term']         -- ^ local tope assumptions (excluding ⊤)
+  , holeLocation  :: Maybe LocationInfo
   } deriving (Eq, Show)
 
 type TypeCheck var =
@@ -3545,8 +3588,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
   App f x -> do
     f' <- inferAs universeT f
     fmap stripTypeRestrictions (typeOf f') >>= \case
-      TypeFunT _ty _orig a mtope b -> do
-        x' <- typecheck x a
+      TypeFunT _ty orig a mtope b -> do
+        -- A hole argument to a shape-restricted function carries the shape as
+        -- its goal: record (binder : a | tope) rather than just the cube a.
+        x' <- case (x, mtope) of
+          (Hole mname, Just tope) -> checkHoleAgainstShape mname orig a tope
+          _                       -> typecheck x a
         let result = appT (substituteT x' b) f' x'
         case b of
           UniverseTopeT{} -> do
