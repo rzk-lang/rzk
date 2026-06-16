@@ -51,7 +51,10 @@ when:
 # GHC-9.6.3-coherent floors live in cabal.project's `constraints:` block,
 # which is read by cabal but not by cabal2nix → Nix.
 dependencies:
-  aeson: ">= 2.0.0.0"
+  # Loose lower bound so the GHCJS path (miso's pinned package set ships
+  # aeson 1.x) resolves; the GHC-era floor (aeson >= 2) lives in
+  # cabal.project, which cabal2nix does not read.
+  aeson: ">= 1.4"
   array: ">= 0.5.3.0"
   base: ">= 4.7 && < 5"
   bifunctors: ">= 5.5.3"
