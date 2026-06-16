@@ -63,34 +63,5 @@ jobs:
           restore-keys: |
             wasm-cabal-${{ runner.os }}-ghc${{ env.FLAVOUR }}-
 
-      - name: 🔧 Adapt the package for the WASM backend
-        # The GHC WASM backend cannot run a Custom Setup.hs: cabal compiles
-        # Setup.hs to a .wasm module and then has no way to execute it (the
-        # link even fails — the wasm RTS has no threaded variant). The Custom
-        # setup only regenerates the parser/lexer with BNFC+alex+happy, and
-        # those outputs are committed, so for this lane we:
-        #   1. drop the .x/.y so the committed Lex.hs/Par.hs are used as-is
-        #      and no preprocessor needs to run;
-        #   2. switch build-type: Custom -> Simple so cabal stops trying to
-        #      build a wasm Setup;
-        #   3. strip every build-tool-depends block. With (1)+(2) those tools
-        #      are unused, but cabal would still build BNFC for wasm — and
-        #      BNFC's own build needs a runnable `alex`, which a clean wasm-only
-        #      runner doesn't have (host alex would otherwise mask this). With
-        #      the block removed, BNFC/alex/happy drop out of the plan entirely.
-        # This mirrors the "remove lexer and parser generator files" step in
-        # ghcjs.yml.
-        run: |
-          rm -f rzk/src/Language/Rzk/Syntax/Lex.x rzk/src/Language/Rzk/Syntax/Par.y
-          sed -i 's/^build-type: *Custom/build-type:    Simple/' rzk/rzk.cabal
-          # Delete each `build-tool-depends:` field and its indented value lines.
-          awk '
-            /^  build-tool-depends:/ { skip=1; next }
-            skip && /^   / { next }
-            { skip=0; print }
-          ' rzk/rzk.cabal > rzk/rzk.cabal.tmp && mv rzk/rzk.cabal.tmp rzk/rzk.cabal
-          grep -n '^build-type' rzk/rzk.cabal
-          ! grep -q 'build-tool-depends' rzk/rzk.cabal && echo "build-tool-depends stripped"
-
       - name: 🔨 Build rzk library (LSP off)
         run: wasm32-wasi-cabal build rzk:lib:rzk --flags=-lsp
