@@ -41,8 +41,16 @@ instance ParseFields FormatOptions where
     <$> parseFields (Just "Check if the files are correctly formatted") (Just "check") (Just 'c') Nothing
     <*> parseFields (Just "Write formatted file to disk") (Just "write") (Just 'w') Nothing
 
+data TypecheckOptions = TypecheckOptions
+  { typecheckAllowHoles :: Bool
+  } deriving (Generic, Show, ParseRecord, Read, ParseField)
+
+instance ParseFields TypecheckOptions where
+  parseFields _ _ _ _ = TypecheckOptions
+    <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
+
 data Command
-  = Typecheck [FilePath]
+  = Typecheck TypecheckOptions [FilePath]
   | Lsp
   | Format FormatOptions [FilePath]
   | Version
@@ -54,17 +62,25 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck paths -> do
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag}) paths -> do
       modules <- parseRzkFilesOrStdin paths
-      case defaultTypeCheck (typecheckModulesWithLocation modules) of
-        Left err -> do
-          putStrLn "An error occurred when typechecking!"
-          putStrLn $ unlines
-            [ "Type Error:"
-            , ppTypeErrorInScopedContext' BottomUp err
-            ]
-          exitFailure
-        Right _decls -> putStrLn "Everything is ok!"
+      let reportError err = do
+            putStrLn "An error occurred when typechecking!"
+            putStrLn $ unlines
+              [ "Type Error:"
+              , ppTypeErrorInScopedContext' BottomUp err
+              ]
+      if allowHolesFlag
+        then case typecheckModulesWithHoles modules of
+          Left err -> reportError err >> exitFailure
+          Right (_decls, errors, holes) -> do
+            forM_ holes (putStr . ppHoleInfo)
+            case errors of
+              [] -> putStrLn ("Everything is ok! (" <> show (length holes) <> " hole(s))")
+              _  -> do forM_ errors reportError; exitFailure
+        else case defaultTypeCheck (typecheckModulesWithLocation modules) of
+          Left err -> reportError err >> exitFailure
+          Right _decls -> putStrLn "Everything is ok!"
 
     Lsp ->
 #ifdef LSP_ENABLED

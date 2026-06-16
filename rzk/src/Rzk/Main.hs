@@ -89,6 +89,31 @@ parseRzkFilesOrStdin = \case
           error (T.unpack err)
         Right rzkModule -> return (path, rzkModule)
 
+-- | Render a hole's goal and local context (the structured query) for display,
+-- separating term variables, cube variables, and tope assumptions.
+ppHoleInfo :: HoleInfo -> String
+ppHoleInfo HoleInfo{..} = unlines $
+  [ "Hole" <> maybe "" (\name -> " ?" <> show name) holeName
+      <> maybe "" (\loc -> " at " <> ppLocationInfo loc) holeLocation
+  , "  goal:"
+  , "    " <> show holeGoal
+  ]
+  <> section "context" holeTermVars
+  <> section "cube variables" holeCubeVars
+  <> (if null holeTopes
+        then []
+        else "  tope context:" : [ "    " <> show t | t <- holeTopes ])
+  where
+    section title entries
+      | null entries = []
+      | otherwise = ("  " <> title <> ":")
+          : [ "    " <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
+            | e <- entries ]
+
+ppLocationInfo :: LocationInfo -> String
+ppLocationInfo (LocationInfo mpath mline) =
+  maybe "<input>" id mpath <> maybe "" ((":" <>) . show) mline
+
 typecheckString :: T.Text -> Either T.Text T.Text
 typecheckString moduleString = do
   rzkModule <- Rzk.parseModule moduleString
