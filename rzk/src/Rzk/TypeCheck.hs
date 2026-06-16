@@ -11,7 +11,10 @@ import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, join, unless, when)
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Control.Monad.Writer
+-- An explicit list: a bare 'Control.Monad.Writer' import also re-exports
+-- 'Data.Monoid' (incl. 'First'/'Last') on some mtl versions, which clashes with
+-- the 'First'/'Last' term patterns from 'Language.Rzk.Free.Syntax'.
+import           Control.Monad.Writer     (WriterT, runWriterT, tell)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
