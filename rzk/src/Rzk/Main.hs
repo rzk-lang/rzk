@@ -12,6 +12,7 @@ import qualified Data.Text.IO         as T
 import qualified Data.Yaml            as Yaml
 import           System.Directory     (doesPathExist)
 import           System.FilePath.Glob (glob)
+import           System.IO            (hPutStrLn, stderr)
 
 import qualified Language.Rzk.Syntax  as Rzk
 import           Rzk.Project.Config
@@ -70,7 +71,7 @@ parseRzkFilesOrStdin = \case
     rzkYamlExists <- doesPathExist rzkYamlPath
     if rzkYamlExists
       then do
-        putStrLn ("Using Rzk project stucture specified in " <> rzkYamlPath)
+        hPutStrLn stderr ("Using Rzk project stucture specified in " <> rzkYamlPath)
         paths <- extractFilesFromRzkYaml rzkYamlPath
         when (null paths) (error $ "No Rzk files specified in the config file at " <> rzkYamlPath)
         parseRzkFilesOrStdin paths
@@ -81,38 +82,13 @@ parseRzkFilesOrStdin = \case
   paths -> do
     expandedPaths <- foldMap globNonEmpty paths
     forM expandedPaths $ \path -> do
-      putStrLn ("Loading file " <> path)
+      hPutStrLn stderr ("Loading file " <> path)
       result <- Rzk.parseModule <$> T.readFile path
       case result of
         Left err -> do
           putStrLn ("An error occurred when parsing file " <> path)
           error (T.unpack err)
         Right rzkModule -> return (path, rzkModule)
-
--- | Render a hole's goal and local context (the structured query) for display,
--- separating term variables, cube variables, and tope assumptions.
-ppHoleInfo :: HoleInfo -> String
-ppHoleInfo HoleInfo{..} = unlines $
-  [ "Hole" <> maybe "" (\name -> " ?" <> show name) holeName
-      <> maybe "" (\loc -> " at " <> ppLocationInfo loc) holeLocation
-  , "  goal:"
-  , "    " <> show holeGoal
-  ]
-  <> section "context" holeTermVars
-  <> section "cube variables" holeCubeVars
-  <> (if null holeTopes
-        then []
-        else "  tope context:" : [ "    " <> show t | t <- holeTopes ])
-  where
-    section title entries
-      | null entries = []
-      | otherwise = ("  " <> title <> ":")
-          : [ "    " <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
-            | e <- entries ]
-
-ppLocationInfo :: LocationInfo -> String
-ppLocationInfo (LocationInfo mpath mline) =
-  maybe "<input>" id mpath <> maybe "" ((":" <>) . show) mline
 
 typecheckString :: T.Text -> Either T.Text T.Text
 typecheckString moduleString = do

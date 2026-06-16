@@ -207,6 +207,7 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Rzk
+      Rzk.Diagnostic
       Rzk.Format
       Rzk.Main
       Rzk.Project.Config
@@ -222,6 +223,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-depends:
       Glob >=0.9.3
+    , aeson >=1.4
     , array >=0.5.3.0
     , base >=4.7 && <5
     , bifunctors >=5.5.3
@@ -266,6 +268,7 @@ executable rzk
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Glob >=0.9.3
+    , aeson >=1.4
     , array >=0.5.3.0
     , base >=4.7 && <5
     , bifunctors >=5.5.3
@@ -295,6 +298,7 @@ test-suite doctests
   build-depends:
       Glob >=0.9.3
     , QuickCheck >=2.14
+    , aeson >=1.4
     , array >=0.5.3.0
     , base >=4.11.0.0 && <5.0
     , bifunctors >=5.5.3
@@ -314,6 +318,7 @@ test-suite rzk-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Rzk.DiagnosticSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
       Rzk.TypeCheckSpec
