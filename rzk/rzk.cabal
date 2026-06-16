@@ -16,7 +16,7 @@ maintainer:     nickolay.kudasov@gmail.com
 copyright:      2023-2025 Nikolai Kudasov
 license:        BSD3
 license-file:   LICENSE
-build-type:     Custom
+build-type:     Simple
 extra-source-files:
     grammar/Syntax.cf
     test/typecheck/SCHEMA.md
@@ -186,12 +186,6 @@ source-repository head
   type: git
   location: https://github.com/rzk-lang/rzk
 
-custom-setup
-  setup-depends:
-      Cabal >=2.4.0.1 && <4.0
-    , base >=4.11.0.0 && <5.0
-    , process >=1.6.3.0
-
 flag lsp
   description: Build with LSP support (only available with GHC, not GHCJS).
   manual: True
@@ -222,10 +216,6 @@ library
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
-  build-tool-depends:
-      BNFC:bnfc >=2.9.6.2
-    , alex:alex >=3.2.4
-    , happy:happy >=1.19.9
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -270,10 +260,6 @@ executable rzk
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends:
-      BNFC:bnfc >=2.9.6.2
-    , alex:alex >=3.2.4
-    , happy:happy >=1.19.9
   build-depends:
       Glob >=0.9.3
     , array >=0.5.3.0
@@ -302,10 +288,6 @@ test-suite doctests
   default-extensions:
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
-  build-tool-depends:
-      BNFC:bnfc >=2.9.6.2
-    , alex:alex >=3.2.4
-    , happy:happy >=1.19.9
   build-depends:
       Glob >=0.9.3
     , QuickCheck >=2.14
@@ -339,10 +321,7 @@ test-suite rzk-test
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
-      BNFC:bnfc >=2.9.6.2
-    , alex:alex >=3.2.4
-    , happy:happy >=1.19.9
-    , hspec-discover:hspec-discover
+      hspec-discover:hspec-discover
   build-depends:
       Glob >=0.9.3
     , aeson

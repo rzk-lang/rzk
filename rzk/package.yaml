@@ -37,16 +37,14 @@ when:
   - condition: flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
 
-custom-setup:
-  dependencies:
-    base: ">= 4.11.0.0 && < 5.0"
-    Cabal: ">= 2.4.0.1 && < 4.0"
-    process: ">= 1.6.3.0"
-
-build-tools:
-  alex:alex: ">= 3.2.4"
-  happy:happy: ">= 1.19.9"
-  BNFC:bnfc: ">= 2.9.6.2"
+# build-type is Simple (hpack's default): the parser and lexer are generated
+# from grammar/Syntax.cf by BNFC + alex + happy *out of band* (run `make -C rzk
+# regen-parser`) and the results are committed under src/Language/Rzk/Syntax.
+# We deliberately avoid build-type: Custom — a Custom Setup.hs cannot run under
+# the GHC WebAssembly backend (cabal compiles it to a .wasm module and cannot
+# execute it), and it forced every consumer (Hackage installs included) to
+# build BNFC/alex/happy. The `Parser up-to-date` CI workflow regenerates from
+# the grammar and fails if the committed files drift.
 
 # Lower bounds here are loose so the package builds under the GHCJS path
 # (miso's pinned Nixpkgs ships an older Haskell package set). The

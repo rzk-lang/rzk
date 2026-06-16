@@ -60,11 +60,6 @@ jobs:
           path: |
             ~/.npm
 
-      - name: 🔨 Remove lexer and parser generator files
-        run: |
-          rm -f rzk/src/Language/Rzk/Syntax/Lex.x
-          rm -f rzk/src/Language/Rzk/Syntax/Par.y
-
       # Uncomment to debug this job
       # - name: Setup tmate session
       #   uses: mxschmitt/action-tmate@v3

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## Unreleased
+
+Other changes:
+
+- Build `rzk` with `build-type: Simple` instead of `Custom`, so the package now builds under the **GHC WebAssembly backend** (a `Custom` `Setup.hs` cannot run there) and no longer requires BNFC, `alex`, or `happy` to install (e.g. from Hackage). The parser and lexer are still generated from `grammar/Syntax.cf`, but out of band: run `make -C rzk regen-parser` after editing the grammar. A new `Parser up-to-date` CI workflow regenerates from the grammar and fails on drift, and the WASM/GHCJS CI lanes no longer patch the package before building.
+
 ## v0.8.0 — 2026-06-04
 
 Major changes:
