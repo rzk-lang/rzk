@@ -601,6 +601,12 @@ isCubeType = \case
   UniverseCubeT{} -> True
   _               -> False
 
+-- | Is this term a hole? Holes only exist in lenient mode (see 'allowHoles');
+-- they are opaque placeholders standing for a term of the expected type.
+isHoleT :: TermT var -> Bool
+isHoleT HoleT{} = True
+isHoleT _       = False
+
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
 -- user-facing 'VarIdent' names here — reusing the same resolution as
@@ -2462,6 +2468,10 @@ unifyInCurrentContext mterm expected actual = performing action $
         return Nothing
     case mea of
       Nothing -> return ()
+      -- A hole (lenient mode) stands for a term of the expected type, so it
+      -- unifies with anything; accept it instead of falling through to the
+      -- dispatch below (which would panic on an unexpected term).
+      Just (expected', actual') | isHoleT expected' || isHoleT actual' -> return ()
       Just (expected', actual') ->
         unless (expected' == actual') $ do  -- NOTE: this gives a small, but noticeable speedup
           case actual' of

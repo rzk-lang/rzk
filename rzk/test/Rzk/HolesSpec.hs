@@ -53,3 +53,10 @@ spec = do
       length holes `shouldBe` 1
       let holes2 = holesOf "#lang rzk-1\n#define q : (A : U) -> A -> A\n  := \\ A a -> ?\n#define r : (A : U) -> A -> A\n  := \\ A a -> ?\n"
       length holes2 `shouldBe` 2
+
+    -- A hole whose elaborated term reaches unification (here the `refl` endpoint)
+    -- must not panic ("unexpected term in UNIFY"); it unifies with anything.
+    it "handles a hole that flows into unification" $ do
+      case holesOf "#lang rzk-1\n#define t : (A : U) -> (a : A) -> a =_{A} a\n  := \\ A a -> refl_{?}\n" of
+        [h] -> show (holeGoal h) `shouldBe` "A"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
