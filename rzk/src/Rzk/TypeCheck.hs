@@ -354,9 +354,10 @@ ppModality = \case
   Id    -> "_id"
 
 -- | Render a type error, folding pattern-binder projections (e.g. @π₁ x@ back to
--- the user's @t@) using the supplied map (see 'contextBinders').
-ppTypeError' :: [(VarIdent, [([Proj], VarIdent)])] -> TypeError' -> String
-ppTypeError' pm = \case
+-- the user's @t@) and showing a bare pattern point as the pattern, using the
+-- context's freshened binders (see 'contextBinders').
+ppTypeError' :: [(VarIdent, Binder)] -> TypeError' -> String
+ppTypeError' fbs = \case
   TypeErrorOther msg -> msg
   TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"
@@ -508,12 +509,10 @@ ppTypeError' pm = \case
     , "  " <> Rzk.printTree (getVarIdent name)
     ]
   where
-    -- render an (untyped) term, folding pattern-binder projections
     ppU :: Term' -> String
-    ppU = show . foldBinderProjections pm
-    -- render a type-annotated term, folding pattern-binder projections
+    ppU = ppFoldU fbs
     ppTyped :: TermT' -> String
-    ppTyped = show . foldBinderProjectionsT pm
+    ppTyped = ppFoldT fbs
 
 
 -- | The pattern binders in scope, freshened and keyed by their (current) name,
@@ -528,14 +527,34 @@ contextBinders ctx = (fbs, binderProjMap id fbs)
     mapping = [ (v, v) | (v, _) <- varTypes ctx ]
     fbs     = freshBinders id mapping (varBinders ctx)
 
+-- | Render an (untyped) term for an error or diagnostic message, given the
+-- context's freshened pattern binders: fold a pattern-binder variable's
+-- projections to their component names, then expand a bare use of the variable
+-- to the pattern itself (see 'foldBinderProjections' and 'restorePatternVars').
+-- An empty binder list renders the term as-is.
+ppFoldU :: [(VarIdent, Binder)] -> Term' -> String
+ppFoldU fbs =
+  show . restorePatternVars fbs . foldBinderProjections (binderProjMap id fbs)
+
+-- | Like 'ppFoldU' for a type-annotated term, shown as @term : type@ with the
+-- same folding and pattern restoration applied to both halves.
+ppFoldT :: [(VarIdent, Binder)] -> TermT' -> String
+ppFoldT fbs t0 =
+  case foldBinderProjectionsT (binderProjMap id fbs) t0 of
+    t@Pure{}               -> r t
+    t@(Free (AnnF info _)) -> r t <> " : " <> r (infoType info)
+  where
+    r :: TermT' -> String
+    r = show . restorePatternVars fbs . untyped
+
 ppTypeErrorInContext :: OutputDirection -> TypeErrorInContext VarIdent -> String
 ppTypeErrorInContext dir TypeErrorInContext{..} = block dir
-  [ ppTypeError' pm typeErrorError
+  [ ppTypeError' fbs typeErrorError
   , ""
   , ppContext' dir typeErrorContext
   ]
   where
-    (_, pm) = contextBinders typeErrorContext
+    (fbs, _) = contextBinders typeErrorContext
 
 ppTypeErrorInScopedContextWith'
   :: OutputDirection
@@ -640,8 +659,9 @@ ppTermInContext term =  do
   binders <- asks varBinders
   let name = toRzkVarIdent origs
       fbs  = freshBinders name mapping binders
-  return (show (foldBinderProjections (binderProjMap name fbs)
-                  (untyped (name <$> term))))
+  return (show (restorePatternVars [ (name v, b) | (v, b) <- fbs ]
+                  (foldBinderProjections (binderProjMap name fbs)
+                    (untyped (name <$> term)))))
 
 -- | Classify a (WHNF) type as a cube, so cube variables (e.g. @t : 2@) are
 -- shown separately from ordinary term variables in a hole's context.
@@ -1026,8 +1046,8 @@ ppSomeAction origs n action = ppAction [] n (toRzkVarIdent <$> action)
     toRzkVarIdent var = fromMaybe "_" $
       join (lookup var origs) <|> lookup var mapping
 
-ppAction :: [(VarIdent, [([Proj], VarIdent)])] -> Int -> Action' -> String
-ppAction pm n = unlines . map (replicate (2 * n) ' ' <>) . \case
+ppAction :: [(VarIdent, Binder)] -> Int -> Action' -> String
+ppAction fbs n = unlines . map (replicate (2 * n) ' ' <>) . \case
   ActionTypeCheck term ty ->
     [ "typechecking"
     , "  " <> ppU term
@@ -1098,9 +1118,9 @@ ppAction pm n = unlines . map (replicate (2 * n) ' ' <>) . \case
         <> maybe "_" (Rzk.printTree . getVarIdent) orig ]
   where
     ppU :: Term' -> String
-    ppU = show . foldBinderProjections pm
+    ppU = ppFoldU fbs
     ppTyped :: TermT' -> String
-    ppTyped = show . foldBinderProjectionsT pm
+    ppTyped = ppFoldT fbs
 
 
 traceAction' :: Int -> Action' -> a -> a
@@ -1557,7 +1577,7 @@ ppContext' dir ctx@Context{..} = block dir $ dropWhile null
         | tope <- localTopes' ]
   , ""
   , block dir
-    [ "when " <> ppAction pm 0 action
+    [ "when " <> ppAction fbs 0 action
     | action <- actionStack ]
   , namedBlock TopDown "Definitions in context:"
     [ block dir
@@ -1565,8 +1585,8 @@ ppContext' dir ctx@Context{..} = block dir $ dropWhile null
       | (x, ty) <- reverse (varTypes ctx) ] ]
   ]
   where
-    (fbs, pm) = contextBinders ctx
-    ppU = show . foldBinderProjections pm
+    (fbs, _) = contextBinders ctx
+    ppU = ppFoldU fbs
     -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
     dispName x = maybe (show (Pure x :: Term')) (show . binderDisplayName) (lookup x fbs)
 

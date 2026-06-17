@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- A pattern-bound point used bare in a shape's membership tope must render as
+-- the pattern (Δ² (t , s)) in a type error's local tope context, not as a fresh
+-- variable (Δ² x₁). The undefined body forces an error whose context shows the
+-- tope. Regression for the bare-pattern rendering fix.
+#def Δ² : (2 × 2) → TOPE
+  := \ (t , s) → s ≤ t
+
+#def bad (A : U) (x : A) : ( ((t , s) : Δ²) → A )
+  := \ (t , s) → nonexistent
