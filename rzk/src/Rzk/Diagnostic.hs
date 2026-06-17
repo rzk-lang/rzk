@@ -132,7 +132,7 @@ ppHoleInfo HoleInfo{..} = unlines $
   [ "Hole" <> maybe "" (\name -> " ?" <> show name) holeName
       <> maybe "" (\loc -> " at " <> ppLocationInfo loc) holeLocation
   , "  goal:"
-  , "    " <> show holeGoal
+  , "    " <> goalStr
   ]
   <> section "context" holeTermVars
   <> section "cube variables" holeCubeVars
@@ -140,6 +140,10 @@ ppHoleInfo HoleInfo{..} = unlines $
         then []
         else "  tope context:" : [ "    " <> show t | t <- holeTopes ])
   where
+    -- a shape goal reads (binder : cube | tope); otherwise just the type
+    goalStr = case holeGoalShape of
+      Nothing        -> show holeGoal
+      Just (s, tope) -> "(" <> show s <> " : " <> show holeGoal <> " | " <> show tope <> ")"
     section title entries
       | null entries = []
       | otherwise = ("  " <> title <> ":")
