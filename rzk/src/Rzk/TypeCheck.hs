@@ -582,6 +582,25 @@ data Action var
 
 type Action' = Action VarIdent
 
+-- | Build the projection-folding map used when rendering: for every in-scope
+-- variable bound by a compound pattern, map its display name to the projection
+-- paths of its component names (e.g. @π₁@ ↦ @t@, @π₂@ ↦ @s@). Component names
+-- are freshened against the names already in use. Variables bound to a single
+-- name contribute nothing, so ordinary projections are left untouched.
+binderProjMap
+  :: Eq var
+  => (var -> VarIdent)
+  -> [(var, VarIdent)]
+  -> [(var, Binder)]
+  -> [(VarIdent, [([Proj], VarIdent)])]
+binderProjMap name mapping binders =
+  [ (name v, binderPaths (freshenBinderLeaves taken b))
+  | (v, b) <- binders
+  , binderIsCompound b
+  , v `elem` map fst mapping ]
+  where
+    taken = map (name . fst) mapping
+
 ppTermInContext :: Eq var => TermT var -> TypeCheck var String
 ppTermInContext term =  do
   vars <- freeVarsT_ term
@@ -589,7 +608,10 @@ ppTermInContext term =  do
       toRzkVarIdent origs var = fromMaybe "_" $
         join (lookup var origs) <|> lookup var mapping
   origs <- asks varOrigs
-  return (show (untyped (toRzkVarIdent origs <$> term)))
+  binders <- asks varBinders
+  let name = toRzkVarIdent origs
+  return (show (foldBinderProjections (binderProjMap name mapping binders)
+                  (untyped (name <$> term))))
 
 -- | Classify a (WHNF) type as a cube, so cube variables (e.g. @t : 2@) are
 -- shown separately from ordinary term variables in a hole's context.
@@ -637,7 +659,7 @@ recordHoleShape
   :: Eq var
   => Maybe VarIdent
   -> TermT var
-  -> Maybe (Maybe VarIdent, TermT (Inc var))
+  -> Maybe (Binder, TermT (Inc var))
   -> TypeCheck var ()
 recordHoleShape mname goalTy mshape = do
   goal'     <- whnfT goalTy
@@ -645,17 +667,18 @@ recordHoleShape mname goalTy mshape = do
   cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
   topes     <- asks (filter (/= topeTopT) . availableTopes)
   origs     <- asks varOrigs
+  binders   <- asks varBinders
   loc       <- asks location
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
   let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
-      render t = untyped (name <$> t)
+      render t = foldBinderProjections (binderProjMap name mapping binders) (untyped (name <$> t))
       entries  = [ HoleEntry (name v) (render (varType info)) | (v, info) <- locals ]
       flagged  = zip cubeFlags entries
       -- binder name for the shape: the declared name if any, else a default
-      shapeBinder   = fromMaybe (fromString "t") (mshape >>= fst)
+      shapeBinder   = fromMaybe (fromString "t") (binderName =<< (fst <$> mshape))
       nameInc Z     = shapeBinder
       nameInc (S v) = name v
       goalShape = (\t -> (shapeBinder, untyped (nameInc <$> t))) <$> shapeTope
@@ -676,7 +699,7 @@ recordHoleShape mname goalTy mshape = do
 -- the shape as the hole's goal so the diagnostic shows @(binder : cube | tope)@.
 checkHoleAgainstShape
   :: Eq var
-  => Maybe VarIdent -> Maybe VarIdent -> TermT var -> TermT (Inc var)
+  => Maybe VarIdent -> Binder -> TermT var -> TermT (Inc var)
   -> TypeCheck var (TermT var)
 checkHoleAgainstShape mname orig cube tope = do
   reject <- asks holesAreErrors
@@ -826,7 +849,7 @@ data VarInfo var = VarInfo
   , varValue               :: Maybe (TermT var)
   , varModality            :: TModality
   , modAccum               :: TModality
-  , varOrig                :: Maybe VarIdent
+  , varOrig                :: Binder
   , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
   , varIsTopLevel          :: Bool
   , varDeclaredAssumptions :: [var]
@@ -974,7 +997,13 @@ varValues :: Context var -> [(var, Maybe (TermT var))]
 varValues = map (fmap varValue) . varInfos
 
 varOrigs :: Context var -> [(var, Maybe VarIdent)]
-varOrigs = map (fmap varOrig) . varInfos
+varOrigs = map (fmap (binderName . varOrig)) . varInfos
+
+-- | The full binder (pattern) of each in-scope variable, used to restore
+-- pattern-binder component names (e.g. @t@\/@s@ for @\\ (t , s) -> …@) when
+-- rendering goals, holes and contexts.
+varBinders :: Context var -> [(var, Binder)]
+varBinders = map (fmap varOrig) . varInfos
 
 varModalities :: Context var -> [(var, TModality)]
 varModalities = map (fmap varModality) . varInfos
@@ -1125,7 +1154,7 @@ collectScopeDecls errs recentVars [] = do
       , declValue = varValue
       , declIsAssumption = varIsAssumption
       , declUsedVars = varDeclaredAssumptions
-      , declLocation = updatePosition (varOrig >>= fmap fst . Rzk.hasPosition . fromVarIdent) <$> loc -- FIXME
+      , declLocation = updatePosition (binderName varOrig >>= fmap fst . Rzk.hasPosition . fromVarIdent) <$> loc -- FIXME
       }
     updatePosition Nothing l       = l
     updatePosition (Just lineNo) l = l { locationLine = Just lineNo }
@@ -1267,7 +1296,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
     update = addVarInCurrentScope x VarInfo
       { varType = ty
       , varValue = term
-      , varOrig = Just x
+      , varOrig = BinderVar (Just x)
       , varModality  = Id
       , modAccum = Id
       , varIsAssumption = isAssumption
@@ -1809,7 +1838,7 @@ setVariance :: Covariance -> TypeCheck var a -> TypeCheck var a
 setVariance variance = local $ \Context{..} -> Context
   { covariance = variance, .. }
 
-enterScopeContext :: Maybe VarIdent -> TModality -> TermT var -> Maybe (TermT var) -> Context var -> Context (Inc var)
+enterScopeContext :: Binder -> TModality -> TermT var -> Maybe (TermT var) -> Context var -> Context (Inc var)
 enterScopeContext orig md ty val context =
   addVarInCurrentScope Z VarInfo
     { varType   = S <$> ty
@@ -1824,12 +1853,12 @@ enterScopeContext orig md ty val context =
     }
     (S <$> context)
 
-enterScope :: Maybe VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScope :: Binder -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig ty action = do
   newContext <- asks (enterScopeContext orig Id ty Nothing)
   closeScope orig (runReaderT action newContext)
 
-enterScopeWithBind :: Maybe VarIdent -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeWithBind :: Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeWithBind orig md ty val action = do
   newContext <- asks (enterScopeContext orig md ty (Just val))
   closeScope orig (runReaderT action newContext)
@@ -1841,11 +1870,11 @@ enterScopeWithBind orig md ty val action = do
 -- error the sub-scope's holes are dropped, which is intended: holes only matter
 -- on the success path (lenient mode), and strict mode wants the error anyway.
 closeScope
-  :: Maybe VarIdent
+  :: Binder
   -> WriterT [HoleInfo] (Except (TypeErrorInScopedContext (Inc var))) b
   -> TypeCheck var b
 closeScope orig inner = do
-  (b, holes) <- lift . lift . withExceptT (ScopedTypeError orig) $ runWriterT inner
+  (b, holes) <- lift . lift . withExceptT (ScopedTypeError (binderName orig)) $ runWriterT inner
   lift (tell holes)
   return b
 
@@ -3083,7 +3112,7 @@ typeRestrictedT ty rs = t
 
 lambdaT
   :: TermT var
-  -> Maybe VarIdent
+  -> Binder
   -> Maybe (TermT var, Maybe (Scope TermT var))
   -> Scope TermT var
   -> TermT var
@@ -3097,7 +3126,7 @@ lambdaT ty orig mparam body = t
       }
 
 
-letT :: TermT var -> Maybe VarIdent -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
+letT :: TermT var -> Binder -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
 letT ty orig mparam val body = t
   where
     t = LetT info orig mparam val body
@@ -3107,7 +3136,7 @@ letT ty orig mparam val body = t
       , infoWHNF = Nothing
       }
 
-letModT :: TermT var -> Maybe VarIdent -> TModality -> TModality -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
+letModT :: TermT var -> Binder -> TModality -> TModality -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
 letModT ty orig app inn mparam val body = t
   where
     t = LetModT info orig app inn mparam val body
@@ -3171,7 +3200,7 @@ reflT ty mx = t
       }
 
 typeFunT
-  :: Maybe VarIdent
+  :: Binder
   -> TermT var
   -> Maybe (Scope TermT var)
   -> Scope TermT var
@@ -3186,7 +3215,7 @@ typeFunT orig cube mtope ret = t
       }
 
 typeSigmaT
-  :: Maybe VarIdent
+  :: Binder
   -> TermT var
   -> Scope TermT var
   -> TermT var
@@ -3327,24 +3356,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                   typeOf paramType >>= \case
                     -- an argument can be a shape
                     TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
-                      mapM_ checkNameShadowing orig
+                      mapM_ checkNameShadowing (binderLeaves orig)
                       enterScope orig cube $ do
                         let tope' = appT topeT (S <$> paramType) (Pure Z)  -- eta expand ty'
                         return (cube, Just tope')
                     _kind -> return (paramType, Nothing)
                 unifyTerms param' paramType
-                mapM_ checkNameShadowing orig
+                mapM_ checkNameShadowing (binderLeaves orig)
                 enterScope orig param' $ do
                   mapM_ (unifyTerms (fromMaybe topeTopT mtope')) mtope
               Just (param, mtope) -> do
                 param'' <- typecheck param =<< typeOf param'
                 unifyTerms param' param''
-                mapM_ checkNameShadowing orig
+                mapM_ checkNameShadowing (binderLeaves orig)
                 enterScope orig param' $ do
                   mtope'' <- typecheck (fromMaybe TopeTop mtope) topeT
                   unifyTerms (fromMaybe topeTopT mtope') mtope''
 
-            mapM_ checkNameShadowing orig
+            mapM_ checkNameShadowing (binderLeaves orig)
             enterScope orig param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
@@ -3352,7 +3381,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
       Let orig annot val body -> do
-        val' <- performing (ActionCheckLetValue orig) $ case annot of
+        val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> infer val
           Just bindType -> do
             bindType' <- typecheck bindType universeT
@@ -3362,7 +3391,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           typecheck body (S <$> ty')
         return (letT ty' orig (Just bindTy) val' body')
       LetMod orig app inn annot val body  -> do
-        val' <- performing (ActionCheckLetValue orig) $ case annot of
+        val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> enterModality app $ infer val
           Just bindType -> do
             bindType' <- infer bindType
@@ -3505,7 +3534,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       -- Γ ⊢ (l, r) ⇒ (A × B : U)             where A × B = Σ (_ : A), B
       _ -> do
         -- NOTE: infer as a non-dependent pair!
-        return (pairT (typeSigmaT Nothing lt (S <$> rt)) l' r')
+        return (pairT (typeSigmaT (BinderVar Nothing) lt (S <$> rt)) l' r')
 
   First t -> do
     t' <- infer t
@@ -3616,17 +3645,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
           UniverseTopeT{} ->
             issueTypeError $ TypeErrorOther "tope params are illegal"
           _ -> do
-            mapM_ checkNameShadowing orig
+            mapM_ checkNameShadowing (binderLeaves orig)
             b' <- enterScope orig a' $ typecheck b universeT
             return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
-        mapM_ checkNameShadowing orig
+        mapM_ checkNameShadowing (binderLeaves orig)
         b' <- enterScope orig a' $ typecheck b universeT
         return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
       TypeFunT _ty _orig cube mtope UniverseTopeT{} -> do
-        mapM_ checkNameShadowing orig
+        mapM_ checkNameShadowing (binderLeaves orig)
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
@@ -3638,7 +3667,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeFun orig cube (Just tope) ret -> do
     cube' <- typecheck cube cubeT
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig cube' $ do
       tope' <- typecheck tope topeT
       localTope tope' $ do
@@ -3647,7 +3676,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeSigma orig a b -> do
     a' <- typecheck a universeT
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     b' <- enterScope orig a' $ typecheck b universeT
     return (typeSigmaT orig a' b')
 
@@ -3700,12 +3729,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
       UniverseCubeT{} -> return Nothing
       -- an argument can be a shape
       TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
-        mapM_ checkNameShadowing orig
+        mapM_ checkNameShadowing (binderLeaves orig)
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> ty') (Pure Z)  -- eta expand ty'
           return (Just tope')
       kind -> issueTypeError $ TypeErrorInvalidArgumentType ty kind
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig ty' $ do
       maybe id localTope mtope $ do
         body' <- infer body
@@ -3713,14 +3742,14 @@ infer tt = performing (ActionInfer tt) $ case tt of
         return (lambdaT (typeFunT orig ty' mtope ret) orig (Just (ty', mtope)) body')
   Lambda orig (Just (cube, Just tope)) body -> do
     cube' <- typecheck cube cubeT
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig cube' $ do
       tope' <- infer tope
       body' <- localTope tope' $ infer body
       ret <- typeOf body'
       return (lambdaT (typeFunT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
   Let orig annot val body -> do
-    val' <- performing (ActionCheckLetValue orig) $ case annot of
+    val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> infer val
       Just ty -> do
         bindTy <- typecheck ty universeT
@@ -3731,7 +3760,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       ret <- typeOf body'
       return (letT (substituteT val' ret) orig (Just bindTy) val' body')
   LetMod orig app inn annot val body -> do
-    val' <- performing (ActionCheckLetValue orig) $ case annot of
+    val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> enterModality app $ infer val
       Just bindType -> do
         bindType' <- infer bindType
@@ -3765,13 +3794,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     tA' <- typecheck tA universeT
     a' <- typecheck a tA'
     let typeOf_C =
-          typeFunT Nothing tA' Nothing $
-            typeFunT Nothing (typeIdT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
+          typeFunT (BinderVar Nothing) tA' Nothing $
+            typeFunT (BinderVar Nothing) (typeIdT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
               universeT
     tC' <- typecheck tC typeOf_C
     let typeOf_d =
           appT universeT
-            (appT (typeFunT Nothing (typeIdT a' (Just tA') a') Nothing universeT)
+            (appT (typeFunT (BinderVar Nothing) (typeIdT a' (Just tA') a') Nothing universeT)
               tC' a')
             (reflT (typeIdT a' (Just tA') a') Nothing)
     d' <- typecheck d typeOf_d
@@ -3779,7 +3808,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     p' <- typecheck p (typeIdT a' (Just tA') x')
     let ret =
           appT universeT
-            (appT (typeFunT Nothing (typeIdT a' (Just tA') x') Nothing universeT)
+            (appT (typeFunT (BinderVar Nothing) (typeIdT a' (Just tA') x') Nothing universeT)
               tC' x')
             p'
     return (idJT ret tA' a' tC' d' x' p')
@@ -4103,7 +4132,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
           maybe id localTope mtopeArg $ do
             Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
       _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
-    TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+    TypeFunT{} | null xs -> enterScope (BinderVar (Just "_")) t' $ do
       renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
 
     _ -> case t' of -- check evaluated term
@@ -4113,7 +4142,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
             maybe id localTope mtopeArg $ do
               Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
         _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
-      TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+      TypeFunT{} | null xs -> enterScope (BinderVar (Just "_")) t' $ do
         renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
 
       _ -> case ty of -- check type of the term
