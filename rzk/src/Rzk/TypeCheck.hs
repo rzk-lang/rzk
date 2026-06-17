@@ -748,6 +748,50 @@ eliminatorsOf ty =
   where
     mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
 
+-- | All ways to introduce a value /of/ a goal type by its head constructor,
+-- leaving the constituents as holes. Given a @target@ type, return its
+-- introduction forms:
+--
+--   * a Π-type is introduced by a λ-abstraction over a hole body (@\\ x -> ?@);
+--     the binder is taken from the type, so a pattern domain (e.g. a @Δ²@ point
+--     @(t , s)@) is introduced as @\\ (t , s) -> ?@;
+--   * a Σ-type or a cube product by a pair of holes (@(? , ?)@);
+--   * an identity type by @refl@, but only when its two endpoints already agree
+--     (otherwise @refl@ would not typecheck);
+--   * the unit type by @unit@.
+--
+-- Any other type admits no simple introduction. Unlike 'allEliminationsInto'
+-- this does not search: a type has at most one introduction form, read off its
+-- (weak head normal) head constructor. Outer type restrictions are stripped
+-- first, so an extension type is introduced by the form of its underlying type
+-- (its boundary is met by later refinement of the holes, not by the choice of
+-- constructor).
+allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
+allIntroductionsOf target = do
+  target' <- stripTypeRestrictions <$> whnfT target
+  case target' of
+    TypeFunT _ty orig _param _mtope ret ->
+      pure [ lambdaT target' orig Nothing (mkHole ret) ]
+    TypeSigmaT _ty _orig a b ->
+      let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
+    CubeProductT _ty a b ->
+      pure [ pairT target' (mkHole a) (mkHole b) ]
+    TypeIdT _ty a _tA b -> do
+      agree <- endpointsAgree a b
+      pure [ reflT target' Nothing | agree ]
+    TypeUnitT{} -> pure [ unitT ]
+    _ -> pure []
+  where
+    mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+
+-- | Whether the two endpoints of an identity type are definitionally equal, so
+-- that @refl@ inhabits it. Like 'fitsInto', any holes or constraints recorded
+-- while probing are discarded, leaving a pure yes\/no query.
+endpointsAgree :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
+endpointsAgree a b =
+  censor (const [])
+    ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
+
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
 -- user-facing 'VarIdent' names here — reusing the same resolution as
@@ -782,6 +826,8 @@ recordHoleShape mname goalTy mshape = do
   -- output, hence 'censor'.
   candidates <- censor (const [])
     (concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals)
+  -- the introduction forms for the goal itself (constituents left as holes).
+  introductions <- censor (const []) (allIntroductionsOf goalTy)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
@@ -807,6 +853,7 @@ recordHoleShape mname goalTy mshape = do
         , holeCubeVars  = [ e | (True,  e) <- flagged ]
         , holeTopes     = map render topes
         , holeCandidates = map render candidates
+        , holeIntroductions = map render introductions
         , holeLocation  = loc
         } ]
 
@@ -1477,6 +1524,10 @@ data HoleInfo = HoleInfo
   , holeCandidates :: [Term']
     -- ^ elimination spines over the local hypotheses whose type fits the goal,
     -- with applied arguments left as holes (see 'allEliminationsInto'). Already
+    -- rendered, like the other fields.
+  , holeIntroductions :: [Term']
+    -- ^ introduction forms for the goal type, built from its head constructor
+    -- with the constituents left as holes (see 'allIntroductionsOf'). Already
     -- rendered, like the other fields.
   , holeLocation  :: Maybe LocationInfo
   } deriving (Eq, Show)

@@ -170,3 +170,51 @@ spec = do
       case holesOf "#lang rzk-1\n#define t : (A : U) -> (P : A -> U) -> (Q : U) -> (h : (a : A) -> P a) -> Q\n  := \\ A P Q h -> ?\n" of
         [h] -> cands h `shouldBe` []
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "holeIntroductions (type-directed introduction forms)" $ do
+    let intros = map show . holeIntroductions
+
+    -- A function goal is introduced by a λ over a hole body; the binder is
+    -- taken from the type, so a named domain keeps its name.
+    it "introduces a function goal as a λ with a hole body" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> ((n : A) -> A)\n  := \\ A -> ?\n" of
+        [h] -> intros h `shouldBe` ["\\ n → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A pattern domain (e.g. a cube point) keeps its pattern, so the λ binds
+    -- the pattern rather than a projection.
+    it "introduces a pattern-domain function with the pattern binder" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> ( ((t , s) : 2 × 2) -> A )\n  := \\ A -> ?\n" of
+        [h] -> intros h `shouldBe` ["\\ (t, s) → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A Σ-type goal is introduced by a pair of holes.
+    it "introduces a Σ goal as a pair of holes" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> (b : B a) -> Σ (w : A) , B w\n  := \\ A B a b -> ?\n" of
+        [h] -> intros h `shouldBe` ["(?, ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- An identity type whose endpoints already agree is introduced by refl.
+    it "introduces an identity type with agreeing endpoints by refl" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (a : A) -> (a =_{A} a)\n  := \\ A a -> ?\n" of
+        [h] -> intros h `shouldBe` ["refl"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- refl is conditional: it is not offered when the endpoints need not agree.
+    it "does not offer refl when the endpoints need not agree" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (a : A) -> (b : A) -> (a =_{A} b)\n  := \\ A a b -> ?\n" of
+        [h] -> intros h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The unit type is introduced by unit.
+    it "introduces the unit type by unit" $ do
+      case holesOf "#lang rzk-1\n#define f : Unit\n  := ?\n" of
+        [h] -> intros h `shouldBe` ["unit"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A goal whose type has no head constructor to introduce (a neutral
+    -- application) offers no introduction.
+    it "offers no introduction for a neutral goal" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> B a\n  := \\ A B a -> ?\n" of
+        [h] -> intros h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
