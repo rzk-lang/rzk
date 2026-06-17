@@ -67,13 +67,17 @@
   : (i :_op 2 | _op (i === 0_2) /\ _op (i === 1_2)) -> A
   := \ _ -> recBOT
 
--- NOTE: a plain contradiction is NOT visible under a _b lock, so `mod _b recBOT`
--- over a plain contradiction is rejected (see ill-modal-recBOT-under-flat).
--- Keeping the plain tope under the lock would need the unit id => _b
--- (phi |- _b phi), but _b is comonadic (counit _b A |- A only) and has no such
--- unit -- that is _#, the monad -- so plain topes are dropped under a _b lock
--- (coe Id Flat = False). The contradiction is still usable WITHOUT the lock:
--- `\ _ -> recBOT : ... -> _b A` typechecks by plain ex falso.
+-- Plain contradiction under _b. The tope context (i === 0_2) /\ (i === 1_2) is
+-- contradictory, so BOT is derivable; and BOT |- _b BOT by the absurd rule of BOT
+-- (this holds for BOT specifically, NOT for an arbitrary tope phi -- there is no
+-- unit id => _b). Saturation therefore produces _b BOT, which is accessible under
+-- the _b lock (coe Flat Flat), and _b BOT |- BOT by the counit, so mod _b recBOT
+-- is legal. (Contrast _# BOT, which does NOT entail plain BOT -- coe Sharp Id is
+-- False -- see ill-modal-sharp-bot-not-bot.)
+#def test-contradiction-under-flat
+  (A :_b U) (i : 2)
+  : (i : 2 | (i === 0_2) /\ (i === 1_2)) -> _b A
+  := \ _ -> mod _b recBOT
 
 -- Contradiction survives entering _op via saturation
 #def test-contradiction-survives-under-op

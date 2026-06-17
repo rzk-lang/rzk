@@ -63,7 +63,6 @@ extra-source-files:
     test/typecheck/cases/ill-modal-op-under-flat.rzk
     test/typecheck/cases/ill-modal-plain-under-flat.rzk
     test/typecheck/cases/ill-modal-plain-under-op.rzk
-    test/typecheck/cases/ill-modal-recBOT-under-flat.rzk
     test/typecheck/cases/ill-modal-recBOT-under-op-no-contradiction.rzk
     test/typecheck/cases/ill-modal-sharp-at-plain.rzk
     test/typecheck/cases/ill-modal-sharp-bot-not-bot.rzk
@@ -159,7 +158,6 @@ extra-source-files:
     test/typecheck/cases/ill-modal-op-under-flat.expect.yaml
     test/typecheck/cases/ill-modal-plain-under-flat.expect.yaml
     test/typecheck/cases/ill-modal-plain-under-op.expect.yaml
-    test/typecheck/cases/ill-modal-recBOT-under-flat.expect.yaml
     test/typecheck/cases/ill-modal-recBOT-under-op-no-contradiction.expect.yaml
     test/typecheck/cases/ill-modal-sharp-at-plain.expect.yaml
     test/typecheck/cases/ill-modal-sharp-bot-not-bot.expect.yaml

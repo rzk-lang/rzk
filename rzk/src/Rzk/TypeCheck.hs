@@ -1285,7 +1285,7 @@ entailM modalTopes goal = do
   discreteAxioms <- generateTopesForModalCubeVarsM
   let topes'    = nubTermT (modalTopes <> discreteAxioms)
       topes''   = simplifyLHSwithDisjunctions topes'
-  topes'''  <- mapM (fmap (saturateTopes (allTopePoints goal)) . saturateInv) topes''
+  topes'''  <- mapM (fmap (saturateTopes (allTopePoints goal) . saturateBottom) . saturateInv) topes''
   prettyTopes <- mapM ppTermInContext (map tTope (saturateTopes (allTopePoints goal) (simplifyLHS topes')))
   prettyTope <- ppTermInContext goal
   traceTypeCheck Debug
@@ -1347,6 +1347,35 @@ saturateInv modalTopes = do
     let newTopes = nubTermT (invResults <> uninvResults)
         fresh = filter (`notElem` modalTopes) newTopes
     return (modalTopes <> fresh)
+
+-- | Ex falso for BOT, lifted across modalities.
+--
+-- A contradiction in the topes that are genuinely available at the identity
+-- modality entails BOT, and BOT entails @_μ BOT@ for every modality @μ@ by the
+-- absurd rule (this holds for BOT specifically; a general tope @φ@ does NOT give
+-- @_μ φ@, which would need the missing unit @id ⇒ μ@). Re-asserting @_μ BOT@ at
+-- each lock @μ@ where an available tope was hidden lets the contradiction survive
+-- the lock: e.g. @_b BOT@ is accessible under a @_b@ lock (@coe Flat Flat@), so
+-- @mod _b recBOT@ in a vacuous context is accepted.
+--
+-- A tope counts as available at the identity modality when its variable modality
+-- coerces into @Id@: a @_b@-modal tope qualifies via the counit (@coe Flat Id@),
+-- but a @_#@-modal one does not (@coe Sharp Id@ is False) — which is exactly why
+-- @_# BOT@ does not leak to plain BOT (see ill-modal-sharp-bot-not-bot).
+saturateBottom :: Eq var => [ModalTope var] -> [ModalTope var]
+saturateBottom modalTopes
+  | null droppedAccums = modalTopes   -- nothing hidden by a lock; ordinary saturation suffices
+  | botDerivable       = modalTopes <> fresh
+  | otherwise          = modalTopes
+  where
+    idAccessible  = filter (\mt -> coe (tModVar mt) Id) modalTopes
+    droppedAccums = nub [ tModAccum mt | mt <- idAccessible, not (isAccessible mt) ]
+    saturatedId   = saturateWith (\t ts -> t `elem` ts) generateTopes (map tTope idAccessible)
+    botDerivable  = topeBottomT `elem` saturatedId
+    fresh = [ mt
+            | acc <- droppedAccums
+            , let mt = ModalTope acc acc topeBottomT
+            , mt `notElem` modalTopes ]
 
 -- FIXME: cleanup
 saturateWith :: (a -> [a] -> Bool) -> ([a] -> [a] -> [a]) -> [a] -> [a]
