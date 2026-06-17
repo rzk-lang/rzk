@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- #BOT should not entail BOT: sharp tope is not accessible in plain context
+#def sharp-bot-not-bot
+  (A : U)
+  : (t : 2 | _# BOT) -> A
+  := \ _ -> recBOT
