@@ -28,11 +28,60 @@ data Severity
 
 -- | A structured diagnostic. Independent of any editor protocol: the LSP maps
 -- it to its own @Diagnostic@, and the CLI serialises it as JSON.
+--
+-- == JSON wire format (@rzk typecheck --json@)
+--
+-- This is a stable format that downstream tools (e.g. richer LSP hovers) pin
+-- to. Each diagnostic is an object:
+--
+-- > { "severity": "error" | "warning" | "information" | "hint"
+-- > , "code":     <string>           -- "hole", or a TypeError tag (e.g. "TypeErrorUnify")
+-- > , "location": { "file": <string|null>, "line": <int|null> } | null
+-- > , "message":  <string>           -- human-facing prose (the CLI/LSP display text)
+-- > , "hole":     <HoleData> | null  -- present only for hole diagnostics (see 'HoleData')
+-- > }
+--
+-- The @message@ field is kept for back-compat (the LSP and the CLI human mode
+-- use it). Structured consumers should read the @hole@ object instead of
+-- parsing @message@. For non-hole diagnostics @hole@ is @null@.
 data Diagnostic = Diagnostic
   { diagnosticSeverity :: Severity
   , diagnosticCode     :: String            -- ^ stable category, e.g. @\"TypeErrorUnify\"@ or @\"hole\"@
   , diagnosticLocation :: Maybe LocationInfo -- ^ file + line (line-level granularity)
   , diagnosticMessage  :: String
+  , diagnosticHole     :: Maybe HoleData     -- ^ structured hole payload ('Nothing' for type errors)
+  } deriving (Eq, Show)
+
+-- | The structured payload of a hole diagnostic: the goal and local context as
+-- already-rendered display strings (the same strings the LSP/CLI show, i.e.
+-- @show@ = @printTree@ on the underlying terms). Consumers render hole panels
+-- from these fields directly, without parsing the human-facing @message@.
+--
+-- == JSON wire format
+--
+-- > { "name":     <string|null>                 -- the ?name, if the hole was named
+-- > , "goal":     <string>                       -- the expected type (the goal)
+-- > , "shape":    { "binder": <string>, "tope": <string> } | null
+-- > , "termVars": [ { "name": <string>, "type": <string> }, ... ]
+-- > , "cubeVars": [ { "name": <string>, "type": <string> }, ... ]
+-- > , "topes":    [ <string>, ... ]              -- local tope assumptions (excludes ⊤)
+-- > }
+--
+-- Notes for consumers:
+--
+-- * @shape@ is non-null only for a shape-restricted /argument/ goal, where the
+--   goal reads @(binder : goal | tope)@. For an /extension/ type the boundary is
+--   already part of @goal@ (a restricted type @A [ … ↦ … ]@), and @shape@ is
+--   @null@ — read the boundary out of @goal@.
+-- * @cubeVars@ names can be patterns like @\"(t, s)\"@ (pair-pattern binders);
+--   they are display strings, not single identifiers.
+data HoleData = HoleData
+  { holeDataName     :: Maybe String           -- ^ the @?name@, if named
+  , holeDataGoal     :: String                 -- ^ the goal (expected type)
+  , holeDataShape    :: Maybe (String, String) -- ^ (binder, tope) for a shape-argument goal
+  , holeDataTermVars :: [(String, String)]     -- ^ local hypotheses: (name, type)
+  , holeDataCubeVars :: [(String, String)]     -- ^ local cube variables: (name, type)
+  , holeDataTopes    :: [String]               -- ^ local tope assumptions (excluding ⊤)
   } deriving (Eq, Show)
 
 instance ToJSON Severity where
@@ -56,7 +105,21 @@ instance ToJSON Diagnostic where
     , "code"     .= diagnosticCode
     , "location" .= fmap locationToJSON diagnosticLocation
     , "message"  .= diagnosticMessage
+    , "hole"     .= diagnosticHole
     ]
+
+instance ToJSON HoleData where
+  toJSON HoleData{..} = object
+    [ "name"     .= holeDataName
+    , "goal"     .= holeDataGoal
+    , "shape"    .= fmap shapeToJSON holeDataShape
+    , "termVars" .= map entryToJSON holeDataTermVars
+    , "cubeVars" .= map entryToJSON holeDataCubeVars
+    , "topes"    .= holeDataTopes
+    ]
+    where
+      shapeToJSON (binder, tope) = object [ "binder" .= binder, "tope" .= tope ]
+      entryToJSON (name, ty)     = object [ "name" .= name, "type" .= ty ]
 
 -- | A stable tag for a type error, used as its diagnostic code. Independent of
 -- the variable type, so it survives the scoped-error unfolding.
@@ -109,6 +172,7 @@ diagnoseTypeError dir err = Diagnostic
   , diagnosticCode     = typeErrorTagInScopedContext err
   , diagnosticLocation = locationOfTypeError err
   , diagnosticMessage  = ppTypeErrorInScopedContext' dir err
+  , diagnosticHole     = Nothing
   }
 
 -- | A structured diagnostic for a hole, carrying the hole's goal and local
@@ -123,7 +187,23 @@ diagnoseHole hole = Diagnostic
   , diagnosticCode     = "hole"
   , diagnosticLocation = holeLocation hole
   , diagnosticMessage  = ppHoleInfo hole
+  , diagnosticHole     = Just (holeData hole)
   }
+
+-- | The structured payload of a hole: its goal and local context rendered to
+-- display strings (the same rendering 'ppHoleInfo' uses, but kept as separate
+-- fields rather than concatenated into prose). See 'HoleData'.
+holeData :: HoleInfo -> HoleData
+holeData HoleInfo{..} = HoleData
+  { holeDataName     = fmap show holeName
+  , holeDataGoal     = show holeGoal
+  , holeDataShape    = fmap (\(s, tope) -> (show s, show tope)) holeGoalShape
+  , holeDataTermVars = map entry holeTermVars
+  , holeDataCubeVars = map entry holeCubeVars
+  , holeDataTopes    = map show holeTopes
+  }
+  where
+    entry e = (show (holeEntryName e), show (holeEntryType e))
 
 -- | Render a hole's goal and local context (the structured query) for display,
 -- separating term variables, cube variables, and tope assumptions.
