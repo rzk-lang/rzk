@@ -99,10 +99,6 @@ binderName :: Binder -> Maybe VarIdent
 binderName (BinderVar mname) = mname
 binderName _                 = Nothing
 
--- | A binder that names a single variable.
-binderVar :: Maybe VarIdent -> Binder
-binderVar = BinderVar
-
 data TModality = Sharp | Flat | Op | Id deriving (Eq, Show)
 
 toModality :: Rzk.Modality -> TModality
