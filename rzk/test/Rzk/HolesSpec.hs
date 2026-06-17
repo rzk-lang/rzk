@@ -129,6 +129,17 @@ spec = do
           names (holeCubeVars h) `shouldBe` ["((t, s), r)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A bare use of a pattern binder's point (not a projection) inside a shape
+    -- in the /goal type/ must print as the pattern, not a fresh variable: the
+    -- membership tope of @((t , s) : Δ²) → A@ reads @Δ² (t , s)@, not @Δ² x@.
+    it "restores a pattern point used bare in a goal-type shape tope" $ do
+      case holesOf "#lang rzk-1\n#def Δ² : (2 × 2) → TOPE := \\ (t , s) → s ≤ t\n#def f (A : U) : ( ((t , s) : Δ²) → A ) := ?\n" of
+        [h] -> do
+          let goal = show (holeGoal h)
+          ("| Δ² (t, s))" `isInfixOf` goal) `shouldBe` True
+          ('π' `elem` goal) `shouldBe` False
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- Guardrail: ordinary projections of a variable that is NOT a pattern binder
     -- must still print as π₁ / π₂ (only pattern-binder projections are folded).
     it "leaves ordinary projections of a non-pattern variable as π₁ / π₂" $ do
@@ -163,10 +174,128 @@ spec = do
           cands h `shouldContain` ["π₂ s"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A path is eliminated by path induction. The motive is introduced straight
+    -- away as a λ, so over @p : a =_A x@ the spine @idJ (A, a, \ b → \ q → ?, ?,
+    -- x, p)@ has a result type that β-reduces to a hole and so fits any goal —
+    -- here an ordinary goal @A@ with the path in scope.
+    it "eliminates a path by idJ, introducing the motive λ" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a x : A) (p : a =_{A} x) : A := ?\n" of
+        [h] -> cands h `shouldContain` ["idJ (A, a, \\ b → \\ q → ?, ?, x, p)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- With no path in scope there is nothing to eliminate by idJ.
+    it "does not offer idJ without a path hypothesis" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a : A) : A := ?\n" of
+        [h] -> filter (isInfixOf "idJ") (cands h) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A partial application whose result structurally mismatches the goal is not
     -- offered: matching uses structural (not fully lenient) hole unification, so
     -- the hole in @h ?@ : @P ?@ cannot excuse the mismatch with the goal @Q@.
     it "does not offer a structurally mismatched partial application" $ do
       case holesOf "#lang rzk-1\n#define t : (A : U) -> (P : A -> U) -> (Q : U) -> (h : (a : A) -> P a) -> Q\n  := \\ A P Q h -> ?\n" of
         [h] -> cands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- In a contradictory tope context (here the shape @t ≡ 0₂ ∧ t ≡ 1₂@, which
+    -- entails ⊥) recBOT inhabits the goal, so it is offered as a candidate.
+    it "offers recBOT in a contradictory tope context" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a : A) : ( (t : 2 | t ≡ 0₂ ∧ t ≡ 1₂) → A )\n  := \\ t → ?\n" of
+        [h] -> cands h `shouldContain` ["recBOT"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A consistent tope context does not offer recBOT.
+    it "does not offer recBOT in a consistent tope context" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a : A) : ( (t : 2 | t ≡ 0₂) → A )\n  := \\ t → ?\n" of
+        [h] -> cands h `shouldNotContain` ["recBOT"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- In a shape setting (a cube variable in scope) the goal can be built by a
+    -- tope case split; the generic two-way recOR is always available there.
+    it "offers a generic recOR split in a shape setting" $ do
+      case holesOf "#lang rzk-1\n#def Δ¹ : 2 → TOPE := \\ t → TOP\n#def hom (A : U) (x y : A) : U\n  := (t : Δ¹) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ]\n#def mor (A : U) (x y : A) : hom A x y := \\ t → ?\n" of
+        hs | (h:_) <- reverse hs -> cands h `shouldContain` ["recOR (? ↦ ?, ? ↦ ?)"]
+        _ -> expectationFailure "expected at least one hole"
+
+    -- An ordinary, tope-free goal offers no recOR split.
+    it "offers no recOR split for a tope-free goal" $ do
+      case holesOf "#lang rzk-1\n#def plain (A : U) (a : A) : A := ?\n" of
+        [h] -> filter (isInfixOf "recOR") (cands h) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- On the boundary t ≡ 0₂ ∨ t ≡ 1₂ the faces cover the context, so the goal's
+    -- restriction faces become a concrete recOR split.
+    it "splits on the goal's faces when they cover the context" $ do
+      case holesOf "#lang rzk-1\n#def bdry (A : U) (x y : A)\n  : ( (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ] )\n  := \\ t → ?\n" of
+        [h] -> cands h `shouldContain` ["recOR (t ≡ 0₂ ↦ ?, t ≡ 1₂ ↦ ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "holeIntroductions (type-directed introduction forms)" $ do
+    let intros = map show . holeIntroductions
+
+    -- A function goal is introduced by a λ over a hole body; the binder is
+    -- taken from the type, so a named domain keeps its name.
+    it "introduces a function goal as a λ with a hole body" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> ((n : A) -> A)\n  := \\ A -> ?\n" of
+        [h] -> intros h `shouldBe` ["\\ n → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A named pattern domain (e.g. a cube point) keeps its pattern, so the λ
+    -- binds the user's names rather than a projection.
+    it "introduces a pattern-domain function with the pattern binder" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> ( ((t , s) : 2 × 2) -> A )\n  := \\ A -> ?\n" of
+        [h] -> intros h `shouldBe` ["\\ (t, s) → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A nameless product domain is destructured by default, recursively, with
+    -- cube-point leaves named tN.
+    it "destructures a nameless cube-product domain" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) : ( (2 × 2 × 2) → A ) := ?\n" of
+        [h] -> intros h `shouldBe` ["\\ ((t1, t2), t3) → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A nameless Σ domain is destructured too, with term leaves named xN.
+    it "destructures a nameless Σ domain" $ do
+      case holesOf "#lang rzk-1\n#def f (A B C : U) : ( (Σ (a : A) , B) → C ) := ?\n" of
+        [h] -> intros h `shouldBe` ["\\ (x1, x2) → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A Σ-type goal is introduced by a pair of holes.
+    it "introduces a Σ goal as a pair of holes" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> (b : B a) -> Σ (w : A) , B w\n  := \\ A B a b -> ?\n" of
+        [h] -> intros h `shouldBe` ["(?, ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- An identity type whose endpoints already agree is introduced by refl.
+    it "introduces an identity type with agreeing endpoints by refl" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (a : A) -> (a =_{A} a)\n  := \\ A a -> ?\n" of
+        [h] -> intros h `shouldBe` ["refl"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- refl is conditional: it is not offered when the endpoints need not agree.
+    it "does not offer refl when the endpoints need not agree" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (a : A) -> (b : A) -> (a =_{A} b)\n  := \\ A a b -> ?\n" of
+        [h] -> intros h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The unit type is introduced by unit.
+    it "introduces the unit type by unit" $ do
+      case holesOf "#lang rzk-1\n#define f : Unit\n  := ?\n" of
+        [h] -> intros h `shouldBe` ["unit"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A goal whose type has no head constructor to introduce (a neutral
+    -- application) offers no introduction.
+    it "offers no introduction for a neutral goal" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> B a\n  := \\ A B a -> ?\n" of
+        [h] -> intros h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A shape goal (a hole of type TOPE) is introduced by every tope
+    -- constructor, so a shape can be built up by tapping.
+    it "introduces a tope goal by every tope constructor" $ do
+      case holesOf "#lang rzk-1\n#define sh : 2 -> TOPE\n  := \\ t -> ?\n" of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "TOPE"
+          intros h `shouldBe` ["⊤", "⊥", "? ≡ ?", "? ≤ ?", "? ∧ ?", "? ∨ ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

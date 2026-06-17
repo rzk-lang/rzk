@@ -526,6 +526,17 @@ binderToPattern (BinderVar (Just x)) = Rzk.PatternVar Nothing (fromVarIdent x)
 binderToPattern (BinderPair l r)     = Rzk.PatternPair Nothing (binderToPattern l) (binderToPattern r)
 binderToPattern BinderUnit           = Rzk.PatternUnit Nothing
 
+-- | A term that prints as the binder's surface pattern, e.g. the point
+-- @(t , s)@. Used to render a /bare/ occurrence of a pattern binder's variable
+-- (one not under a projection, e.g. the point in a shape tope @Δ² (t , s)@) as
+-- the pattern itself rather than the underlying single variable. A
+-- single-variable binder yields that variable.
+binderToTerm :: Binder -> Term VarIdent
+binderToTerm (BinderVar Nothing)  = Pure (fromString "_")
+binderToTerm (BinderVar (Just x)) = Pure x
+binderToTerm (BinderPair l r)     = Pair (binderToTerm l) (binderToTerm r)
+binderToTerm BinderUnit           = Unit
+
 -- | A 'VarIdent' that prints as the binder's surface pattern, e.g. @(t , s)@.
 -- Used to display a pattern binder in a hole's local context as the pattern
 -- itself rather than as the underlying single variable.
@@ -595,6 +606,20 @@ foldBinderProjections m = go
     goScope = foldBinderProjections (map liftEntry m)
     liftEntry (k, leaves) = (S k, map (fmap S) leaves)
 
+-- | Replace bare uses of a pattern binder's variable with the pattern term
+-- (e.g. a whole point @(t , s)@ rather than the underlying single variable, in
+-- a tope @Δ² (t , s)@). Given a map from each (already display-named) variable
+-- to its binder, every free occurrence of a /compound/ binder's variable is
+-- expanded to its pattern. Complements 'foldBinderProjections', which folds
+-- /projections/ of such a variable; run this /after/ folding, so projections
+-- have already become component names and only bare uses remain.
+restorePatternVars :: [(VarIdent, Binder)] -> Term VarIdent -> Term VarIdent
+restorePatternVars binders = (>>= expand)
+  where
+    expand v = case lookup v binders of
+      Just b | binderIsCompound b -> binderToTerm b
+      _                           -> Pure v
+
 -- | Like 'projChain', but for type-annotated terms.
 projChainT :: TermT a -> Maybe ([Proj], a)
 projChainT (FirstT _ t)  = (\(ps, r) -> (ps ++ [PFst], r)) <$> projChainT t
@@ -636,10 +661,16 @@ fromScope' x used xs = fromTermWith' (x : used) xs . (>>= f)
 fromScopeBinder' :: Binder -> VarIdent -> [VarIdent] -> [VarIdent] -> Scope Term VarIdent -> Rzk.Term
 fromScopeBinder' binder x used xs scope =
   fromTermWith' (x : used) xs
-    (foldBinderProjections [(x, binderPaths binder)] (scope >>= f))
+    (restorePattern (foldBinderProjections [(x, binderPaths binder)] (scope >>= f)))
   where
     f Z     = Pure x
     f (S z) = Pure z
+    -- After projection chains have been folded to their component names, a bare
+    -- use of a pattern binder's variable (the whole point, e.g. in a shape tope
+    -- @Δ² (t , s)@) still reads as the placeholder; show it as the pattern.
+    restorePattern
+      | binderIsCompound binder = (>>= \v -> if v == x then binderToTerm binder else Pure v)
+      | otherwise               = id
 
 fromTermWith' :: [VarIdent] -> [VarIdent] -> Term' -> Rzk.Term
 fromTermWith' used vars = go

@@ -729,9 +729,10 @@ fitsInto term ty target = do
 
 -- | The eliminators a value of the given (weak head normal) type admits, each
 -- as a function wrapping the eliminated term. A Π-type is eliminated by
--- application to a fresh hole; a Σ-type by either projection. Anything else
--- admits no simple eliminator.
-eliminatorsOf :: TermT var -> TypeCheck var [TermT var -> TermT var]
+-- application to a fresh hole; a Σ-type by either projection; an identity type
+-- by path induction (@idJ@), with the motive and base case left as holes.
+-- Anything else admits no simple eliminator.
+eliminatorsOf :: Eq var => TermT var -> TypeCheck var [TermT var -> TermT var]
 eliminatorsOf ty =
   case stripTypeRestrictions ty of
     TypeFunT _ty _orig param _mtope ret ->
@@ -744,7 +745,189 @@ eliminatorsOf ty =
     CubeProductT _ty a b ->
       pure [ \term -> firstT a term
            , \term -> secondT b term ]
+    -- A path @p : a =_A x@ is eliminated by path induction. The motive
+    -- @C : (z : A) → (a =_A z) → U@ is always a function, so we introduce it
+    -- straight away as @\\ b q → ?@ rather than leaving it a bare hole: the spine
+    -- @idJ A a (\\ b q → ?) ? x p@ then has type @C x p@, which β-reduces to that
+    -- inner hole — so J fits any goal (the player fills the motive and the base
+    -- case @d : C a refl@). The two holes are the motive predicate and the base.
+    TypeIdT _ty a mtA x -> do
+      tA <- maybe (typeOf a) pure mtA
+      let -- the motive predicate body, a type, under the two motive binders
+          cBody  = mkHole universeT
+          cInner = lambdaT (typeFunT (BinderVar Nothing)
+                              (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT)
+                     (BinderVar (Just (fromString "q"))) Nothing cBody
+          cType  = typeFunT (BinderVar Nothing) tA Nothing $
+                     typeFunT (BinderVar Nothing)
+                       (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT
+          c      = lambdaT cType (BinderVar (Just (fromString "b"))) Nothing cInner
+          dType  = appT universeT
+                     (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) a) Nothing universeT) c a)
+                     (reflT (typeIdT a (Just tA) a) Nothing)
+          d      = mkHole dType
+          motiveAt y p = appT universeT
+            (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) y) Nothing universeT) c y) p
+      pure [ \p -> idJT (motiveAt x p) tA a c d x p ]
     _ -> pure []
+  where
+    mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+
+-- | The binder for a λ introduced over a domain type. A binder the type already
+-- gives as a pattern is kept as-is — it carries the user's own names (e.g.
+-- @(t , s)@). Otherwise an /explicit/ (pre-whnf) Σ-type or product domain is
+-- destructured into a fresh pair pattern, recursively for products, so that a
+-- nameless @2 × 2 × 2@ parameter is introduced as @((t1 , t2) , t3)@ rather than
+-- a single opaque variable. Any other domain keeps its single binder.
+--
+-- Leaves are named by what they range over: a cube-product component is a point,
+-- named @t@/@s@-style as @tN@; a Σ component is a term, named @xN@. The names are
+-- display-only (the body is a hole that does not mention them) and carry a
+-- shared running index, so every leaf in the pattern is distinct.
+destructuringBinder :: Binder -> TermT var -> Binder
+destructuringBinder orig param = case orig of
+  BinderPair{} -> orig                 -- already a pattern: keep the user's names
+  _ -> case param of
+    CubeProductT{} -> fst (go 1 param)
+    TypeSigmaT{}   -> fst (go 1 param)
+    _              -> orig             -- not a product/Σ: leave the binder alone
+  where
+    -- a product/Σ becomes a pair; we recurse into a product's components (plain
+    -- types) but not under a Σ's binder (a scope). A leaf is named by its
+    -- enclosing constructor: @tN@ under a cube product, @xN@ under a Σ.
+    go n = \case
+      CubeProductT _ a b ->
+        let (l, n')  = child "t" n  a
+            (r, n'') = child "t" n' b
+        in (BinderPair l r, n'')
+      TypeSigmaT _ _ a _b ->
+        let (l, n') = child "x" n a
+        in (BinderPair l (BinderVar (Just (leaf "x" n'))), n' + 1)
+      _ -> (BinderVar (Just (leaf "t" n)), n + 1)  -- unreached: go is called on products only
+    child pfx n = \case
+      c@CubeProductT{} -> go n c
+      c@TypeSigmaT{}   -> go n c
+      _                -> (BinderVar (Just (leaf pfx n)), n + 1)
+    leaf pfx n = fromString (pfx <> show n :: String)
+
+-- | All ways to introduce a value /of/ a goal type by its head constructor,
+-- leaving the constituents as holes. Given a @target@ type, return its
+-- introduction forms:
+--
+--   * a Π-type is introduced by a λ-abstraction over a hole body (@\\ x -> ?@);
+--     the binder is taken from the type, so a pattern domain (e.g. a @Δ²@ point
+--     @(t , s)@) is introduced as @\\ (t , s) -> ?@;
+--   * a Σ-type or a cube product by a pair of holes (@(? , ?)@);
+--   * an identity type by @refl@, but only when its two endpoints already agree
+--     (otherwise @refl@ would not typecheck);
+--   * the unit type by @unit@;
+--   * the tope universe by each tope constructor — @TOP@, @BOT@, @? ≡ ?@,
+--     @? ≤ ?@, @? ∧ ?@, @? ∨ ?@ — so a shape (a hole of type @TOPE@) can be
+--     built up by tapping.
+--
+-- Any other type admits no simple introduction. Unlike 'allEliminationsInto'
+-- this does not search: a type has at most one introduction form (the tope
+-- universe is the one exception), read off its (weak head normal) head
+-- constructor. Outer type restrictions are stripped first, so an extension type
+-- is introduced by the form of its underlying type (its boundary is met by later
+-- refinement of the holes, not by the choice of constructor).
+allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
+allIntroductionsOf target = do
+  target' <- stripTypeRestrictions <$> whnfT target
+  case target' of
+    TypeFunT _ty orig param _mtope ret ->
+      pure [ lambdaT target' (destructuringBinder orig param) Nothing (mkHole ret) ]
+    TypeSigmaT _ty _orig a b ->
+      let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
+    CubeProductT _ty a b ->
+      pure [ pairT target' (mkHole a) (mkHole b) ]
+    TypeIdT _ty a _tA b -> do
+      agree <- endpointsAgree a b
+      pure [ reflT target' Nothing | agree ]
+    TypeUnitT{} -> pure [ unitT ]
+    -- the tope universe: every tope constructor builds a tope, so all are
+    -- introductions of a shape goal. Point arguments (of ≡, ≤) and tope
+    -- arguments (of ∧, ∨) are left as holes.
+    UniverseTopeT{} ->
+      let point = mkHole (mkHole cubeT)  -- a point of an as-yet-unknown cube
+          tope  = mkHole target'         -- a tope (its type is the tope universe)
+       in pure [ topeTopT, topeBottomT
+               , topeEQT  point point, topeLEQT point point
+               , topeAndT tope  tope,  topeOrT  tope  tope ]
+    _ -> pure []
+  where
+    mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+
+-- | Whether the two endpoints of an identity type are definitionally equal, so
+-- that @refl@ inhabits it. Like 'fitsInto', any holes or constraints recorded
+-- while probing are discarded, leaving a pure yes\/no query.
+endpointsAgree :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
+endpointsAgree a b =
+  censor (const [])
+    ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
+
+-- | Whether the local tope context is contradictory (entails ⊥). Reads the
+-- precomputed flag when present, falling back to an entailment check. Used to
+-- decide whether @recBOT@ (ex falso) is available.
+contextEntailsBottom :: Eq var => TypeCheck var Bool
+contextEntailsBottom = asks localTopesEntailBottom >>= \case
+  Just b  -> return b
+  Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+
+-- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it
+-- is a candidate for every goal there (and only there — elsewhere it would not
+-- typecheck). Independent of the goal and of the local hypotheses.
+recBottomCandidates :: Eq var => TypeCheck var [TermT var]
+recBottomCandidates = do
+  vacuous <- contextEntailsBottom
+  pure [ recBottomT | vacuous ]
+
+-- | Whether the local tope context is covered by the union of the given topes —
+-- the coverage obligation of @recOR@ (see 'contextEntailsUnion'), but as a pure
+-- yes\/no query rather than a check that issues an error.
+coverageHolds :: Eq var => [TermT var] -> TypeCheck var Bool
+coverageHolds topes = do
+  contextTopes <- asks localTopesNF
+  topesNF      <- mapM nfTope topes
+  contextTopes `entailM` foldr topeOrT topeBottomT topesNF
+
+-- | Tope case-split moves: ways to build a value of the goal by @recOR@,
+-- splitting the proof over a cover of the local tope context. Three sources,
+-- offered together (the UI ranks and filters):
+--
+--   * each disjunction @ψ ∨ φ@ already in the context becomes
+--     @recOR(ψ ↦ ?, φ ↦ ?)@ — its cover is immediate;
+--   * when the goal is an extension type, its restriction faces are a cover
+--     candidate @recOR(ψ₁ ↦ ?, …)@, offered only when they actually cover the
+--     context (so the move typechecks);
+--   * a generic two-way split @recOR(? ↦ ?, ? ↦ ?)@ with the guards left as
+--     holes, for an unusual split the player fills in by hand.
+--
+-- All three are offered only in a setting where a split makes sense — a cube
+-- variable is in scope, the context has a non-trivial tope, or the goal is a
+-- restricted type — so an ordinary (tope-free) goal is left alone.
+recOrCandidates :: Eq var => TermT var -> TypeCheck var [TermT var]
+recOrCandidates goal = do
+  goalW   <- whnfT goal
+  topes   <- asks (filter (/= topeTopT) . availableTopes)
+  locals  <- asks (filter (not . varIsTopLevel . snd) . varInfos)
+  hasCube <- or <$> mapM (fmap isCubeType . whnfT . varType . snd) locals
+  let stripped     = stripTypeRestrictions goalW
+      mkRecOr gs   = recOrT stripped [ (g, mkHole stripped) | g <- gs ]
+      fromContext  = [ mkRecOr [l, r] | TopeOrT _ l r <- topes ]
+      faces        = case goalW of
+        TypeRestrictedT _ _ rs -> map fst rs
+        _                      -> []
+      isRestricted = case goalW of TypeRestrictedT{} -> True; _ -> False
+      inShape      = hasCube || not (null topes) || isRestricted
+      generic      = [ recOrT stripped [ (mkHole topeT, mkHole stripped)
+                                       , (mkHole topeT, mkHole stripped) ]
+                     | inShape ]
+  fromFaces <- if length faces >= 2
+    then do covered <- coverageHolds faces
+            pure [ mkRecOr faces | covered ]
+    else pure []
+  pure (fromContext <> fromFaces <> generic)
   where
     mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
 
@@ -780,15 +963,23 @@ recordHoleShape mname goalTy mshape = do
   -- for each local hypothesis, the elimination spines that land in the goal
   -- (arguments left as holes). Probing must not leak holes into the recorded
   -- output, hence 'censor'.
-  candidates <- censor (const [])
-    (concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals)
+  candidates <- censor (const []) $ do
+    elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals
+    -- context-driven moves (independent of the goal's head and the hypotheses):
+    -- ex falso in a contradictory context, and tope case-splits.
+    recbot <- recBottomCandidates
+    recor  <- recOrCandidates goalTy
+    pure (elims <> recbot <> recor)
+  -- the introduction forms for the goal itself (constituents left as holes).
+  introductions <- censor (const []) (allIntroductionsOf goalTy)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
   let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
       fbs      = freshBinders name mapping binders
-      render t = foldBinderProjections (binderProjMap name fbs) (untyped (name <$> t))
+      render t = restorePatternVars [ (name v, b) | (v, b) <- fbs ]
+                   (foldBinderProjections (binderProjMap name fbs) (untyped (name <$> t)))
       -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
       entryName v = maybe (name v) binderDisplayName (lookup v fbs)
       entries  = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]
@@ -807,6 +998,7 @@ recordHoleShape mname goalTy mshape = do
         , holeCubeVars  = [ e | (True,  e) <- flagged ]
         , holeTopes     = map render topes
         , holeCandidates = map render candidates
+        , holeIntroductions = map render introductions
         , holeLocation  = loc
         } ]
 
@@ -1478,6 +1670,10 @@ data HoleInfo = HoleInfo
     -- ^ elimination spines over the local hypotheses whose type fits the goal,
     -- with applied arguments left as holes (see 'allEliminationsInto'). Already
     -- rendered, like the other fields.
+  , holeIntroductions :: [Term']
+    -- ^ introduction forms for the goal type, built from its head constructor
+    -- with the constituents left as holes (see 'allIntroductionsOf'). Already
+    -- rendered, like the other fields.
   , holeLocation  :: Maybe LocationInfo
   } deriving (Eq, Show)
 
@@ -1950,9 +2146,7 @@ contextEntailsUnion topes = do
 checkTopeAgainstContext :: Eq var => String -> TermT var -> TypeCheck var ()
 checkTopeAgainstContext what tope = do
   -- a contradictory context is handled elsewhere (recBOT)
-  ctxEntailsBottom <- asks localTopesEntailBottom >>= \case
-    Just b  -> return b
-    Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  ctxEntailsBottom <- contextEntailsBottom
   unless ctxEntailsBottom $ do
     contextTopes <- asks localTopesNF
     let ctxTopes = filter (/= topeTopT) (accessibleTopes contextTopes)
@@ -2762,9 +2956,7 @@ unifyViaDecompose _ _ = issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
 unifyInCurrentContext mterm expected actual = performing action $ do
-  inBottom <- asks localTopesEntailBottom >>= \case
-    Just b  -> return b
-    Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  inBottom <- contextEntailsBottom
   unless inBottom $
     unifyViaDecompose expected actual `catchError` \_ -> do      -- NOTE: this gives a small, but noticeable speedup
       expectedVal <- whnfT expected
