@@ -748,6 +748,43 @@ eliminatorsOf ty =
   where
     mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
 
+-- | The binder for a λ introduced over a domain type. A binder the type already
+-- gives as a pattern is kept as-is — it carries the user's own names (e.g.
+-- @(t , s)@). Otherwise an /explicit/ (pre-whnf) Σ-type or product domain is
+-- destructured into a fresh pair pattern, recursively for products, so that a
+-- nameless @2 × 2 × 2@ parameter is introduced as @((t1 , t2) , t3)@ rather than
+-- a single opaque variable. Any other domain keeps its single binder.
+--
+-- Leaves are named by what they range over: a cube-product component is a point,
+-- named @t@/@s@-style as @tN@; a Σ component is a term, named @xN@. The names are
+-- display-only (the body is a hole that does not mention them) and carry a
+-- shared running index, so every leaf in the pattern is distinct.
+destructuringBinder :: Binder -> TermT var -> Binder
+destructuringBinder orig param = case orig of
+  BinderPair{} -> orig                 -- already a pattern: keep the user's names
+  _ -> case param of
+    CubeProductT{} -> fst (go 1 param)
+    TypeSigmaT{}   -> fst (go 1 param)
+    _              -> orig             -- not a product/Σ: leave the binder alone
+  where
+    -- a product/Σ becomes a pair; we recurse into a product's components (plain
+    -- types) but not under a Σ's binder (a scope). A leaf is named by its
+    -- enclosing constructor: @tN@ under a cube product, @xN@ under a Σ.
+    go n = \case
+      CubeProductT _ a b ->
+        let (l, n')  = child "t" n  a
+            (r, n'') = child "t" n' b
+        in (BinderPair l r, n'')
+      TypeSigmaT _ _ a _b ->
+        let (l, n') = child "x" n a
+        in (BinderPair l (BinderVar (Just (leaf "x" n'))), n' + 1)
+      _ -> (BinderVar (Just (leaf "t" n)), n + 1)  -- unreached: go is called on products only
+    child pfx n = \case
+      c@CubeProductT{} -> go n c
+      c@TypeSigmaT{}   -> go n c
+      _                -> (BinderVar (Just (leaf pfx n)), n + 1)
+    leaf pfx n = fromString (pfx <> show n :: String)
+
 -- | All ways to introduce a value /of/ a goal type by its head constructor,
 -- leaving the constituents as holes. Given a @target@ type, return its
 -- introduction forms:
@@ -773,8 +810,8 @@ allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
 allIntroductionsOf target = do
   target' <- stripTypeRestrictions <$> whnfT target
   case target' of
-    TypeFunT _ty orig _param _mtope ret ->
-      pure [ lambdaT target' orig Nothing (mkHole ret) ]
+    TypeFunT _ty orig param _mtope ret ->
+      pure [ lambdaT target' (destructuringBinder orig param) Nothing (mkHole ret) ]
     TypeSigmaT _ty _orig a b ->
       let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
     CubeProductT _ty a b ->

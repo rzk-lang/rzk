@@ -214,11 +214,24 @@ spec = do
         [h] -> intros h `shouldBe` ["\\ n → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
-    -- A pattern domain (e.g. a cube point) keeps its pattern, so the λ binds
-    -- the pattern rather than a projection.
+    -- A named pattern domain (e.g. a cube point) keeps its pattern, so the λ
+    -- binds the user's names rather than a projection.
     it "introduces a pattern-domain function with the pattern binder" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> ( ((t , s) : 2 × 2) -> A )\n  := \\ A -> ?\n" of
         [h] -> intros h `shouldBe` ["\\ (t, s) → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A nameless product domain is destructured by default, recursively, with
+    -- cube-point leaves named tN.
+    it "destructures a nameless cube-product domain" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) : ( (2 × 2 × 2) → A ) := ?\n" of
+        [h] -> intros h `shouldBe` ["\\ ((t1, t2), t3) → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A nameless Σ domain is destructured too, with term leaves named xN.
+    it "destructures a nameless Σ domain" $ do
+      case holesOf "#lang rzk-1\n#def f (A B C : U) : ( (Σ (a : A) , B) → C ) := ?\n" of
+        [h] -> intros h `shouldBe` ["\\ (x1, x2) → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- A Σ-type goal is introduced by a pair of holes.
