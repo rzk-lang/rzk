@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorUnsolvedHole
+message_contains:
+  - "found an unsolved hole"
+  - "(a, b) : Σ (a : A), B a"
+  - "B a"
+regression_for:
+  - restore-pattern-binder-names

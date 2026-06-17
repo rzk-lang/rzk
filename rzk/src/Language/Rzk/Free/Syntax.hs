@@ -595,6 +595,30 @@ foldBinderProjections m = go
     goScope = foldBinderProjections (map liftEntry m)
     liftEntry (k, leaves) = (S k, map (fmap S) leaves)
 
+-- | Like 'projChain', but for type-annotated terms.
+projChainT :: TermT a -> Maybe ([Proj], a)
+projChainT (FirstT _ t)  = (\(ps, r) -> (ps ++ [PFst], r)) <$> projChainT t
+projChainT (SecondT _ t) = (\(ps, r) -> (ps ++ [PSnd], r)) <$> projChainT t
+projChainT (Pure x)      = Just ([], x)
+projChainT _             = Nothing
+
+-- | Like 'foldBinderProjections', but for type-annotated terms (e.g. those
+-- embedded in type errors). The annotation of a folded leaf is dropped, which
+-- is harmless: the result is only rendered, and a bare variable needs none.
+foldBinderProjectionsT :: Eq a => [(a, [([Proj], a)])] -> TermT a -> TermT a
+foldBinderProjectionsT m = go
+  where
+    go t
+      | Just (ps, root) <- projChainT t
+      , not (null ps)
+      , Just leaves <- lookup root m
+      , Just nm <- lookup ps leaves
+      = Pure nm
+    go (Free (AnnF info f)) = Free (AnnF (fmap go info) (bimap goScope go f))
+    go (Pure x) = Pure x
+    goScope = foldBinderProjectionsT (map liftEntry m)
+    liftEntry (k, leaves) = (S k, map (fmap S) leaves)
+
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
   where vars = freeVars t

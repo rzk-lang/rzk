@@ -353,27 +353,29 @@ ppModality = \case
   Op    -> "ᵒᵖ"
   Id    -> "_id"
 
-ppTypeError' :: TypeError' -> String
-ppTypeError' = \case
+-- | Render a type error, folding pattern-binder projections (e.g. @π₁ x@ back to
+-- the user's @t@) using the supplied map (see 'contextBinders').
+ppTypeError' :: [(VarIdent, [([Proj], VarIdent)])] -> TypeError' -> String
+ppTypeError' pm = \case
   TypeErrorOther msg -> msg
   TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "with actual type"
-    , "  " <> show (untyped actual)
+    , "  " <> ppU (untyped actual)
     , "for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
   TypeErrorUnifyTerms expected actual -> block TopDown
     [ "cannot unify term"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "with term"
-    , "  " <> show (untyped actual) ]
+    , "  " <> ppU (untyped actual) ]
   TypeErrorNotPair term ty -> block TopDown
     [ "expected a cube product or dependent pair"
     , "but got type"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     , "for term"
-    , "  " <> show (untyped term)
+    , "  " <> ppU (untyped term)
     , case ty of
         TypeFunT{} -> "\nPerhaps the term is applied to too few arguments?"
         _          -> ""
@@ -381,16 +383,16 @@ ppTypeError' = \case
   TypeErrorNotModal term m ty -> block TopDown
     [ "expected modal type " <> ppModality m <> " ?"
     , "but got type"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     , "for term"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorModalityMismatch expected actual term -> block TopDown
     [ "modality mismatch"
     , "  expected " <> ppModality expected
     , "  but got  " <> ppModality actual
     , "for term"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorUnaccessibleVar _var varMod locks -> block TopDown
     [ "unaccessible var with modality " <> ppModality varMod
@@ -399,83 +401,83 @@ ppTypeError' = \case
   TypeErrorNotTypeInModal ty -> block TopDown
     [ "expected a type inside modal type"
     , "but got"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     ]
 
   TypeErrorUnexpectedLambda term ty -> block TopDown
     [ "unexpected lambda abstraction"
-    , "  " <> show term
+    , "  " <> ppU term
     , "when typechecking against a non-function type"
-    , "  " <> show ty
+    , "  " <> ppTyped ty
     ]
   TypeErrorUnexpectedPair term ty -> block TopDown
     [ "unexpected pair"
-    , "  " <> show term
+    , "  " <> ppU term
     , "when typechecking against a type that is not a product or a dependent sum"
-    , "  " <> show ty
+    , "  " <> ppTyped ty
     ]
   TypeErrorUnexpectedRefl term ty -> block TopDown
     [ "unexpected refl"
-    , "  " <> show term
+    , "  " <> ppU term
     , "when typechecking against a type that is not an identity type"
-    , "  " <> show ty
+    , "  " <> ppTyped ty
     ]
 
   TypeErrorNotFunction term ty -> block TopDown
     [ "expected a function or extension type"
     , "but got type"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     , "for term"
-    , "  " <> show (untyped term)
+    , "  " <> ppU (untyped term)
     , case term of
-        AppT _ty f _x -> "\nPerhaps the term\n  " <> show (untyped f) <> "\nis applied to too many arguments?"
+        AppT _ty f _x -> "\nPerhaps the term\n  " <> ppU (untyped f) <> "\nis applied to too many arguments?"
         _ -> ""
     ]
   TypeErrorCannotInferBareLambda term -> block TopDown
     [ "cannot infer the type of the argument"
     , "in lambda abstraction"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorCannotInferBareRefl term -> block TopDown
     [ "cannot infer the type of term"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorCannotInferHole term -> block TopDown
     [ "cannot infer the type of a hole"
-    , "  " <> show term
+    , "  " <> ppU term
     , "a hole is only allowed where its type is already known (checking position)"
     ]
   TypeErrorUnsolvedHole mname goal -> block TopDown
     [ "found an unsolved hole" <> maybe "" (\name -> " ?" <> show name) mname
     , "expected type (goal):"
-    , "  " <> show (untyped goal)
+    , "  " <> ppU (untyped goal)
     ]
   TypeErrorUndefined var -> block TopDown
     [ "undefined variable: " <> show (Pure var :: Term') ]
   TypeErrorTopeNotSatisfied topes tope -> block TopDown
     [ "local context is not included in (does not entail) the tope"
-    , "  " <> show (untyped tope)
+    , "  " <> ppU (untyped tope)
     , "in local context (normalised)"
-    , intercalate "\n" (map ("  " <>) (map show topes))] -- FIXME: remove
+    , intercalate "\n" (map ("  " <>) (map ppTyped topes))] -- FIXME: remove
   TypeErrorTopeContextDisjoint tope topes -> block TopDown
     [ "the tope"
-    , "  " <> show (untyped tope)
+    , "  " <> ppU (untyped tope)
     , "is disjoint from the local tope context (their conjunction is the empty tope ⊥),"
     , "so this restriction face or recOR branch is vacuous everywhere"
     , "in local context (normalised)"
-    , intercalate "\n" (map ("  " <>) (map show topes))]
+    , intercalate "\n" (map ("  " <>) (map ppTyped topes))]
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "but got"
-    , "  " <> show (untyped actual) ]
+    , "  " <> ppU (untyped actual) ]
 
   TypeErrorInvalidArgumentType argType argKind -> block TopDown
     [ "invalid function parameter type"
-    , "  " <> show argType
+    , "  " <> ppU argType
     , "function parameter can be a cube, a shape, or a type"
     , "but given parameter type has type"
-    , "  " <> show (untyped argKind)
+    , "  " <> ppU (untyped argKind)
     ]
 
   TypeErrorDuplicateTopLevel previous lastName -> block TopDown
@@ -489,7 +491,7 @@ ppTypeError' = \case
 
   TypeErrorUnusedVariable name type_ -> block TopDown
     [ "unused variable"
-    , "  " <> Rzk.printTree (getVarIdent name) <> " : " <> show (untyped type_)
+    , "  " <> Rzk.printTree (getVarIdent name) <> " : " <> ppU (untyped type_)
     ]
 
   TypeErrorUnusedUsedVariables vars name -> block TopDown
@@ -501,18 +503,39 @@ ppTypeError' = \case
 
   TypeErrorImplicitAssumption (a, aType) name -> block TopDown
     [ "implicit assumption"
-    , "  " <> Rzk.printTree (getVarIdent a) <> " : " <> show (untyped aType)
+    , "  " <> Rzk.printTree (getVarIdent a) <> " : " <> ppU (untyped aType)
     , "used in definition of"
     , "  " <> Rzk.printTree (getVarIdent name)
     ]
+  where
+    -- render an (untyped) term, folding pattern-binder projections
+    ppU :: Term' -> String
+    ppU = show . foldBinderProjections pm
+    -- render a type-annotated term, folding pattern-binder projections
+    ppTyped :: TermT' -> String
+    ppTyped = show . foldBinderProjectionsT pm
 
+
+-- | The pattern binders in scope, freshened and keyed by their (current) name,
+-- together with the projection-folding map derived from them. Both share the
+-- same freshened component names, so a term's projections and the binder shown
+-- in the context agree.
+contextBinders
+  :: Context VarIdent
+  -> ([(VarIdent, Binder)], [(VarIdent, [([Proj], VarIdent)])])
+contextBinders ctx = (fbs, binderProjMap id fbs)
+  where
+    mapping = [ (v, v) | (v, _) <- varTypes ctx ]
+    fbs     = freshBinders id mapping (varBinders ctx)
 
 ppTypeErrorInContext :: OutputDirection -> TypeErrorInContext VarIdent -> String
 ppTypeErrorInContext dir TypeErrorInContext{..} = block dir
-  [ ppTypeError' typeErrorError
+  [ ppTypeError' pm typeErrorError
   , ""
   , ppContext' dir typeErrorContext
   ]
+  where
+    (_, pm) = contextBinders typeErrorContext
 
 ppTypeErrorInScopedContextWith'
   :: OutputDirection
@@ -720,72 +743,72 @@ checkHoleAgainstShape mname orig cube tope = do
       return (HoleT TypeInfo{ infoType = cube, infoWHNF = Nothing, infoNF = Nothing } mname)
 
 ppSomeAction :: Eq var => [(var, Maybe VarIdent)] -> Int -> Action var -> String
-ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
+ppSomeAction origs n action = ppAction [] n (toRzkVarIdent <$> action)
   where
     vars = nub (foldMap pure action)
     mapping = zip vars defaultVarIdents
     toRzkVarIdent var = fromMaybe "_" $
       join (lookup var origs) <|> lookup var mapping
 
-ppAction :: Int -> Action' -> String
-ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
+ppAction :: [(VarIdent, [([Proj], VarIdent)])] -> Int -> Action' -> String
+ppAction pm n = unlines . map (replicate (2 * n) ' ' <>) . \case
   ActionTypeCheck term ty ->
     [ "typechecking"
-    , "  " <> show term
+    , "  " <> ppU term
     , "against type"
-    , "  " <> show (untyped ty) ]
+    , "  " <> ppU (untyped ty) ]
 
   ActionUnify term expected actual ->
     [ "unifying expected type"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "with actual type"
-    , "  " <> show (untyped actual)
+    , "  " <> ppU (untyped actual)
     , "for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionUnifyTerms expected actual ->
     [ "unifying term (expected)"
-    , "  " <> show expected
+    , "  " <> ppTyped expected
     , "with term (actual)"
-    , "  " <> show actual ]
+    , "  " <> ppTyped actual ]
 
   ActionInfer term ->
     [ "inferring type for term"
-    , "  " <> show term ]
+    , "  " <> ppU term ]
 
   ActionContextEntailedBy ctxTopes term ->
     [ "checking if local context"
-    , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) ctxTopes)
     , "includes (is entailed by) restriction tope"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionContextEntails ctxTopes term ->
     [ "checking if local context"
-    , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) ctxTopes)
     , "is included in (entails) the tope"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionContextEntailsUnion ctxTopes terms ->
     [ "checking if local context"
-    , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) ctxTopes)
     , "is included in (entails) the union of the topes"
-    , intercalate "\n" (map (("  " <>) . show . untyped) terms) ]
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) terms) ]
 
   ActionWHNF term ->
     [ "computing WHNF for term"
-    , "  " <> show term ]
+    , "  " <> ppTyped term ]
 
   ActionNF term ->
     [ "computing normal form for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionCheckCoherence (ltope, lterm) (rtope, rterm) ->
     [ "checking coherence for"
-    , "  " <> show (untyped ltope)
-    , "  |-> " <> show (untyped lterm)
+    , "  " <> ppU (untyped ltope)
+    , "  |-> " <> ppU (untyped lterm)
     , "and"
-    , "  " <> show (untyped rtope)
-    , "  |-> " <> show (untyped rterm) ]
+    , "  " <> ppU (untyped rtope)
+    , "  |-> " <> ppU (untyped rterm) ]
 
   ActionCloseSection Nothing ->
     [ "closing the file"
@@ -797,10 +820,15 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
   ActionCheckLetValue orig ->
     [ "checking the local definition "
         <> maybe "_" (Rzk.printTree . getVarIdent) orig ]
+  where
+    ppU :: Term' -> String
+    ppU = show . foldBinderProjections pm
+    ppTyped :: TermT' -> String
+    ppTyped = show . foldBinderProjectionsT pm
 
 
 traceAction' :: Int -> Action' -> a -> a
-traceAction' n action = trace ("[debug]\n" <> ppAction n action)
+traceAction' n action = trace ("[debug]\n" <> ppAction [] n action)
 
 unsafeTraceAction' :: Int -> Action var -> a -> a
 unsafeTraceAction' n = traceAction' n . unsafeCoerce
@@ -1233,17 +1261,22 @@ ppContext' dir ctx@Context{..} = block dir $ dropWhile null
   , case filter (/= topeTopT) (availableTopes ctx) of
       [] -> "Local tope context is unrestricted (⊤)."
       localTopes' -> namedBlock TopDown "Local tope context:"
-        [ "  " <> show (untyped tope)
+        [ "  " <> ppU (untyped tope)
         | tope <- localTopes' ]
   , ""
   , block dir
-    [ "when " <> ppAction 0 action
+    [ "when " <> ppAction pm 0 action
     | action <- actionStack ]
   , namedBlock TopDown "Definitions in context:"
     [ block dir
-      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
+      [ dispName x <> " : " <> ppU (untyped ty)
       | (x, ty) <- reverse (varTypes ctx) ] ]
   ]
+  where
+    (fbs, pm) = contextBinders ctx
+    ppU = show . foldBinderProjections pm
+    -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
+    dispName x = maybe (show (Pure x :: Term')) (show . binderDisplayName) (lookup x fbs)
 
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
 doesShadowName name = asks $ \ctx ->
