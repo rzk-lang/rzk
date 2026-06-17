@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- A plain contradiction is NOT visible under a _b lock, so `mod _b recBOT` over a
+-- plain contradiction must be rejected. Keeping the plain tope under the lock
+-- would need the unit id => _b (phi |- _b phi); but _b is comonadic (counit
+-- _b A |- A only) and has no such unit -- that is _#, the monad -- so plain topes
+-- are dropped under a _b lock (coe Id Flat = False) and the locked context is no
+-- longer contradictory. (Without the lock, `\ _ -> recBOT : ... -> _b A`
+-- typechecks by plain ex falso.)
+#def ill-recBOT-under-flat
+  (A :_b U) (i : 2)
+  : (i : 2 | (i === 0_2) /\ (i === 1_2)) -> _b A
+  := \ _ -> mod _b recBOT

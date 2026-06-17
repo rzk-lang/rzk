@@ -1,0 +1,191 @@
+#lang rzk-1
+
+-- ============ Modal topes in restrictions ============
+
+-- _#(t === 0) in restriction, accessible under mod _#
+#def test-sharp-from-plain
+  (i : 2)
+  (A : U)
+  (a : A)
+  (p : (t : 2 | t === 0_2) -> A [ t === 0_2 |-> a ])
+  : (t : 2 | _# (t === 0_2)) -> (_# A) [t === 0_2 |-> mod _# a]
+  := \ t -> mod _# (p t)
+
+-- Plain LEQ + _#(EQ): both accessible under mod _# (coe(Id, Sharp) = True)
+#def test-cross-modality-sharp-accessible
+  (A :_# U) (a :_# A)
+  (j k : 2)
+  : (i : 2 | (i <= j) /\ _# (k === 0_2)) -> _# A
+  := \ i -> mod _# (recOR( (i <= j) /\ (k === 0_2) |-> a ))
+
+-- _#(_# phi) = _# phi: sharp tope idempotent, with extension type
+#def test-sharp-tope-idempotent-under-sharp
+  (A : U) (a : A)
+  (p : (i : 2 | i === 0_2) -> A [ i === 0_2 |-> a ])
+  : (i : 2 | _# (_# (i === 0_2))) -> (_# A) [ i === 0_2 |-> mod _# a ]
+  := \ i -> mod _# (p i)
+
+-- _b(phi) in restriction: _b(phi) => phi, with extension type
+#def test-flat-tope-in-restriction
+  (A :_b U) (a :_b A)
+  (p : (i :_b 2 | i === 0_2) -> A [ i === 0_2 |-> a ])
+  : (i :_b 2 | _b (i === 0_2)) -> A [ i === 0_2 |-> a ]
+  := \ i -> p i
+
+-- _b(_b phi) => _b phi ^ _b(phi) => phi: flat tope idempotent, with extension type
+#def test-flat-tope-idempotent
+  (A :_b U) (a :_b A)
+  (p : (i :_b 2 | _b ( _b (i === 0_2))) -> A [ i === 0_2 |-> a ])
+  : (i :_b 2 | _b (i === 0_2)) -> A [ (i === 0_2) |-> a ]
+  := \ i -> p i
+
+-- _#(phi) => _#(_#(phi)): sharp tope expansion
+#def test-sharp-tope-expand
+  (A : U) (a : A)
+  (p : (i : 2 | _# (_# (i === 0_2))) -> (_# A) [ i === 0_2 |-> mod _# a ])
+  : (i : 2 | _# (i === 0_2)) -> (_# A) [ i === 0_2 |-> mod _# a ]
+  := \ i -> p i
+
+-- _b(_b(phi)) => _b(phi): flat tope collapse
+#def test-flat-tope-collapse
+  (A :_b U) (a :_b A)
+  (p : (i :_b 2 | _b (i === 0_2)) -> A [ i === 0_2 |-> a ])
+  : (i :_b 2 | _b (_b (i === 0_2))) -> A [ i === 0_2 |-> a ]
+  := \ i -> p i
+
+-- ============ Contradiction / recBOT under modalities ============
+
+-- _#(i===0) /\ _#(i===1) → BOT under _#
+#def test-sharp-tope-contradiction-under-sharp
+  (A : U) (i : 2)
+  : (i : 2 | _# (i === 0_2) /\ _# (i === 1_2)) -> _# A
+  := \ _ -> mod _# recBOT
+
+-- _op(i===0) /\ _op(i===1) → BOT at plain
+#def test-op-bot-entails-bot
+  (A : U)
+  : (i :_op 2 | _op (i === 0_2) /\ _op (i === 1_2)) -> A
+  := \ _ -> recBOT
+
+-- NOTE: a plain contradiction is NOT visible under a _b lock, so `mod _b recBOT`
+-- over a plain contradiction is rejected (see ill-modal-recBOT-under-flat).
+-- Keeping the plain tope under the lock would need the unit id => _b
+-- (phi |- _b phi), but _b is comonadic (counit _b A |- A only) and has no such
+-- unit -- that is _#, the monad -- so plain topes are dropped under a _b lock
+-- (coe Id Flat = False). The contradiction is still usable WITHOUT the lock:
+-- `\ _ -> recBOT : ... -> _b A` typechecks by plain ex falso.
+
+-- Contradiction survives entering _op via saturation
+#def test-contradiction-survives-under-op
+  (A :_op U) (i : 2)
+  : (i : 2 | (i === 0_2) /\ (i === 1_2)) -> _op A
+  := \ _ -> mod _op recBOT
+
+-- Contradiction survives entering _#
+#def test-contradiction-survives-under-sharp
+  (A : U) (i : 2)
+  : (i : 2 | (i === 0_2) /\ (i === 1_2)) -> _# A
+  := \ _ -> mod _# recBOT
+
+-- Double _op returns topes to accessible
+#def test-double-op-entails-bottom
+  (i : 2)
+  : (i : 2 | (i === 0_2) /\ (i === 1_2)) -> _op (_op Unit)
+  := \ _ -> mod _op (mod _op recBOT)
+
+-- Nested _#: plain topes directly accessible under sharp
+#def test-nested-sharp-entails-bottom
+  (A : U) (i : 2)
+  : (i : 2 | (i === 0_2) /\ (i === 1_2)) -> _# (_# A)
+  := \ _ -> mod _# (mod _# recBOT)
+
+-- Flat var contradiction under _#
+#def test-flat-var-contradiction-under-sharp
+  (A :_b U) (i :_b 2)
+  : (i :_b 2 | (i === 0_2) /\ (i === 1_2)) -> _# A
+  := \ _ -> mod _# recBOT
+
+-- Flat contradiction in extension
+#def test-flat-contradiction-extension
+  (A : U)
+  (i :_b 2)
+  : (i :_b 2 | (i === 0_2) /\ (i === 1_2)) -> A
+  := \ _ -> recBOT
+
+-- _b(i===0) /\ (i===1) → BOT
+#def test-flat-and-plain-bot
+  (A : U)
+  (i :_b 2)
+  : (i :_b 2 | (_b (i === 0_2)) /\ (i === 1_2)) -> A
+  := \ _ -> recBOT
+
+-- Mixed _# + plain topes: transitivity derives contradiction under _#
+#def test-mixed-sharp-plain-contradiction-under-sharp
+  (A : U) (i j : 2)
+  : (i : 2 | _# ((i === 0_2) /\ (j === 1_2)) /\ (i === j)) -> _# A
+  := \ _ -> mod _# recBOT
+
+-- ============ Saturation under modalities ============
+
+-- LEQ antisymmetry under _op: (i<=0) /\ (0<=i) => i===0
+#def test-leq-saturation-under-op
+  (A :_op U) (a :_op A)
+  (p : (i :_op 2 | _op (i === 0_2)) -> _op A [ _op (i === 0_2) |-> mod _op a ])
+  : (i :_op 2 | _op ((i <= 0_2) /\ (0_2 <= i))) -> _op A [ _op (i === 0_2) |-> mod _op a ]
+  := \i -> p i 
+
+-- EQ transitivity under _op: (i===j) /\ (j===0) => i===0
+#def test-transitivity-under-op
+  (A :_op U) (a :_op A)
+  (i j :_op 2)
+  (p : (i :_op 2 | _op (i === 0_2)) -> _op A [ _op (i === 0_2) |-> mod _op a ])
+  : (i :_op 2 | (_op (i === j)) /\ (_op (j === 0_2))) -> _op A [ _op (i === 0_2) |-> mod _op a ]
+  := \ i -> p i
+
+-- LEQ antisymmetry under _#
+#def test-leq-saturation-under-sharp
+  (A :_b U) (a :_b A)
+  (p : (i : 2 | i === 0_2) -> A [ i === 0_2 |-> a ])
+  : (i : 2 | (i <= 0_2) /\ (0_2 <= i)) -> _# A [ i === 0_2 |-> mod _# a ]
+  := \ i -> mod _# (p i)
+
+-- Transitivity across modalities: flat+plain vars, (i === j) /\ (j === 0) => i === 0
+#def test-mixed-transitivity-under-flat
+  (A :_b U)
+  (a :_b A)
+  (i :_b 2)
+  (j :_b 2)
+  (p : (i :_b 2 | i === 0_2) -> A [ i === 0_2 |-> a ])
+  : (i :_b 2 | (_b (i === j)) /\ (j === 0_2)) -> A [ i === 0_2 |-> a ]
+  := \ i -> p i
+
+#def test-mixed-transitivity-under-sharp
+  (A :_b U)
+  (a :_b A)
+  (i :_# 2)
+  (j : 2)
+  (p : (i :_b 2 | i === 0_2) -> A [ i === 0_2 |-> a ])
+  : (i :_b 2 | (_# (i === j)) /\ (j === 0_2)) -> _# A [ i === 0_2 |-> mod _# a ]
+  := \ i -> mod _# (p i)
+
+-- ============ Inv/uninv saturation ========================
+
+#def with-inversed-tope 
+  (A : U) 
+  (a : A) 
+  : (t : 2) -> A 
+  := \ t -> recOR (0_2 <= t |-> a, let mod _op ft := flip_op t in (_op (0_2 <= ft)) |-> a)
+
+#def with-inv-op-tope 
+  (A : U) 
+  (a : A) 
+  : (t : 2) -> A 
+  := \ t -> recOR (0_2 <= t |-> a, let mod _op inv_t := inv_op (t <= 1_2) in (_op inv_t) |-> a)
+
+#def discrete-inversed-eliminator 
+  (A : U) 
+  (a : A) 
+  : (t :_b 2) -> A 
+  := \ (t :_b 2) -> recOR (0_2 === t |-> a, let mod _op ft := flip_op t in (_op (ft === 0_2)) |-> a)
+
+

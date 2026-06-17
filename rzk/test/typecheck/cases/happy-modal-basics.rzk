@@ -64,3 +64,163 @@
   let mod _op / _op x_2 := x_1 in
   mod _id x_2
 
+-- comp(Flat, Op) = Flat: flat var stays accessible inside op-under-flat
+#def flat-op-chain (A :_b U) (x :_b A)
+  : _op (_b A)
+  := mod _op (mod _b x)
+
+-- comp(Sharp, Op) = Sharp: plain var stays accessible inside op-under-sharp
+#def sharp-op-chain (A : U) (x : A)
+  : _op (_# A)
+  := mod _op (mod _# x)
+
+-- Flat tope accessible at plain level with boundary
+#def test-flat-tope-to-plain
+  (A :_b U)
+  (a :_b A)
+  : (i :_b 2 | i === 0_2) -> A [ i === 0_2 |-> a ]
+  := \ i -> a
+
+-- recOR under flat: LEM covers 2
+#def test-recOR-flat
+  (A :_b U)
+  (a b :_b A)
+  : (i :_b 2) -> A
+  := \(i :_b 2) -> recOR( i === 0_2 |-> a , i === 1_2 |-> b )
+
+-- Flat accessible under sharp chain
+#def test-sharp-from-flat-chain
+  (A :_b U)
+  (a :_b A)
+  : (i :_b 2 | i === 0_2) -> _# A
+  := \ i -> mod _# a
+
+-- LEQ recOR under flat
+#def test-flat-leq-recOR
+  (A :_b U)
+  (a :_b A)
+  : (i :_b 2) -> A
+  := \ (i :_b 2) -> recOR( i <= 0_2 |-> a, 0_2 <= i |-> a)
+
+-- Disjunction restriction under flat
+#def test-flat-disjunction-cover
+  (A :_b U)
+  (a b :_b A)
+  : (i :_b 2 | (i === 0_2) \/ (i === 1_2)) -> A
+  := \ (i :_b 2) -> recOR( i === 0_2 |-> a , i === 1_2 |-> b )
+
+-- Conjunction split under flat
+#def test-flat-conjunction-split
+  (A :_b U)
+  (a :_b A)
+  : (i :_b 2 | i === 0_2) -> (j :_b 2 | j === 0_2) -> A
+  := \ i j -> a
+
+-- Product cube face under flat
+#def test-flat-product-face
+  (A :_b U)
+  (a :_b A)
+  : (ts :_b (2 * 2) | first ts === 0_2) -> A
+  := \ ts -> a
+
+-- Symmetry through saturation: (0 === i) => (i === 0)
+#def test-flat-symmetry
+  (A :_b U)
+  (a :_b A)
+  : (i :_b 2 | 0_2 === i) -> A [ i === 0_2 |-> a ]
+  := \ i -> a
+
+-- Transitivity under flat: (i === j) /\ (j === 0) => (i === 0)
+#def test-flat-transitivity
+  (A :_b U)
+  (a :_b A)
+  (i j :_b 2)
+  : (i :_b 2 | (i === j) /\ (j === 0_2)) -> A [ i === 0_2 |-> a ]
+  := \ _ -> a
+
+-- Plain tope entails _# goal
+#def test-solve-sharp-goal
+  (A : U)
+  (a : A)
+  : (i : 2 | i === 0_2) -> _# Unit
+  := \ i -> mod _# unit
+
+-- Nested modal goal: _# (_b A)
+#def test-solve-nested-modal-goal
+  (A :_b U)
+  (a :_b A)
+  : _# (_b A)
+  := mod _# (mod _b a)
+
+-- Op var with extension boundary
+#def test-op-var-boundary
+  (A :_op U)
+  (a :_op A)
+  (i :_op 2)
+  : (i :_op 2 |_op (i === 0_2)) -> (_op A) [ _op (i === 0_2) |-> (mod _op a) ]
+  := \ _ -> (mod _op a)
+
+-- _op var accessible under _op restriction
+#def test-op-goal-with-op-var
+  (A :_op U)
+  (a :_op A)
+  (i :_op 2)
+  : (i :_op 2 | (_op (i === 0_2))) -> _op A
+  := \ _ -> mod _op a
+
+-- ============ Extension types under modalities ============
+
+-- recOR with <= under mod _#: endpoint LEQs always solvable
+#def test-sharp-tope-boundary
+  (A : U) (a : A)
+  : (t : 2) -> _# A
+  := \ t -> mod _# (recOR( 0_2 <= t |-> a , t <= 1_2 |-> a ))
+
+-- Sharp extension with boundary
+#def test-sharp-extension
+  (A : U)
+  (a : A)
+  : (i : 2) -> (_# A) [ i === 0_2 |-> mod _# a , i === 1_2 |-> mod _# a ]
+  := \(i : 2) -> mod _# (recOR( 0_2 <= i |-> a , i <= 1_2 |-> a ))
+
+-- Extension under flat with boundary
+#def test-flat-extension-boundary
+  (A :_b U)
+  (a b :_b A)
+  : (i :_b 2) -> A [ i === 0_2 |-> a , i === 1_2 |-> b ]
+  := \(i :_b 2) -> recOR( i === 0_2 |-> a , i === 1_2 |-> b )
+
+-- Constant path under flat
+#def test-flat-const-path
+  (A :_b U)
+  (a :_b A)
+  : (i :_b 2) -> A [ i === 0_2 |-> a , i === 1_2 |-> a ]
+  := \(i :_b 2) -> a
+
+-- Flat tope with sharp return type and boundary
+#def test-flat-tope-sharp-boundary
+  (A :_b U) (a :_b A)
+  (i :_b 2)
+  : (i :_b 2 | i === 0_2) -> _# A [ i === 0_2 |-> mod _# a ]
+  := \ _ -> mod _# a
+
+-- Mixed flat + plain variables in extension
+#def test-mixed-flat-plain-vars
+  (A :_b U)
+  (a :_b A)
+  (i :_b 2)
+  (j : 2)
+  : (i :_b 2 | (i === 0_2) /\ (j === 0_2)) -> A
+  := \ _ -> a
+
+-- Flat double-wrap with boundary
+#def test-flat-double-wrap-boundary
+  (A :_b U) (a :_b A) (i :_b 2)
+  : (i :_b 2 | i === 0_2) -> _b (_b A) [ i === 0_2 |-> mod _b (mod _b a) ]
+  := \ _ -> mod _b (mod _b a)
+
+-- Flat to sharp chain with tope
+#def test-flat-to-sharp-with-tope
+  (A :_b U) (a :_b A) (i :_b 2)
+  : (i :_b 2 | i === 0_2) -> _# (_# A)
+  := \ _ -> mod _# (mod _# a)

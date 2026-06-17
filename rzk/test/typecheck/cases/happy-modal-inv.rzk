@@ -1,13 +1,56 @@
 #lang rzk-1
 
--- Simplest test: phi_op should unify with the inverted tope
--- so refl typechecks if the substitution is correct
-
 #compute-nf inv_op (0_2 === 0_2)
 
+-- inv flips endpoint: inv_op(i === 0) = mod _op (flip(i) === 1)
 #def test-lt-mod-inv
   ( i : 2)
   : let mod _op q := invᵒᵖ (i ≡ 0₂) in let mod _op fi := flip_op i in _op (q = (fi === 1_2))
   := mod _op refl
 
+#def test-inv-endpoint-one
+  (i : 2)
+  : let mod _op q := inv_op (i === 1_2) in
+    let mod _op fi := flip_op i in
+    _op (q = (fi === 0_2))
+  := mod _op refl
 
+-- uninv(inv(phi)) = phi
+#def test-inv-uninv-cancel
+  (i : 2)
+  : uninv_op (inv_op (i === 0_2)) = (i === 0_2)
+  := refl
+
+-- inv(uninv(mod _op phi)) = mod _op phi
+#def test-uninv-inv-cancel
+  (i : 2)
+  : let mod _op fi := flip_op i in
+    inv_op (uninv_op (mod _op (fi === 0_2))) = mod _op (fi === 0_2)
+  := refl
+
+-- inv distributes over conjunction
+#def test-inv-distributes-and
+  (i j : 2)
+  : let mod _op q := inv_op ((i === 0_2) /\ (j === 1_2)) in
+    let mod _op fi := flip_op i in
+    let mod _op fj := flip_op j in
+    _op (q = ((fi === 1_2) /\ (fj === 0_2)))
+  := mod _op refl
+
+-- inv/uninv on TOP and BOT (bug catchers: stuck without nfTope fix)
+
+#def test-inv-top
+  : let mod _op q := (inv_op TOP) in _op (q = TOP)
+  := mod _op refl
+
+#def test-inv-bot
+  : let mod _op q := inv_op BOT in _op (q = BOT)
+  := mod _op refl
+
+#def test-uninv-top
+  : uninv_op (mod _op TOP) = TOP
+  := refl
+
+#def test-uninv-bot
+  : uninv_op (mod _op BOT) = BOT
+  := refl
