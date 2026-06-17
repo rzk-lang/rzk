@@ -697,12 +697,13 @@ allEliminationsInto target = go maxEliminationDepth
             concat <$> mapM (\wrap -> go (depth - 1) (wrap term)) elims
       pure ([term | fits] <> deeper)
 
--- | How deep an elimination spine 'allEliminationsInto' will build. Fully
--- applying a five-argument hypothesis and then projecting twice is depth seven
--- (the deepest spine that arises in practice). A larger bound mostly adds
--- self-referential spines (a built result applied again), so seven is the sweet
--- spot; the chain only branches at Σ-types, which are shallow, so the search
--- stays small.
+-- | How deep an elimination spine 'allEliminationsInto' will build. A temporary
+-- fixed bound: seven is enough for the spines seen so far (fully applying a
+-- five-argument hypothesis and projecting twice), and a larger bound mostly adds
+-- self-referential spines (a built result applied again). It should be made
+-- configurable, and likely raised, once there is more evidence of what real
+-- goals need. The chain only branches at Σ-types, which are shallow, so the
+-- search stays small.
 maxEliminationDepth :: Int
 maxEliminationDepth = 7
 
