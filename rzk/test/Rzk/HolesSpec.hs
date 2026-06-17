@@ -102,3 +102,36 @@ spec = do
           ("A [" `isInfixOf` goal) `shouldBe` True   -- a restricted type, not bare A
           ("↦ a" `isInfixOf` goal) `shouldBe` True   -- the boundary face is present
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A pair-pattern binder \ (t , s) -> ? restores the user's component names:
+    -- the goal and tope context show t / s, not projections (π₁ / π₂) of a fresh
+    -- variable. This is what the game and LSP hole panels display.
+    it "restores pair-pattern binder names in the goal and topes" $ do
+      case holesOf "#lang rzk-1\n#define test : (A : U) -> (x : A) -> ( (t , s) : 2 * 2 | s <= t ) -> A [ t === s |-> x ]\n  := \\ A x (t , s) -> ?\n" of
+        [h] -> do
+          let goal = show (holeGoal h)
+          ("t ≡ s" `isInfixOf` goal) `shouldBe` True
+          ('π' `elem` goal) `shouldBe` False
+          map show (holeTopes h) `shouldContain` ["s ≤ t"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A nested tuple pattern ((t , s) , r) restores all the component names,
+    -- including the doubly-projected one (s = π₂ (π₁ x)).
+    it "restores nested tuple binder names" $ do
+      case holesOf "#lang rzk-1\n#define test : (A : U) -> (x : A) -> ( ((t , s) , r) : (2 * 2) * 2 | r <= s ) -> A [ r === t |-> x ]\n  := \\ A x ((t , s) , r) -> ?\n" of
+        [h] -> do
+          let goal = show (holeGoal h)
+          ("r ≡ t" `isInfixOf` goal) `shouldBe` True
+          ('π' `elem` goal) `shouldBe` False
+          map show (holeTopes h) `shouldContain` ["r ≤ s"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- Guardrail: ordinary projections of a variable that is NOT a pattern binder
+    -- must still print as π₁ / π₂ (only pattern-binder projections are folded).
+    it "leaves ordinary projections of a non-pattern variable as π₁ / π₂" $ do
+      case holesOf "#lang rzk-1\n#define test : (A : U) -> (x : A) -> ( p : 2 * 2 | second p <= first p ) -> A [ first p === second p |-> x ]\n  := \\ A x p -> ?\n" of
+        [h] -> do
+          let goal = show (holeGoal h)
+          ("π₁ p ≡ π₂ p" `isInfixOf` goal) `shouldBe` True
+          map show (holeTopes h) `shouldContain` ["π₂ p ≤ π₁ p"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
