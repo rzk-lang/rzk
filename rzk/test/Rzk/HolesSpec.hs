@@ -129,6 +129,17 @@ spec = do
           names (holeCubeVars h) `shouldBe` ["((t, s), r)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A bare use of a pattern binder's point (not a projection) inside a shape
+    -- in the /goal type/ must print as the pattern, not a fresh variable: the
+    -- membership tope of @((t , s) : Δ²) → A@ reads @Δ² (t , s)@, not @Δ² x@.
+    it "restores a pattern point used bare in a goal-type shape tope" $ do
+      case holesOf "#lang rzk-1\n#def Δ² : (2 × 2) → TOPE := \\ (t , s) → s ≤ t\n#def f (A : U) : ( ((t , s) : Δ²) → A ) := ?\n" of
+        [h] -> do
+          let goal = show (holeGoal h)
+          ("| Δ² (t, s))" `isInfixOf` goal) `shouldBe` True
+          ('π' `elem` goal) `shouldBe` False
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- Guardrail: ordinary projections of a variable that is NOT a pattern binder
     -- must still print as π₁ / π₂ (only pattern-binder projections are folded).
     it "leaves ordinary projections of a non-pattern variable as π₁ / π₂" $ do
