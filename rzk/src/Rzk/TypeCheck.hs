@@ -804,6 +804,22 @@ endpointsAgree a b =
   censor (const [])
     ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
 
+-- | Whether the local tope context is contradictory (entails ⊥). Reads the
+-- precomputed flag when present, falling back to an entailment check. Used to
+-- decide whether @recBOT@ (ex falso) is available.
+contextEntailsBottom :: Eq var => TypeCheck var Bool
+contextEntailsBottom = asks localTopesEntailBottom >>= \case
+  Just b  -> return b
+  Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+
+-- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it
+-- is a candidate for every goal there (and only there — elsewhere it would not
+-- typecheck). Independent of the goal and of the local hypotheses.
+recBottomCandidates :: Eq var => TypeCheck var [TermT var]
+recBottomCandidates = do
+  vacuous <- contextEntailsBottom
+  pure [ recBottomT | vacuous ]
+
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
 -- user-facing 'VarIdent' names here — reusing the same resolution as
@@ -836,8 +852,12 @@ recordHoleShape mname goalTy mshape = do
   -- for each local hypothesis, the elimination spines that land in the goal
   -- (arguments left as holes). Probing must not leak holes into the recorded
   -- output, hence 'censor'.
-  candidates <- censor (const [])
-    (concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals)
+  candidates <- censor (const []) $ do
+    elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals
+    -- context-driven moves (independent of the goal's head and the hypotheses):
+    -- ex falso in a contradictory context.
+    recbot <- recBottomCandidates
+    pure (elims <> recbot)
   -- the introduction forms for the goal itself (constituents left as holes).
   introductions <- censor (const []) (allIntroductionsOf goalTy)
   let shapeTope     = snd <$> mshape
@@ -2013,9 +2033,7 @@ contextEntailsUnion topes = do
 checkTopeAgainstContext :: Eq var => String -> TermT var -> TypeCheck var ()
 checkTopeAgainstContext what tope = do
   -- a contradictory context is handled elsewhere (recBOT)
-  ctxEntailsBottom <- asks localTopesEntailBottom >>= \case
-    Just b  -> return b
-    Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  ctxEntailsBottom <- contextEntailsBottom
   unless ctxEntailsBottom $ do
     contextTopes <- asks localTopesNF
     let ctxTopes = filter (/= topeTopT) (accessibleTopes contextTopes)
@@ -2825,9 +2843,7 @@ unifyViaDecompose _ _ = issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
 unifyInCurrentContext mterm expected actual = performing action $ do
-  inBottom <- asks localTopesEntailBottom >>= \case
-    Just b  -> return b
-    Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  inBottom <- contextEntailsBottom
   unless inBottom $
     unifyViaDecompose expected actual `catchError` \_ -> do      -- NOTE: this gives a small, but noticeable speedup
       expectedVal <- whnfT expected

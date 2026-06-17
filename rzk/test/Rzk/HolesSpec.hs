@@ -171,6 +171,19 @@ spec = do
         [h] -> cands h `shouldBe` []
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- In a contradictory tope context (here the shape @t ≡ 0₂ ∧ t ≡ 1₂@, which
+    -- entails ⊥) recBOT inhabits the goal, so it is offered as a candidate.
+    it "offers recBOT in a contradictory tope context" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a : A) : ( (t : 2 | t ≡ 0₂ ∧ t ≡ 1₂) → A )\n  := \\ t → ?\n" of
+        [h] -> cands h `shouldContain` ["recBOT"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A consistent tope context does not offer recBOT.
+    it "does not offer recBOT in a consistent tope context" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a : A) : ( (t : 2 | t ≡ 0₂) → A )\n  := \\ t → ?\n" of
+        [h] -> cands h `shouldNotContain` ["recBOT"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
