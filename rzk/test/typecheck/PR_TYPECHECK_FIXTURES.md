@@ -32,6 +32,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Coverage matrix | `ill-unify`, `ill-undefined`, `ill-duplicate`, `ill-not-function`, `happy-check` | Core `TypeError` constructors |
 | Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
 | Pattern-binder name restoration | `ill-hole-pattern-binder-names` | A pair-pattern lambda `\ (a , b) -> ?` renders its components by name in the strict-mode error: the goal `B (first p)` folds to `B a` and the binder shows as `(a , b)`, not `π₁ x` of a fresh variable. Lenient-mode goals/context covered by `Rzk.HolesSpec`. |
+| Bare pattern point in tope | `ill-tope-pattern-binder-bare` | A pattern-bound point used bare (not projected) in a shape's membership tope renders as the pattern: a type error's local tope context shows `Δ² (t , s)`, not `Δ² x₁`. Complements the projection-folding restoration above. |
 
 # Test schema
 
