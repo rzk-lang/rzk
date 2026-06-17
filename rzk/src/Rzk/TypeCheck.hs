@@ -353,27 +353,29 @@ ppModality = \case
   Op    -> "ᵒᵖ"
   Id    -> "_id"
 
-ppTypeError' :: TypeError' -> String
-ppTypeError' = \case
+-- | Render a type error, folding pattern-binder projections (e.g. @π₁ x@ back to
+-- the user's @t@) using the supplied map (see 'contextBinders').
+ppTypeError' :: [(VarIdent, [([Proj], VarIdent)])] -> TypeError' -> String
+ppTypeError' pm = \case
   TypeErrorOther msg -> msg
   TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "with actual type"
-    , "  " <> show (untyped actual)
+    , "  " <> ppU (untyped actual)
     , "for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
   TypeErrorUnifyTerms expected actual -> block TopDown
     [ "cannot unify term"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "with term"
-    , "  " <> show (untyped actual) ]
+    , "  " <> ppU (untyped actual) ]
   TypeErrorNotPair term ty -> block TopDown
     [ "expected a cube product or dependent pair"
     , "but got type"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     , "for term"
-    , "  " <> show (untyped term)
+    , "  " <> ppU (untyped term)
     , case ty of
         TypeFunT{} -> "\nPerhaps the term is applied to too few arguments?"
         _          -> ""
@@ -381,16 +383,16 @@ ppTypeError' = \case
   TypeErrorNotModal term m ty -> block TopDown
     [ "expected modal type " <> ppModality m <> " ?"
     , "but got type"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     , "for term"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorModalityMismatch expected actual term -> block TopDown
     [ "modality mismatch"
     , "  expected " <> ppModality expected
     , "  but got  " <> ppModality actual
     , "for term"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorUnaccessibleVar _var varMod locks -> block TopDown
     [ "unaccessible var with modality " <> ppModality varMod
@@ -399,83 +401,83 @@ ppTypeError' = \case
   TypeErrorNotTypeInModal ty -> block TopDown
     [ "expected a type inside modal type"
     , "but got"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     ]
 
   TypeErrorUnexpectedLambda term ty -> block TopDown
     [ "unexpected lambda abstraction"
-    , "  " <> show term
+    , "  " <> ppU term
     , "when typechecking against a non-function type"
-    , "  " <> show ty
+    , "  " <> ppTyped ty
     ]
   TypeErrorUnexpectedPair term ty -> block TopDown
     [ "unexpected pair"
-    , "  " <> show term
+    , "  " <> ppU term
     , "when typechecking against a type that is not a product or a dependent sum"
-    , "  " <> show ty
+    , "  " <> ppTyped ty
     ]
   TypeErrorUnexpectedRefl term ty -> block TopDown
     [ "unexpected refl"
-    , "  " <> show term
+    , "  " <> ppU term
     , "when typechecking against a type that is not an identity type"
-    , "  " <> show ty
+    , "  " <> ppTyped ty
     ]
 
   TypeErrorNotFunction term ty -> block TopDown
     [ "expected a function or extension type"
     , "but got type"
-    , "  " <> show (untyped ty)
+    , "  " <> ppU (untyped ty)
     , "for term"
-    , "  " <> show (untyped term)
+    , "  " <> ppU (untyped term)
     , case term of
-        AppT _ty f _x -> "\nPerhaps the term\n  " <> show (untyped f) <> "\nis applied to too many arguments?"
+        AppT _ty f _x -> "\nPerhaps the term\n  " <> ppU (untyped f) <> "\nis applied to too many arguments?"
         _ -> ""
     ]
   TypeErrorCannotInferBareLambda term -> block TopDown
     [ "cannot infer the type of the argument"
     , "in lambda abstraction"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorCannotInferBareRefl term -> block TopDown
     [ "cannot infer the type of term"
-    , "  " <> show term
+    , "  " <> ppU term
     ]
   TypeErrorCannotInferHole term -> block TopDown
     [ "cannot infer the type of a hole"
-    , "  " <> show term
+    , "  " <> ppU term
     , "a hole is only allowed where its type is already known (checking position)"
     ]
   TypeErrorUnsolvedHole mname goal -> block TopDown
     [ "found an unsolved hole" <> maybe "" (\name -> " ?" <> show name) mname
     , "expected type (goal):"
-    , "  " <> show (untyped goal)
+    , "  " <> ppU (untyped goal)
     ]
   TypeErrorUndefined var -> block TopDown
     [ "undefined variable: " <> show (Pure var :: Term') ]
   TypeErrorTopeNotSatisfied topes tope -> block TopDown
     [ "local context is not included in (does not entail) the tope"
-    , "  " <> show (untyped tope)
+    , "  " <> ppU (untyped tope)
     , "in local context (normalised)"
-    , intercalate "\n" (map ("  " <>) (map show topes))] -- FIXME: remove
+    , intercalate "\n" (map ("  " <>) (map ppTyped topes))] -- FIXME: remove
   TypeErrorTopeContextDisjoint tope topes -> block TopDown
     [ "the tope"
-    , "  " <> show (untyped tope)
+    , "  " <> ppU (untyped tope)
     , "is disjoint from the local tope context (their conjunction is the empty tope ⊥),"
     , "so this restriction face or recOR branch is vacuous everywhere"
     , "in local context (normalised)"
-    , intercalate "\n" (map ("  " <>) (map show topes))]
+    , intercalate "\n" (map ("  " <>) (map ppTyped topes))]
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "but got"
-    , "  " <> show (untyped actual) ]
+    , "  " <> ppU (untyped actual) ]
 
   TypeErrorInvalidArgumentType argType argKind -> block TopDown
     [ "invalid function parameter type"
-    , "  " <> show argType
+    , "  " <> ppU argType
     , "function parameter can be a cube, a shape, or a type"
     , "but given parameter type has type"
-    , "  " <> show (untyped argKind)
+    , "  " <> ppU (untyped argKind)
     ]
 
   TypeErrorDuplicateTopLevel previous lastName -> block TopDown
@@ -489,7 +491,7 @@ ppTypeError' = \case
 
   TypeErrorUnusedVariable name type_ -> block TopDown
     [ "unused variable"
-    , "  " <> Rzk.printTree (getVarIdent name) <> " : " <> show (untyped type_)
+    , "  " <> Rzk.printTree (getVarIdent name) <> " : " <> ppU (untyped type_)
     ]
 
   TypeErrorUnusedUsedVariables vars name -> block TopDown
@@ -501,18 +503,39 @@ ppTypeError' = \case
 
   TypeErrorImplicitAssumption (a, aType) name -> block TopDown
     [ "implicit assumption"
-    , "  " <> Rzk.printTree (getVarIdent a) <> " : " <> show (untyped aType)
+    , "  " <> Rzk.printTree (getVarIdent a) <> " : " <> ppU (untyped aType)
     , "used in definition of"
     , "  " <> Rzk.printTree (getVarIdent name)
     ]
+  where
+    -- render an (untyped) term, folding pattern-binder projections
+    ppU :: Term' -> String
+    ppU = show . foldBinderProjections pm
+    -- render a type-annotated term, folding pattern-binder projections
+    ppTyped :: TermT' -> String
+    ppTyped = show . foldBinderProjectionsT pm
 
+
+-- | The pattern binders in scope, freshened and keyed by their (current) name,
+-- together with the projection-folding map derived from them. Both share the
+-- same freshened component names, so a term's projections and the binder shown
+-- in the context agree.
+contextBinders
+  :: Context VarIdent
+  -> ([(VarIdent, Binder)], [(VarIdent, [([Proj], VarIdent)])])
+contextBinders ctx = (fbs, binderProjMap id fbs)
+  where
+    mapping = [ (v, v) | (v, _) <- varTypes ctx ]
+    fbs     = freshBinders id mapping (varBinders ctx)
 
 ppTypeErrorInContext :: OutputDirection -> TypeErrorInContext VarIdent -> String
 ppTypeErrorInContext dir TypeErrorInContext{..} = block dir
-  [ ppTypeError' typeErrorError
+  [ ppTypeError' pm typeErrorError
   , ""
   , ppContext' dir typeErrorContext
   ]
+  where
+    (_, pm) = contextBinders typeErrorContext
 
 ppTypeErrorInScopedContextWith'
   :: OutputDirection
@@ -582,6 +605,31 @@ data Action var
 
 type Action' = Action VarIdent
 
+-- | Freshen the compound (pattern) binders in scope so their component names
+-- avoid the display names already in use and one another. Returns each relevant
+-- variable paired with its freshened binder. Variables bound to a single name
+-- are omitted: they need no projection folding and are displayed normally.
+freshBinders
+  :: Eq var
+  => (var -> VarIdent)
+  -> [(var, VarIdent)]
+  -> [(var, Binder)]
+  -> [(var, Binder)]
+freshBinders name mapping binders = go (map (name . fst) mapping) compound
+  where
+    compound = [ (v, b) | (v, b) <- binders, binderIsCompound b, v `elem` map fst mapping ]
+    go _    []             = []
+    go used ((v, b) : rest) =
+      let b' = freshenBinderLeaves used b
+      in (v, b') : go (binderLeaves b' ++ used) rest
+
+-- | The projection-folding map for rendering: each pattern-binder variable's
+-- display name mapped to the projection paths of its component names (e.g.
+-- @π₁@ ↦ @t@, @π₂@ ↦ @s@). Ordinary projections (of non-pattern variables) are
+-- left untouched.
+binderProjMap :: (var -> VarIdent) -> [(var, Binder)] -> [(VarIdent, [([Proj], VarIdent)])]
+binderProjMap name fbs = [ (name v, binderPaths b) | (v, b) <- fbs ]
+
 ppTermInContext :: Eq var => TermT var -> TypeCheck var String
 ppTermInContext term =  do
   vars <- freeVarsT_ term
@@ -589,7 +637,11 @@ ppTermInContext term =  do
       toRzkVarIdent origs var = fromMaybe "_" $
         join (lookup var origs) <|> lookup var mapping
   origs <- asks varOrigs
-  return (show (untyped (toRzkVarIdent origs <$> term)))
+  binders <- asks varBinders
+  let name = toRzkVarIdent origs
+      fbs  = freshBinders name mapping binders
+  return (show (foldBinderProjections (binderProjMap name fbs)
+                  (untyped (name <$> term))))
 
 -- | Classify a (WHNF) type as a cube, so cube variables (e.g. @t : 2@) are
 -- shown separately from ordinary term variables in a hole's context.
@@ -637,7 +689,7 @@ recordHoleShape
   :: Eq var
   => Maybe VarIdent
   -> TermT var
-  -> Maybe (Maybe VarIdent, TermT (Inc var))
+  -> Maybe (Binder, TermT (Inc var))
   -> TypeCheck var ()
 recordHoleShape mname goalTy mshape = do
   goal'     <- whnfT goalTy
@@ -645,17 +697,21 @@ recordHoleShape mname goalTy mshape = do
   cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
   topes     <- asks (filter (/= topeTopT) . availableTopes)
   origs     <- asks varOrigs
+  binders   <- asks varBinders
   loc       <- asks location
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
   let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
-      render t = untyped (name <$> t)
-      entries  = [ HoleEntry (name v) (render (varType info)) | (v, info) <- locals ]
+      fbs      = freshBinders name mapping binders
+      render t = foldBinderProjections (binderProjMap name fbs) (untyped (name <$> t))
+      -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
+      entryName v = maybe (name v) binderDisplayName (lookup v fbs)
+      entries  = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]
       flagged  = zip cubeFlags entries
       -- binder name for the shape: the declared name if any, else a default
-      shapeBinder   = fromMaybe (fromString "t") (mshape >>= fst)
+      shapeBinder   = fromMaybe (fromString "t") (binderName =<< (fst <$> mshape))
       nameInc Z     = shapeBinder
       nameInc (S v) = name v
       goalShape = (\t -> (shapeBinder, untyped (nameInc <$> t))) <$> shapeTope
@@ -676,7 +732,7 @@ recordHoleShape mname goalTy mshape = do
 -- the shape as the hole's goal so the diagnostic shows @(binder : cube | tope)@.
 checkHoleAgainstShape
   :: Eq var
-  => Maybe VarIdent -> Maybe VarIdent -> TermT var -> TermT (Inc var)
+  => Maybe VarIdent -> Binder -> TermT var -> TermT (Inc var)
   -> TypeCheck var (TermT var)
 checkHoleAgainstShape mname orig cube tope = do
   reject <- asks holesAreErrors
@@ -687,72 +743,72 @@ checkHoleAgainstShape mname orig cube tope = do
       return (HoleT TypeInfo{ infoType = cube, infoWHNF = Nothing, infoNF = Nothing } mname)
 
 ppSomeAction :: Eq var => [(var, Maybe VarIdent)] -> Int -> Action var -> String
-ppSomeAction origs n action = ppAction n (toRzkVarIdent <$> action)
+ppSomeAction origs n action = ppAction [] n (toRzkVarIdent <$> action)
   where
     vars = nub (foldMap pure action)
     mapping = zip vars defaultVarIdents
     toRzkVarIdent var = fromMaybe "_" $
       join (lookup var origs) <|> lookup var mapping
 
-ppAction :: Int -> Action' -> String
-ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
+ppAction :: [(VarIdent, [([Proj], VarIdent)])] -> Int -> Action' -> String
+ppAction pm n = unlines . map (replicate (2 * n) ' ' <>) . \case
   ActionTypeCheck term ty ->
     [ "typechecking"
-    , "  " <> show term
+    , "  " <> ppU term
     , "against type"
-    , "  " <> show (untyped ty) ]
+    , "  " <> ppU (untyped ty) ]
 
   ActionUnify term expected actual ->
     [ "unifying expected type"
-    , "  " <> show (untyped expected)
+    , "  " <> ppU (untyped expected)
     , "with actual type"
-    , "  " <> show (untyped actual)
+    , "  " <> ppU (untyped actual)
     , "for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionUnifyTerms expected actual ->
     [ "unifying term (expected)"
-    , "  " <> show expected
+    , "  " <> ppTyped expected
     , "with term (actual)"
-    , "  " <> show actual ]
+    , "  " <> ppTyped actual ]
 
   ActionInfer term ->
     [ "inferring type for term"
-    , "  " <> show term ]
+    , "  " <> ppU term ]
 
   ActionContextEntailedBy ctxTopes term ->
     [ "checking if local context"
-    , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) ctxTopes)
     , "includes (is entailed by) restriction tope"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionContextEntails ctxTopes term ->
     [ "checking if local context"
-    , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) ctxTopes)
     , "is included in (entails) the tope"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionContextEntailsUnion ctxTopes terms ->
     [ "checking if local context"
-    , intercalate "\n" (map (("  " <>) . show . untyped) ctxTopes)
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) ctxTopes)
     , "is included in (entails) the union of the topes"
-    , intercalate "\n" (map (("  " <>) . show . untyped) terms) ]
+    , intercalate "\n" (map (("  " <>) . ppU . untyped) terms) ]
 
   ActionWHNF term ->
     [ "computing WHNF for term"
-    , "  " <> show term ]
+    , "  " <> ppTyped term ]
 
   ActionNF term ->
     [ "computing normal form for term"
-    , "  " <> show (untyped term) ]
+    , "  " <> ppU (untyped term) ]
 
   ActionCheckCoherence (ltope, lterm) (rtope, rterm) ->
     [ "checking coherence for"
-    , "  " <> show (untyped ltope)
-    , "  |-> " <> show (untyped lterm)
+    , "  " <> ppU (untyped ltope)
+    , "  |-> " <> ppU (untyped lterm)
     , "and"
-    , "  " <> show (untyped rtope)
-    , "  |-> " <> show (untyped rterm) ]
+    , "  " <> ppU (untyped rtope)
+    , "  |-> " <> ppU (untyped rterm) ]
 
   ActionCloseSection Nothing ->
     [ "closing the file"
@@ -764,10 +820,15 @@ ppAction n = unlines . map (replicate (2 * n) ' ' <>) . \case
   ActionCheckLetValue orig ->
     [ "checking the local definition "
         <> maybe "_" (Rzk.printTree . getVarIdent) orig ]
+  where
+    ppU :: Term' -> String
+    ppU = show . foldBinderProjections pm
+    ppTyped :: TermT' -> String
+    ppTyped = show . foldBinderProjectionsT pm
 
 
 traceAction' :: Int -> Action' -> a -> a
-traceAction' n action = trace ("[debug]\n" <> ppAction n action)
+traceAction' n action = trace ("[debug]\n" <> ppAction [] n action)
 
 unsafeTraceAction' :: Int -> Action var -> a -> a
 unsafeTraceAction' n = traceAction' n . unsafeCoerce
@@ -826,7 +887,7 @@ data VarInfo var = VarInfo
   , varValue               :: Maybe (TermT var)
   , varModality            :: TModality
   , modAccum               :: TModality
-  , varOrig                :: Maybe VarIdent
+  , varOrig                :: Binder
   , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
   , varIsTopLevel          :: Bool
   , varDeclaredAssumptions :: [var]
@@ -974,7 +1035,13 @@ varValues :: Context var -> [(var, Maybe (TermT var))]
 varValues = map (fmap varValue) . varInfos
 
 varOrigs :: Context var -> [(var, Maybe VarIdent)]
-varOrigs = map (fmap varOrig) . varInfos
+varOrigs = map (fmap (binderName . varOrig)) . varInfos
+
+-- | The full binder (pattern) of each in-scope variable, used to restore
+-- pattern-binder component names (e.g. @t@\/@s@ for @\\ (t , s) -> …@) when
+-- rendering goals, holes and contexts.
+varBinders :: Context var -> [(var, Binder)]
+varBinders = map (fmap varOrig) . varInfos
 
 varModalities :: Context var -> [(var, TModality)]
 varModalities = map (fmap varModality) . varInfos
@@ -1125,7 +1192,7 @@ collectScopeDecls errs recentVars [] = do
       , declValue = varValue
       , declIsAssumption = varIsAssumption
       , declUsedVars = varDeclaredAssumptions
-      , declLocation = updatePosition (varOrig >>= fmap fst . Rzk.hasPosition . fromVarIdent) <$> loc -- FIXME
+      , declLocation = updatePosition (binderName varOrig >>= fmap fst . Rzk.hasPosition . fromVarIdent) <$> loc -- FIXME
       }
     updatePosition Nothing l       = l
     updatePosition (Just lineNo) l = l { locationLine = Just lineNo }
@@ -1194,17 +1261,22 @@ ppContext' dir ctx@Context{..} = block dir $ dropWhile null
   , case filter (/= topeTopT) (availableTopes ctx) of
       [] -> "Local tope context is unrestricted (⊤)."
       localTopes' -> namedBlock TopDown "Local tope context:"
-        [ "  " <> show (untyped tope)
+        [ "  " <> ppU (untyped tope)
         | tope <- localTopes' ]
   , ""
   , block dir
-    [ "when " <> ppAction 0 action
+    [ "when " <> ppAction pm 0 action
     | action <- actionStack ]
   , namedBlock TopDown "Definitions in context:"
     [ block dir
-      [ show (Pure x :: Term') <> " : " <> show (untyped ty)
+      [ dispName x <> " : " <> ppU (untyped ty)
       | (x, ty) <- reverse (varTypes ctx) ] ]
   ]
+  where
+    (fbs, pm) = contextBinders ctx
+    ppU = show . foldBinderProjections pm
+    -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
+    dispName x = maybe (show (Pure x :: Term')) (show . binderDisplayName) (lookup x fbs)
 
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
 doesShadowName name = asks $ \ctx ->
@@ -1267,7 +1339,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
     update = addVarInCurrentScope x VarInfo
       { varType = ty
       , varValue = term
-      , varOrig = Just x
+      , varOrig = BinderVar (Just x)
       , varModality  = Id
       , modAccum = Id
       , varIsAssumption = isAssumption
@@ -1809,7 +1881,7 @@ setVariance :: Covariance -> TypeCheck var a -> TypeCheck var a
 setVariance variance = local $ \Context{..} -> Context
   { covariance = variance, .. }
 
-enterScopeContext :: Maybe VarIdent -> TModality -> TermT var -> Maybe (TermT var) -> Context var -> Context (Inc var)
+enterScopeContext :: Binder -> TModality -> TermT var -> Maybe (TermT var) -> Context var -> Context (Inc var)
 enterScopeContext orig md ty val context =
   addVarInCurrentScope Z VarInfo
     { varType   = S <$> ty
@@ -1824,12 +1896,12 @@ enterScopeContext orig md ty val context =
     }
     (S <$> context)
 
-enterScope :: Maybe VarIdent -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScope :: Binder -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig ty action = do
   newContext <- asks (enterScopeContext orig Id ty Nothing)
   closeScope orig (runReaderT action newContext)
 
-enterScopeWithBind :: Maybe VarIdent -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeWithBind :: Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeWithBind orig md ty val action = do
   newContext <- asks (enterScopeContext orig md ty (Just val))
   closeScope orig (runReaderT action newContext)
@@ -1841,11 +1913,11 @@ enterScopeWithBind orig md ty val action = do
 -- error the sub-scope's holes are dropped, which is intended: holes only matter
 -- on the success path (lenient mode), and strict mode wants the error anyway.
 closeScope
-  :: Maybe VarIdent
+  :: Binder
   -> WriterT [HoleInfo] (Except (TypeErrorInScopedContext (Inc var))) b
   -> TypeCheck var b
 closeScope orig inner = do
-  (b, holes) <- lift . lift . withExceptT (ScopedTypeError orig) $ runWriterT inner
+  (b, holes) <- lift . lift . withExceptT (ScopedTypeError (binderName orig)) $ runWriterT inner
   lift (tell holes)
   return b
 
@@ -3083,7 +3155,7 @@ typeRestrictedT ty rs = t
 
 lambdaT
   :: TermT var
-  -> Maybe VarIdent
+  -> Binder
   -> Maybe (TermT var, Maybe (Scope TermT var))
   -> Scope TermT var
   -> TermT var
@@ -3097,7 +3169,7 @@ lambdaT ty orig mparam body = t
       }
 
 
-letT :: TermT var -> Maybe VarIdent -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
+letT :: TermT var -> Binder -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
 letT ty orig mparam val body = t
   where
     t = LetT info orig mparam val body
@@ -3107,7 +3179,7 @@ letT ty orig mparam val body = t
       , infoWHNF = Nothing
       }
 
-letModT :: TermT var -> Maybe VarIdent -> TModality -> TModality -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
+letModT :: TermT var -> Binder -> TModality -> TModality -> Maybe (TermT var) -> TermT var -> Scope TermT var -> TermT var
 letModT ty orig app inn mparam val body = t
   where
     t = LetModT info orig app inn mparam val body
@@ -3171,7 +3243,7 @@ reflT ty mx = t
       }
 
 typeFunT
-  :: Maybe VarIdent
+  :: Binder
   -> TermT var
   -> Maybe (Scope TermT var)
   -> Scope TermT var
@@ -3186,7 +3258,7 @@ typeFunT orig cube mtope ret = t
       }
 
 typeSigmaT
-  :: Maybe VarIdent
+  :: Binder
   -> TermT var
   -> Scope TermT var
   -> TermT var
@@ -3327,24 +3399,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                   typeOf paramType >>= \case
                     -- an argument can be a shape
                     TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
-                      mapM_ checkNameShadowing orig
+                      mapM_ checkNameShadowing (binderLeaves orig)
                       enterScope orig cube $ do
                         let tope' = appT topeT (S <$> paramType) (Pure Z)  -- eta expand ty'
                         return (cube, Just tope')
                     _kind -> return (paramType, Nothing)
                 unifyTerms param' paramType
-                mapM_ checkNameShadowing orig
+                mapM_ checkNameShadowing (binderLeaves orig)
                 enterScope orig param' $ do
                   mapM_ (unifyTerms (fromMaybe topeTopT mtope')) mtope
               Just (param, mtope) -> do
                 param'' <- typecheck param =<< typeOf param'
                 unifyTerms param' param''
-                mapM_ checkNameShadowing orig
+                mapM_ checkNameShadowing (binderLeaves orig)
                 enterScope orig param' $ do
                   mtope'' <- typecheck (fromMaybe TopeTop mtope) topeT
                   unifyTerms (fromMaybe topeTopT mtope') mtope''
 
-            mapM_ checkNameShadowing orig
+            mapM_ checkNameShadowing (binderLeaves orig)
             enterScope orig param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
@@ -3352,7 +3424,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
       Let orig annot val body -> do
-        val' <- performing (ActionCheckLetValue orig) $ case annot of
+        val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> infer val
           Just bindType -> do
             bindType' <- typecheck bindType universeT
@@ -3362,7 +3434,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           typecheck body (S <$> ty')
         return (letT ty' orig (Just bindTy) val' body')
       LetMod orig app inn annot val body  -> do
-        val' <- performing (ActionCheckLetValue orig) $ case annot of
+        val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> enterModality app $ infer val
           Just bindType -> do
             bindType' <- infer bindType
@@ -3505,7 +3577,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       -- Γ ⊢ (l, r) ⇒ (A × B : U)             where A × B = Σ (_ : A), B
       _ -> do
         -- NOTE: infer as a non-dependent pair!
-        return (pairT (typeSigmaT Nothing lt (S <$> rt)) l' r')
+        return (pairT (typeSigmaT (BinderVar Nothing) lt (S <$> rt)) l' r')
 
   First t -> do
     t' <- infer t
@@ -3616,17 +3688,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
           UniverseTopeT{} ->
             issueTypeError $ TypeErrorOther "tope params are illegal"
           _ -> do
-            mapM_ checkNameShadowing orig
+            mapM_ checkNameShadowing (binderLeaves orig)
             b' <- enterScope orig a' $ typecheck b universeT
             return (typeFunT orig a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
-        mapM_ checkNameShadowing orig
+        mapM_ checkNameShadowing (binderLeaves orig)
         b' <- enterScope orig a' $ typecheck b universeT
         return (typeFunT orig a' Nothing b')
       -- an argument can be a shape
       TypeFunT _ty _orig cube mtope UniverseTopeT{} -> do
-        mapM_ checkNameShadowing orig
+        mapM_ checkNameShadowing (binderLeaves orig)
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> a') (Pure Z)  -- eta expand a'
           localTope tope' $ do
@@ -3638,7 +3710,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeFun orig cube (Just tope) ret -> do
     cube' <- typecheck cube cubeT
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig cube' $ do
       tope' <- typecheck tope topeT
       localTope tope' $ do
@@ -3647,7 +3719,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeSigma orig a b -> do
     a' <- typecheck a universeT
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     b' <- enterScope orig a' $ typecheck b universeT
     return (typeSigmaT orig a' b')
 
@@ -3700,12 +3772,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
       UniverseCubeT{} -> return Nothing
       -- an argument can be a shape
       TypeFunT _ty _orig cube _mtope UniverseTopeT{} -> do
-        mapM_ checkNameShadowing orig
+        mapM_ checkNameShadowing (binderLeaves orig)
         enterScope orig cube $ do
           let tope' = appT topeT (S <$> ty') (Pure Z)  -- eta expand ty'
           return (Just tope')
       kind -> issueTypeError $ TypeErrorInvalidArgumentType ty kind
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig ty' $ do
       maybe id localTope mtope $ do
         body' <- infer body
@@ -3713,14 +3785,14 @@ infer tt = performing (ActionInfer tt) $ case tt of
         return (lambdaT (typeFunT orig ty' mtope ret) orig (Just (ty', mtope)) body')
   Lambda orig (Just (cube, Just tope)) body -> do
     cube' <- typecheck cube cubeT
-    mapM_ checkNameShadowing orig
+    mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig cube' $ do
       tope' <- infer tope
       body' <- localTope tope' $ infer body
       ret <- typeOf body'
       return (lambdaT (typeFunT orig cube' (Just tope') ret) orig (Just (cube', Just tope')) body')
   Let orig annot val body -> do
-    val' <- performing (ActionCheckLetValue orig) $ case annot of
+    val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> infer val
       Just ty -> do
         bindTy <- typecheck ty universeT
@@ -3731,7 +3803,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       ret <- typeOf body'
       return (letT (substituteT val' ret) orig (Just bindTy) val' body')
   LetMod orig app inn annot val body -> do
-    val' <- performing (ActionCheckLetValue orig) $ case annot of
+    val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> enterModality app $ infer val
       Just bindType -> do
         bindType' <- infer bindType
@@ -3765,13 +3837,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     tA' <- typecheck tA universeT
     a' <- typecheck a tA'
     let typeOf_C =
-          typeFunT Nothing tA' Nothing $
-            typeFunT Nothing (typeIdT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
+          typeFunT (BinderVar Nothing) tA' Nothing $
+            typeFunT (BinderVar Nothing) (typeIdT (S <$> a') (Just (S <$> tA')) (Pure Z)) Nothing $
               universeT
     tC' <- typecheck tC typeOf_C
     let typeOf_d =
           appT universeT
-            (appT (typeFunT Nothing (typeIdT a' (Just tA') a') Nothing universeT)
+            (appT (typeFunT (BinderVar Nothing) (typeIdT a' (Just tA') a') Nothing universeT)
               tC' a')
             (reflT (typeIdT a' (Just tA') a') Nothing)
     d' <- typecheck d typeOf_d
@@ -3779,7 +3851,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     p' <- typecheck p (typeIdT a' (Just tA') x')
     let ret =
           appT universeT
-            (appT (typeFunT Nothing (typeIdT a' (Just tA') x') Nothing universeT)
+            (appT (typeFunT (BinderVar Nothing) (typeIdT a' (Just tA') x') Nothing universeT)
               tC' x')
             p'
     return (idJT ret tA' a' tC' d' x' p')
@@ -4103,7 +4175,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
           maybe id localTope mtopeArg $ do
             Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
       _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
-    TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+    TypeFunT{} | null xs -> enterScope (BinderVar (Just "_")) t' $ do
       renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
 
     _ -> case t' of -- check evaluated term
@@ -4113,7 +4185,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
             maybe id localTope mtopeArg $ do
               Just <$> renderForSubShapeSVG mainColor dim (map S xs) Z ret (S <$> f) (S <$> x)  -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
         _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
-      TypeFunT{} | null xs -> enterScope (Just "_") t' $ do
+      TypeFunT{} | null xs -> enterScope (BinderVar (Just "_")) t' $ do
         renderTermSVGFor "blue" 0 (Nothing, []) (Pure Z)  -- use blue for types
 
       _ -> case ty of -- check type of the term
