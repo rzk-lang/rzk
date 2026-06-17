@@ -113,6 +113,8 @@ spec = do
           ("t ≡ s" `isInfixOf` goal) `shouldBe` True
           ('π' `elem` goal) `shouldBe` False
           map show (holeTopes h) `shouldContain` ["s ≤ t"]
+          -- the cube variable is shown as the pattern, not a fresh variable
+          names (holeCubeVars h) `shouldBe` ["(t, s)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- A nested tuple pattern ((t , s) , r) restores all the component names,
@@ -124,6 +126,7 @@ spec = do
           ("r ≡ t" `isInfixOf` goal) `shouldBe` True
           ('π' `elem` goal) `shouldBe` False
           map show (holeTopes h) `shouldContain` ["r ≤ s"]
+          names (holeCubeVars h) `shouldBe` ["((t, s), r)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- Guardrail: ordinary projections of a variable that is NOT a pattern binder

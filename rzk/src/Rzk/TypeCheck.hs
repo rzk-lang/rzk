@@ -582,24 +582,30 @@ data Action var
 
 type Action' = Action VarIdent
 
--- | Build the projection-folding map used when rendering: for every in-scope
--- variable bound by a compound pattern, map its display name to the projection
--- paths of its component names (e.g. @π₁@ ↦ @t@, @π₂@ ↦ @s@). Component names
--- are freshened against the names already in use. Variables bound to a single
--- name contribute nothing, so ordinary projections are left untouched.
-binderProjMap
+-- | Freshen the compound (pattern) binders in scope so their component names
+-- avoid the display names already in use and one another. Returns each relevant
+-- variable paired with its freshened binder. Variables bound to a single name
+-- are omitted: they need no projection folding and are displayed normally.
+freshBinders
   :: Eq var
   => (var -> VarIdent)
   -> [(var, VarIdent)]
   -> [(var, Binder)]
-  -> [(VarIdent, [([Proj], VarIdent)])]
-binderProjMap name mapping binders =
-  [ (name v, binderPaths (freshenBinderLeaves taken b))
-  | (v, b) <- binders
-  , binderIsCompound b
-  , v `elem` map fst mapping ]
+  -> [(var, Binder)]
+freshBinders name mapping binders = go (map (name . fst) mapping) compound
   where
-    taken = map (name . fst) mapping
+    compound = [ (v, b) | (v, b) <- binders, binderIsCompound b, v `elem` map fst mapping ]
+    go _    []             = []
+    go used ((v, b) : rest) =
+      let b' = freshenBinderLeaves used b
+      in (v, b') : go (binderLeaves b' ++ used) rest
+
+-- | The projection-folding map for rendering: each pattern-binder variable's
+-- display name mapped to the projection paths of its component names (e.g.
+-- @π₁@ ↦ @t@, @π₂@ ↦ @s@). Ordinary projections (of non-pattern variables) are
+-- left untouched.
+binderProjMap :: (var -> VarIdent) -> [(var, Binder)] -> [(VarIdent, [([Proj], VarIdent)])]
+binderProjMap name fbs = [ (name v, binderPaths b) | (v, b) <- fbs ]
 
 ppTermInContext :: Eq var => TermT var -> TypeCheck var String
 ppTermInContext term =  do
@@ -610,7 +616,8 @@ ppTermInContext term =  do
   origs <- asks varOrigs
   binders <- asks varBinders
   let name = toRzkVarIdent origs
-  return (show (foldBinderProjections (binderProjMap name mapping binders)
+      fbs  = freshBinders name mapping binders
+  return (show (foldBinderProjections (binderProjMap name fbs)
                   (untyped (name <$> term))))
 
 -- | Classify a (WHNF) type as a cube, so cube variables (e.g. @t : 2@) are
@@ -674,8 +681,11 @@ recordHoleShape mname goalTy mshape = do
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
   let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
-      render t = foldBinderProjections (binderProjMap name mapping binders) (untyped (name <$> t))
-      entries  = [ HoleEntry (name v) (render (varType info)) | (v, info) <- locals ]
+      fbs      = freshBinders name mapping binders
+      render t = foldBinderProjections (binderProjMap name fbs) (untyped (name <$> t))
+      -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
+      entryName v = maybe (name v) binderDisplayName (lookup v fbs)
+      entries  = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]
       flagged  = zip cubeFlags entries
       -- binder name for the shape: the declared name if any, else a default
       shapeBinder   = fromMaybe (fromString "t") (binderName =<< (fst <$> mshape))

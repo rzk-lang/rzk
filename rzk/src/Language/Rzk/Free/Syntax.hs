@@ -526,6 +526,12 @@ binderToPattern (BinderVar (Just x)) = Rzk.PatternVar Nothing (fromVarIdent x)
 binderToPattern (BinderPair l r)     = Rzk.PatternPair Nothing (binderToPattern l) (binderToPattern r)
 binderToPattern BinderUnit           = Rzk.PatternUnit Nothing
 
+-- | A 'VarIdent' that prints as the binder's surface pattern, e.g. @(t , s)@.
+-- Used to display a pattern binder in a hole's local context as the pattern
+-- itself rather than as the underlying single variable.
+binderDisplayName :: Binder -> VarIdent
+binderDisplayName = fromString . Rzk.printTree . binderToPattern
+
 -- | The named leaves of a binder, each paired with the projection path that
 -- reaches it from the bound variable. For example @(t , (a , b))@ yields
 -- @[([PFst], t), ([PSnd, PFst], a), ([PSnd, PSnd], b)]@.
