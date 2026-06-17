@@ -163,6 +163,21 @@ spec = do
           cands h `shouldContain` ["π₂ s"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A path is eliminated by path induction. Over @p : a =_A x@ the spine
+    -- @idJ (A, a, ?, ?, x, p)@ : @C x p@ fits a goal of exactly that shape, with
+    -- the motive and base case left as holes.
+    it "eliminates a path by idJ when the goal has the motive shape" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a x : A) (p : a =_{A} x) (C : (z : A) → (a =_{A} z) → U) (d : C a refl)\n  : C x p := ?\n" of
+        [h] -> cands h `shouldContain` ["idJ (A, a, ?, ?, x, p)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- idJ is not a stand-in for an arbitrary elimination: over the same path but
+    -- an ordinary goal, the motive hole would not fit, so no idJ spine is offered.
+    it "does not offer idJ for a goal without the motive shape" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a x : A) (p : a =_{A} x) : A := ?\n" of
+        [h] -> filter (isInfixOf "idJ") (cands h) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A partial application whose result structurally mismatches the goal is not
     -- offered: matching uses structural (not fully lenient) hole unification, so
     -- the hole in @h ?@ : @P ?@ cannot excuse the mismatch with the goal @Q@.

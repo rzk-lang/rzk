@@ -729,9 +729,10 @@ fitsInto term ty target = do
 
 -- | The eliminators a value of the given (weak head normal) type admits, each
 -- as a function wrapping the eliminated term. A Π-type is eliminated by
--- application to a fresh hole; a Σ-type by either projection. Anything else
--- admits no simple eliminator.
-eliminatorsOf :: TermT var -> TypeCheck var [TermT var -> TermT var]
+-- application to a fresh hole; a Σ-type by either projection; an identity type
+-- by path induction (@idJ@), with the motive and base case left as holes.
+-- Anything else admits no simple eliminator.
+eliminatorsOf :: Eq var => TermT var -> TypeCheck var [TermT var -> TermT var]
 eliminatorsOf ty =
   case stripTypeRestrictions ty of
     TypeFunT _ty _orig param _mtope ret ->
@@ -744,6 +745,25 @@ eliminatorsOf ty =
     CubeProductT _ty a b ->
       pure [ \term -> firstT a term
            , \term -> secondT b term ]
+    -- A path @p : a =_A x@ is eliminated by path induction. Following the typing
+    -- of 'IdJ', the motive @C : (z : A) → (a =_A z) → U@ and the base case
+    -- @d : C a refl@ are left as holes; the spine @idJ A a C d x p@ then has type
+    -- @C x p@. The motive being a hole, this fits a goal only when the goal has
+    -- that shape — J does not stand in for an arbitrary elimination.
+    TypeIdT _ty a mtA x -> do
+      tA <- maybe (typeOf a) pure mtA
+      let cType = typeFunT (BinderVar Nothing) tA Nothing $
+                    typeFunT (BinderVar Nothing)
+                      (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing
+                      universeT
+          c     = mkHole cType
+          dType = appT universeT
+                    (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) a) Nothing universeT) c a)
+                    (reflT (typeIdT a (Just tA) a) Nothing)
+          d     = mkHole dType
+          motiveAt y p = appT universeT
+            (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) y) Nothing universeT) c y) p
+      pure [ \p -> idJT (motiveAt x p) tA a c d x p ]
     _ -> pure []
   where
     mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
