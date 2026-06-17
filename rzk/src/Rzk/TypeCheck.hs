@@ -978,7 +978,8 @@ recordHoleShape mname goalTy mshape = do
   let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
       fbs      = freshBinders name mapping binders
-      render t = foldBinderProjections (binderProjMap name fbs) (untyped (name <$> t))
+      render t = restorePatternVars [ (name v, b) | (v, b) <- fbs ]
+                   (foldBinderProjections (binderProjMap name fbs) (untyped (name <$> t)))
       -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
       entryName v = maybe (name v) binderDisplayName (lookup v fbs)
       entries  = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]

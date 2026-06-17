@@ -606,6 +606,20 @@ foldBinderProjections m = go
     goScope = foldBinderProjections (map liftEntry m)
     liftEntry (k, leaves) = (S k, map (fmap S) leaves)
 
+-- | Replace bare uses of a pattern binder's variable with the pattern term
+-- (e.g. a whole point @(t , s)@ rather than the underlying single variable, in
+-- a tope @Δ² (t , s)@). Given a map from each (already display-named) variable
+-- to its binder, every free occurrence of a /compound/ binder's variable is
+-- expanded to its pattern. Complements 'foldBinderProjections', which folds
+-- /projections/ of such a variable; run this /after/ folding, so projections
+-- have already become component names and only bare uses remain.
+restorePatternVars :: [(VarIdent, Binder)] -> Term VarIdent -> Term VarIdent
+restorePatternVars binders = (>>= expand)
+  where
+    expand v = case lookup v binders of
+      Just b | binderIsCompound b -> binderToTerm b
+      _                           -> Pure v
+
 -- | Like 'projChain', but for type-annotated terms.
 projChainT :: TermT a -> Maybe ([Proj], a)
 projChainT (FirstT _ t)  = (\(ps, r) -> (ps ++ [PFst], r)) <$> projChainT t
