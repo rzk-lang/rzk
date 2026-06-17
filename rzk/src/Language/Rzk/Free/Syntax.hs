@@ -564,11 +564,13 @@ freshenBinderLeaves used = snd . go used
           (u2, r') = go u1 r
       in (u2, BinderPair l' r')
 
--- | Decompose a chain of projections applied to a variable, e.g.
--- @π₁ (π₂ x)@ becomes @Just ([PFst, PSnd], x)@.
+-- | Decompose a chain of projections applied to a variable into the projection
+-- path /from the variable outwards/, matching 'binderPaths'. The outermost
+-- projection is applied last, so it goes at the /end/ of the path: e.g.
+-- @π₂ (π₁ x)@ (select @π₁@ first, then @π₂@) becomes @Just ([PFst, PSnd], x)@.
 projChain :: Term a -> Maybe ([Proj], a)
-projChain (First t)  = (\(ps, r) -> (PFst : ps, r)) <$> projChain t
-projChain (Second t) = (\(ps, r) -> (PSnd : ps, r)) <$> projChain t
+projChain (First t)  = (\(ps, r) -> (ps ++ [PFst], r)) <$> projChain t
+projChain (Second t) = (\(ps, r) -> (ps ++ [PSnd], r)) <$> projChain t
 projChain (Pure x)   = Just ([], x)
 projChain _          = Nothing
 
