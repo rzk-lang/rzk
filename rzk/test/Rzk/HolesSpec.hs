@@ -162,3 +162,11 @@ spec = do
           cands h `shouldContain` ["π₁ s"]
           cands h `shouldContain` ["π₂ s"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A partial application whose result structurally mismatches the goal is not
+    -- offered: matching uses structural (not fully lenient) hole unification, so
+    -- the hole in @h ?@ : @P ?@ cannot excuse the mismatch with the goal @Q@.
+    it "does not offer a structurally mismatched partial application" $ do
+      case holesOf "#lang rzk-1\n#define t : (A : U) -> (P : A -> U) -> (Q : U) -> (h : (a : A) -> P a) -> Q\n  := \\ A P Q h -> ?\n" of
+        [h] -> cands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

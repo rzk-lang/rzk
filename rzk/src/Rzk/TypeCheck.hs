@@ -707,21 +707,15 @@ maxEliminationDepth :: Int
 maxEliminationDepth = 7
 
 -- | Whether a term of the given (whnf) type may stand where a value of the
--- @target@ type is expected: the two types unify, with holes acting as
--- wildcards (see the lenient case in 'unifyInCurrentContext'). Two refinements
--- keep the result useful:
+-- @target@ type is expected: the two types unify under 'structuralHoleUnify',
+-- so a hole acts as a wildcard leaf but a structural mismatch around it is still
+-- a mismatch (an under-applied function does not match an extension-type goal,
+-- but a partial application that genuinely fits an ordinary-function goal does).
 --
---   * Outer type restrictions (an extension-type boundary) are stripped from
---     both sides. A boundary is satisfied by later refinement, not by the choice
---     of spine; matching against the restricted goal would reject the very spine
---     that introduces the holes meant to satisfy it (e.g. @f ?@ at a boundary
---     goal).
---   * A coarse head-compatibility guard runs first, so a hole buried in a
---     structurally different type cannot excuse a mismatch and over-offer a
---     spine. An ordinary Π and a shape/extension Π are kept distinct, so an
---     under-applied function (whose result is an ordinary Π) is not offered
---     against an extension-type goal, while a partial application that genuinely
---     fits an ordinary-function goal still is.
+-- Outer type restrictions are stripped from both sides first: an extension-type
+-- boundary is satisfied by later refinement, not by the choice of spine, and
+-- matching against the restricted goal would reject the very spine that
+-- introduces the holes meant to satisfy it (e.g. @f ?@ at a boundary goal).
 --
 -- Holes or constraints recorded while probing are discarded, so this is a pure
 -- yes/no query.
@@ -729,20 +723,8 @@ fitsInto :: Eq var => TermT var -> TermT var -> TermT var -> TypeCheck var Bool
 fitsInto term ty target = do
   ty'     <- stripTypeRestrictions <$> whnfT ty
   target' <- stripTypeRestrictions <$> whnfT target
-  if not (isHoleT ty' || isHoleT target' || headShape ty' == headShape target')
-    then pure False
-    else censor (const [])
-      ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
-  where
-    -- A coarse class of a type's outermost shape; matching classes are a
-    -- necessary condition, and 'unify' settles the rest precisely. Ordinary and
-    -- shape/extension Π-types are different classes.
-    headShape t = case t of
-      TypeFunT _ _ _ Nothing _ -> 0 :: Int   -- ordinary Π
-      TypeFunT{}               -> 1          -- shape / extension type
-      TypeSigmaT{}             -> 2
-      TypeIdT{}                -> 3
-      _                        -> 4
+  censor (const []) $ local structuralHoleUnify
+    ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
 
 -- | The eliminators a value of the given (weak head normal) type admits, each
 -- as a function wrapping the eliminated term. A Π-type is eliminated by
@@ -1043,6 +1025,14 @@ data Context var = Context
     -- ^ When 'True' (the default), an unfilled hole is reported as a
     -- 'TypeErrorUnsolvedHole'; finished work (and CI) must have no holes. The
     -- lenient mode ('allowHoles') instead records each hole's goal and context.
+  , deferHoleMismatches    :: Bool
+    -- ^ How holes behave during unification, giving three modes overall. With
+    -- 'holesAreErrors' a hole is rejected outright (strict). Otherwise a hole
+    -- always unifies as a leaf; this flag then chooses what happens when the
+    -- /surrounding/ structure disagrees: 'True' (the default) defers — any term
+    -- containing a hole is accepted, for an in-progress sketch — while 'False'
+    -- keeps such a mismatch an error, so only a hole standing in a matching
+    -- structure is accepted ('structuralHoleUnify').
   } deriving (Functor, Foldable)
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
@@ -1089,6 +1079,7 @@ emptyContext = Context
   , covariance = Covariant
   , renderBackend = Nothing
   , holesAreErrors = True
+  , deferHoleMismatches = True
   }
 
 -- | Switch to lenient hole mode: record each hole's goal and context instead
@@ -1096,6 +1087,13 @@ emptyContext = Context
 -- the @--allow-holes@ CLI mode; the default (strict) mode rejects holes.
 allowHoles :: Context var -> Context var
 allowHoles ctx = ctx { holesAreErrors = False }
+
+-- | Within the given action, a hole unifies only as a leaf in an otherwise
+-- matching structure: a structural mismatch around a hole stays an error rather
+-- than being deferred (see 'deferHoleMismatches'). Used to ask whether a term
+-- /could/ have a given type, as opposed to tolerating an in-progress sketch.
+structuralHoleUnify :: Context var -> Context var
+structuralHoleUnify ctx = ctx { deferHoleMismatches = False }
 
 askCurrentScope :: TypeCheck var (ScopeInfo var)
 askCurrentScope = asks localScopes >>= \case
@@ -2801,13 +2799,16 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               _ -> typeOf expected' >>= typeOf >>= \case
                 UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
                 _ -> do
+                  -- A hole stands for a term of the expected type, so a
+                  -- unification that would otherwise fail is deferred when either
+                  -- side still contains an (unfilled) hole — including one nested
+                  -- in a larger term, e.g. @f ?@ checked against an extension-type
+                  -- boundary. 'structuralHoleUnify' turns this off, keeping a
+                  -- structural mismatch around a hole an error. Lazy: only runs on
+                  -- the failure path.
+                  defer <- asks deferHoleMismatches
                   let def = unless (expected' == actual') err
-                      -- A hole stands for a term of the expected type, so a
-                      -- unification that would otherwise fail is deferred when
-                      -- either side still contains an (unfilled) hole — including
-                      -- one nested in a larger term, e.g. @f ?@ checked against an
-                      -- extension-type boundary. Lazy: only runs on the failure path.
-                      holePresent = containsHole expected' || containsHole actual'
+                      holePresent = defer && (containsHole expected' || containsHole actual')
                       err
                         | holePresent = return ()
                         | otherwise =
