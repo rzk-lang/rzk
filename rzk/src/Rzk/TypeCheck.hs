@@ -1806,7 +1806,7 @@ closeScope orig inner = do
   lift (tell holes)
   return b
 
-enterModality :: Eq var => TModality -> TypeCheck var b -> TypeCheck var b
+enterModality :: TModality -> TypeCheck var b -> TypeCheck var b
 enterModality Id action = action
 enterModality md action = do
   newContext <- asks (applyModality md)
