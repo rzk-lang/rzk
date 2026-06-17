@@ -820,6 +820,55 @@ recBottomCandidates = do
   vacuous <- contextEntailsBottom
   pure [ recBottomT | vacuous ]
 
+-- | Whether the local tope context is covered by the union of the given topes —
+-- the coverage obligation of @recOR@ (see 'contextEntailsUnion'), but as a pure
+-- yes\/no query rather than a check that issues an error.
+coverageHolds :: Eq var => [TermT var] -> TypeCheck var Bool
+coverageHolds topes = do
+  contextTopes <- asks localTopesNF
+  topesNF      <- mapM nfTope topes
+  contextTopes `entailM` foldr topeOrT topeBottomT topesNF
+
+-- | Tope case-split moves: ways to build a value of the goal by @recOR@,
+-- splitting the proof over a cover of the local tope context. Three sources,
+-- offered together (the UI ranks and filters):
+--
+--   * each disjunction @ψ ∨ φ@ already in the context becomes
+--     @recOR(ψ ↦ ?, φ ↦ ?)@ — its cover is immediate;
+--   * when the goal is an extension type, its restriction faces are a cover
+--     candidate @recOR(ψ₁ ↦ ?, …)@, offered only when they actually cover the
+--     context (so the move typechecks);
+--   * a generic two-way split @recOR(? ↦ ?, ? ↦ ?)@ with the guards left as
+--     holes, for an unusual split the player fills in by hand.
+--
+-- All three are offered only in a setting where a split makes sense — a cube
+-- variable is in scope, the context has a non-trivial tope, or the goal is a
+-- restricted type — so an ordinary (tope-free) goal is left alone.
+recOrCandidates :: Eq var => TermT var -> TypeCheck var [TermT var]
+recOrCandidates goal = do
+  goalW   <- whnfT goal
+  topes   <- asks (filter (/= topeTopT) . availableTopes)
+  locals  <- asks (filter (not . varIsTopLevel . snd) . varInfos)
+  hasCube <- or <$> mapM (fmap isCubeType . whnfT . varType . snd) locals
+  let stripped     = stripTypeRestrictions goalW
+      mkRecOr gs   = recOrT stripped [ (g, mkHole stripped) | g <- gs ]
+      fromContext  = [ mkRecOr [l, r] | TopeOrT _ l r <- topes ]
+      faces        = case goalW of
+        TypeRestrictedT _ _ rs -> map fst rs
+        _                      -> []
+      isRestricted = case goalW of TypeRestrictedT{} -> True; _ -> False
+      inShape      = hasCube || not (null topes) || isRestricted
+      generic      = [ recOrT stripped [ (mkHole topeT, mkHole stripped)
+                                       , (mkHole topeT, mkHole stripped) ]
+                     | inShape ]
+  fromFaces <- if length faces >= 2
+    then do covered <- coverageHolds faces
+            pure [ mkRecOr faces | covered ]
+    else pure []
+  pure (fromContext <> fromFaces <> generic)
+  where
+    mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
 -- user-facing 'VarIdent' names here — reusing the same resolution as
@@ -855,9 +904,10 @@ recordHoleShape mname goalTy mshape = do
   candidates <- censor (const []) $ do
     elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals
     -- context-driven moves (independent of the goal's head and the hypotheses):
-    -- ex falso in a contradictory context.
+    -- ex falso in a contradictory context, and tope case-splits.
     recbot <- recBottomCandidates
-    pure (elims <> recbot)
+    recor  <- recOrCandidates goalTy
+    pure (elims <> recbot <> recor)
   -- the introduction forms for the goal itself (constituents left as holes).
   introductions <- censor (const []) (allIntroductionsOf goalTy)
   let shapeTope     = snd <$> mshape

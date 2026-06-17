@@ -184,6 +184,26 @@ spec = do
         [h] -> cands h `shouldNotContain` ["recBOT"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- In a shape setting (a cube variable in scope) the goal can be built by a
+    -- tope case split; the generic two-way recOR is always available there.
+    it "offers a generic recOR split in a shape setting" $ do
+      case holesOf "#lang rzk-1\n#def Δ¹ : 2 → TOPE := \\ t → TOP\n#def hom (A : U) (x y : A) : U\n  := (t : Δ¹) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ]\n#def mor (A : U) (x y : A) : hom A x y := \\ t → ?\n" of
+        hs | (h:_) <- reverse hs -> cands h `shouldContain` ["recOR (? ↦ ?, ? ↦ ?)"]
+        _ -> expectationFailure "expected at least one hole"
+
+    -- An ordinary, tope-free goal offers no recOR split.
+    it "offers no recOR split for a tope-free goal" $ do
+      case holesOf "#lang rzk-1\n#def plain (A : U) (a : A) : A := ?\n" of
+        [h] -> filter (isInfixOf "recOR") (cands h) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- On the boundary t ≡ 0₂ ∨ t ≡ 1₂ the faces cover the context, so the goal's
+    -- restriction faces become a concrete recOR split.
+    it "splits on the goal's faces when they cover the context" $ do
+      case holesOf "#lang rzk-1\n#def bdry (A : U) (x y : A)\n  : ( (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ] )\n  := \\ t → ?\n" of
+        [h] -> cands h `shouldContain` ["recOR (t ≡ 0₂ ↦ ?, t ≡ 1₂ ↦ ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
