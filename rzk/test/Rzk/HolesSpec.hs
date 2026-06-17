@@ -218,3 +218,12 @@ spec = do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> B a\n  := \\ A B a -> ?\n" of
         [h] -> intros h `shouldBe` []
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A shape goal (a hole of type TOPE) is introduced by every tope
+    -- constructor, so a shape can be built up by tapping.
+    it "introduces a tope goal by every tope constructor" $ do
+      case holesOf "#lang rzk-1\n#define sh : 2 -> TOPE\n  := \\ t -> ?\n" of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "TOPE"
+          intros h `shouldBe` ["⊤", "⊥", "? ≡ ?", "? ≤ ?", "? ∧ ?", "? ∨ ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

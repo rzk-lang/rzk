@@ -758,14 +758,17 @@ eliminatorsOf ty =
 --   * a Σ-type or a cube product by a pair of holes (@(? , ?)@);
 --   * an identity type by @refl@, but only when its two endpoints already agree
 --     (otherwise @refl@ would not typecheck);
---   * the unit type by @unit@.
+--   * the unit type by @unit@;
+--   * the tope universe by each tope constructor — @TOP@, @BOT@, @? ≡ ?@,
+--     @? ≤ ?@, @? ∧ ?@, @? ∨ ?@ — so a shape (a hole of type @TOPE@) can be
+--     built up by tapping.
 --
 -- Any other type admits no simple introduction. Unlike 'allEliminationsInto'
--- this does not search: a type has at most one introduction form, read off its
--- (weak head normal) head constructor. Outer type restrictions are stripped
--- first, so an extension type is introduced by the form of its underlying type
--- (its boundary is met by later refinement of the holes, not by the choice of
--- constructor).
+-- this does not search: a type has at most one introduction form (the tope
+-- universe is the one exception), read off its (weak head normal) head
+-- constructor. Outer type restrictions are stripped first, so an extension type
+-- is introduced by the form of its underlying type (its boundary is met by later
+-- refinement of the holes, not by the choice of constructor).
 allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
 allIntroductionsOf target = do
   target' <- stripTypeRestrictions <$> whnfT target
@@ -780,6 +783,15 @@ allIntroductionsOf target = do
       agree <- endpointsAgree a b
       pure [ reflT target' Nothing | agree ]
     TypeUnitT{} -> pure [ unitT ]
+    -- the tope universe: every tope constructor builds a tope, so all are
+    -- introductions of a shape goal. Point arguments (of ≡, ≤) and tope
+    -- arguments (of ∧, ∨) are left as holes.
+    UniverseTopeT{} ->
+      let point = mkHole (mkHole cubeT)  -- a point of an as-yet-unknown cube
+          tope  = mkHole target'         -- a tope (its type is the tope universe)
+       in pure [ topeTopT, topeBottomT
+               , topeEQT  point point, topeLEQT point point
+               , topeAndT tope  tope,  topeOrT  tope  tope ]
     _ -> pure []
   where
     mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
