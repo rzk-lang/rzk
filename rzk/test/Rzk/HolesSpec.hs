@@ -163,18 +163,18 @@ spec = do
           cands h `shouldContain` ["π₂ s"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
-    -- A path is eliminated by path induction. Over @p : a =_A x@ the spine
-    -- @idJ (A, a, ?, ?, x, p)@ : @C x p@ fits a goal of exactly that shape, with
-    -- the motive and base case left as holes.
-    it "eliminates a path by idJ when the goal has the motive shape" $ do
-      case holesOf "#lang rzk-1\n#def f (A : U) (a x : A) (p : a =_{A} x) (C : (z : A) → (a =_{A} z) → U) (d : C a refl)\n  : C x p := ?\n" of
-        [h] -> cands h `shouldContain` ["idJ (A, a, ?, ?, x, p)"]
+    -- A path is eliminated by path induction. The motive is introduced straight
+    -- away as a λ, so over @p : a =_A x@ the spine @idJ (A, a, \ b → \ q → ?, ?,
+    -- x, p)@ has a result type that β-reduces to a hole and so fits any goal —
+    -- here an ordinary goal @A@ with the path in scope.
+    it "eliminates a path by idJ, introducing the motive λ" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a x : A) (p : a =_{A} x) : A := ?\n" of
+        [h] -> cands h `shouldContain` ["idJ (A, a, \\ b → \\ q → ?, ?, x, p)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
-    -- idJ is not a stand-in for an arbitrary elimination: over the same path but
-    -- an ordinary goal, the motive hole would not fit, so no idJ spine is offered.
-    it "does not offer idJ for a goal without the motive shape" $ do
-      case holesOf "#lang rzk-1\n#def f (A : U) (a x : A) (p : a =_{A} x) : A := ?\n" of
+    -- With no path in scope there is nothing to eliminate by idJ.
+    it "does not offer idJ without a path hypothesis" $ do
+      case holesOf "#lang rzk-1\n#def f (A : U) (a : A) : A := ?\n" of
         [h] -> filter (isInfixOf "idJ") (cands h) `shouldBe` []
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 

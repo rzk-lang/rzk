@@ -745,22 +745,27 @@ eliminatorsOf ty =
     CubeProductT _ty a b ->
       pure [ \term -> firstT a term
            , \term -> secondT b term ]
-    -- A path @p : a =_A x@ is eliminated by path induction. Following the typing
-    -- of 'IdJ', the motive @C : (z : A) → (a =_A z) → U@ and the base case
-    -- @d : C a refl@ are left as holes; the spine @idJ A a C d x p@ then has type
-    -- @C x p@. The motive being a hole, this fits a goal only when the goal has
-    -- that shape — J does not stand in for an arbitrary elimination.
+    -- A path @p : a =_A x@ is eliminated by path induction. The motive
+    -- @C : (z : A) → (a =_A z) → U@ is always a function, so we introduce it
+    -- straight away as @\\ b q → ?@ rather than leaving it a bare hole: the spine
+    -- @idJ A a (\\ b q → ?) ? x p@ then has type @C x p@, which β-reduces to that
+    -- inner hole — so J fits any goal (the player fills the motive and the base
+    -- case @d : C a refl@). The two holes are the motive predicate and the base.
     TypeIdT _ty a mtA x -> do
       tA <- maybe (typeOf a) pure mtA
-      let cType = typeFunT (BinderVar Nothing) tA Nothing $
-                    typeFunT (BinderVar Nothing)
-                      (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing
-                      universeT
-          c     = mkHole cType
-          dType = appT universeT
-                    (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) a) Nothing universeT) c a)
-                    (reflT (typeIdT a (Just tA) a) Nothing)
-          d     = mkHole dType
+      let -- the motive predicate body, a type, under the two motive binders
+          cBody  = mkHole universeT
+          cInner = lambdaT (typeFunT (BinderVar Nothing)
+                              (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT)
+                     (BinderVar (Just (fromString "q"))) Nothing cBody
+          cType  = typeFunT (BinderVar Nothing) tA Nothing $
+                     typeFunT (BinderVar Nothing)
+                       (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT
+          c      = lambdaT cType (BinderVar (Just (fromString "b"))) Nothing cInner
+          dType  = appT universeT
+                     (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) a) Nothing universeT) c a)
+                     (reflT (typeIdT a (Just tA) a) Nothing)
+          d      = mkHole dType
           motiveAt y p = appT universeT
             (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) y) Nothing universeT) c y) p
       pure [ \p -> idJT (motiveAt x p) tA a c d x p ]
