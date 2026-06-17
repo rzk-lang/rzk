@@ -14,7 +14,7 @@ import           Control.Monad.Reader
 -- An explicit list: a bare 'Control.Monad.Writer' import also re-exports
 -- 'Data.Monoid' (incl. 'First'/'Last') on some mtl versions, which clashes with
 -- the 'First'/'Last' term patterns from 'Language.Rzk.Free.Syntax'.
-import           Control.Monad.Writer     (WriterT, runWriterT, tell)
+import           Control.Monad.Writer     (WriterT, censor, runWriterT, tell)
 import           Data.Bifoldable          (bifoldr)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, partition,
@@ -670,6 +670,84 @@ containsHole = \case
   Pure{}              -> False
   Free (AnnF _ termf) -> bifoldr ((||) . containsHole) ((||) . containsHole) False termf
 
+-- | All ways to eliminate a hypothesis into a value usable at a goal. Given a
+-- @target@ type and a hypothesis /term/ (e.g. @Pure v@ for a context variable),
+-- return every elimination spine over that term whose type fits the target (or
+-- a subtype of it). Arguments introduced by application are left as holes for
+-- the caller to fill later. A value that already fits is returned as-is; a
+-- function is applied to holes; a Σ-type (or anything that unfolds to one, e.g.
+-- @is-contr@) is projected, possibly repeatedly — so e.g.
+-- @first (first (is-segal-A ? ? ? ? ?))@ is discovered.
+--
+-- The search is driven uniformly by the eliminators a (weak head normal) type
+-- admits (see 'eliminatorsOf'), so adding a new eliminator extends it without
+-- touching the search. Depth is bounded by 'maxEliminationDepth'.
+allEliminationsInto
+  :: Eq var => TermT var -> TermT var -> TypeCheck var [TermT var]
+allEliminationsInto target = go maxEliminationDepth
+  where
+    go depth term = do
+      ty   <- typeOf term
+      fits <- fitsInto term ty target
+      deeper <-
+        if depth <= 0
+          then pure []
+          else do
+            elims <- eliminatorsOf ty
+            concat <$> mapM (\wrap -> go (depth - 1) (wrap term)) elims
+      pure ([term | fits] <> deeper)
+
+-- | How deep an elimination spine 'allEliminationsInto' will build. A temporary
+-- fixed bound: seven is enough for the spines seen so far (fully applying a
+-- five-argument hypothesis and projecting twice), and a larger bound mostly adds
+-- self-referential spines (a built result applied again). It should be made
+-- configurable, and likely raised, once there is more evidence of what real
+-- goals need. The chain only branches at Σ-types, which are shallow, so the
+-- search stays small.
+maxEliminationDepth :: Int
+maxEliminationDepth = 7
+
+-- | Whether a term of the given (whnf) type may stand where a value of the
+-- @target@ type is expected: the two types unify under 'structuralHoleUnify',
+-- so a hole acts as a wildcard leaf but a structural mismatch around it is still
+-- a mismatch (an under-applied function does not match an extension-type goal,
+-- but a partial application that genuinely fits an ordinary-function goal does).
+--
+-- Outer type restrictions are stripped from both sides first: an extension-type
+-- boundary is satisfied by later refinement, not by the choice of spine, and
+-- matching against the restricted goal would reject the very spine that
+-- introduces the holes meant to satisfy it (e.g. @f ?@ at a boundary goal).
+--
+-- Holes or constraints recorded while probing are discarded, so this is a pure
+-- yes/no query.
+fitsInto :: Eq var => TermT var -> TermT var -> TermT var -> TypeCheck var Bool
+fitsInto term ty target = do
+  ty'     <- stripTypeRestrictions <$> whnfT ty
+  target' <- stripTypeRestrictions <$> whnfT target
+  censor (const []) $ local structuralHoleUnify
+    ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
+
+-- | The eliminators a value of the given (weak head normal) type admits, each
+-- as a function wrapping the eliminated term. A Π-type is eliminated by
+-- application to a fresh hole; a Σ-type by either projection. Anything else
+-- admits no simple eliminator.
+eliminatorsOf :: TermT var -> TypeCheck var [TermT var -> TermT var]
+eliminatorsOf ty =
+  case stripTypeRestrictions ty of
+    TypeFunT _ty _orig param _mtope ret ->
+      pure [ \term -> let h = mkHole param in appT (substituteT h ret) term h ]
+    TypeSigmaT _ty _orig a b ->
+      pure [ \term -> firstT a term
+           , \term -> secondT (substituteT (firstT a term) b) term ]
+    -- A cube point pair (e.g. a pattern-bound @(t , s) : 2 × 2@) projects to its
+    -- coordinates; rzk renders those projections back as the pattern names.
+    CubeProductT _ty a b ->
+      pure [ \term -> firstT a term
+           , \term -> secondT b term ]
+    _ -> pure []
+  where
+    mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+
 -- | Record the goal and local context at a hole (lenient mode only). The goal,
 -- the local hypotheses, and the tope assumptions are all rendered to
 -- user-facing 'VarIdent' names here — reusing the same resolution as
@@ -699,6 +777,11 @@ recordHoleShape mname goalTy mshape = do
   origs     <- asks varOrigs
   binders   <- asks varBinders
   loc       <- asks location
+  -- for each local hypothesis, the elimination spines that land in the goal
+  -- (arguments left as holes). Probing must not leak holes into the recorded
+  -- output, hence 'censor'.
+  candidates <- censor (const [])
+    (concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
@@ -723,6 +806,7 @@ recordHoleShape mname goalTy mshape = do
         , holeTermVars  = [ e | (False, e) <- flagged ]
         , holeCubeVars  = [ e | (True,  e) <- flagged ]
         , holeTopes     = map render topes
+        , holeCandidates = map render candidates
         , holeLocation  = loc
         } ]
 
@@ -942,6 +1026,14 @@ data Context var = Context
     -- ^ When 'True' (the default), an unfilled hole is reported as a
     -- 'TypeErrorUnsolvedHole'; finished work (and CI) must have no holes. The
     -- lenient mode ('allowHoles') instead records each hole's goal and context.
+  , deferHoleMismatches    :: Bool
+    -- ^ How holes behave during unification, giving three modes overall. With
+    -- 'holesAreErrors' a hole is rejected outright (strict). Otherwise a hole
+    -- always unifies as a leaf; this flag then chooses what happens when the
+    -- /surrounding/ structure disagrees: 'True' (the default) defers — any term
+    -- containing a hole is accepted, for an in-progress sketch — while 'False'
+    -- keeps such a mismatch an error, so only a hole standing in a matching
+    -- structure is accepted ('structuralHoleUnify').
   } deriving (Functor, Foldable)
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
@@ -988,6 +1080,7 @@ emptyContext = Context
   , covariance = Covariant
   , renderBackend = Nothing
   , holesAreErrors = True
+  , deferHoleMismatches = True
   }
 
 -- | Switch to lenient hole mode: record each hole's goal and context instead
@@ -995,6 +1088,13 @@ emptyContext = Context
 -- the @--allow-holes@ CLI mode; the default (strict) mode rejects holes.
 allowHoles :: Context var -> Context var
 allowHoles ctx = ctx { holesAreErrors = False }
+
+-- | Within the given action, a hole unifies only as a leaf in an otherwise
+-- matching structure: a structural mismatch around a hole stays an error rather
+-- than being deferred (see 'deferHoleMismatches'). Used to ask whether a term
+-- /could/ have a given type, as opposed to tolerating an in-progress sketch.
+structuralHoleUnify :: Context var -> Context var
+structuralHoleUnify ctx = ctx { deferHoleMismatches = False }
 
 askCurrentScope :: TypeCheck var (ScopeInfo var)
 askCurrentScope = asks localScopes >>= \case
@@ -1374,6 +1474,10 @@ data HoleInfo = HoleInfo
   , holeTermVars  :: [HoleEntry]     -- ^ local hypotheses whose type is not a cube
   , holeCubeVars  :: [HoleEntry]     -- ^ local cube variables (type is a cube)
   , holeTopes     :: [Term']         -- ^ local tope assumptions (excluding ⊤)
+  , holeCandidates :: [Term']
+    -- ^ elimination spines over the local hypotheses whose type fits the goal,
+    -- with applied arguments left as holes (see 'allEliminationsInto'). Already
+    -- rendered, like the other fields.
   , holeLocation  :: Maybe LocationInfo
   } deriving (Eq, Show)
 
@@ -2696,13 +2800,16 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               _ -> typeOf expected' >>= typeOf >>= \case
                 UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
                 _ -> do
+                  -- A hole stands for a term of the expected type, so a
+                  -- unification that would otherwise fail is deferred when either
+                  -- side still contains an (unfilled) hole — including one nested
+                  -- in a larger term, e.g. @f ?@ checked against an extension-type
+                  -- boundary. 'structuralHoleUnify' turns this off, keeping a
+                  -- structural mismatch around a hole an error. Lazy: only runs on
+                  -- the failure path.
+                  defer <- asks deferHoleMismatches
                   let def = unless (expected' == actual') err
-                      -- A hole stands for a term of the expected type, so a
-                      -- unification that would otherwise fail is deferred when
-                      -- either side still contains an (unfilled) hole — including
-                      -- one nested in a larger term, e.g. @f ?@ checked against an
-                      -- extension-type boundary. Lazy: only runs on the failure path.
-                      holePresent = containsHole expected' || containsHole actual'
+                      holePresent = defer && (containsHole expected' || containsHole actual')
                       err
                         | holePresent = return ()
                         | otherwise =

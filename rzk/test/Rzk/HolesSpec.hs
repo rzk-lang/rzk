@@ -138,3 +138,35 @@ spec = do
           ("π₁ p ≡ π₂ p" `isInfixOf` goal) `shouldBe` True
           map show (holeTopes h) `shouldContain` ["π₂ p ≤ π₁ p"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "holeCandidates (type-directed elimination candidates)" $ do
+    let cands = map show . holeCandidates
+
+    -- A hypothesis that already has the goal type is offered as-is.
+    it "offers a hypothesis of the goal type directly" $ do
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
+        [h] -> cands h `shouldContain` ["a"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A function is offered fully applied, with its argument left as a hole;
+    -- the under-applied function itself is not a move.
+    it "applies a function, leaving the argument as a hole" $ do
+      case holesOf "#lang rzk-1\n#define h : (A : U) -> (B : U) -> (A -> B) -> A -> B\n  := \\ A B g a -> ?\n" of
+        [h] -> cands h `shouldContain` ["g ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A Σ-typed hypothesis is eliminated by projection to reach the goal.
+    it "projects a Σ-typed hypothesis to reach the goal" $ do
+      case holesOf "#lang rzk-1\n#define k : (A : U) -> (s : Σ (a : A) , A) -> A\n  := \\ A s -> ?\n" of
+        [h] -> do
+          cands h `shouldContain` ["π₁ s"]
+          cands h `shouldContain` ["π₂ s"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A partial application whose result structurally mismatches the goal is not
+    -- offered: matching uses structural (not fully lenient) hole unification, so
+    -- the hole in @h ?@ : @P ?@ cannot excuse the mismatch with the goal @Q@.
+    it "does not offer a structurally mismatched partial application" $ do
+      case holesOf "#lang rzk-1\n#define t : (A : U) -> (P : A -> U) -> (Q : U) -> (h : (a : A) -> P a) -> Q\n  := \\ A P Q h -> ?\n" of
+        [h] -> cands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
