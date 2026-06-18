@@ -48,6 +48,7 @@ extra-source-files:
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-hole-infer.rzk
     test/typecheck/cases/ill-hole-pattern-binder-names.rzk
+    test/typecheck/cases/ill-hole-recor-branch.rzk
     test/typecheck/cases/ill-hole-unsolved.rzk
     test/typecheck/cases/ill-implicit.rzk
     test/typecheck/cases/ill-interval-no-totality.rzk
@@ -99,6 +100,7 @@ extra-source-files:
     test/typecheck/cases/ill-tope-not-satisfied-tope-family-subtyping.rzk
     test/typecheck/cases/ill-tope-param-lambda.rzk
     test/typecheck/cases/ill-tope-param-typefun.rzk
+    test/typecheck/cases/ill-tope-pattern-binder-bare.rzk
     test/typecheck/cases/ill-tope-recOR-non-discrete.rzk
     test/typecheck/cases/ill-tope-subtle-app-shape-5d.rzk
     test/typecheck/cases/ill-tope-subtle-rec-or-5d-boundary.rzk
@@ -144,6 +146,7 @@ extra-source-files:
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-hole-infer.expect.yaml
     test/typecheck/cases/ill-hole-pattern-binder-names.expect.yaml
+    test/typecheck/cases/ill-hole-recor-branch.expect.yaml
     test/typecheck/cases/ill-hole-unsolved.expect.yaml
     test/typecheck/cases/ill-implicit.expect.yaml
     test/typecheck/cases/ill-interval-no-totality.expect.yaml
@@ -195,6 +198,7 @@ extra-source-files:
     test/typecheck/cases/ill-tope-not-satisfied-tope-family-subtyping.expect.yaml
     test/typecheck/cases/ill-tope-param-lambda.expect.yaml
     test/typecheck/cases/ill-tope-param-typefun.expect.yaml
+    test/typecheck/cases/ill-tope-pattern-binder-bare.expect.yaml
     test/typecheck/cases/ill-tope-recOR-non-discrete.expect.yaml
     test/typecheck/cases/ill-tope-subtle-app-shape-5d.expect.yaml
     test/typecheck/cases/ill-tope-subtle-rec-or-5d-boundary.expect.yaml

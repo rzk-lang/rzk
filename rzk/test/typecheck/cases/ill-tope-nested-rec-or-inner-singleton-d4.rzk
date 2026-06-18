@@ -2,8 +2,8 @@
 
 -- Ill counterpart to `happy-tope-nested-rec-or-d4.rzk`: **identical** nested binary `recOR`
 -- except the **rightmost leaf** along the all-`1₂` corner (`t0 ≡ 1₂`, …, `t3 ≡ 1₂`),
--- where `u` is replaced by `unit`, so the branch infers `Unit` instead of `U` and
--- `recOR` inference fails only after processing the full tree (see error at innermost branch).
+-- where `u` is replaced by `unit`. The type-level `recOR` is checked against `U`, so
+-- the bad leaf is caught directly when its `unit` (of type `Unit`) is checked against `U`.
 
 #define u : U := Unit
 

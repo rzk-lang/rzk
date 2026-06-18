@@ -62,6 +62,19 @@ spec = do
         [h] -> show (holeGoal h) `shouldBe` "A"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A bare hole in each recOR branch: the checking-direction recOR rule pushes
+    -- the common type (A) into every branch, so both holes are recorded against A
+    -- with their branch tope in context. Without that rule the recOR is elaborated
+    -- by inference and the branch holes fail with TypeErrorCannotInferHole.
+    it "records a hole in each recOR branch against the common type" $ do
+      case holesOf "#lang rzk-1\n#define square : (A : U) -> A -> (2 × 2) -> A\n  := \\ A a (t , s) -> recOR ( t ≤ s ↦ ? , s ≤ t ↦ ? )\n" of
+        [h1, h2] -> do
+          show (holeGoal h1) `shouldBe` "A"
+          show (holeGoal h2) `shouldBe` "A"
+          map show (holeTopes h1) `shouldContain` ["t ≤ s"]
+          map show (holeTopes h2) `shouldContain` ["s ≤ t"]
+        hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
+
     -- A hole nested inside a larger term (`f ?`) checked against an
     -- extension-type boundary: the boundary face is unified against `f ?`, which
     -- must be deferred rather than reported as a mismatch.

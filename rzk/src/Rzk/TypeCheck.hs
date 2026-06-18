@@ -3808,15 +3808,22 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             return $ modAppT ty' md body'
         _ -> issueTypeError $ TypeErrorNotModal term md ty'
 
-        -- FIXME: this does not make typechecking faster, why?
---      RecOr rs -> do
---        rs' <- forM rs $ \(tope, rterm) -> do
---          tope' <- typecheck tope topeT
---          contextEntailedBy tope'
---          localTope tope' $ do
---            rterm' <- typecheck rterm ty
---            return (tope', rterm')
---        return (recOrT ty rs')
+      -- In checking position the common type is already known, so we push it
+      -- into every branch instead of inferring each one and unifying. This is
+      -- what lets a bare hole branch (recOR(φ ↦ ?, …)) be checked against the
+      -- expected type and recorded, rather than hitting TypeErrorCannotInferHole
+      -- via the inference rule. The branch-guard, coherence, and coverage
+      -- obligations mirror the inference rule (see the RecOr case of 'infer').
+      RecOr rs -> do
+        rs' <- forM rs $ \(tope, rterm) -> do
+          tope' <- typecheck tope topeT
+          checkTopeAgainstContext "recOR branch guard" tope'
+          localTope tope' $ do
+            rterm' <- typecheck rterm ty'
+            return (tope', rterm')
+        sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
+        contextEntailsUnion (map fst rs')
+        return (recOrT ty' rs')
       _ -> do
         term' <- infer term
         inferredType <- typeOf term'
