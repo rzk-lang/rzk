@@ -2,7 +2,9 @@
 
 -- After the branches of `recOR`, the checker requires the local tope context to be
 -- covered by (to entail) the disjunction of branch guard topes (`contextEntailsUnion`).
--- With only `⊤` on `t : 2`, the boundary `t ≡ 0 ∨ t ≡ 1` is not entailed.
+-- With only `⊤` on `t : 2`, the boundary `t ≡ 0 ∨ t ≡ 1` is not entailed. The branches
+-- are the type `Unit` (a valid type in U) so the type-level recOR is well-formed up to
+-- the coverage obligation, which is what this fixture pins down.
 
 #define boundaryUnit (t : 2) : U
-  := recOR( t === 0_2 |-> unit, t === 1_2 |-> unit )
+  := recOR( t === 0_2 |-> Unit, t === 1_2 |-> Unit )

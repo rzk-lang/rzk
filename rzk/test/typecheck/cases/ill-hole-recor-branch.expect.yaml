@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorUnsolvedHole
+message_contains:
+  - "found an unsolved hole"
+  - "A"
+regression_for:
+  - holes-recOR-branch-checking-position
