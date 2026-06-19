@@ -756,9 +756,9 @@ fitsInto term ty target = do
 eliminatorsOf :: Eq var => TermT var -> TypeCheck var [TermT var -> TermT var]
 eliminatorsOf ty =
   case stripTypeRestrictions ty of
-    TypeFunT _ty _orig param _mtope ret ->
+    TypeFunT _ty _orig _md param _mtope ret ->
       pure [ \term -> let h = mkHole param in appT (substituteT h ret) term h ]
-    TypeSigmaT _ty _orig a b ->
+    TypeSigmaT _ty _orig _md a b ->
       pure [ \term -> firstT a term
            , \term -> secondT (substituteT (firstT a term) b) term ]
     -- A cube point pair (e.g. a pattern-bound @(t , s) : 2 × 2@) projects to its
@@ -776,19 +776,19 @@ eliminatorsOf ty =
       tA <- maybe (typeOf a) pure mtA
       let -- the motive predicate body, a type, under the two motive binders
           cBody  = mkHole universeT
-          cInner = lambdaT (typeFunT (BinderVar Nothing)
+          cInner = lambdaT (typeFunT (BinderVar Nothing) Id
                               (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT)
-                     (BinderVar (Just (fromString "q"))) Nothing cBody
-          cType  = typeFunT (BinderVar Nothing) tA Nothing $
-                     typeFunT (BinderVar Nothing)
+                     (BinderVar (Just (fromString "q"))) Id Nothing cBody
+          cType  = typeFunT (BinderVar Nothing) Id tA Nothing $
+                     typeFunT (BinderVar Nothing) Id
                        (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT
-          c      = lambdaT cType (BinderVar (Just (fromString "b"))) Nothing cInner
+          c      = lambdaT cType (BinderVar (Just (fromString "b"))) Id Nothing cInner
           dType  = appT universeT
-                     (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) a) Nothing universeT) c a)
+                     (appT (typeFunT (BinderVar Nothing) Id (typeIdT a (Just tA) a) Nothing universeT) c a)
                      (reflT (typeIdT a (Just tA) a) Nothing)
           d      = mkHole dType
           motiveAt y p = appT universeT
-            (appT (typeFunT (BinderVar Nothing) (typeIdT a (Just tA) y) Nothing universeT) c y) p
+            (appT (typeFunT (BinderVar Nothing) Id (typeIdT a (Just tA) y) Nothing universeT) c y) p
       pure [ \p -> idJT (motiveAt x p) tA a c d x p ]
     _ -> pure []
   where
@@ -821,7 +821,7 @@ destructuringBinder orig param = case orig of
         let (l, n')  = child "t" n  a
             (r, n'') = child "t" n' b
         in (BinderPair l r, n'')
-      TypeSigmaT _ _ a _b ->
+      TypeSigmaT _ _ _md a _b ->
         let (l, n') = child "x" n a
         in (BinderPair l (BinderVar (Just (leaf "x" n'))), n' + 1)
       _ -> (BinderVar (Just (leaf "t" n)), n + 1)  -- unreached: go is called on products only
@@ -856,9 +856,9 @@ allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
 allIntroductionsOf target = do
   target' <- stripTypeRestrictions <$> whnfT target
   case target' of
-    TypeFunT _ty orig param _mtope ret ->
-      pure [ lambdaT target' (destructuringBinder orig param) Nothing (mkHole ret) ]
-    TypeSigmaT _ty _orig a b ->
+    TypeFunT _ty orig _md param _mtope ret ->
+      pure [ lambdaT target' (destructuringBinder orig param) _md Nothing (mkHole ret) ]
+    TypeSigmaT _ty _orig _md a b ->
       let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
     CubeProductT _ty a b ->
       pure [ pairT target' (mkHole a) (mkHole b) ]
@@ -2314,89 +2314,6 @@ etaExpand term = do
 
     _ -> pure term
 
-tryUnify :: Eq var => TermT var -> TermT var -> TypeCheck var Bool
-tryUnify a b = (True <$ unifyTerms a b) `catchError` \_ -> return False
-
-tryConvertion :: Eq var => TermT var -> TermT var -> TypeCheck var (Maybe (TermT var -> TermT var))
-
-tryConvertion (TypeFunT _ orig md param mtope ret) expected@(TypeFunT _ orig' Id modalParam@(TypeModalT _ md' unmodPar) mtope' ret')
-  | md == md' = do
-      paramTpe <- typeOf param
-      let modZ = modAppT (S <$> typeModalT universeT md paramTpe) md (Pure Z)
-          substMod scope = scope >>= \case { Z -> modZ; v -> Pure v }
-      ok <- and <$> sequence
-        [ tryUnify param unmodPar
-        , enterScope orig md param $ (&&)
-            <$> tryUnify ret (substMod ret')
-            <*> tryUnify (fromMaybe topeTopT mtope) (substMod (fromMaybe topeTopT mtope'))
-        ]
-      if not ok then return Nothing
-      else do
-        let bodyResultTy = ret >>= \case { Z -> Pure Z; S v -> Pure (S (S v)) }
-            body t = letModT ret' orig Id md (Just (S <$> param)) (Pure Z)
-                       (appT bodyResultTy (S . S <$> t) (Pure Z))
-        return $ Just $ \t -> lambdaT expected orig' Id (Just (modalParam, mtope')) (body t)
-
-tryConvertion (TypeFunT _ _orig Id (TypeModalT _ md unmodPar) mtope ret) expected@(TypeFunT _ orig' md' param' mtope' ret')
-  | md == md' = do
-      paramTpe <- typeOf param'
-      let modZ = modAppT (S <$> typeModalT universeT md paramTpe) md (Pure Z)
-          substMod scope = scope >>= \case { Z -> modZ; v -> Pure v }
-      ok <- and <$> sequence
-        [ tryUnify unmodPar param'
-        , enterScope orig' md param' $ (&&)
-            <$> tryUnify (substMod ret) ret'
-            <*> tryUnify (substMod (fromMaybe topeTopT mtope)) (fromMaybe topeTopT mtope')
-        ]
-      if not ok then return Nothing
-      else do
-        let modalArg = modAppT (S <$> typeModalT universeT md param') md (Pure Z)
-            appResultTy = ret >>= \case { Z -> modalArg; S v -> Pure (S v) }
-        return $ Just $ \t -> lambdaT expected orig' md (Just (param', mtope'))
-                                (appT appResultTy (S <$> t) modalArg)
-
-tryConvertion (TypeSigmaT _ orig md a b) expected@(TypeSigmaT _ orig' Id modalA@(TypeModalT _ md' unmodA) b')
-  | md == md', md /= Id = do
-      paramTpe <- typeOf a
-      let modZ = modAppT (S <$> typeModalT universeT md paramTpe) md (Pure Z)
-          substMod scope = scope >>= \case { Z -> modZ; v -> Pure v }
-      ok <- and <$> sequence
-        [ tryUnify a unmodA
-        , enterScope orig md a $
-            tryUnify b (substMod b')
-        ]
-      if not ok then return Nothing
-      else return $ Just $ \p ->
-        let fstP = firstT a p
-            sndTy = substituteT fstP b
-        in pairT expected
-             (modAppT (typeModalT universeT md a) md fstP)
-             (secondT sndTy p)
-
-tryConvertion (TypeSigmaT _ orig Id modalA@(TypeModalT _ md unmodA) b) expected@(TypeSigmaT _ orig' md' a' b')
-  | md == md', md /= Id = do
-      paramTpe <- typeOf a'
-      let modZ = modAppT (S <$> typeModalT universeT md paramTpe) md (Pure Z)
-          substMod scope = scope >>= \case { Z -> modZ; v -> Pure v }
-      ok <- and <$> sequence
-        [ tryUnify unmodA a'
-        , enterScope orig' md a' $
-            tryUnify (substMod b) b'
-        ]
-      if not ok then return Nothing
-      else return $ Just $ \p ->
-        let fstP = firstT modalA p
-            sndTy = substituteT fstP b
-        in letModT expected Nothing Id md
-             (Just unmodA)
-             fstP
-             (pairT (S <$> expected)
-               (Pure Z)
-               (secondT (S <$> sndTy) (S <$> p)))
-
-tryConvertion _ _ = return Nothing
-
-
 inCubeLayer :: Eq var => TermT var -> TypeCheck var Bool
 inCubeLayer = \case
   RecBottomT{}    -> pure False
@@ -2998,11 +2915,11 @@ nfT tt = performing (ActionNF tt) $ case tt of
             pure (TypeModalT ty md b')
           ModAppT ty md b -> do
             (enterModality md $ whnfT b) >>= \case
-              ModExtractT _ app inn t | inn == md -> enterModality (comp inn app) $ nfT t
+              ModExtractT _ app inn t | inn == md -> enterModality (comp app inn) $ nfT t
               b' -> ModAppT ty md <$> (enterModality md $ nfT b')
           ModExtractT ty app inn b -> do
             (enterModality app $ whnfT b) >>= \case
-              ModAppT _ md t | inn == md -> enterModality (comp inn app) $ nfT t
+              ModAppT _ md t | inn == md -> enterModality (comp app inn) $ nfT t
               b' -> ModExtractT ty app inn <$> (enterModality app $ nfT b') 
           TypeRestrictedT ty type_ rs -> do
             rs' <- forM rs $ \(tope, term) -> do
@@ -3966,12 +3883,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       _ -> do
         term' <- infer term
         inferredType <- typeOf term'
-        conv <- tryConvertion inferredType ty'
-        case conv of
-          Just wrap -> return (wrap term')
-          Nothing -> do
-            unifyTypes term' ty' inferredType
-            return term'
+        unifyTypes term' ty' inferredType
+        return term'
 
 inferAs :: Eq var => TermT var -> Term var -> TypeCheck var (TermT var)
 inferAs expectedKind term = do
