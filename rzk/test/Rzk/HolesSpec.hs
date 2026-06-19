@@ -265,6 +265,15 @@ spec = do
         [h] -> intros h `shouldBe` ["\\ n → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- The λ binder is freshened so it does not shadow a name already in scope.
+    -- Here the goal unfolds to `(t : 2) -> A`, whose binder `t` (taken from
+    -- `endo`'s definition, mirroring `hom`) clashes with the in-scope cube
+    -- variable `t`; the introduction binds `t₁` instead of a shadowing `t`.
+    it "freshens the λ binder so it does not shadow an in-scope name" $ do
+      case holesOf "#lang rzk-1\n#define endo : U -> U\n  := \\ A -> (t : 2) -> A\n#define f : (A : U) -> (t : 2) -> endo A\n  := \\ A t -> ?\n" of
+        [h] -> intros h `shouldBe` ["\\ t₁ → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A named pattern domain (e.g. a cube point) keeps its pattern, so the λ
     -- binds the user's names rather than a projection.
     it "introduces a pattern-domain function with the pattern binder" $ do
