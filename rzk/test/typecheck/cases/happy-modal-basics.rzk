@@ -5,7 +5,7 @@
   := mod _# x
 
 #def sharp-map (A B : U) (f : A → B)
-  : _# A → _# B
+  : (x :_# A) → _# B
   := \ (x :_# A) → mod _# (f x)
 
 #def b-extract (A :_b U) (x :_b A)
@@ -13,7 +13,7 @@
   := x
 
 #def b-map (A B :_b U) (f :_b A → B)
-  : _b A → _b B
+  : (x :_b A) → _b B
   := \ (x :_b A) → mod _b (f x)
 
 #def b-dup (A :_b U) (x :_b A)
@@ -21,7 +21,7 @@
   := mod _b (mod _b x)
 
 #def op-map (A B :_op U) (f :_op A → B)
-  : _op A → _op B
+  : (x :_op A) → _op B
   := \ (x :_op A) → mod _op (f x)
 
 #def double-op (A : U) (x : _op (_op A))
@@ -47,7 +47,7 @@
   := mod _id x
 
 #def id-map (A B : U) (f : A → B)
-  : _id A → _id B
+  : (x :_id A) → _id B
   := \ (x :_id A) → mod _id (f x)
 
 #def id-join (A : U) (a : _id (_id A))
@@ -224,3 +224,15 @@
   (A :_b U) (a :_b A) (i :_b 2)
   : (i :_b 2 | i === 0_2) -> _# (_# A)
   := \ _ -> mod _# (mod _# a)
+
+-- Manual conversion: (x :_# A) → B  to  (_# A) → B
+#def sharp-modal-to-explicit
+  (A : U) (B : U) (f : (x :_# A) -> B)
+  : (_# A) -> B
+  := \ y -> f (let mod _# z := y in z)
+
+-- Manual conversion: (_# A) → B  to  (x :_# A) → B
+#def sharp-explicit-to-modal
+  (A : U) (B : U) (f : (_# A) -> B)
+  : (x :_# A) -> B
+  := \ (x :_# A) -> f (mod _# x)
