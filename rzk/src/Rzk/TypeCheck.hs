@@ -1401,12 +1401,20 @@ endSection errs = askCurrentScope >>= scopeToDecls errs
 
 scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
 scopeToDecls errs ScopeInfo{..} = do
-  (decls, errs') <- collectScopeDecls errs [] scopeVars
+  -- In lenient (hole-checking) mode an as-yet-unfilled hole may still come to
+  -- use a declared variable, so we tolerate the unused-variable diagnostics
+  -- wherever such a hole is present: a hole anywhere in the section for an
+  -- unused section assumption, a hole in the declaration itself for an unused
+  -- 'uses' variable. Strict mode (the default, and CI) keeps reporting both.
+  lenient <- not <$> asks holesAreErrors
+  let sectionHasHole = any (maybe False containsHole . varValue . snd) scopeVars
+  (decls, errs') <- collectScopeDecls (lenient && sectionHasHole) errs [] scopeVars
   -- only issue unused variable errors if there were no errors prior in the section
   -- when (null errs) $ do
   unusedErrors <- forM decls $ \Decl{..} -> do
     let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
-    if null errs && not (null unusedUsedVars)
+        declHasHole    = maybe False containsHole declValue
+    if null errs && not (null unusedUsedVars) && not (lenient && declHasHole)
       then do
         err <- local (\c -> c { location = declLocation }) $
           fromTypeError (TypeErrorUnusedUsedVariables unusedUsedVars declName)
@@ -1480,21 +1488,21 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
       }
     xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
 
-collectScopeDecls :: Eq var => [TypeErrorInScopedContext var] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
-collectScopeDecls errs recentVars (decl@(var, VarInfo{..}) : vars)
+collectScopeDecls :: Eq var => Bool -> [TypeErrorInScopedContext var] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
+collectScopeDecls tolerateUnused errs recentVars (decl@(var, VarInfo{..}) : vars)
   | varIsAssumption = do
       (used, recentVars') <- makeAssumptionExplicit decl recentVars
       -- only issue unused vars error if there were no other errors previously
       -- when (null errs) $ do
       unusedErr <-
-        if null errs && not used
+        if null errs && not used && not tolerateUnused
           then local (\c -> c { location = varLocation }) $
             pure <$> fromTypeError (TypeErrorUnusedVariable var varType)
           else return []
-      collectScopeDecls (errs <> unusedErr) recentVars' vars
+      collectScopeDecls tolerateUnused (errs <> unusedErr) recentVars' vars
   | otherwise = do
-      collectScopeDecls errs (decl : recentVars) vars
-collectScopeDecls errs recentVars [] = do
+      collectScopeDecls tolerateUnused errs (decl : recentVars) vars
+collectScopeDecls _ errs recentVars [] = do
   loc <- asks location
   return (toDecl loc <$> recentVars, errs)
   where

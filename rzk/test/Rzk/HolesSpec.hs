@@ -10,6 +10,7 @@ import           Data.List           (isInfixOf)
 import qualified Data.Text           as T
 
 import qualified Language.Rzk.Syntax as Rzk
+import           Rzk.Diagnostic      (typeErrorTagInScopedContext)
 import           Rzk.TypeCheck
 
 import           Test.Hspec
@@ -26,6 +27,17 @@ holesOf src =
 
 names :: [HoleEntry] -> [String]
 names = map (show . holeEntryName)
+
+-- | Parse and typecheck a module in lenient hole mode, returning the
+-- constructor tags of the collected (non-fatal) type errors. Used to assert
+-- which diagnostics fire without depending on their rendered text.
+errTagsOf :: T.Text -> [String]
+errTagsOf src =
+  case Rzk.parseModule src of
+    Left err -> error ("parse error: " <> T.unpack err)
+    Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
+      Left err           -> [typeErrorTagInScopedContext err]
+      Right (_, errs, _) -> map typeErrorTagInScopedContext errs
 
 spec :: Spec
 spec = do
@@ -312,3 +324,31 @@ spec = do
           show (holeGoal h) `shouldBe` "TOPE"
           intros h `shouldBe` ["⊤", "⊥", "? ≡ ?", "? ≤ ?", "? ∧ ?", "? ∨ ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  -- In lenient (hole-checking) mode a partial proof should still typecheck even
+  -- when it has not yet applied a declared variable: the unfilled hole may be
+  -- where that variable will eventually be used. We tolerate the unused-variable
+  -- diagnostics only while such a hole is present; strict mode (the YAML
+  -- ill-unused-* fixtures) still reports them.
+  describe "unused-variable diagnostics tolerated in lenient hole mode" $ do
+    let section body = "#lang rzk-1\n#section sec\n#variable A : U\n"
+                    <> "#variable unused-var : A\n" <> body <> "\n#end sec\n"
+
+    it "tolerates an unused section assumption when the section has a hole" $
+      errTagsOf (section "#define only-type : U\n  := ?")
+        `shouldNotContain` ["TypeErrorUnusedVariable"]
+
+    it "still reports an unused section assumption with no hole present" $
+      errTagsOf (section "#define only-type : U\n  := A")
+        `shouldContain` ["TypeErrorUnusedVariable"]
+
+    let usesSection body = "#lang rzk-1\n#section sec\n#variable A : U\n"
+                        <> "#variable x : A\n" <> body <> "\n#end sec\n"
+
+    it "tolerates an unused 'uses' variable when the declaration has a hole" $
+      errTagsOf (usesSection "#define f uses (x) : U\n  := ?")
+        `shouldNotContain` ["TypeErrorUnusedUsedVariables"]
+
+    it "still reports an unused 'uses' variable with no hole in the declaration" $
+      errTagsOf (usesSection "#define f uses (x) : U\n  := A")
+        `shouldContain` ["TypeErrorUnusedUsedVariables"]
