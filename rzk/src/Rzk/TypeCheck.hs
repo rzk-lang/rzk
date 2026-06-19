@@ -778,11 +778,11 @@ eliminatorsOf ty =
           cBody  = mkHole universeT
           cInner = lambdaT (typeFunT (BinderVar Nothing) Id
                               (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT)
-                     (BinderVar (Just (fromString "q"))) Id Nothing cBody
+                     (BinderVar (Just (fromString "q"))) Nothing cBody
           cType  = typeFunT (BinderVar Nothing) Id tA Nothing $
                      typeFunT (BinderVar Nothing) Id
                        (typeIdT (S <$> a) (Just (S <$> tA)) (Pure Z)) Nothing universeT
-          c      = lambdaT cType (BinderVar (Just (fromString "b"))) Id Nothing cInner
+          c      = lambdaT cType (BinderVar (Just (fromString "b"))) Nothing cInner
           dType  = appT universeT
                      (appT (typeFunT (BinderVar Nothing) Id (typeIdT a (Just tA) a) Nothing universeT) c a)
                      (reflT (typeIdT a (Just tA) a) Nothing)
@@ -857,7 +857,7 @@ allIntroductionsOf target = do
   target' <- stripTypeRestrictions <$> whnfT target
   case target' of
     TypeFunT _ty orig _md param _mtope ret ->
-      pure [ lambdaT target' (destructuringBinder orig param) _md Nothing (mkHole ret) ]
+      pure [ lambdaT target' (destructuringBinder orig param) Nothing (mkHole ret) ]
     TypeSigmaT _ty _orig _md a b ->
       let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
     CubeProductT _ty a b ->
@@ -1476,7 +1476,7 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
     xType' = typeFunT (varOrig aInfo) Id (varType aInfo) Nothing (abstract a (varType xInfo))
     xInfo' = VarInfo
       { varType = xType'
-      , varValue = fmap (lambdaT xType' (varOrig aInfo) Id Nothing . abstract a) (varValue xInfo)
+      , varValue = fmap (lambdaT xType' (varOrig aInfo) Nothing . abstract a) (varValue xInfo)
       , varIsAssumption = varIsAssumption xInfo
       , varIsTopLevel = varIsTopLevel xInfo
       , varModality = Id
@@ -1520,7 +1520,7 @@ abstractAssumption :: Eq var => (var, VarInfo var) -> Decl var -> Decl var
 abstractAssumption (var, VarInfo{..}) Decl{..} = Decl
   { declName = declName
   , declType = typeFunT varOrig Id varType Nothing (abstract var declType)
-  , declValue = (\body -> lambdaT newDeclType varOrig Id Nothing (abstract var body)) <$> declValue
+  , declValue = (\body -> lambdaT newDeclType varOrig Nothing (abstract var body)) <$> declValue
   , declIsAssumption = declIsAssumption
   , declUsedVars = declUsedVars
   , declLocation = declLocation
@@ -2299,7 +2299,7 @@ etaExpand term = do
   ty <- typeOf term
   case stripTypeRestrictions ty of
     TypeFunT _ty orig md param mtope ret -> pure $
-      lambdaT ty orig md (Just (param, mtope))
+      lambdaT ty orig (Just (md, param, mtope))
         (appT ret (S <$> term) (Pure Z))
 
     TypeSigmaT _ty _orig _md a b -> pure $
@@ -2448,7 +2448,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
               AppT ty f x ->
                 whnfT f >>= \case
-                  LambdaT _ty _orig md _arg body -> do
+                  LambdaT _ty _orig arg body -> do
+                    let md = maybe Id (\(m, _, _) -> m) arg
                     x' <- enterModality md $ whnfT x
                     whnfT (substituteT x' body)
                   f' -> typeOf f' >>= \case
@@ -2708,7 +2709,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
 
   AppT ty f x ->
     nfTope f >>= \case
-      LambdaT _ty _orig md _arg body -> do
+      LambdaT _ty _orig arg body -> do
+        let md = maybe Id (\(m, _, _) -> m) arg
         x' <- enterModality md $ nfTope x
         nfTope (substituteT x' body)
       f' -> typeOfUncomputed f' >>= \case
@@ -2729,10 +2731,10 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       PairT _ty _x y -> pure y
       t'             -> pure (SecondT ty t')
 
-  LambdaT ty orig md _mparam body
-    | TypeFunT _ty _origF _md param mtope _ret <- infoType ty -> do
+  LambdaT ty orig _mparam body
+    | TypeFunT _ty _origF md param mtope _ret <- infoType ty -> do
         param' <- enterModality md $ nfTope param
-        LambdaT ty orig md (Just (param', mtope)) <$> enterScope orig md param' (nfTope body)
+        LambdaT ty orig (Just (md, param', mtope)) <$> enterScope orig md param' (nfTope body)
   LambdaT{} -> panicImpossible "lambda with a non-function type in the tope layer"
   ModAppT ty md b ->
     (enterModality md $ nfTope b) >>= \case
@@ -2839,7 +2841,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 TypeFunT ty orig md param' mtope' <$> nfT ret
           AppT ty f x ->
             whnfT f >>= \case
-              LambdaT _ty _orig md _arg body -> do
+              LambdaT _ty _orig arg body -> do
+                let md = maybe Id (\(m, _, _) -> m) arg
                 x' <- enterModality md $ nfT x
                 nfT (substituteT x' body)
               f' -> typeOf f' >>= \case
@@ -2868,14 +2871,14 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 val' <- enterModality app $ nfT b'
                 body' <- enterScope orig (comp app inn) bty $ nfT body
                 pure (LetModT ty orig app inn mparam val' body')
-          LambdaT ty orig md _mparam body -> do
+          LambdaT ty orig _mparam body -> do
             case stripTypeRestrictions (infoType ty) of
-              TypeFunT _ty _orig _md param mtope _ret -> do
+              TypeFunT _ty _orig md param mtope _ret -> do
                 param' <- enterModality md $ nfT param
                 enterScope orig md param' $ do
                   mtope' <- traverse nfT mtope
                   maybe id localTope mtope' $
-                    LambdaT ty orig md (Just (param', mtope')) <$> nfT body
+                    LambdaT ty orig (Just (md, param', mtope')) <$> nfT body
               _ -> panicImpossible "lambda with a non-function type"
 
 
@@ -3199,15 +3202,15 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                             unify Nothing x x'
                         _ -> err
 
-                    LambdaT ty _orig md _mparam body ->
+                    LambdaT ty _orig _mparam body ->
                       case stripTypeRestrictions (infoType ty) of
-                        TypeFunT _ty _origF _md param mtope _ret ->
+                        TypeFunT _ty _origF md param mtope _ret ->
                           case actual' of
-                            LambdaT ty' orig' md' _mparam' body' -> do
-                              when (md /= md') $
-                                issueTypeError (TypeErrorOther $ "modality mismatch in lambda: expected " <> show md <> " but got " <> show md')
+                            LambdaT ty' orig' _mparam' body' ->
                               case stripTypeRestrictions (infoType ty') of
-                                TypeFunT _ty' _origF' _md param' mtope' _ret' -> do
+                                TypeFunT _ty' _origF' md' param' mtope' _ret' -> do
+                                  when (md /= md') $
+                                    issueTypeError (TypeErrorOther $ "modality mismatch in lambda: expected " <> show md <> " but got " <> show md')
                                   unify Nothing param param' -- we (should) have already checked this in types!
                                   enterScope orig' md param $ do
                                     case (mtope, mtope') of
@@ -3524,13 +3527,12 @@ typeRestrictedT ty rs = t
 lambdaT
   :: TermT var
   -> Binder
-  -> TModality
-  -> Maybe (TermT var, Maybe (Scope TermT var))
+  -> Maybe (TModality, TermT var, Maybe (Scope TermT var))
   -> Scope TermT var
   -> TermT var
-lambdaT ty orig md mparam body = t
+lambdaT ty orig mparam body = t
   where
-    t = LambdaT info orig md mparam body
+    t = LambdaT info orig mparam body
     info = TypeInfo
       { infoType  = ty
       , infoNF    = Nothing
@@ -3759,12 +3761,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       return term'    -- FIXME: correct?
 
     ty' -> case term of
-      Lambda orig md mparam body ->
+      Lambda orig mparam body ->
         case ty' of
           TypeFunT _ty _orig' md' param' mtope' ret -> do
             case mparam of
               Nothing -> return ()
-              Just (param, Nothing) -> do
+              Just (md, param, Nothing) -> do
                 when (md /= md') $
                   issueTypeError (TypeErrorModalityMismatch md' md term)
                 (paramType, mtope) <- do
@@ -3781,7 +3783,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                 mapM_ checkNameShadowing (binderLeaves orig)
                 enterScope orig md param' $ do
                   mapM_ (unifyTerms (fromMaybe topeTopT mtope')) mtope
-              Just (param, mtope) -> do
+              Just (md, param, mtope) -> do
                 when (md /= md') $
                   issueTypeError (TypeErrorModalityMismatch md' md term)
                 param'' <- enterModality md $ typecheck param =<< typeOf param'
@@ -3795,7 +3797,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             enterScope orig md' param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
-                return (lambdaT ty' orig md' (Just (param', mtope')) body')
+                return (lambdaT ty' orig (Just (md', param', mtope')) body')
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
       Let orig annot val body -> do
@@ -4138,9 +4140,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
             return result
       ty -> issueTypeError $ TypeErrorNotFunction f' ty
 
-  Lambda _orig _md Nothing _body -> do
+  Lambda _orig Nothing _body -> do
     issueTypeError $ TypeErrorCannotInferBareLambda tt
-  Lambda orig md (Just (ty, Nothing)) body -> do
+  Lambda orig (Just (md, ty, Nothing)) body -> do
     ty' <- enterModality md $ infer ty
     mtope <- typeOf ty' >>= \case
       -- an argument can be a type
@@ -4164,15 +4166,15 @@ infer tt = performing (ActionInfer tt) $ case tt of
       maybe id localTope mtope $ do
         body' <- infer body
         ret <- typeOf body'
-        return (lambdaT (typeFunT orig md ty' mtope ret) orig md (Just (ty', mtope)) body')
-  Lambda orig md (Just (cube, Just tope)) body -> do
+        return (lambdaT (typeFunT orig md ty' mtope ret) orig (Just (md, ty', mtope)) body')
+  Lambda orig (Just (md, cube, Just tope)) body -> do
     cube' <- enterModality md $ typecheck cube cubeT
     mapM_ checkNameShadowing (binderLeaves orig)
     enterScope orig md cube' $ do
       tope' <- infer tope
       body' <- localTope tope' $ infer body
       ret <- typeOf body'
-      return (lambdaT (typeFunT orig md cube' (Just tope') ret) orig md (Just (cube', Just tope')) body')
+      return (lambdaT (typeFunT orig md cube' (Just tope') ret) orig (Just (md, cube', Just tope')) body')
   Let orig annot val body -> do
     val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> infer val
@@ -4577,14 +4579,14 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
                 renderTermSVGFor mainColor (accDim + dim)
                   (join' (both (fmap S) <$> mp) (S <$> arg) (Pure Z), Z : map S xs) $
                     case t' of
-                      LambdaT _ _orig _md _marg body -> body
+                      LambdaT _ _orig _marg body -> body
                       _                          -> appT ret (S <$> t') (Pure Z)
           | null xs -> enterScope orig md arg $ do
               maybe id localTope mtope $
                 renderTermSVGFor mainColor accDim
                   (both (fmap S) <$> mp, map S xs) $
                     case t' of
-                      LambdaT _ _orig _md _marg body -> body
+                      LambdaT _ _orig _marg body -> body
                       _                          -> appT ret (S <$> t') (Pure Z)
         _ -> traverse (\(p', _) -> renderForSVG mainColor accDim p' t') mp
   where
@@ -4613,7 +4615,7 @@ renderTermSVG' :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
   TypeFunT _ orig md arg mtope ret -> enterScope orig md arg $ do
     maybe id localTope mtope $ case t' of
-      LambdaT _ _orig _md _marg (AppT _info f x) ->
+      LambdaT _ _orig _marg (AppT _info f x) ->
         typeOf f >>= \case
           TypeFunT _ fOrig md2 fArg mtope2 _ret | Just dim <- dimOf fArg -> do
             enterScope fOrig md2 fArg $ do

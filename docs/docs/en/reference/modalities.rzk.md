@@ -114,7 +114,7 @@ Using `#!rzk let mod` you can define the modal сomposition \(\langle \mu | \lan
 ```
 ## Modal bindings
 
-Modal parameter annotations `#!rzk (x :µ A)` are syntactic sugar that makes definitions look less verbose than the raw `#!rzk let mod` form. A parameter `#!rzk (x :_b A) -> ...` desugars to `#!rzk (_a : _b A) → let mod _b x := _a in …`. This sugar is available in `#!rzk λ`-abstractions, `#!rzk Π`- and `#!rzk Σ`-types, and definition argument lists.
+Modal parameter annotations `#!rzk (x :µ A)` bind the variable `#!rzk x` directly under modality `#!rzk µ` with type `#!rzk A`. This is a first-class modal binding — the variable `#!rzk x` is accessible according to the coercion rules of `#!rzk µ`. Modal bindings are available in `#!rzk λ`-abstractions, `#!rzk Π`- and `#!rzk Σ`-types, and definition argument lists.
 
 For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are much cleaner than the explicit `#!rzk let mod` version shown above:
 
