@@ -756,7 +756,7 @@ fromTermWith' used vars = go
         Rzk.Lambda loc [Rzk.ParamPatternType loc [binderToPattern z'] (go ty)] (fromScopeBinder' z' x used xs scope)
       Lambda z Id (Just (cube, Just tope)) scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Lambda loc [Rzk.ParamPatternShape loc [binderToPattern z'] (go cube) (fromScopeBinder' z' x used xs tope)] (fromScopeBinder' z' x used xs scope)
-      Lambda z md Nothing scope -> withFreshBinder z $ \(x, z', xs) ->
+      Lambda z _md Nothing scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Lambda loc [Rzk.ParamPattern loc (binderToPattern z')] (fromScopeBinder' z' x used xs scope)
       Lambda z md (Just (ty, Nothing)) scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Lambda loc [Rzk.ParamPatternModalType loc [binderToPattern z'] (fromTModalityToModalColon md) (go ty)] (fromScopeBinder' z' x used xs scope)
