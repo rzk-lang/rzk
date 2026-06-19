@@ -851,12 +851,18 @@ destructuringBinder orig param = case orig of
 -- constructor. Outer type restrictions are stripped first, so an extension type
 -- is introduced by the form of its underlying type (its boundary is met by later
 -- refinement of the holes, not by the choice of constructor).
-allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
-allIntroductionsOf target = do
+--
+-- The λ binder of a Π-introduction is freshened against @inScope@ (the names
+-- already visible at the hole), so introducing over a type whose own definition
+-- reuses an in-scope name (e.g. @hom@, whose internal binder is @t@) yields
+-- @\\ t₁ -> ?@ rather than a @t@ that shadows the existing one.
+allIntroductionsOf :: Eq var => TermT var -> [VarIdent] -> TypeCheck var [TermT var]
+allIntroductionsOf target inScope = do
   target' <- stripTypeRestrictions <$> whnfT target
   case target' of
     TypeFunT _ty orig param _mtope ret ->
-      pure [ lambdaT target' (destructuringBinder orig param) Nothing (mkHole ret) ]
+      let binder = freshenBinderLeaves inScope (destructuringBinder orig param)
+       in pure [ lambdaT target' binder Nothing (mkHole ret) ]
     TypeSigmaT _ty _orig a b ->
       let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
     CubeProductT _ty a b ->
@@ -990,8 +996,6 @@ recordHoleShape mname goalTy mshape = do
     recbot <- recBottomCandidates
     recor  <- recOrCandidates goalTy
     pure (elims <> recbot <> recor)
-  -- the introduction forms for the goal itself (constituents left as holes).
-  introductions <- censor (const []) (allIntroductionsOf goalTy)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
@@ -1009,6 +1013,14 @@ recordHoleShape mname goalTy mshape = do
       nameInc Z     = shapeBinder
       nameInc (S v) = name v
       goalShape = (\t -> (shapeBinder, untyped (nameInc <$> t))) <$> shapeTope
+      -- names already visible at the hole, which an introduced binder must not
+      -- shadow: each local hypothesis by its display name, or the leaves of a
+      -- pattern hypothesis.
+      inScopeNames = [ nm | (v, _) <- locals
+                          , nm <- maybe [name v] binderLeaves (lookup v fbs) ]
+  -- the introduction forms for the goal itself (constituents left as holes); the
+  -- Π binder is freshened against 'inScopeNames' so it does not shadow.
+  introductions <- censor (const []) (allIntroductionsOf goalTy inScopeNames)
   lift $ tell
     [ HoleInfo
         { holeName      = mname
