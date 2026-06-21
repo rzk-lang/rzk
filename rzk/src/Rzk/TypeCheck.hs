@@ -3844,10 +3844,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
         sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
         contextEntailsUnion (map fst rs')
         return (recOrT ty' rs')
+      -- A neutral term is inferred, then its type unified with the expected
+      -- one. In lenient (hole-checking) mode a term that still carries an
+      -- unfilled hole is a work in progress, so a failure of that final
+      -- unification is tolerated: the holes recorded while inferring the term
+      -- stand (they were committed before this point), and we accept the term
+      -- rather than rejecting the whole sketch. The mismatch is typically
+      -- incidental to the missing pieces — e.g. an extension-type boundary face
+      -- that only fails to line up because an argument hole sits in the wrong
+      -- place (`f t` vs `x`), where neither side is itself a hole, so the
+      -- per-term deferral in 'unifyInCurrentContext' cannot see it. Strict mode
+      -- (the default, and CI) still rejects the mismatch.
       _ -> do
         term' <- infer term
         inferredType <- typeOf term'
-        unifyTypes term' ty' inferredType
+        lenient <- not <$> asks holesAreErrors
+        if lenient && containsHole term'
+          then unifyTypes term' ty' inferredType `catchError` \_ -> return ()
+          else unifyTypes term' ty' inferredType
         return term'
 
 inferAs :: Eq var => TermT var -> Term var -> TypeCheck var (TermT var)
