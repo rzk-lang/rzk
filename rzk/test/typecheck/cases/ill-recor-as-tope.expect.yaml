@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "recOR cannot be used as a tope"
+regression_for:
+  - recOR-in-tope-layer-panic

@@ -7,9 +7,14 @@
 module Rzk.HolesSpec (spec) where
 
 import           Data.List           (isInfixOf)
+import           Data.Maybe          (fromMaybe)
 import qualified Data.Text           as T
+import qualified Data.Text.IO        as T (readFile)
+import           System.Environment  (lookupEnv)
+import           System.FilePath     ((</>))
 
 import qualified Language.Rzk.Syntax as Rzk
+import           Rzk.Diagnostic      (typeErrorTagInScopedContext)
 import           Rzk.TypeCheck
 
 import           Test.Hspec
@@ -26,6 +31,30 @@ holesOf src =
 
 names :: [HoleEntry] -> [String]
 names = map (show . holeEntryName)
+
+-- | Parse and typecheck a module in lenient hole mode, returning the
+-- constructor tags of the collected (non-fatal) type errors. Used to assert
+-- which diagnostics fire without depending on their rendered text.
+errTagsOf :: T.Text -> [String]
+errTagsOf src =
+  case Rzk.parseModule src of
+    Left err -> error ("parse error: " <> T.unpack err)
+    Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
+      Left err           -> [typeErrorTagInScopedContext err]
+      Right (_, errs, _) -> map typeErrorTagInScopedContext errs
+
+-- | Like 'holesOf'/'errTagsOf', but reads a module from @test/files/@ (so a
+-- large example need not be inlined). Honours @RZK_TEST_ROOT@ like the other
+-- specs. Returns the recorded holes and the collected error tags.
+checkFile :: FilePath -> IO ([HoleInfo], [String])
+checkFile name = do
+  root <- fromMaybe "." <$> lookupEnv "RZK_TEST_ROOT"
+  src  <- T.readFile (root </> "test" </> "files" </> name)
+  case Rzk.parseModule src of
+    Left err -> error ("parse error: " <> T.unpack err)
+    Right m  -> case typecheckModulesWithHoles [(name, m)] of
+      Left err           -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
+      Right (_, errs, hs) -> pure (hs, map typeErrorTagInScopedContext errs)
 
 spec :: Spec
 spec = do
@@ -75,6 +104,23 @@ spec = do
           map show (holeTopes h2) `shouldContain` ["s ≤ t"]
         hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
 
+    -- When the recOR is checked against an /extension type/, each branch hole
+    -- reports the boundary it must meet under its tope (the restriction is
+    -- pushed into the branches), rather than the bare underlying type. So the
+    -- player sees, e.g., that the value must equal `f t` on `s ≡ 0₂` and `a` on
+    -- `s ≡ 1₂`, not just `A`.
+    it "shows the extension-type boundary in a recOR branch hole" $ do
+      case holesOf "#lang rzk-1\n#def square (A : U) (a : A) (f : (t : 2) → A)\n  : (t : 2) → (s : 2) → A [ s ≡ 0₂ ↦ f t , s ≡ 1₂ ↦ a ]\n  := \\ t s → recOR ( s ≤ t ↦ ? , t ≤ s ↦ ? )\n" of
+        [h1, h2] -> do
+          let goal1 = show (holeGoal h1)
+          ("A [" `isInfixOf` goal1) `shouldBe` True   -- a restricted type, not bare A
+          ("↦ f t" `isInfixOf` goal1) `shouldBe` True -- the s ≡ 0₂ face is shown
+          ("↦ a" `isInfixOf` goal1) `shouldBe` True   -- the s ≡ 1₂ face is shown
+          map show (holeTopes h1) `shouldContain` ["s ≤ t"]
+          show (holeGoal h2) `shouldBe` goal1          -- both branches carry the same boundary
+          map show (holeTopes h2) `shouldContain` ["t ≤ s"]
+        hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
+
     -- A hole nested inside a larger term (`f ?`) checked against an
     -- extension-type boundary: the boundary face is unified against `f ?`, which
     -- must be deferred rather than reported as a mismatch.
@@ -82,6 +128,22 @@ spec = do
       case holesOf "#lang rzk-1\n#define t : (A : U) -> (f : A -> A) -> (a : A) -> (t : 2) -> A [ t === 0_2 |-> a ]\n  := \\ A f a t -> f ?\n" of
         [h] -> show (holeGoal h) `shouldBe` "A"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A genuinely completable work-in-progress term is tolerated. The example
+    -- (the Yoneda game's square-transformation level) feeds an incomplete
+    -- `codomain-square A is-segal-A a b (f ?) ? ? ? ?` where a value of
+    -- `hom A (f t) a` is wanted. Inferring it records the holes, but the final
+    -- check of its type then unifies two extension-type boundaries, and a
+    -- *hole-free* face comparison fails — so the existing per-term deferral
+    -- cannot see that a hole is involved, and the whole def was rejected with
+    -- TypeErrorUnifyTerms. We now tolerate it and keep the recorded holes. The
+    -- companion `…-complete` definition fills the holes and typechecks, so the
+    -- holes really can be filled to make the same term check (it is not a dead
+    -- end). See test/files/holes-wip-square.rzk.
+    it "tolerates a completable WIP term whose type only fails around a hole" $ do
+      (holes, errs) <- checkFile "holes-wip-square.rzk"
+      errs `shouldBe` []          -- the WIP def is tolerated, the complete one checks
+      length holes `shouldBe` 5   -- the five holes of square-transformation-wip
 
     -- A hole used as the argument of a shape-restricted function: the
     -- shape-membership tope (psi ?) mentions the hole and cannot be decided, so
@@ -230,6 +292,21 @@ spec = do
         hs | (h:_) <- reverse hs -> cands h `shouldContain` ["recOR (? ↦ ?, ? ↦ ?)"]
         _ -> expectationFailure "expected at least one hole"
 
+    -- recOR and recBOT are term-level eliminators, so a hole whose goal is a cube
+    -- point or a tope is never offered them — even in a setting (a cube variable
+    -- in scope) that does offer a recOR split for a term goal.
+    let recCands = filter (\s -> isInfixOf "recOR" s || isInfixOf "recBOT" s) . cands
+    it "does not offer recOR/recBOT for a cube goal" $
+      -- `?` is a cube point (goal `2`) fed to a shape function, with a cube
+      -- variable `s` in scope (which would offer a recOR split for a term goal).
+      case holesOf "#lang rzk-1\n#def c (A : U) (s : 2) (g : (t : 2) -> A) : A := g ?\n" of
+        [h] -> recCands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+    it "does not offer recOR/recBOT for a tope goal" $
+      case holesOf "#lang rzk-1\n#def p (A : U) (t : 2) : TOPE := ?\n" of
+        [h] -> recCands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- An ordinary, tope-free goal offers no recOR split.
     it "offers no recOR split for a tope-free goal" $ do
       case holesOf "#lang rzk-1\n#def plain (A : U) (a : A) : A := ?\n" of
@@ -251,6 +328,15 @@ spec = do
     it "introduces a function goal as a λ with a hole body" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> ((n : A) -> A)\n  := \\ A -> ?\n" of
         [h] -> intros h `shouldBe` ["\\ n → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The λ binder is freshened so it does not shadow a name already in scope.
+    -- Here the goal unfolds to `(t : 2) -> A`, whose binder `t` (taken from
+    -- `endo`'s definition, mirroring `hom`) clashes with the in-scope cube
+    -- variable `t`; the introduction binds `t₁` instead of a shadowing `t`.
+    it "freshens the λ binder so it does not shadow an in-scope name" $ do
+      case holesOf "#lang rzk-1\n#define endo : U -> U\n  := \\ A -> (t : 2) -> A\n#define f : (A : U) -> (t : 2) -> endo A\n  := \\ A t -> ?\n" of
+        [h] -> intros h `shouldBe` ["\\ t₁ → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- A named pattern domain (e.g. a cube point) keeps its pattern, so the λ
@@ -311,4 +397,57 @@ spec = do
         [h] -> do
           show (holeGoal h) `shouldBe` "TOPE"
           intros h `shouldBe` ["⊤", "⊥", "? ≡ ?", "? ≤ ?", "? ∧ ?", "? ∨ ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  -- In lenient (hole-checking) mode a partial proof should still typecheck even
+  -- when it has not yet applied a declared variable: the unfilled hole may be
+  -- where that variable will eventually be used. We tolerate the unused-variable
+  -- diagnostics only while such a hole is present; strict mode (the YAML
+  -- ill-unused-* fixtures) still reports them.
+  describe "unused-variable diagnostics tolerated in lenient hole mode" $ do
+    let section body = "#lang rzk-1\n#section sec\n#variable A : U\n"
+                    <> "#variable unused-var : A\n" <> body <> "\n#end sec\n"
+
+    it "tolerates an unused section assumption when the section has a hole" $
+      errTagsOf (section "#define only-type : U\n  := ?")
+        `shouldNotContain` ["TypeErrorUnusedVariable"]
+
+    it "still reports an unused section assumption with no hole present" $
+      errTagsOf (section "#define only-type : U\n  := A")
+        `shouldContain` ["TypeErrorUnusedVariable"]
+
+    let usesSection body = "#lang rzk-1\n#section sec\n#variable A : U\n"
+                        <> "#variable x : A\n" <> body <> "\n#end sec\n"
+
+    it "tolerates an unused 'uses' variable when the declaration has a hole" $
+      errTagsOf (usesSection "#define f uses (x) : U\n  := ?")
+        `shouldNotContain` ["TypeErrorUnusedUsedVariables"]
+
+    it "still reports an unused 'uses' variable with no hole in the declaration" $
+      errTagsOf (usesSection "#define f uses (x) : U\n  := A")
+        `shouldContain` ["TypeErrorUnusedUsedVariables"]
+
+  -- The goal cell: when the goal is a renderable shape, the hole carries an SVG
+  -- of that shape, drawn from an abstract inhabitant with the proof term hidden
+  -- (see 'renderHideTerm'). So the picture shows the given boundary edges with a
+  -- blank interior, never the term that would fill it.
+  describe "holeDiagram (goal-cell SVG)" $ do
+    it "renders a shape goal as a labelled, term-free SVG" $ do
+      let src = "#lang rzk-1\n\
+                \#def sq (A : U) (a : A) : U\n\
+                \  := ((t , s) : 2 * 2) -> A [ t === 0_2 |-> a , t === 1_2 |-> a , s === 0_2 |-> a , s === 1_2 |-> a ]\n\
+                \#def fill (A : U) (a : A) : sq A a := ?\n"
+      case holesOf src of
+        [h] -> case holeDiagram h of
+          Just svg -> do
+            ("<svg" `isInfixOf` svg)            `shouldBe` True
+            ("<path" `isInfixOf` svg)           `shouldBe` True  -- a 2-cell (square), not just an arrow
+            (">a</text>" `isInfixOf` svg)       `shouldBe` True  -- the given boundary edge `a`
+            ("<title></title>" `isInfixOf` svg) `shouldBe` True  -- titles blanked: no proof term
+          Nothing -> expectationFailure "expected a goal-cell diagram for a shape goal"
+        hs -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "has no diagram for a non-shape goal" $
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
+        [h] -> holeDiagram h `shouldBe` Nothing
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

@@ -1,0 +1,79 @@
+#lang rzk-1
+
+-- A work-in-progress proof that exercises lenient hole-checking. The Segal
+-- prelude below is the standard sHoTT one (as used in the Yoneda game). The
+-- two square-transformation definitions share the same goal:
+--
+--   * `wip` leaves the codomain-square arguments as holes and is therefore
+--     incomplete. Inferring it records the holes, but the final check of its
+--     type against the expected `hom A (f t) a` then unifies two extension-type
+--     boundaries and a *hole-free* face comparison fails. In strict mode this is
+--     an error; in lenient mode we tolerate it and keep the recorded holes.
+--
+--   * `complete` fills those holes (the start hole with `0₂`, since `f 0₂ ≡ x`,
+--     and then `y f v t`). It typechecks, so `wip` is genuinely completable:
+--     the holes can be filled to make the same term typecheck.
+
+#def Δ¹
+  : 2 → TOPE
+  := \ t → TOP
+#def Δ²
+  : ( 2 × 2) → TOPE
+  := \ (t , s) → s ≤ t
+#def hom (A : U) (x y : A)
+  : U
+  := (t : Δ¹) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ]
+#def id-hom (A : U) (x : A)
+  : hom A x x
+  := \ t → x
+#def hom2 (A : U) (x y z : A)
+  ( f : hom A x y) (g : hom A y z) (h : hom A x z)
+  : U
+  := ((t , s) : Δ²) → A [ s ≡ 0₂ ↦ f t , t ≡ 1₂ ↦ g s , s ≡ t ↦ h s ]
+#def is-contr (A : U)
+  : U
+  := Σ (x : A) , ((y : A) → x = y)
+#def is-segal (A : U)
+  : U
+  := (x : A) → (y : A) → (z : A) → (f : hom A x y) → (g : hom A y z)
+   → is-contr (Σ (h : hom A x z) , hom2 A x y z f g h)
+#def comp-is-segal
+  ( A : U) (is-segal-A : is-segal A) (x y z : A)
+  ( f : hom A x y) (g : hom A y z)
+  : hom A x z
+  := first (first (is-segal-A x y z f g))
+#def witness-comp-is-segal
+  ( A : U) (is-segal-A : is-segal A) (x y z : A)
+  ( f : hom A x y) (g : hom A y z)
+  : hom2 A x y z f g (comp-is-segal A is-segal-A x y z f g)
+  := second (first (is-segal-A x y z f g))
+#def comp-id-witness (A : U) (x y : A) (f : hom A x y)
+  : hom2 A x y y f (id-hom A y) f
+  := \ (t , s) → f t
+#def codomain-square
+  ( A : U) (is-segal-A : is-segal A) (a b x y : A)
+  ( f : hom A x y) (v : hom A y a)
+  : ( t : Δ¹) → (s : Δ¹) → A [ t ≡ 0₂ ↦ comp-is-segal A is-segal-A x y a f v s
+                             , t ≡ 1₂ ↦ v s
+                             , s ≡ 0₂ ↦ f t
+                             , s ≡ 1₂ ↦ a ]
+  := \ t s →
+       recOR
+       ( s ≤ t ↦ (witness-comp-is-segal A is-segal-A x y a f v) (t , s)
+       , t ≤ s ↦ (comp-id-witness A x a (comp-is-segal A is-segal-A x y a f v)) (s , t))
+
+#def square-transformation-wip
+  ( A : U) (is-segal-A : is-segal A) (a : A) (b : A) (x : A) (y : A)
+  ( f : hom A x y) (v : hom A y a)
+  ( ϕ : (z : A) → hom A z a → hom A z b)
+  : ( t : Δ¹) → hom A (f t) b [ t ≡ 0₂ ↦ ϕ x (comp-is-segal A is-segal-A x y a f v)
+                              , t ≡ 1₂ ↦ ϕ y v ]
+  := \ t → ϕ (f t) (codomain-square A is-segal-A a b (f ?) ? ? ? ?)
+
+#def square-transformation-complete
+  ( A : U) (is-segal-A : is-segal A) (a : A) (b : A) (x : A) (y : A)
+  ( f : hom A x y) (v : hom A y a)
+  ( ϕ : (z : A) → hom A z a → hom A z b)
+  : ( t : Δ¹) → hom A (f t) b [ t ≡ 0₂ ↦ ϕ x (comp-is-segal A is-segal-A x y a f v)
+                              , t ≡ 1₂ ↦ ϕ y v ]
+  := \ t → ϕ (f t) (codomain-square A is-segal-A a b x y f v t)

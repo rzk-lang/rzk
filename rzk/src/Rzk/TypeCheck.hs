@@ -275,12 +275,21 @@ setOption "render" = \case
   "none"  -> localRenderBackend Nothing
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown render backend (use \"svg\", \"latex\", or \"none\")"
+-- | Render the shape only, hiding the proof term (drop the @\<title\>@
+-- everywhere and blank interior labels), so a worked term can be shown as the
+-- cell it builds without giving the term away (see 'renderHideTerm').
+setOption "render-hide-term" = \case
+  "yes" -> localHideTerm True
+  "no"  -> localHideTerm False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"render-hide-term\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 unsetOption :: String -> TypeCheck var a -> TypeCheck var a
 unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
 unsetOption "render" = localRenderBackend (renderBackend emptyContext)
+unsetOption "render-hide-term" = localHideTerm (renderHideTerm emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -675,6 +684,14 @@ isCubeType = \case
   UniverseCubeT{} -> True
   _               -> False
 
+-- | Is a (WHNF) goal type in the cube or tope layer, so a hole of this type is a
+-- cube point or a tope rather than a term? Used to suppress type-layer-specific
+-- hole candidates (@recOR@, @recBOT@), which cannot inhabit a cube or a tope.
+isCubeOrTopeType :: TermT var -> Bool
+isCubeOrTopeType t = isCubeType t || case t of
+  UniverseTopeT{} -> True
+  _               -> False
+
 -- | Is this term a hole? Holes only exist in lenient mode (see 'allowHoles');
 -- they are opaque placeholders standing for a term of the expected type.
 isHoleT :: TermT var -> Bool
@@ -852,12 +869,18 @@ destructuringBinder orig param = case orig of
 -- constructor. Outer type restrictions are stripped first, so an extension type
 -- is introduced by the form of its underlying type (its boundary is met by later
 -- refinement of the holes, not by the choice of constructor).
-allIntroductionsOf :: Eq var => TermT var -> TypeCheck var [TermT var]
-allIntroductionsOf target = do
+--
+-- The λ binder of a Π-introduction is freshened against @inScope@ (the names
+-- already visible at the hole), so introducing over a type whose own definition
+-- reuses an in-scope name (e.g. @hom@, whose internal binder is @t@) yields
+-- @\\ t₁ -> ?@ rather than a @t@ that shadows the existing one.
+allIntroductionsOf :: Eq var => TermT var -> [VarIdent] -> TypeCheck var [TermT var]
+allIntroductionsOf target inScope = do
   target' <- stripTypeRestrictions <$> whnfT target
   case target' of
     TypeFunT _ty orig _md param _mtope ret ->
-      pure [ lambdaT target' (destructuringBinder orig param) Nothing (mkHole ret) ]
+      let binder = freshenBinderLeaves inScope (destructuringBinder orig param)
+       in pure [ lambdaT target' binder Nothing (mkHole ret) ]
     TypeSigmaT _ty _orig _md a b ->
       let h = mkHole a in pure [ pairT target' h (mkHole (substituteT h b)) ]
     CubeProductT _ty a b ->
@@ -987,12 +1010,13 @@ recordHoleShape mname goalTy mshape = do
   candidates <- censor (const []) $ do
     elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals
     -- context-driven moves (independent of the goal's head and the hypotheses):
-    -- ex falso in a contradictory context, and tope case-splits.
-    recbot <- recBottomCandidates
-    recor  <- recOrCandidates goalTy
+    -- ex falso in a contradictory context, and tope case-splits. recOR and recBOT
+    -- are term-level eliminators, so they are offered only for a term goal — not
+    -- when the hole is a cube point or a tope, where they cannot appear.
+    let termLayer = not (isCubeOrTopeType goal')
+    recbot <- if termLayer then recBottomCandidates    else pure []
+    recor  <- if termLayer then recOrCandidates goalTy else pure []
     pure (elims <> recbot <> recor)
-  -- the introduction forms for the goal itself (constituents left as holes).
-  introductions <- censor (const []) (allIntroductionsOf goalTy)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
   varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
@@ -1010,6 +1034,18 @@ recordHoleShape mname goalTy mshape = do
       nameInc Z     = shapeBinder
       nameInc (S v) = name v
       goalShape = (\t -> (shapeBinder, untyped (nameInc <$> t))) <$> shapeTope
+      -- names already visible at the hole, which an introduced binder must not
+      -- shadow: each local hypothesis by its display name, or the leaves of a
+      -- pattern hypothesis.
+      inScopeNames = [ nm | (v, _) <- locals
+                          , nm <- maybe [name v] binderLeaves (lookup v fbs) ]
+  -- the introduction forms for the goal itself (constituents left as holes); the
+  -- Π binder is freshened against 'inScopeNames' so it does not shadow.
+  introductions <- censor (const []) (allIntroductionsOf goalTy inScopeNames)
+  -- the goal cell: an SVG of the shape the hole must inhabit (an arrow, triangle
+  -- or square), drawn from an abstract inhabitant with the proof term hidden.
+  -- 'Nothing' when the goal is not a renderable shape.
+  diagram <- censor (const []) (renderGoalCellSVG goal')
   lift $ tell
     [ HoleInfo
         { holeName      = mname
@@ -1020,6 +1056,7 @@ recordHoleShape mname goalTy mshape = do
         , holeTopes     = map render topes
         , holeCandidates = map render candidates
         , holeIntroductions = map render introductions
+        , holeDiagram  = diagram
         , holeLocation  = loc
         } ]
 
@@ -1157,6 +1194,14 @@ localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
 localRenderBackend :: Maybe RenderBackend -> TypeCheck var a -> TypeCheck var a
 localRenderBackend v = local $ \Context{..} -> Context { renderBackend = v, .. }
 
+-- | Run the enclosed action with the 'renderHideTerm' policy set.
+localHideTerm :: Bool -> TypeCheck var a -> TypeCheck var a
+localHideTerm v = local $ \ctx -> ctx { renderHideTerm = v }
+
+-- | Render the enclosed action with the proof term hidden (see 'renderHideTerm').
+hidingTerm :: TypeCheck var a -> TypeCheck var a
+hidingTerm = localHideTerm True
+
 data Covariance
   = Covariant     -- ^ Positive position.
   | Contravariant -- ^ Negative position.
@@ -1241,6 +1286,12 @@ data Context var = Context
   , verbosity              :: Verbosity
   , covariance             :: Covariance
   , renderBackend          :: Maybe RenderBackend
+    -- | When rendering a diagram, hide the proof term: drop the @\<title\>@
+    -- (which carries the full term) from every cell and blank the visible label
+    -- of proof-coloured (interior) cells, keeping the given boundary labels. So
+    -- a worked term or an abstract inhabitant of a goal type is shown as the
+    -- shape with its given edges, not the term that fills it.
+  , renderHideTerm     :: Bool
   , holesAreErrors         :: Bool
     -- ^ When 'True' (the default), an unfilled hole is reported as a
     -- 'TypeErrorUnsolvedHole'; finished work (and CI) must have no holes. The
@@ -1298,6 +1349,7 @@ emptyContext = Context
   , verbosity = Normal
   , covariance = Covariant
   , renderBackend = Nothing
+  , renderHideTerm = False
   , holesAreErrors = True
   , deferHoleMismatches = True
   }
@@ -1408,12 +1460,20 @@ endSection errs = askCurrentScope >>= scopeToDecls errs
 
 scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
 scopeToDecls errs ScopeInfo{..} = do
-  (decls, errs') <- collectScopeDecls errs [] scopeVars
+  -- In lenient (hole-checking) mode an as-yet-unfilled hole may still come to
+  -- use a declared variable, so we tolerate the unused-variable diagnostics
+  -- wherever such a hole is present: a hole anywhere in the section for an
+  -- unused section assumption, a hole in the declaration itself for an unused
+  -- 'uses' variable. Strict mode (the default, and CI) keeps reporting both.
+  lenient <- not <$> asks holesAreErrors
+  let sectionHasHole = any (maybe False containsHole . varValue . snd) scopeVars
+  (decls, errs') <- collectScopeDecls (lenient && sectionHasHole) errs [] scopeVars
   -- only issue unused variable errors if there were no errors prior in the section
   -- when (null errs) $ do
   unusedErrors <- forM decls $ \Decl{..} -> do
     let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
-    if null errs && not (null unusedUsedVars)
+        declHasHole    = maybe False containsHole declValue
+    if null errs && not (null unusedUsedVars) && not (lenient && declHasHole)
       then do
         err <- local (\c -> c { location = declLocation }) $
           fromTypeError (TypeErrorUnusedUsedVariables unusedUsedVars declName)
@@ -1487,21 +1547,21 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
       }
     xs' = map (fmap (insertExplicitAssumptionFor' a (x, xInfo))) xs
 
-collectScopeDecls :: Eq var => [TypeErrorInScopedContext var] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
-collectScopeDecls errs recentVars (decl@(var, VarInfo{..}) : vars)
+collectScopeDecls :: Eq var => Bool -> [TypeErrorInScopedContext var] -> [(var, VarInfo var)] -> [(var, VarInfo var)] -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
+collectScopeDecls tolerateUnused errs recentVars (decl@(var, VarInfo{..}) : vars)
   | varIsAssumption = do
       (used, recentVars') <- makeAssumptionExplicit decl recentVars
       -- only issue unused vars error if there were no other errors previously
       -- when (null errs) $ do
       unusedErr <-
-        if null errs && not used
+        if null errs && not used && not tolerateUnused
           then local (\c -> c { location = varLocation }) $
             pure <$> fromTypeError (TypeErrorUnusedVariable var varType)
           else return []
-      collectScopeDecls (errs <> unusedErr) recentVars' vars
+      collectScopeDecls tolerateUnused (errs <> unusedErr) recentVars' vars
   | otherwise = do
-      collectScopeDecls errs (decl : recentVars) vars
-collectScopeDecls errs recentVars [] = do
+      collectScopeDecls tolerateUnused errs (decl : recentVars) vars
+collectScopeDecls _ errs recentVars [] = do
   loc <- asks location
   return (toDecl loc <$> recentVars, errs)
   where
@@ -1701,6 +1761,11 @@ data HoleInfo = HoleInfo
     -- ^ introduction forms for the goal type, built from its head constructor
     -- with the constituents left as holes (see 'allIntroductionsOf'). Already
     -- rendered, like the other fields.
+  , holeDiagram   :: Maybe String
+    -- ^ an SVG of the goal cell, when the goal is a renderable shape (an arrow,
+    -- triangle, or square up to dimension 3): the shape with its given boundary
+    -- edges, drawn from an abstract inhabitant of the goal type with the
+    -- proof term hidden (see 'renderHideTerm'). 'Nothing' for a non-shape goal.
   , holeLocation  :: Maybe LocationInfo
   } deriving (Eq, Show)
 
@@ -2771,8 +2836,11 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
   TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
 
-  RecOrT{} -> panicImpossible "recOR in the tope layer"
-  RecBottomT{} -> panicImpossible "recBOT in the tope layer"
+  -- A recOR/recBOT is a term-level eliminator, never a tope. It should have
+  -- been rejected before reaching here (see the RecOr case of 'typecheck'); as
+  -- a safety net for any other path, report a type error rather than panicking.
+  RecOrT{} -> issueTypeError $ TypeErrorOther "a recOR cannot appear in the tope layer"
+  RecBottomT{} -> issueTypeError $ TypeErrorOther "a recBOT cannot appear in the tope layer"
 
 -- | Compute a typed term to its NF.
 --
@@ -3725,6 +3793,23 @@ modExtractT ty app inn term = t
       , infoWHNF = Nothing
       }
 
+-- | Check a @recOR@ in checking position against a known expected type: each
+-- branch is checked against that type under its guard tope, followed by the
+-- usual pairwise coherence and the coverage obligation. Passing a /restricted/
+-- type pushes the boundary into every branch, so a branch hole reports the
+-- faces it must meet (under its tope) instead of the bare underlying type.
+checkRecOrAgainst :: Eq var => TermT var -> [(Term var, Term var)] -> TypeCheck var (TermT var)
+checkRecOrAgainst expected rs = do
+  rs' <- forM rs $ \(tope, rterm) -> do
+    tope' <- typecheck tope topeT
+    checkTopeAgainstContext "recOR branch guard" tope'
+    localTope tope' $ do
+      rterm' <- typecheck rterm expected
+      return (tope', rterm')
+  sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
+  contextEntailsUnion (map fst rs')
+  return (recOrT expected rs')
+
 typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
 typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
   -- A hole is checked against a known type (this is checking position): in
@@ -3748,17 +3833,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       _ <- infer term
       return recBottomT
 
-    TypeRestrictedT _ty ty' rs -> do
-      term' <- typecheck term ty'
-      -- NOTE: restriction faces need not be contained in the local tope context.
-      -- Each face is checked only on its overlap with the context below, so an
-      -- overhanging face is harmless (we only hint); a face disjoint from the context
-      -- is vacuous, however, and is reported as an error by checkTopeAgainstContext.
-      forM_ rs $ \(tope, rterm) -> do
-        checkTopeAgainstContext "restriction face" tope
-        localTope tope $
-          unifyTerms rterm term'
-      return term'    -- FIXME: correct?
+    tr@(TypeRestrictedT _ty ty' rs) -> case term of
+      -- A recOR against a restricted type: push the restriction into each branch
+      -- instead of stripping it first, so a branch hole reports the boundary
+      -- faces it must satisfy under its guard tope, rather than the bare
+      -- underlying type. Concrete branches still meet the faces, which are
+      -- checked on each branch's overlap with them (see the general case below).
+      RecOr branches -> checkRecOrAgainst tr branches
+      _ -> do
+        term' <- typecheck term ty'
+        -- NOTE: restriction faces need not be contained in the local tope context.
+        -- Each face is checked only on its overlap with the context below, so an
+        -- overhanging face is harmless (we only hint); a face disjoint from the context
+        -- is vacuous, however, and is reported as an error by checkTopeAgainstContext.
+        forM_ rs $ \(tope, rterm) -> do
+          checkTopeAgainstContext "restriction face" tope
+          localTope tope $
+            unifyTerms rterm term'
+        return term'    -- FIXME: correct?
 
     ty' -> case term of
       Lambda orig mparam body ->
@@ -3872,20 +3964,31 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       -- expected type and recorded, rather than hitting TypeErrorCannotInferHole
       -- via the inference rule. The branch-guard, coherence, and coverage
       -- obligations mirror the inference rule (see the RecOr case of 'infer').
-      RecOr rs -> do
-        rs' <- forM rs $ \(tope, rterm) -> do
-          tope' <- typecheck tope topeT
-          checkTopeAgainstContext "recOR branch guard" tope'
-          localTope tope' $ do
-            rterm' <- typecheck rterm ty'
-            return (tope', rterm')
-        sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
-        contextEntailsUnion (map fst rs')
-        return (recOrT ty' rs')
+      -- A recOR is a term-level eliminator, not a tope; rejecting it when it is
+      -- checked against the tope universe (e.g. in another recOR's branch guard)
+      -- keeps it out of the tope layer, where it would otherwise hit a panic.
+      RecOr rs -> case ty' of
+        UniverseTopeT{} -> issueTypeError $
+          TypeErrorOther "a recOR cannot be used as a tope"
+        _ -> checkRecOrAgainst ty' rs
+      -- A neutral term is inferred, then its type unified with the expected
+      -- one. In lenient (hole-checking) mode a term that still carries an
+      -- unfilled hole is a work in progress, so a failure of that final
+      -- unification is tolerated: the holes recorded while inferring the term
+      -- stand (they were committed before this point), and we accept the term
+      -- rather than rejecting the whole sketch. The mismatch is typically
+      -- incidental to the missing pieces — e.g. an extension-type boundary face
+      -- that only fails to line up because an argument hole sits in the wrong
+      -- place (`f t` vs `x`), where neither side is itself a hole, so the
+      -- per-term deferral in 'unifyInCurrentContext' cannot see it. Strict mode
+      -- (the default, and CI) still rejects the mismatch.
       _ -> do
         term' <- infer term
         inferredType <- typeOf term'
-        unifyTypes term' ty' inferredType
+        lenient <- not <$> asks holesAreErrors
+        if lenient && containsHole term'
+          then unifyTypes term' ty' inferredType `catchError` \_ -> return ()
+          else unifyTypes term' ty' inferredType
         return term'
 
 inferAs :: Eq var => TermT var -> Term var -> TypeCheck var (TermT var)
@@ -4413,6 +4516,17 @@ limitLength n s
   | length s > n = take (n - 1) s <> "…"
   | otherwise    = s
 
+-- | Apply the 'renderHideTerm' policy to a cell's render data: drop the
+-- @\<title\>@ (the full term) from every cell, and blank the visible label of a
+-- proof-coloured (interior) cell. Boundary cells (coloured otherwise) keep
+-- their given labels. A no-op when not hiding.
+hideTermData :: Bool -> String -> RenderObjectData -> RenderObjectData
+hideTermData False _ d = d
+hideTermData True  mainColor d
+  | renderObjectDataColor d == mainColor =
+      d { renderObjectDataLabel = "", renderObjectDataFullLabel = "" }
+  | otherwise = d { renderObjectDataFullLabel = "" }
+
 renderObjectsFor
   :: Eq var
   => String
@@ -4442,7 +4556,8 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
                 | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t))) ->
                     ppTermInContext (Pure z)
               _ -> ppTermInContext term'
-          return $ Just (shapeId, RenderObjectData
+          hide <- asks renderHideTerm
+          return $ Just (shapeId, hideTermData hide mainColor RenderObjectData
             { renderObjectDataLabel = label
             , renderObjectDataFullLabel = label
             , renderObjectDataColor =
@@ -4507,7 +4622,8 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
                 | null (nub (freeVars (untyped arg)) \\ [super]) -> return "purple"
               _ -> return mainColor
           False -> return "gray"
-        return $ Just (shapeId, RenderObjectData
+        hide <- asks renderHideTerm
+        return $ Just (shapeId, hideTermData hide mainColor RenderObjectData
           { renderObjectDataLabel = label
           , renderObjectDataFullLabel = label
           , renderObjectDataColor = color
@@ -4610,6 +4726,15 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
 
 renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG = renderTermSVGFor "red" 0 (Nothing, [])  -- use red for terms by default
+
+-- | Render the goal /cell/ for a (shape) type: introduce an abstract inhabitant
+-- and render it with the proof term hidden. Under a boundary tope an abstract
+-- inhabitant of an extension type reduces to the prescribed face value, so the
+-- cell shows its given edges with a blank interior — the shape to inhabit, not
+-- an answer. 'Nothing' for a non-shape type (a 0-cell or a non-cube goal).
+renderGoalCellSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
+renderGoalCellSVG ty =
+  hidingTerm $ enterScope (BinderVar (Just "_")) Id ty $ renderTermSVG' (Pure Z)
 
 renderTermSVG' :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
