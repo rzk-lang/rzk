@@ -292,6 +292,21 @@ spec = do
         hs | (h:_) <- reverse hs -> cands h `shouldContain` ["recOR (? ↦ ?, ? ↦ ?)"]
         _ -> expectationFailure "expected at least one hole"
 
+    -- recOR and recBOT are term-level eliminators, so a hole whose goal is a cube
+    -- point or a tope is never offered them — even in a setting (a cube variable
+    -- in scope) that does offer a recOR split for a term goal.
+    let recCands = filter (\s -> isInfixOf "recOR" s || isInfixOf "recBOT" s) . cands
+    it "does not offer recOR/recBOT for a cube goal" $
+      -- `?` is a cube point (goal `2`) fed to a shape function, with a cube
+      -- variable `s` in scope (which would offer a recOR split for a term goal).
+      case holesOf "#lang rzk-1\n#def c (A : U) (s : 2) (g : (t : 2) -> A) : A := g ?\n" of
+        [h] -> recCands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+    it "does not offer recOR/recBOT for a tope goal" $
+      case holesOf "#lang rzk-1\n#def p (A : U) (t : 2) : TOPE := ?\n" of
+        [h] -> recCands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- An ordinary, tope-free goal offers no recOR split.
     it "offers no recOR split for a tope-free goal" $ do
       case holesOf "#lang rzk-1\n#def plain (A : U) (a : A) : A := ?\n" of
