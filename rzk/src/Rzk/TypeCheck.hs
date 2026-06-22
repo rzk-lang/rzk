@@ -274,12 +274,21 @@ setOption "render" = \case
   "none"  -> localRenderBackend Nothing
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown render backend (use \"svg\", \"latex\", or \"none\")"
+-- | Render the shape only, hiding the proof term (drop the @\<title\>@
+-- everywhere and blank interior labels), so a worked term can be shown as the
+-- cell it builds without giving the term away (see 'renderHideTerm').
+setOption "render-hide-term" = \case
+  "yes" -> localHideTerm True
+  "no"  -> localHideTerm False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"render-hide-term\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 unsetOption :: String -> TypeCheck var a -> TypeCheck var a
 unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
 unsetOption "render" = localRenderBackend (renderBackend emptyContext)
+unsetOption "render-hide-term" = localHideTerm (renderHideTerm emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -1021,6 +1030,10 @@ recordHoleShape mname goalTy mshape = do
   -- the introduction forms for the goal itself (constituents left as holes); the
   -- Π binder is freshened against 'inScopeNames' so it does not shadow.
   introductions <- censor (const []) (allIntroductionsOf goalTy inScopeNames)
+  -- the goal cell: an SVG of the shape the hole must inhabit (an arrow, triangle
+  -- or square), drawn from an abstract inhabitant with the proof term hidden.
+  -- 'Nothing' when the goal is not a renderable shape.
+  diagram <- censor (const []) (renderGoalCellSVG goal')
   lift $ tell
     [ HoleInfo
         { holeName      = mname
@@ -1031,6 +1044,7 @@ recordHoleShape mname goalTy mshape = do
         , holeTopes     = map render topes
         , holeCandidates = map render candidates
         , holeIntroductions = map render introductions
+        , holeDiagram  = diagram
         , holeLocation  = loc
         } ]
 
@@ -1168,6 +1182,14 @@ localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
 localRenderBackend :: Maybe RenderBackend -> TypeCheck var a -> TypeCheck var a
 localRenderBackend v = local $ \Context{..} -> Context { renderBackend = v, .. }
 
+-- | Run the enclosed action with the 'renderHideTerm' policy set.
+localHideTerm :: Bool -> TypeCheck var a -> TypeCheck var a
+localHideTerm v = local $ \ctx -> ctx { renderHideTerm = v }
+
+-- | Render the enclosed action with the proof term hidden (see 'renderHideTerm').
+hidingTerm :: TypeCheck var a -> TypeCheck var a
+hidingTerm = localHideTerm True
+
 data Covariance
   = Covariant     -- ^ Positive position.
   | Contravariant -- ^ Negative position.
@@ -1246,6 +1268,12 @@ data Context var = Context
   , verbosity              :: Verbosity
   , covariance             :: Covariance
   , renderBackend          :: Maybe RenderBackend
+    -- | When rendering a diagram, hide the proof term: drop the @\<title\>@
+    -- (which carries the full term) from every cell and blank the visible label
+    -- of proof-coloured (interior) cells, keeping the given boundary labels. So
+    -- a worked term or an abstract inhabitant of a goal type is shown as the
+    -- shape with its given edges, not the term that fills it.
+  , renderHideTerm     :: Bool
   , holesAreErrors         :: Bool
     -- ^ When 'True' (the default), an unfilled hole is reported as a
     -- 'TypeErrorUnsolvedHole'; finished work (and CI) must have no holes. The
@@ -1303,6 +1331,7 @@ emptyContext = Context
   , verbosity = Normal
   , covariance = Covariant
   , renderBackend = Nothing
+  , renderHideTerm = False
   , holesAreErrors = True
   , deferHoleMismatches = True
   }
@@ -1714,6 +1743,11 @@ data HoleInfo = HoleInfo
     -- ^ introduction forms for the goal type, built from its head constructor
     -- with the constituents left as holes (see 'allIntroductionsOf'). Already
     -- rendered, like the other fields.
+  , holeDiagram   :: Maybe String
+    -- ^ an SVG of the goal cell, when the goal is a renderable shape (an arrow,
+    -- triangle, or square up to dimension 3): the shape with its given boundary
+    -- edges, drawn from an abstract inhabitant of the goal type with the
+    -- proof term hidden (see 'renderHideTerm'). 'Nothing' for a non-shape goal.
   , holeLocation  :: Maybe LocationInfo
   } deriving (Eq, Show)
 
@@ -4404,6 +4438,17 @@ limitLength n s
   | length s > n = take (n - 1) s <> "…"
   | otherwise    = s
 
+-- | Apply the 'renderHideTerm' policy to a cell's render data: drop the
+-- @\<title\>@ (the full term) from every cell, and blank the visible label of a
+-- proof-coloured (interior) cell. Boundary cells (coloured otherwise) keep
+-- their given labels. A no-op when not hiding.
+hideTermData :: Bool -> String -> RenderObjectData -> RenderObjectData
+hideTermData False _ d = d
+hideTermData True  mainColor d
+  | renderObjectDataColor d == mainColor =
+      d { renderObjectDataLabel = "", renderObjectDataFullLabel = "" }
+  | otherwise = d { renderObjectDataFullLabel = "" }
+
 renderObjectsFor
   :: Eq var
   => String
@@ -4433,7 +4478,8 @@ renderObjectsFor mainColor dim t term = fmap catMaybes $ do
                 | null (nub (freeVars (untyped arg)) \\ nub (freeVars (untyped t))) ->
                     ppTermInContext (Pure z)
               _ -> ppTermInContext term'
-          return $ Just (shapeId, RenderObjectData
+          hide <- asks renderHideTerm
+          return $ Just (shapeId, hideTermData hide mainColor RenderObjectData
             { renderObjectDataLabel = label
             , renderObjectDataFullLabel = label
             , renderObjectDataColor =
@@ -4498,7 +4544,8 @@ renderObjectsInSubShapeFor mainColor dim sub super retType f x = fmap catMaybes 
                 | null (nub (freeVars (untyped arg)) \\ [super]) -> return "purple"
               _ -> return mainColor
           False -> return "gray"
-        return $ Just (shapeId, RenderObjectData
+        hide <- asks renderHideTerm
+        return $ Just (shapeId, hideTermData hide mainColor RenderObjectData
           { renderObjectDataLabel = label
           , renderObjectDataFullLabel = label
           , renderObjectDataColor = color
@@ -4601,6 +4648,15 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
 
 renderTermSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG = renderTermSVGFor "red" 0 (Nothing, [])  -- use red for terms by default
+
+-- | Render the goal /cell/ for a (shape) type: introduce an abstract inhabitant
+-- and render it with the proof term hidden. Under a boundary tope an abstract
+-- inhabitant of an extension type reduces to the prescribed face value, so the
+-- cell shows its given edges with a blank interior — the shape to inhabit, not
+-- an answer. 'Nothing' for a non-shape type (a 0-cell or a non-cube goal).
+renderGoalCellSVG :: Eq var => TermT var -> TypeCheck var (Maybe String)
+renderGoalCellSVG ty =
+  hidingTerm $ enterScope (BinderVar (Just "_")) ty $ renderTermSVG' (Pure Z)
 
 renderTermSVG' :: Eq var => TermT var -> TypeCheck var (Maybe String)
 renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
