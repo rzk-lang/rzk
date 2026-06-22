@@ -104,6 +104,23 @@ spec = do
           map show (holeTopes h2) `shouldContain` ["s ≤ t"]
         hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
 
+    -- When the recOR is checked against an /extension type/, each branch hole
+    -- reports the boundary it must meet under its tope (the restriction is
+    -- pushed into the branches), rather than the bare underlying type. So the
+    -- player sees, e.g., that the value must equal `f t` on `s ≡ 0₂` and `a` on
+    -- `s ≡ 1₂`, not just `A`.
+    it "shows the extension-type boundary in a recOR branch hole" $ do
+      case holesOf "#lang rzk-1\n#def square (A : U) (a : A) (f : (t : 2) → A)\n  : (t : 2) → (s : 2) → A [ s ≡ 0₂ ↦ f t , s ≡ 1₂ ↦ a ]\n  := \\ t s → recOR ( s ≤ t ↦ ? , t ≤ s ↦ ? )\n" of
+        [h1, h2] -> do
+          let goal1 = show (holeGoal h1)
+          ("A [" `isInfixOf` goal1) `shouldBe` True   -- a restricted type, not bare A
+          ("↦ f t" `isInfixOf` goal1) `shouldBe` True -- the s ≡ 0₂ face is shown
+          ("↦ a" `isInfixOf` goal1) `shouldBe` True   -- the s ≡ 1₂ face is shown
+          map show (holeTopes h1) `shouldContain` ["s ≤ t"]
+          show (holeGoal h2) `shouldBe` goal1          -- both branches carry the same boundary
+          map show (holeTopes h2) `shouldContain` ["t ≤ s"]
+        hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
+
     -- A hole nested inside a larger term (`f ?`) checked against an
     -- extension-type boundary: the boundary face is unified against `f ?`, which
     -- must be deferred rather than reported as a mismatch.
