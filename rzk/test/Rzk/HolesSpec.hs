@@ -411,3 +411,28 @@ spec = do
     it "still reports an unused 'uses' variable with no hole in the declaration" $
       errTagsOf (usesSection "#define f uses (x) : U\n  := A")
         `shouldContain` ["TypeErrorUnusedUsedVariables"]
+
+  -- The goal cell: when the goal is a renderable shape, the hole carries an SVG
+  -- of that shape, drawn from an abstract inhabitant with the proof term hidden
+  -- (see 'renderHideTerm'). So the picture shows the given boundary edges with a
+  -- blank interior, never the term that would fill it.
+  describe "holeDiagram (goal-cell SVG)" $ do
+    it "renders a shape goal as a labelled, term-free SVG" $ do
+      let src = "#lang rzk-1\n\
+                \#def sq (A : U) (a : A) : U\n\
+                \  := ((t , s) : 2 * 2) -> A [ t === 0_2 |-> a , t === 1_2 |-> a , s === 0_2 |-> a , s === 1_2 |-> a ]\n\
+                \#def fill (A : U) (a : A) : sq A a := ?\n"
+      case holesOf src of
+        [h] -> case holeDiagram h of
+          Just svg -> do
+            ("<svg" `isInfixOf` svg)            `shouldBe` True
+            ("<path" `isInfixOf` svg)           `shouldBe` True  -- a 2-cell (square), not just an arrow
+            (">a</text>" `isInfixOf` svg)       `shouldBe` True  -- the given boundary edge `a`
+            ("<title></title>" `isInfixOf` svg) `shouldBe` True  -- titles blanked: no proof term
+          Nothing -> expectationFailure "expected a goal-cell diagram for a shape goal"
+        hs -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "has no diagram for a non-shape goal" $
+      case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
+        [h] -> holeDiagram h `shouldBe` Nothing
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
