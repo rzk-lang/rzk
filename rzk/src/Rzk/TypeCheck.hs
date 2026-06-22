@@ -683,6 +683,14 @@ isCubeType = \case
   UniverseCubeT{} -> True
   _               -> False
 
+-- | Is a (WHNF) goal type in the cube or tope layer, so a hole of this type is a
+-- cube point or a tope rather than a term? Used to suppress type-layer-specific
+-- hole candidates (@recOR@, @recBOT@), which cannot inhabit a cube or a tope.
+isCubeOrTopeType :: TermT var -> Bool
+isCubeOrTopeType t = isCubeType t || case t of
+  UniverseTopeT{} -> True
+  _               -> False
+
 -- | Is this term a hole? Holes only exist in lenient mode (see 'allowHoles');
 -- they are opaque placeholders standing for a term of the expected type.
 isHoleT :: TermT var -> Bool
@@ -1001,9 +1009,12 @@ recordHoleShape mname goalTy mshape = do
   candidates <- censor (const []) $ do
     elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals
     -- context-driven moves (independent of the goal's head and the hypotheses):
-    -- ex falso in a contradictory context, and tope case-splits.
-    recbot <- recBottomCandidates
-    recor  <- recOrCandidates goalTy
+    -- ex falso in a contradictory context, and tope case-splits. recOR and recBOT
+    -- are term-level eliminators, so they are offered only for a term goal — not
+    -- when the hole is a cube point or a tope, where they cannot appear.
+    let termLayer = not (isCubeOrTopeType goal')
+    recbot <- if termLayer then recBottomCandidates    else pure []
+    recor  <- if termLayer then recOrCandidates goalTy else pure []
     pure (elims <> recbot <> recor)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
