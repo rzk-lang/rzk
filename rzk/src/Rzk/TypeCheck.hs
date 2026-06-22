@@ -2513,10 +2513,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
               AppT ty f x ->
                 whnfT f >>= \case
-                  LambdaT _ty _orig arg body -> do
-                    let md = maybe Id (\(m, _, _) -> m) arg
-                    x' <- enterModality md $ whnfT x
-                    whnfT (substituteT x' body)
+                  LambdaT _ty _orig _arg body ->
+                    whnfT (substituteT x body)
                   f' -> typeOf f' >>= \case
                     TypeFunT _ty _orig md _param (Just tope) UniverseTopeT{} -> do
                       x' <- enterModality md $ nfT x
@@ -2774,10 +2772,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
 
   AppT ty f x ->
     nfTope f >>= \case
-      LambdaT _ty _orig arg body -> do
-        let md = maybe Id (\(m, _, _) -> m) arg
-        x' <- enterModality md $ nfTope x
-        nfTope (substituteT x' body)
+      LambdaT _ty _orig _arg body ->
+        nfTope (substituteT x body)
       f' -> typeOfUncomputed f' >>= \case
         TypeFunT _ty _orig md _param (Just tope) UniverseTopeT{} -> do
           x' <- enterModality md $ nfTope x
@@ -2797,9 +2793,10 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       t'             -> pure (SecondT ty t')
 
   LambdaT ty orig _mparam body
-    | TypeFunT _ty _origF md param mtope _ret <- infoType ty -> do
-        param' <- enterModality md $ nfTope param
-        LambdaT ty orig (Just (md, param', mtope)) <$> enterScope orig md param' (nfTope body)
+    | TypeFunT _ty _origF md param mtope _ret <- infoType ty ->
+        -- NOTE: the domain @param@ is left unnormalised: in the tope layer it may
+        -- be a shape (a function type into TOPE), which nfTope cannot normalise.
+        LambdaT ty orig (Just (md, param, mtope)) <$> enterScope orig md param (nfTope body)
   LambdaT{} -> panicImpossible "lambda with a non-function type in the tope layer"
   ModAppT ty md b ->
     (enterModality md $ nfTope b) >>= \case
@@ -2909,10 +2906,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 TypeFunT ty orig md param' mtope' <$> nfT ret
           AppT ty f x ->
             whnfT f >>= \case
-              LambdaT _ty _orig arg body -> do
-                let md = maybe Id (\(m, _, _) -> m) arg
-                x' <- enterModality md $ nfT x
-                nfT (substituteT x' body)
+              LambdaT _ty _orig _arg body ->
+                nfT (substituteT x body)
               f' -> typeOf f' >>= \case
                 TypeFunT _ty _orig md _param (Just tope) UniverseTopeT{} -> do
                   x' <- enterModality md $ nfT x
@@ -3798,17 +3793,43 @@ modExtractT ty app inn term = t
 -- usual pairwise coherence and the coverage obligation. Passing a /restricted/
 -- type pushes the boundary into every branch, so a branch hole reports the
 -- faces it must meet (under its tope) instead of the bare underlying type.
+--
+-- Under a branch guard, the faces belonging to the other (mutually exclusive)
+-- branches become disjoint from this branch's tope context, so they are pruned
+-- by 'pruneVacuousFaces' before the branch is checked. Otherwise a face like
+-- @i ≡ 1₂@ would be reported as vacuous while checking the @i ≡ 0₂@ branch
+-- against @A [i ≡ 0₂ ↦ a, i ≡ 1₂ ↦ b]@ — which arises in particular with
+-- flat-discrete cube variables, where @i ≡ 0₂ ∧ i ≡ 1₂@ is provably ⊥.
 checkRecOrAgainst :: Eq var => TermT var -> [(Term var, Term var)] -> TypeCheck var (TermT var)
 checkRecOrAgainst expected rs = do
   rs' <- forM rs $ \(tope, rterm) -> do
     tope' <- typecheck tope topeT
     checkTopeAgainstContext "recOR branch guard" tope'
     localTope tope' $ do
-      rterm' <- typecheck rterm expected
+      expected' <- pruneVacuousFaces expected
+      rterm' <- typecheck rterm expected'
       return (tope', rterm')
   sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
   contextEntailsUnion (map fst rs')
   return (recOrT expected rs')
+
+-- | Drop the restriction faces of an extension type that are vacuous in the
+-- current tope context (their overlap with the context is the empty tope ⊥). A
+-- face mentioning an unfilled hole cannot be decided, so it is kept. Non-extension
+-- types are returned unchanged. Used when descending into a recOR branch, where
+-- the sibling branches' faces are disjoint from the branch guard.
+pruneVacuousFaces :: Eq var => TermT var -> TypeCheck var (TermT var)
+pruneVacuousFaces (TypeRestrictedT _info ty rs) = do
+  contextTopes <- asks localTopesNF
+  kept <- fmap concat $ forM rs $ \face@(tope, _) -> do
+    vacuous <- if containsHole tope
+      then return False
+      else (plainTope tope : contextTopes) `entailM` topeBottomT
+    return [ face | not vacuous ]
+  return $ case kept of
+    [] -> ty
+    _  -> typeRestrictedT ty kept
+pruneVacuousFaces ty = return ty
 
 typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
 typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
