@@ -3691,6 +3691,23 @@ modExtractT ty app inn term = t
       , infoWHNF = Nothing
       }
 
+-- | Check a @recOR@ in checking position against a known expected type: each
+-- branch is checked against that type under its guard tope, followed by the
+-- usual pairwise coherence and the coverage obligation. Passing a /restricted/
+-- type pushes the boundary into every branch, so a branch hole reports the
+-- faces it must meet (under its tope) instead of the bare underlying type.
+checkRecOrAgainst :: Eq var => TermT var -> [(Term var, Term var)] -> TypeCheck var (TermT var)
+checkRecOrAgainst expected rs = do
+  rs' <- forM rs $ \(tope, rterm) -> do
+    tope' <- typecheck tope topeT
+    checkTopeAgainstContext "recOR branch guard" tope'
+    localTope tope' $ do
+      rterm' <- typecheck rterm expected
+      return (tope', rterm')
+  sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
+  contextEntailsUnion (map fst rs')
+  return (recOrT expected rs')
+
 typecheck :: Eq var => Term var -> TermT var -> TypeCheck var (TermT var)
 typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
   -- A hole is checked against a known type (this is checking position): in
@@ -3714,17 +3731,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       _ <- infer term
       return recBottomT
 
-    TypeRestrictedT _ty ty' rs -> do
-      term' <- typecheck term ty'
-      -- NOTE: restriction faces need not be contained in the local tope context.
-      -- Each face is checked only on its overlap with the context below, so an
-      -- overhanging face is harmless (we only hint); a face disjoint from the context
-      -- is vacuous, however, and is reported as an error by checkTopeAgainstContext.
-      forM_ rs $ \(tope, rterm) -> do
-        checkTopeAgainstContext "restriction face" tope
-        localTope tope $
-          unifyTerms rterm term'
-      return term'    -- FIXME: correct?
+    tr@(TypeRestrictedT _ty ty' rs) -> case term of
+      -- A recOR against a restricted type: push the restriction into each branch
+      -- instead of stripping it first, so a branch hole reports the boundary
+      -- faces it must satisfy under its guard tope, rather than the bare
+      -- underlying type. Concrete branches still meet the faces, which are
+      -- checked on each branch's overlap with them (see the general case below).
+      RecOr branches -> checkRecOrAgainst tr branches
+      _ -> do
+        term' <- typecheck term ty'
+        -- NOTE: restriction faces need not be contained in the local tope context.
+        -- Each face is checked only on its overlap with the context below, so an
+        -- overhanging face is harmless (we only hint); a face disjoint from the context
+        -- is vacuous, however, and is reported as an error by checkTopeAgainstContext.
+        forM_ rs $ \(tope, rterm) -> do
+          checkTopeAgainstContext "restriction face" tope
+          localTope tope $
+            unifyTerms rterm term'
+        return term'    -- FIXME: correct?
 
     ty' -> case term of
       Lambda orig mparam body ->
@@ -3834,16 +3858,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       -- expected type and recorded, rather than hitting TypeErrorCannotInferHole
       -- via the inference rule. The branch-guard, coherence, and coverage
       -- obligations mirror the inference rule (see the RecOr case of 'infer').
-      RecOr rs -> do
-        rs' <- forM rs $ \(tope, rterm) -> do
-          tope' <- typecheck tope topeT
-          checkTopeAgainstContext "recOR branch guard" tope'
-          localTope tope' $ do
-            rterm' <- typecheck rterm ty'
-            return (tope', rterm')
-        sequence_ [ checkCoherence l r | l:rs'' <- tails rs', r <- rs'' ]
-        contextEntailsUnion (map fst rs')
-        return (recOrT ty' rs')
+      RecOr rs -> checkRecOrAgainst ty' rs
       -- A neutral term is inferred, then its type unified with the expected
       -- one. In lenient (hole-checking) mode a term that still carries an
       -- unfilled hole is a work in progress, so a failure of that final
