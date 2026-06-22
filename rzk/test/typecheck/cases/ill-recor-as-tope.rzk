@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- A recOR in another recOR's branch-guard (tope) position must be rejected as a
+-- type error, not crash the tope-layer normaliser. Regression for the reported
+-- "PANIC! Impossible happened (recOR in the tope layer)" (a recOR reaching
+-- nfTope), surfaced by the Yoneda game.
+#def bad (A : U) (a : A) : (2 × 2) → A
+  := \ (t , s) → recOR ( recOR ( s ≤ t ↦ s ≤ t , t ≤ s ↦ t ≤ s ) ↦ a , ⊤ ↦ a )

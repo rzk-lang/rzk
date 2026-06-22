@@ -2800,8 +2800,11 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
   TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
 
-  RecOrT{} -> panicImpossible "recOR in the tope layer"
-  RecBottomT{} -> panicImpossible "recBOT in the tope layer"
+  -- A recOR/recBOT is a term-level eliminator, never a tope. It should have
+  -- been rejected before reaching here (see the RecOr case of 'typecheck'); as
+  -- a safety net for any other path, report a type error rather than panicking.
+  RecOrT{} -> issueTypeError $ TypeErrorOther "a recOR cannot appear in the tope layer"
+  RecBottomT{} -> issueTypeError $ TypeErrorOther "a recBOT cannot appear in the tope layer"
 
 -- | Compute a typed term to its NF.
 --
@@ -3892,7 +3895,13 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       -- expected type and recorded, rather than hitting TypeErrorCannotInferHole
       -- via the inference rule. The branch-guard, coherence, and coverage
       -- obligations mirror the inference rule (see the RecOr case of 'infer').
-      RecOr rs -> checkRecOrAgainst ty' rs
+      -- A recOR is a term-level eliminator, not a tope; rejecting it when it is
+      -- checked against the tope universe (e.g. in another recOR's branch guard)
+      -- keeps it out of the tope layer, where it would otherwise hit a panic.
+      RecOr rs -> case ty' of
+        UniverseTopeT{} -> issueTypeError $
+          TypeErrorOther "a recOR cannot be used as a tope"
+        _ -> checkRecOrAgainst ty' rs
       -- A neutral term is inferred, then its type unified with the expected
       -- one. In lenient (hole-checking) mode a term that still carries an
       -- unfilled hole is a work in progress, so a failure of that final

@@ -79,6 +79,7 @@ extra-source-files:
     test/typecheck/cases/ill-rec-or-overlap-incoherent.rzk
     test/typecheck/cases/ill-recbot-term-not-function.rzk
     test/typecheck/cases/ill-recbot-term-undefined.rzk
+    test/typecheck/cases/ill-recor-as-tope.rzk
     test/typecheck/cases/ill-recor-coverage-required.rzk
     test/typecheck/cases/ill-recor-guard-disjoint.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
@@ -177,6 +178,7 @@ extra-source-files:
     test/typecheck/cases/ill-rec-or-overlap-incoherent.expect.yaml
     test/typecheck/cases/ill-recbot-term-not-function.expect.yaml
     test/typecheck/cases/ill-recbot-term-undefined.expect.yaml
+    test/typecheck/cases/ill-recor-as-tope.expect.yaml
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
     test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
