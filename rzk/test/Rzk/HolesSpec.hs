@@ -7,7 +7,11 @@
 module Rzk.HolesSpec (spec) where
 
 import           Data.List           (isInfixOf)
+import           Data.Maybe          (fromMaybe)
 import qualified Data.Text           as T
+import qualified Data.Text.IO        as T (readFile)
+import           System.Environment  (lookupEnv)
+import           System.FilePath     ((</>))
 
 import qualified Language.Rzk.Syntax as Rzk
 import           Rzk.Diagnostic      (typeErrorTagInScopedContext)
@@ -38,6 +42,19 @@ errTagsOf src =
     Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
       Left err           -> [typeErrorTagInScopedContext err]
       Right (_, errs, _) -> map typeErrorTagInScopedContext errs
+
+-- | Like 'holesOf'/'errTagsOf', but reads a module from @test/files/@ (so a
+-- large example need not be inlined). Honours @RZK_TEST_ROOT@ like the other
+-- specs. Returns the recorded holes and the collected error tags.
+checkFile :: FilePath -> IO ([HoleInfo], [String])
+checkFile name = do
+  root <- fromMaybe "." <$> lookupEnv "RZK_TEST_ROOT"
+  src  <- T.readFile (root </> "test" </> "files" </> name)
+  case Rzk.parseModule src of
+    Left err -> error ("parse error: " <> T.unpack err)
+    Right m  -> case typecheckModulesWithHoles [(name, m)] of
+      Left err           -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
+      Right (_, errs, hs) -> pure (hs, map typeErrorTagInScopedContext errs)
 
 spec :: Spec
 spec = do
@@ -94,6 +111,22 @@ spec = do
       case holesOf "#lang rzk-1\n#define t : (A : U) -> (f : A -> A) -> (a : A) -> (t : 2) -> A [ t === 0_2 |-> a ]\n  := \\ A f a t -> f ?\n" of
         [h] -> show (holeGoal h) `shouldBe` "A"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A genuinely completable work-in-progress term is tolerated. The example
+    -- (the Yoneda game's square-transformation level) feeds an incomplete
+    -- `codomain-square A is-segal-A a b (f ?) ? ? ? ?` where a value of
+    -- `hom A (f t) a` is wanted. Inferring it records the holes, but the final
+    -- check of its type then unifies two extension-type boundaries, and a
+    -- *hole-free* face comparison fails — so the existing per-term deferral
+    -- cannot see that a hole is involved, and the whole def was rejected with
+    -- TypeErrorUnifyTerms. We now tolerate it and keep the recorded holes. The
+    -- companion `…-complete` definition fills the holes and typechecks, so the
+    -- holes really can be filled to make the same term check (it is not a dead
+    -- end). See test/files/holes-wip-square.rzk.
+    it "tolerates a completable WIP term whose type only fails around a hole" $ do
+      (holes, errs) <- checkFile "holes-wip-square.rzk"
+      errs `shouldBe` []          -- the WIP def is tolerated, the complete one checks
+      length holes `shouldBe` 5   -- the five holes of square-transformation-wip
 
     -- A hole used as the argument of a shape-restricted function: the
     -- shape-membership tope (psi ?) mentions the hole and cannot be decided, so
