@@ -149,12 +149,12 @@ data TermF scope term
     | TopeUninvF term
     | RecBottomF
     | RecOrF [(term, term)]
-    | TypeFunF Binder term (Maybe scope) scope
-    | TypeSigmaF Binder term scope
+    | TypeFunF Binder TModality term (Maybe scope) scope
+    | TypeSigmaF Binder TModality term scope
     | TypeIdF term (Maybe term) term
     | AppF term term
     | LetF Binder (Maybe term) term scope
-    | LambdaF Binder (Maybe (term, Maybe scope)) scope
+    | LambdaF Binder (Maybe (TModality, term, Maybe scope)) scope
     | PairF term term
     | FirstF term
     | SecondF term
@@ -356,50 +356,41 @@ toTerm bvars = go
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
-      Rzk.TypeFun _loc (Rzk.ParamTermModalType loc' patTerm mc ty) ret ->
-        let md     = modalColonModality mc
-            pat    = unsafeTermToPattern patTerm
-            letRet = Rzk.LetMod loc' (Rzk.Single loc' md)
-                       (Rzk.BindPattern loc' pat) (patternToTerm pat) ret
-        in go (Rzk.TypeFun _loc (Rzk.ParamTermType loc' patTerm (Rzk.ModType loc' md ty)) letRet)
-      Rzk.TypeFun _loc (Rzk.ParamTermModalShape loc' patTerm mc cube tope) ret ->
-        let md      = modalColonModality mc
-            pat     = unsafeTermToPattern patTerm
-            letMod body = Rzk.LetMod loc' (Rzk.Single loc' md)
-                            (Rzk.BindPattern loc' pat) (patternToTerm pat) body
-        in go (Rzk.TypeFun _loc (Rzk.ParamTermShape loc' patTerm (Rzk.ModType loc' md cube) (letMod tope)) (letMod ret))
+      Rzk.TypeFun _loc (Rzk.ParamTermModalType _loc' patTerm mc ty) ret ->
+        let pat = unsafeTermToPattern patTerm
+            md  = modalColonToTModality mc
+        in TypeFun (toBinder pat) md (go ty) Nothing (toScopePattern pat bvars ret)
+      Rzk.TypeFun _loc (Rzk.ParamTermModalShape _loc' patTerm mc cube tope) ret ->
+        let pat = unsafeTermToPattern patTerm
+            md  = modalColonToTModality mc
+        in TypeFun (toBinder pat) md (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = unsafeTermToPattern patTerm
-        in TypeFun (toBinder pat) (go arg) Nothing (toScopePattern pat bvars ret)
+        in TypeFun (toBinder pat) Id (go arg) Nothing (toScopePattern pat bvars ret)
       t@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm cube tope) ret) ->
         let lint' = case tope of
               Rzk.App _loc fun arg | void arg == void patTerm ->
                 lint t (Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)
               _ -> id
             pat = unsafeTermToPattern patTerm
-        in lint' $ TypeFun (toBinder pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
+        in lint' $ TypeFun (toBinder pat) Id (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
-        TypeFun (BinderVar Nothing) (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
+        TypeFun (BinderVar Nothing) Id (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
 
       Rzk.TypeSigma _loc pat tA tB ->
-        TypeSigma (toBinder pat) (go tA) (toScopePattern pat bvars tB)
+        TypeSigma (toBinder pat) Id (go tA) (toScopePattern pat bvars tB)
 
       Rzk.TypeSigmaModal _loc pat mc ty body ->
-        let md = modalColonModality mc
-            letBody = Rzk.LetMod _loc (Rzk.Single _loc md)
-                        (Rzk.BindPattern _loc pat) (patternToTerm pat) body
-        in go (Rzk.TypeSigma _loc pat (Rzk.ModType _loc md ty) letBody)
+        let md = modalColonToTModality mc
+        in TypeSigma (toBinder pat) md (go ty) (toScopePattern pat bvars body)
 
-
-      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal loc' pat mc ty) rest body ->
-        let md = modalColonModality mc
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal _loc' pat mc ty) rest body ->
+        let md = modalColonToTModality mc
             tailSigma = case rest of
               []       -> body
               [sp]     -> sigmaParamToTypeSigma _loc sp body
               (sp:sps) -> Rzk.TypeSigmaTuple _loc sp sps body
-            letTail   = Rzk.LetMod loc' (Rzk.Single loc' md)
-                          (Rzk.BindPattern loc' pat) (patternToTerm pat) tailSigma
-        in go (Rzk.TypeSigma _loc pat (Rzk.ModType loc' md ty) letTail)
+        in TypeSigma (toBinder pat) md (go ty) (toScopePattern pat bvars tailSigma)
       Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) (mp@(Rzk.SigmaParamModal{}) : rest) body ->
         go (Rzk.TypeSigma _loc patA tA (case rest of
               []  -> sigmaParamToTypeSigma _loc mp body
@@ -413,32 +404,22 @@ toTerm bvars = go
       Rzk.Lambda _loc (Rzk.ParamPatternModalType _ [] _mc _ty : params) body ->
         go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternModalType loc' (pat:pats) mc ty : params) body ->
-        let md      = modalColonModality mc
-            inner   = Rzk.Lambda _loc
-                        (if null pats then params
-                         else Rzk.ParamPatternModalType loc' pats mc ty : params)
-                        body
-            letBody = Rzk.LetMod loc' (Rzk.Single loc' md)
-                        (Rzk.BindPattern loc' pat) (patternToTerm pat) inner
-        in go (Rzk.Lambda _loc [Rzk.ParamPatternType loc' [pat] (Rzk.ModType loc' md ty)] letBody)
+        let md = modalColonToTModality mc
+        in Lambda (toBinder pat) (Just (md, go ty, Nothing))
+             (toScopePattern pat bvars (Rzk.Lambda _loc (if null pats then params else Rzk.ParamPatternModalType loc' pats mc ty : params) body))
       Rzk.Lambda _loc (Rzk.ParamPatternModalShape _ [] _mc _cube _tope : params) body ->
         go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternModalShape loc' (pat:pats) mc cube tope : params) body ->
-        let md      = modalColonModality mc
-            inner   = Rzk.Lambda _loc
-                        (if null pats then params
-                         else Rzk.ParamPatternModalShape loc' pats mc cube tope : params)
-                        body
-            letMod b = Rzk.LetMod loc' (Rzk.Single loc' md)
-                         (Rzk.BindPattern loc' pat) (patternToTerm pat) b
-        in go (Rzk.Lambda _loc [Rzk.ParamPatternShape loc' [pat] (Rzk.ModType loc' md cube) (letMod tope)] (letMod inner))
+        let md = modalColonToTModality mc
+        in Lambda (toBinder pat) (Just (md, go cube, Just (toScopePattern pat bvars tope)))
+             (toScopePattern pat bvars (Rzk.Lambda _loc (if null pats then params else Rzk.ParamPatternModalShape loc' pats mc cube tope : params) body))
       Rzk.Lambda _loc [] body -> go body
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
         Lambda (toBinder pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
       Rzk.Lambda _loc (Rzk.ParamPatternType _ [] _ty : params) body ->
         go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternType _ (pat:pats) ty : params) body ->
-        Lambda (toBinder pat) (Just (go ty, Nothing))
+        Lambda (toBinder pat) (Just (Id, go ty, Nothing))
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
       Rzk.Lambda _loc (Rzk.ParamPatternShape _ [] _cube _tope : params) body ->
         go (Rzk.Lambda _loc params body)
@@ -448,7 +429,7 @@ toTerm bvars = go
                 | null pats && void arg == void (patternToTerm pat) ->
                     lint t (Rzk.Lambda _loc (Rzk.ParamPatternType _loc' [pat] fun : params) body)
               _ -> id
-         in lint' $ Lambda (toBinder pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
+         in lint' $ Lambda (toBinder pat) (Just (Id, go cube, Just (toScopePattern pat bvars tope)))
               (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' pats cube tope : params) body))
       Rzk.Let _loc (Rzk.BindPattern _ pat) val expr ->
         Let (toBinder pat) Nothing (go val) (toScopePattern pat bvars expr)
@@ -498,6 +479,16 @@ modalColonModality = \case
   Rzk.ASCII_ModalColonFlat loc  -> Rzk.Flat loc
   Rzk.ASCII_ModalColonSharp loc -> Rzk.Sharp loc
   Rzk.ASCII_ModalColonOp loc    -> Rzk.Op loc
+
+modalColonToTModality :: Rzk.ModalColon -> TModality
+modalColonToTModality = toModality . modalColonModality
+
+fromTModalityToModalColon :: TModality -> Rzk.ModalColon
+fromTModalityToModalColon = \case
+  Sharp -> Rzk.ModalColonSharp Nothing
+  Flat  -> Rzk.ModalColonFlat Nothing
+  Op    -> Rzk.ModalColonOp Nothing
+  Id    -> Rzk.ModalColonId Nothing
 
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp
@@ -742,23 +733,33 @@ fromTermWith' used vars = go
 
       Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
-      TypeFun z arg Nothing ret -> withFreshBinder z $ \(x, z', xs) ->
+      TypeFun z Id arg Nothing ret -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.TypeFun loc (Rzk.ParamTermType loc (patternToTerm (binderToPattern z')) (go arg)) (fromScopeBinder' z' x used xs ret)
-      TypeFun z arg (Just tope) ret -> withFreshBinder z $ \(x, z', xs) ->
+      TypeFun z Id arg (Just tope) ret -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.TypeFun loc (Rzk.ParamTermShape loc (patternToTerm (binderToPattern z')) (go arg) (fromScopeBinder' z' x used xs tope)) (fromScopeBinder' z' x used xs ret)
+      TypeFun z md arg Nothing ret -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeFun loc (Rzk.ParamTermModalType loc (patternToTerm (binderToPattern z')) (fromTModalityToModalColon md) (go arg)) (fromScopeBinder' z' x used xs ret)
+      TypeFun z md arg (Just tope) ret -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeFun loc (Rzk.ParamTermModalShape loc (patternToTerm (binderToPattern z')) (fromTModalityToModalColon md) (go arg) (fromScopeBinder' z' x used xs tope)) (fromScopeBinder' z' x used xs ret)
 
-      TypeSigma z a b -> withFreshBinder z $ \(x, z', xs) ->
+      TypeSigma z Id a b -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.TypeSigma loc (binderToPattern z') (go a) (fromScopeBinder' z' x used xs b)
+      TypeSigma z md a b -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeSigmaModal loc (binderToPattern z') (fromTModalityToModalColon md) (go a) (fromScopeBinder' z' x used xs b)
       TypeId l (Just tA) r -> Rzk.TypeId loc (go l) (go tA) (go r)
       TypeId l Nothing r -> Rzk.TypeIdSimple loc (go l) (go r)
       App l r -> Rzk.App loc (go l) (go r)
 
       Lambda z Nothing scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Lambda loc [Rzk.ParamPattern loc (binderToPattern z')] (fromScopeBinder' z' x used xs scope)
-      Lambda z (Just (ty, Nothing)) scope -> withFreshBinder z $ \(x, z', xs) ->
+      Lambda z (Just (Id, ty, Nothing)) scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Lambda loc [Rzk.ParamPatternType loc [binderToPattern z'] (go ty)] (fromScopeBinder' z' x used xs scope)
-      Lambda z (Just (cube, Just tope)) scope -> withFreshBinder z $ \(x, z', xs) ->
+      Lambda z (Just (Id, cube, Just tope)) scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Lambda loc [Rzk.ParamPatternShape loc [binderToPattern z'] (go cube) (fromScopeBinder' z' x used xs tope)] (fromScopeBinder' z' x used xs scope)
+      Lambda z (Just (md, ty, Nothing)) scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternModalType loc [binderToPattern z'] (fromTModalityToModalColon md) (go ty)] (fromScopeBinder' z' x used xs scope)
+      Lambda z (Just (md, cube, Just tope)) scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternModalShape loc [binderToPattern z'] (fromTModalityToModalColon md) (go cube) (fromScopeBinder' z' x used xs tope)] (fromScopeBinder' z' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda loc (Maybe (term, Maybe scope)) scope
       Let z Nothing val scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.Let loc (Rzk.BindPattern loc (binderToPattern z')) (go val) (fromScopeBinder' z' x used xs scope)

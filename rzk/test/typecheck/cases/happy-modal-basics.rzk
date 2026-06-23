@@ -5,7 +5,7 @@
   := mod _# x
 
 #def sharp-map (A B : U) (f : A → B)
-  : _# A → _# B
+  : (x :_# A) → _# B
   := \ (x :_# A) → mod _# (f x)
 
 #def b-extract (A :_b U) (x :_b A)
@@ -13,7 +13,7 @@
   := x
 
 #def b-map (A B :_b U) (f :_b A → B)
-  : _b A → _b B
+  : (x :_b A) → _b B
   := \ (x :_b A) → mod _b (f x)
 
 #def b-dup (A :_b U) (x :_b A)
@@ -21,7 +21,7 @@
   := mod _b (mod _b x)
 
 #def op-map (A B :_op U) (f :_op A → B)
-  : _op A → _op B
+  : (x :_op A) → _op B
   := \ (x :_op A) → mod _op (f x)
 
 #def double-op (A : U) (x : _op (_op A))
@@ -47,7 +47,7 @@
   := mod _id x
 
 #def id-map (A B : U) (f : A → B)
-  : _id A → _id B
+  : (x :_id A) → _id B
   := \ (x :_id A) → mod _id (f x)
 
 #def id-join (A : U) (a : _id (_id A))
@@ -224,3 +224,99 @@
   (A :_b U) (a :_b A) (i :_b 2)
   : (i :_b 2 | i === 0_2) -> _# (_# A)
   := \ _ -> mod _# (mod _# a)
+
+-- ============ Manual conversions ============
+
+-- Manual conversion: (x :_# A) → B  to  (_# A) → B
+#def sharp-modal-to-explicit
+  (A : U) (B : U) (f : (x :_# A) -> B)
+  : (_# A) -> B
+  := \ y -> let mod _# z := y in f z
+
+-- Manual conversion: (_# A) → B  to  (x :_# A) → B
+#def sharp-explicit-to-modal
+  (A : U) (B : U) (f : (_# A) -> B)
+  : (x :_# A) -> B
+  := \ (x :_# A) -> f (mod _# x)
+
+-- Manual conversion: (x :_op A) → B  to  (_op A) → B
+#def op-modal-to-explicit
+  (A :_op U) (B : U) (f : (x :_op A) -> B)
+  : (_op A) -> B
+  := \ y -> let mod _op z := y in f z
+
+-- Manual conversion: (_op A) → B  to  (x :_op A) → B
+#def op-explicit-to-modal
+  (A :_op U) (B : U) (f : (_op A) -> B)
+  : (x :_op A) -> B
+  := \ (x :_op A) -> f (mod _op x)
+
+-- Manual conversion: (x :_id A) → B  to  (_id A) → B
+#def id-modal-to-explicit
+  (A : U) (B : U) (f : (x :_id A) -> B)
+  : (_id A) -> B
+  := \ y -> let mod _id z := y in f z
+
+-- Manual conversion: (_id A) → B  to  (x :_id A) → B
+#def id-explicit-to-modal
+  (A : U) (B : U) (f : (_id A) -> B)
+  : (x :_id A) -> B
+  := \ (x :_id A) -> f (mod _id x)
+
+-- Manual conversion: (x :_b A) → B  to  (_b A) → B
+#def flat-modal-to-explicit
+  (A :_b U) (B : U) (f : (x :_b A) -> B)
+  : (_b A) -> B
+  := \ y -> let mod _b z := y in f z
+
+-- Manual conversion: (_b A) → B  to  (x :_b A) → B
+#def flat-explicit-to-modal
+  (A :_b U) (B : U) (f : (_b A) -> B)
+  : (x :_b A) -> B
+  := \ (x :_b A) -> f (mod _b x)
+
+-- ============ RA letmod commutativity ============
+
+-- Sharp letmod commutes (RA)
+#def sharp-letmod-commute
+  (A : U) (B : U)
+  (x : _# A) (y : _# B)
+  : (let mod _# a := x in let mod _# b := y in mod _# (a))
+  = (let mod _# b := y in let mod _# a := x in mod _# (a))
+  := refl
+
+-- Op letmod commutes (RA)
+#def op-letmod-commute
+  (A :_op U) (B :_op U)
+  (x : _op A) (y : _op B)
+  : (let mod _op a := x in let mod _op b := y in mod _op (a))
+  = (let mod _op b := y in let mod _op a := x in mod _op (a))
+  := refl
+
+-- Id letmod commutes (RA)
+#def id-letmod-commute
+  (A : U) (B : U)
+  (x : _id A) (y : _id B)
+  : (let mod _id a := x in let mod _id b := y in mod _id (a))
+  = (let mod _id b := y in let mod _id a := x in mod _id (a))
+  := refl
+
+-- ============ Modal eta: mod m (extract a) = a ============
+
+-- Sharp eta
+#def sharp-eta
+  (A : U) (x : _# A)
+  : (let mod _# a := x in mod _# a) = x
+  := refl
+
+-- Op eta
+#def op-eta
+  (A :_op U) (x : _op A)
+  : (let mod _op a := x in mod _op a) = x
+  := refl
+
+-- Id eta
+#def id-eta
+  (A : U) (x : _id A)
+  : (let mod _id a := x in mod _id a) = x
+  := refl

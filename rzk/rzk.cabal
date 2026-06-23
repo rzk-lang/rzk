@@ -58,6 +58,7 @@ extra-source-files:
     test/typecheck/cases/ill-issue-206-families-of-extension.rzk
     test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
+    test/typecheck/cases/ill-modal-flat-no-commute.rzk
     test/typecheck/cases/ill-modal-flat-recOR-under-op.rzk
     test/typecheck/cases/ill-modal-flat-under-op.rzk
     test/typecheck/cases/ill-modal-not-modal.rzk
@@ -157,6 +158,7 @@ extra-source-files:
     test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
     test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
+    test/typecheck/cases/ill-modal-flat-no-commute.expect.yaml
     test/typecheck/cases/ill-modal-flat-recOR-under-op.expect.yaml
     test/typecheck/cases/ill-modal-flat-under-op.expect.yaml
     test/typecheck/cases/ill-modal-not-modal.expect.yaml
