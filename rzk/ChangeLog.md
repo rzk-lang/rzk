@@ -40,6 +40,7 @@ Fixes:
 - Check each `#!rzk recOR` branch against the expected type (see [#247](https://github.com/rzk-lang/rzk/pull/247)).
 - Warn about overhanging `#!rzk recOR` faces and reject disjoint (vacuous) ones, replacing two checks that were silently vacuous (see [#233](https://github.com/rzk-lang/rzk/pull/233)).
 - Check a term even under an absurd (`#!rzk recBOT`) context, so an ill-formed body is no longer admitted under a false hypothesis (see [#234](https://github.com/rzk-lang/rzk/pull/234)).
+- Experimental modal layer: several corrections (see [#258](https://github.com/rzk-lang/rzk/pull/258)). The coercion relation is completed with `#!rzk ♭ ⇒ ᵒᵖ` and `#!rzk ᵒᵖ ⇒ ♯`, so a flat variable is now accessible under `#!rzk ᵒᵖ`. The normal form of `#!rzk let mod` extracts only for the right-adjoint modalities, matching the typechecker. And `#!rzk unflipᵒᵖ` now expects an interval cube under `#!rzk ᵒᵖ` (i.e. `#!rzk ᵒᵖ 2` or `#!rzk ᵒᵖ 𝕀`) rather than a bare cube, mirroring `#!rzk flipᵒᵖ`.
 
 Documentation:
 
