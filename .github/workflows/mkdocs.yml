@@ -1,12 +1,12 @@
 name: MKDocs
 
 on:
+  # No `paths:` filter: it is unreliable on tag pushes (GitHub often skips the
+  # run), so a tagged release would otherwise not deploy its docs without a
+  # manual re-run. Deploying on every branch/tag push is cheap here.
   push:
     branches: [develop, mkdocs-*]
     tags: [v*]
-    paths:
-      - .github/workflows/mkdocs.yml
-      - docs/**
 
   workflow_dispatch:
 
