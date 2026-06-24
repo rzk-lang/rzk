@@ -195,16 +195,16 @@ If a term is extracted as a part of a larger shape, generally, the whole shape w
 
 !!! info "Since version `0.9.0`"
 
-Sometimes you want to show only the _shape_ a term inhabits — its boundary
-edges and faces — without revealing the proof term that fills it. Set the option
-`#!rzk "render-hide-term"` to `#!rzk "yes"` (the default is `#!rzk "no"`):
+Sometimes we want to show only the _shape_ that a term inhabits, with its
+boundary edges and faces, but without the proof term that fills it. We set the
+option `#!rzk "render-hide-term"` to `#!rzk "yes"` (the default is `#!rzk "no"`):
 
 ```rzk
 #set-option "render-hide-term" = "yes"
 ```
 
 With the proof term hidden, the interior label is blanked and only the given
-boundary labels are kept, so the diagram shows the cell to be filled rather than
+boundary labels remain. The diagram then shows the cell to be filled rather than
 a particular filler:
 
 ```rzk
@@ -223,9 +223,9 @@ a particular filler:
 #unset-option "render-hide-term"  -- restore the default
 ```
 
-This is the same control the typed-holes query uses to draw a hole's goal cell:
-the shape the hole must inhabit, with its given edges, and the proof term left
-blank.
+The typed-holes query uses the same control to draw a hole's goal cell. It shows
+the shape that the hole must inhabit, with its given edges and with the proof
+term left blank.
 
 <!-- Style for the SVG images above -->
 <style>
