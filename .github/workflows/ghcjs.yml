@@ -24,6 +24,12 @@ on:
 permissions:
   contents: write
 
+# Cancel an in-flight run when a PR gets a new commit; never cancel a push/tag
+# run (those deploy the playground).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build-and-deploy-with-ghcjs:
     name: "Build with GHCJS (and deploy Rzk playground)"

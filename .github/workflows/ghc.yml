@@ -26,13 +26,28 @@ on:
 permissions:
   contents: write
 
+# Cancel an in-flight run when a PR gets a new commit; never cancel a push/tag
+# run (those may be deploying). The job-level `gh-pages` group is separate.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: "Build and test with GHC"
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-latest]
+        # Full OS coverage on PRs (the pre-merge gate), tags, and main;
+        # Linux-only on develop pushes, which a PR has already validated on all
+        # OS. The Linux build still produces the artifact downstream jobs use.
+        os: >-
+          ${{ (github.event_name == 'pull_request'
+               || github.ref_name == 'main'
+               || startsWith(github.ref, 'refs/tags/'))
+              && fromJSON('["ubuntu-latest","windows-latest","macos-15-intel","macos-latest"]')
+              || fromJSON('["ubuntu-latest"]') }}
 
     steps:
       - name: 📥 Checkout repository
