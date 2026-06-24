@@ -1,5 +1,7 @@
 # Holes
 
+!!! info "Since version `0.9.0`"
+
 A _hole_ is an unfilled part of a term that you have not written yet. Holes let
 you develop a proof incrementally: you leave a `#!rzk ?` where a subterm should
 go, ask Rzk what is expected there, and fill it in once you know what to write.

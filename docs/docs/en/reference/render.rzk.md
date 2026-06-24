@@ -193,6 +193,8 @@ If a term is extracted as a part of a larger shape, generally, the whole shape w
 
 ### Hiding the Proof Term
 
+!!! info "Since version `0.9.0`"
+
 Sometimes you want to show only the _shape_ a term inhabits — its boundary
 edges and faces — without revealing the proof term that fills it. Set the option
 `#!rzk "render-hide-term"` to `#!rzk "yes"` (the default is `#!rzk "no"`):
