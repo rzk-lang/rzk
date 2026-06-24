@@ -106,6 +106,13 @@ When a binder uses a pair pattern, for example `#!rzk \ (t , s) -> ...`, the
 hypothesis is shown by its pattern, as `#!rzk (t, s) : ...`, rather than through
 projections. The component names we wrote are thus kept in the goal and context.
 
+!!! note "Fun fact"
+
+    Before holes were available, a common trick to see an expected type was to
+    write `#!rzk U` in place of the missing term and read the type error. Since
+    `#!rzk U` seldom has the expected type, Rzk reported the type it expected
+    there, which served as a makeshift goal.
+
 ## JSON diagnostics
 
 For tooling that is not tied to a particular editor, and for continuous
