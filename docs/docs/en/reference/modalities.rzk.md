@@ -139,7 +139,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
   := \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 #def b-dup (A :♭ U) (x :♭ A)
-  : ♭ (♭ A)
+  : ♭ ( ♭ A)
   := mod ♭ (mod ♭ x)
 
 #def op-map (A B :ᵒᵖ U) (f :ᵒᵖ A → B)
