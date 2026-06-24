@@ -49,6 +49,9 @@ CI / infrastructure:
 
 - Add a CI job that builds the `rzk` library with the GHC WebAssembly backend (see [#235](https://github.com/rzk-lang/rzk/pull/235)).
 - Import `RzkConfig` qualified (see [#232](https://github.com/rzk-lang/rzk/pull/232)).
+- Deploy the docs and the playground reliably on tag pushes, so a release publishes both (past releases sometimes skipped them).
+- Move the MkDocs typecheck and deploy into the GHC workflow and reuse the `rzk` binary built in the same run, so the docs are checked with the version they document rather than with an older release.
+- Build all four OS only on pull requests, tags, and `main`; a `develop` push, already validated by its pull request, builds Linux only. A per-ref concurrency group cancels a superseded pull-request run, but never a push or tag run that may be deploying.
 
 ## v0.8.0 — 2026-06-04
 
