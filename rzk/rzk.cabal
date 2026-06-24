@@ -26,6 +26,8 @@ extra-source-files:
     test/typecheck/cases/happy-interval-subtyping.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-modal-basics.rzk
+    test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
+    test/typecheck/cases/happy-modal-flat-under-op.rzk
     test/typecheck/cases/happy-modal-inv.rzk
     test/typecheck/cases/happy-modal-tope-unwrap.rzk
     test/typecheck/cases/happy-modal-topes.rzk
@@ -59,8 +61,6 @@ extra-source-files:
     test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
     test/typecheck/cases/ill-modal-flat-no-commute.rzk
-    test/typecheck/cases/ill-modal-flat-recOR-under-op.rzk
-    test/typecheck/cases/ill-modal-flat-under-op.rzk
     test/typecheck/cases/ill-modal-not-modal.rzk
     test/typecheck/cases/ill-modal-op-at-plain.rzk
     test/typecheck/cases/ill-modal-op-under-flat.rzk
@@ -128,6 +128,8 @@ extra-source-files:
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
+    test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml
+    test/typecheck/cases/happy-modal-flat-under-op.expect.yaml
     test/typecheck/cases/happy-modal-inv.expect.yaml
     test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
     test/typecheck/cases/happy-modal-topes.expect.yaml
@@ -161,8 +163,6 @@ extra-source-files:
     test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
     test/typecheck/cases/ill-modal-flat-no-commute.expect.yaml
-    test/typecheck/cases/ill-modal-flat-recOR-under-op.expect.yaml
-    test/typecheck/cases/ill-modal-flat-under-op.expect.yaml
     test/typecheck/cases/ill-modal-not-modal.expect.yaml
     test/typecheck/cases/ill-modal-op-at-plain.expect.yaml
     test/typecheck/cases/ill-modal-op-under-flat.expect.yaml

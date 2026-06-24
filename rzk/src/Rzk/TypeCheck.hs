@@ -1283,8 +1283,10 @@ instance ModeTheory TModality where
   comp m Id        = m
 
   coe Flat Id    = True
+  coe Flat Op    = True
   coe Id Sharp   = True
   coe Flat Sharp = True
+  coe Op Sharp   = True
   coe a b        = a == b
 
   isRA Sharp = True 
@@ -2323,15 +2325,16 @@ enterScopeContext orig md ty val context =
     }
     (S <$> context)
 
-enterScope :: Binder -> TModality -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
-enterScope orig md ty action = do
-  newContext <- asks (enterScopeContext orig md ty Nothing)
+enterScopeMaybe :: Binder -> TModality -> TermT var -> Maybe (TermT var) -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeMaybe orig md ty mval action = do
+  newContext <- asks (enterScopeContext orig md ty mval)
   closeScope orig (runReaderT action newContext)
 
+enterScope :: Binder -> TModality -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScope orig md ty = enterScopeMaybe orig md ty Nothing
+
 enterScopeWithBind :: Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
-enterScopeWithBind orig md ty val action = do
-  newContext <- asks (enterScopeContext orig md ty (Just val))
-  closeScope orig (runReaderT action newContext)
+enterScopeWithBind orig md ty val = enterScopeMaybe orig md ty (Just val)
 
 -- | Run a sub-scope computation and lift it back to the enclosing scope: close
 -- the error channel one binder with 'ScopedTypeError' (as before), and re-emit
@@ -3988,9 +3991,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
               issueTypeError $ TypeErrorNotModal (untyped o) inn val'
           o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
         bindVal <- whnfT val' >>= \case
-          ModAppT _ty _m t -> pure t
-          o -> pure (modExtractT bindTy app inn o)
-        body' <- enterScopeWithBind orig (comp app inn) bindTy bindVal $ do
+          ModAppT _ty _m t -> pure (Just t)
+          o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
+          _ -> pure Nothing
+        body' <- enterScopeMaybe orig (comp app inn) bindTy bindVal $ do
           typecheck body (S <$> ty')
         return (letModT ty' orig app inn (Just bindTy) val' body')
       Pair l r ->
@@ -4112,12 +4116,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
   CubeUnflip t -> do
     t' <- infer t
     typeOf t' >>= \case
-      CubeIT{} -> pure $ cubeUnflipT cubeIT t'
-      Cube2T{} -> pure $ cubeUnflipT cube2T t'
+      TypeModalT _ Op (CubeIT{}) -> pure $ cubeUnflipT cubeIT t'
+      TypeModalT _ Op (Cube2T{}) -> pure $ cubeUnflipT cube2T t'
       ty -> do
         tyStr <- ppTermInContext ty
         issueTypeError $ TypeErrorOther $
-          "unflip expects an interval cube (2 or 𝕀); got " <> tyStr
+          "unflip expects an interval cube (2 or 𝕀) under _op; got " <> tyStr
   Pair l r -> do
     l' <- infer l
     r' <- infer r
@@ -4375,9 +4379,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
           issueTypeError $ TypeErrorNotModal (untyped o) inn val'
       o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
     bindVal <- whnfT val' >>= \case
-      ModAppT _ty _m t -> pure t
-      o -> pure (modExtractT bindTy app inn o)
-    enterScopeWithBind orig (comp app inn) bindTy bindVal $ do
+      ModAppT _ty _m t -> pure (Just t)
+      o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
+      _ -> pure Nothing
+    enterScopeMaybe orig (comp app inn) bindTy bindVal $ do
       body' <- infer body
       ret <- typeOf body'
       return (letModT (substituteT val' ret) orig app inn (Just bindTy) val' body')
