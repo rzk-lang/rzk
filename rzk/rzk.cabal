@@ -120,6 +120,8 @@ extra-source-files:
     test/typecheck/cases/multimodule-first-error/lib.rzk
     test/typecheck/cases/multimodule-two-ok/lib.rzk
     test/typecheck/cases/multimodule-two-ok/user.rzk
+    test/typecheck/cases/uses-whnf-discarded.rzk
+    test/typecheck/cases/uses-whnf-masked-transitive.rzk
     test/typecheck/cases/happy-check.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
@@ -219,6 +221,8 @@ extra-source-files:
     test/typecheck/cases/literate-fence/expect.yaml
     test/typecheck/cases/multimodule-first-error/expect.yaml
     test/typecheck/cases/multimodule-two-ok/expect.yaml
+    test/typecheck/cases/uses-whnf-discarded.expect.yaml
+    test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
     test/typecheck/cases/literate-fence/doc.rzk.md
 extra-doc-files:
     README.md

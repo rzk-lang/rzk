@@ -1,0 +1,18 @@
+#lang rzk-1
+
+-- An assumption whose only occurrence sits in a redex that weak head
+-- normalisation discards (here the argument to a constant function) is still
+-- a genuine use: the section unused-variable check must see the term the user
+-- wrote, not its WHNF. Before the fix, `b` was reported as an unused variable.
+
+#section sec-whnf-discarded
+
+#variable A : U
+#variable a : A
+#variable b : A
+
+#define pick
+  : A
+  := (\ (_ : A) → a) b
+
+#end sec-whnf-discarded

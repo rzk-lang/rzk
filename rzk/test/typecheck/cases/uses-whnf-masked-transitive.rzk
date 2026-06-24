@@ -1,0 +1,22 @@
+#lang rzk-1
+
+-- A transitive dependency on a section assumption that weak head normalisation
+-- would otherwise hide. `d2`'s value `first (unit , d1)` mentions `d1`, whose
+-- type `a =_{A} a` depends on the assumption `a`; reducing the value to `unit`
+-- discards `d1` and so masks the dependency. Keying the use check off the term
+-- the user wrote catches it: `d2` implicitly relies on `a` and must say so.
+
+#section sec-whnf-masked
+
+#variable A : U
+#variable a : A
+
+#define d1
+  : a =_{A} a
+  := refl
+
+#define d2
+  : Unit
+  := first (unit , d1)
+
+#end sec-whnf-masked

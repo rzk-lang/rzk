@@ -168,8 +168,14 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
-          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
-          term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT
+          -- Store the elaborated type and term unreduced, but memoise their
+          -- WHNF on the top node (see 'memoizeWHNF'). Reducing in place would
+          -- discard or expose a variable occurrence, so the section
+          -- unused/implicit-assumption checks (run over the stored type and
+          -- value) would disagree with the term the user wrote; keeping the
+          -- WHNF cached preserves the original one-shot reduction.
+          ty' <- memoizeWHNF =<< typecheck (toTerm' (addParamDecls paramDecls ty)) universeT
+          term' <- memoizeWHNF =<< typecheck (toTerm' (addParams params term)) ty'
           loc <- asks location
           let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars) loc
           fmap (first (decl :)) $
@@ -189,7 +195,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
-          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
+          ty' <- memoizeWHNF =<< typecheck (toTerm' (addParamDecls paramDecls ty)) universeT
           loc <- asks location
           let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars) loc
           fmap (first (decl :)) $
@@ -1706,8 +1712,8 @@ localDeclsPrepared (decl : decls) = localDeclPrepared decl . localDeclsPrepared 
 
 localDecl :: Decl VarIdent -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 localDecl (Decl x ty term isAssumption vars loc) tc = do
-  ty' <- whnfT ty
-  term' <- traverse whnfT term
+  ty' <- memoizeWHNF ty
+  term' <- traverse memoizeWHNF term
   localDeclPrepared (Decl x ty' term' isAssumption vars loc) tc
 
 localDeclPrepared :: Decl VarIdent -> TypeCheck VarIdent a -> TypeCheck VarIdent a
@@ -2431,6 +2437,19 @@ tryRestriction = \case
             False -> go rs'
     go rs
   _ -> pure Nothing
+
+-- | Memoise a term's WHNF on its top node without reducing the term itself.
+--
+-- The returned term has the same (unreduced) structure, so free-variable and
+-- @uses@ detection see exactly what the user wrote, while a later 'whnfT' is
+-- O(1) via the cached 'infoWHNF'. Used when storing a definition's elaborated
+-- type and value, where an in-place reduction could otherwise discard or
+-- expose a variable occurrence.
+memoizeWHNF :: Eq var => TermT var -> TypeCheck var (TermT var)
+memoizeWHNF t@Pure{} = pure t
+memoizeWHNF t@(Free (AnnF info f)) = do
+  w <- whnfT t
+  pure (Free (AnnF info { infoWHNF = Just w } f))
 
 -- | Compute a typed term to its WHNF.
 --
