@@ -36,6 +36,10 @@ graph TB
 
   flat -->|"coe"| id
   id  -->|"coe"| sharp
+
+  flat -->|"coe"| op
+  op  -->|"coe"| sharp
+
   id ~~~ op
 ```
 
@@ -91,19 +95,10 @@ graph TB
 
 Если `#!rzk ext` опущен, то `#!rzk let mod m x := value in body` — это сахар для `#!rzk let mod _id/m x := value in body`.
 
-Это можно рассматривать как сопоставление с образцом `#!rzk mod` в связке. Например, `#!rzk flat-extract` — это противоположность `#!rzk sharp-pure`; его можно определить именно потому, что существует коэрсия \(\flat \Rightarrow id\):
+Это можно рассматривать как сопоставление с образцом `#!rzk mod` в связке. Например, `#!rzk double-op` использует `#!rzk let mod` для определения модальной композиции \(\langle \text{op} | \langle \text{op} | A \rangle \rangle \to A\), поскольку \(\text{op} \cdot \text{op} = id\):
 
 ```rzk
 
-#def flat-extract (A : ♭ U) (x : let mod ♭ Ab := A in ♭ Ab)
-  : let mod ♭ Ab := A in Ab
-  := let mod ♭ xb := x in xb
-
-```
-
-С помощью `#!rzk let mod` можно определить модальную композицию \(\langle \mu | \langle \nu | A \rangle \rangle \to \langle \mu \cdot \nu | A \rangle\). Конкретный пример — `#!rzk double-op`:
-
-```rzk
 #def double-op (A : U) (x : ᵒᵖ (ᵒᵖ A))
   : A
   :=
@@ -114,7 +109,7 @@ graph TB
 ```
 ## Модальные связки
 
-Модальные аннотации параметров `#!rzk (x :µ A)` связывают переменную `#!rzk x` непосредственно под модальностью `#!rzk µ` с типом `#!rzk A`. Это полноценная модальная связка — переменная `#!rzk x` доступна в соответствии с правилами коэрсии модальности `#!rzk µ`. Модальные связки доступны в `#!rzk λ`-абстракциях, `#!rzk Π`- и `#!rzk Σ`-типах, а также в списках аргументов определений.
+Модальные аннотации параметров `#!rzk (x :µ A)` — это синтаксический сахар, делающий определения менее громоздкими по сравнению с сырой формой `#!rzk let mod`. Параметр `#!rzk (x :_b A) -> ...` десахаризуется в `#!rzk (_a : _b A) → let mod _b x := _a in …`. Этот сахар доступен в `#!rzk λ`-абстракциях, `#!rzk Π`- и `#!rzk Σ`-типах, а также в списках аргументов определений.
 
 Например, `#!rzk b-extract` и `#!rzk b-map`, записанные с модальными связками, гораздо чище, чем явная форма `#!rzk let mod`, показанная выше:
 
@@ -126,7 +121,7 @@ graph TB
 #def b-map₁ (A B :♭ U) (f :♭ A → B)
   : ♭ A → ♭ B
   :=
-  \ (x :♭ A) → mod ♭ (f x)
+  \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 ```
 
@@ -141,7 +136,7 @@ graph TB
 
 #def b-map (A B :♭ U) (f :♭ A → B)
   : ♭ A → ♭ B
-  := \ (x :♭ A) → mod ♭ (f x)
+  := \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 #def b-dup (A :♭ U) (x :♭ A)
   : ♭ (♭ A)
@@ -149,7 +144,7 @@ graph TB
 
 #def op-map (A B :ᵒᵖ U) (f :ᵒᵖ A → B)
   : ᵒᵖ A → ᵒᵖ B
-  := \ (x :ᵒᵖ A) → mod ᵒᵖ (f x)
+  := \ (x : ᵒᵖ A) → let mod ᵒᵖ opx := x in mod ᵒᵖ (f opx)
 
 #def sharp-pure (A : U) (x : A)
   : ♯ A
@@ -157,7 +152,7 @@ graph TB
 
 #def sharp-map (A B : U) (f : A → B)
   : ♯ A → ♯ B
-  := \ (x :♯ A) → mod ♯ (f x)
+  := \ (x : ♯ A) → let mod ♯ sx := x in mod ♯ (f sx)
 
 #def sharp-join (A : U) (a : ♯ (♯ A))
   : ♯ A
