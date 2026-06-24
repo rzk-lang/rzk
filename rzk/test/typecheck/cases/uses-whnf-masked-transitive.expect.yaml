@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorImplicitAssumption
+message_contains:
+  - "implicit assumption"
+  - "used in definition of"
+regression_for:
+  - uses-checks-key-off-actual-term-not-whnf

@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - uses-checks-key-off-actual-term-not-whnf
