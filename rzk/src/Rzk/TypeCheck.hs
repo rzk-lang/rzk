@@ -4116,12 +4116,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
   CubeUnflip t -> do
     t' <- infer t
     typeOf t' >>= \case
-      CubeIT{} -> pure $ cubeUnflipT cubeIT t'
-      Cube2T{} -> pure $ cubeUnflipT cube2T t'
+      TypeModalT _ Op (CubeIT{}) -> pure $ cubeUnflipT cubeIT t'
+      TypeModalT _ Op (Cube2T{}) -> pure $ cubeUnflipT cube2T t'
       ty -> do
         tyStr <- ppTermInContext ty
         issueTypeError $ TypeErrorOther $
-          "unflip expects an interval cube (2 or 𝕀); got " <> tyStr
+          "unflip expects an interval cube (2 or 𝕀) under _op; got " <> tyStr
   Pair l r -> do
     l' <- infer l
     r' <- infer r
