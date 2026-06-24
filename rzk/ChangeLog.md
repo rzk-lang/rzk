@@ -6,17 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## Unreleased
+## v0.9.0 — 2026-06-24
 
 Added:
 
-- **Typed holes and a structured goal/context query.** Write `?` (or a named `?goal`) for an unfilled subterm. By default `rzk typecheck` reports any hole as an error, so finished work and CI never admit holes; `rzk typecheck --allow-holes` instead prints, for each hole, its expected type (the goal) and local context — local term variables, cube variables, and tope assumptions, with the global environment excluded. The same data is available to library consumers (the playground/game and the LSP) via `typecheckModulesWithHoles` returning structured `HoleInfo` values. Holes are checked only where their type is known (checking position); a hole in inference position is reported rather than guessed. When a hole is the argument of a shape-restricted function, its goal is shown as the shape `(s : I | ψ s ∧ φ s)` (the membership tope), and extension-type goals show their boundary `A [φ ↦ a]`.
+- **Typed holes and a structured goal/context query.** Write `?` (or a named `?goal`) for an unfilled subterm. By default `rzk typecheck` reports any hole as an error, so finished work and CI never admit holes; `rzk typecheck --allow-holes` instead prints, for each hole, its expected type (the goal) and local context — local term variables, cube variables, and tope assumptions, with the global environment excluded. The same data is available to library consumers (the playground/game and the LSP) via `typecheckModulesWithHoles` returning structured `HoleInfo` values. Holes are checked only where their type is known (checking position); a hole in inference position is reported rather than guessed. When a hole is the argument of a shape-restricted function, its goal is shown as the shape `(s : I | ψ s ∧ φ s)` (the membership tope), and extension-type goals show their boundary `A [φ ↦ a]` (see [#237](https://github.com/rzk-lang/rzk/pull/237), [#240](https://github.com/rzk-lang/rzk/pull/240)).
 
-- **Structured diagnostics.** Type errors and holes are now available as structured data (`Rzk.Diagnostic`: a severity, a stable code, a source location, and a message), not only as a formatted string. `rzk typecheck --json` emits all diagnostics — type errors and holes — as JSON on stdout for editor-agnostic tooling and CI. The language server consumes the same structured diagnostics: it shows each hole's goal and context as a warning (rather than a hard error — mirroring Agda's yellow "unsolved" highlight), and now reports all diagnostics for a file together. Source spans remain line-level.
+- **Hint inventory for a hole.** Alongside the goal and context, the query records the moves that fit. It offers type-directed *elimination candidates* over the hypotheses — a function applied to holes, a projection of a Σ, path induction by `idJ` (see [#244](https://github.com/rzk-lang/rzk/pull/244)) — *introduction forms* that build the goal from its head — a λ, a pair, `refl`, the tope constructors — and, in a shape setting, the context-driven `recBOT` (ex falso) and `recOR` case-splits (see [#245](https://github.com/rzk-lang/rzk/pull/245)). A caller may additionally allow-list named lemmas in scope so they surface as candidates, applied to holes (see [#256](https://github.com/rzk-lang/rzk/pull/256)). Pattern binders are restored throughout goals, errors and candidates, so a goal reads `\ (t , s) → ?` rather than in terms of projections (see [#242](https://github.com/rzk-lang/rzk/pull/242), [#246](https://github.com/rzk-lang/rzk/pull/246)).
+
+- **Structured diagnostics.** Type errors and holes are now available as structured data (`Rzk.Diagnostic`: a severity, a stable code, a source location, and a message), not only as a formatted string. `rzk typecheck --json` emits all diagnostics — type errors and holes — as JSON on stdout for editor-agnostic tooling and CI (see [#238](https://github.com/rzk-lang/rzk/pull/238), [#243](https://github.com/rzk-lang/rzk/pull/243)). The language server consumes the same structured diagnostics: it shows each hole's goal and context as a warning (rather than a hard error — mirroring Agda's yellow "unsolved" highlight), and now reports all diagnostics for a file together. Source spans remain line-level.
+
+- **Goal-cell diagrams.** When a hole's goal is a shape (an arrow, triangle or square), the query exposes an SVG of the cell the hole must inhabit, drawn from an abstract inhabitant of the goal. A new `render-hide-term` option draws the shape with the proof term hidden, keeping only the given boundary labels (see [#253](https://github.com/rzk-lang/rzk/pull/253)).
+
+- Experimental **cubical interval** `#!rzk II` (`#!rzk 𝕀`), a lattice cube added on top of the modal type system. This is the intended sound home for an amazing right adjoint `#!rzk √`, as flagged in the v0.8.0 release notes (see [#228](https://github.com/rzk-lang/rzk/pull/228)).
+
+Changed:
+
+- Experimental **modal syntax** is less noisy: a modal type is now written `#!rzk m A` instead of `#!rzk <| m | A |>`, and a modal binding is `#!rzk (x :m A)` (see [#227](https://github.com/rzk-lang/rzk/pull/227)). Modal bindings on Π-, Σ- and λ-types are now primitive rather than sugar for `#!rzk let mod`, and modal extraction is restricted to the right-adjoint modalities (`#!rzk ♯`, `#!rzk ᵒᵖ`, `#!rzk _id`) (see [#248](https://github.com/rzk-lang/rzk/pull/248)).
+
+- Experimental: modalities are tracked through the tope layer, so the tope solver knows which topes are accessible under which modality (see [#230](https://github.com/rzk-lang/rzk/pull/230)).
+
+- The `#!rzk uses`/unused-variable check now keys off the definition as written rather than its weak head normal form. Reduction can drop or expose a variable occurrence, so a genuine use could be reported as unused, or a transitive dependency on an assumption hidden; both are now classified from the written term (see [#255](https://github.com/rzk-lang/rzk/pull/255)).
 
 Other changes:
 
-- Build `rzk` with `build-type: Simple` instead of `Custom`, so the package now builds under the **GHC WebAssembly backend** (a `Custom` `Setup.hs` cannot run there) and no longer requires BNFC, `alex`, or `happy` to install (e.g. from Hackage). The parser and lexer are still generated from `grammar/Syntax.cf`, but out of band: run `make -C rzk regen-parser` after editing the grammar. A new `Parser up-to-date` CI workflow regenerates from the grammar and fails on drift, and the WASM/GHCJS CI lanes no longer patch the package before building.
+- In lenient (`--allow-holes`) mode, tolerate diagnostics that only a finished term must satisfy, so an in-progress sketch still typechecks: an unused `#!rzk uses`-variable (see [#249](https://github.com/rzk-lang/rzk/pull/249)), a hole-introduction binder that would shadow a name in scope (see [#250](https://github.com/rzk-lang/rzk/pull/250)), and a term whose type fails only around a hole (see [#251](https://github.com/rzk-lang/rzk/pull/251)). Show the boundary in a `#!rzk recOR` branch goal (see [#252](https://github.com/rzk-lang/rzk/pull/252)) and accept holes in more positions (see [#239](https://github.com/rzk-lang/rzk/pull/239)).
+
+- Build `rzk` with `build-type: Simple` instead of `Custom`, so the package now builds under the **GHC WebAssembly backend** (a `Custom` `Setup.hs` cannot run there) and no longer requires BNFC, `alex`, or `happy` to install (e.g. from Hackage). The parser and lexer are still generated from `grammar/Syntax.cf`, but out of band: run `make -C rzk regen-parser` after editing the grammar. A new `Parser up-to-date` CI workflow regenerates from the grammar and fails on drift, and the WASM/GHCJS CI lanes no longer patch the package before building (see [#236](https://github.com/rzk-lang/rzk/pull/236)).
+
+Fixes:
+
+- A `#!rzk recOR` in the cube or tope layer is now a type error instead of a panic (see [#254](https://github.com/rzk-lang/rzk/pull/254)).
+- Check each `#!rzk recOR` branch against the expected type (see [#247](https://github.com/rzk-lang/rzk/pull/247)).
+- Warn about overhanging `#!rzk recOR` faces and reject disjoint (vacuous) ones, replacing two checks that were silently vacuous (see [#233](https://github.com/rzk-lang/rzk/pull/233)).
+- Check a term even under an absurd (`#!rzk recBOT`) context, so an ill-formed body is no longer admitted under a false hypothesis (see [#234](https://github.com/rzk-lang/rzk/pull/234)).
+
+Documentation:
+
+- Remove a malicious `polyfill.io` dependency from the docs (see [#231](https://github.com/rzk-lang/rzk/pull/231)).
+
+CI / infrastructure:
+
+- Add a CI job that builds the `rzk` library with the GHC WebAssembly backend (see [#235](https://github.com/rzk-lang/rzk/pull/235)).
+- Import `RzkConfig` qualified (see [#232](https://github.com/rzk-lang/rzk/pull/232)).
 
 ## v0.8.0 — 2026-06-04
 
