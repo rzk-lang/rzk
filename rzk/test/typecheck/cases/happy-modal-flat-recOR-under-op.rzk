@@ -1,7 +1,7 @@
 #lang rzk-1
 
--- Flat var under op: values inaccessible even though topes are
-#def ill-flat-recOR-under-op
+-- Flat var under op: values accessible even in topes
+#def flat-recOR-under-op
   (A :_b U)
   (a b :_b A)
   (i :_b 2)
