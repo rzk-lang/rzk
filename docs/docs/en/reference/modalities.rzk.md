@@ -36,6 +36,10 @@ graph TB
 
   flat -->|"coe"| id
   id  -->|"coe"| sharp
+
+  flat -->|"coe"| op
+  op  -->|"coe"| sharp
+
   id ~~~ op
 ```
 
@@ -91,19 +95,10 @@ Modal bindings use `#!rzk let mod ext/inn x := value in body`, where:
 
 If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let mod _id/m x := value in body`.
 
-It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk flat-extract` is the opposite of `#!rzk sharp-pure` — it is definable precisely because there is a coercion \(\flat \Rightarrow id\):
+It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk double-op` uses `#!rzk let mod` to define the modal composition \(\langle \text{op} | \langle \text{op} | A \rangle \rangle \to A\), since \(\text{op} \cdot \text{op} = id\):
 
 ```rzk
 
-#def flat-extract (A : ♭ U) (x : let mod ♭ Ab := A in ♭ Ab)
-  : let mod ♭ Ab := A in Ab
-  := let mod ♭ xb := x in xb
-
-```
-
-Using `#!rzk let mod` you can define the modal сomposition \(\langle \mu | \langle \nu | A \rangle \rangle \to \langle \mu \cdot \nu | A \rangle\). A concrete example is `#!rzk double-op`:
-
-```rzk
 #def double-op (A : U) (x : ᵒᵖ (ᵒᵖ A))
   : A
   :=
@@ -126,7 +121,7 @@ For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are
 #def b-map₁ (A B :♭ U) (f :♭ A → B)
   : ♭ A → ♭ B
   :=
-  \ (x :♭ A) → mod ♭ (f x)
+  \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 ```
 
@@ -141,7 +136,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
 
 #def b-map (A B :♭ U) (f :♭ A → B)
   : ♭ A → ♭ B
-  := \ (x :♭ A) → mod ♭ (f x)
+  := \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 #def b-dup (A :♭ U) (x :♭ A)
   : ♭ (♭ A)
@@ -149,7 +144,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
 
 #def op-map (A B :ᵒᵖ U) (f :ᵒᵖ A → B)
   : ᵒᵖ A → ᵒᵖ B
-  := \ (x :ᵒᵖ A) → mod ᵒᵖ (f x)
+  := \ (x : ᵒᵖ A) → let mod ᵒᵖ opx := x in mod ᵒᵖ (f opx)
 
 #def sharp-pure (A : U) (x : A)
   : ♯ A
@@ -157,7 +152,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
 
 #def sharp-map (A B : U) (f : A → B)
   : ♯ A → ♯ B
-  := \ (x :♯ A) → mod ♯ (f x)
+  := \ (x : ♯ A) → let mod ♯ sx := x in mod ♯ (f sx)
 
 #def sharp-join (A : U) (a : ♯ (♯ A))
   : ♯ A
