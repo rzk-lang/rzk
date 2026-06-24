@@ -1283,8 +1283,10 @@ instance ModeTheory TModality where
   comp m Id        = m
 
   coe Flat Id    = True
+  coe Flat Op    = True
   coe Id Sharp   = True
   coe Flat Sharp = True
+  coe Op Sharp   = True
   coe a b        = a == b
 
   isRA Sharp = True 
