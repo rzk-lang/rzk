@@ -218,11 +218,11 @@ extra-source-files:
     test/typecheck/cases/ill-unify.expect.yaml
     test/typecheck/cases/ill-unset-option-unknown.expect.yaml
     test/typecheck/cases/ill-unused-assumption.expect.yaml
+    test/typecheck/cases/uses-whnf-discarded.expect.yaml
+    test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
     test/typecheck/cases/literate-fence/expect.yaml
     test/typecheck/cases/multimodule-first-error/expect.yaml
     test/typecheck/cases/multimodule-two-ok/expect.yaml
-    test/typecheck/cases/uses-whnf-discarded.expect.yaml
-    test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
     test/typecheck/cases/literate-fence/doc.rzk.md
 extra-doc-files:
     README.md
