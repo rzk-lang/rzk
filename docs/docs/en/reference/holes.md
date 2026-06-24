@@ -98,17 +98,48 @@ The goal is kept symbolic: composite definitions are shown as written, not
 unfolded. For an extension type, the goal carries its boundary, so you can see
 the conditions the term must satisfy.
 
+When a binder uses a pair pattern, for example `#!rzk \ (t , s) -> ...`, the
+hypothesis is shown by its pattern, as `#!rzk (t, s) : ...`, rather than through
+projections, so the component names you wrote are kept in the goal and context.
+
+## JSON diagnostics
+
+For editor-agnostic tooling and continuous integration, `#!sh rzk typecheck
+--json` emits every diagnostic — type errors and holes alike — as a JSON array
+on stdout. Progress messages go to stderr, and the command exits non-zero only
+when there is an error-severity diagnostic (a hole is a `#!json "warning"`, so
+under `#!sh --json` a file with holes still exits zero).
+
+Each diagnostic carries a severity, a stable `#!json "code"`, a source
+`#!json "location"`, and a rendered `#!json "message"`. A hole additionally
+carries its structured goal and context under `#!json "hole"`:
+
+```json
+{
+  "code": "hole",
+  "severity": "warning",
+  "location": { "file": "swap.rzk", "line": 2 },
+  "message": "Hole ?b at swap.rzk:2\n  goal:\n    B\n  ...",
+  "hole": {
+    "name": "b",
+    "goal": "B",
+    "termVars": [ { "name": "p", "type": "Σ (x₁ : A), B" }, ... ],
+    "cubeVars": [],
+    "topes": [],
+    "shape": null
+  }
+}
+```
+
 ## Tooling
 
 The same goal-and-context information is available to tools as structured data,
 not only as text. Editors and the Rzk playground can therefore show the goal and
-context at a hole, and update them as you edit.
+context at a hole, and update them as you edit. The language server reports each
+hole as a warning carrying its goal and context, mirroring Agda's yellow
+"unsolved" highlight.
 
 ## Limitations
 
 - A hole takes the type expected of it; it cannot yet be _refined_ by writing a
   partial term inside it (as Agda's `#!agda {! ... !}` allows). This is planned.
-- When a binder uses a pair pattern, for example `#!rzk \ (t , s) -> ...`, Rzk
-  shows its components through projections (`#!rzk π₁ x`, `#!rzk π₂ x`) rather
-  than by the names `#!rzk t` and `#!rzk s`. The original names are not yet
-  recovered in the goal and context.

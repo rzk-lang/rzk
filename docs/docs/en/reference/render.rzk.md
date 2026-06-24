@@ -191,6 +191,40 @@ If a term is extracted as a part of a larger shape, generally, the whole shape w
   := \ (t , s) → second a ((t , t) , s)
 ```
 
+### Hiding the Proof Term
+
+Sometimes you want to show only the _shape_ a term inhabits — its boundary
+edges and faces — without revealing the proof term that fills it. Set the option
+`#!rzk "render-hide-term"` to `#!rzk "yes"` (the default is `#!rzk "no"`):
+
+```rzk
+#set-option "render-hide-term" = "yes"
+```
+
+With the proof term hidden, the interior label is blanked and only the given
+boundary labels are kept, so the diagram shows the cell to be filled rather than
+a particular filler:
+
+```rzk
+#define triangle-to-fill
+  ( A : U)
+  ( x y z : A)
+  ( f : hom A x y)
+  ( g : hom A y z)
+  ( h : hom A x z)
+  ( a : hom2 A x y z f g h)
+  : Δ² → A
+  := \ (t1 , t2) → a (t1 , t2)
+```
+
+```rzk
+#unset-option "render-hide-term"  -- restore the default
+```
+
+This is the same control the typed-holes query uses to draw a hole's goal cell:
+the shape the hole must inhabit, with its given edges, and the proof term left
+blank.
+
 <!-- Style for the SVG images above -->
 <style>
 .rzk-render { transition: transform .2s; /* Animation */ }
