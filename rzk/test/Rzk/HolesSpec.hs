@@ -14,6 +14,7 @@ import           System.Environment  (lookupEnv)
 import           System.FilePath     ((</>))
 
 import qualified Language.Rzk.Syntax as Rzk
+import           Language.Rzk.Free.Syntax (VarIdent)
 import           Rzk.Diagnostic      (typeErrorTagInScopedContext)
 import           Rzk.TypeCheck
 
@@ -26,6 +27,16 @@ holesOf src =
   case Rzk.parseModule src of
     Left err -> error ("parse error: " <> T.unpack err)
     Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
+      Left err            -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
+      Right (_, _, holes) -> holes
+
+-- | Like 'holesOf', but allow-lists the given named top-level lemmas for the
+-- candidate hints (see 'withHintLemmas'\/'typecheckModulesWithHolesAndLemmas').
+holesWithLemmas :: [VarIdent] -> T.Text -> [HoleInfo]
+holesWithLemmas lemmas src =
+  case Rzk.parseModule src of
+    Left err -> error ("parse error: " <> T.unpack err)
+    Right m  -> case typecheckModulesWithHolesAndLemmas lemmas [("<test>", m)] of
       Left err            -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
       Right (_, _, holes) -> holes
 
@@ -319,6 +330,44 @@ spec = do
       case holesOf "#lang rzk-1\n#def bdry (A : U) (x y : A)\n  : ( (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ] )\n  := \\ t → ?\n" of
         [h] -> cands h `shouldContain` ["recOR (t ≡ 0₂ ↦ ?, t ≡ 1₂ ↦ ?)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "holeCandidates with allow-listed lemmas (withHintLemmas)" $ do
+    let cands = map show . holeCandidates
+        -- two top-level lemmas and an off-type one; the goal is the type @B@.
+        src = "#lang rzk-1\n#postulate B : U\n#postulate C : U\n"
+           <> "#postulate concat : B -> B -> B\n#postulate rev : B -> B\n"
+           <> "#postulate elsewhere : C\n#define goal : B := ?\n"
+        oneHole f hs = case hs of
+          [h] -> f h
+          _   -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A top-level definition is not a hole candidate unless it is allow-listed.
+    it "does not offer a top-level lemma that was not allow-listed" $
+      flip oneHole (holesWithLemmas [] src) $ \h ->
+        filter (isInfixOf "concat") (cands h) `shouldBe` []
+
+    -- An allow-listed lemma is offered, applied to holes (fit to the goal).
+    it "offers an allow-listed lemma applied to holes" $
+      flip oneHole (holesWithLemmas ["concat"] src) $ \h ->
+        cands h `shouldContain` ["concat ? ?"]
+
+    -- Each allow-listed lemma is offered independently.
+    it "offers several allow-listed lemmas" $
+      flip oneHole (holesWithLemmas ["concat", "rev"] src) $ \h -> do
+        cands h `shouldContain` ["concat ? ?"]
+        cands h `shouldContain` ["rev ?"]
+
+    -- The allow-list is still fit-filtered: a lemma whose type cannot reach the
+    -- goal (here @elsewhere : C@ against goal @B@) is not offered.
+    it "does not offer an allow-listed lemma whose type does not fit" $
+      flip oneHole (holesWithLemmas ["elsewhere"] src) $ \h ->
+        filter (isInfixOf "elsewhere") (cands h) `shouldBe` []
+
+    -- Lemmas feed the candidate list only, not the local context: an allow-listed
+    -- global does not appear among the hole's term/cube variables.
+    it "keeps allow-listed lemmas out of the local context" $
+      flip oneHole (holesWithLemmas ["concat"] src) $ \h ->
+        (names (holeTermVars h) <> names (holeCubeVars h)) `shouldNotContain` ["concat"]
 
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions

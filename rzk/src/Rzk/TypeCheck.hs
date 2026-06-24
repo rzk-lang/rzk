@@ -101,8 +101,21 @@ typecheckModulesWithHoles
   :: [(FilePath, Rzk.Module)]
   -> Either (TypeErrorInScopedContext VarIdent)
             ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent], [HoleInfo])
-typecheckModulesWithHoles modules =
-  flatten <$> defaultTypeCheckWithHoles (typecheckModulesWithLocation' modules)
+typecheckModulesWithHoles = typecheckModulesWithHolesAndLemmas []
+
+-- | Like 'typecheckModulesWithHoles', but additionally offers the given named
+-- top-level definitions as hole candidates (each applied to holes when its type
+-- fits the goal). The game passes a level's allow-list of relevant lemmas so
+-- they surface as moves; an empty list reproduces 'typecheckModulesWithHoles'.
+typecheckModulesWithHolesAndLemmas
+  :: [VarIdent]
+  -> [(FilePath, Rzk.Module)]
+  -> Either (TypeErrorInScopedContext VarIdent)
+            ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent], [HoleInfo])
+typecheckModulesWithHolesAndLemmas lemmas modules =
+  flatten <$> defaultTypeCheckWithHoles'
+    (withHintLemmas lemmas (allowHoles emptyContext))
+    (typecheckModulesWithLocation' modules)
   where
     flatten ((decls, errs), holes) = (decls, errs, holes)
 
@@ -1005,16 +1018,21 @@ recordHoleShape
 recordHoleShape mname goalTy mshape = do
   goal'     <- whnfT goalTy
   locals    <- asks (filter (not . varIsTopLevel . snd) . varInfos)
+  -- named top-level lemmas the caller allow-listed for hints (see 'hintLemmas').
+  -- They feed the candidate-elimination loop only — not the local context shown
+  -- to the user, since they are global definitions, not local hypotheses.
+  lemmas    <- asks hintLemmas
+  lemmaVars <- asks (filter (\(_, i) -> varIsTopLevel i && maybe False (`elem` lemmas) (binderName (varOrig i))) . varInfos)
   cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
   topes     <- asks (filter (/= topeTopT) . availableTopes)
   origs     <- asks varOrigs
   binders   <- asks varBinders
   loc       <- asks location
-  -- for each local hypothesis, the elimination spines that land in the goal
-  -- (arguments left as holes). Probing must not leak holes into the recorded
-  -- output, hence 'censor'.
+  -- for each local hypothesis (and allow-listed lemma), the elimination spines
+  -- that land in the goal (arguments left as holes). Probing must not leak holes
+  -- into the recorded output, hence 'censor'.
   candidates <- censor (const []) $ do
-    elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) locals
+    elims  <- concat <$> mapM (\(v, _) -> allEliminationsInto goalTy (Pure v)) (locals ++ lemmaVars)
     -- context-driven moves (independent of the goal's head and the hypotheses):
     -- ex falso in a contradictory context, and tope case-splits. recOR and recBOT
     -- are term-level eliminators, so they are offered only for a term goal — not
@@ -1025,8 +1043,8 @@ recordHoleShape mname goalTy mshape = do
     pure (elims <> recbot <> recor)
   let shapeTope     = snd <$> mshape
       shapeTopeVars = maybe [] (\t -> [ v | S v <- foldr (:) [] t ]) shapeTope
-  varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) locals ++ topes)
-  let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst locals)) defaultVarIdents
+  varsList  <- concat <$> mapM freeVarsT_ (goal' : map (varType . snd) (locals ++ lemmaVars) ++ topes)
+  let mapping  = zip (nub (varsList ++ shapeTopeVars ++ map fst (locals ++ lemmaVars))) defaultVarIdents
       name v   = fromMaybe "_" (join (lookup v origs) <|> lookup v mapping)
       fbs      = freshBinders name mapping binders
       render t = restorePatternVars [ (name v, b) | (v, b) <- fbs ]
@@ -1310,6 +1328,11 @@ data Context var = Context
     -- containing a hole is accepted, for an in-progress sketch — while 'False'
     -- keeps such a mismatch an error, so only a hole standing in a matching
     -- structure is accepted ('structuralHoleUnify').
+  , hintLemmas             :: [VarIdent]
+    -- ^ Named top-level definitions a hole's candidate list may draw on, beyond
+    -- the local hypotheses (see 'withHintLemmas'). A caller (the game) supplies
+    -- a small curated allow-list per level; each listed lemma whose type fits
+    -- the goal is then offered, applied to holes (e.g. @concat ? ? ?@).
   } deriving (Functor, Foldable)
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
@@ -1358,6 +1381,7 @@ emptyContext = Context
   , renderHideTerm = False
   , holesAreErrors = True
   , deferHoleMismatches = True
+  , hintLemmas = []
   }
 
 -- | Switch to lenient hole mode: record each hole's goal and context instead
@@ -1365,6 +1389,13 @@ emptyContext = Context
 -- the @--allow-holes@ CLI mode; the default (strict) mode rejects holes.
 allowHoles :: Context var -> Context var
 allowHoles ctx = ctx { holesAreErrors = False }
+
+-- | Allow a hole's candidate list to draw on the given named top-level
+-- definitions (in addition to the local hypotheses). The game supplies the
+-- per-level allow-list; 'recordHoleShape' then offers each listed lemma whose
+-- type fits the goal, applied to holes. See 'hintLemmas'.
+withHintLemmas :: [VarIdent] -> Context var -> Context var
+withHintLemmas lemmas ctx = ctx { hintLemmas = lemmas }
 
 -- | Within the given action, a hole unifies only as a leaf in an otherwise
 -- matching structure: a structural mismatch around a hole stays an error rather
