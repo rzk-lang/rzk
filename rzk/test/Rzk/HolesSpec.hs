@@ -488,6 +488,15 @@ spec = do
       errTagsOf (usesSection "#define f uses (x) : U\n  := A")
         `shouldContain` ["TypeErrorUnusedUsedVariables"]
 
+    -- A hole-free definition whose body refers to an in-progress (hole-bearing)
+    -- one declares 'uses (x)' that reads as unused only because the referenced
+    -- definition is incomplete. The section has a hole, so it is tolerated (the
+    -- check keys off a hole anywhere in the section, not the declaration alone).
+    it "tolerates an unused 'uses' on a hole-free wrapper of a hole-bearing def" $
+      errTagsOf (usesSection ("#define in-progress uses (x) : U\n  := ?\n"
+                           <> "#define wrapper uses (x) : U\n  := in-progress"))
+        `shouldNotContain` ["TypeErrorUnusedUsedVariables"]
+
   -- The goal cell: when the goal is a renderable shape, the hole carries an SVG
   -- of that shape, drawn from an abstract inhabitant with the proof term hidden
   -- (see 'renderHideTerm'). So the picture shows the given boundary edges with a
