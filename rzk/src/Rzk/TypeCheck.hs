@@ -1517,9 +1517,11 @@ scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> Typ
 scopeToDecls errs ScopeInfo{..} = do
   -- In lenient (hole-checking) mode an as-yet-unfilled hole may still come to
   -- use a declared variable, so we tolerate the unused-variable diagnostics
-  -- wherever such a hole is present: a hole anywhere in the section for an
-  -- unused section assumption, a hole in the declaration itself for an unused
-  -- 'uses' variable. Strict mode (the default, and CI) keeps reporting both.
+  -- wherever such a hole is present anywhere in the section. This covers both an
+  -- unused section assumption and an unused 'uses' variable, and crucially a
+  -- hole-free definition whose body refers to an in-progress (hole-bearing) one:
+  -- its 'uses' reads as unused only because the referenced definition is
+  -- incomplete. Strict mode (the default, and CI) keeps reporting both.
   lenient <- not <$> asks holesAreErrors
   let sectionHasHole = any (maybe False containsHole . varValue . snd) scopeVars
   (decls, errs') <- collectScopeDecls (lenient && sectionHasHole) errs [] scopeVars
@@ -1527,8 +1529,7 @@ scopeToDecls errs ScopeInfo{..} = do
   -- when (null errs) $ do
   unusedErrors <- forM decls $ \Decl{..} -> do
     let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
-        declHasHole    = maybe False containsHole declValue
-    if null errs && not (null unusedUsedVars) && not (lenient && declHasHole)
+    if null errs && not (null unusedUsedVars) && not (lenient && sectionHasHole)
       then do
         err <- local (\c -> c { location = declLocation }) $
           fromTypeError (TypeErrorUnusedUsedVariables unusedUsedVars declName)

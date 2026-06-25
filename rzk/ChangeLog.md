@@ -10,6 +10,8 @@ and this project adheres to the
 
 Fixed:
 
+- In lenient (`--allow-holes`) mode, an unused `#!rzk uses` variable is now tolerated whenever the section contains a hole, not only when the hole sits in the declaration itself. For example, with `#!rzk #def in-progress uses (P) : U := ?` and a hole-free wrapper `#!rzk #def check uses (P) : U := in-progress`, the wrapper's `#!rzk uses (P)` reads as unused only because `#!rzk in-progress` is incomplete; it no longer masks the hole the player is meant to see. Strict mode (the default, and CI) still reports a genuinely unused `#!rzk uses` (see [#262](https://github.com/rzk-lang/rzk/pull/262)).
+
 - A hole's hint inventory no longer drops a hypothesis or allow-listed lemma whose elimination spine is long. For a goal `#!rzk B` and a lemma `#!rzk deep : A -> A -> A -> A -> A -> A -> A -> A -> B`, the candidate `#!rzk deep ? ? ? ? ? ? ? ?` was silently omitted, because filling each of the eight arguments with a hole spent one unit of the search-depth bound. Filling a function's arguments is a forced spine step, so it no longer counts against the bound; only the genuinely branching eliminators (Σ/cube projections and `#!rzk idJ`) do. This affects only the candidate hints surfaced to the game and the LSP, not the strict `rzk typecheck` path (see [#261](https://github.com/rzk-lang/rzk/pull/261)).
 
 ## v0.9.0 — 2026-06-24
