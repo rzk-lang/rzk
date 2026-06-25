@@ -356,6 +356,19 @@ toTerm bvars = go
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
+      -- A binder may name several variables sharing a type, e.g. (x y : A),
+      -- which is parsed as the application spine `x y`. Desugar it into nested
+      -- one-variable binders ((x : A) → (y : A) → …) before translating, so the
+      -- pattern conversion never sees a juxtaposition. (Shape binders are left
+      -- alone: their tope refers to the single bound point.)
+      Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm arg) ret
+        | _ : _ : _ <- vars ->
+            go (foldr (\v -> Rzk.TypeFun loc (Rzk.ParamTermType loc' v arg)) ret vars)
+        where vars = flattenBinderApp patTerm
+      Rzk.TypeFun loc (Rzk.ParamTermModalType loc' patTerm mc ty) ret
+        | _ : _ : _ <- vars ->
+            go (foldr (\v -> Rzk.TypeFun loc (Rzk.ParamTermModalType loc' v mc ty)) ret vars)
+        where vars = flattenBinderApp patTerm
       Rzk.TypeFun _loc (Rzk.ParamTermModalType _loc' patTerm mc ty) ret ->
         let pat = unsafeTermToPattern patTerm
             md  = modalColonToTModality mc
@@ -489,6 +502,15 @@ fromTModalityToModalColon = \case
   Flat  -> Rzk.ModalColonFlat Nothing
   Op    -> Rzk.ModalColonOp Nothing
   Id    -> Rzk.ModalColonId Nothing
+
+-- | Split a binder term into the individual variables it names. A multi-variable
+-- binder like @(x y : A)@ is parsed as the application spine @x y@; this returns
+-- @[x, y]@ so each can become its own nested binder. A single binder term (a
+-- variable, a pair pattern, …) is returned unchanged as a singleton.
+flattenBinderApp :: Rzk.Term -> [Rzk.Term]
+flattenBinderApp = \case
+  Rzk.App _loc f x -> flattenBinderApp f ++ [x]
+  t                -> [t]
 
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp

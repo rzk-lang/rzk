@@ -31,6 +31,7 @@ extra-source-files:
     test/typecheck/cases/happy-modal-inv.rzk
     test/typecheck/cases/happy-modal-tope-unwrap.rzk
     test/typecheck/cases/happy-modal-topes.rzk
+    test/typecheck/cases/happy-multivar-binder.rzk
     test/typecheck/cases/happy-op-hom-to-hom.rzk
     test/typecheck/cases/happy-recbot-term-wellformed.rzk
     test/typecheck/cases/happy-recor-guard-exceeds-context.rzk
@@ -133,6 +134,7 @@ extra-source-files:
     test/typecheck/cases/happy-modal-inv.expect.yaml
     test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
     test/typecheck/cases/happy-modal-topes.expect.yaml
+    test/typecheck/cases/happy-multivar-binder.expect.yaml
     test/typecheck/cases/happy-op-hom-to-hom.expect.yaml
     test/typecheck/cases/happy-recbot-term-wellformed.expect.yaml
     test/typecheck/cases/happy-recor-guard-exceeds-context.expect.yaml
