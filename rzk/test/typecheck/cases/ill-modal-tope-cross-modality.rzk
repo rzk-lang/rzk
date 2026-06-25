@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Plain LEQ becomes inaccessible under mod _b (coe(Id, Flat) = False),
+-- while _b(EQ) stays accessible (coe(Flat, Flat) = True).
+-- LEQ has no symmetry in saturation, so it cannot be re-derived.
+-- Without mod _b, both parts are accessible and the recOR passes.
+
+#def ill-cross-modality-leq-under-flat
+  (A :_b U) (a :_b A)
+  (j m :_b 2)
+  : (i :_b 2 | (i <= j) /\ _# (m === 0_2)) -> _b A
+  := \ (i :_b 2) -> mod _b (recOR( (i <= j) /\ (m === 0_2) |-> a ))

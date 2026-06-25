@@ -12,6 +12,7 @@ import qualified Data.Text.IO         as T
 import qualified Data.Yaml            as Yaml
 import           System.Directory     (doesPathExist)
 import           System.FilePath.Glob (glob)
+import           System.IO            (hPutStrLn, stderr)
 
 import qualified Language.Rzk.Syntax  as Rzk
 import           Rzk.Project.Config
@@ -70,7 +71,7 @@ parseRzkFilesOrStdin = \case
     rzkYamlExists <- doesPathExist rzkYamlPath
     if rzkYamlExists
       then do
-        putStrLn ("Using Rzk project stucture specified in " <> rzkYamlPath)
+        hPutStrLn stderr ("Using Rzk project stucture specified in " <> rzkYamlPath)
         paths <- extractFilesFromRzkYaml rzkYamlPath
         when (null paths) (error $ "No Rzk files specified in the config file at " <> rzkYamlPath)
         parseRzkFilesOrStdin paths
@@ -81,7 +82,7 @@ parseRzkFilesOrStdin = \case
   paths -> do
     expandedPaths <- foldMap globNonEmpty paths
     forM expandedPaths $ \path -> do
-      putStrLn ("Loading file " <> path)
+      hPutStrLn stderr ("Loading file " <> path)
       result <- Rzk.parseModule <$> T.readFile path
       case result of
         Left err -> do

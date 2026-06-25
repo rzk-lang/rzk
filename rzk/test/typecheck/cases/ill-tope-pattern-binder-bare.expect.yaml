@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorUndefined
+message_contains:
+  - "Local tope context:"
+  - "Δ² (t, s)"
+regression_for:
+  - render-bare-pattern-point

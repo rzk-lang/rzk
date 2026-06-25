@@ -1,7 +1,7 @@
 #lang rzk-1
 
--- Single-branch `recOR` on unrestricted `t : 2`: `contextEquiv` requires `⊤` to match
--- `t ≡ 0₂ ∨ ⊥` (`contextEquiv` after `recOR`).
+-- Single-branch `recOR` on unrestricted `t : 2`: `contextEntailsUnion` requires `⊤` to entail
+-- `t ≡ 0₂ ∨ ⊥`, which fails (`contextEntailsUnion` after `recOR`).
 
 #define u : U := Unit -> Unit
 

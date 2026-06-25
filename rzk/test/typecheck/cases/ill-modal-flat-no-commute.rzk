@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Flat letmod should NOT commute: flat is not RA,
+-- so extract does not reduce and the two orderings
+-- are not definitionally equal.
+
+#def ill-flat-commute
+  (A :_b U) (B :_b U)
+  (x : _b A) (y : _b B)
+  : (let mod _b a := x in let mod _b b := y in a)
+  = (let mod _b b := y in let mod _b a := x in a)
+  := refl

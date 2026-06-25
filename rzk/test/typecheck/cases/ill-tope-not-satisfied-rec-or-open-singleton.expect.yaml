@@ -1,6 +1,6 @@
 status: error
 error_tag: TypeErrorTopeNotSatisfied
 message_contains:
-  - "equivalent to the union"
+  - "union of the topes"
 regression_for:
-  - contextEquiv-recOR-singleton
+  - contextEntailsUnion-recOR-singleton

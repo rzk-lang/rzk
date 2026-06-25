@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- recOR under sharp: plain var's discrete axiom inaccessible
+#def ill-sharp-recOR-plain-var
+  (A :_# U)
+  (a b :_# A)
+  (i : 2)
+  : _# A
+  := mod _# (recOR( i === 0_2 |-> a , i === 1_2 |-> b ))

@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- A restriction face disjoint from the local tope context is vacuous: its overlap
+-- with the context is ⊥, so it constrains the term nowhere. Such a face is always
+-- rejected (whereas a merely overhanging face is only warned about). Here the face
+-- `t ≡ 1` cannot hold in the context `t ≡ 0`.
+#define faceDisjoint (t : 2 | t === 0_2) : Unit [ t === 1_2 |-> unit ]
+  := unit

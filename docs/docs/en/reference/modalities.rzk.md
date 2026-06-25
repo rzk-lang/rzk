@@ -4,7 +4,7 @@
 #lang rzk-1
 ```
 
-Rzk's **modal extension** supports reasoning in the style of **Triangulated Type Theory** (TTT), introduced by Gratzer, Weinberger, and Buchholtz[^ttt] as an enrichment of simplicial type theory with modalities \(\flat\), \(\sharp\), and \(op\). The extension was implemented by Islam Talipov[^hottuf26], using a **parameterized mode theory** (composition and coercion of modes) layered on top of Rzk’s existing cube, tope, and type layers. It ships with Rzk v0.8 and remains experimental.
+Rzk's **modal extension** supports reasoning in the style of **Triangulated Type Theory** (TTT), introduced by Gratzer, Weinberger, and Buchholtz[^ttt] as an enrichment of simplicial type theory with modalities \(\flat\), \(\sharp\), and \(op\). The extension was implemented by Islam Talipov[^hottuf26], using a **parameterized mode theory** (composition and coercion of modes) layered on top of Rzk's existing cube, tope, and type layers. It ships with Rzk v0.8 and remains experimental.
 
 Formalizations that use this syntax include the [sHoTT `diruniv` branch](https://github.com/LIshy2/sHoTT/tree/diruniv), in particular [modal API examples](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/15-modalities.rzk) and a development of directed univalence ([`17-diruniv.rzk`](https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/17-diruniv.rzk)).
 
@@ -36,6 +36,10 @@ graph TB
 
   flat -->|"coe"| id
   id  -->|"coe"| sharp
+
+  flat -->|"coe"| op
+  op  -->|"coe"| sharp
+
   id ~~~ op
 ```
 
@@ -64,11 +68,11 @@ graph TB
 
 ## Modal types and introduction
 
-A type in modality `#!rzk µ` is written `#!rzk <| µ | A |>`, where `#!rzk A` is checked under `#!rzk µ`. A term of that type is introduced with `#!rzk mod µ t`, where `#!rzk t` is checked in a context “under” modality `#!rzk µ`:
+A type in modality `#!rzk µ` is written `#!rzk µ A`, where `#!rzk A` is checked under `#!rzk µ`. A term of that type is introduced with `#!rzk mod µ t`, where `#!rzk t` is checked in a context "under" modality `#!rzk µ`:
 
 ```rzk
 #def sharp-pure₁ (A : U) (x : A)
-  : <| ♯ | A |>
+  : ♯ A
   := mod ♯ x
 ```
 
@@ -77,7 +81,7 @@ This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any 
 ```{.unchecked .rzk}
 -- ill-typed
 #def bad-flat-pure (A : U) (x : A)
-  : <| _b | A |>
+  : _b A
   := mod _b x
 ```
 
@@ -86,25 +90,16 @@ This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any 
 Modal `#!rzk let mod` is the elimination principle for modal types.
 Modal bindings use `#!rzk let mod ext/inn x := value in body`, where:
 
-- `#!rzk value` is checked against `#!rzk <| inn | T |>` under an **`ext`-lock**
+- `#!rzk value` is checked against `#!rzk inn T` under an **`ext`-lock**
 - `#!rzk body` is checked with `#!rzk x` \(:^{ext \cdot inn}\) `#!rzk T` in context
 
 If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let mod _id/m x := value in body`.
 
-It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk flat-extract` is the opposite of `#!rzk sharp-pure` — it is definable precisely because there is a coercion \(\flat \Rightarrow id\):
+It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk double-op` uses `#!rzk let mod` to define the modal composition \(\langle \text{op} | \langle \text{op} | A \rangle \rangle \to A\), since \(\text{op} \cdot \text{op} = id\):
 
 ```rzk
 
-#def flat-extract (A : <| ♭ | U |>) (x : let mod ♭ Ab := A in <| ♭ | Ab |>)
-  : let mod ♭ Ab := A in Ab
-  := let mod ♭ xb := x in xb
-
-```
-
-Using `#!rzk let mod` you can define the modal сomposition \(\langle \mu | \langle \nu | A \rangle \rangle \to \langle \mu \cdot \nu | A \rangle\). A concrete example is `#!rzk double-op`:
-
-```rzk
-#def double-op (A : U) (x : <| ᵒᵖ | <| ᵒᵖ | A |> |>)
+#def double-op (A : U) (x : ᵒᵖ (ᵒᵖ A))
   : A
   :=
   let mod ᵒᵖ x_1 := x in
@@ -114,19 +109,19 @@ Using `#!rzk let mod` you can define the modal сomposition \(\langle \mu | \lan
 ```
 ## Modal bindings
 
-Modal parameter annotations `#!rzk (x : m A)` are syntactic sugar that makes definitions look less verbose than the raw `#!rzk let mod` form. A parameter `#!rzk (x : _b A) -> ...` desugars to `#!rzk (_a : <| _b | A |>) → let mod _b x := _a in …`. This sugar is available in `#!rzk λ`-abstractions, `#!rzk Π`- and `#!rzk Σ`-types, and definition argument lists.
+Modal parameter annotations `#!rzk (x :µ A)` bind the variable `#!rzk x` directly under modality `#!rzk µ` with type `#!rzk A`. This is a first-class modal binding — the variable `#!rzk x` is accessible according to the coercion rules of `#!rzk µ`. Modal bindings are available in `#!rzk λ`-abstractions, `#!rzk Π`- and `#!rzk Σ`-types, and definition argument lists.
 
 For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are much cleaner than the explicit `#!rzk let mod` version shown above:
 
 ```rzk
-#def b-extract₁ (A : ♭ U) (x : ♭ A)
+#def b-extract₁ (A :♭ U) (x :♭ A)
   : A
   := x
 
-#def b-map₁ (A B : ♭ U) (f : ♭ A → B)
-  : <| ♭ | A |> → <| ♭ | B |>
+#def b-map₁ (A B :♭ U) (f :♭ A → B)
+  : ♭ A → ♭ B
   :=
-  \ (x : ♭ A) → mod ♭ (f x)
+  \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 ```
 
@@ -135,32 +130,32 @@ For example, `#!rzk b-extract` and `#!rzk b-map` written with modal bindings are
 Below is a small self-contained example of modal syntax. The combinators follow the S4-style structure: each modality comes with extract/map/join operations where the mode theory allows it. Note that `#!rzk ♭` carries a **comonadic** structure (`b-extract`, `b-map`, `b-dup`), while `#!rzk ♯` carries a **monadic** structure (`sharp-pure`, `sharp-map`, `sharp-join`).
 
 ```rzk
-#def b-extract (A : ♭ U) (x : ♭ A)
+#def b-extract (A :♭ U) (x :♭ A)
   : A
   := x
 
-#def b-map (A B : ♭ U) (f : ♭ A → B)
-  : <| ♭ | A |> → <| ♭ | B |>
-  := \ (x : ♭ A) → mod ♭ (f x)
+#def b-map (A B :♭ U) (f :♭ A → B)
+  : ♭ A → ♭ B
+  := \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
-#def b-dup (A : ♭ U) (x : ♭ A)
-  : <| ♭ | <| ♭ | A |> |>
+#def b-dup (A :♭ U) (x :♭ A)
+  : ♭ ( ♭ A)
   := mod ♭ (mod ♭ x)
 
-#def op-map (A B : ᵒᵖ U) (f : ᵒᵖ A → B)
-  : <| ᵒᵖ | A |> → <| ᵒᵖ | B |>
-  := \ (x : ᵒᵖ A) → mod ᵒᵖ (f x)
+#def op-map (A B :ᵒᵖ U) (f :ᵒᵖ A → B)
+  : ᵒᵖ A → ᵒᵖ B
+  := \ (x : ᵒᵖ A) → let mod ᵒᵖ opx := x in mod ᵒᵖ (f opx)
 
 #def sharp-pure (A : U) (x : A)
-  : <| ♯ | A |>
+  : ♯ A
   := mod ♯ x
 
 #def sharp-map (A B : U) (f : A → B)
-  : <| ♯ | A |> → <| ♯ | B |>
-  := \ (x : ♯ A) → mod ♯ (f x)
+  : ♯ A → ♯ B
+  := \ (x : ♯ A) → let mod ♯ sx := x in mod ♯ (f sx)
 
-#def sharp-join (A : U) (a : <| ♯ | <| ♯ | A |> |>)
-  : <| ♯ | A |>
+#def sharp-join (A : U) (a : ♯ (♯ A))
+  : ♯ A
   :=
   let mod ♯ x_1 := a in
   let mod ♯ / ♯ x_2 := x_1 in
@@ -171,7 +166,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
 
 Modalities not only introduce modal types but also impose constraints on how variables can be introduced and used.
 
-- Every `#!rzk mod m …` or `#!rzk <| m | … |>` expression places an **m-lock** (a lock annotated with modality \(m\)) on the current context.
+- Every `#!rzk mod m …` or `#!rzk m A` expression places an **m-lock** (a lock annotated with modality \(m\)) on the current context.
 - `#!rzk let mod ext/inn x := value in body` introduces `#!rzk x` as a **modality-parametrized binding** with modality \(ext \cdot inn\).
 - A variable bound under modality \(\mu\) can only be used when the **accumulated lock** \(\hat{m}\) — the composition of all m-locks placed between the binding site and the use site — is \(\mu\)-coercible, i.e. there exists a coercion from \(\mu\) to \(\hat{m}\).
 
@@ -185,28 +180,28 @@ If a variable's modality cannot be coerced into the current lock accumulator, th
 
 Modalities are also available at the cube and tope layers. Their mechanics are the same as for modal types at the dependent type layer. Additionally, there are operators for inverting cubes and topes.
 
-The equivalence between `#!rzk 2` and `#!rzk <| _op | 2 |>` is witnessed by `#!rzk flipᵒᵖ` and `#!rzk unflipᵒᵖ`. In particular, `#!rzk flipᵒᵖ 0₂` reduces to `#!rzk mod _op 1₂` and vice versa.
+The equivalence between `#!rzk 2` and `#!rzk _op 2` is witnessed by `#!rzk flipᵒᵖ` and `#!rzk unflipᵒᵖ`. In particular, `#!rzk flipᵒᵖ 0₂` reduces to `#!rzk mod _op 1₂` and vice versa.
 
-The equivalence between `#!rzk TOPE` and `#!rzk <| _op | TOPE |>` is witnessed by `#!rzk invᵒᵖ` and `#!rzk uninvᵒᵖ`, which reverse the direction of inequalities.
+The equivalence between `#!rzk TOPE` and `#!rzk _op TOPE` is witnessed by `#!rzk invᵒᵖ` and `#!rzk uninvᵒᵖ`, which reverse the direction of inequalities.
 
 Here is an example of a function that reverses the direction of a morphism using the `#!rzk _op` modality:
 
 ```
 #def op-hom-to-hom
-  ( B : _op U)
-  ( x : _op B)
-  ( y : _op B)
-  ( h : _op (t : 2) → B [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ])
-  : ( ( t : 2) → <| _op | B |> [ t ≡ 0₂ ↦ mod _op y , t ≡ 1₂ ↦ mod _op x ])
+  ( B :_op U)
+  ( x :_op B)
+  ( y :_op B)
+  ( h :_op (t : 2) → B [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ])
+  : ( ( t : 2) → _op B [ t ≡ 0₂ ↦ mod _op y , t ≡ 1₂ ↦ mod _op x ])
   := \ t → let mod _op s := flipᵒᵖ t in mod _op (h s)
 ```
 
 ### Discrete interval elimination
 
-The discrete interval `#!rzk <| _b | 2 |>` can be treated as a Boolean type. A crisp point of `#!rzk 2` is either `#!rzk 0₂` or `#!rzk 1₂`, so we can eliminate by cases:
+The discrete interval `#!rzk _b 2` can be treated as a Boolean type. A crisp point of `#!rzk 2` is either `#!rzk 0₂` or `#!rzk 1₂`, so we can eliminate by cases:
 
 ```
-#def discrete-2-elim (i : _b 2) (A : U) (x y : A) : A :=
+#def discrete-2-elim (i :_b 2) (A : U) (x y : A) : A :=
   recOR(
     (i === 0_2) |-> x,
     (i === 1_2) |-> y)

@@ -1,0 +1,68 @@
+#lang rzk-1
+
+-- Extension types are needed to map out of cubes into types.
+-- You cannot simply write `(t : 2) -> A`; you need `<{(t : 2) | TOP} -> A>`.
+
+-- Basic extension type over 2
+#define arr2
+  (A : U)
+  : U
+  := (t : 2) -> A
+
+-- Basic extension type over I
+#define arrI
+  (A : U)
+  : U
+  := (t : II) -> A
+
+-- Extension type with boundary over 2
+#define hom2
+  (A : U) (x y : A)
+  : U
+  := (t : 2) -> A [ t === 0_2 |-> x , t === 1_2 |-> y ]
+
+-- Extension type with boundary over I
+#define homI
+  (A : U) (x y : A)
+  : U
+  := (t : II) -> A [ t === 0_I |-> x , t === 1_I |-> y ]
+
+-- Covariance of 2: a map A -> B induces a map on arrows
+#define cov2
+  (A B : U)
+  (f : A -> B)
+  (p : (t : 2) -> A)
+  : (t : 2) -> B
+  := \ t -> f (p t)
+
+-- Covariance of I: a map A -> B induces a map on paths
+#define covI
+  (A B : U)
+  (f : A -> B)
+  (p : (t : II) -> A)
+  : (t : II) -> B
+  := \ t -> f (p t)
+
+-- Covariance of 2 preserves boundary
+#define cov2-boundary
+  (A B : U)
+  (f : A -> B)
+  (x y : A)
+  (p : (t : 2) -> A [ t === 0_2 |-> x , t === 1_2 |-> y ])
+  : (t : 2) -> B [ t === 0_2 |-> f x , t === 1_2 |-> f y ]
+  := \ t -> f (p t)
+
+-- Covariance of I preserves boundary
+#define covI-boundary
+  (A B : U)
+  (f : A -> B)
+  (x y : A)
+  (p : (t : II) -> A [ t === 0_I |-> x , t === 1_I |-> y ])
+  : (t : II) -> B [ t === 0_I |-> f x , t === 1_I |-> f y ]
+  := \ t -> f (p t)
+
+-- Totality on 2: recOR works because 2 has total order
+#define total2
+  (t : 2)
+  : Unit
+  := recOR( t <= 0_2 |-> unit , 0_2 <= t |-> unit )

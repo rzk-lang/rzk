@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Plain var not accessible under op
+#def ill-plain-under-op
+  (A : U) (x : A)
+  : _op A
+  := mod _op x

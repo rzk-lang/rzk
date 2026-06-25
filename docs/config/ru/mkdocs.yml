@@ -29,6 +29,7 @@ nav:
       - Модальности (экспериментально): reference/modalities.rzk.md
       - Устранение объединений форм: reference/tope-disjunction-elimination.rzk.md
       - Типы-расширения: reference/extension-types.rzk.md
+      - Дырки: reference/holes.md
       - Организация кода:
           - Разделы и предпосылки: reference/sections.rzk.md
       - Встроенные определения:

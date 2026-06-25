@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- In strict mode the unsolved-hole error must render pattern-binder names: the
+-- lambda destructures p as (a , b), so the goal B (first p) shows as B a (not
+-- B (π₁ x)), and the binder appears in the context as (a , b), not a fresh
+-- variable. Regression for the pattern-binder name restoration.
+#define bad
+  : (A : U) -> (B : A -> U) -> (p : Σ (a : A) , B a) -> B (first p)
+  := \ A B (a , b) -> ?

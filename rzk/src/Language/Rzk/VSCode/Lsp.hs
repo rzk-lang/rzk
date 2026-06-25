@@ -13,7 +13,7 @@ import           Language.LSP.Server
 
 import           Data.Aeson                    (Result (Error, Success),
                                                 fromJSON)
-import           Language.Rzk.VSCode.Config    (ServerConfig (..))
+import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
 import           Language.Rzk.VSCode.Handlers
 
@@ -75,5 +75,5 @@ runLsp = do
       , staticHandlers = const handlers
       , interpretHandler = \env -> Iso (flip runReaderT rzkEnv . runLspT env) liftIO
       , options = defaultOptions { optTextDocumentSync = Just syncOptions }
-      , defaultConfig = def :: ServerConfig
+      , defaultConfig = def :: RzkConfig.ServerConfig
       }

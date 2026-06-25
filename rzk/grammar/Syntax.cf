@@ -5,7 +5,7 @@ layout toplevel ;
 
 token VarIdentToken ((char - ["-?!.\\;,#\"][)(}{><| \t\n\r"]) (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
 
-token HoleIdentToken '?' ;
+token HoleIdentToken ('?' (char - ["\\;,#\"][)(}{><| \t\n\r"])*) ;
 
 Module. Module ::= LanguageDecl [Command] ;
 
@@ -70,7 +70,8 @@ ParamPattern.          Param ::= Pattern ;
 ParamPatternType.      Param ::= "(" [Pattern] ":" Term ")" ;
 ParamPatternShape.     Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
 ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
-ParamPatternModalType. Param ::= "(" [Pattern] ":" Modality Term ")" ;
+ParamPatternModalType. Param ::= "(" [Pattern] ModalColon Term ")" ;
+ParamPatternModalShape. Param ::= "(" [Pattern] ModalColon Term "|" Term ")" ;
 separator nonempty Param "" ;
 
 -- Name introduction for let bindings
@@ -85,11 +86,12 @@ ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
 ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
 paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
 define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
-ParamTermModalType.    ParamDecl ::= "(" Term ":" Modality Term ")" ;
+ParamTermModalType.    ParamDecl ::= "(" Term ModalColon Term ")" ;
+ParamTermModalShape.   ParamDecl ::= "(" Term ModalColon Term "|" Term ")" ;
 
 -- Parameter declaration for Sigma types
 SigmaParam.      SigmaParam ::= Pattern ":" Term ;
-SigmaParamModal. SigmaParam ::= Pattern ":" Modality Term ;
+SigmaParamModal. SigmaParam ::= Pattern ModalColon Term ;
 separator nonempty SigmaParam "," ;
 
 Restriction. Restriction ::= Term "↦" Term ;
@@ -108,6 +110,15 @@ Id.          Modality ::= "_id" ;
 Single.  ModComp ::= Modality ;
 Comp.    ModComp ::= Modality "/" Modality ;
 
+-- Modal colon (combined : with modality, no space between : and modality)
+ModalColonFlat.        ModalColon ::= ":♭" ;
+ModalColonSharp.       ModalColon ::= ":♯" ;
+ModalColonOp.          ModalColon ::= ":ᵒᵖ" ;
+ModalColonId.          ModalColon ::= ":_id" ;
+ASCII_ModalColonFlat.  ModalColon ::= ":_b" ;
+ASCII_ModalColonSharp. ModalColon ::= ":_#" ;
+ASCII_ModalColonOp.    ModalColon ::= ":_op" ;
+
 -- Universes
 Universe.       Term7 ::= "U" ;
 UniverseCube.   Term7 ::= "CUBE" ;
@@ -118,6 +129,9 @@ CubeUnitStar.   Term7 ::= "*₁" ;
 Cube2.          Term7 ::= "2" ;
 Cube2_0.        Term7 ::= "0₂" ;
 Cube2_1.        Term7 ::= "1₂" ;
+CubeI.          Term7 ::= "𝕀" ;
+CubeI_0.        Term7 ::= "0ᵢ" ;
+CubeI_1.        Term7 ::= "1ᵢ" ;
 CubeProduct.    Term5 ::= Term5 "×" Term6 ;
 -- Topes
 TopeTop.        Term7 ::= "⊤" ;
@@ -145,7 +159,7 @@ RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
-TypeSigmaModal. Term1 ::= "Σ" "(" Pattern ":" Modality Term ")" "," Term1 ;
+TypeSigmaModal.    Term1 ::= "Σ" "(" Pattern ModalColon Term ")" "," Term1 ;
 TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
@@ -159,7 +173,7 @@ Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
 Pair.           Term7 ::= "(" Term "," Term ")" ;
 Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
 ModApp.         Term7 ::= "mod" Modality Term7 ;
-ModType.        Term7 ::= "<|" Modality "|" Term "|>" ;
+ModType.        Term7 ::= Modality Term7 ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
 LetMod.         Term1 ::= "let" "mod" ModComp Bind ":=" Term "in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
@@ -186,6 +200,9 @@ define ascii_CubeProduct l r = CubeProduct l r ;
 ASCII_CubeUnitStar.   Term7 ::= "*_1" ;
 ASCII_Cube2_0.        Term7 ::= "0_2" ;
 ASCII_Cube2_1.        Term7 ::= "1_2" ;
+ASCII_CubeI.          Term7 ::= "II" ;
+ASCII_CubeI_0.        Term7 ::= "0_I" ;
+ASCII_CubeI_1.        Term7 ::= "1_I" ;
 
 ASCII_TopeTop.        Term7 ::= "TOP" ;
 ASCII_TopeBottom.     Term7 ::= "BOT" ;
@@ -196,7 +213,8 @@ ASCII_TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
 
 ASCII_TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
 ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
-ASCII_TypeSigmaModal. Term1 ::= "Sigma" "(" Pattern ":" Modality Term ")" "," Term1 ;
+ascii_TypeSigmaModal. Term1 ::= "Sigma" "(" Pattern ModalColon Term ")" "," Term1 ;
+define ascii_TypeSigmaModal p mc t r = TypeSigmaModal p mc t r ;
 ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
 
 ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;

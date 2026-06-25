@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Well-formed terms under an absurd tope context are still accepted: the check only
+-- rejects terms that are ill-typed in their own right, not vacuous definitions.
+
+-- `recBOT` is well-typed when the context entails ⊥.
+#define okRecBot (A : U) (t : 2 | (t === 0_2) /\ (t === 1_2)) : A
+  := recBOT
+
+-- A well-typed application under the same absurd context.
+#define okRecBotApp (A : U) (g : A -> A) (a : A) (t : 2 | (t === 0_2) /\ (t === 1_2)) : A
+  := g a

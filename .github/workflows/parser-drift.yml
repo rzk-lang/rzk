@@ -1,0 +1,75 @@
+name: Parser up-to-date (grammar drift guard)
+
+# rzk builds with build-type: Simple and ships the *committed* generated parser
+# and lexer (src/Language/Rzk/Syntax) rather than regenerating them on every
+# build. This lane is the safety net for that choice: it regenerates them from
+# the source of truth, grammar/Syntax.cf, and fails if the committed files no
+# longer match. Edit the grammar, then run `make -C rzk regen-parser` and commit
+# the result — otherwise this job goes red.
+#
+# Tool versions are pinned exactly, because BNFC and happy stamp their version
+# into the generated files; a different version reads as spurious drift. These
+# are the versions that produced the committed files (see rzk/Makefile).
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - .github/workflows/parser-drift.yml
+      - rzk/grammar/Syntax.cf
+      - rzk/src/Language/Rzk/Syntax/**
+      - rzk/Makefile
+  pull_request:
+    branches: [develop]
+    paths:
+      - .github/workflows/parser-drift.yml
+      - rzk/grammar/Syntax.cf
+      - rzk/src/Language/Rzk/Syntax/**
+      - rzk/Makefile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check-generated-parser:
+    name: "Regenerate parser from grammar and check for drift"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Set up GHC and cabal
+        uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: "9.6"
+          cabal-version: "latest"
+          cabal-update: true
+
+      - name: 💾 Restore cached generator tools
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: parser-tools-${{ runner.os }}-bnfc2.9.6.3-alex3.5.4.0-happy2.2
+
+      - name: 🧰 Install the pinned generators (BNFC, alex, happy)
+        run: |
+          cabal install BNFC-2.9.6.3 alex-3.5.4.0 happy-2.2 \
+            --overwrite-policy=always --install-method=copy \
+            --installdir="$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: 🔁 Regenerate the parser from grammar/Syntax.cf
+        run: make -C rzk regen-parser
+
+      - name: 🔎 Fail if the committed parser drifted from the grammar
+        # Only the committed modules are checked; the intermediate Lex.x/Par.y
+        # that regen-parser also writes are git-ignored. A non-empty diff means
+        # someone changed the grammar (or a committed file) without running
+        # `make -C rzk regen-parser`.
+        run: git diff --exit-code -- rzk/src/Language/Rzk/Syntax

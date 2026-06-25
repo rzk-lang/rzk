@@ -1,5 +1,5 @@
 name: rzk
-version: 0.8.0
+version: 0.9.0
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -37,18 +37,24 @@ when:
   - condition: flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
 
-custom-setup:
-  dependencies:
-    base: ">= 4.11.0.0 && < 5.0"
-    Cabal: ">= 2.4.0.1 && < 4.0"
-    process: ">= 1.6.3.0"
+# build-type is Simple (hpack's default): the parser and lexer are generated
+# from grammar/Syntax.cf by BNFC + alex + happy *out of band* (run `make -C rzk
+# regen-parser`) and the results are committed under src/Language/Rzk/Syntax.
+# We deliberately avoid build-type: Custom — a Custom Setup.hs cannot run under
+# the GHC WebAssembly backend (cabal compiles it to a .wasm module and cannot
+# execute it), and it forced every consumer (Hackage installs included) to
+# build BNFC/alex/happy. The `Parser up-to-date` CI workflow regenerates from
+# the grammar and fails if the committed files drift.
 
-build-tools:
-  alex: ">= 3.2.4"
-  happy: ">= 1.19.9"
-  BNFC:bnfc: ">= 2.9.6.2"
-
+# Lower bounds here are loose so the package builds under the GHCJS path
+# (miso's pinned Nixpkgs ships an older Haskell package set). The
+# GHC-9.6.3-coherent floors live in cabal.project's `constraints:` block,
+# which is read by cabal but not by cabal2nix → Nix.
 dependencies:
+  # Loose lower bound so the GHCJS path (miso's pinned package set ships
+  # aeson 1.x) resolves; the GHC-era floor (aeson >= 2) lives in
+  # cabal.project, which cabal2nix does not read.
+  aeson: ">= 1.4"
   array: ">= 0.5.3.0"
   base: ">= 4.7 && < 5"
   bifunctors: ">= 5.5.3"
@@ -78,6 +84,8 @@ default-extensions:
 
 library:
   source-dirs: src
+  generated-other-modules:
+    - Paths_rzk
   when:
     - condition: false
       other-modules:
@@ -93,14 +101,15 @@ library:
         - Language.Rzk.VSCode.Lsp
         - Language.Rzk.VSCode.Tokenize
       dependencies:
-        aeson: ">= 1.4.2.0"
+        aeson: ">= 2.0.0.0"
         co-log-core: ">= 0.3.2.0"
         data-default-class: ">= 0.1.2.0"
-        filepath: ">= 1.4.2.1"
-        lens: ">= 4.17"
-        lsp: ">= 2.2.0.0"
-        lsp-types: ">= 2.0.2.0"
-        stm: ">= 2.5.0.0"
+        filepath: ">= 1.4.100.0"
+        lens: ">= 5.0.1"
+        lsp: ">= 2.4.0.0"
+        lsp-types: ">= 2.1.1.0"
+        mtl: ">= 2.3.1"
+        stm: ">= 2.5.1.0"
 
 executables:
   rzk:
@@ -115,8 +124,8 @@ executables:
     when:
       - condition: "!impl(ghcjs)"
         dependencies:
-          with-utf8: ">= 1.0.2.4"
-          optparse-generic: ">= 1.4.0"
+          with-utf8: ">= 1.0.3.0"
+          optparse-generic: ">= 1.4.7"
 
 tests:
   rzk-test:
@@ -126,6 +135,8 @@ tests:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+    build-tools:
+      hspec-discover:hspec-discover: ">= 0"
     dependencies:
       - aeson
       - filepath
@@ -140,7 +151,8 @@ tests:
     other-modules: []
     dependencies:
       base: ">= 4.11.0.0 && < 5.0"
-      doctest: ">= 0.21.0"
+      doctest-parallel: ">= 0.3"
+      rzk:
       Glob: ">= 0.9.3"
       QuickCheck: ">= 2.14"
       template-haskell: ">= 2.14.0.0"

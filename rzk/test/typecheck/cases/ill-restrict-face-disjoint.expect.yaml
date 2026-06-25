@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorTopeContextDisjoint
+regression_for:
+  - restricted-type-face-disjoint-from-context

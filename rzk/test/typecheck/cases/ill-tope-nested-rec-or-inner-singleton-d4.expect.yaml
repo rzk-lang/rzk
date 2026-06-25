@@ -1,5 +1,5 @@
 status: error
-error_tag: TypeErrorUnifyTerms
+error_tag: TypeErrorUnify
 message_contains:
   - "cannot unify"
 regression_for:

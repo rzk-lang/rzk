@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Sharp var not accessible under op
+#def ill-sharp-under-op
+  (A :_# U) (x :_# A)
+  : _op A
+  := mod _op x

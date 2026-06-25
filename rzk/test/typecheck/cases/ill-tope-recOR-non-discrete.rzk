@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- recOR with === on a plain (non-flat) interval variable.
+-- Only flat (_b) variables have discrete axioms (LEM: i === 0 ∨ i === 1).
+-- A plain variable does not have LEM, so recOR with === 0 / === 1 is not total.
+
+#def ill-recOR-non-discrete
+  (A : U)
+  (a b : A)
+  (i : 2)
+  : A
+  := recOR( i === 0_2 |-> a , i === 1_2 |-> b )
+

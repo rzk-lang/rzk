@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- II is NOT a subtype of 2.
+-- Trying to use a 2-arrow where an II-path is expected should fail.
+
+#define cub-hom
+  (A : U) (x y : A)
+  : U
+  := (t : II) -> A [ t === 0_I |-> x , t === 1_I |-> y ]
+
+#define bad-2-to-II
+  (A : U) (x y : A)
+  (p : (t : 2) -> A [ t === 0_2 |-> x , t === 1_2 |-> y ])
+  : cub-hom A x y
+  := p

@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- The interval I does NOT have a total order: we cannot case-split on
+-- `t <= s \/ s <= t` for arbitrary I-points. This recOR should fail because
+-- the tope solver cannot derive that the two guards cover the whole context.
+
+#define no-total-I
+  (t : II) (s : II)
+  : Unit
+  := recOR( t <= s |-> unit , s <= t |-> unit )

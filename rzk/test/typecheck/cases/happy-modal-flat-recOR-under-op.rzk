@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Flat var under op: values accessible even in topes
+#def flat-recOR-under-op
+  (A :_b U)
+  (a b :_b A)
+  (i :_b 2)
+  : _op A
+  := mod _op (recOR( i === 0_2 |-> a , i === 1_2 |-> b ))

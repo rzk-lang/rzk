@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module Language.Rzk.Free.Syntax where
 
+import           Data.Bifunctor      (bimap)
 import           Data.Bifunctor.TH
 import           Data.Char           (chr, ord)
 import           Data.Coerce
@@ -63,6 +64,41 @@ varIdentAt path (Rzk.VarIdent pos ident) = VarIdent (Rzk.VarIdent (RzkPosition p
 fromVarIdent :: VarIdent -> Rzk.VarIdent
 fromVarIdent (VarIdent (Rzk.VarIdent (RzkPosition _file pos) ident)) = Rzk.VarIdent pos ident
 
+-- | The display name of a hole from its surface token text. The token includes
+-- the leading @?@; an anonymous hole (bare @?@) has no name.
+holeName :: T.Text -> Maybe VarIdent
+holeName tok =
+  case T.drop 1 tok of
+    name | T.null name -> Nothing
+         | otherwise   -> Just (fromString (T.unpack name))
+
+-- | The surface token text (including the leading @?@) for a hole name.
+holeIdentToken :: Maybe VarIdent -> T.Text
+holeIdentToken Nothing  = "?"
+holeIdentToken (Just x) = "?" <> T.pack (show x)
+
+-- | The name(s) a binder introduces. A binder may name a single (possibly
+-- anonymous) variable, or destructure a pair\/tuple via a pattern. The pattern
+-- structure is kept around purely so that goals, holes and error messages can
+-- show the user's original names (e.g. @t@ and @s@ for @\\ (t , s) -> …@)
+-- instead of projections of a fresh variable (e.g. @π₁ x₄@ and @π₂ x₄@).
+--
+-- Operationally a pair pattern still binds a /single/ variable; the components
+-- are projections of it (see 'toScopePattern'). 'Binder' only records the names
+-- so they can be restored when rendering.
+data Binder
+  = BinderVar (Maybe VarIdent)   -- ^ a single variable (@Nothing@ for @_@)
+  | BinderPair Binder Binder     -- ^ a pair pattern @(l , r)@
+  | BinderUnit                   -- ^ the unit pattern @unit@
+  deriving (Eq)
+
+-- | The single name of a binder, if it binds exactly one named variable.
+-- A pair\/unit pattern has no single name, so this is 'Nothing' for them.
+-- Used wherever the old @Maybe VarIdent@ binder name is still sufficient.
+binderName :: Binder -> Maybe VarIdent
+binderName (BinderVar mname) = mname
+binderName _                 = Nothing
+
 data TModality = Sharp | Flat | Op | Id deriving (Eq, Show)
 
 toModality :: Rzk.Modality -> TModality
@@ -97,6 +133,9 @@ data TermF scope term
     | Cube2F
     | Cube2_0F
     | Cube2_1F
+    | CubeIF 
+    | CubeI_0F 
+    | CubeI_1F
     | CubeProductF term term
     | CubeFlipF term
     | CubeUnflipF term
@@ -110,12 +149,12 @@ data TermF scope term
     | TopeUninvF term
     | RecBottomF
     | RecOrF [(term, term)]
-    | TypeFunF (Maybe VarIdent) term (Maybe scope) scope
-    | TypeSigmaF (Maybe VarIdent) term scope
+    | TypeFunF Binder TModality term (Maybe scope) scope
+    | TypeSigmaF Binder TModality term scope
     | TypeIdF term (Maybe term) term
     | AppF term term
-    | LetF (Maybe VarIdent) (Maybe term) term scope
-    | LambdaF (Maybe VarIdent) (Maybe (term, Maybe scope)) scope
+    | LetF Binder (Maybe term) term scope
+    | LambdaF Binder (Maybe (TModality, term, Maybe scope)) scope
     | PairF term term
     | FirstF term
     | SecondF term
@@ -128,7 +167,8 @@ data TermF scope term
     | TypeModalF TModality term
     | ModAppF TModality term
     | ModExtractF TModality TModality term
-    | LetModF (Maybe VarIdent) TModality TModality (Maybe term) term scope
+    | LetModF Binder TModality TModality (Maybe term) term scope
+    | HoleF (Maybe VarIdent)
     deriving (Eq, Functor, Foldable, Traversable)
 deriveBifunctor ''TermF
 deriveBifoldable ''TermF
@@ -263,7 +303,6 @@ toTerm bvars = go
 
       Rzk.ASCII_TypeFun loc param ret -> go (Rzk.TypeFun loc param ret)
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
-      Rzk.ASCII_TypeSigmaModal _loc pat md ty body -> go (Rzk.TypeSigmaModal _loc pat md ty body)
       Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
       Rzk.ASCII_TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeExtensionDeprecated loc shape type_)
@@ -281,6 +320,12 @@ toTerm bvars = go
       Rzk.Cube2 _loc -> Cube2
       Rzk.Cube2_0 _loc -> Cube2_0
       Rzk.Cube2_1 _loc -> Cube2_1
+      Rzk.CubeI _loc -> CubeI
+      Rzk.CubeI_0 _loc -> CubeI_0
+      Rzk.CubeI_1 _loc -> CubeI_1
+      Rzk.ASCII_CubeI _loc -> CubeI
+      Rzk.ASCII_CubeI_0 _loc -> CubeI_0
+      Rzk.ASCII_CubeI_1 _loc -> CubeI_1
       Rzk.CubeProduct _loc l r -> CubeProduct (go l) (go r)
       Rzk.TopeTop _loc -> TopeTop
       Rzk.TopeBottom _loc -> TopeBottom
@@ -311,41 +356,41 @@ toTerm bvars = go
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
-      Rzk.TypeFun _loc (Rzk.ParamTermModalType loc' patTerm md ty) ret ->
-        let pat    = unsafeTermToPattern patTerm
-            letRet = Rzk.LetMod loc' (Rzk.Single loc' md)
-                       (Rzk.BindPattern loc' pat) (patternToTerm pat) ret
-        in go (Rzk.TypeFun _loc (Rzk.ParamTermType loc' patTerm (Rzk.ModType loc' md ty)) letRet)
+      Rzk.TypeFun _loc (Rzk.ParamTermModalType _loc' patTerm mc ty) ret ->
+        let pat = unsafeTermToPattern patTerm
+            md  = modalColonToTModality mc
+        in TypeFun (toBinder pat) md (go ty) Nothing (toScopePattern pat bvars ret)
+      Rzk.TypeFun _loc (Rzk.ParamTermModalShape _loc' patTerm mc cube tope) ret ->
+        let pat = unsafeTermToPattern patTerm
+            md  = modalColonToTModality mc
+        in TypeFun (toBinder pat) md (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = unsafeTermToPattern patTerm
-        in TypeFun (patternVar pat) (go arg) Nothing (toScopePattern pat bvars ret)
+        in TypeFun (toBinder pat) Id (go arg) Nothing (toScopePattern pat bvars ret)
       t@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm cube tope) ret) ->
         let lint' = case tope of
               Rzk.App _loc fun arg | void arg == void patTerm ->
                 lint t (Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)
               _ -> id
             pat = unsafeTermToPattern patTerm
-        in lint' $ TypeFun (patternVar pat) (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
+        in lint' $ TypeFun (toBinder pat) Id (go cube) (Just (toScopePattern pat bvars tope)) (toScopePattern pat bvars ret)
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
-        TypeFun Nothing (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
+        TypeFun (BinderVar Nothing) Id (go arg) Nothing (toTerm (fmap S <$> bvars) ret)
 
       Rzk.TypeSigma _loc pat tA tB ->
-        TypeSigma (patternVar pat) (go tA) (toScopePattern pat bvars tB)
+        TypeSigma (toBinder pat) Id (go tA) (toScopePattern pat bvars tB)
 
-      Rzk.TypeSigmaModal _loc pat md ty body ->
-        let letBody = Rzk.LetMod _loc (Rzk.Single _loc md)
-                        (Rzk.BindPattern _loc pat) (patternToTerm pat) body
-        in go (Rzk.TypeSigma _loc pat (Rzk.ModType _loc md ty) letBody)
+      Rzk.TypeSigmaModal _loc pat mc ty body ->
+        let md = modalColonToTModality mc
+        in TypeSigma (toBinder pat) md (go ty) (toScopePattern pat bvars body)
 
-
-      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal loc' pat md ty) rest body ->
-        let tailSigma = case rest of
+      Rzk.TypeSigmaTuple _loc (Rzk.SigmaParamModal _loc' pat mc ty) rest body ->
+        let md = modalColonToTModality mc
+            tailSigma = case rest of
               []       -> body
               [sp]     -> sigmaParamToTypeSigma _loc sp body
               (sp:sps) -> Rzk.TypeSigmaTuple _loc sp sps body
-            letTail   = Rzk.LetMod loc' (Rzk.Single loc' md)
-                          (Rzk.BindPattern loc' pat) (patternToTerm pat) tailSigma
-        in go (Rzk.TypeSigma _loc pat (Rzk.ModType loc' md ty) letTail)
+        in TypeSigma (toBinder pat) md (go ty) (toScopePattern pat bvars tailSigma)
       Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ patA tA) (mp@(Rzk.SigmaParamModal{}) : rest) body ->
         go (Rzk.TypeSigma _loc patA tA (case rest of
               []  -> sigmaParamToTypeSigma _loc mp body
@@ -356,23 +401,25 @@ toTerm bvars = go
           patX = Rzk.PatternPair _loc patA patB
           tX = Rzk.TypeSigma _loc patA tA tB
       Rzk.TypeSigmaTuple _loc (Rzk.SigmaParam _ pat tA) [] tB -> go (Rzk.TypeSigma _loc pat tA tB)
-      Rzk.Lambda _loc (Rzk.ParamPatternModalType _ [] _md _ty : params) body ->
+      Rzk.Lambda _loc (Rzk.ParamPatternModalType _ [] _mc _ty : params) body ->
         go (Rzk.Lambda _loc params body)
-      Rzk.Lambda _loc (Rzk.ParamPatternModalType loc' (pat:pats) md ty : params) body ->
-        let inner   = Rzk.Lambda _loc
-                        (if null pats then params
-                         else Rzk.ParamPatternModalType loc' pats md ty : params)
-                        body
-            letBody = Rzk.LetMod loc' (Rzk.Single loc' md)
-                        (Rzk.BindPattern loc' pat) (patternToTerm pat) inner
-        in go (Rzk.Lambda _loc [Rzk.ParamPatternType loc' [pat] (Rzk.ModType loc' md ty)] letBody)
+      Rzk.Lambda _loc (Rzk.ParamPatternModalType loc' (pat:pats) mc ty : params) body ->
+        let md = modalColonToTModality mc
+        in Lambda (toBinder pat) (Just (md, go ty, Nothing))
+             (toScopePattern pat bvars (Rzk.Lambda _loc (if null pats then params else Rzk.ParamPatternModalType loc' pats mc ty : params) body))
+      Rzk.Lambda _loc (Rzk.ParamPatternModalShape _ [] _mc _cube _tope : params) body ->
+        go (Rzk.Lambda _loc params body)
+      Rzk.Lambda _loc (Rzk.ParamPatternModalShape loc' (pat:pats) mc cube tope : params) body ->
+        let md = modalColonToTModality mc
+        in Lambda (toBinder pat) (Just (md, go cube, Just (toScopePattern pat bvars tope)))
+             (toScopePattern pat bvars (Rzk.Lambda _loc (if null pats then params else Rzk.ParamPatternModalShape loc' pats mc cube tope : params) body))
       Rzk.Lambda _loc [] body -> go body
       Rzk.Lambda _loc (Rzk.ParamPattern _ pat : params) body ->
-        Lambda (patternVar pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
+        Lambda (toBinder pat) Nothing (toScopePattern pat bvars (Rzk.Lambda _loc params body))
       Rzk.Lambda _loc (Rzk.ParamPatternType _ [] _ty : params) body ->
         go (Rzk.Lambda _loc params body)
       Rzk.Lambda _loc (Rzk.ParamPatternType _ (pat:pats) ty : params) body ->
-        Lambda (patternVar pat) (Just (go ty, Nothing))
+        Lambda (toBinder pat) (Just (Id, go ty, Nothing))
           (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternType _loc pats ty : params) body))
       Rzk.Lambda _loc (Rzk.ParamPatternShape _ [] _cube _tope : params) body ->
         go (Rzk.Lambda _loc params body)
@@ -382,31 +429,36 @@ toTerm bvars = go
                 | null pats && void arg == void (patternToTerm pat) ->
                     lint t (Rzk.Lambda _loc (Rzk.ParamPatternType _loc' [pat] fun : params) body)
               _ -> id
-         in lint' $ Lambda (patternVar pat) (Just (go cube, Just (toScopePattern pat bvars tope)))
+         in lint' $ Lambda (toBinder pat) (Just (Id, go cube, Just (toScopePattern pat bvars tope)))
               (toScopePattern pat bvars (Rzk.Lambda _loc (Rzk.ParamPatternShape _loc' pats cube tope : params) body))
       Rzk.Let _loc (Rzk.BindPattern _ pat) val expr ->
-        Let (patternVar pat) Nothing (go val) (toScopePattern pat bvars expr)
+        Let (toBinder pat) Nothing (go val) (toScopePattern pat bvars expr)
       Rzk.Let _loc (Rzk.BindPatternType _ pat ty) val expr -> 
-        Let (patternVar pat) (Just (go ty)) (go val) (toScopePattern pat bvars expr)
+        Let (toBinder pat) (Just (go ty)) (go val) (toScopePattern pat bvars expr)
       Rzk.TypeRestricted _loc ty rs ->
         TypeRestricted (go ty) $ flip map rs $ \case
           Rzk.Restriction _loc tope term       -> (go tope, go term)
           Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
 
-      Rzk.Hole _loc _ident -> error "holes are not supported"
+      Rzk.Hole _loc (Rzk.HoleIdent _ (Rzk.HoleIdentToken tok)) ->
+        Hole (holeName tok)
       Rzk.ModApp _loc md body -> ModApp (toModality md) (go body)
       Rzk.ModType _loc md ty -> TypeModal (toModality md) (go ty)
       Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
       Rzk.LetMod _loc comp (Rzk.BindPattern _ pat) val body ->
         let (ext, inn) = modCompToMods comp
-        in LetMod (patternVar pat) ext inn Nothing (go val) (toScopePattern pat bvars body)
+        in LetMod (toBinder pat) ext inn Nothing (go val) (toScopePattern pat bvars body)
       Rzk.LetMod _loc comp (Rzk.BindPatternType _ pat ty) val body ->
         let (ext, inn) = modCompToMods comp
-        in LetMod (patternVar pat) ext inn (Just (go ty)) (go val) (toScopePattern pat bvars body)
+        in LetMod (toBinder pat) ext inn (Just (go ty)) (go val) (toScopePattern pat bvars body)
 
-    patternVar (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) = Nothing
-    patternVar (Rzk.PatternVar _loc x)                    = Just (varIdent x)
-    patternVar _                                          = Nothing
+    -- Translate a surface pattern into a 'Binder', keeping the pair\/tuple
+    -- structure so the component names can be restored when rendering.
+    toBinder (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) = BinderVar Nothing
+    toBinder (Rzk.PatternVar _loc x)                    = BinderVar (Just (varIdent x))
+    toBinder (Rzk.PatternUnit _loc)                     = BinderUnit
+    toBinder (Rzk.PatternPair _loc l r)                 = BinderPair (toBinder l) (toBinder r)
+    toBinder (Rzk.PatternTuple loc p1 p2 ps)            = toBinder (desugarTuple loc (reverse ps) p2 p1)
 
 patternToTerm :: Rzk.Pattern -> Rzk.Term
 patternToTerm = ptt
@@ -417,6 +469,26 @@ patternToTerm = ptt
       Rzk.PatternUnit loc     -> Rzk.Unit loc
       Rzk.PatternTuple loc p1 p2 ps -> patternToTerm (desugarTuple loc (reverse ps) p2 p1)
 
+
+modalColonModality :: Rzk.ModalColon -> Rzk.Modality
+modalColonModality = \case
+  Rzk.ModalColonFlat loc        -> Rzk.Flat loc
+  Rzk.ModalColonSharp loc       -> Rzk.Sharp loc
+  Rzk.ModalColonOp loc          -> Rzk.Op loc
+  Rzk.ModalColonId loc          -> Rzk.Id loc
+  Rzk.ASCII_ModalColonFlat loc  -> Rzk.Flat loc
+  Rzk.ASCII_ModalColonSharp loc -> Rzk.Sharp loc
+  Rzk.ASCII_ModalColonOp loc    -> Rzk.Op loc
+
+modalColonToTModality :: Rzk.ModalColon -> TModality
+modalColonToTModality = toModality . modalColonModality
+
+fromTModalityToModalColon :: TModality -> Rzk.ModalColon
+fromTModalityToModalColon = \case
+  Sharp -> Rzk.ModalColonSharp Nothing
+  Flat  -> Rzk.ModalColonFlat Nothing
+  Op    -> Rzk.ModalColonOp Nothing
+  Id    -> Rzk.ModalColonId Nothing
 
 unsafeTermToPattern :: Rzk.Term -> Rzk.Pattern
 unsafeTermToPattern = ttp
@@ -431,7 +503,137 @@ unsafeTermToPattern = ttp
 sigmaParamToTypeSigma :: Rzk.BNFC'Position -> Rzk.SigmaParam -> Rzk.Term -> Rzk.Term
 sigmaParamToTypeSigma loc sp body = case sp of
   Rzk.SigmaParam      _ pat ty      -> Rzk.TypeSigma      loc pat ty body
-  Rzk.SigmaParamModal _ pat md ty  -> Rzk.TypeSigmaModal loc pat md ty body
+  Rzk.SigmaParamModal _ pat mc ty  -> Rzk.TypeSigmaModal loc pat mc ty body
+
+-- | A projection step: first (@π₁@) or second (@π₂@) component.
+data Proj = PFst | PSnd
+  deriving (Eq)
+
+-- | Render a 'Binder' as a surface pattern (used to display the binder itself,
+-- e.g. @(t , s)@). Anonymous variables become @_@.
+binderToPattern :: Binder -> Rzk.Pattern
+binderToPattern (BinderVar Nothing)  = Rzk.PatternVar Nothing (fromVarIdent "_")
+binderToPattern (BinderVar (Just x)) = Rzk.PatternVar Nothing (fromVarIdent x)
+binderToPattern (BinderPair l r)     = Rzk.PatternPair Nothing (binderToPattern l) (binderToPattern r)
+binderToPattern BinderUnit           = Rzk.PatternUnit Nothing
+
+-- | A term that prints as the binder's surface pattern, e.g. the point
+-- @(t , s)@. Used to render a /bare/ occurrence of a pattern binder's variable
+-- (one not under a projection, e.g. the point in a shape tope @Δ² (t , s)@) as
+-- the pattern itself rather than the underlying single variable. A
+-- single-variable binder yields that variable.
+binderToTerm :: Binder -> Term VarIdent
+binderToTerm (BinderVar Nothing)  = Pure (fromString "_")
+binderToTerm (BinderVar (Just x)) = Pure x
+binderToTerm (BinderPair l r)     = Pair (binderToTerm l) (binderToTerm r)
+binderToTerm BinderUnit           = Unit
+
+-- | A 'VarIdent' that prints as the binder's surface pattern, e.g. @(t , s)@.
+-- Used to display a pattern binder in a hole's local context as the pattern
+-- itself rather than as the underlying single variable.
+binderDisplayName :: Binder -> VarIdent
+binderDisplayName = fromString . Rzk.printTree . binderToPattern
+
+-- | The named leaves of a binder, each paired with the projection path that
+-- reaches it from the bound variable. For example @(t , (a , b))@ yields
+-- @[([PFst], t), ([PSnd, PFst], a), ([PSnd, PSnd], b)]@.
+binderPaths :: Binder -> [([Proj], VarIdent)]
+binderPaths (BinderVar (Just x)) = [([], x)]
+binderPaths (BinderVar Nothing)  = []
+binderPaths BinderUnit           = []
+binderPaths (BinderPair l r)     =
+  [ (PFst : p, n) | (p, n) <- binderPaths l ] ++
+  [ (PSnd : p, n) | (p, n) <- binderPaths r ]
+
+-- | The names appearing in a binder.
+binderLeaves :: Binder -> [VarIdent]
+binderLeaves = map snd . binderPaths
+
+-- | Does this binder destructure a pair\/tuple (as opposed to naming a single
+-- variable or @_@)?
+binderIsCompound :: Binder -> Bool
+binderIsCompound BinderVar{} = False
+binderIsCompound _           = True
+
+-- | Refresh the named leaves of a binder so they avoid the given names (and one
+-- another). Anonymous leaves and the unit pattern are left unchanged.
+freshenBinderLeaves :: [VarIdent] -> Binder -> Binder
+freshenBinderLeaves used = snd . go used
+  where
+    go u (BinderVar (Just x)) = let x' = refreshVar u x in (x' : u, BinderVar (Just x'))
+    go u b@(BinderVar Nothing) = (u, b)
+    go u BinderUnit            = (u, BinderUnit)
+    go u (BinderPair l r)      =
+      let (u1, l') = go u l
+          (u2, r') = go u1 r
+      in (u2, BinderPair l' r')
+
+-- | Decompose a chain of projections applied to a variable into the projection
+-- path /from the variable outwards/, matching 'binderPaths'. The outermost
+-- projection is applied last, so it goes at the /end/ of the path: e.g.
+-- @π₂ (π₁ x)@ (select @π₁@ first, then @π₂@) becomes @Just ([PFst, PSnd], x)@.
+projChain :: Term a -> Maybe ([Proj], a)
+projChain (First t)  = (\(ps, r) -> (ps ++ [PFst], r)) <$> projChain t
+projChain (Second t) = (\(ps, r) -> (ps ++ [PSnd], r)) <$> projChain t
+projChain (Pure x)   = Just ([], x)
+projChain _          = Nothing
+
+-- | Replace projection chains rooted at a pattern binder with the binder's
+-- component name. Given a map from a (bound) variable to the named leaves of
+-- its binder, every @π₁/π₂@ chain that reaches a named leaf is rewritten to
+-- that name. Ordinary projections (of variables not bound by a pattern, or
+-- chains that do not reach a named leaf) are left untouched.
+foldBinderProjections :: Eq a => [(a, [([Proj], a)])] -> Term a -> Term a
+foldBinderProjections m = go
+  where
+    go t
+      | Just (ps, root) <- projChain t
+      , not (null ps)
+      , Just leaves <- lookup root m
+      , Just nm <- lookup ps leaves
+      = Pure nm
+    go (Free f) = Free (bimap goScope go f)
+    go (Pure x) = Pure x
+    goScope = foldBinderProjections (map liftEntry m)
+    liftEntry (k, leaves) = (S k, map (fmap S) leaves)
+
+-- | Replace bare uses of a pattern binder's variable with the pattern term
+-- (e.g. a whole point @(t , s)@ rather than the underlying single variable, in
+-- a tope @Δ² (t , s)@). Given a map from each (already display-named) variable
+-- to its binder, every free occurrence of a /compound/ binder's variable is
+-- expanded to its pattern. Complements 'foldBinderProjections', which folds
+-- /projections/ of such a variable; run this /after/ folding, so projections
+-- have already become component names and only bare uses remain.
+restorePatternVars :: [(VarIdent, Binder)] -> Term VarIdent -> Term VarIdent
+restorePatternVars binders = (>>= expand)
+  where
+    expand v = case lookup v binders of
+      Just b | binderIsCompound b -> binderToTerm b
+      _                           -> Pure v
+
+-- | Like 'projChain', but for type-annotated terms.
+projChainT :: TermT a -> Maybe ([Proj], a)
+projChainT (FirstT _ t)  = (\(ps, r) -> (ps ++ [PFst], r)) <$> projChainT t
+projChainT (SecondT _ t) = (\(ps, r) -> (ps ++ [PSnd], r)) <$> projChainT t
+projChainT (Pure x)      = Just ([], x)
+projChainT _             = Nothing
+
+-- | Like 'foldBinderProjections', but for type-annotated terms (e.g. those
+-- embedded in type errors). The annotation of a folded leaf is dropped, which
+-- is harmless: the result is only rendered, and a bare variable needs none.
+foldBinderProjectionsT :: Eq a => [(a, [([Proj], a)])] -> TermT a -> TermT a
+foldBinderProjectionsT m = go
+  where
+    go t
+      | Just (ps, root) <- projChainT t
+      , not (null ps)
+      , Just leaves <- lookup root m
+      , Just nm <- lookup ps leaves
+      = Pure nm
+    go (Free (AnnF info f)) = Free (AnnF (fmap go info) (bimap goScope go f))
+    go (Pure x) = Pure x
+    goScope = foldBinderProjectionsT (map liftEntry m)
+    liftEntry (k, leaves) = (S k, map (fmap S) leaves)
 
 fromTerm' :: Term' -> Rzk.Term
 fromTerm' t = fromTermWith' vars (defaultVarIdents \\ vars) t
@@ -443,16 +645,53 @@ fromScope' x used xs = fromTermWith' (x : used) xs . (>>= f)
     f Z     = Pure x
     f (S z) = Pure z
 
+-- | Like 'fromScope'', but additionally restores pattern-binder component names
+-- inside the scope: projections of the bound variable @x@ are folded back to
+-- the names recorded in @binder@ (e.g. @π₁ x@ becomes @t@). For a binder that
+-- names a single variable this is exactly 'fromScope''.
+fromScopeBinder' :: Binder -> VarIdent -> [VarIdent] -> [VarIdent] -> Scope Term VarIdent -> Rzk.Term
+fromScopeBinder' binder x used xs scope =
+  fromTermWith' (x : used) xs
+    (restorePattern (foldBinderProjections [(x, binderPaths binder)] (scope >>= f)))
+  where
+    f Z     = Pure x
+    f (S z) = Pure z
+    -- After projection chains have been folded to their component names, a bare
+    -- use of a pattern binder's variable (the whole point, e.g. in a shape tope
+    -- @Δ² (t , s)@) still reads as the placeholder; show it as the pattern.
+    restorePattern
+      | binderIsCompound binder = (>>= \v -> if v == x then binderToTerm binder else Pure v)
+      | otherwise               = id
+
 fromTermWith' :: [VarIdent] -> [VarIdent] -> Term' -> Rzk.Term
 fromTermWith' used vars = go
   where
-    withFresh Nothing f =
-      case vars of
-        x:xs -> f (x, xs)
+    -- Refresh a binder's named leaves against the names already in use and draw
+    -- fresh names for anonymous leaves from the remaining supply.
+    freshenBinder _    stream (BinderVar Nothing) =
+      case stream of
+        x:xs -> (BinderVar (Just x), xs)
         _    -> error "not enough fresh variables!"
-    withFresh (Just z) f = f (z', filter (/= z') vars)    -- FIXME: very inefficient filter
+    freshenBinder used' stream (BinderVar (Just z)) =
+      (BinderVar (Just z'), filter (/= z') stream)
+      where z' = refreshVar used' z
+    freshenBinder _    stream BinderUnit = (BinderUnit, stream)
+    freshenBinder used' stream (BinderPair l r) =
+      let (l', s1) = freshenBinder used' stream l
+          (r', s2) = freshenBinder (used' ++ binderLeaves l') s1 r
+      in (BinderPair l' r', s2)
+
+    -- Pick fresh names for a binder. Yields the bound variable's display name
+    -- (used as the De Bruijn placeholder), the freshened binder (for the
+    -- displayed pattern and for projection folding), and the remaining supply.
+    withFreshBinder z f =
+      case binder' of
+        BinderVar (Just x) -> f (x, binder', stream)
+        _ -> case stream of
+               x:xs -> f (x, binder', xs)
+               _    -> error "not enough fresh variables!"
       where
-        z' = refreshVar used z
+        (binder', stream) = freshenBinder used vars z
 
     loc = Nothing
 
@@ -475,6 +714,9 @@ fromTermWith' used vars = go
       Cube2 -> Rzk.Cube2 loc
       Cube2_0 -> Rzk.Cube2_0 loc
       Cube2_1 -> Rzk.Cube2_1 loc
+      CubeI -> Rzk.CubeI loc
+      CubeI_0 -> Rzk.CubeI_0 loc
+      CubeI_1 -> Rzk.CubeI_1 loc
       CubeProduct l r -> Rzk.CubeProduct loc (go l) (go r)
       TopeTop -> Rzk.TopeTop loc
       TopeBottom -> Rzk.TopeBottom loc
@@ -489,28 +731,40 @@ fromTermWith' used vars = go
       RecBottom -> Rzk.RecBottom loc
       RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
 
-      TypeFun z arg Nothing ret -> withFresh z $ \(x, xs) ->
-        Rzk.TypeFun loc (Rzk.ParamTermType loc (Rzk.Var loc (fromVarIdent x)) (go arg)) (fromScope' x used xs ret)
-      TypeFun z arg (Just tope) ret -> withFresh z $ \(x, xs) ->
-        Rzk.TypeFun loc (Rzk.ParamTermShape loc (Rzk.Var loc (fromVarIdent x)) (go arg) (fromScope' x used xs tope)) (fromScope' x used xs ret)
+      Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
-      TypeSigma z a b -> withFresh z $ \(x, xs) ->
-        Rzk.TypeSigma loc (Rzk.PatternVar loc (fromVarIdent x)) (go a) (fromScope' x used xs b)
+      TypeFun z Id arg Nothing ret -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeFun loc (Rzk.ParamTermType loc (patternToTerm (binderToPattern z')) (go arg)) (fromScopeBinder' z' x used xs ret)
+      TypeFun z Id arg (Just tope) ret -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeFun loc (Rzk.ParamTermShape loc (patternToTerm (binderToPattern z')) (go arg) (fromScopeBinder' z' x used xs tope)) (fromScopeBinder' z' x used xs ret)
+      TypeFun z md arg Nothing ret -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeFun loc (Rzk.ParamTermModalType loc (patternToTerm (binderToPattern z')) (fromTModalityToModalColon md) (go arg)) (fromScopeBinder' z' x used xs ret)
+      TypeFun z md arg (Just tope) ret -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeFun loc (Rzk.ParamTermModalShape loc (patternToTerm (binderToPattern z')) (fromTModalityToModalColon md) (go arg) (fromScopeBinder' z' x used xs tope)) (fromScopeBinder' z' x used xs ret)
+
+      TypeSigma z Id a b -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeSigma loc (binderToPattern z') (go a) (fromScopeBinder' z' x used xs b)
+      TypeSigma z md a b -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.TypeSigmaModal loc (binderToPattern z') (fromTModalityToModalColon md) (go a) (fromScopeBinder' z' x used xs b)
       TypeId l (Just tA) r -> Rzk.TypeId loc (go l) (go tA) (go r)
       TypeId l Nothing r -> Rzk.TypeIdSimple loc (go l) (go r)
       App l r -> Rzk.App loc (go l) (go r)
 
-      Lambda z Nothing scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda loc [Rzk.ParamPattern loc (Rzk.PatternVar loc (fromVarIdent x))] (fromScope' x used xs scope)
-      Lambda z (Just (ty, Nothing)) scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda loc [Rzk.ParamPatternType loc [Rzk.PatternVar loc (fromVarIdent x)] (go ty)] (fromScope' x used xs scope)
-      Lambda z (Just (cube, Just tope)) scope -> withFresh z $ \(x, xs) ->
-        Rzk.Lambda loc [Rzk.ParamPatternShape loc [Rzk.PatternVar loc (fromVarIdent x)] (go cube) (fromScope' x used xs tope)] (fromScope' x used xs scope)
+      Lambda z Nothing scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPattern loc (binderToPattern z')] (fromScopeBinder' z' x used xs scope)
+      Lambda z (Just (Id, ty, Nothing)) scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternType loc [binderToPattern z'] (go ty)] (fromScopeBinder' z' x used xs scope)
+      Lambda z (Just (Id, cube, Just tope)) scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternShape loc [binderToPattern z'] (go cube) (fromScopeBinder' z' x used xs tope)] (fromScopeBinder' z' x used xs scope)
+      Lambda z (Just (md, ty, Nothing)) scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternModalType loc [binderToPattern z'] (fromTModalityToModalColon md) (go ty)] (fromScopeBinder' z' x used xs scope)
+      Lambda z (Just (md, cube, Just tope)) scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Lambda loc [Rzk.ParamPatternModalShape loc [binderToPattern z'] (fromTModalityToModalColon md) (go cube) (fromScopeBinder' z' x used xs tope)] (fromScopeBinder' z' x used xs scope)
       -- Lambda (Maybe (term, Maybe scope)) scope -> Rzk.Lambda loc (Maybe (term, Maybe scope)) scope
-      Let z Nothing val scope -> withFresh z $ \(x, xs) -> 
-        Rzk.Let loc (Rzk.BindPattern loc (Rzk.PatternVar loc (fromVarIdent  x))) (go val) (fromScope' x used xs scope)
-      Let z (Just ty) val scope -> withFresh z $ \(x, xs) -> 
-        Rzk.Let loc (Rzk.BindPatternType loc (Rzk.PatternVar loc (fromVarIdent  x)) (go ty)) (go val) (fromScope' x used xs scope)
+      Let z Nothing val scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Let loc (Rzk.BindPattern loc (binderToPattern z')) (go val) (fromScopeBinder' z' x used xs scope)
+      Let z (Just ty) val scope -> withFreshBinder z $ \(x, z', xs) ->
+        Rzk.Let loc (Rzk.BindPatternType loc (binderToPattern z') (go ty)) (go val) (fromScopeBinder' z' x used xs scope)
       Pair l r -> Rzk.Pair loc (go l) (go r)
       First term -> Rzk.First loc (go term)
       Second term -> Rzk.Second loc (go term)
@@ -526,14 +780,14 @@ fromTermWith' used vars = go
       TypeModal m ty -> Rzk.ModType loc (goMod m) (go ty)
       ModApp m ty -> Rzk.ModApp loc (goMod m) (go ty)
       ModExtract ma mb t -> Rzk.ModExtract loc (Rzk.Comp loc (goMod ma) (goMod mb)) (go t)
-      LetMod z ext inn Nothing val scope -> withFresh z $ \(x, xs) ->
+      LetMod z ext inn Nothing val scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.LetMod loc (modsToModComp ext inn)
-          (Rzk.BindPattern loc (Rzk.PatternVar loc (fromVarIdent x)))
-          (go val) (fromScope' x used xs scope)
-      LetMod z ext inn (Just ty) val scope -> withFresh z $ \(x, xs) ->
+          (Rzk.BindPattern loc (binderToPattern z'))
+          (go val) (fromScopeBinder' z' x used xs scope)
+      LetMod z ext inn (Just ty) val scope -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.LetMod loc (modsToModComp ext inn)
-          (Rzk.BindPatternType loc (Rzk.PatternVar loc (fromVarIdent x)) (go ty))
-          (go val) (fromScope' x used xs scope)
+          (Rzk.BindPatternType loc (binderToPattern z') (go ty))
+          (go val) (fromScopeBinder' z' x used xs scope)
 
 
 defaultVarIdents :: [VarIdent]
@@ -543,6 +797,10 @@ defaultVarIdents =
   , let name = "x" <> map digitToSub (show n) ]
   where
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
+
+-- $setup
+-- >>> :set -XOverloadedStrings
+-- >>> import qualified Data.Text as T
 
 -- | Given a list of used variable names in the current context,
 -- generate a unique fresh name based on a given one.

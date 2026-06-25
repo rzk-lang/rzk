@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- Under an absurd tope context the expected type collapses to recBOT, but the term
+-- must still be well-typed in its own right, so that ill-formed bodies are not
+-- silently admitted under a false hypothesis. Here the body `a a` applies the
+-- non-function `a`, so it is rejected even though `t ≡ 0 ∧ t ≡ 1` is absurd.
+#define illRecBotApp (A : U) (a : A) (t : 2 | (t === 0_2) /\ (t === 1_2)) : A
+  := a a

@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- Test: reversing the direction of a morphism using _op modality
+-- This requires the tope solver to derive extract(flip_op t) === 1_2
+-- from t === 0_2 (and vice versa) when entering mod _op in solveRHSM.
+
+#def op-hom-to-hom
+  ( B :_op U)
+  ( x :_op B)
+  ( y :_op B)
+  ( h :_op (t : 2) -> B [ t === 0_2 |-> x , t === 1_2 |-> y ])
+  : ( ( t : 2) -> _op B [ t === 0_2 |-> mod _op y , t === 1_2 |-> mod _op x ])
+  := \ t -> let mod _op s := flip_op t in mod _op (h s)

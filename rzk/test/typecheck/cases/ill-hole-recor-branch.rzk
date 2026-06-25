@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- A hole in a recOR branch is in checking position: the common type of the
+-- recOR (here A) is pushed into every branch, so the branch holes are checked
+-- against A. In the default (strict) mode this is reported as an unsolved hole.
+-- Before the recOR checking rule existed, the recOR was elaborated by inference
+-- and a bare hole branch failed with TypeErrorCannotInferHole instead.
+#define square (A : U) (a : A)
+  : (2 × 2) → A
+  := \ (t , s) → recOR ( t ≤ s ↦ ? , s ≤ t ↦ ? )

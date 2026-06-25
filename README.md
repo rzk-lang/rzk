@@ -150,6 +150,37 @@ The build provides an executable `rzk` which can be used to typecheck files:
 stack exec -- rzk typecheck FILE
 ```
 
+## Regenerating the parser
+
+The lexer and parser are generated from the grammar `rzk/grammar/Syntax.cf` (the
+source of truth) with [BNFC](https://bnfc.digitalgrammars.com/),
+[`alex`](https://hackage.haskell.org/package/alex), and
+[`happy`](https://hackage.haskell.org/package/happy). The `rzk` package uses
+`build-type: Simple` and ships the *committed* generated modules under
+`rzk/src/Language/Rzk/Syntax`, so a normal build does not run these tools — this
+keeps installs lightweight (Hackage included) and lets `rzk` build under the GHC
+WebAssembly backend, where a custom `Setup.hs` cannot run.
+
+The flip side is that regeneration is out of band. After editing the grammar,
+regenerate and commit the result:
+
+```sh
+make -C rzk regen-parser
+```
+
+Tool versions matter: BNFC and `happy` stamp their version into the generated
+files, so a different version shows up as a spurious diff. Use the versions the
+committed files were produced with — BNFC `2.9.6.3` and `happy` `2.2` (any recent
+`alex` is fine) — for example:
+
+```sh
+cabal install BNFC-2.9.6.3 happy-2.2 alex
+```
+
+The `Parser up-to-date` CI workflow regenerates from the grammar and fails if the
+committed files drift, so editing `Syntax.cf` without running `make -C rzk
+regen-parser` will be caught.
+
 ## Develop with `nix`
 
 1. Install `nix`:

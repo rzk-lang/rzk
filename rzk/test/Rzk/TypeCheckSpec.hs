@@ -19,6 +19,7 @@ import           System.FilePath.Glob     (compile, globDir1)
 
 import           Language.Rzk.Free.Syntax   (VarIdent)
 import qualified Language.Rzk.Syntax        as Rzk
+import           Rzk.Diagnostic            (typeErrorTag)
 import           Rzk.TypeCheck              (Context (..), Decl', LocationInfo (..),
                                            OutputDirection (..), TypeError (..),
                                            TypeErrorInContext (..),
@@ -64,30 +65,11 @@ errorLine = \case
     location (typeErrorContext e) >>= locationLine
   ScopedTypeError _ e -> errorLine (unsafeCoerce e)
 
+-- | The constructor name of a type error, used to match @error_tag@ in
+-- fixtures. This is the library's 'typeErrorTag' (also used for diagnostic
+-- codes), aliased here so the two cannot drift apart.
 typeErrorConstructorName :: TypeError VarIdent -> String
-typeErrorConstructorName = \case
-  TypeErrorOther{}                -> "TypeErrorOther"
-  TypeErrorUnify{}                -> "TypeErrorUnify"
-  TypeErrorUnifyTerms{}           -> "TypeErrorUnifyTerms"
-  TypeErrorNotPair{}              -> "TypeErrorNotPair"
-  TypeErrorNotModal{}             -> "TypeErrorNotModal"
-  TypeErrorModalityMismatch{}     -> "TypeErrorModalityMismatch"
-  TypeErrorUnaccessibleVar{}      -> "TypeErrorUnaccessibleVar"
-  TypeErrorNotTypeInModal{}       -> "TypeErrorNotTypeInModal"
-  TypeErrorNotFunction{}          -> "TypeErrorNotFunction"
-  TypeErrorUnexpectedLambda{}     -> "TypeErrorUnexpectedLambda"
-  TypeErrorUnexpectedPair{}       -> "TypeErrorUnexpectedPair"
-  TypeErrorUnexpectedRefl{}       -> "TypeErrorUnexpectedRefl"
-  TypeErrorCannotInferBareLambda{} -> "TypeErrorCannotInferBareLambda"
-  TypeErrorCannotInferBareRefl{}  -> "TypeErrorCannotInferBareRefl"
-  TypeErrorUndefined{}           -> "TypeErrorUndefined"
-  TypeErrorTopeNotSatisfied{}    -> "TypeErrorTopeNotSatisfied"
-  TypeErrorTopesNotEquivalent{}  -> "TypeErrorTopesNotEquivalent"
-  TypeErrorInvalidArgumentType{} -> "TypeErrorInvalidArgumentType"
-  TypeErrorDuplicateTopLevel{}   -> "TypeErrorDuplicateTopLevel"
-  TypeErrorUnusedVariable{}       -> "TypeErrorUnusedVariable"
-  TypeErrorUnusedUsedVariables{}  -> "TypeErrorUnusedUsedVariables"
-  TypeErrorImplicitAssumption{}   -> "TypeErrorImplicitAssumption"
+typeErrorConstructorName = typeErrorTag
 
 casesRoot :: FilePath
 casesRoot = "test/typecheck/cases"

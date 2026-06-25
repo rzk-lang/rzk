@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Op var not accessible at plain level
+#def ill-op-at-plain
+  (A :_op U) (x :_op A)
+  : A
+  := x

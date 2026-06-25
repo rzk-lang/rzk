@@ -22,10 +22,15 @@ import           Language.Rzk.VSCode.Lsp (runLsp)
 import           Options.Generic
 import           System.Exit             (exitFailure, exitSuccess)
 
+import           Data.Aeson              (encode)
+import qualified Data.ByteString.Lazy.Char8 as BL8
 import           Data.Functor            (void, (<&>))
 import qualified Data.Text.IO            as T
 
 import           Paths_rzk               (version)
+import           Rzk.Diagnostic          (Diagnostic (..), Severity (..),
+                                          diagnoseHole, diagnoseTypeError,
+                                          ppHoleInfo)
 import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
 import           Rzk.Main
@@ -41,8 +46,18 @@ instance ParseFields FormatOptions where
     <$> parseFields (Just "Check if the files are correctly formatted") (Just "check") (Just 'c') Nothing
     <*> parseFields (Just "Write formatted file to disk") (Just "write") (Just 'w') Nothing
 
+data TypecheckOptions = TypecheckOptions
+  { typecheckAllowHoles :: Bool
+  , typecheckJson       :: Bool
+  } deriving (Generic, Show, ParseRecord, Read, ParseField)
+
+instance ParseFields TypecheckOptions where
+  parseFields _ _ _ _ = TypecheckOptions
+    <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
+    <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
+
 data Command
-  = Typecheck [FilePath]
+  = Typecheck TypecheckOptions [FilePath]
   | Lsp
   | Format FormatOptions [FilePath]
   | Version
@@ -54,17 +69,36 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck paths -> do
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag}) paths -> do
       modules <- parseRzkFilesOrStdin paths
-      case defaultTypeCheck (typecheckModulesWithLocation modules) of
-        Left err -> do
-          putStrLn "An error occurred when typechecking!"
-          putStrLn $ unlines
-            [ "Type Error:"
-            , ppTypeErrorInScopedContext' BottomUp err
-            ]
-          exitFailure
-        Right _decls -> putStrLn "Everything is ok!"
+      let reportError err = do
+            putStrLn "An error occurred when typechecking!"
+            putStrLn $ unlines
+              [ "Type Error:"
+              , ppTypeErrorInScopedContext' BottomUp err
+              ]
+      if jsonFlag
+        -- Machine-readable mode: emit every diagnostic (type errors as errors,
+        -- holes as hints) as a JSON array on stdout; progress goes to stderr.
+        -- Exit non-zero iff there is an error-severity diagnostic.
+        then do
+          let diagnostics = case typecheckModulesWithHoles modules of
+                Left err -> [diagnoseTypeError BottomUp err]
+                Right (_decls, errors, holes) ->
+                  map (diagnoseTypeError BottomUp) errors ++ map diagnoseHole holes
+          BL8.putStrLn (encode diagnostics)
+          when (any ((== SeverityError) . diagnosticSeverity) diagnostics) exitFailure
+        else if allowHolesFlag
+          then case typecheckModulesWithHoles modules of
+            Left err -> reportError err >> exitFailure
+            Right (_decls, errors, holes) -> do
+              forM_ holes (putStr . ppHoleInfo)
+              case errors of
+                [] -> putStrLn ("Everything is ok! (" <> show (length holes) <> " hole(s))")
+                _  -> do forM_ errors reportError; exitFailure
+          else case defaultTypeCheck (typecheckModulesWithLocation modules) of
+            Left err -> reportError err >> exitFailure
+            Right _decls -> putStrLn "Everything is ok!"
 
     Lsp ->
 #ifdef LSP_ENABLED
