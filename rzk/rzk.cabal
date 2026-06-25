@@ -264,17 +264,17 @@ library
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-depends:
-      Glob >=0.9.3
-    , aeson >=1.4
-    , array >=0.5.3.0
+      Glob >=0.9.3 && <1
+    , aeson >=1.4 && <3
+    , array >=0.5.3.0 && <1
     , base >=4.7 && <5
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
-    , mtl >=2.2.2
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , bifunctors >=5.5.3 && <6
+    , bytestring >=0.10.8.2 && <1
+    , directory >=1.2.7.0 && <2
+    , mtl >=2.2.2 && <3
+    , template-haskell >=2.14.0.0 && <3
+    , text >=1.2.3.1 && <3
+    , yaml >=0.11.0.0 && <1
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
@@ -287,15 +287,15 @@ library
         Language.Rzk.VSCode.Lsp
         Language.Rzk.VSCode.Tokenize
     build-depends:
-        aeson >=2.0.0.0
-      , co-log-core >=0.3.2.0
-      , data-default-class >=0.1.2.0
-      , filepath >=1.4.100.0
-      , lens >=5.0.1
-      , lsp >=2.4.0.0
-      , lsp-types >=2.1.1.0
-      , mtl >=2.3.1
-      , stm >=2.5.1.0
+        aeson >=2.0.0.0 && <3
+      , co-log-core >=0.3.2.0 && <1
+      , data-default-class >=0.1.2.0 && <1
+      , filepath >=1.4.100.0 && <2
+      , lens >=5.0.1 && <6
+      , lsp >=2.4.0.0 && <3
+      , lsp-types >=2.1.1.0 && <3
+      , mtl >=2.3.1 && <3
+      , stm >=2.5.1.0 && <3
 
 executable rzk
   main-is: Main.hs
@@ -309,25 +309,25 @@ executable rzk
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Glob >=0.9.3
-    , aeson >=1.4
-    , array >=0.5.3.0
+      Glob >=0.9.3 && <1
+    , aeson >=1.4 && <3
+    , array >=0.5.3.0 && <1
     , base >=4.7 && <5
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
-    , mtl >=2.2.2
+    , bifunctors >=5.5.3 && <6
+    , bytestring >=0.10.8.2 && <1
+    , directory >=1.2.7.0 && <2
+    , mtl >=2.2.2 && <3
     , rzk
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , template-haskell >=2.14.0.0 && <3
+    , text >=1.2.3.1 && <3
+    , yaml >=0.11.0.0 && <1
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
   if !impl(ghcjs)
     build-depends:
-        optparse-generic >=1.4.7
-      , with-utf8 >=1.0.3.0
+        optparse-generic >=1.4.7 && <2
+      , with-utf8 >=1.0.3.0 && <2
 
 test-suite doctests
   type: exitcode-stdio-1.0
@@ -338,20 +338,20 @@ test-suite doctests
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path
   build-depends:
-      Glob >=0.9.3
-    , QuickCheck >=2.14
-    , aeson >=1.4
-    , array >=0.5.3.0
+      Glob >=0.9.3 && <1
+    , QuickCheck >=2.14 && <3
+    , aeson >=1.4 && <3
+    , array >=0.5.3.0 && <1
     , base >=4.11.0.0 && <5.0
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
-    , doctest-parallel >=0.3
-    , mtl >=2.2.2
+    , bifunctors >=5.5.3 && <6
+    , bytestring >=0.10.8.2 && <1
+    , directory >=1.2.7.0 && <2
+    , doctest-parallel >=0.3 && <1
+    , mtl >=2.2.2 && <3
     , rzk
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml >=0.11.0.0
+    , template-haskell >=2.14.0.0 && <3
+    , text >=1.2.3.1 && <3
+    , yaml >=0.11.0.0 && <1
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
@@ -373,23 +373,23 @@ test-suite rzk-test
       DeriveDataTypeable
   ghc-options: -Wall -Wcompat -Widentities -Werror=missing-fields -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
-      hspec-discover:hspec-discover
+      hspec-discover:hspec-discover >=2.7 && <3
   build-depends:
-      Glob >=0.9.3
-    , aeson
-    , array >=0.5.3.0
+      Glob >=0.9.3 && <1
+    , aeson >=1.4 && <3
+    , array >=0.5.3.0 && <1
     , base >=4.7 && <5
-    , bifunctors >=5.5.3
-    , bytestring >=0.10.8.2
-    , directory >=1.2.7.0
-    , filepath
-    , hspec
-    , hspec-discover
-    , mtl >=2.2.2
+    , bifunctors >=5.5.3 && <6
+    , bytestring >=0.10.8.2 && <1
+    , directory >=1.2.7.0 && <2
+    , filepath >=1.4 && <2
+    , hspec >=2.7 && <3
+    , hspec-discover >=2.7 && <3
+    , mtl >=2.2.2 && <3
     , rzk
-    , template-haskell >=2.14.0.0
-    , text >=1.2.3.1
-    , yaml
+    , template-haskell >=2.14.0.0 && <3
+    , text >=1.2.3.1 && <3
+    , yaml >=0.11.0.0 && <1
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED

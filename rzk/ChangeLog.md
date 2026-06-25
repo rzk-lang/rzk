@@ -12,6 +12,10 @@ Fixed:
 
 - A hole's hint inventory no longer drops a hypothesis or allow-listed lemma whose elimination spine is long. For a goal `#!rzk B` and a lemma `#!rzk deep : A -> A -> A -> A -> A -> A -> A -> A -> B`, the candidate `#!rzk deep ? ? ? ? ? ? ? ?` was silently omitted, because filling each of the eight arguments with a hole spent one unit of the search-depth bound. Filling a function's arguments is a forced spine step, so it no longer counts against the bound; only the genuinely branching eliminators (Σ/cube projections and `#!rzk idJ`) do. This affects only the candidate hints surfaced to the game and the LSP, not the strict `rzk typecheck` path (see [#261](https://github.com/rzk-lang/rzk/pull/261)).
 
+Packaging:
+
+- Add upper bounds on all dependencies, as Hackage asks for. The bounds are at the next super-major version, so a new GHC's boot libraries (`array`, `bytestring`, `directory`, `mtl`, `template-haskell`, `text`) and the pinned Nix/GHCJS package set both stay in range without a Hackage revision on every minor dependency bump. The loose lower bounds are unchanged, so the GHCJS path still resolves (see [#259](https://github.com/rzk-lang/rzk/issues/259), [#134](https://github.com/rzk-lang/rzk/issues/134)).
+
 ## v0.9.0 — 2026-06-24
 
 Added:
