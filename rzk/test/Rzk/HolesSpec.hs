@@ -115,6 +115,22 @@ spec = do
           map show (holeTopes h2) `shouldContain` ["s ≤ t"]
         hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
 
+    -- A hole in a point position of a tope (the argument of ≤ or ≡) — here the
+    -- recOR branch /guard/ `? ≤ ?`. The point is inferred, so a bare hole would
+    -- hit TypeErrorCannotInferHole; in lenient mode it is instead recorded as a
+    -- point of an as-yet-unknown cube (goal `?`) and the sketch yields hints
+    -- rather than a hard error. The branch body (against A) and the guard's two
+    -- point holes are all recorded.
+    it "records a hole in a recOR branch guard point position" $ do
+      case holesOf "#lang rzk-1\n#define square : (A : U) -> A -> (2 × 2) -> A\n  := \\ A a (t , s) -> recOR ( ? ≤ ? ↦ a , ? ↦ a )\n" of
+        holes -> do
+          -- the two point holes of `? ≤ ?` carry an unknown-cube goal …
+          length (filter ((== "?") . show . holeGoal) holes) `shouldBe` 2
+          -- … the second branch guard `?` is a tope (goal TOPE) …
+          map show (map holeGoal holes) `shouldContain` ["TOPE"]
+          -- … and elaboration as a whole succeeds (no fatal error, holes recorded)
+          length holes `shouldBe` 3
+
     -- When the recOR is checked against an /extension type/, each branch hole
     -- reports the boundary it must meet under its tope (the restriction is
     -- pushed into the branches), rather than the bare underlying type. So the
