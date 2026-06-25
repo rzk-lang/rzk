@@ -1,4 +1,4 @@
-{ pkgs, packages, inputs }:
+{ pkgs, packages, inputs, nodejs }:
 let scripts =
   {
     build-rzk-js = pkgs.writeShellApplication {
@@ -38,6 +38,7 @@ let scripts =
           inputsInclude = [
             "flake-utils"
             "nixpkgs"
+            "nixpkgs-node"
             "miso"
             "nix-filter"
           ];
@@ -48,7 +49,7 @@ let scripts =
 
     release-rzk-playground = pkgs.writeShellApplication {
       name = "release-rzk-playground";
-      runtimeInputs = [ pkgs.nodejs_18 ];
+      runtimeInputs = [ nodejs ];
       text =
         let
           playground = "rzk-playground";
