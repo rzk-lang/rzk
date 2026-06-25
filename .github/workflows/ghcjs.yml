@@ -69,8 +69,11 @@ jobs:
       #   uses: mxschmitt/action-tmate@v3
 
       - name: 🔨 Build Playground
+        # The asset base URL must match the deploy target below: main is
+        # published to the root `playground/`, every other ref to
+        # `<ref>/playground/`. Keep these in sync or the page 404s its assets.
         env:
-          ASSET_URL: /${{ github.event.repository.name }}/${{ github.ref_name }}/playground
+          ASSET_URL: ${{ github.ref_name == 'main' && format('/{0}/playground', github.event.repository.name) || format('/{0}/{1}/playground', github.event.repository.name, github.ref_name) }}
         run: nix run .#release-rzk-playground
 
       - name: 🔨 Save flake from garbage collection
