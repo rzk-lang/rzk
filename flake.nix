@@ -2,6 +2,10 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:NixOS/nixpkgs/2436aaf8fad634ee66a6280fb82a19c1771c173f";
+    # A recent nixpkgs used only for Node.js: the main pin above (kept for the
+    # GHCJS/miso toolchain) tops out at Node 20.11, but Vite 7 — used by the
+    # playground build — needs Node >= 20.19 / 22.12.
+    nixpkgs-node.url = "github:NixOS/nixpkgs/nixos-25.05";
     miso = {
       url = "github:dmjio/miso/8277ac79941825abaf50b917e074e3df7ef6d213";
       flake = false;
@@ -19,6 +23,9 @@
   outputs = inputs: inputs.flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = inputs.nixpkgs.legacyPackages.${system};
+      # Node.js from a recent nixpkgs (see the nixpkgs-node input), new enough
+      # for Vite 7; everything else still comes from the pinned nixpkgs.
+      nodejs = inputs.nixpkgs-node.legacyPackages.${system}.nodejs_22;
 
       rzk = "rzk";
       rzk-js = "rzk-js";
@@ -35,13 +42,13 @@
       tools = [
         pkgs.cabal-install
         pkgs.hpack
-        pkgs.nodejs_18
+        nodejs
         pkgs.bun
       ];
 
       default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools; };
       ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools; };
-      scripts = import ./nix/scripts.nix { inherit pkgs packages inputs; };
+      scripts = import ./nix/scripts.nix { inherit pkgs packages inputs nodejs; };
 
 
       packages = {
