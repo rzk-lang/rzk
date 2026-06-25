@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- A multi-variable binder like (x y : A) desugars to nested one-variable
+-- binders (x : A) → (y : A) → …, so a function of that type accepts that many
+-- arguments. Previously the surface term `x y` crashed `unsafeTermToPattern`.
+
+#define app2 (A : U) (a : A) (k : (x y : A) → A)
+  : A
+  := k a a
+
+#define app3 (A : U) (a : A) (k : (x y z : A) → A)
+  : A
+  := k a a a
+
+#check app2 : (A : U) → (a : A) → ((x y : A) → A) → A

@@ -95,6 +95,18 @@ spec = do
       let holes2 = holesOf "#lang rzk-1\n#define q : (A : U) -> A -> A\n  := \\ A a -> ?\n#define r : (A : U) -> A -> A\n  := \\ A a -> ?\n"
       length holes2 `shouldBe` 2
 
+    -- A multi-variable binder (x y : A) is parsed as the application spine
+    -- `x y`; it must be desugared into nested binders rather than crash
+    -- `unsafeTermToPattern` ("expected a pattern but got x y"). The hole query
+    -- then sees the hypothesis as the nested function type.
+    it "handles a hole whose context has a multi-variable binder" $ do
+      case holesOf "#lang rzk-1\n#assume A : U\n#def foo (k : (x y : A) → A) : A := ?\n" of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "A"
+          map (show . holeEntryType) (holeTermVars h)
+            `shouldContain` ["(x : A) → (y : A) → A"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A hole whose elaborated term reaches unification (here the `refl` endpoint)
     -- must not panic ("unexpected term in UNIFY"); it unifies with anything.
     it "handles a hole that flows into unification" $ do
