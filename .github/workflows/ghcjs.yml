@@ -1,16 +1,14 @@
 name: GHCJS (build and deploy Rzk playground)
 
 on:
+  # No `paths:` filter on `push`: a `paths` filter is unreliable on tag pushes
+  # (GitHub often skips the run), which is why the playground was not published
+  # for past releases. Branch/tag pushes that deploy the playground must always
+  # run; the Nix cache keeps an unrelated push cheap. The `paths` filter is kept
+  # on `pull_request`, where it only saves CI and never gates a deploy.
   push:
     branches: [main, develop]
     tags: [v*]
-    paths:
-      - .github/workflows/ghcjs.yml
-      - rzk/**
-      - rzk-js/**
-      - rzk-playground/**
-      - stack.yaml
-      - "**/*.nix"
   pull_request:
     branches: [develop]
     paths:
@@ -25,6 +23,12 @@ on:
 
 permissions:
   contents: write
+
+# Cancel an in-flight run when a PR gets a new commit; never cancel a push/tag
+# run (those deploy the playground).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-deploy-with-ghcjs:

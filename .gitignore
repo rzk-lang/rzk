@@ -44,3 +44,6 @@ rzk/doc/
 # run alex/happy on them (and fail without those tools).
 rzk/src/Language/Rzk/Syntax/Lex.x
 rzk/src/Language/Rzk/Syntax/Par.y
+
+# Personal scratch / research notes (not part of the build)
+/notes/

@@ -10,6 +10,16 @@ See [rzk-lang/vscode-rzk](https://github.com/rzk-lang/vscode-rzk).
 VS Code extension offers a lot of conveniences and using VS Code is recommended for newcomers,
 as it is considered the primary use case and has most support from the developers.
 
+### Interactive games engine for Rzk
+
+See [rzk-lang/rzk-game](https://github.com/rzk-lang/rzk-game).
+This engine powers interactive proof games in the style of the Lean 4 games, but
+for synthetic ∞-category theory. It compiles to WebAssembly and links the Rzk
+library, so the typechecker runs in the browser. The player fills holes
+(`#!rzk ?`) in a term, and for each hole the engine shows its goal and local
+context. The [∞-Yoneda Game](https://github.com/rzk-lang/yoneda-game) is built on
+it.
+
 ### MkDocs plugin for Rzk
 
 See [rzk-lang/mkdocs-plugin-rzk](https://github.com/rzk-lang/mkdocs-plugin-rzk).

@@ -2,24 +2,20 @@ name: GHC (build, test, haddock)
 
 # Controls when the workflow will run
 on:
+  # No `paths:` filter on `push`: it is unreliable on tag pushes (GitHub often
+  # skips the run), and the `mkdocs` job below must deploy the docs for every
+  # release tag. The filter is kept on `pull_request`, where it only trims CI.
   push:
     branches: [main, develop]
     tags: [v*]
-    paths:
-      - .github/workflows/ghcjs.yml
-      - rzk/**
-      - stack.yaml
-      - rzk.yaml
-      - "**/*.rzk.md"
-      - "**/*.rzk"
-      - "**/*.rzk.tex"
   pull_request:
     branches: [develop]
     paths:
-      - .github/workflows/ghcjs.yml
+      - .github/workflows/ghc.yml
       - rzk/**
       - stack.yaml
       - rzk.yaml
+      - docs/**
       - "**/*.rzk.md"
       - "**/*.rzk"
       - "**/*.rzk.tex"
@@ -30,13 +26,28 @@ on:
 permissions:
   contents: write
 
+# Cancel an in-flight run when a PR gets a new commit; never cancel a push/tag
+# run (those may be deploying). The job-level `gh-pages` group is separate.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: "Build and test with GHC"
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-latest]
+        # Full OS coverage on PRs (the pre-merge gate), tags, and main;
+        # Linux-only on develop pushes, which a PR has already validated on all
+        # OS. The Linux build still produces the artifact downstream jobs use.
+        os: >-
+          ${{ (github.event_name == 'pull_request'
+               || github.ref_name == 'main'
+               || startsWith(github.ref, 'refs/tags/'))
+              && fromJSON('["ubuntu-latest","windows-latest","macos-15-intel","macos-latest"]')
+              || fromJSON('["ubuntu-latest"]') }}
 
     steps:
       - name: 📥 Checkout repository
@@ -64,6 +75,10 @@ jobs:
     if: ${{ github.ref_name == 'develop' }}
     name: "Build and upload Haddock documentation (develop)"
     runs-on: ubuntu-latest
+    # Serialise gh-pages writes with the mkdocs job (both push the same branch).
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
 
     steps:
       - name: 📥 Checkout repository
@@ -108,3 +123,73 @@ jobs:
       - name: Check Rzk files
         run: ./bin/rzk typecheck
         shell: bash
+
+  mkdocs:
+    needs: [build]
+    name: "Build and Deploy MkDocs to GitHub Pages"
+    runs-on: ubuntu-latest
+    # Serialise gh-pages writes with the haddock job (both push the same branch).
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🧰 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: "pip"
+
+      # Reuse the rzk binary built by the `build` job, so the docs are
+      # typechecked with the version from this very commit rather than a
+      # released binary (which can be older than the docs).
+      - name: 📥 Download rzk
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          name: rzk-${{ runner.os }}-${{ runner.arch }}.tar.gz
+
+      - name: Unpack rzk and add it to PATH
+        run: |
+          tar xzf ${{ steps.download.outputs.download-path }}/rzk-bin.tar.gz
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Check Rzk files for each language
+        run: for lang_dir in $(ls -d docs/docs/*/); do
+          pushd ${lang_dir} && rzk typecheck; popd ;
+          done
+
+      - name: Check Rzk formatting for each language
+        run: for lang_dir in $(ls -d docs/docs/*/); do
+          pushd ${lang_dir} && rzk format --check; popd ;
+          done
+
+      - name: 🔨 Install MkDocs Material and mike
+        run: pip install -r docs/requirements.txt
+
+      - name: ⚙️  Configure Git user
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      # A tagged release is published as its own version and aliased to latest.
+      - name: 🚀 Deploy with mike (${{ github.ref_name }}, latest)
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          for config in $(ls docs/config/*/mkdocs.yml); do
+            mike deploy --push --update-aliases --config-file ${config} ${{ github.ref_name }} latest;
+            mike set-default latest --config-file ${config} --push;
+          done
+
+      # develop is published as a moving "develop" version (no latest alias).
+      - name: 🚀 Deploy with mike (develop)
+        if: ${{ github.event_name == 'push' && github.ref_name == 'develop' }}
+        run: |
+          for config in $(ls docs/config/*/mkdocs.yml); do
+            mike deploy --push --config-file ${config} ${{ github.ref_name }};
+          done
