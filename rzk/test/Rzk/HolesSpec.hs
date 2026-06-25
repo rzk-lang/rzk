@@ -369,6 +369,18 @@ spec = do
       flip oneHole (holesWithLemmas ["concat"] src) $ \h ->
         (names (holeTermVars h) <> names (holeCubeVars h)) `shouldNotContain` ["concat"]
 
+    -- A lemma fully applied to many arguments is offered: filling a function's
+    -- arguments with holes is a forced spine step that does not spend the search
+    -- budget, so the eight-argument `deep` reaches the goal even though its spine
+    -- is longer than `maxEliminationDepth`. (Regression: argument count used to be
+    -- charged against the bound, silently dropping deep lemmas.)
+    it "offers a lemma applied to more arguments than maxEliminationDepth" $
+      let deepSrc = "#lang rzk-1\n#postulate A : U\n#postulate B : U\n"
+                 <> "#postulate deep : A -> A -> A -> A -> A -> A -> A -> A -> B\n"
+                 <> "#define goal : B := ?\n"
+      in flip oneHole (holesWithLemmas ["deep"] deepSrc) $ \h ->
+           cands h `shouldContain` ["deep ? ? ? ? ? ? ? ?"]
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
