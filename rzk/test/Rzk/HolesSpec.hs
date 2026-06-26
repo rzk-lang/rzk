@@ -152,6 +152,33 @@ spec = do
         [h] -> show (holeGoal h) `shouldBe` "A"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A hole standing for a /whole/ shape-restricted argument under an enclosing
+    -- extension-type boundary. The argument unfolds to a recOR whose faces
+    -- mention the hole (e.g. @π₁ ? ≤ π₂ ?@); checking the boundary enters such a
+    -- face and a branch reduction then drops the hole from the compared terms
+    -- (the triangle here, @const-pt A c@, discards its point). So the mismatch
+    -- (@a@ vs @c@) is hole-free in the terms even though the assumed face still
+    -- mentions the hole. The per-term deferral cannot see it; deferring on a
+    -- hole-bearing tope context can, so the hole is reported with its shape goal
+    -- rather than rejected. (Before the fix this raised TypeErrorUnifyTerms.)
+    it "handles a hole for a whole shape argument under an extension boundary" $ do
+      let src = "#lang rzk-1\n\
+                \#def Δ¹ : 2 → TOPE := \\ t → TOP\n\
+                \#def Δ¹×Δ¹ : (2 × 2) → TOPE := \\ (t , s) → TOP ∧ TOP\n\
+                \#def unfold (A : U) (tri : (2 × 2) → A) : Δ¹×Δ¹ → A\n\
+                \  := \\ (t , s) → recOR (t ≤ s ↦ tri (s , t) , s ≤ t ↦ tri (t , s))\n\
+                \#def const-pt (A : U) (c : A) : (2 × 2) → A := \\ (t , s) → c\n\
+                \#def hom (A : U) (x y : A) : U := (t : Δ¹) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ]\n\
+                \#def test (A : U) (a b c : A) : hom A a b\n\
+                \  := \\ t → unfold A (const-pt A c) ?\n"
+      case holesOf src of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "2 × 2"
+          case holeGoalShape h of
+            Just (s, tope) -> show tope `shouldBe` ("Δ¹×Δ¹ " <> show s)
+            Nothing        -> expectationFailure "expected a shape goal (holeGoalShape)"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A genuinely completable work-in-progress term is tolerated. The example
     -- (the Yoneda game's square-transformation level) feeds an incomplete
     -- `codomain-square A is-segal-A a b (f ?) ? ? ? ?` where a value of
