@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - multivar-binder-desugar-unsafeTermToPattern-crash

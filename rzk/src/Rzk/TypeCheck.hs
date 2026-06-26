@@ -738,29 +738,37 @@ containsHole = \case
 --
 -- The search is driven uniformly by the eliminators a (weak head normal) type
 -- admits (see 'eliminatorsOf'), so adding a new eliminator extends it without
--- touching the search. Depth is bounded by 'maxEliminationDepth'.
+-- touching the search.
+--
+-- A Π-application is a forced spine step — there is exactly one way to fill an
+-- argument (with a hole) — so it extends the spine for free and does not spend
+-- the budget. Only the genuinely branching eliminators (Σ/cube projections and
+-- @idJ@, flagged by 'eliminatorsOf') count against 'maxEliminationDepth'. The
+-- bound therefore limits real search depth, not argument count, so a lemma that
+-- must be applied to many holes is still reached. The free spine terminates
+-- because each application strips one Π binder off a finite type.
 allEliminationsInto
   :: Eq var => TermT var -> TermT var -> TypeCheck var [TermT var]
 allEliminationsInto target = go maxEliminationDepth
   where
     go depth term = do
-      ty   <- typeOf term
-      fits <- fitsInto term ty target
-      deeper <-
-        if depth <= 0
-          then pure []
-          else do
-            elims <- eliminatorsOf ty
-            concat <$> mapM (\wrap -> go (depth - 1) (wrap term)) elims
+      ty    <- typeOf term
+      fits  <- fitsInto term ty target
+      elims <- eliminatorsOf ty
+      let step (SpineStep, wrap) = go depth (wrap term)
+          step (Branching, wrap)
+            | depth <= 0 = pure []
+            | otherwise  = go (depth - 1) (wrap term)
+      deeper <- concat <$> mapM step elims
       pure ([term | fits] <> deeper)
 
--- | How deep an elimination spine 'allEliminationsInto' will build. A temporary
--- fixed bound: seven is enough for the spines seen so far (fully applying a
--- five-argument hypothesis and projecting twice), and a larger bound mostly adds
--- self-referential spines (a built result applied again). It should be made
--- configurable, and likely raised, once there is more evidence of what real
--- goals need. The chain only branches at Σ-types, which are shallow, so the
--- search stays small.
+-- | How many /branching/ eliminators 'allEliminationsInto' will chain. Forced
+-- Π-applications are free (see 'allEliminationsInto'), so this bounds only the
+-- Σ/cube projections and @idJ@ steps, not the argument count of a spine. A
+-- temporary fixed bound: branching is shallow in the goals seen so far (a few
+-- projections), and a larger bound mostly adds self-referential spines (a built
+-- result eliminated again). It should be made configurable once there is more
+-- evidence of what real goals need.
 maxEliminationDepth :: Int
 maxEliminationDepth = 7
 
@@ -784,24 +792,32 @@ fitsInto term ty target = do
   censor (const []) $ local structuralHoleUnify
     ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
 
+-- | Whether eliminating a value spends the search budget. A forced
+-- Π-application is a 'SpineStep' — there is one way to fill the argument (with a
+-- hole), so 'allEliminationsInto' applies it for free; a 'Branching' eliminator
+-- (a Σ/cube projection or @idJ@) costs one against 'maxEliminationDepth'.
+data ElimCost = SpineStep | Branching
+  deriving (Eq, Show)
+
 -- | The eliminators a value of the given (weak head normal) type admits, each
--- as a function wrapping the eliminated term. A Π-type is eliminated by
--- application to a fresh hole; a Σ-type by either projection; an identity type
--- by path induction (@idJ@), with the motive and base case left as holes.
+-- as a function wrapping the eliminated term, paired with its 'ElimCost'. A
+-- Π-type is eliminated by application to a fresh hole (a spine step); a Σ-type
+-- by either projection; an identity type by path induction (@idJ@), with the
+-- motive and base case left as holes. The projections and @idJ@ branch.
 -- Anything else admits no simple eliminator.
-eliminatorsOf :: Eq var => TermT var -> TypeCheck var [TermT var -> TermT var]
+eliminatorsOf :: Eq var => TermT var -> TypeCheck var [(ElimCost, TermT var -> TermT var)]
 eliminatorsOf ty =
   case stripTypeRestrictions ty of
     TypeFunT _ty _orig _md param _mtope ret ->
-      pure [ \term -> let h = mkHole param in appT (substituteT h ret) term h ]
+      pure [ (SpineStep, \term -> let h = mkHole param in appT (substituteT h ret) term h) ]
     TypeSigmaT _ty _orig _md a b ->
-      pure [ \term -> firstT a term
-           , \term -> secondT (substituteT (firstT a term) b) term ]
+      pure [ (Branching, \term -> firstT a term)
+           , (Branching, \term -> secondT (substituteT (firstT a term) b) term) ]
     -- A cube point pair (e.g. a pattern-bound @(t , s) : 2 × 2@) projects to its
     -- coordinates; rzk renders those projections back as the pattern names.
     CubeProductT _ty a b ->
-      pure [ \term -> firstT a term
-           , \term -> secondT b term ]
+      pure [ (Branching, \term -> firstT a term)
+           , (Branching, \term -> secondT b term) ]
     -- A path @p : a =_A x@ is eliminated by path induction. The motive
     -- @C : (z : A) → (a =_A z) → U@ is always a function, so we introduce it
     -- straight away as @\\ b q → ?@ rather than leaving it a bare hole: the spine
@@ -825,7 +841,7 @@ eliminatorsOf ty =
           d      = mkHole dType
           motiveAt y p = appT universeT
             (appT (typeFunT (BinderVar Nothing) Id (typeIdT a (Just tA) y) Nothing universeT) c y) p
-      pure [ \p -> idJT (motiveAt x p) tA a c d x p ]
+      pure [ (Branching, \p -> idJT (motiveAt x p) tA a c d x p) ]
     _ -> pure []
   where
     mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
@@ -1501,9 +1517,11 @@ scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> Typ
 scopeToDecls errs ScopeInfo{..} = do
   -- In lenient (hole-checking) mode an as-yet-unfilled hole may still come to
   -- use a declared variable, so we tolerate the unused-variable diagnostics
-  -- wherever such a hole is present: a hole anywhere in the section for an
-  -- unused section assumption, a hole in the declaration itself for an unused
-  -- 'uses' variable. Strict mode (the default, and CI) keeps reporting both.
+  -- wherever such a hole is present anywhere in the section. This covers both an
+  -- unused section assumption and an unused 'uses' variable, and crucially a
+  -- hole-free definition whose body refers to an in-progress (hole-bearing) one:
+  -- its 'uses' reads as unused only because the referenced definition is
+  -- incomplete. Strict mode (the default, and CI) keeps reporting both.
   lenient <- not <$> asks holesAreErrors
   let sectionHasHole = any (maybe False containsHole . varValue . snd) scopeVars
   (decls, errs') <- collectScopeDecls (lenient && sectionHasHole) errs [] scopeVars
@@ -1511,8 +1529,7 @@ scopeToDecls errs ScopeInfo{..} = do
   -- when (null errs) $ do
   unusedErrors <- forM decls $ \Decl{..} -> do
     let unusedUsedVars = declUsedVars `intersect` map fst scopeVars
-        declHasHole    = maybe False containsHole declValue
-    if null errs && not (null unusedUsedVars) && not (lenient && declHasHole)
+    if null errs && not (null unusedUsedVars) && not (lenient && sectionHasHole)
       then do
         err <- local (\c -> c { location = declLocation }) $
           fromTypeError (TypeErrorUnusedUsedVariables unusedUsedVars declName)
@@ -3168,12 +3185,20 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                   -- unification that would otherwise fail is deferred when either
                   -- side still contains an (unfilled) hole — including one nested
                   -- in a larger term, e.g. @f ?@ checked against an extension-type
-                  -- boundary. 'structuralHoleUnify' turns this off, keeping a
-                  -- structural mismatch around a hole an error. Lazy: only runs on
-                  -- the failure path.
+                  -- boundary. The hole may also sit in the tope context rather
+                  -- than the terms: a hole standing for a whole shape point makes
+                  -- the enclosing 'recOR' split over hole-dependent faces, and a
+                  -- branch reduction can drop the hole from the terms while the
+                  -- assumed face (e.g. @π₁ ? ≤ π₂ ?@) still mentions it. Such a
+                  -- branch is only entered because the hole is unfilled, so a
+                  -- mismatch under it is deferred too. 'structuralHoleUnify' turns
+                  -- this off, keeping a structural mismatch around a hole an
+                  -- error. Lazy: only runs on the failure path.
                   defer <- asks deferHoleMismatches
+                  topeContextHasHole <- asks (any (containsHole . tTope) . localTopes)
                   let def = unless (expected' == actual') err
-                      holePresent = defer && (containsHole expected' || containsHole actual')
+                      holePresent = defer &&
+                        (containsHole expected' || containsHole actual' || topeContextHasHole)
                       err
                         | holePresent = return ()
                         | otherwise =

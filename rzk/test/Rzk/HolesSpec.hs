@@ -95,6 +95,18 @@ spec = do
       let holes2 = holesOf "#lang rzk-1\n#define q : (A : U) -> A -> A\n  := \\ A a -> ?\n#define r : (A : U) -> A -> A\n  := \\ A a -> ?\n"
       length holes2 `shouldBe` 2
 
+    -- A multi-variable binder (x y : A) is parsed as the application spine
+    -- `x y`; it must be desugared into nested binders rather than crash
+    -- `unsafeTermToPattern` ("expected a pattern but got x y"). The hole query
+    -- then sees the hypothesis as the nested function type.
+    it "handles a hole whose context has a multi-variable binder" $ do
+      case holesOf "#lang rzk-1\n#assume A : U\n#def foo (k : (x y : A) → A) : A := ?\n" of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "A"
+          map (show . holeEntryType) (holeTermVars h)
+            `shouldContain` ["(x : A) → (y : A) → A"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A hole whose elaborated term reaches unification (here the `refl` endpoint)
     -- must not panic ("unexpected term in UNIFY"); it unifies with anything.
     it "handles a hole that flows into unification" $ do
@@ -138,6 +150,33 @@ spec = do
     it "handles a nested hole under an extension-type boundary" $ do
       case holesOf "#lang rzk-1\n#define t : (A : U) -> (f : A -> A) -> (a : A) -> (t : 2) -> A [ t === 0_2 |-> a ]\n  := \\ A f a t -> f ?\n" of
         [h] -> show (holeGoal h) `shouldBe` "A"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A hole standing for a /whole/ shape-restricted argument under an enclosing
+    -- extension-type boundary. The argument unfolds to a recOR whose faces
+    -- mention the hole (e.g. @π₁ ? ≤ π₂ ?@); checking the boundary enters such a
+    -- face and a branch reduction then drops the hole from the compared terms
+    -- (the triangle here, @const-pt A c@, discards its point). So the mismatch
+    -- (@a@ vs @c@) is hole-free in the terms even though the assumed face still
+    -- mentions the hole. The per-term deferral cannot see it; deferring on a
+    -- hole-bearing tope context can, so the hole is reported with its shape goal
+    -- rather than rejected. (Before the fix this raised TypeErrorUnifyTerms.)
+    it "handles a hole for a whole shape argument under an extension boundary" $ do
+      let src = "#lang rzk-1\n\
+                \#def Δ¹ : 2 → TOPE := \\ t → TOP\n\
+                \#def Δ¹×Δ¹ : (2 × 2) → TOPE := \\ (t , s) → TOP ∧ TOP\n\
+                \#def unfold (A : U) (tri : (2 × 2) → A) : Δ¹×Δ¹ → A\n\
+                \  := \\ (t , s) → recOR (t ≤ s ↦ tri (s , t) , s ≤ t ↦ tri (t , s))\n\
+                \#def const-pt (A : U) (c : A) : (2 × 2) → A := \\ (t , s) → c\n\
+                \#def hom (A : U) (x y : A) : U := (t : Δ¹) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ]\n\
+                \#def test (A : U) (a b c : A) : hom A a b\n\
+                \  := \\ t → unfold A (const-pt A c) ?\n"
+      case holesOf src of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "2 × 2"
+          case holeGoalShape h of
+            Just (s, tope) -> show tope `shouldBe` ("Δ¹×Δ¹ " <> show s)
+            Nothing        -> expectationFailure "expected a shape goal (holeGoalShape)"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- A genuinely completable work-in-progress term is tolerated. The example
@@ -369,6 +408,18 @@ spec = do
       flip oneHole (holesWithLemmas ["concat"] src) $ \h ->
         (names (holeTermVars h) <> names (holeCubeVars h)) `shouldNotContain` ["concat"]
 
+    -- A lemma fully applied to many arguments is offered: filling a function's
+    -- arguments with holes is a forced spine step that does not spend the search
+    -- budget, so the eight-argument `deep` reaches the goal even though its spine
+    -- is longer than `maxEliminationDepth`. (Regression: argument count used to be
+    -- charged against the bound, silently dropping deep lemmas.)
+    it "offers a lemma applied to more arguments than maxEliminationDepth" $
+      let deepSrc = "#lang rzk-1\n#postulate A : U\n#postulate B : U\n"
+                 <> "#postulate deep : A -> A -> A -> A -> A -> A -> A -> A -> B\n"
+                 <> "#define goal : B := ?\n"
+      in flip oneHole (holesWithLemmas ["deep"] deepSrc) $ \h ->
+           cands h `shouldContain` ["deep ? ? ? ? ? ? ? ?"]
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
@@ -475,6 +526,15 @@ spec = do
     it "still reports an unused 'uses' variable with no hole in the declaration" $
       errTagsOf (usesSection "#define f uses (x) : U\n  := A")
         `shouldContain` ["TypeErrorUnusedUsedVariables"]
+
+    -- A hole-free definition whose body refers to an in-progress (hole-bearing)
+    -- one declares 'uses (x)' that reads as unused only because the referenced
+    -- definition is incomplete. The section has a hole, so it is tolerated (the
+    -- check keys off a hole anywhere in the section, not the declaration alone).
+    it "tolerates an unused 'uses' on a hole-free wrapper of a hole-bearing def" $
+      errTagsOf (usesSection ("#define in-progress uses (x) : U\n  := ?\n"
+                           <> "#define wrapper uses (x) : U\n  := in-progress"))
+        `shouldNotContain` ["TypeErrorUnusedUsedVariables"]
 
   -- The goal cell: when the goal is a renderable shape, the hole carries an SVG
   -- of that shape, drawn from an abstract inhabitant with the proof term hidden

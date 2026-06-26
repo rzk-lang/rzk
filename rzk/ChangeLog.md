@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## Unreleased
+
+## v0.9.1 — 2026-06-26
+
+Fixed:
+
+- In lenient (`--allow-holes`) mode, an unused `#!rzk uses` variable is now tolerated whenever the section contains a hole, not only when the hole sits in the declaration itself. For example, with `#!rzk #def in-progress uses (P) : U := ?` and a hole-free wrapper `#!rzk #def check uses (P) : U := in-progress`, the wrapper's `#!rzk uses (P)` reads as unused only because `#!rzk in-progress` is incomplete; it no longer masks the hole the player is meant to see. Strict mode (the default, and CI) still reports a genuinely unused `#!rzk uses` (see [#262](https://github.com/rzk-lang/rzk/pull/262)).
+
+- A multi-variable binder in a function type, such as `#!rzk (x y : A) → A`, no longer crashes the checker with `expected a pattern but got x y`. It is now desugared into nested one-variable binders `#!rzk (x : A) → (y : A) → A`, as one would expect. The crash was an uncaught `error` reached during translation, so it took down the playground, the game, and the LSP rather than surfacing as a diagnostic; both `rzk typecheck` and the hole query (`--allow-holes`) are fixed (see [#263](https://github.com/rzk-lang/rzk/pull/263)).
+
+- A hole's hint inventory no longer drops a hypothesis or allow-listed lemma whose elimination spine is long. For a goal `#!rzk B` and a lemma `#!rzk deep : A -> A -> A -> A -> A -> A -> A -> A -> B`, the candidate `#!rzk deep ? ? ? ? ? ? ? ?` was silently omitted, because filling each of the eight arguments with a hole spent one unit of the search-depth bound. Filling a function's arguments is a forced spine step, so it no longer counts against the bound; only the genuinely branching eliminators (Σ/cube projections and `#!rzk idJ`) do. This affects only the candidate hints surfaced to the game and the LSP, not the strict `rzk typecheck` path (see [#261](https://github.com/rzk-lang/rzk/pull/261)).
+
+- In lenient (`--allow-holes`) mode, a hole standing for an entire shape-restricted argument is now reported with its goal instead of failing the enclosing extension-type boundary check. When the hole is the whole point of a shape (e.g. a `#!rzk 2 × 2 | Δ¹×Δ¹` point), the surrounding term can unfold to a `#!rzk recOR` whose faces mention the hole (such as `#!rzk π₁ ? ≤ π₂ ?`). Checking an extension-type boundary then enters one of those faces, and a reduction there can drop the hole from the compared terms while the assumed face still depends on it. The boundary mismatch was reported as `cannot unify term`, even though filling the hole makes the term typecheck. A mismatch found under a tope context that still mentions an unfilled hole is now deferred, just like one whose terms still contain a hole. Strict mode (the default, and CI) still reports the hole as unsolved (see [#267](https://github.com/rzk-lang/rzk/pull/267)).
+
+Packaging:
+
+- Add upper bounds on all dependencies, as Hackage asks for. The bounds are at the next super-major version, so a new GHC's boot libraries (`array`, `bytestring`, `directory`, `mtl`, `template-haskell`, `text`) and the pinned Nix/GHCJS package set both stay in range without a Hackage revision on every minor dependency bump. The loose lower bounds are unchanged, so the GHCJS path still resolves (see [#259](https://github.com/rzk-lang/rzk/issues/259), [#134](https://github.com/rzk-lang/rzk/issues/134)).
+
+CI / infrastructure:
+
+- Upgrade the playground's build toolchain to Vite 7 and `tsx` 4.20, picking up the upstream security fixes, and build it with Node 22 under Nix to match (see [#265](https://github.com/rzk-lang/rzk/pull/265)).
+
+- Fix the playground's `ASSET_URL` so the root (`main`) deployment loads its assets from the correct path.
+
 ## v0.9.0 — 2026-06-24
 
 Added:
