@@ -3185,12 +3185,20 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                   -- unification that would otherwise fail is deferred when either
                   -- side still contains an (unfilled) hole — including one nested
                   -- in a larger term, e.g. @f ?@ checked against an extension-type
-                  -- boundary. 'structuralHoleUnify' turns this off, keeping a
-                  -- structural mismatch around a hole an error. Lazy: only runs on
-                  -- the failure path.
+                  -- boundary. The hole may also sit in the tope context rather
+                  -- than the terms: a hole standing for a whole shape point makes
+                  -- the enclosing 'recOR' split over hole-dependent faces, and a
+                  -- branch reduction can drop the hole from the terms while the
+                  -- assumed face (e.g. @π₁ ? ≤ π₂ ?@) still mentions it. Such a
+                  -- branch is only entered because the hole is unfilled, so a
+                  -- mismatch under it is deferred too. 'structuralHoleUnify' turns
+                  -- this off, keeping a structural mismatch around a hole an
+                  -- error. Lazy: only runs on the failure path.
                   defer <- asks deferHoleMismatches
+                  topeContextHasHole <- asks (any (containsHole . tTope) . localTopes)
                   let def = unless (expected' == actual') err
-                      holePresent = defer && (containsHole expected' || containsHole actual')
+                      holePresent = defer &&
+                        (containsHole expected' || containsHole actual' || topeContextHasHole)
                       err
                         | holePresent = return ()
                         | otherwise =
