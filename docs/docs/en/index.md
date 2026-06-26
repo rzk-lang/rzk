@@ -4,7 +4,7 @@ Rzk is an experimental proof assistant,
 based on [«Type Theory for Synthetic ∞-categories»](https://arxiv.org/abs/1705.07442)[^1].
 
 [Get started with Rzk](getting-started/install.md){ .md-button .md-button--primary }
-[Try Rzk Playground](playground/index.html){ .md-button }
+[Try Rzk Playground](https://rzk-lang.github.io/rzk/playground/){ .md-button }
 
 ## About this project
 
@@ -24,7 +24,7 @@ There are also some efforts to formalize the HoTT Book in Rzk (see [hottbook](ht
 The recommended way of interacting with Rzk is via VS Code (see [Getting Started](getting-started/install.md)),
 but you can also download binaries from [GitHub Releases](https://github.com/rzk-lang/rzk/releases), build [from sources](getting-started/install.md#install-from-sources),
 or try setting up the Rzk Language Server with your editor of choice.
-Additionally, for "throwaway" single-file formalizations, you can use [Rzk Online Playground](playground/index.html).
+Additionally, for "throwaway" single-file formalizations, you can use [Rzk Online Playground](https://rzk-lang.github.io/rzk/playground/).
 
 ### Implementation
 
