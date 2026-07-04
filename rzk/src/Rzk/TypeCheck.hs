@@ -2018,10 +2018,19 @@ unifyInCurrentContext mterm expected actual = performing action $
                         enterScope orig' a' $ unify Nothing b b'
                       _ -> err
 
-                  TypeIdT _ty x _tA y ->
+                  TypeIdT _ty x tA y ->
                     case actual' of
-                      TypeIdT _ty' x' _tA' y' -> do
-                        -- unify Nothing tA tA' -- TODO: do we need this check?
+                      TypeIdT _ty' x' tA' y' -> do
+                        -- The underlying types must be compared: without this
+                        -- check the routine equates identity types over
+                        -- different types whenever the endpoints unify,
+                        -- accepting e.g. a free homotopy (a path in the type
+                        -- of functions) where an endpoint-fixing one (a path
+                        -- in a hom-type) is expected. Compared invariantly:
+                        -- subtyping between the underlying types must not
+                        -- leak into equality of identity types over them.
+                        mapM_ (\(t1, t2) -> setVariance Invariant (unify Nothing t1 t2))
+                          ((,) <$> tA <*> tA')
                         unify Nothing x x'
                         unify Nothing y y'
                       _ -> err

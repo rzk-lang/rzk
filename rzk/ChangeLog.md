@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.8 — ????-??-??
+
+This is a bugfix release.
+
+Fixes:
+
+- Compare the underlying types of identity types during unification;
+  previously, identity types over different types were equated whenever
+  their endpoints unified, accepting e.g. a free homotopy (a path in
+  `Δ¹ → A`) where an endpoint-fixing one (a path in `hom A x y`) is
+  expected. Some developments relied on the missing comparison in
+  benign cases; the `sHoTT` library has been updated to annotate the
+  affected identity types at their intended types.
+
 ## v0.7.7 — 2025-11-04
 
 Important fixes:
