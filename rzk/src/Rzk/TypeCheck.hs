@@ -281,6 +281,7 @@ data TypeError var
   | TypeErrorCannotInferBareRefl (Term var)
   | TypeErrorUndefined var
   | TypeErrorTopeNotSatisfied [TermT var] (TermT var)
+  | TypeErrorTopeContextDisjoint (TermT var) [TermT var]
   | TypeErrorTopesNotEquivalent (TermT var) (TermT var)
   | TypeErrorInvalidArgumentType (Term var) (TermT var)
   | TypeErrorDuplicateTopLevel [VarIdent] VarIdent
@@ -373,6 +374,13 @@ ppTypeError' = \case
     , "in local context (normalised)"
     , intercalate "\n" (map ("  " <>) (map show topes))
     , intercalate "\n" (map ("  " <>) (map show (generateTopesForPoints (allTopePoints tope))))] -- FIXME: remove
+  TypeErrorTopeContextDisjoint tope topes -> block TopDown
+    [ "the tope"
+    , "  " <> show (untyped tope)
+    , "is disjoint from the local tope context (their conjunction is the empty tope ⊥),"
+    , "so this restriction face is vacuous everywhere"
+    , "in local context (normalised)"
+    , intercalate "\n" (map ("  " <>) (map show topes))]
   TypeErrorTopesNotEquivalent expected actual -> block TopDown
     [ "expected tope"
     , "  " <> show (untyped expected)
@@ -1106,6 +1114,13 @@ generateTopes newTopes oldTopes
       , [ topeEQT x y | TopeLEQT _ty x@Cube2_1T{} y <- newTopes ]
       ]
 
+-- | Linearity topes @(x ≤ y) ∨ (y ≤ x)@ for pairs of points. This is sound
+-- only for points of the directed interval 𝟚; being pure, this function cannot
+-- check that, so it is unsound-in-general and 'generateTopesForPointsM' (which
+-- guards on @cube2T@) should be preferred wherever the 'TypeCheck' monad is
+-- available. The only solving path that calls this, the pure 'entail', is
+-- invoked solely for the ⊥-collapse check (@localTopesEntailBottom@), whose
+-- goal ⊥ has no points, so no linearity tope is ever actually generated there.
 generateTopesForPoints :: Eq var => [TermT var] -> [TermT var]
 generateTopesForPoints points = nubTermT $ concat
   [ [ topeOrT (topeLEQT x y) (topeLEQT y x)
@@ -1290,6 +1305,39 @@ contextEntailedBy tope = do
     [restrictionTope] `entailM` contextTopesRHS >>= \case
       False -> issueTypeError $ TypeErrorTopeNotSatisfied [restrictionTope] contextTopesRHS
       True -> return ()
+
+-- | Diagnose a restriction face against the local tope context. Three cases,
+-- by how the face tope relates to the context:
+--
+--   * DISJOINT — the tope and a consistent context have empty overlap (their
+--     conjunction is ⊥). The face is then vacuous everywhere, so this is a hard
+--     error.
+--   * OVERHANG — the tope is not entailed by the context but still overlaps it.
+--     This is allowed and often intentional (e.g. restricting with an
+--     already-defined shape, whose faces live on the whole cube rather than being
+--     relativised to the context), so we only emit a non-fatal hint. The hint is
+--     gated at 'Normal' verbosity, hence silent under 'Silent' (e.g. in tests).
+--   * CONTAINED — the tope entails the context: nothing to report.
+checkTopeAgainstContext :: Eq var => String -> TermT var -> TypeCheck var ()
+checkTopeAgainstContext what tope = do
+  ctxEntailsBottom <- asks localTopesEntailBottom
+  unless ctxEntailsBottom $ do          -- a contradictory context is handled elsewhere (recBOT)
+    ctxTopes <- asks (filter (/= topeTopT) . localTopesNF)
+    disjoint <- (tope : ctxTopes) `entailM` topeBottomT
+    if disjoint
+      then issueTypeError (TypeErrorTopeContextDisjoint tope ctxTopes)
+      else do
+        entailed <- checkTopeEntails tope     -- tope |- AND(localTopesNF)
+        unless entailed $ do
+          topeStr <- ppTermInContext tope
+          ctxStrs <- mapM ppTermInContext ctxTopes
+          traceTypeCheck Normal
+            (intercalate "\n" $
+              [ "Warning: " <> what <> " overhangs the local tope context"
+              , "  " <> topeStr
+              , "is not entailed by the local context (normalised)"
+              ] <> map ("  " <>) ctxStrs)
+            (return ())
 
 contextEntails :: Eq var => TermT var -> TypeCheck var ()
 contextEntails tope = do
@@ -2029,8 +2077,14 @@ unifyInCurrentContext mterm expected actual = performing action $
                         -- in a hom-type) is expected. Compared invariantly:
                         -- subtyping between the underlying types must not
                         -- leak into equality of identity types over them.
-                        mapM_ (\(t1, t2) -> setVariance Invariant (unify Nothing t1 t2))
-                          ((,) <$> tA <*> tA')
+                        --
+                        -- The stored type annotation may be absent (nfT erases
+                        -- it); recover it from an endpoint's type in that case,
+                        -- so the comparison is robust however the identity type
+                        -- was produced.
+                        t1 <- maybe (typeOf x)  pure tA
+                        t2 <- maybe (typeOf x') pure tA'
+                        setVariance Invariant (unify Nothing t1 t2)
                         unify Nothing x x'
                         unify Nothing y y'
                       _ -> err
@@ -2431,6 +2485,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
       term' <- typecheck term ty'
       contextEntailedBy (foldr topeOrT topeBottomT (map fst rs))
       forM_ rs $ \(tope, rterm) -> do
+        checkTopeAgainstContext "restriction face" tope
         localTope tope $
           unifyTerms rterm term'
       return term'    -- FIXME: correct?
