@@ -12,6 +12,15 @@ This is a bugfix release.
 
 Fixes:
 
+- Respect the ambient variance in the asymmetric subtype checks:
+  tope-family domains, the domain topes of `Π`- and extension types,
+  and restriction faces. Previously these checks ran in a fixed
+  direction, so in negative positions (inside a domain) they ran
+  backwards. For example, `k : (f : (t : 2 | TOP) → A) → A` was
+  accepted where `(f : (t : 2 | t ≡ 0₂) → A) → A` is expected,
+  letting `k` apply a function defined on a subshape outside its
+  domain.
+
 - Compare the underlying types of identity types during unification;
   previously, identity types over different types were equated whenever
   their endpoints unified, accepting e.g. a free homotopy (a path in
