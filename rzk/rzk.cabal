@@ -39,6 +39,9 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
+    test/typecheck/cases/happy-subtype-variance-pi-shape-domain.rzk
+    test/typecheck/cases/happy-subtype-variance-restriction-faces.rzk
+    test/typecheck/cases/happy-subtype-variance-tope-family.rzk
     test/typecheck/cases/happy-tope-high-dim-cubes.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d4.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d5.rzk
@@ -92,6 +95,9 @@ extra-source-files:
     test/typecheck/cases/ill-set-option-render.rzk
     test/typecheck/cases/ill-set-option-unknown.rzk
     test/typecheck/cases/ill-set-option-verbosity.rzk
+    test/typecheck/cases/ill-subtype-variance-pi-shape-domain.rzk
+    test/typecheck/cases/ill-subtype-variance-restriction-faces.rzk
+    test/typecheck/cases/ill-subtype-variance-tope-family.rzk
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d4.rzk
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d5.rzk
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d6.rzk
@@ -142,6 +148,9 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
+    test/typecheck/cases/happy-subtype-variance-pi-shape-domain.expect.yaml
+    test/typecheck/cases/happy-subtype-variance-restriction-faces.expect.yaml
+    test/typecheck/cases/happy-subtype-variance-tope-family.expect.yaml
     test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d4.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d5.expect.yaml
@@ -195,6 +204,9 @@ extra-source-files:
     test/typecheck/cases/ill-set-option-render.expect.yaml
     test/typecheck/cases/ill-set-option-unknown.expect.yaml
     test/typecheck/cases/ill-set-option-verbosity.expect.yaml
+    test/typecheck/cases/ill-subtype-variance-pi-shape-domain.expect.yaml
+    test/typecheck/cases/ill-subtype-variance-restriction-faces.expect.yaml
+    test/typecheck/cases/ill-subtype-variance-tope-family.expect.yaml
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d4.expect.yaml
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d5.expect.yaml
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d6.expect.yaml
