@@ -2030,6 +2030,15 @@ unifyInCurrentContext mterm expected actual = performing action $
                         switchVariance $  -- unifying in the negative position!
                           unifyTerms cube cube' -- FIXME: unifyCubes
                         enterScope orig' cube $ do
+                          -- The tope checks below are subtyping checks with a fixed
+                          -- direction relative to (subtype, supertype). Which side is
+                          -- the subtype depends on the ambient variance: under
+                          -- Covariant the actual type must be a subtype of the
+                          -- expected one; under Contravariant (inside a domain) the
+                          -- roles are reversed. Invariant is normally handled
+                          -- upstream by running both directions; it is handled here
+                          -- as well for safety.
+                          variance <- asks covariance
                           case ret' of
                             UniverseTopeT{} -> do
                               -- This is the case for tope families (shapes)
@@ -2041,9 +2050,16 @@ unifyInCurrentContext mterm expected actual = performing action $
                               -- we DO NOT take tope context Φ into account!
                               expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                               actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                              actualEntailsExpected <- [actualTopeNF] `entailM` expectedTopeNF
-                              unless actualEntailsExpected $
-                                issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
+                              let subEntailsSuper subNF superNF = do
+                                    entails <- [subNF] `entailM` superNF
+                                    unless entails $
+                                      issueTypeError (TypeErrorTopeNotSatisfied [subNF] superNF)
+                              case variance of
+                                Covariant     -> subEntailsSuper actualTopeNF expectedTopeNF
+                                Contravariant -> subEntailsSuper expectedTopeNF actualTopeNF
+                                Invariant     -> do
+                                  subEntailsSuper actualTopeNF expectedTopeNF
+                                  subEntailsSuper expectedTopeNF actualTopeNF
                             _ -> do
                               -- this is the case for Π-types and extension types
                               --
@@ -2052,8 +2068,15 @@ unifyInCurrentContext mterm expected actual = performing action $
                               -- Ξ | Φ, ψ ⊢ φ
                               expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                               actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                              localTope expectedTopeNF $
-                                contextEntails actualTopeNF
+                              let superEntailsSub superNF subNF =
+                                    localTope superNF $
+                                      contextEntails subNF
+                              case variance of
+                                Covariant     -> superEntailsSub expectedTopeNF actualTopeNF
+                                Contravariant -> superEntailsSub actualTopeNF expectedTopeNF
+                                Invariant     -> do
+                                  superEntailsSub expectedTopeNF actualTopeNF
+                                  superEntailsSub actualTopeNF expectedTopeNF
                           case mterm of
                             Nothing -> unifyTerms ret ret'
                             Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
@@ -2143,15 +2166,26 @@ unifyInCurrentContext mterm expected actual = performing action $
                     case actual' of
                       TypeRestrictedT _ty' ty' rs' -> do
                         unify mterm ty ty'
-                        sequence_
-                          [ localTope tope $ do
-                              -- FIXME: can do less entails checks?
-                              contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
-                              forM_ rs' $ \(tope', term') -> do
-                                localTope tope' $
-                                  unify Nothing term term'
-                          | (tope, term) <- rs
-                          ]
+                        -- The faces of the supertype must be covered by the faces of
+                        -- the subtype (the subtype is at least as specified), with
+                        -- the boundary terms agreeing on overlaps. Which side is the
+                        -- subtype depends on the ambient variance.
+                        variance <- asks covariance
+                        let subCoversSuper subRs superRs = sequence_
+                              [ localTope tope $ do
+                                  -- FIXME: can do less entails checks?
+                                  contextEntails (foldr topeOrT topeBottomT (map fst subRs))
+                                  forM_ subRs $ \(tope', term') -> do
+                                    localTope tope' $
+                                      unify Nothing term term'
+                              | (tope, term) <- superRs
+                              ]
+                        case variance of
+                          Covariant     -> subCoversSuper rs' rs
+                          Contravariant -> subCoversSuper rs rs'
+                          Invariant     -> do
+                            subCoversSuper rs' rs
+                            subCoversSuper rs rs'
                       _ -> err    -- FIXME: need better unification for restrictions
 
   where
