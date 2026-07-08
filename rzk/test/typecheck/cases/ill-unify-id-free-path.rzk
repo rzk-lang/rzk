@@ -1,0 +1,20 @@
+#lang rzk-1
+
+-- Identity types over different types must not be unified even when their
+-- endpoints agree. Here `hom A x y` is a subtype of `Δ¹ → A` (its elements are
+-- exactly the functions with the given boundary), so `f` and `g` inhabit both;
+-- but a path in `(t : Δ¹) → A` is a free homotopy, while a path in
+-- `hom A x y` fixes the endpoints. Accepting `q` below transports a free
+-- homotopy into the endpoint-fixing path type, which is unsound. rzk used to
+-- accept this (the type components of the identity types were not compared).
+#define Δ¹ : (2 → TOPE)
+  := \ t → TOP
+
+#define hom (A : U) (x y : A)
+  : U
+  := (t : Δ¹) → A [t ≡ 0₂ ↦ x, t ≡ 1₂ ↦ y]
+
+#define narrow (A : U) (x y : A) (f g : hom A x y)
+  (q : f =_{(t : Δ¹) → A} g)
+  : f =_{hom A x y} g
+  := q
