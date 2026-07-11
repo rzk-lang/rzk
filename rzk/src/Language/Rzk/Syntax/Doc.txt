@@ -36,12 +36,12 @@ The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``II`` | ``Sigma``
   | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
   | ``as`` | ``first`` | ``flip_op`` | ``flipᵒᵖ``
-  | ``idJ`` | ``in`` | ``inv_op`` | ``invᵒᵖ``
-  | ``let`` | ``mod`` | ``recBOT`` | ``recOR``
-  | ``refl`` | ``second`` | ``unflip_op`` | ``unflipᵒᵖ``
-  | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit`` | ``uses``
-  | ``Σ`` | ``π₁`` | ``π₂`` | ``ᵒᵖ``
-  | ``𝕀`` |  |  |
+  | ``idJ`` | ``in`` | ``inf`` | ``inv_op``
+  | ``invᵒᵖ`` | ``let`` | ``mod`` | ``recBOT``
+  | ``recOR`` | ``refl`` | ``second`` | ``sup``
+  | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ``
+  | ``unit`` | ``uses`` | ``Σ`` | ``π₁``
+  | ``π₂`` | ``ᵒᵖ`` | ``𝕀`` |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -56,14 +56,14 @@ The symbols used in Syntax are the following:
   | :ᵒᵖ | :_id | :_b | :_#
   | :_op | 1 | *₁ | 2
   | 0₂ | 1₂ | 0ᵢ | 1ᵢ
-  | × | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | [ | ] | <
-  | > | \ | $extract$ | refl_{
-  | * | *_1 | 0_2 | 1_2
-  | 0_I | 1_I | === | <=
-  | /\ | \/ | -> | |->
-  | ∑ |  |  |
+  | × | ⊔ | ⊓ | ⊤
+  | ⊥ | ≡ | ≤ | ∧
+  | ∨ | → | =_{ | [
+  | ] | < | > | \
+  | $extract$ | refl_{ | * | *_1
+  | 0_2 | 1_2 | 0_I | 1_I
+  | === | <= | /\ | \/
+  | -> | |-> | ∑ |
 
 ===Comments===
 Single-line comments begin with --. Multiple-line comments are enclosed with {- and -}.
@@ -195,6 +195,8 @@ All other symbols are terminals.
   |  |  **|**  | ``BOT``
   |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
   | //Term5// | -> | //Term5// ``×`` //Term6//
+  |  |  **|**  | //Term5// ``⊔`` //Term6//
+  |  |  **|**  | //Term5// ``⊓`` //Term6//
   |  |  **|**  | //Term6//
   |  |  **|**  | //Term5// ``*`` //Term6//
   | //Term4// | -> | //Term5// ``≡`` //Term5//
@@ -222,6 +224,8 @@ All other symbols are terminals.
   |  |  **|**  | ``π₁`` //Term7//
   |  |  **|**  | ``π₂`` //Term7//
   |  |  **|**  | //Term7//
+  |  |  **|**  | ``sup`` //Term7// //Term7//
+  |  |  **|**  | ``inf`` //Term7// //Term7//
   |  |  **|**  | ``first`` //Term7//
   |  |  **|**  | ``second`` //Term7//
   | //Term1// | -> | //ParamDecl// ``→`` //Term1//

@@ -22,6 +22,11 @@ There are three built-in cubes:
   := (t : II) -> A [ t === 0_I |-> x , t === 1_I |-> y ]
 ```
 
+Both `#!rzk 2` and `#!rzk 𝕀` are bounded distributive lattices: `#!rzk a ⊔ b`
+(ASCII `#!rzk sup a b`) is the join (least upper bound) and `#!rzk a ⊓ b`
+(ASCII `#!rzk inf a b`) is the meet (greatest lower bound) of two points of the
+same interval cube.
+
 It is also possible to have `#!rzk CUBE` variables and make products of cubes:
 
 1. `#!rzk I * J` is a product of cubes `#!rzk I` and `#!rzk J`

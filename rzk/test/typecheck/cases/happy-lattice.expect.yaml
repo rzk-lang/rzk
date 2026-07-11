@@ -1,0 +1,8 @@
+status: ok
+regression_for:
+  - lattice-sup-inf-bounds-solveRHSM
+  - lattice-endpoint-absorption
+  - lattice-lub-glb-solveRHSM
+  - contextEntailsUnion-lub-coverage
+  - lattice-comm-assoc-idem-absorption
+  - lattice-distributivity-dnf-nfTope

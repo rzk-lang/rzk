@@ -25,6 +25,7 @@ extra-source-files:
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-subtyping.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
+    test/typecheck/cases/happy-lattice.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
     test/typecheck/cases/happy-modal-flat-under-op.rzk
@@ -65,6 +66,10 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.rzk
     test/typecheck/cases/ill-issue-206-families-of-extension.rzk
     test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
+    test/typecheck/cases/ill-lattice-ops-glb-not-entailed.rzk
+    test/typecheck/cases/ill-lattice-ops-lub-not-entailed.rzk
+    test/typecheck/cases/ill-lattice-ops-lub-unconditional.rzk
+    test/typecheck/cases/ill-lattice-total-order-ii.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
     test/typecheck/cases/ill-modal-flat-no-commute.rzk
     test/typecheck/cases/ill-modal-not-modal.rzk
@@ -138,6 +143,7 @@ extra-source-files:
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
+    test/typecheck/cases/happy-lattice.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml
     test/typecheck/cases/happy-modal-flat-under-op.expect.yaml
@@ -178,6 +184,10 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.expect.yaml
     test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
     test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
+    test/typecheck/cases/ill-lattice-ops-glb-not-entailed.expect.yaml
+    test/typecheck/cases/ill-lattice-ops-lub-not-entailed.expect.yaml
+    test/typecheck/cases/ill-lattice-ops-lub-unconditional.expect.yaml
+    test/typecheck/cases/ill-lattice-total-order-ii.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
     test/typecheck/cases/ill-modal-flat-no-commute.expect.yaml
     test/typecheck/cases/ill-modal-not-modal.expect.yaml
