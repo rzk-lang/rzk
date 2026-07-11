@@ -92,6 +92,8 @@ data TermSig scope term
     | CubeProductF term term
     | CubeFlipF term
     | CubeUnflipF term
+    | CubeSupF term term
+    | CubeInfF term term
     | TopeTopF
     | TopeBottomF
     | TopeEQF term term
@@ -452,6 +454,8 @@ pattern CubeI_1T info = Node (AnnSig info CubeI_1F)
 pattern CubeProductT info l r = Node (AnnSig info (CubeProductF l r))
 pattern CubeFlipT info t = Node (AnnSig info (CubeFlipF t))
 pattern CubeUnflipT info t = Node (AnnSig info (CubeUnflipF t))
+pattern CubeSupT info l r = Node (AnnSig info (CubeSupF l r))
+pattern CubeInfT info l r = Node (AnnSig info (CubeInfF l r))
 pattern TopeTopT info = Node (AnnSig info TopeTopF)
 pattern TopeBottomT info = Node (AnnSig info TopeBottomF)
 pattern TopeEQT info l r = Node (AnnSig info (TopeEQF l r))
@@ -485,11 +489,11 @@ pattern HoleT info mname = Node (AnnSig info (HoleF mname))
 
 {-# COMPLETE Var, UniverseT, UniverseCubeT, UniverseTopeT, CubeUnitT,
   CubeUnitStarT, Cube2T, Cube2_0T, Cube2_1T, CubeIT, CubeI_0T, CubeI_1T,
-  CubeProductT, CubeFlipT, CubeUnflipT, TopeTopT, TopeBottomT, TopeEQT, TopeLEQT,
-  TopeAndT, TopeOrT, TopeInvT, TopeUninvT, RecBottomT, RecOrT, TypeFunT,
-  TypeSigmaT, TypeIdT, AppT, LetT, LambdaT, PairT, FirstT, SecondT, ReflT, IdJT,
-  UnitT, TypeUnitT, TypeAscT, TypeRestrictedT, TypeModalT, ModAppT, ModExtractT,
-  LetModT, HoleT #-}
+  CubeProductT, CubeFlipT, CubeUnflipT, CubeSupT, CubeInfT, TopeTopT, TopeBottomT,
+  TopeEQT, TopeLEQT, TopeAndT, TopeOrT, TopeInvT, TopeUninvT, RecBottomT, RecOrT,
+  TypeFunT, TypeSigmaT, TypeIdT, AppT, LetT, LambdaT, PairT, FirstT, SecondT,
+  ReflT, IdJT, UnitT, TypeUnitT, TypeAscT, TypeRestrictedT,
+  TypeModalT, ModAppT, ModExtractT, LetModT, HoleT #-}
 
 -- ** Untyped patterns
 --
@@ -510,6 +514,8 @@ pattern CubeI_1 = Node CubeI_1F
 pattern CubeProduct l r = Node (CubeProductF l r)
 pattern CubeFlip t = Node (CubeFlipF t)
 pattern CubeUnflip t = Node (CubeUnflipF t)
+pattern CubeSup l r = Node (CubeSupF l r)
+pattern CubeInf l r = Node (CubeInfF l r)
 pattern TopeTop = Node TopeTopF
 pattern TopeBottom = Node TopeBottomF
 pattern TopeEQ l r = Node (TopeEQF l r)
@@ -543,10 +549,10 @@ pattern Hole mname = Node (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
   Cube2, Cube2_0, Cube2_1, CubeI, CubeI_0, CubeI_1, CubeProduct, CubeFlip,
-  CubeUnflip, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd, TopeOr, TopeInv,
-  TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App, Let, Lambda,
-  Pair, First, Second, Refl, IdJ, Unit, TypeUnit, TypeAsc, TypeRestricted,
-  TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+  CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
+  TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App,
+  Let, Lambda, Pair, First, Second, Refl, IdJ, Unit, TypeUnit, 
+  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 
 -- * Closed constants
 --
@@ -661,6 +667,12 @@ cubeFlipT cubeTy t = CubeFlipT (topeInfo (typeModalT cubeT Op cubeTy)) t
 
 cubeUnflipT :: TermT n -> TermT n -> TermT n
 cubeUnflipT cubeTy t = CubeUnflipT (topeInfo cubeTy) t
+
+cubeSupT :: TermT n -> TermT n -> TermT n -> TermT n
+cubeSupT cubeTy l r = CubeSupT (topeInfo cubeTy) l r
+
+cubeInfT :: TermT n -> TermT n -> TermT n -> TermT n
+cubeInfT cubeTy l r = CubeInfT (topeInfo cubeTy) l r
 
 -- ** Types
 

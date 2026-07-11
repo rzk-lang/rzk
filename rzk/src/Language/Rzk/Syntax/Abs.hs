@@ -157,6 +157,8 @@ data Term' a
     | CubeI_0 a
     | CubeI_1 a
     | CubeProduct a (Term' a) (Term' a)
+    | CubeSup a (Term' a) (Term' a)
+    | CubeInf a (Term' a) (Term' a)
     | TopeTop a
     | TopeBottom a
     | TopeEQ a (Term' a) (Term' a)
@@ -257,6 +259,12 @@ ascii_CubeUnflip = \ _a t -> CubeUnflip _a t
 
 ascii_CubeProduct :: a -> Term' a -> Term' a -> Term' a
 ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
+
+ascii_CubeSup :: a -> Term' a -> Term' a -> Term' a
+ascii_CubeSup = \ _a l r -> CubeSup _a l r
+
+ascii_CubeInf :: a -> Term' a -> Term' a -> Term' a
+ascii_CubeInf = \ _a l r -> CubeInf _a l r
 
 ascii_TypeSigmaModal :: a -> Pattern' a -> ModalColon' a -> Term' a -> Term' a -> Term' a
 ascii_TypeSigmaModal = \ _a p mc t r -> TypeSigmaModal _a p mc t r
@@ -411,6 +419,8 @@ instance HasPosition Term where
     CubeI_0 p -> p
     CubeI_1 p -> p
     CubeProduct p _ _ -> p
+    CubeSup p _ _ -> p
+    CubeInf p _ _ -> p
     TopeTop p -> p
     TopeBottom p -> p
     TopeEQ p _ _ -> p
