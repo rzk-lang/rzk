@@ -27,6 +27,7 @@ import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 
 import           Language.Rzk.Foil.Names (VarIdent)
+import           Language.Rzk.Foil.Syntax (Datatype)
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
@@ -120,6 +121,9 @@ localRenderBackend backend = local $ \ctx -> ctx { ctxRenderBackend = backend }
 
 localHideTerm :: Bool -> TypeCheck n a -> TypeCheck n a
 localHideTerm hide = local $ \ctx -> ctx { ctxRenderHideTerm = hide }
+
+withDatatype :: Datatype n -> TypeCheck n a -> TypeCheck n a
+withDatatype datatype = local (insertDatatype datatype)
 
 -- | Render the enclosed action with the proof term hidden.
 hidingTerm :: TypeCheck n a -> TypeCheck n a

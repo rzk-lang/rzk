@@ -146,6 +146,8 @@ fromTerm used supply names = go
     go (CubeProduct l r) = Rzk.CubeProduct loc (go l) (go r)
     go (CubeFlip t) = Rzk.CubeFlip loc (go t)
     go (CubeUnflip t) = Rzk.CubeUnflip loc (go t)
+    go (CubeSup l r) = Rzk.CubeSup loc (go l) (go r)
+    go (CubeInf l r) = Rzk.CubeInf loc (go l) (go r)
     go TopeTop = Rzk.TopeTop loc
     go TopeBottom = Rzk.TopeBottom loc
     go (TopeEQ l r) = Rzk.TopeEQ loc (go l) (go r)
@@ -214,17 +216,45 @@ fromTerm used supply names = go
     go (Refl (Just (t, Nothing))) = Rzk.ReflTerm loc (go t)
     go (Refl (Just (t, Just ty))) = Rzk.ReflTermType loc (go t) (go ty)
     go (IdJ a b c d e f) = Rzk.IdJ loc (go a) (go b) (go c) (go d) (go e) (go f)
+    go (Con name args) =
+      foldl (Rzk.App loc) (Rzk.Var loc (fromVarIdent name)) (map go args)
+    go (Match scrut Nothing branches) =
+      Rzk.Match loc (go scrut) (map fromBranch branches)
+    go (Match scrut (Just motive) branches) =
+      Rzk.MatchReturns loc (go scrut) (go motive) (map fromBranch branches)
     go (TypeAsc l r) = Rzk.TypeAsc loc (go l) (go r)
     go (TypeRestricted ty rs) =
       Rzk.TypeRestricted loc (go ty) [Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs]
     go (TypeModal m ty) = Rzk.ModType loc (goMod m) (go ty)
     go (ModApp m t) = Rzk.ModApp loc (goMod m) (go t)
     go (ModExtract app inn t) = Rzk.ModExtract loc (Rzk.Comp loc (goMod app) (goMod inn)) (go t)
-    go (LetMod z app inn mty val body) = withBinder1 z body $ \(z', body') ->
+    go (LetMod z app inn mty mmotive val body) = withBinder1 z body $ \(z', body') ->
       let bind = case mty of
             Nothing -> Rzk.BindPattern loc (binderToPattern z')
             Just ty -> Rzk.BindPatternType loc (binderToPattern z') (go ty)
-       in Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
+       in case mmotive of
+            Nothing     -> Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
+            Just motive ->
+              Rzk.LetModReturns loc (modsToModComp app inn) bind (go val) (go motive) body'
+
+    fromBranch (con, lam) =
+      let (pats, body) = peelLams (go lam)
+       in Rzk.MatchBranch loc (fromVarIdent con) pats body
+
+peelLams :: Rzk.Term -> ([Rzk.Pattern], Rzk.Term)
+peelLams (Rzk.Lambda _loc params body) =
+  let (pats, body') = peelLams body
+   in (concatMap paramPats params ++ pats, body')
+peelLams t = ([], t)
+
+paramPats :: Rzk.Param -> [Rzk.Pattern]
+paramPats = \case
+  Rzk.ParamPattern _ pat                  -> [pat]
+  Rzk.ParamPatternType _ pats _           -> pats
+  Rzk.ParamPatternModalType _ pats _ _    -> pats
+  Rzk.ParamPatternShape _ pats _ _        -> pats
+  Rzk.ParamPatternModalShape _ pats _ _ _ -> pats
+  _                                       -> []
 
 -- | Does a scope actually use the variable it binds?
 --

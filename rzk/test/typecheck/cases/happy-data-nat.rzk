@@ -1,0 +1,32 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#check nat : U
+#check zero : nat
+#check suc : nat → nat
+
+#define one : nat := suc zero
+#define two : nat := suc (suc zero)
+
+#check one : nat
+#check suc one : nat
+
+#compute-nf suc (suc zero)
+
+#define pred (n : nat) : nat
+  := match n ( zero ↦ zero, suc m ↦ m )
+
+#check pred : nat → nat
+
+#compute-nf pred (suc (suc zero))
+#compute-nf pred zero
+
+#define plus (n m : nat) : nat
+  := match n
+       ( zero ↦ m
+       , suc k ↦ suc (plus k m)
+       )
+
+#check plus : (n : nat) → (m : nat) → nat
+#compute-nf plus (suc zero) (suc (suc zero))

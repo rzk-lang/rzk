@@ -661,26 +661,16 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           typecheck bodyTerm (Foil.sink ty')
         return (letT ty' orig (Just bindTy) val' body')
 
-      LetMod orig app inn annot val body -> do
-        val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
+      LetMod orig app inn annot Nothing val body -> do
+        valTy <- typeOf =<< case annot of
           Nothing -> enterModality app $ infer val
           Just bindType -> do
             bindType' <- infer bindType
             bindUniv <- typeOf bindType'
             enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
-        bindTy <- typeOf val' >>= \case
-          o@(TypeModalT _ty md t) ->
-            if md == inn
-              then return t
-              else issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-          o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-        bindVal <- whnfT val' >>= \case
-          ModAppT _ty _m t -> pure (Just t)
-          o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
-          _ -> pure Nothing
-        body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
-          typecheck bodyTerm (Foil.sink ty')
-        return (letModT ty' orig app inn (Just bindTy) val' body')
+        -- TODO: adhoc unification (synthesise the motive from ty', re-run infer)
+        motive <- constLambda app valTy ty'
+        infer (LetMod orig app inn annot (Just motive) val body)
 
       Pair l r ->
         case ty' of
@@ -733,6 +723,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           TypeErrorOther "a recOR cannot be used as a tope"
         _ -> checkRecOrAgainst ty' rs
 
+      Match scrut Nothing branches -> do
+        dataTy <- typeOf =<< infer scrut
+        -- TODO: adhoc unification (synthesise the motive from ty', re-run infer)
+        motive <- constLambda Id dataTy ty'
+        infer (Match scrut (Just motive) branches)
+
       -- A neutral term is inferred, then its type unified with the expected one. In
       -- lenient (hole-checking) mode a term that still carries an unfilled hole is a
       -- work in progress, so a failure of that final unification is tolerated: the
@@ -760,6 +756,30 @@ inferAs expectedKind term = do
   kind <- typeOf ty
   unifyTypes ty expectedKind kind
   return term'
+
+constructorType :: Distinct n => VarIdent -> TypeCheck n (TermT n)
+constructorType con = do
+  dts <- asks datatypes
+  case [ ty | dt <- dts, (c, ty) <- datatypeConstructors dt, c == con ] of
+    ty : _ -> pure ty
+    []     -> issueTypeError (TypeErrorUnknownConstructor con)
+
+datatypeInfo :: Distinct n => TermT n -> TypeCheck n (Datatype n)
+datatypeInfo ty = do
+  nf  <- nfT ty
+  dts <- asks datatypes
+  case nf of
+    Var nm | dt : _ <- filter (sameFormer nm) dts -> pure dt
+    _                                             -> issueTypeError (TypeErrorNotInductive ty)
+  where
+    sameFormer nm dt = Foil.nameId (datatypeFormer dt) == Foil.nameId nm
+
+constLambda :: Distinct n => TModality -> TermT n -> TermT n -> TypeCheck n (Term n)
+constLambda md dom body = do
+  scope <- asks ctxScope
+  pure $ Foil.withFresh scope $ \binder ->
+    Lambda (BinderVar Nothing) (Just (LambdaParam md (untyped dom) Nothing))
+      (ScopedAST binder (Foil.sink (untyped body)))
 
 infer :: Distinct n => Term n -> TypeCheck n (TermT n)
 infer tt = performing (ActionInfer tt) $ case tt of
@@ -1084,29 +1104,38 @@ infer tt = performing (ActionInfer tt) $ case tt of
     retAt <- instantiate ret val'
     return (letT retAt orig (Just bindTy) val' body')
 
-  LetMod orig app inn annot val body -> do
+  LetMod orig app inn annot mmotive val body -> do
     val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> enterModality app $ infer val
       Just bindType -> do
         bindType' <- infer bindType
         bindUniv <- typeOf bindType'
         enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
-    bindTy <- typeOf val' >>= \case
-      o@(TypeModalT _ty md t) ->
-        if md == inn
-          then return t
-          else issueTypeError $ TypeErrorNotModal (untyped o) inn val'
+    valTy <- typeOf val'
+    bindTy <- case valTy of
+      TypeModalT _ty md t | md == inn -> return t
       o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
     bindVal <- whnfT val' >>= \case
       ModAppT _ty _m t -> pure (Just t)
       o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
       _ -> pure Nothing
-    (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
-      body' <- infer bodyTerm
-      ret <- typeOf body'
-      pure (ScopedAST binder body', ScopedAST binder ret)
-    retAt <- instantiate ret val'
-    return (letModT retAt orig app inn (Just bindTy) val' body')
+    univScope <- constScope universeT -- TODO unsupported CUBE universe here
+    mmotive' <- forM mmotive $ \motive ->
+      typecheck motive (typeFunT orig app valTy Nothing univScope)
+    case mmotive' of
+      Just motive' -> do
+        body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \binder bodyTerm ->
+          typecheck bodyTerm
+            (appT universeT (Foil.sink motive')
+              (modAppT (Foil.sink valTy) inn (Var (Foil.nameOf binder))))
+        return (letModT (appT universeT motive' val') orig app inn (Just bindTy) mmotive' val' body')
+      Nothing -> do
+        (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
+          body' <- infer bodyTerm
+          ret <- typeOf body'
+          pure (ScopedAST binder body', ScopedAST binder ret)
+        retAt <- instantiate ret val'
+        return (letModT retAt orig app inn (Just bindTy) Nothing val' body')
 
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do
@@ -1138,6 +1167,76 @@ infer tt = performing (ActionInfer tt) $ case tt of
               tC' x')
             p'
     return (idJT ret tA' a' tC' d' x' p')
+
+  Con con args -> do
+    conTy <- constructorType con
+    let goArgs ty [] acc = pure (reverse acc, ty)
+        goArgs ty (arg : args) acc = case ty of
+          TypeFunT _ty _orig md param mtope ret -> do
+            arg' <- enterModality md $ typecheck arg param
+            forM_ mtope $ \tope ->
+              contextEntails =<< instantiate tope arg'
+            ret' <- instantiate ret arg'
+            goArgs ret' args (arg' : acc)
+          _ -> issueTypeError $
+            TypeErrorOther ("constructor " <> show con <> " applied to too many arguments")
+    (args', resultTy) <- goArgs conTy args []
+    return (conT resultTy con args')
+
+  Match scrut mmotive branches -> do
+    (scrut', dataTy, motive', storedMotive) <- case mmotive of
+      Just motive -> do
+        motive' <- infer motive
+        dom <- typeOf motive' >>= \case
+          TypeFunT _ty _orig _md d _mtope _ret -> pure d
+          _ -> issueTypeError (TypeErrorOther "match motive must have type D → U")
+        scrut' <- typecheck scrut dom
+        return (scrut', dom, motive', Just motive')
+      Nothing -> do
+        scrut' <- infer scrut
+        dataTy <- typeOf scrut'
+        return (scrut', dataTy, universeT, Nothing)
+    cons <- datatypeConstructors <$> datatypeInfo dataTy
+    let goBranch
+          :: forall w. Distinct w
+          => TermT w -> VarIdent -> [TermT w] -> TermT w -> Term w
+          -> TypeCheck w (TermT w)
+        goBranch mot con args conTy branch =
+          case conTy of
+            TypeFunT _ty _orig md param mtope ret ->
+              case branch of
+                Lambda lorig _ lbody -> do
+                  (bodyScoped, retScoped) <-
+                    checkUnderWith lorig md param Nothing lbody $ \binder lbodyOpened -> do
+                      retOpened <- openScoped binder ret
+                      sub <- goBranch (Foil.sink mot) con
+                               (Var (Foil.nameOf binder) : map Foil.sink args)
+                               retOpened lbodyOpened
+                      subTy <- typeOf sub
+                      pure (ScopedAST binder sub, ScopedAST binder subTy)
+                  let lamTy = typeFunT lorig md param mtope retScoped
+                  pure (lambdaT lamTy lorig (Just (LambdaParam md param mtope)) bodyScoped)
+                _ -> issueTypeError
+                  (TypeErrorOther "match branch must be a lambda over the constructor arguments")
+            result -> case mmotive of
+              Just _  -> typecheck branch (appT universeT mot (conT result con (reverse args)))
+              Nothing -> infer branch
+    branches' <- forM branches $ \(con, branch) ->
+      case lookup con cons of
+        Nothing    -> issueTypeError (TypeErrorUnknownConstructor con)
+        Just conTy -> do
+          branch' <- goBranch motive' con [] conTy branch
+          return (con, branch')
+    case mmotive of
+      Just _ ->
+        return (matchT (appT universeT motive' scrut') scrut' storedMotive branches')
+      Nothing -> do
+        branchTypes <- mapM (typeOf . snd) branches'
+        case branchTypes of
+          []                 -> issueTypeError (TypeErrorOther "match with no branches")
+          (firstTy : restTy) -> do
+            sequence_ [ unifyTerms firstTy t | t <- restTy ]
+            return (matchT firstTy scrut' Nothing branches')
 
   TypeAsc term ty -> do
     ty' <- inferAs universeT ty -- this works on types AND cubes

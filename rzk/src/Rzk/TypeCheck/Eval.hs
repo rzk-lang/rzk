@@ -1053,6 +1053,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   TypeUnitT{} -> pure tt
   UnitT{} -> pure tt
 
+  ConT{} -> pure tt
+
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> whnfT term
 
@@ -1087,7 +1089,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
             LetT _ty _orig _mparam val body ->
               instantiate body val >>= whnfT
-            LetModT ty orig app inn mparam val body ->
+            LetModT ty orig app inn mparam mmotive val body ->
               (enterModality app $ whnfT val) >>= \case
                 ModAppT _ md t | md == inn -> do
                   val' <- enterModality md $ whnfT t
@@ -1097,7 +1099,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                     TypeModalT _ _ t -> pure t
                     _ -> panicImpossible "not modal in letmod"
                   instantiate body (modExtractT bty app inn b') >>= whnfT
-                _ -> pure (LetModT ty orig app inn mparam val body)
+                _ -> pure (LetModT ty orig app inn mparam mmotive val body)
             FirstT ty t ->
               whnfT t >>= \case
                 PairT _ l _r -> whnfT l
@@ -1120,6 +1122,13 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                 ReflT{} -> whnfT d
                 p'      -> pure (IdJT ty tA a tC d x p')
 
+            MatchT ty scrut mmotive branches ->
+              whnfT scrut >>= \case
+                ConT _cty name args
+                  | Just branch <- lookup name branches ->
+                      applyBranch branch args >>= whnfT
+                scrut' -> pure (MatchT ty scrut' mmotive branches)
+
             RecOrT _ty rs -> do
               firstMatching rs >>= \case
                 Just tt' -> whnfT tt'
@@ -1132,6 +1141,14 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
               case filter (not . eqT topeBottomT . fst) rs' of
                 []   -> whnfT type_  -- get rid of restrictions at BOT
                 rs'' -> TypeRestrictedT ty <$> whnfT type_ <*> pure rs''
+
+applyBranch :: Distinct n => TermT n -> [TermT n] -> TypeCheck n (TermT n)
+applyBranch f [] = pure f
+applyBranch f (a : as) = case f of
+  LambdaT _ _ _ body -> do
+    f' <- instantiate body a
+    applyBranch f' as
+  _ -> pure f
 
 -- | The branch of a @recOR@ (or the face of a restriction) whose guard holds.
 firstMatching :: Distinct n => [(TermT n, TermT n)] -> TypeCheck n (Maybe (TermT n))
@@ -1414,7 +1431,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     (enterModality app $ nfTope b) >>= \case
       ModAppT _ md t | inn == md -> pure t
       b' -> pure $ ModExtractT ty app inn b'
-  LetModT ty orig app inn mparam val body ->
+  LetModT ty orig app inn mparam mmotive val body ->
     (enterModality app $ nfTope val) >>= \case
       ModAppT _ md t | md == inn ->
         instantiate body t >>= nfTope
@@ -1429,7 +1446,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
           _ -> panicImpossible "not modal in letmod"
         val' <- enterModality app $ nfTope b'
         body' <- underScope orig (comp app inn) bty Nothing body nfTope
-        pure (LetModT ty orig app inn mparam val' body')
+        pure (LetModT ty orig app inn mparam mmotive val' body')
 
   TypeModalT ty md inner -> TypeModalT ty md <$> (enterModality md $ nfTope inner)
   LetT _ty _orig _mparam val body -> instantiate body val >>= nfTope
@@ -1438,6 +1455,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   TypeIdT{} -> panicImpossible "identity type in the tope layer"
   ReflT{} -> panicImpossible "refl in the tope layer"
   IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
+  ConT{} -> panicImpossible "constructor in the tope layer"
+  MatchT{} -> panicImpossible "match eliminator in the tope layer"
   TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
 
   -- A recOR/recBOT is a term-level eliminator, never a tope. It should have been
@@ -1528,7 +1547,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
               _ -> AppT ty <$> nfT f' <*> nfT x
         LetT _ty _orig _mparam val body ->
           instantiate body val >>= nfT
-        LetModT ty orig app inn mparam val body ->
+        LetModT ty orig app inn mparam mmotive val body ->
           (enterModality app $ whnfT val) >>= \case
             ModAppT _ md t | md == inn -> do
               val' <- enterModality md $ nfT t
@@ -1544,7 +1563,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 _ -> panicImpossible "not modal in letmod"
               val' <- enterModality app $ nfT b'
               body' <- underScope orig (comp app inn) bty Nothing body nfT
-              pure (LetModT ty orig app inn mparam val' body')
+              pure (LetModT ty orig app inn mparam mmotive val' body')
         LambdaT ty orig _mparam body ->
           case stripTypeRestrictions (infoType ty) of
             TypeFunT _ty _orig md param mtope _ret -> do
@@ -1580,6 +1599,18 @@ nfT tt = performing (ActionNF tt) $ case tt of
           whnfT p >>= \case
             ReflT{} -> nfT d
             p' -> IdJT ty <$> nfT tA <*> nfT a <*> nfT tC <*> nfT d <*> nfT x <*> nfT p'
+
+        ConT ty name args -> ConT ty name <$> mapM nfT args
+        MatchT ty scrut mmotive branches ->
+          whnfT scrut >>= \case
+            ConT _cty name args
+              | Just branch <- lookup name branches ->
+                  applyBranch branch args >>= nfT
+            scrut' -> do
+              scrut''   <- nfT scrut'
+              mmotive'  <- traverse nfT mmotive
+              branches' <- mapM (\(n, b) -> (,) n <$> nfT b) branches
+              pure (MatchT ty scrut'' mmotive' branches')
 
         RecOrT _ty rs ->
           firstMatching rs >>= \case

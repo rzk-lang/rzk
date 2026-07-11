@@ -47,6 +47,8 @@ data TypeError n
   | TypeErrorCannotInferHole (Term n)
   | TypeErrorUnsolvedHole (Maybe VarIdent) (TermT n)
   | TypeErrorUndefined VarIdent
+  | TypeErrorUnknownConstructor VarIdent
+  | TypeErrorNotInductive (TermT n)
   | TypeErrorTopeNotSatisfied [TermT n] (TermT n)
   | TypeErrorTopeContextDisjoint (TermT n) [TermT n]
   | TypeErrorTopesNotEquivalent (TermT n) (TermT n)
@@ -186,6 +188,11 @@ ppTypeError naming = \case
     ]
   TypeErrorUndefined var -> block TopDown
     [ "undefined variable: " <> show var ]
+  TypeErrorUnknownConstructor con -> block TopDown
+    [ "unknown constructor: " <> show con ]
+  TypeErrorNotInductive ty -> block TopDown
+    [ "cannot match on a value whose type is not an inductive type"
+    , "  " <> ppU (untyped ty) ]
   TypeErrorTopeNotSatisfied topes tope -> block TopDown
     [ "local context is not included in (does not entail) the tope"
     , "  " <> ppU (untyped tope)
@@ -353,6 +360,8 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
           "  Error occurred when checking\n    #section " <> Rzk.printTree name
         Just (Rzk.CommandSectionEnd _loc name) ->
           "  Error occurred when checking\n    #end " <> Rzk.printTree name
+        Just command@Rzk.CommandData{} ->
+          "  Error occurred when checking\n    " <> Rzk.printTree command
         Nothing -> "  Error occurred outside of any command!"
     ]
   , ""

@@ -47,7 +47,12 @@ commandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ":" T
 define commandDef x vars params ty term = CommandDefine x vars params ty term ;
 commandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ":" Term ":=" Term ;
 define commandDefNoParams x vars ty term = CommandDefine x vars [] ty term ;
+CommandData.              Command ::= "#data" VarIdent ":=" [Constructor] ;
 terminator Command ";" ;
+
+Constructor.       Constructor ::= VarIdent [Param] ;
+ConstructorNoArgs. Constructor ::= VarIdent ;
+separator nonempty Constructor "|" ;
 
 DeclUsedVars. DeclUsedVars ::= "uses" "(" [VarIdent] ")" ;
 noDeclUsedVars. DeclUsedVars ::= ;
@@ -96,6 +101,12 @@ separator nonempty SigmaParam "," ;
 
 Restriction. Restriction ::= Term "↦" Term ;
 separator nonempty Restriction "," ;
+
+MatchBranch.             MatchBranch ::= VarIdent [Pattern] "↦" Term ;
+MatchBranchNoArgs.       MatchBranch ::= VarIdent "↦" Term ;
+ASCII_MatchBranch.       MatchBranch ::= VarIdent [Pattern] "|->" Term ;
+ASCII_MatchBranchNoArgs. MatchBranch ::= VarIdent "|->" Term ;
+separator nonempty MatchBranch "," ;
 
 -- Modalities (Unicode canonical forms + ASCII alternatives)
 Flat.        Modality ::= "♭" ;
@@ -176,6 +187,7 @@ ModApp.         Term7 ::= "mod" Modality Term7 ;
 ModType.        Term7 ::= Modality Term7 ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
 LetMod.         Term1 ::= "let" "mod" ModComp Bind ":=" Term "in" Term ;
+LetModReturns.  Term1 ::= "let" "mod" ModComp Bind ":=" Term "returns" Term "in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;
@@ -183,6 +195,8 @@ Refl.           Term7 ::= "refl";
 ReflTerm.       Term7 ::= "refl_{" Term "}" ;
 ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;
 IdJ.            Term7 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
+Match.          Term7 ::= "match" Term7 "(" [MatchBranch] ")" ;
+MatchReturns.   Term7 ::= "match" Term7 "returns" Term7 "(" [MatchBranch] ")" ;
 -- Variables and holes
 Hole.           Term7 ::= HoleIdent;
 Var.            Term7 ::= VarIdent ;

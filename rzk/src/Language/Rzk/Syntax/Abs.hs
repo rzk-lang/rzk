@@ -58,6 +58,13 @@ data Command' a
     | CommandSection a (SectionName' a)
     | CommandSectionEnd a (SectionName' a)
     | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
+    | CommandData a (VarIdent' a) [Constructor' a]
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type Constructor = Constructor' BNFC'Position
+data Constructor' a
+    = Constructor a (VarIdent' a) [Param' a]
+    | ConstructorNoArgs a (VarIdent' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type DeclUsedVars = DeclUsedVars' BNFC'Position
@@ -114,6 +121,14 @@ type Restriction = Restriction' BNFC'Position
 data Restriction' a
     = Restriction a (Term' a) (Term' a)
     | ASCII_Restriction a (Term' a) (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type MatchBranch = MatchBranch' BNFC'Position
+data MatchBranch' a
+    = MatchBranch a (VarIdent' a) [Pattern' a] (Term' a)
+    | MatchBranchNoArgs a (VarIdent' a) (Term' a)
+    | ASCII_MatchBranch a (VarIdent' a) [Pattern' a] (Term' a)
+    | ASCII_MatchBranchNoArgs a (VarIdent' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Modality = Modality' BNFC'Position
@@ -188,6 +203,7 @@ data Term' a
     | ModType a (Modality' a) (Term' a)
     | ModExtract a (ModComp' a) (Term' a)
     | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
+    | LetModReturns a (ModComp' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -195,6 +211,8 @@ data Term' a
     | ReflTerm a (Term' a)
     | ReflTermType a (Term' a) (Term' a)
     | IdJ a (Term' a) (Term' a) (Term' a) (Term' a) (Term' a) (Term' a)
+    | Match a (Term' a) [MatchBranch' a]
+    | MatchReturns a (Term' a) (Term' a) [MatchBranch' a]
     | Hole a (HoleIdent' a)
     | Var a (VarIdent' a)
     | TypeAsc a (Term' a) (Term' a)
@@ -321,6 +339,12 @@ instance HasPosition Command where
     CommandSection p _ -> p
     CommandSectionEnd p _ -> p
     CommandDefine p _ _ _ _ _ -> p
+    CommandData p _ _ -> p
+
+instance HasPosition Constructor where
+  hasPosition = \case
+    Constructor p _ _ -> p
+    ConstructorNoArgs p _ -> p
 
 instance HasPosition DeclUsedVars where
   hasPosition = \case
@@ -371,6 +395,13 @@ instance HasPosition Restriction where
   hasPosition = \case
     Restriction p _ _ -> p
     ASCII_Restriction p _ _ -> p
+
+instance HasPosition MatchBranch where
+  hasPosition = \case
+    MatchBranch p _ _ _ -> p
+    MatchBranchNoArgs p _ _ -> p
+    ASCII_MatchBranch p _ _ _ -> p
+    ASCII_MatchBranchNoArgs p _ _ -> p
 
 instance HasPosition Modality where
   hasPosition = \case
@@ -442,6 +473,7 @@ instance HasPosition Term where
     ModType p _ _ -> p
     ModExtract p _ _ -> p
     LetMod p _ _ _ _ -> p
+    LetModReturns p _ _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p
@@ -449,6 +481,8 @@ instance HasPosition Term where
     ReflTerm p _ -> p
     ReflTermType p _ _ -> p
     IdJ p _ _ _ _ _ _ -> p
+    Match p _ _ -> p
+    MatchReturns p _ _ _ -> p
     Hole p _ -> p
     Var p _ -> p
     TypeAsc p _ _ -> p

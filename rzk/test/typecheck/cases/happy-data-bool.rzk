@@ -1,0 +1,30 @@
+#lang rzk-1
+
+#data bool := true | false
+
+#check bool : U
+#check true : bool
+#check false : bool
+
+#define not (b : bool) : bool
+  := match b ( true ↦ false, false ↦ true )
+
+#check not : bool → bool
+
+#compute-nf not true
+#compute-nf not false
+
+#define and (a b : bool) : bool
+  := match a ( true ↦ b, false ↦ false )
+
+#check and : bool → bool → bool
+
+#compute-nf and true true
+#compute-nf and true false
+#compute-nf and false true
+
+#define if (A : U) (b : bool) (x y : A) : A
+  := match b ( true ↦ x, false ↦ y )
+
+#check if : (A : U) → bool → A → A → A
+#compute-nf if bool (not true) true false

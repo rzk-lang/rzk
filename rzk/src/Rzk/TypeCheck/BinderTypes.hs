@@ -149,7 +149,7 @@ binderTypesOfTerm = go
         bodyEntries  <- inScopeWith binder Id (fromMaybe universeT valueType) (Just value) body go
         pure (entries ++ annEntries ++ valueEntries ++ bodyEntries)
 
-      LetModT _ binder _nu mu manno value body -> do
+      LetModT _ binder _nu mu manno _mmotive value body -> do
         unwrapped <- case typeInfoOf value of
           Nothing -> pure Nothing
           Just valueInfo -> do

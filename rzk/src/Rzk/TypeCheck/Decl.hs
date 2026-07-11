@@ -33,11 +33,11 @@ import           Control.Monad.Foil        (DExt, Distinct, NameBinder)
 import qualified Control.Monad.Foil        as Foil
 import           Control.Monad.Free.Foil   (AST (Var), ScopedAST (..))
 
-import           Language.Rzk.Foil.Convert (Env, toTerm)
+import           Language.Rzk.Foil.Convert (Env, constructorBody, toTerm)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names   (Binder (..), TModality (..),
                                             VarIdent, binderName, markUnresolved,
-                                            patternToTerm, varIdentAt)
+                                            patternToTerm, varIdent, varIdentAt)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
@@ -490,18 +490,20 @@ checkCommands path i total commands k = case commands of
         -- keeping the WHNF cached preserves the original one-shot reduction.
         tyTerm <- elaborate (addParamDecls paramDecls ty)
         ty' <- memoizeWHNF =<< typecheck tyTerm universeT
-        valTerm <- elaborate (addParams params term)
-        term' <- memoizeWHNF =<< typecheck valTerm ty'
-        withTopLevel (varIdentAt path name) ty' (Just term') False used $ \binder decl -> do
-          backend <- asks ctxRenderBackend
-          termSVG <- case backend of
-            Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
-            Just RenderLaTeX -> issueTypeError $
-              TypeErrorOther "\"latex\" rendering is not yet supported"
-            Nothing          -> pure Nothing
-          maybe id trace termSVG $
-            checkCommands path (i + 1) total more $ \decls errs ->
-              k (sinkDecl decl : decls) errs
+        withTopLevel (varIdentAt path name) ty' Nothing False used $ \binder stubDecl -> do
+          valTerm <- elaborate (addParams params term)
+          term' <- memoizeWHNF =<< typecheck valTerm (declType stubDecl)
+          let decl = stubDecl { declValue = Just term' }
+          local (setVarValue (Foil.nameOf binder) term') $ do
+            backend <- asks ctxRenderBackend
+            termSVG <- case backend of
+              Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
+              Just RenderLaTeX -> issueTypeError $
+                TypeErrorOther "\"latex\" rendering is not yet supported"
+              Nothing          -> pure Nothing
+            maybe id trace termSVG $
+              checkCommands path (i + 1) total more $ \decls errs ->
+                k (sinkDecl decl : decls) errs
 
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
@@ -513,6 +515,18 @@ checkCommands path i total commands k = case commands of
         withTopLevel (varIdentAt path name) ty' Nothing False used $ \_binder decl ->
           checkCommands path (i + 1) total more $ \decls errs ->
             k (sinkDecl decl : decls) errs
+
+  command@(Rzk.CommandData _loc name constructors) : more ->
+    announce (" Checking #data " <> Rzk.printTree name) $
+      withCommand command k $
+        withTopLevel (varIdentAt path name) universeT Nothing False [] $ \formerBinder formerDecl ->
+          checkConstructors path name constructors $ \conDecls -> do
+            let allDecls  = sinkDecl formerDecl : conDecls
+                datatype  = Datatype (Foil.sink (Foil.nameOf formerBinder))
+                              [ (declName d, declType d) | d <- conDecls ]
+            withDatatype datatype $
+              checkCommands path (i + 1) total more $ \decls errs ->
+                k (map sinkDecl allDecls <> decls) errs
 
   command@(Rzk.CommandAssume _loc names ty) : more ->
     announce (" Checking #assume "
@@ -570,6 +584,26 @@ checkCommands path i total commands k = case commands of
     announce what =
       traceTypeCheck Normal
         ("[ " <> show i <> " out of " <> show total <> " ]" <> what)
+
+checkConstructors
+  :: forall n r. Distinct n
+  => Maybe FilePath -> Rzk.VarIdent -> [Rzk.Constructor]
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
+  -> TypeCheck n r
+checkConstructors _path _dataName [] k = k []
+checkConstructors path dataName (con : cons) k = do
+  let (conName, params) = case con of
+        Rzk.Constructor _loc c ps    -> (c, ps)
+        Rzk.ConstructorNoArgs _loc c -> (c, [])
+  paramDecls <- concat <$> mapM paramToParamDecl params
+  tyTerm <- elaborate (addParamDecls paramDecls (Rzk.Var Nothing dataName))
+  ty'    <- memoizeWHNF =<< typecheck tyTerm universeT
+  scope  <- asks ctxScope
+  let bodyTerm = constructorBody scope (varIdent conName) (length paramDecls)
+  term'  <- memoizeWHNF =<< typecheck bodyTerm ty'
+  withTopLevel (varIdentAt path conName) ty' (Just term') False [] $ \_binder decl ->
+    checkConstructors path dataName cons $ \decls ->
+      k (sinkDecl decl : decls)
 
 -- | Assume a list of names of the same type, each a top-level entry.
 assume

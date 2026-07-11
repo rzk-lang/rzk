@@ -183,6 +183,10 @@ toTerm scope env = go
       Rzk.ReflTerm _loc term -> Refl (Just (go term, Nothing))
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
+      Rzk.Match _loc scrut branches ->
+        Match (go scrut) Nothing (map goMatchBranch branches)
+      Rzk.MatchReturns _loc scrut motive branches ->
+        Match (go scrut) (Just (go motive)) (map goMatchBranch branches)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
 
       -- A binder may name several variables sharing a type, e.g. @(x y : A)@,
@@ -296,16 +300,48 @@ toTerm scope env = go
       Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
       Rzk.LetMod _loc comp (Rzk.BindPattern _ pat) val body ->
         let (app, inn) = Free.modCompToMods comp
-         in LetMod (toBinder pat) app inn Nothing (go val)
+         in LetMod (toBinder pat) app inn Nothing Nothing (go val)
               (toScopedPattern scope pat env body)
       Rzk.LetMod _loc comp (Rzk.BindPatternType _ pat ty) val body ->
         let (app, inn) = Free.modCompToMods comp
-         in LetMod (toBinder pat) app inn (Just (go ty)) (go val)
+         in LetMod (toBinder pat) app inn (Just (go ty)) Nothing (go val)
+              (toScopedPattern scope pat env body)
+      Rzk.LetModReturns _loc comp (Rzk.BindPattern _ pat) val motive body ->
+        let (app, inn) = Free.modCompToMods comp
+         in LetMod (toBinder pat) app inn Nothing (Just (go motive)) (go val)
+              (toScopedPattern scope pat env body)
+      Rzk.LetModReturns _loc comp (Rzk.BindPatternType _ pat ty) val motive body ->
+        let (app, inn) = Free.modCompToMods comp
+         in LetMod (toBinder pat) app inn (Just (go ty)) (Just (go motive)) (go val)
               (toScopedPattern scope pat env body)
 
     restriction = \case
       Rzk.Restriction _loc tope term       -> (go tope, go term)
       Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
+
+    goMatchBranch = \case
+      Rzk.MatchBranch          loc con pats body -> branch loc con pats body
+      Rzk.MatchBranchNoArgs    loc con      body -> branch loc con []   body
+      Rzk.ASCII_MatchBranch    loc con pats body -> branch loc con pats body
+      Rzk.ASCII_MatchBranchNoArgs loc con   body -> branch loc con []   body
+      where
+        branch loc con pats body = (varIdent con, go lam)
+          where
+            lam = case pats of
+              [] -> body
+              _  -> Rzk.Lambda loc (map (Rzk.ParamPattern loc) pats) body
+
+constructorBody :: forall n. Distinct n => Scope n -> VarIdent -> Int -> Term n
+constructorBody scope con = build scope []
+  where
+    build :: forall m. Distinct m => Scope m -> [Term m] -> Int -> Term m
+    build _ args 0 = Con con (reverse args)
+    build sc args k =
+      Foil.withFresh sc $ \binder ->
+        let sc'   = Foil.extendScope binder sc
+            args' = Var (Foil.nameOf binder) : map Foil.sink args
+         in Lambda (BinderVar Nothing) Nothing
+              (ScopedAST binder (build sc' args' (k - 1)))
 
 -- * Open terms
 

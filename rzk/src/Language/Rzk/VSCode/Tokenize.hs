@@ -50,8 +50,35 @@ tokenizeCommand command = case command of
     [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
     , tokenizeTerm type_
     ]
+  CommandData _loc name constructors -> concat
+    [ mkToken name SemanticTokenTypes_Class [SemanticTokenModifiers_Declaration]
+    , foldMap tokenizeConstructor constructors
+    ]
   CommandSection    _loc name -> tokenizeSectionName name
   CommandSectionEnd _loc name -> tokenizeSectionName name
+
+tokenizeConstructor :: Constructor -> [SemanticTokenAbsolute]
+tokenizeConstructor con = concat
+  [ mkToken name SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
+  , foldMap tokenizeParam params
+  ]
+  where
+    (name, params) = case con of
+      Constructor _loc n ps    -> (n, ps)
+      ConstructorNoArgs _loc n -> (n, [])
+
+tokenizeMatchBranch :: MatchBranch -> [SemanticTokenAbsolute]
+tokenizeMatchBranch = \case
+  MatchBranch _loc con pats body          -> matchBranchTokens con pats body
+  MatchBranchNoArgs _loc con body         -> matchBranchTokens con [] body
+  ASCII_MatchBranch _loc con pats body    -> matchBranchTokens con pats body
+  ASCII_MatchBranchNoArgs _loc con body   -> matchBranchTokens con [] body
+  where
+    matchBranchTokens con pats body = concat
+      [ mkToken con SemanticTokenTypes_EnumMember []
+      , foldMap tokenizePattern pats
+      , tokenizeTerm body
+      ]
 
 tokenizeDeclUsedVars :: DeclUsedVars -> [SemanticTokenAbsolute]
 tokenizeDeclUsedVars (DeclUsedVars _loc vars) =
@@ -195,7 +222,14 @@ tokenizeTerm' varTokenType = go
         , go body ]
       Let _loc bind val expr -> concat [tokenizeBind bind, go val, go expr]
       LetMod _loc comp bind val expr -> concat [tokenizeModComp comp, tokenizeBind bind, go val, go expr]
+      LetModReturns _loc comp bind val motive expr -> concat
+        [tokenizeModComp comp, tokenizeBind bind, go val, go motive, go expr]
       ASCII_Lambda loc params body -> go (Lambda loc params body)
+
+      Match _loc scrut branches -> concat
+        [ go scrut, foldMap tokenizeMatchBranch branches ]
+      MatchReturns _loc scrut motive branches -> concat
+        [ go scrut, go motive, foldMap tokenizeMatchBranch branches ]
 
       Pair _loc l r -> foldMap go [l, r]
       Tuple _loc p1 p2 ps -> foldMap go (p1:p2:ps)

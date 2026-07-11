@@ -56,6 +56,12 @@ transCommand x = case x of
   Language.Rzk.Syntax.Abs.CommandSection _ sectionname -> failure x
   Language.Rzk.Syntax.Abs.CommandSectionEnd _ sectionname -> failure x
   Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandData _ varident constructors -> failure x
+
+transConstructor :: Show a => Language.Rzk.Syntax.Abs.Constructor' a -> Result
+transConstructor x = case x of
+  Language.Rzk.Syntax.Abs.Constructor _ varident params -> failure x
+  Language.Rzk.Syntax.Abs.ConstructorNoArgs _ varident -> failure x
 
 transDeclUsedVars :: Show a => Language.Rzk.Syntax.Abs.DeclUsedVars' a -> Result
 transDeclUsedVars x = case x of
@@ -106,6 +112,13 @@ transRestriction :: Show a => Language.Rzk.Syntax.Abs.Restriction' a -> Result
 transRestriction x = case x of
   Language.Rzk.Syntax.Abs.Restriction _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Restriction _ term1 term2 -> failure x
+
+transMatchBranch :: Show a => Language.Rzk.Syntax.Abs.MatchBranch' a -> Result
+transMatchBranch x = case x of
+  Language.Rzk.Syntax.Abs.MatchBranch _ varident patterns term -> failure x
+  Language.Rzk.Syntax.Abs.MatchBranchNoArgs _ varident term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_MatchBranch _ varident patterns term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_MatchBranchNoArgs _ varident term -> failure x
 
 transModality :: Show a => Language.Rzk.Syntax.Abs.Modality' a -> Result
 transModality x = case x of
@@ -177,6 +190,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ModType _ modality term -> failure x
   Language.Rzk.Syntax.Abs.ModExtract _ modcomp term -> failure x
   Language.Rzk.Syntax.Abs.LetMod _ modcomp bind term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.LetModReturns _ modcomp bind term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
   Language.Rzk.Syntax.Abs.Unit _ -> failure x
@@ -184,6 +198,8 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ReflTerm _ term -> failure x
   Language.Rzk.Syntax.Abs.ReflTermType _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.IdJ _ term1 term2 term3 term4 term5 term6 -> failure x
+  Language.Rzk.Syntax.Abs.Match _ term matchbranchs -> failure x
+  Language.Rzk.Syntax.Abs.MatchReturns _ term1 term2 matchbranchs -> failure x
   Language.Rzk.Syntax.Abs.Hole _ holeident -> failure x
   Language.Rzk.Syntax.Abs.Var _ varident -> failure x
   Language.Rzk.Syntax.Abs.TypeAsc _ term1 term2 -> failure x

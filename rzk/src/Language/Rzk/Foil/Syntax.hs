@@ -115,12 +115,14 @@ data TermSig scope term
     | IdJF term term term term term term
     | UnitF
     | TypeUnitF
+    | ConF VarIdent [term]
+    | MatchF term (Maybe term) [(VarIdent, term)]
     | TypeAscF term term
     | TypeRestrictedF term [(term, term)]
     | TypeModalF TModality term
     | ModAppF TModality term
     | ModExtractF TModality TModality term
-    | LetModF Binder TModality TModality (Maybe term) term scope
+    | LetModF Binder TModality TModality (Maybe term) (Maybe term) term scope
     | HoleF (Maybe VarIdent)
     deriving (Eq, Functor, Foldable, Traversable, GHC.Generic)
 
@@ -475,12 +477,14 @@ pattern ReflT info mx = Node (AnnSig info (ReflF mx))
 pattern IdJT info a b c d e f = Node (AnnSig info (IdJF a b c d e f))
 pattern UnitT info = Node (AnnSig info UnitF)
 pattern TypeUnitT info = Node (AnnSig info TypeUnitF)
+pattern ConT info name args = Node (AnnSig info (ConF name args))
+pattern MatchT info scrut mmotive branches = Node (AnnSig info (MatchF scrut mmotive branches))
 pattern TypeAscT info term ty = Node (AnnSig info (TypeAscF term ty))
 pattern TypeRestrictedT info ty rs = Node (AnnSig info (TypeRestrictedF ty rs))
 pattern TypeModalT info md ty = Node (AnnSig info (TypeModalF md ty))
 pattern ModAppT info md t = Node (AnnSig info (ModAppF md t))
 pattern ModExtractT info app inn t = Node (AnnSig info (ModExtractF app inn t))
-pattern LetModT info orig app inn mparam val body = Node (AnnSig info (LetModF orig app inn mparam val body))
+pattern LetModT info orig app inn mparam mmotive val body = Node (AnnSig info (LetModF orig app inn mparam mmotive val body))
 pattern HoleT info mname = Node (AnnSig info (HoleF mname))
 
 {-# COMPLETE Var, UniverseT, UniverseCubeT, UniverseTopeT, CubeUnitT,
@@ -533,12 +537,14 @@ pattern Refl mx = Node (ReflF mx)
 pattern IdJ a b c d e f = Node (IdJF a b c d e f)
 pattern Unit = Node UnitF
 pattern TypeUnit = Node TypeUnitF
+pattern Con name args = Node (ConF name args)
+pattern Match scrut mmotive branches = Node (MatchF scrut mmotive branches)
 pattern TypeAsc term ty = Node (TypeAscF term ty)
 pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
 pattern TypeModal md ty = Node (TypeModalF md ty)
 pattern ModApp md t = Node (ModAppF md t)
 pattern ModExtract app inn t = Node (ModExtractF app inn t)
-pattern LetMod orig app inn mparam val body = Node (LetModF orig app inn mparam val body)
+pattern LetMod orig app inn mparam mmotive val body = Node (LetModF orig app inn mparam mmotive val body)
 pattern Hole mname = Node (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
@@ -716,10 +722,10 @@ letT :: TermT n -> Binder -> Maybe (TermT n) -> TermT n -> ScopedTermT n -> Term
 letT ty orig mparam val body = LetT (topeInfo ty) orig mparam val body
 
 letModT
-  :: TermT n -> Binder -> TModality -> TModality -> Maybe (TermT n) -> TermT n
-  -> ScopedTermT n -> TermT n
-letModT ty orig app inn mparam val body =
-  LetModT (topeInfo ty) orig app inn mparam val body
+  :: TermT n -> Binder -> TModality -> TModality -> Maybe (TermT n)
+  -> Maybe (TermT n) -> TermT n -> ScopedTermT n -> TermT n
+letModT ty orig app inn mparam mmotive val body =
+  LetModT (topeInfo ty) orig app inn mparam mmotive val body
 
 -- | @refl@ normalises to a bare @refl@: its endpoints are recoverable from the
 -- type, so they are dropped from the normal form.
@@ -748,3 +754,16 @@ modExtractT ty app inn term = ModExtractT (topeInfo ty) app inn term
 
 holeT :: TermT n -> Maybe VarIdent -> TermT n
 holeT ty mname = HoleT (topeInfo ty) mname
+
+conT :: TermT n -> VarIdent -> [TermT n] -> TermT n
+conT ty name args = ConT (topeInfo ty) name args
+
+matchT
+  :: TermT n -> TermT n -> Maybe (TermT n) -> [(VarIdent, TermT n)] -> TermT n
+matchT ty scrut mmotive branches =
+  MatchT (topeInfo ty) scrut mmotive branches
+
+data Datatype n = Datatype
+  { datatypeFormer       :: Foil.Name n
+  , datatypeConstructors :: [(VarIdent, TermT n)]
+  }

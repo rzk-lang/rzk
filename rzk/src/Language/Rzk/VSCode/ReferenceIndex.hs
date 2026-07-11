@@ -143,7 +143,12 @@ globalNames = concatMap cmd . moduleCommands
       Rzk.CommandDefine _ name _ _ _ _  -> [name]
       Rzk.CommandPostulate _ name _ _ _ -> [name]
       Rzk.CommandAssume _ vars _        -> vars
+      Rzk.CommandData _ name cons       -> name : map constructorName cons
       _                                 -> []
+
+    constructorName = \case
+      Rzk.Constructor _ n _    -> n
+      Rzk.ConstructorNoArgs _ n -> n
 
 use :: FilePath -> Env -> Rzk.VarIdent -> [Link]
 use file env v = case (Map.lookup (varText v) env, identLoc file v) of
@@ -286,12 +291,19 @@ goCommand file env = \case
   Rzk.CommandCompute _ a       -> goTerm file env a
   Rzk.CommandComputeWHNF _ a   -> goTerm file env a
   Rzk.CommandComputeNF _ a     -> goTerm file env a
+  Rzk.CommandData _ name cons  -> def name ++ concatMap goConstructor cons
   Rzk.CommandSetOption{}       -> []
   Rzk.CommandUnsetOption{}     -> []
   Rzk.CommandSection{}         -> []
   Rzk.CommandSectionEnd{}      -> []
   where
     def v = [ Link (varText v) loc loc Nothing | Just loc <- [identLoc file v] ]
+    goConstructor con =
+      let (cname, ps) = case con of
+            Rzk.Constructor _ n xs    -> (n, xs)
+            Rzk.ConstructorNoArgs _ n -> (n, [])
+          (_env', occs) = goParams file env ps
+      in def cname ++ occs
 
 goTerm :: FilePath -> Env -> Rzk.Term -> [Link]
 goTerm file env = \case
@@ -302,6 +314,12 @@ goTerm file env = \case
   Rzk.ASCII_Lambda _ ps body                -> paramScope file env ps body
   Rzk.Let _ bind val body                   -> letScope file env bind val body
   Rzk.LetMod _ _ bind val body              -> letScope file env bind val body
+  Rzk.LetModReturns _ _ bind val motive body ->
+    goTerm file env motive ++ letScope file env bind val body
+  Rzk.Match _ scrut branches                ->
+    goTerm file env scrut ++ concatMap (matchBranch file env) branches
+  Rzk.MatchReturns _ scrut motive branches  ->
+    concatMap (goTerm file env) [scrut, motive] ++ concatMap (matchBranch file env) branches
   Rzk.TypeSigma _ pat ty ret                -> sigmaScope file env pat ty ret
   Rzk.ASCII_TypeSigma _ pat ty ret          -> sigmaScope file env pat ty ret
   Rzk.TypeSigmaModal _ pat _ ty ret         -> sigmaScope file env pat ty ret
@@ -379,6 +397,18 @@ letScope :: FilePath -> Env -> Rzk.Bind -> Rzk.Term -> Rzk.Term -> [Link]
 letScope file env bind val body =
   let (env', occs) = goBind file env bind
   in goTerm file env val ++ occs ++ goTerm file env' body
+
+matchBranch :: FilePath -> Env -> Rzk.MatchBranch -> [Link]
+matchBranch file env = \case
+  Rzk.MatchBranch _ con pats body          -> branchLinks con pats body
+  Rzk.MatchBranchNoArgs _ con body         -> branchLinks con [] body
+  Rzk.ASCII_MatchBranch _ con pats body    -> branchLinks con pats body
+  Rzk.ASCII_MatchBranchNoArgs _ con body   -> branchLinks con [] body
+  where
+    branchLinks con pats body = use file env con ++ occs ++ goTerm file env' body
+      where
+        (env', occs) = foldl step (env, []) pats
+        step (e, ls) p = let (e', ls') = bindPat file e Nothing p in (e', ls ++ ls')
 
 sigmaScope :: FilePath -> Env -> Rzk.Pattern -> Rzk.Term -> Rzk.Term -> [Link]
 sigmaScope file env pat ty ret =

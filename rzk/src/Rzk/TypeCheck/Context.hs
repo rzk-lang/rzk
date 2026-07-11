@@ -194,6 +194,7 @@ data Context n = Context
   , ctxHintLemmas          :: [VarIdent]
     -- ^ Named top-level definitions a hole's candidate list may draw on, beyond
     -- the local hypotheses (see 'withHintLemmas').
+  , ctxDatatypes           :: [Datatype n]
   }
 
 -- | An open section: the entries declared in it, newest first.
@@ -227,6 +228,7 @@ emptyContext = Context
   , ctxHolesAreErrors = True
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
+  , ctxDatatypes = []
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.
@@ -428,6 +430,10 @@ insertVarInfo name info ctx = ctx { ctxVars = replace (ctxVars ctx) }
   where
     replace (NameMap m) = NameMap (IntMap.insert (Foil.nameId name) info m)
 
+setVarValue :: Foil.Name n -> TermT n -> Context n -> Context n
+setVarValue name value ctx =
+  insertVarInfo name ((lookupVarInfo name ctx) { varValue = Just value }) ctx
+
 -- * Topes
 
 isAccessible :: ModalTope n -> Bool
@@ -459,6 +465,12 @@ allowHoles ctx = ctx { ctxHolesAreErrors = False }
 -- definitions, in addition to the local hypotheses.
 withHintLemmas :: [VarIdent] -> Context n -> Context n
 withHintLemmas lemmas ctx = ctx { ctxHintLemmas = lemmas }
+
+datatypes :: Context n -> [Datatype n]
+datatypes = ctxDatatypes
+
+insertDatatype :: Datatype n -> Context n -> Context n
+insertDatatype datatype ctx = ctx { ctxDatatypes = datatype : ctxDatatypes ctx }
 
 -- | Within the given action, a hole unifies only as a leaf of an otherwise
 -- matching structure: a structural mismatch around a hole stays an error rather
