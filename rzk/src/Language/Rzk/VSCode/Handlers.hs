@@ -11,6 +11,10 @@
 module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
   provideCompletions,
+  provideSymbols,
+  findDefinition,
+  findReferences,
+  provideHover,
   formatDocument,
   provideSemanticTokens,
   handleFilesChanged,
@@ -18,13 +22,13 @@ module Language.Rzk.VSCode.Handlers (
 
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
-import           Control.Monad                 (forM_, when)
+import           Control.Monad                 (forM, forM_, when)
 import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 MonadError (throwError),
                                                 modifyError, runExceptT)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
-import           Data.List                     (isSuffixOf, sort, (\\))
+import           Data.List                     (find, isSuffixOf, nub, sort, (\\))
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
@@ -34,10 +38,12 @@ import           Language.LSP.Protocol.Lens    (HasDetail (detail),
                                                 HasDocumentation (documentation),
                                                 HasLabel (label),
                                                 HasParams (params),
+                                                HasPosition (position),
                                                 HasTextDocument (textDocument),
                                                 HasUri (uri), changes, uri)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
+import qualified Language.LSP.Protocol.Types as LSP
 import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 import           System.FilePath               (makeRelative, (</>))
@@ -51,6 +57,7 @@ import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
                                                 parseModuleSafe, printTree)
 import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
+import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
 import qualified Rzk.Diagnostic                as Diag
@@ -89,6 +96,27 @@ filePathToNormalizedUri = toNormalizedUri . filePathToUri
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
+
+fromLspUri :: LSP.Uri -> RefInd.Uri
+fromLspUri u = RefInd.Uri { uriPath = fromMaybe "" (uriToFilePath u) }
+
+toLspUri :: RefInd.Uri -> LSP.Uri
+toLspUri (RefInd.Uri { uriPath = p }) = filePathToUri p
+
+fromLspPosition :: LSP.Position -> RefInd.Position
+fromLspPosition (LSP.Position l c) =
+  RefInd.Position (fromIntegral l) (fromIntegral c)
+
+toLspPosition :: RefInd.Position -> LSP.Position
+toLspPosition (RefInd.Position l c) =
+  LSP.Position (fromIntegral l) (fromIntegral c)
+
+toLspRange :: RefInd.Range -> Range
+toLspRange (RefInd.Range s e) = Range (toLspPosition s) (toLspPosition e)
+
+toLspLocation :: RefInd.Location -> LSP.Location
+toLspLocation (RefInd.Location u r) =
+  LSP.Location (toLspUri u) (toLspRange r)
 
 typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
@@ -362,6 +390,105 @@ provideSemanticTokens req responder = do
           return ()
         Right list ->
           responder (Right (InL (SemanticTokens Nothing list)))
+
+findDefinition :: Handler LSP 'Method_TextDocumentDefinition
+findDefinition req res = do
+  let uri' = req ^. params . textDocument . uri
+      currentFile = fromMaybe "" (uriToFilePath uri')
+  referenceIndex <- indexProject currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
+    Just binding -> res $ Right $ InL $ Definition $ InL (toLspLocation (RefInd.bindingDef binding))
+    Nothing      -> res $ Right $ InR $ InR Null
+
+findReferences :: Handler LSP 'Method_TextDocumentReferences
+findReferences req res = do
+  let uri' = req ^. params . textDocument . uri
+      currentFile = fromMaybe "" (uriToFilePath uri')
+  referenceIndex <- indexProject currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
+    Just binding -> res $ Right $ InL (map toLspLocation (nub (RefInd.bindingSites binding)))
+    Nothing      -> res $ Right $ InL []
+
+indexProject :: FilePath -> LSP RefInd.ReferenceIndex
+indexProject currentFile = do
+  cached <- getCachedTypecheckedModules
+  let paths = nub (currentFile : map fst cached)
+  mdoc <- getVirtualFile (filePathToNormalizedUri currentFile)
+  let msrc = T.filter (/= '\r') <$> (virtualFileText <$> mdoc)
+  mcached <- getCachedReferenceIndex
+  case mcached of
+    Just c
+      | indexCachePaths c == paths
+      , indexCacheCurrent c == currentFile
+      , indexCacheSource c == msrc
+      -> return (indexCache c)
+    _ -> do
+      parsed <- forM paths $ \p -> fmap ((,) p <$>) (parseProjectFile currentFile msrc p)
+      let referenceIndex = RefInd.indexModules [ pm | Just pm <- parsed ]
+      cacheReferenceIndex (ReferenceIndexCache paths currentFile msrc referenceIndex)
+      return referenceIndex
+
+parseProjectFile :: FilePath -> Maybe T.Text -> FilePath -> LSP (Maybe Module)
+parseProjectFile currentFile msrc p
+  | p == currentFile = case msrc of
+      Just src -> parseOr (parseModuleSafe src)
+      Nothing  -> parseOr (parseModuleFile p)
+  | otherwise = parseOr (parseModuleFile p)
+  where
+    parseOr act = either (const Nothing) Just <$> liftIO act
+
+provideHover :: Handler LSP 'Method_TextDocumentHover
+provideHover req res = do
+  let uri' = req ^. params . textDocument . uri
+      pos  = fromLspPosition (req ^. params . position)
+      currentFile = fromMaybe "" $ uriToFilePath uri'
+  referenceIndex <- indexProject currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') pos of
+    Nothing -> res $ Right $ InR Null
+    Just binding -> do
+      cached <- getCachedTypecheckedModules
+      let body = hoverContent binding cached
+      res $ Right $ InL $ Hover
+        (InL (MarkupContent MarkupKind_PlainText body))
+        (Just (toLspRange (RefInd.locationRange (RefInd.bindingDef binding))))
+  where
+    hoverContent binding cached =
+      let file = RefInd.locationPath (RefInd.bindingDef binding)
+          name = RefInd.bindingName binding
+          decls = maybe [] cachedModuleDecls (lookup file cached)
+      in case find (\(Decl v _ _ _ _ _) -> T.pack (printTree (getVarIdent v)) == name) decls of
+           Just (Decl v ty _ _ _ _) ->
+             T.pack (file ++ "\n\n" ++ printTree (getVarIdent v) ++ " : " ++ show ty)
+           Nothing ->
+             T.pack (file ++ "\n\n" ++ T.unpack name ++ " : ?")
+
+provideSymbols :: Handler LSP 'Method_TextDocumentDocumentSymbol
+provideSymbols req res = do
+  let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
+  cachedModules <- getCachedTypecheckedModules
+  let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
+  res $ Right $ InR $ InL $ map declToSymbol decls
+  where
+    declToSymbol :: Decl' -> DocumentSymbol
+    declToSymbol (Decl name type' _ _ _ _loc) = DocumentSymbol
+      { _name           = T.pack (printTree ident)
+      , _detail         = Just (T.pack (show type'))
+      , _kind           = SymbolKind_Function
+      , _tags           = Nothing
+      , _deprecated     = Nothing
+      , _range          = range
+      , _selectionRange = range
+      , _children       = Nothing
+      }
+      where
+        ident = getVarIdent name
+        VarIdent pos _ = ident
+        RzkPosition _path pos' = pos
+        (line, col) = fromMaybe (0, 0) pos'
+        len = length (printTree ident)
+        pos0 = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1)))
+        end  = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1) + len))
+        range = Range pos0 end
 
 
 data IsChanged

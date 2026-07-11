@@ -18,40 +18,58 @@ LanguageDecl. LanguageDecl ::= "#lang" Language ";" ;
 
 Rzk1. Language ::= "rzk-1" ;
 
-CommandSetOption.         Command ::= "#set-option" String "=" String ;
+-- Middle keyword wrappers (BNFC position tokens for LSP highlighting)
+ColonKw.          ColonKeyword ::= ":" ;
+AssignKw.         AssignKeyword ::= ":=" ;
+InKw.             InKeyword ::= "in" ;
+AsKw.             AsKeyword ::= "as" ;
+UsesKw.           UsesKeyword ::= "uses" ;
+ModKw.            ModKeyword ::= "mod" ;
+EqKw.             EqKeyword ::= "=" ;
+CommaKw.          CommaKeyword ::= "," ;
+PipeKw.           PipeKeyword ::= "|" ;
+ArrowUnicodeKw.   ArrowKeyword ::= "→" ;
+ArrowASCIIKw.     ArrowKeyword ::= "->" ;
+TopeEqUnicodeKw.  TopeEqKeyword ::= "≡" ;
+TopeEqASCIIKw.    TopeEqKeyword ::= "===" ;
+TopeLeqUnicodeKw. TopeLeqKeyword ::= "≤" ;
+TopeLeqASCIIKw.   TopeLeqKeyword ::= "<=" ;
+TopeAndUnicodeKw. TopeAndKeyword ::= "∧" ;
+TopeAndASCIIKw.   TopeAndKeyword ::= "/\\" ;
+TopeOrUnicodeKw.  TopeOrKeyword ::= "∨" ;
+TopeOrASCIIKw.    TopeOrKeyword ::= "\\/" ;
+MapstoUnicodeKw.  MapstoKeyword ::= "↦" ;
+MapstoASCIIKw.    MapstoKeyword ::= "|->" ;
+IdEqOpenKw.        IdEqOpenKeyword ::= "=_{" ;
+IdEqCloseKw.       IdEqCloseKeyword ::= "}" ;
+
+CommandSetOption.         Command ::= "#set-option" String EqKeyword String ;
 CommandUnsetOption.       Command ::= "#unset-option" String ;
 
-CommandCheck.             Command ::= "#check" Term ":" Term ;
+CommandCheck.             Command ::= "#check" Term ColonKeyword Term ;
 
 CommandCompute.           Command ::= "#compute" Term ;
 CommandComputeWHNF.       Command ::= "#compute-whnf" Term ;
 CommandComputeNF.         Command ::= "#compute-nf" Term ;
 
-CommandPostulate.         Command ::= "#postulate" VarIdent DeclUsedVars [Param] ":" Term ;
-commandPostulateNoParams. Command ::= "#postulate" VarIdent DeclUsedVars ":" Term ;
-define commandPostulateNoParams x vars ty = CommandPostulate x vars [] ty ;
+CommandPostulate.         Command ::= "#postulate" VarIdent DeclUsedVars [Param] ColonKeyword Term ;
+CommandPostulateNoParams. Command ::= "#postulate" VarIdent DeclUsedVars ColonKeyword Term ;
 
-CommandAssume.            Command ::= "#assume" [VarIdent] ":" Term ;
-commandVariable.          Command ::= "#variable" VarIdent ":" Term ;
-define commandVariable name term = CommandAssume [name] term ;
-commandVariables.         Command ::= "#variables" [VarIdent] ":" Term ;
-define commandVariables names term = CommandAssume names term ;
+CommandAssume.            Command ::= "#assume" [VarIdent] ColonKeyword Term ;
+CommandVariable.          Command ::= "#variable" VarIdent ColonKeyword Term ;
+CommandVariables.         Command ::= "#variables" [VarIdent] ColonKeyword Term ;
 
 CommandSection.           Command ::= "#section" SectionName ;
 CommandSectionEnd.        Command ::= "#end" SectionName ;
 
-CommandDefine.            Command ::= "#define" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
-commandDefineNoParams.    Command ::= "#define" VarIdent DeclUsedVars ":" Term ":=" Term ;
-define commandDefineNoParams x vars ty term = CommandDefine x vars [] ty term ;
-commandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ":" Term ":=" Term ;
-define commandDef x vars params ty term = CommandDefine x vars params ty term ;
-commandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ":" Term ":=" Term ;
-define commandDefNoParams x vars ty term = CommandDefine x vars [] ty term ;
+CommandDefine.            Command ::= "#define" VarIdent DeclUsedVars [Param] ColonKeyword Term AssignKeyword Term ;
+CommandDefineNoParams.    Command ::= "#define" VarIdent DeclUsedVars ColonKeyword Term AssignKeyword Term ;
+CommandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ColonKeyword Term AssignKeyword Term ;
+CommandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ColonKeyword Term AssignKeyword Term ;
 terminator Command ";" ;
 
-DeclUsedVars. DeclUsedVars ::= "uses" "(" [VarIdent] ")" ;
-noDeclUsedVars. DeclUsedVars ::= ;
-define noDeclUsedVars = DeclUsedVars [] ;
+DeclUsedVars.       DeclUsedVars ::= UsesKeyword "(" [VarIdent] ")" ;
+EmptyDeclUsedVars.  DeclUsedVars ::= ;
 
 NoSectionName.    SectionName ::= ;
 SomeSectionName.  SectionName ::= VarIdent ;
@@ -59,42 +77,41 @@ SomeSectionName.  SectionName ::= VarIdent ;
 -- Patterns
 PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
-PatternPair.      Pattern ::= "(" Pattern "," Pattern ")" ;
-PatternTuple.     Pattern ::= "(" Pattern "," Pattern "," [Pattern1] ")" ;
+PatternPair.      Pattern ::= "(" Pattern CommaKeyword Pattern ")" ;
+PatternTuple.     Pattern ::= "(" Pattern CommaKeyword Pattern CommaKeyword [Pattern1] ")" ;
 separator nonempty Pattern "" ;
 _. Pattern1 ::= Pattern ;
 separator nonempty Pattern1 "," ;
 
 -- Parameter introduction for lambda abstractions
 ParamPattern.          Param ::= Pattern ;
-ParamPatternType.      Param ::= "(" [Pattern] ":" Term ")" ;
-ParamPatternShape.     Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
-ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
+ParamPatternType.      Param ::= "(" [Pattern] ColonKeyword Term ")" ;
+ParamPatternShape.     Param ::= "(" [Pattern] ColonKeyword Term PipeKeyword Term ")" ;
+ParamPatternShapeDeprecated. Param ::= "{" Pattern ColonKeyword Term PipeKeyword Term "}" ;
 ParamPatternModalType. Param ::= "(" [Pattern] ModalColon Term ")" ;
-ParamPatternModalShape. Param ::= "(" [Pattern] ModalColon Term "|" Term ")" ;
+ParamPatternModalShape. Param ::= "(" [Pattern] ModalColon Term PipeKeyword Term ")" ;
 separator nonempty Param "" ;
 
 -- Name introduction for let bindings
 BindPattern.      Bind ::= Pattern ;
-BindPatternType.  Bind ::= Pattern ":" Term  ;
+BindPatternType.  Bind ::= Pattern ColonKeyword Term  ;
 
 -- Parameter declaration for functions and extension types
 ParamType.             ParamDecl ::= Term6 ;
-ParamTermType.         ParamDecl ::= "(" Term ":" Term ")" ;
-ParamTermShape.        ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
-ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
-ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
-paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
-define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
+ParamTermType.         ParamDecl ::= "(" Term ColonKeyword Term ")" ;
+ParamTermShape.        ParamDecl ::= "(" Term ColonKeyword Term PipeKeyword Term ")" ;
+ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ColonKeyword Term "}" ;
+ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ColonKeyword Term ")" PipeKeyword Term "}" ;
+ParamVarShapeDeprecatedAlt. ParamDecl ::= "{" Pattern ColonKeyword Term PipeKeyword Term "}" ;
 ParamTermModalType.    ParamDecl ::= "(" Term ModalColon Term ")" ;
-ParamTermModalShape.   ParamDecl ::= "(" Term ModalColon Term "|" Term ")" ;
+ParamTermModalShape.   ParamDecl ::= "(" Term ModalColon Term PipeKeyword Term ")" ;
 
 -- Parameter declaration for Sigma types
-SigmaParam.      SigmaParam ::= Pattern ":" Term ;
+SigmaParam.      SigmaParam ::= Pattern ColonKeyword Term ;
 SigmaParamModal. SigmaParam ::= Pattern ModalColon Term ;
 separator nonempty SigmaParam "," ;
 
-Restriction. Restriction ::= Term "↦" Term ;
+Restriction. Restriction ::= Term MapstoKeyword Term ;
 separator nonempty Restriction "," ;
 
 -- Modalities (Unicode canonical forms + ASCII alternatives)
@@ -136,66 +153,61 @@ CubeProduct.    Term5 ::= Term5 "×" Term6 ;
 -- Topes
 TopeTop.        Term7 ::= "⊤" ;
 TopeBottom.     Term7 ::= "⊥" ;
-TopeEQ.         Term4 ::= Term5 "≡" Term5 ;
-TopeLEQ.        Term4 ::= Term5 "≤" Term5 ;
-TopeAnd.        Term3 ::= Term4 "∧" Term3 ;
-TopeOr.         Term2 ::= Term3 "∨" Term2 ;
+TopeEQ.         Term4 ::= Term5 TopeEqKeyword Term5 ;
+TopeLEQ.        Term4 ::= Term5 TopeLeqKeyword Term5 ;
+TopeAnd.        Term3 ::= Term4 TopeAndKeyword Term3 ;
+TopeOr.         Term2 ::= Term3 TopeOrKeyword Term2 ;
 TopeInv.        Term6 ::= "invᵒᵖ" Term7 ;
-ascii_TopeInv.  Term6 ::= "inv_op" Term7 ;
-define ascii_TopeInv t = TopeInv t ;
+ASCII_TopeInv.  Term6 ::= "inv_op" Term7 ;
 TopeUninv.      Term6 ::= "uninvᵒᵖ" Term7 ;
-ascii_TopeUninv. Term6 ::= "uninv_op" Term7 ;
-define ascii_TopeUninv t = TopeUninv t ;
+ASCII_TopeUninv. Term6 ::= "uninv_op" Term7 ;
 CubeFlip.       Term6 ::= "flipᵒᵖ" Term7 ;
-ascii_CubeFlip. Term6 ::= "flip_op" Term7 ;
-define ascii_CubeFlip t = CubeFlip t ;
+ASCII_CubeFlip. Term6 ::= "flip_op" Term7 ;
 CubeUnflip.     Term6 ::= "unflipᵒᵖ" Term7 ;
-ascii_CubeUnflip. Term6 ::= "unflip_op" Term7 ;
-define ascii_CubeUnflip t = CubeUnflip t ;
+ASCII_CubeUnflip. Term6 ::= "unflip_op" Term7 ;
 -- Tope disjunction elimination
 RecBottom.        Term7 ::= "recBOT" ;
 RecOr.            Term7 ::= "recOR" "(" [Restriction] ")" ;
-RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
+RecOrDeprecated.  Term7 ::= "recOR" "(" Term CommaKeyword Term CommaKeyword Term CommaKeyword Term ")" ;
 -- Types
-TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
-TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
-TypeSigmaModal.    Term1 ::= "Σ" "(" Pattern ModalColon Term ")" "," Term1 ;
-TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
+TypeFun.        Term1 ::= ParamDecl ArrowKeyword Term1 ;
+TypeSigma.      Term1 ::= "Σ" "(" Pattern ColonKeyword Term ")" CommaKeyword Term1 ;
+TypeSigmaModal.    Term1 ::= "Σ" "(" Pattern ModalColon Term ")" CommaKeyword Term1 ;
+TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam CommaKeyword [SigmaParam] ")" CommaKeyword Term1 ;
 TypeUnit.       Term7 ::= "Unit" ;
-TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
-TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
+TypeId.         Term1 ::= Term2 IdEqOpenKeyword Term IdEqCloseKeyword Term2 ;
+TypeIdSimple.   Term1 ::= Term2 EqKeyword Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
-TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
+TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl ArrowKeyword Term ">" ;
 -- Terms
-Let.            Term1 ::= "let" Bind ":=" Term "in" Term ;
+Let.            Term1 ::= "let" Bind AssignKeyword Term InKeyword Term ;
 App.            Term6 ::= Term6 Term7 ;
-Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
-Pair.           Term7 ::= "(" Term "," Term ")" ;
-Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
-ModApp.         Term7 ::= "mod" Modality Term7 ;
+Lambda.         Term1 ::= "\\" [Param] ArrowKeyword Term1 ;
+Pair.           Term7 ::= "(" Term CommaKeyword Term ")" ;
+Tuple.          Term7 ::= "(" Term CommaKeyword Term CommaKeyword [Term] ")" ;
+ModApp.         Term7 ::= ModKeyword Modality Term7 ;
 ModType.        Term7 ::= Modality Term7 ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
-LetMod.         Term1 ::= "let" "mod" ModComp Bind ":=" Term "in" Term ;
+LetMod.         Term1 ::= "let" ModKeyword ModComp Bind AssignKeyword Term InKeyword Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;
 Refl.           Term7 ::= "refl";
 ReflTerm.       Term7 ::= "refl_{" Term "}" ;
-ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;
-IdJ.            Term7 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
+ReflTermType.   Term7 ::= "refl_{" Term ColonKeyword Term "}" ;
+IdJ.            Term7 ::= "idJ" "(" Term CommaKeyword Term CommaKeyword Term CommaKeyword Term CommaKeyword Term CommaKeyword Term ")" ;
 -- Variables and holes
 Hole.           Term7 ::= HoleIdent;
 Var.            Term7 ::= VarIdent ;
 -- Miscellaneous
-TypeAsc.        Term ::= Term2 "as" Term1 ;
+TypeAsc.        Term ::= Term2 AsKeyword Term1 ;
 
 separator nonempty Term "," ;
 coercions Term 7 ;
 
 -- ASCII version of some rules above
 
-ascii_CubeProduct.    Term5 ::= Term5 "*" Term6 ;
-define ascii_CubeProduct l r = CubeProduct l r ;
+ASCII_CubeProduct.    Term5 ::= Term5 "*" Term6 ;
 
 ASCII_CubeUnitStar.   Term7 ::= "*_1" ;
 ASCII_Cube2_0.        Term7 ::= "0_2" ;
@@ -206,28 +218,25 @@ ASCII_CubeI_1.        Term7 ::= "1_I" ;
 
 ASCII_TopeTop.        Term7 ::= "TOP" ;
 ASCII_TopeBottom.     Term7 ::= "BOT" ;
-ASCII_TopeEQ.         Term4 ::= Term5 "===" Term5 ;
-ASCII_TopeLEQ.        Term4 ::= Term5 "<=" Term5 ;
-ASCII_TopeAnd.        Term3 ::= Term4 "/\\" Term3 ;
-ASCII_TopeOr.         Term2 ::= Term3 "\\/" Term2 ;
+ASCII_TopeEQ.         Term4 ::= Term5 TopeEqKeyword Term5 ;
+ASCII_TopeLEQ.        Term4 ::= Term5 TopeLeqKeyword Term5 ;
+ASCII_TopeAnd.        Term3 ::= Term4 TopeAndKeyword Term3 ;
+ASCII_TopeOr.         Term2 ::= Term3 TopeOrKeyword Term2 ;
 
-ASCII_TypeFun.        Term1 ::= ParamDecl "->" Term1 ;
-ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ":" Term ")" "," Term1 ;
-ascii_TypeSigmaModal. Term1 ::= "Sigma" "(" Pattern ModalColon Term ")" "," Term1 ;
-define ascii_TypeSigmaModal p mc t r = TypeSigmaModal p mc t r ;
-ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
+ASCII_TypeFun.        Term1 ::= ParamDecl ArrowKeyword Term1 ;
+ASCII_TypeSigma.      Term1 ::= "Sigma" "(" Pattern ColonKeyword Term ")" CommaKeyword Term1 ;
+ASCII_TypeSigmaModal. Term1 ::= "Sigma" "(" Pattern ModalColon Term ")" CommaKeyword Term1 ;
+ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam CommaKeyword [SigmaParam] ")" CommaKeyword Term1 ;
 
-ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
-ASCII_Restriction. Restriction ::= Term "|->" Term ;
+ASCII_Lambda.         Term1 ::= "\\" [Param] ArrowKeyword Term1 ;
+ASCII_Restriction. Restriction ::= Term MapstoKeyword Term ;
 
-ASCII_TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "->" Term ">" ;
+ASCII_TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl ArrowKeyword Term ">" ;
 
 ASCII_First.          Term6 ::= "first" Term7 ;
 ASCII_Second.         Term6 ::= "second" Term7 ;
 
 -- Alternative Unicode syntax rules
 
-unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ":" Term ")" "," Term1 ;    -- \sum
-unicode_TypeSigmaTupleAlt. Term1 ::= "∑" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
-define unicode_TypeSigmaAlt pat fst snd = TypeSigma pat fst snd ;
-define unicode_TypeSigmaTupleAlt par pars t = TypeSigmaTuple par pars t ;
+Unicode_TypeSigmaAlt.   Term1 ::= "∑" "(" Pattern ColonKeyword Term ")" CommaKeyword Term1 ;    -- \sum
+Unicode_TypeSigmaTupleAlt. Term1 ::= "∑" "(" SigmaParam CommaKeyword [SigmaParam] ")" CommaKeyword Term1 ;

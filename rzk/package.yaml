@@ -88,6 +88,8 @@ default-extensions:
 
 library:
   source-dirs: src
+  other-modules:
+    - Language.Rzk.Syntax.KeywordUtils
   generated-other-modules:
     - Paths_rzk
   when:
@@ -104,6 +106,7 @@ library:
         - Language.Rzk.VSCode.Logging
         - Language.Rzk.VSCode.Lsp
         - Language.Rzk.VSCode.Tokenize
+        - Language.Rzk.VSCode.ReferenceIndex
       dependencies:
         aeson: ">= 2.0.0.0 && < 3"
         co-log-core: ">= 0.3.2.0 && < 1"

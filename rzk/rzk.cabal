@@ -269,6 +269,7 @@ library
       Rzk.Project.Config
       Rzk.TypeCheck
   other-modules:
+      Language.Rzk.Syntax.KeywordUtils
       Paths_rzk
   autogen-modules:
       Paths_rzk
@@ -300,6 +301,7 @@ library
         Language.Rzk.VSCode.Logging
         Language.Rzk.VSCode.Lsp
         Language.Rzk.VSCode.Tokenize
+        Language.Rzk.VSCode.ReferenceIndex
     build-depends:
         aeson >=2.0.0.0 && <3
       , co-log-core >=0.3.2.0 && <1

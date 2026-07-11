@@ -44,25 +44,25 @@ The reserved words used in Syntax are the following:
   | ``𝕀`` |  |  |
 
 The symbols used in Syntax are the following:
-  | #lang | ; | rzk-1 | #set-option
-  | = | #unset-option | #check | :
-  | #compute | #compute-whnf | #compute-nf | #postulate
-  | #assume | #variable | #variables | #section
-  | #end | #define | := | #def
-  | ( | ) | , | |
-  | { | } | ↦ | ♭
+  | #lang | ; | rzk-1 | :
+  | := | = | , | |
+  | → | -> | ≡ | ===
+  | ≤ | <= | ∧ | /\
+  | ∨ | \/ | ↦ | |->
+  | =_{ | } | #set-option | #unset-option
+  | #check | #compute | #compute-whnf | #compute-nf
+  | #postulate | #assume | #variable | #variables
+  | #section | #end | #define | #def
+  | ( | ) | { | ♭
   | _b | ♯ | _# | _op
   | _id | / | :♭ | :♯
   | :ᵒᵖ | :_id | :_b | :_#
   | :_op | 1 | *₁ | 2
   | 0₂ | 1₂ | 0ᵢ | 1ᵢ
-  | × | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | [ | ] | <
-  | > | \ | $extract$ | refl_{
-  | * | *_1 | 0_2 | 1_2
-  | 0_I | 1_I | === | <=
-  | /\ | \/ | -> | |->
+  | × | ⊤ | ⊥ | [
+  | ] | < | > | \
+  | $extract$ | refl_{ | * | *_1
+  | 0_2 | 1_2 | 0_I | 1_I
   | ∑ |  |  |
 
 ===Comments===
@@ -81,62 +81,85 @@ All other symbols are terminals.
   |  |  **|**  | //VarIdent// //[VarIdent]//
   | //LanguageDecl// | -> | ``#lang`` //Language// ``;``
   | //Language// | -> | ``rzk-1``
-  | //Command// | -> | ``#set-option`` //String// ``=`` //String//
+  | //ColonKeyword// | -> | ``:``
+  | //AssignKeyword// | -> | ``:=``
+  | //InKeyword// | -> | ``in``
+  | //AsKeyword// | -> | ``as``
+  | //UsesKeyword// | -> | ``uses``
+  | //ModKeyword// | -> | ``mod``
+  | //EqKeyword// | -> | ``=``
+  | //CommaKeyword// | -> | ``,``
+  | //PipeKeyword// | -> | ``|``
+  | //ArrowKeyword// | -> | ``→``
+  |  |  **|**  | ``->``
+  | //TopeEqKeyword// | -> | ``≡``
+  |  |  **|**  | ``===``
+  | //TopeLeqKeyword// | -> | ``≤``
+  |  |  **|**  | ``<=``
+  | //TopeAndKeyword// | -> | ``∧``
+  |  |  **|**  | ``/\``
+  | //TopeOrKeyword// | -> | ``∨``
+  |  |  **|**  | ``\/``
+  | //MapstoKeyword// | -> | ``↦``
+  |  |  **|**  | ``|->``
+  | //IdEqOpenKeyword// | -> | ``=_{``
+  | //IdEqCloseKeyword// | -> | ``}``
+  | //Command// | -> | ``#set-option`` //String// //EqKeyword// //String//
   |  |  **|**  | ``#unset-option`` //String//
-  |  |  **|**  | ``#check`` //Term// ``:`` //Term//
+  |  |  **|**  | ``#check`` //Term// //ColonKeyword// //Term//
   |  |  **|**  | ``#compute`` //Term//
   |  |  **|**  | ``#compute-whnf`` //Term//
   |  |  **|**  | ``#compute-nf`` //Term//
-  |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term//
-  |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// ``:`` //Term//
-  |  |  **|**  | ``#assume`` //[VarIdent]// ``:`` //Term//
-  |  |  **|**  | ``#variable`` //VarIdent// ``:`` //Term//
-  |  |  **|**  | ``#variables`` //[VarIdent]// ``:`` //Term//
+  |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// //[Param]// //ColonKeyword// //Term//
+  |  |  **|**  | ``#postulate`` //VarIdent// //DeclUsedVars// //ColonKeyword// //Term//
+  |  |  **|**  | ``#assume`` //[VarIdent]// //ColonKeyword// //Term//
+  |  |  **|**  | ``#variable`` //VarIdent// //ColonKeyword// //Term//
+  |  |  **|**  | ``#variables`` //[VarIdent]// //ColonKeyword// //Term//
   |  |  **|**  | ``#section`` //SectionName//
   |  |  **|**  | ``#end`` //SectionName//
-  |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
-  |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
-  |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
-  |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// //[Param]// //ColonKeyword// //Term// //AssignKeyword// //Term//
+  |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// //ColonKeyword// //Term// //AssignKeyword// //Term//
+  |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //[Param]// //ColonKeyword// //Term// //AssignKeyword// //Term//
+  |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //ColonKeyword// //Term// //AssignKeyword// //Term//
   | //[Command]// | -> | **eps**
   |  |  **|**  | //Command// ``;`` //[Command]//
-  | //DeclUsedVars// | -> | ``uses`` ``(`` //[VarIdent]// ``)``
+  | //DeclUsedVars// | -> | //UsesKeyword// ``(`` //[VarIdent]// ``)``
   |  |  **|**  | **eps**
   | //SectionName// | -> | **eps**
   |  |  **|**  | //VarIdent//
   | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
-  |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
-  |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``,`` //[Pattern1]// ``)``
+  |  |  **|**  | ``(`` //Pattern// //CommaKeyword// //Pattern// ``)``
+  |  |  **|**  | ``(`` //Pattern// //CommaKeyword// //Pattern// //CommaKeyword// //[Pattern1]// ``)``
   | //[Pattern]// | -> | //Pattern//
   |  |  **|**  | //Pattern// //[Pattern]//
   | //Pattern1// | -> | //Pattern//
   | //[Pattern1]// | -> | //Pattern1//
   |  |  **|**  | //Pattern1// ``,`` //[Pattern1]//
   | //Param// | -> | //Pattern//
-  |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``)``
-  |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``|`` //Term// ``)``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
+  |  |  **|**  | ``(`` //[Pattern]// //ColonKeyword// //Term// ``)``
+  |  |  **|**  | ``(`` //[Pattern]// //ColonKeyword// //Term// //PipeKeyword// //Term// ``)``
+  |  |  **|**  | ``{`` //Pattern// //ColonKeyword// //Term// //PipeKeyword// //Term// ``}``
   |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// ``)``
-  |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// ``|`` //Term// ``)``
+  |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// //PipeKeyword// //Term// ``)``
   | //[Param]// | -> | //Param//
   |  |  **|**  | //Param// //[Param]//
   | //Bind// | -> | //Pattern//
-  |  |  **|**  | //Pattern// ``:`` //Term//
+  |  |  **|**  | //Pattern// //ColonKeyword// //Term//
   | //ParamDecl// | -> | //Term6//
-  |  |  **|**  | ``(`` //Term// ``:`` //Term// ``)``
-  |  |  **|**  | ``(`` //Term// ``:`` //Term// ``|`` //Term// ``)``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
-  |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
+  |  |  **|**  | ``(`` //Term// //ColonKeyword// //Term// ``)``
+  |  |  **|**  | ``(`` //Term// //ColonKeyword// //Term// //PipeKeyword// //Term// ``)``
+  |  |  **|**  | ``{`` //Pattern// //ColonKeyword// //Term// ``}``
+  |  |  **|**  | ``{`` ``(`` //Pattern// //ColonKeyword// //Term// ``)`` //PipeKeyword// //Term// ``}``
+  |  |  **|**  | ``{`` //Pattern// //ColonKeyword// //Term// //PipeKeyword// //Term// ``}``
   |  |  **|**  | ``(`` //Term// //ModalColon// //Term// ``)``
-  |  |  **|**  | ``(`` //Term// //ModalColon// //Term// ``|`` //Term// ``)``
-  | //SigmaParam// | -> | //Pattern// ``:`` //Term//
+  |  |  **|**  | ``(`` //Term// //ModalColon// //Term// //PipeKeyword// //Term// ``)``
+  | //SigmaParam// | -> | //Pattern// //ColonKeyword// //Term//
   |  |  **|**  | //Pattern// //ModalColon// //Term//
   | //[SigmaParam]// | -> | //SigmaParam//
   |  |  **|**  | //SigmaParam// ``,`` //[SigmaParam]//
-  | //Restriction// | -> | //Term// ``↦`` //Term//
-  |  |  **|**  | //Term// ``|->`` //Term//
+  | //Restriction// | -> | //Term// //MapstoKeyword// //Term//
+  |  |  **|**  | //Term// //MapstoKeyword// //Term//
   | //[Restriction]// | -> | //Restriction//
   |  |  **|**  | //Restriction// ``,`` //[Restriction]//
   | //Modality// | -> | ``♭``
@@ -170,18 +193,18 @@ All other symbols are terminals.
   |  |  **|**  | ``⊥``
   |  |  **|**  | ``recBOT``
   |  |  **|**  | ``recOR`` ``(`` //[Restriction]// ``)``
-  |  |  **|**  | ``recOR`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``recOR`` ``(`` //Term// //CommaKeyword// //Term// //CommaKeyword// //Term// //CommaKeyword// //Term// ``)``
   |  |  **|**  | ``Unit``
-  |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
-  |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
-  |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
-  |  |  **|**  | ``mod`` //Modality// //Term7//
+  |  |  **|**  | ``<`` //ParamDecl// //ArrowKeyword// //Term// ``>``
+  |  |  **|**  | ``(`` //Term// //CommaKeyword// //Term// ``)``
+  |  |  **|**  | ``(`` //Term// //CommaKeyword// //Term// //CommaKeyword// //[Term]// ``)``
+  |  |  **|**  | //ModKeyword// //Modality// //Term7//
   |  |  **|**  | //Modality// //Term7//
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``
-  |  |  **|**  | ``refl_{`` //Term// ``:`` //Term// ``}``
-  |  |  **|**  | ``idJ`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``refl_{`` //Term// //ColonKeyword// //Term// ``}``
+  |  |  **|**  | ``idJ`` ``(`` //Term// //CommaKeyword// //Term// //CommaKeyword// //Term// //CommaKeyword// //Term// //CommaKeyword// //Term// //CommaKeyword// //Term// ``)``
   |  |  **|**  | //HoleIdent//
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Term// ``)``
@@ -193,21 +216,21 @@ All other symbols are terminals.
   |  |  **|**  | ``1_I``
   |  |  **|**  | ``TOP``
   |  |  **|**  | ``BOT``
-  |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
+  |  |  **|**  | ``<`` //ParamDecl// //ArrowKeyword// //Term// ``>``
   | //Term5// | -> | //Term5// ``×`` //Term6//
   |  |  **|**  | //Term6//
   |  |  **|**  | //Term5// ``*`` //Term6//
-  | //Term4// | -> | //Term5// ``≡`` //Term5//
-  |  |  **|**  | //Term5// ``≤`` //Term5//
+  | //Term4// | -> | //Term5// //TopeEqKeyword// //Term5//
+  |  |  **|**  | //Term5// //TopeLeqKeyword// //Term5//
   |  |  **|**  | //Term5//
-  |  |  **|**  | //Term5// ``===`` //Term5//
-  |  |  **|**  | //Term5// ``<=`` //Term5//
-  | //Term3// | -> | //Term4// ``∧`` //Term3//
+  |  |  **|**  | //Term5// //TopeEqKeyword// //Term5//
+  |  |  **|**  | //Term5// //TopeLeqKeyword// //Term5//
+  | //Term3// | -> | //Term4// //TopeAndKeyword// //Term3//
   |  |  **|**  | //Term4//
-  |  |  **|**  | //Term4// ``/\`` //Term3//
-  | //Term2// | -> | //Term3// ``∨`` //Term2//
+  |  |  **|**  | //Term4// //TopeAndKeyword// //Term3//
+  | //Term2// | -> | //Term3// //TopeOrKeyword// //Term2//
   |  |  **|**  | //Term3//
-  |  |  **|**  | //Term3// ``\/`` //Term2//
+  |  |  **|**  | //Term3// //TopeOrKeyword// //Term2//
   | //Term6// | -> | ``invᵒᵖ`` //Term7//
   |  |  **|**  | ``inv_op`` //Term7//
   |  |  **|**  | ``uninvᵒᵖ`` //Term7//
@@ -224,24 +247,24 @@ All other symbols are terminals.
   |  |  **|**  | //Term7//
   |  |  **|**  | ``first`` //Term7//
   |  |  **|**  | ``second`` //Term7//
-  | //Term1// | -> | //ParamDecl// ``→`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //Pattern// //ModalColon// //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Σ`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
-  |  |  **|**  | //Term2// ``=_{`` //Term// ``}`` //Term2//
-  |  |  **|**  | //Term2// ``=`` //Term2//
-  |  |  **|**  | ``let`` //Bind// ``:=`` //Term// ``in`` //Term//
-  |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
-  |  |  **|**  | ``let`` ``mod`` //ModComp// //Bind// ``:=`` //Term// ``in`` //Term//
+  | //Term1// | -> | //ParamDecl// //ArrowKeyword// //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //Pattern// //ColonKeyword// //Term// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //Pattern// //ModalColon// //Term// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | ``Σ`` ``(`` //SigmaParam// //CommaKeyword// //[SigmaParam]// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | //Term2// //IdEqOpenKeyword// //Term// //IdEqCloseKeyword// //Term2//
+  |  |  **|**  | //Term2// //EqKeyword// //Term2//
+  |  |  **|**  | ``let`` //Bind// //AssignKeyword// //Term// //InKeyword// //Term//
+  |  |  **|**  | ``\`` //[Param]// //ArrowKeyword// //Term1//
+  |  |  **|**  | ``let`` //ModKeyword// //ModComp// //Bind// //AssignKeyword// //Term// //InKeyword// //Term//
   |  |  **|**  | //Term2//
-  |  |  **|**  | //ParamDecl// ``->`` //Term1//
-  |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Sigma`` ``(`` //Pattern// //ModalColon// //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``Sigma`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
-  |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
-  |  |  **|**  | ``∑`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
-  | //Term// | -> | //Term2// ``as`` //Term1//
+  |  |  **|**  | //ParamDecl// //ArrowKeyword// //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //Pattern// //ColonKeyword// //Term// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //Pattern// //ModalColon// //Term// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | ``Sigma`` ``(`` //SigmaParam// //CommaKeyword// //[SigmaParam]// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | ``\`` //[Param]// //ArrowKeyword// //Term1//
+  |  |  **|**  | ``∑`` ``(`` //Pattern// //ColonKeyword// //Term// ``)`` //CommaKeyword// //Term1//
+  |  |  **|**  | ``∑`` ``(`` //SigmaParam// //CommaKeyword// //[SigmaParam]// ``)`` //CommaKeyword// //Term1//
+  | //Term// | -> | //Term2// //AsKeyword// //Term1//
   |  |  **|**  | //Term1//
   | //[Term]// | -> | //Term//
   |  |  **|**  | //Term// ``,`` //[Term]//
