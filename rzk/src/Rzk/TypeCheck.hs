@@ -1858,11 +1858,14 @@ entailM modalTopes goal = do
   let topes'    = nubTermT (modalTopes <> discreteAxioms)
       topes''   = simplifyLHSwithDisjunctions topes'
   topes'''  <- mapM (fmap (saturateTopes (allTopePoints goal) . saturateBottom) . saturateInv) topes''
-  prettyTopes <- mapM ppTermInContext (map tTope (saturateTopes (allTopePoints goal) (simplifyLHS topes')))
-  prettyTope <- ppTermInContext goal
-  traceTypeCheck Debug
-    ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-      allM (`solveRHSM` goal) topes'''
+  asks verbosity >>= \case
+    Debug -> do
+      prettyTopes <- mapM ppTermInContext (map tTope (saturateTopes (allTopePoints goal) (simplifyLHS topes')))
+      prettyTope <- ppTermInContext goal
+      traceTypeCheck Debug
+        ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+          allM (`solveRHSM` goal) topes'''
+    _ -> allM (`solveRHSM` goal) topes'''
 
 
 generateTopesForModalCubeVarsM :: Eq var => TypeCheck var [ModalTope var]
