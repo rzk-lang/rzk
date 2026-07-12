@@ -1,0 +1,25 @@
+	Sat Jul 12 00:00 2026 Time and Allocation Profiling Report  (Final)
+
+	   rzk +RTS -p -RTS typecheck
+
+	total time  =        1.00 secs   (1000 ticks @ 1000 us, 1 processor)
+	total alloc =   1,000,000 bytes  (excludes profiling overheads)
+
+COST CENTRE     MODULE          SRC                         %time %alloc
+
+==              Free.Scoped     src/Free/Scoped.hs:24        17.9    0.0
+entailM         Rzk.TypeCheck   src/Rzk/TypeCheck.hs:1845     5.0    1.0
+
+                                                                                          individual      inherited
+COST CENTRE       MODULE          SRC                         no.  entries  %time %alloc   %time %alloc
+
+MAIN              MAIN            <built-in>                  128        0    0.1    0.0   100.0  100.0
+ main             Main            app/Main.hs:10              257        0    0.0    0.0    99.0   99.0
+  typecheck       Rzk.TypeCheck   src/Rzk/TypeCheck.hs:100    300     1000    1.0    1.0    60.0   50.0
+   entailM        Rzk.TypeCheck   src/Rzk/TypeCheck.hs:1845   301      500    2.0    1.0    30.0   20.0
+    ==            Free.Scoped     src/Free/Scoped.hs:24       302     9000   10.0    5.0    10.0    5.0
+    solveRHSM     Rzk.TypeCheck   src/Rzk/TypeCheck.hs:2120   303      800    5.0    5.0    15.0   10.0
+   unify          Rzk.TypeCheck   src/Rzk/TypeCheck.hs:2500   304      200    1.0    1.0    20.0   15.0
+    checkTope     Rzk.TypeCheck   src/Rzk/TypeCheck.hs:2219   305      100    1.0    1.0    12.0    8.0
+     entailM      Rzk.TypeCheck   src/Rzk/TypeCheck.hs:1845   306      100    1.0    1.0    10.0    7.0
+  saturateTopes   Rzk.TypeCheck   src/Rzk/TypeCheck.hs:1887   307       50    1.0    1.0     2.0    1.0
