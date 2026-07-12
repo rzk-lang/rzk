@@ -16,11 +16,11 @@ module Language.Rzk.VSCode.ReferenceIndex (
   identLoc,
 ) where
 
-import           Data.Function                (on)
-import           Data.List                    (find, nubBy)
-import qualified Data.Text                    as T
+import           Data.Function       (on)
+import           Data.List           (find, nubBy)
+import qualified Data.Text           as T
 
-import qualified Language.Rzk.Syntax          as Rzk
+import qualified Language.Rzk.Syntax as Rzk
 
 data Uri = Uri
   { uriPath :: FilePath
@@ -110,15 +110,9 @@ globalNames :: Rzk.Module -> [Rzk.VarIdent]
 globalNames = concatMap cmd . moduleCommands
   where
     cmd = \case
-      Rzk.CommandDefine _ name _ _ _ _ _ _ -> [name]
-      Rzk.CommandDefineNoParams _ name _ _ _ _ _ -> [name]
-      Rzk.CommandDef _ name _ _ _ _ _ _    -> [name]
-      Rzk.CommandDefNoParams _ name _ _ _ _ _ -> [name]
-      Rzk.CommandPostulate _ name _ _ _ _ -> [name]
-      Rzk.CommandPostulateNoParams _ name _ _ _ -> [name]
-      Rzk.CommandAssume _ vars _ _        -> vars
-      Rzk.CommandVariable _ name _ _      -> [name]
-      Rzk.CommandVariables _ vars _ _     -> vars
+      Rzk.CommandDefine _ name _ _ _ _  -> [name]
+      Rzk.CommandPostulate _ name _ _ _ -> [name]
+      Rzk.CommandAssume _ vars _        -> vars
       _                                 -> []
 
 use :: FilePath -> Env -> Rzk.VarIdent -> [Link]
@@ -138,35 +132,26 @@ patternVars :: Rzk.Pattern -> [Rzk.VarIdent]
 patternVars = \case
   Rzk.PatternUnit _         -> []
   Rzk.PatternVar _ v        -> [v]
-  Rzk.PatternPair _ a _ b     -> patternVars a ++ patternVars b
-  Rzk.PatternTuple _ a _ b _ cs -> concatMap patternVars (a : b : cs)
+  Rzk.PatternPair _ a b     -> patternVars a ++ patternVars b
+  Rzk.PatternTuple _ a b cs -> concatMap patternVars (a : b : cs)
 
 termPatVars :: Rzk.Term -> [Rzk.VarIdent]
 termPatVars = \case
   Rzk.Var _ v        -> [v]
-  Rzk.Pair _ a _ b     -> termPatVars a ++ termPatVars b
-  Rzk.Tuple _ a _ b _ cs -> concatMap termPatVars (a : b : cs)
+  Rzk.Pair _ a b     -> termPatVars a ++ termPatVars b
+  Rzk.Tuple _ a b cs -> concatMap termPatVars (a : b : cs)
   _                  -> []
 
 goCommand :: FilePath -> Env -> Rzk.Command -> [Link]
 goCommand file env = \case
-  Rzk.CommandDefine _ name _ ps _ ty _ body ->
-    defineCommand file env name ps ty body
-  Rzk.CommandDefineNoParams _ name _ _ ty _ body ->
-    defineCommand file env name [] ty body
-  Rzk.CommandDef _ name _ ps _ ty _ body ->
-    defineCommand file env name ps ty body
-  Rzk.CommandDefNoParams _ name _ _ ty _ body ->
-    defineCommand file env name [] ty body
-  Rzk.CommandPostulate _ name _ ps _ ty ->
+  Rzk.CommandDefine _ name _ ps ty body ->
+    let (env', occs) = goParams file env ps
+    in def name ++ occs ++ goTerm file env' ty ++ goTerm file env' body
+  Rzk.CommandPostulate _ name _ ps ty ->
     let (env', occs) = goParams file env ps
     in def name ++ occs ++ goTerm file env' ty
-  Rzk.CommandPostulateNoParams _ name _ _ ty ->
-    def name ++ goTerm file env ty
-  Rzk.CommandAssume _ vars _ ty  -> concatMap def vars ++ goTerm file env ty
-  Rzk.CommandVariable _ name _ ty -> def name ++ goTerm file env ty
-  Rzk.CommandVariables _ vars _ ty -> concatMap def vars ++ goTerm file env ty
-  Rzk.CommandCheck _ a _ b       -> goTerm file env a ++ goTerm file env b
+  Rzk.CommandAssume _ vars ty  -> concatMap def vars ++ goTerm file env ty
+  Rzk.CommandCheck _ a b       -> goTerm file env a ++ goTerm file env b
   Rzk.CommandCompute _ a       -> goTerm file env a
   Rzk.CommandComputeWHNF _ a   -> goTerm file env a
   Rzk.CommandComputeNF _ a     -> goTerm file env a
@@ -176,59 +161,48 @@ goCommand file env = \case
   Rzk.CommandSectionEnd{}      -> []
   where
     def v = [ Link (varText v) loc loc | Just loc <- [identLoc file v] ]
-    defineCommand f e name ps ty body =
-      let (env', occs) = goParams f e ps
-      in def name ++ occs ++ goTerm f env' ty ++ goTerm f env' body
 
 goTerm :: FilePath -> Env -> Rzk.Term -> [Link]
 goTerm file env = \case
   Rzk.Var _ v  -> use file env v
   Rzk.Hole _ _ -> []
 
-  Rzk.Lambda _ ps _ body                        -> paramScope file env ps body
-  Rzk.ASCII_Lambda _ ps _ body                  -> paramScope file env ps body
-  Rzk.Let _ bind _ val _ body                     -> letScope file env bind val body
-  Rzk.LetMod _ _ _ bind _ val _ body                -> letScope file env bind val body
-  Rzk.TypeSigma _ pat _ ty _ ret                  -> sigmaScope file env pat ty ret
-  Rzk.ASCII_TypeSigma _ pat _ ty _ ret            -> sigmaScope file env pat ty ret
-  Rzk.Unicode_TypeSigmaAlt _ pat _ ty _ ret       -> sigmaScope file env pat ty ret
-  Rzk.TypeSigmaModal _ pat _ ty _ ret           -> sigmaScope file env pat ty ret
-  Rzk.ASCII_TypeSigmaModal _ pat _ ty _ ret     -> sigmaScope file env pat ty ret
-  Rzk.TypeSigmaTuple _ sp _ sps _ ret             -> sigmaTupleScope file env (sp : sps) ret
-  Rzk.ASCII_TypeSigmaTuple _ sp _ sps _ ret       -> sigmaTupleScope file env (sp : sps) ret
-  Rzk.Unicode_TypeSigmaTupleAlt _ sp _ sps _ ret  -> sigmaTupleScope file env (sp : sps) ret
-  Rzk.TypeFun _ pd _ ret                        -> paramDeclScope file env pd ret
-  Rzk.ASCII_TypeFun _ pd _ ret                  -> paramDeclScope file env pd ret
-  Rzk.TypeExtensionDeprecated _ pd _ ty         -> paramDeclScope file env pd ty
-  Rzk.ASCII_TypeExtensionDeprecated _ pd _ ty   -> paramDeclScope file env pd ty
+  Rzk.Lambda _ ps body                      -> paramScope file env ps body
+  Rzk.ASCII_Lambda _ ps body                -> paramScope file env ps body
+  Rzk.Let _ bind val body                   -> letScope file env bind val body
+  Rzk.LetMod _ _ bind val body              -> letScope file env bind val body
+  Rzk.TypeSigma _ pat ty ret                -> sigmaScope file env pat ty ret
+  Rzk.ASCII_TypeSigma _ pat ty ret          -> sigmaScope file env pat ty ret
+  Rzk.TypeSigmaModal _ pat _ ty ret         -> sigmaScope file env pat ty ret
+  Rzk.TypeSigmaTuple _ sp sps ret           -> sigmaTupleScope file env (sp : sps) ret
+  Rzk.ASCII_TypeSigmaTuple _ sp sps ret     -> sigmaTupleScope file env (sp : sps) ret
+  Rzk.TypeFun _ pd ret                      -> paramDeclScope file env pd ret
+  Rzk.ASCII_TypeFun _ pd ret                -> paramDeclScope file env pd ret
+  Rzk.TypeExtensionDeprecated _ pd ty       -> paramDeclScope file env pd ty
+  Rzk.ASCII_TypeExtensionDeprecated _ pd ty -> paramDeclScope file env pd ty
 
   Rzk.CubeProduct _ a b         -> goTerm file env a ++ goTerm file env b
-  Rzk.ASCII_CubeProduct _ a b   -> goTerm file env a ++ goTerm file env b
-  Rzk.TopeEQ _ a _ b              -> goTerm file env a ++ goTerm file env b
-  Rzk.TopeLEQ _ a _ b             -> goTerm file env a ++ goTerm file env b
-  Rzk.TopeAnd _ a _ b             -> goTerm file env a ++ goTerm file env b
-  Rzk.TopeOr _ a _ b              -> goTerm file env a ++ goTerm file env b
-  Rzk.ASCII_TopeEQ _ a _ b        -> goTerm file env a ++ goTerm file env b
-  Rzk.ASCII_TopeLEQ _ a _ b       -> goTerm file env a ++ goTerm file env b
-  Rzk.ASCII_TopeAnd _ a _ b       -> goTerm file env a ++ goTerm file env b
-  Rzk.ASCII_TopeOr _ a _ b        -> goTerm file env a ++ goTerm file env b
+  Rzk.TopeEQ _ a b              -> goTerm file env a ++ goTerm file env b
+  Rzk.TopeLEQ _ a b             -> goTerm file env a ++ goTerm file env b
+  Rzk.TopeAnd _ a b             -> goTerm file env a ++ goTerm file env b
+  Rzk.TopeOr _ a b              -> goTerm file env a ++ goTerm file env b
+  Rzk.ASCII_TopeEQ _ a b        -> goTerm file env a ++ goTerm file env b
+  Rzk.ASCII_TopeLEQ _ a b       -> goTerm file env a ++ goTerm file env b
+  Rzk.ASCII_TopeAnd _ a b       -> goTerm file env a ++ goTerm file env b
+  Rzk.ASCII_TopeOr _ a b        -> goTerm file env a ++ goTerm file env b
   Rzk.TopeInv _ a               -> goTerm file env a
-  Rzk.ASCII_TopeInv _ a         -> goTerm file env a
   Rzk.TopeUninv _ a             -> goTerm file env a
-  Rzk.ASCII_TopeUninv _ a       -> goTerm file env a
   Rzk.CubeFlip _ a              -> goTerm file env a
-  Rzk.ASCII_CubeFlip _ a        -> goTerm file env a
   Rzk.CubeUnflip _ a            -> goTerm file env a
-  Rzk.ASCII_CubeUnflip _ a      -> goTerm file env a
   Rzk.RecOr _ rs                -> concatMap (restriction file env) rs
-  Rzk.RecOrDeprecated _ a _ b _ c _ d -> concatMap (goTerm file env) [a, b, c, d]
-  Rzk.TypeId _ a _ b _ c            -> concatMap (goTerm file env) [a, b, c]
-  Rzk.TypeIdSimple _ a _ b        -> goTerm file env a ++ goTerm file env b
+  Rzk.RecOrDeprecated _ a b c d -> concatMap (goTerm file env) [a, b, c, d]
+  Rzk.TypeId _ a b c            -> concatMap (goTerm file env) [a, b, c]
+  Rzk.TypeIdSimple _ a b        -> goTerm file env a ++ goTerm file env b
   Rzk.TypeRestricted _ a rs     -> goTerm file env a ++ concatMap (restriction file env) rs
   Rzk.App _ a b                 -> goTerm file env a ++ goTerm file env b
-  Rzk.Pair _ a _ b                -> goTerm file env a ++ goTerm file env b
-  Rzk.Tuple _ a _ b _ cs            -> concatMap (goTerm file env) (a : b : cs)
-  Rzk.ModApp _ _ _ a              -> goTerm file env a
+  Rzk.Pair _ a b                -> goTerm file env a ++ goTerm file env b
+  Rzk.Tuple _ a b cs            -> concatMap (goTerm file env) (a : b : cs)
+  Rzk.ModApp _ _ a              -> goTerm file env a
   Rzk.ModType _ _ a             -> goTerm file env a
   Rzk.ModExtract _ _ a          -> goTerm file env a
   Rzk.First _ a                 -> goTerm file env a
@@ -236,9 +210,9 @@ goTerm file env = \case
   Rzk.ASCII_First _ a           -> goTerm file env a
   Rzk.ASCII_Second _ a          -> goTerm file env a
   Rzk.ReflTerm _ a              -> goTerm file env a
-  Rzk.ReflTermType _ a _ b        -> goTerm file env a ++ goTerm file env b
-  Rzk.IdJ _ a _ b _ c _ d _ e _ f         -> concatMap (goTerm file env) [a, b, c, d, e, f]
-  Rzk.TypeAsc _ a _ b             -> goTerm file env a ++ goTerm file env b
+  Rzk.ReflTermType _ a b        -> goTerm file env a ++ goTerm file env b
+  Rzk.IdJ _ a b c d e f         -> concatMap (goTerm file env) [a, b, c, d, e, f]
+  Rzk.TypeAsc _ a b             -> goTerm file env a ++ goTerm file env b
 
   Rzk.Universe{}           -> []
   Rzk.UniverseCube{}       -> []
@@ -290,13 +264,13 @@ paramDeclScope file env pd ret =
 
 restriction :: FilePath -> Env -> Rzk.Restriction -> [Link]
 restriction file env = \case
-  Rzk.Restriction _ a _ b       -> goTerm file env a ++ goTerm file env b
-  Rzk.ASCII_Restriction _ a _ b -> goTerm file env a ++ goTerm file env b
+  Rzk.Restriction _ a b       -> goTerm file env a ++ goTerm file env b
+  Rzk.ASCII_Restriction _ a b -> goTerm file env a ++ goTerm file env b
 
 goBind :: FilePath -> Env -> Rzk.Bind -> (Env, [Link])
 goBind file env = \case
   Rzk.BindPattern _ pat -> bindPat file env pat
-  Rzk.BindPatternType _ pat _ ty ->
+  Rzk.BindPatternType _ pat ty ->
     let (env', occs) = bindPat file env pat in (env', goTerm file env ty ++ occs)
 
 goParams :: FilePath -> Env -> [Rzk.Param] -> (Env, [Link])
@@ -309,44 +283,41 @@ goParams file env (p : ps) =
 goParam :: FilePath -> Env -> Rzk.Param -> (Env, [Link])
 goParam file env = \case
   Rzk.ParamPattern _ pat -> bindPat file env pat
-  Rzk.ParamPatternType _ pats _ ty ->
+  Rzk.ParamPatternType _ pats ty ->
     let (env', occs) = bindVars file env (concatMap patternVars pats)
     in (env', goTerm file env ty ++ occs)
-  Rzk.ParamPatternShape _ pats _ cube _ tope ->
+  Rzk.ParamPatternShape _ pats cube tope ->
     let (env', occs) = bindVars file env (concatMap patternVars pats)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamPatternShapeDeprecated _ pat _ cube _ tope ->
+  Rzk.ParamPatternShapeDeprecated _ pat cube tope ->
     let (env', occs) = bindPat file env pat
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamPatternModalType _ pats _ ty ->
     let (env', occs) = bindVars file env (concatMap patternVars pats)
     in (env', goTerm file env ty ++ occs)
-  Rzk.ParamPatternModalShape _ pats _ cube _ tope ->
+  Rzk.ParamPatternModalShape _ pats _ cube tope ->
     let (env', occs) = bindVars file env (concatMap patternVars pats)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
 
 goParamDecl :: FilePath -> Env -> Rzk.ParamDecl -> (Env, [Link])
 goParamDecl file env = \case
   Rzk.ParamType _ ty -> (env, goTerm file env ty)
-  Rzk.ParamTermType _ patTerm _ ty ->
+  Rzk.ParamTermType _ patTerm ty ->
     let (env', occs) = bindVars file env (termPatVars patTerm)
     in (env', goTerm file env ty ++ occs)
-  Rzk.ParamTermShape _ patTerm _ cube _ tope ->
+  Rzk.ParamTermShape _ patTerm cube tope ->
     let (env', occs) = bindVars file env (termPatVars patTerm)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamTermTypeDeprecated _ pat _ ty ->
+  Rzk.ParamTermTypeDeprecated _ pat ty ->
     let (env', occs) = bindPat file env pat
     in (env', goTerm file env ty ++ occs)
-  Rzk.ParamVarShapeDeprecated _ pat _ cube _ tope ->
-    let (env', occs) = bindPat file env pat
-    in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamVarShapeDeprecatedAlt _ pat _ cube _ tope ->
+  Rzk.ParamVarShapeDeprecated _ pat cube tope ->
     let (env', occs) = bindPat file env pat
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamTermModalType _ patTerm _ ty ->
     let (env', occs) = bindVars file env (termPatVars patTerm)
     in (env', goTerm file env ty ++ occs)
-  Rzk.ParamTermModalShape _ patTerm _ cube _ tope ->
+  Rzk.ParamTermModalShape _ patTerm _ cube tope ->
     let (env', occs) = bindVars file env (termPatVars patTerm)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
 
@@ -359,7 +330,7 @@ goSigmaParams file env (p : ps) =
 
 goSigmaParam :: FilePath -> Env -> Rzk.SigmaParam -> (Env, [Link])
 goSigmaParam file env = \case
-  Rzk.SigmaParam _ pat _ ty ->
+  Rzk.SigmaParam _ pat ty ->
     let (env', occs) = bindPat file env pat in (env', goTerm file env ty ++ occs)
   Rzk.SigmaParamModal _ pat _ ty ->
     let (env', occs) = bindPat file env pat in (env', goTerm file env ty ++ occs)

@@ -2,10 +2,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Rzk.VSCode.Tokenize where
 
+import           Data.Char                   (isAlphaNum)
+import           Data.List                   (sortOn)
+import qualified Data.Text                   as T
 import           Language.LSP.Protocol.Types (SemanticTokenAbsolute (..),
                                               SemanticTokenModifiers (..),
                                               SemanticTokenTypes (..))
 import           Language.Rzk.Syntax
+import           Language.Rzk.Syntax.Lex     (Posn (Pn), Tok (TK),
+                                              TokSymbol (TokSymbol),
+                                              Token (PT))
+import qualified Language.Rzk.Syntax.Lex     as Lex
 
 tokenizeModule :: Module -> [SemanticTokenAbsolute]
 tokenizeModule (Module _loc langDecl commands) = concat
@@ -14,182 +21,81 @@ tokenizeModule (Module _loc langDecl commands) = concat
   ]
 
 tokenizeLanguageDecl :: LanguageDecl -> [SemanticTokenAbsolute]
-tokenizeLanguageDecl (LanguageDecl loc language) = concat
-  [ mkToken (VarIdent loc "#lang") SemanticTokenTypes_Macro []
-  , case language of
-      Rzk1 langLoc -> mkToken (VarIdent langLoc "rzk-1") SemanticTokenTypes_Macro []
-  ]
+tokenizeLanguageDecl _ = []
 
 tokenizeCommand :: Command -> [SemanticTokenAbsolute]
 tokenizeCommand command = case command of
-  CommandSetOption loc _ eq _ -> concat
-    [ mkToken (VarIdent loc "#set-option") SemanticTokenTypes_Macro []
-    , mkToken eq SemanticTokenTypes_Operator []
-    ]
-  CommandUnsetOption loc _ -> mkToken (VarIdent loc "#unset-option") SemanticTokenTypes_Macro []
-  CommandCheck loc term colon type_ -> concat
-    [ mkToken (VarIdent loc "#check") SemanticTokenTypes_Macro []
-    , tokenizeTerm term
-    , mkToken colon SemanticTokenTypes_Operator []
+  CommandSetOption{}   -> []    -- NOTE: fallback to TextMate
+  CommandUnsetOption{} -> []    -- NOTE: fallback to TextMate
+  CommandCheck        _loc term type_ -> foldMap tokenizeTerm [term, type_]
+  CommandCompute      _loc term -> tokenizeTerm term
+  CommandComputeNF    _loc term -> tokenizeTerm term
+  CommandComputeWHNF  _loc term -> tokenizeTerm term
+
+  CommandPostulate _loc name declUsedVars params type_ -> concat
+    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+    , tokenizeDeclUsedVars declUsedVars
+    , foldMap tokenizeParam params
     , tokenizeTerm type_
     ]
-  CommandCompute loc term -> concat
-    [ mkToken (VarIdent loc "#compute") SemanticTokenTypes_Macro []
-    , tokenizeTerm term
-    ]
-  CommandComputeNF loc term -> concat
-    [ mkToken (VarIdent loc "#compute-nf") SemanticTokenTypes_Macro []
-    , tokenizeTerm term
-    ]
-  CommandComputeWHNF loc term -> concat
-    [ mkToken (VarIdent loc "#compute-whnf") SemanticTokenTypes_Macro []
-    , tokenizeTerm term
+  CommandDefine _loc name declUsedVars params type_ term -> concat
+    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+    , tokenizeDeclUsedVars declUsedVars
+    , foldMap tokenizeParam params
+    , foldMap tokenizeTerm [type_, term]
     ]
 
-  CommandPostulate loc name declUsedVars params colon type_ -> concat
-    [ mkToken (VarIdent loc "#postulate") SemanticTokenTypes_Macro []
-    , tokenizeDeclUsedVars declUsedVars
-    , mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-    , foldMap tokenizeParam params
-    , mkToken colon SemanticTokenTypes_Operator []
+  CommandAssume _loc vars type_ -> concat
+    [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
     , tokenizeTerm type_
     ]
-  CommandPostulateNoParams loc name declUsedVars colon type_ -> concat
-    [ mkToken (VarIdent loc "#postulate") SemanticTokenTypes_Macro []
-    , tokenizeDeclUsedVars declUsedVars
-    , mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    ]
-  CommandDefine loc name declUsedVars params colon type_ assign term -> concat
-    [ mkToken (VarIdent loc "#define") SemanticTokenTypes_Macro []
-    , tokenizeDeclUsedVars declUsedVars
-    , mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-    , foldMap tokenizeParam params
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    , mkToken assign SemanticTokenTypes_Operator []
-    , tokenizeTerm term
-    ]
-  CommandDefineNoParams loc name declUsedVars colon type_ assign term -> concat
-    [ mkToken (VarIdent loc "#define") SemanticTokenTypes_Macro []
-    , tokenizeDeclUsedVars declUsedVars
-    , mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    , mkToken assign SemanticTokenTypes_Operator []
-    , tokenizeTerm term
-    ]
-  CommandDef loc name declUsedVars params colon type_ assign term -> concat
-    [ mkToken (VarIdent loc "#def") SemanticTokenTypes_Macro []
-    , tokenizeDeclUsedVars declUsedVars
-    , mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-    , foldMap tokenizeParam params
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    , mkToken assign SemanticTokenTypes_Operator []
-    , tokenizeTerm term
-    ]
-  CommandDefNoParams loc name declUsedVars colon type_ assign term -> concat
-    [ mkToken (VarIdent loc "#def") SemanticTokenTypes_Macro []
-    , tokenizeDeclUsedVars declUsedVars
-    , mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    , mkToken assign SemanticTokenTypes_Operator []
-    , tokenizeTerm term
-    ]
-
-  CommandAssume loc vars colon type_ -> concat
-    [ mkToken (VarIdent loc "#assume") SemanticTokenTypes_Macro []
-    , foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    ]
-  CommandVariable loc name colon type_ -> concat
-    [ mkToken (VarIdent loc "#variable") SemanticTokenTypes_Macro []
-    , mkToken name SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    ]
-  CommandVariables loc vars colon type_ -> concat
-    [ mkToken (VarIdent loc "#variables") SemanticTokenTypes_Macro []
-    , foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    ]
-  CommandSection loc name -> concat
-    [ mkToken (VarIdent loc "#section") SemanticTokenTypes_Macro []
-    , case name of
-        NoSectionName{}        -> []
-        SomeSectionName _ n -> mkToken n SemanticTokenTypes_Property []
-    ]
-  CommandSectionEnd loc name -> concat
-    [ mkToken (VarIdent loc "#end") SemanticTokenTypes_Macro []
-    , case name of
-        NoSectionName{}        -> []
-        SomeSectionName _ n -> mkToken n SemanticTokenTypes_Property []
-    ]
+  CommandSection    _loc name -> tokenizeSectionName name
+  CommandSectionEnd _loc name -> tokenizeSectionName name
 
 tokenizeDeclUsedVars :: DeclUsedVars -> [SemanticTokenAbsolute]
-tokenizeDeclUsedVars = \case
-  EmptyDeclUsedVars{} -> []
-  DeclUsedVars _loc uses vars -> concat
-    [ mkToken uses SemanticTokenTypes_Keyword []
-    , foldMap (\var -> mkToken var SemanticTokenTypes_Parameter []) vars
-    ]
+tokenizeDeclUsedVars (DeclUsedVars _loc vars) =
+  foldMap (\var -> mkToken var SemanticTokenTypes_Parameter []) vars
+
+tokenizeSectionName :: SectionName -> [SemanticTokenAbsolute]
+tokenizeSectionName = \case
+  NoSectionName{}       -> []
+  SomeSectionName _ name -> mkToken name SemanticTokenTypes_Property []
 
 tokenizeBind :: Bind -> [SemanticTokenAbsolute]
 tokenizeBind = \case
   BindPattern _loc pat -> tokenizePattern pat
-  BindPatternType _loc pat colon type_ -> concat
-    [ tokenizePattern pat
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm type_
-    ]
+  BindPatternType _loc pat type_ -> concat [tokenizePattern pat, tokenizeTerm type_]
 
 tokenizeParam :: Param -> [SemanticTokenAbsolute]
 tokenizeParam = \case
   ParamPattern _loc pat -> tokenizePattern pat
-  ParamPatternType _loc pats colon type_ -> concat
+  ParamPatternType _loc pats type_ -> concat
     [ foldMap tokenizePattern pats
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm type_ ]
-  ParamPatternShape _loc pats colon cube pipe tope -> concat
+  ParamPatternShape _loc pats cube tope -> concat
     [ foldMap tokenizePattern pats
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
     , tokenizeTope tope ]
-  ParamPatternShapeDeprecated _loc pat colon cube pipe tope -> concat
+  ParamPatternShapeDeprecated _loc pat cube tope -> concat
     [ tokenizePattern pat
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
     , tokenizeTope tope ]
   ParamPatternModalType _loc pats mc ty -> concat
     [ foldMap tokenizePattern pats
     , tokenizeModalColon mc
     , tokenizeTerm ty ]
-  ParamPatternModalShape _loc pats mc cube pipe tope -> concat
+  ParamPatternModalShape _loc pats mc cube tope -> concat
     [ foldMap tokenizePattern pats
     , tokenizeModalColon mc
     , tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
     , tokenizeTope tope ]
 
 tokenizePattern :: Pattern -> [SemanticTokenAbsolute]
 tokenizePattern = \case
   PatternVar _loc var    -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]
-  PatternPair _loc l comma r -> concat [tokenizePattern l, mkToken comma SemanticTokenTypes_Operator [], tokenizePattern r]
+  PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
   pat@(PatternUnit _loc) -> mkToken pat SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
-  PatternTuple _loc p1 c1 p2 c2 ps -> concat
-    [ tokenizePattern p1
-    , mkToken c1 SemanticTokenTypes_Operator []
-    , tokenizePattern p2
-    , mkToken c2 SemanticTokenTypes_Operator []
-    , foldMap tokenizePattern ps
-    ]
+  PatternTuple _loc p1 p2 ps -> foldMap tokenizePattern (p1 : p2 : ps)
 
 tokenizeTope :: Term -> [SemanticTokenAbsolute]
 tokenizeTope = tokenizeTerm' (Just SemanticTokenTypes_String)
@@ -201,7 +107,7 @@ tokenizeTerm' :: Maybe SemanticTokenTypes -> Term -> [SemanticTokenAbsolute]
 tokenizeTerm' varTokenType = go
   where
     go term = case term of
-      Hole _loc hid -> mkToken hid SemanticTokenTypes_Macro []
+      Hole{} -> [] -- FIXME
       Var{} -> case varTokenType of
                  Nothing         -> []
                  Just token_type -> mkToken term token_type []
@@ -228,155 +134,70 @@ tokenizeTerm' varTokenType = go
       ASCII_CubeI{}        -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
 
       CubeProduct _loc l r -> foldMap go [l, r]
-      ASCII_CubeProduct _loc l r -> foldMap go [l, r]
 
       TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
       ASCII_TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
       TopeBottom{}         -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
       ASCII_TopeBottom{}         -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
-      TopeAnd _loc l op r     -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      ASCII_TopeAnd _loc l op r -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      TopeOr  _loc l op r     -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      ASCII_TopeOr  _loc l op r -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      TopeEQ  _loc l op r     -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      ASCII_TopeEQ  _loc l op r -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      TopeLEQ _loc l op r     -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      ASCII_TopeLEQ _loc l op r -> concat [tokenizeTope l, mkToken op SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary], tokenizeTope r]
-      TopeInv loc t        -> concat
-        [ mkToken (VarIdent loc "invᵒᵖ") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeTope t ]
-      ASCII_TopeInv loc t  -> concat
-        [ mkToken (VarIdent loc "inv_op") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeTope t ]
-      TopeUninv loc t      -> concat
-        [ mkToken (VarIdent loc "uninvᵒᵖ") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeTope t ]
-      ASCII_TopeUninv loc t -> concat
-        [ mkToken (VarIdent loc "uninv_op") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeTope t ]
-      CubeFlip loc c       -> concat
-        [ mkToken (VarIdent loc "flipᵒᵖ") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , go c ]
-      ASCII_CubeFlip loc c -> concat
-        [ mkToken (VarIdent loc "flip_op") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , go c ]
-      CubeUnflip loc c     -> concat
-        [ mkToken (VarIdent loc "unflipᵒᵖ") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , go c ]
-      ASCII_CubeUnflip loc c -> concat
-        [ mkToken (VarIdent loc "unflip_op") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , go c ]
+      TopeAnd _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeAnd _loc l r     -> foldMap tokenizeTope [l, r]
+      TopeOr  _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeOr  _loc l r     -> foldMap tokenizeTope [l, r]
+      TopeEQ  _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeEQ  _loc l r     -> foldMap tokenizeTope [l, r]
+      TopeLEQ _loc l r     -> foldMap tokenizeTope [l, r]
+      ASCII_TopeLEQ _loc l r     -> foldMap tokenizeTope [l, r]
+      TopeInv _loc t       -> foldMap tokenizeTope [t]
+      TopeUninv _loc t     -> foldMap tokenizeTope [t]
+      CubeFlip _loc c      -> foldMap go [c]
+      CubeUnflip _loc c    -> foldMap go [c]
 
       RecBottom{}          -> mkToken term SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-      RecOr loc rs -> concat
-        [ mkToken (VarIdent loc "recOR") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , foldMap tokenizeRestriction rs ]
+      RecOr _loc rs -> foldMap tokenizeRestriction rs
 
-      TypeFun _loc paramDecl arrow ret -> concat
+      TypeFun _loc paramDecl ret -> concat
         [ tokenizeParamDecl paramDecl
-        , mkToken arrow SemanticTokenTypes_Operator []
         , go ret ]
-      ASCII_TypeFun _loc paramDecl arrow ret -> concat
+      ASCII_TypeFun _loc paramDecl ret -> concat
         [ tokenizeParamDecl paramDecl
-        , mkToken arrow SemanticTokenTypes_Operator []
         , go ret ]
-      TypeSigma loc pat colon a comma b -> concat
-        [ mkToken (VarIdent loc "Σ") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+      TypeSigma loc pat a b -> concat
+        [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
-        , mkToken colon SemanticTokenTypes_Operator []
-        , go a
-        , mkToken comma SemanticTokenTypes_Operator []
-        , go b ]
-      TypeSigmaModal loc pat mc ty comma b -> concat
-        [ mkToken (VarIdent loc "Σ") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap go [a, b] ]
+      TypeSigmaModal loc pat mc a b -> concat
+        [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
         , tokenizeModalColon mc
-        , go ty
-        , mkToken comma SemanticTokenTypes_Operator []
-        , go b ]
-      ASCII_TypeSigma loc pat colon a comma b -> concat
+        , foldMap go [a, b] ]
+      ASCII_TypeSigma loc pat a b -> concat
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
         , tokenizePattern pat
-        , mkToken colon SemanticTokenTypes_Operator []
-        , go a
-        , mkToken comma SemanticTokenTypes_Operator []
-        , go b ]
-      ASCII_TypeSigmaModal loc pat mc ty comma b -> concat
+        , foldMap go [a, b] ]
+      TypeSigmaTuple loc p ps tN -> concat
+        [ mkToken (VarIdent loc "∑") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap tokenizeSigmaParam (p : ps)
+        , go tN ]
+      ASCII_TypeSigmaTuple loc p ps tN -> concat
         [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizePattern pat
-        , tokenizeModalColon mc
-        , go ty
-        , mkToken comma SemanticTokenTypes_Operator []
-        , go b ]
-      Unicode_TypeSigmaAlt loc pat colon a comma b -> concat
-        [ mkToken (VarIdent loc "Σ") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizePattern pat
-        , mkToken colon SemanticTokenTypes_Operator []
-        , go a
-        , mkToken comma SemanticTokenTypes_Operator []
-        , go b ]
-      TypeSigmaTuple loc p comma ps comma2 tN -> concat
-        [ mkToken (VarIdent loc "Σ") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeSigmaParam p
-        , mkToken comma SemanticTokenTypes_Operator []
-        , foldMap tokenizeSigmaParam ps
-        , mkToken comma2 SemanticTokenTypes_Operator []
+        , foldMap tokenizeSigmaParam (p : ps)
         , go tN ]
-      ASCII_TypeSigmaTuple loc p comma ps comma2 tN -> concat
-        [ mkToken (VarIdent loc "Sigma") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeSigmaParam p
-        , mkToken comma SemanticTokenTypes_Operator []
-        , foldMap tokenizeSigmaParam ps
-        , mkToken comma2 SemanticTokenTypes_Operator []
-        , go tN ]
-      Unicode_TypeSigmaTupleAlt loc p comma ps comma2 tN -> concat
-        [ mkToken (VarIdent loc "Σ") SemanticTokenTypes_Class [SemanticTokenModifiers_DefaultLibrary]
-        , tokenizeSigmaParam p
-        , mkToken comma SemanticTokenTypes_Operator []
-        , foldMap tokenizeSigmaParam ps
-        , mkToken comma2 SemanticTokenTypes_Operator []
-        , go tN ]
-      TypeId _loc x open idx close y -> concat
-        [ go x
-        , mkToken open SemanticTokenTypes_Operator []
-        , go idx
-        , mkToken close SemanticTokenTypes_Operator []
-        , go y ]
-      TypeIdSimple _loc x eq y -> concat [go x, mkToken eq SemanticTokenTypes_Operator [], go y]
+      TypeId _loc x a y -> foldMap go [x, a, y]
+      TypeIdSimple _loc x y -> foldMap go [x, y]
       TypeRestricted _loc type_ rs -> concat
         [ go type_
         , foldMap tokenizeRestriction rs ]
 
       App _loc f x -> foldMap go [f, x]
-      Lambda loc params arrow body -> concat
-        [ mkToken (VarIdent loc "\\") SemanticTokenTypes_Operator []
-        , foldMap tokenizeParam params
-        , mkToken arrow SemanticTokenTypes_Operator []
+      Lambda _loc params body -> concat
+        [ foldMap tokenizeParam params
         , go body ]
-      Let loc bind assign val inKw expr -> concat
-        [ mkToken (VarIdent loc "let") SemanticTokenTypes_Keyword []
-        , tokenizeBind bind
-        , mkToken assign SemanticTokenTypes_Operator []
-        , go val
-        , mkToken inKw SemanticTokenTypes_Keyword []
-        , go expr ]
-      LetMod loc modKw comp bind assign val inKw expr -> concat
-        [ mkToken (VarIdent loc "let") SemanticTokenTypes_Keyword []
-        , mkToken modKw SemanticTokenTypes_Keyword []
-        , tokenizeModComp comp
-        , tokenizeBind bind
-        , mkToken assign SemanticTokenTypes_Operator []
-        , go val
-        , mkToken inKw SemanticTokenTypes_Keyword []
-        , go expr ]
-      ASCII_Lambda loc params arrow body -> go (Lambda loc params arrow body)
+      Let _loc bind val expr -> concat [tokenizeBind bind, go val, go expr]
+      LetMod _loc comp bind val expr -> concat [tokenizeModComp comp, tokenizeBind bind, go val, go expr]
+      ASCII_Lambda loc params body -> go (Lambda loc params body)
 
-      Pair _loc l comma r -> concat [go l, mkToken comma SemanticTokenTypes_Operator [], go r]
-      Tuple _loc p1 c1 p2 c2 ps -> concat
-        [ go p1, mkToken c1 SemanticTokenTypes_Operator []
-        , go p2, mkToken c2 SemanticTokenTypes_Operator []
-        , foldMap go ps
-        ]
+      Pair _loc l r -> foldMap go [l, r]
+      Tuple _loc p1 p2 ps -> foldMap go (p1:p2:ps)
       First loc t -> concat
         [ mkToken (VarIdent loc "π₁") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go t ]
@@ -397,32 +218,19 @@ tokenizeTerm' varTokenType = go
       ReflTerm loc x -> concat
         [ mkToken (VarIdent loc "refl") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
         , go x ]
-      ReflTermType loc x colon a -> concat
+      ReflTermType loc x a -> concat
         [ mkToken (VarIdent loc "refl") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , go x
-        , mkToken colon SemanticTokenTypes_Operator []
-        , go a ]
+        , foldMap go [x, a] ]
 
-      IdJ loc a c1 b c2 c c3 d c4 e c5 f -> concat
-        [ mkToken (VarIdent loc "idJ") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
-        , go a, mkToken c1 SemanticTokenTypes_Operator []
-        , go b, mkToken c2 SemanticTokenTypes_Operator []
-        , go c, mkToken c3 SemanticTokenTypes_Operator []
-        , go d, mkToken c4 SemanticTokenTypes_Operator []
-        , go e, mkToken c5 SemanticTokenTypes_Operator []
-        , go f ]
+      IdJ loc a b c d e f -> concat
+        [ mkToken (VarIdent loc "J") SemanticTokenTypes_Function [SemanticTokenModifiers_DefaultLibrary]
+        , foldMap go [a, b, c, d, e, f] ]
 
-      TypeAsc _loc t asKw type_ -> concat [go t, mkToken asKw SemanticTokenTypes_Keyword [], go type_]
+      TypeAsc _loc t type_ -> foldMap go [t, type_]
 
       ModType _loc md type_ -> concat [tokenizeModality md, go type_]
-      ModApp _loc modKw md te -> concat
-        [ mkToken modKw SemanticTokenTypes_Keyword []
-        , tokenizeModality md
-        , go te ]
-      ModExtract loc comp te -> concat
-        [ mkToken (VarIdent loc "$extract$") SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
-        , tokenizeModComp comp
-        , go te ]
+      ModApp _loc md te -> concat [tokenizeModality md, go te]
+      ModExtract _loc comp te -> concat [tokenizeModComp comp, go te]
 
       RecOrDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
       TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
@@ -430,54 +238,36 @@ tokenizeTerm' varTokenType = go
 
 
 tokenizeRestriction :: Restriction -> [SemanticTokenAbsolute]
-tokenizeRestriction = \case
-  Restriction _loc tope mapsto term -> concat
-    [ tokenizeTope tope
-    , mkToken mapsto SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
-    , tokenizeTerm term ]
-  ASCII_Restriction _loc tope mapsto term -> concat
-    [ tokenizeTope tope
-    , mkToken mapsto SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
-    , tokenizeTerm term ]
+tokenizeRestriction (Restriction _loc tope term) = concat
+  [ tokenizeTope tope
+  , tokenizeTerm term ]
+tokenizeRestriction (ASCII_Restriction _loc tope term) = concat
+  [ tokenizeTope tope
+  , tokenizeTerm term ]
 
 tokenizeParamDecl :: ParamDecl -> [SemanticTokenAbsolute]
 tokenizeParamDecl = \case
   ParamType _loc type_ -> tokenizeTerm type_
-  ParamTermType _loc pat colon type_ -> concat
+  ParamTermType _loc pat type_ -> concat
     [ tokenizeTerm pat
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm type_ ]
-  ParamTermShape _loc pat colon cube pipe tope -> concat
+  ParamTermShape _loc pat cube tope -> concat
     [ tokenizeTerm pat
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
     , tokenizeTope tope
     ]
-  ParamTermTypeDeprecated _loc pat colon type_ -> concat
+  ParamTermTypeDeprecated _loc pat type_ -> concat
     [ tokenizePattern pat
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm type_ ]
-  ParamVarShapeDeprecated _loc pat colon cube pipe tope -> concat
+  ParamVarShapeDeprecated _loc pat cube tope -> concat
     [ tokenizePattern pat
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
-    , tokenizeTope tope
-    ]
-  ParamVarShapeDeprecatedAlt _loc pat colon cube pipe tope -> concat
-    [ tokenizePattern pat
-    , mkToken colon SemanticTokenTypes_Operator []
-    , tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
     , tokenizeTope tope
     ]
   ParamTermModalType _loc pat mc type_ -> concat
     [ tokenizeTerm pat, tokenizeModalColon mc, tokenizeTerm type_ ]
-  ParamTermModalShape _loc pat mc cube pipe tope -> concat
-    [ tokenizeTerm pat, tokenizeModalColon mc, tokenizeTerm cube
-    , mkToken pipe SemanticTokenTypes_Operator []
-    , tokenizeTope tope ]
+  ParamTermModalShape _loc pat mc cube tope -> concat
+    [ tokenizeTerm pat, tokenizeModalColon mc, tokenizeTerm cube, tokenizeTope tope ]
 
 tokenizeModalColon :: ModalColon -> [SemanticTokenAbsolute]
 tokenizeModalColon mc = mkToken mc SemanticTokenTypes_Decorator []
@@ -492,9 +282,8 @@ tokenizeModComp = \case
 
 tokenizeSigmaParam :: SigmaParam -> [SemanticTokenAbsolute]
 tokenizeSigmaParam = \case
-  SigmaParam _loc pat colon type_ -> concat
+  SigmaParam _loc pat type_ -> concat
     [ tokenizePattern pat
-    , mkToken colon SemanticTokenTypes_Operator []
     , tokenizeTerm type_ ]
   SigmaParamModal _loc pat mc type_ -> concat
     [ tokenizePattern pat
@@ -514,3 +303,55 @@ mkToken x tokenType tokenModifiers =
         ,  _length = fromIntegral $ Prelude.length (printTree x)
         }
         ]
+
+-- * Syntax highlighting from the token stream
+
+-- | Highlight the fixed syntax of the language (command names, reserved
+-- words, operators) directly from the lexer token stream.
+--
+-- This complements 'tokenizeModule', which highlights identifiers and
+-- special term formers from the parsed module. Fixed symbols do not need
+-- parsing at all: a @:=@ is a @:=@ wherever it occurs. Working on the token
+-- stream means that the grammar (and the abstract syntax) does not have to
+-- track positions of keywords, and that highlighting keeps working for
+-- files that (temporarily) fail to parse.
+tokenizeSyntaxSymbols :: T.Text -> [SemanticTokenAbsolute]
+tokenizeSyntaxSymbols input =
+  [ SemanticTokenAbsolute
+      { _tokenType = tokenType
+      , _tokenModifiers = []
+      , _line = fromIntegral line - 1      -- NOTE: 0-indexed output for LSP
+      , _startChar = fromIntegral col - 1  -- NOTE: 0-indexed output for LSP
+      , _length = fromIntegral (T.length sym)
+      }
+  | PT (Pn _ line col) (TK (TokSymbol sym _)) <- Lex.tokens (tryExtractMarkdownCodeBlocks "rzk" input)
+  , Just tokenType <- [classifySymbol sym]
+  ]
+
+-- | How to highlight a fixed symbol of the grammar, if at all.
+classifySymbol :: T.Text -> Maybe SemanticTokenTypes
+classifySymbol s
+  | s `elem` ignored     = Nothing
+  | "#" `T.isPrefixOf` s = Just SemanticTokenTypes_Macro
+  | s == "rzk-1"         = Just SemanticTokenTypes_Macro
+  | T.any isAlphaNum s   = Just SemanticTokenTypes_Keyword
+  | otherwise            = Just SemanticTokenTypes_Operator
+  where
+    -- Plain brackets are left to the editor (e.g. bracket pair colorization).
+    ignored = ["(", ")", "[", "]", "{", "}", ";", "<", ">"]
+
+-- | Combine tokens from the parsed module with tokens from the raw symbol
+-- stream. On overlap (same start position) the AST-based token wins, since
+-- it carries more precise semantics (e.g. @unit@ as an enum member rather
+-- than a keyword). The result is sorted by position, as required for the
+-- LSP delta encoding.
+mergeTokens :: [SemanticTokenAbsolute] -> [SemanticTokenAbsolute] -> [SemanticTokenAbsolute]
+mergeTokens astTokens symbolTokens = go (sortOn key astTokens) (sortOn key symbolTokens)
+  where
+    key t = (_line t, _startChar t)
+    go [] ss = ss
+    go as [] = as
+    go (a:as) (s:ss) = case compare (key a) (key s) of
+      LT -> a : go as (s:ss)
+      EQ -> a : go as ss
+      GT -> s : go (a:as) ss

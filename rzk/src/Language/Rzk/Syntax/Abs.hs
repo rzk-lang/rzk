@@ -7,6 +7,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | The abstract syntax of language Syntax.
 
@@ -44,99 +45,23 @@ type Language = Language' BNFC'Position
 data Language' a = Rzk1 a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
-type ColonKeyword = ColonKeyword' BNFC'Position
-data ColonKeyword' a = ColonKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type AssignKeyword = AssignKeyword' BNFC'Position
-data AssignKeyword' a = AssignKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type InKeyword = InKeyword' BNFC'Position
-data InKeyword' a = InKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type AsKeyword = AsKeyword' BNFC'Position
-data AsKeyword' a = AsKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type UsesKeyword = UsesKeyword' BNFC'Position
-data UsesKeyword' a = UsesKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type ModKeyword = ModKeyword' BNFC'Position
-data ModKeyword' a = ModKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type EqKeyword = EqKeyword' BNFC'Position
-data EqKeyword' a = EqKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type CommaKeyword = CommaKeyword' BNFC'Position
-data CommaKeyword' a = CommaKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type PipeKeyword = PipeKeyword' BNFC'Position
-data PipeKeyword' a = PipeKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type ArrowKeyword = ArrowKeyword' BNFC'Position
-data ArrowKeyword' a = ArrowUnicodeKw a | ArrowASCIIKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type TopeEqKeyword = TopeEqKeyword' BNFC'Position
-data TopeEqKeyword' a = TopeEqUnicodeKw a | TopeEqASCIIKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type TopeLeqKeyword = TopeLeqKeyword' BNFC'Position
-data TopeLeqKeyword' a = TopeLeqUnicodeKw a | TopeLeqASCIIKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type TopeAndKeyword = TopeAndKeyword' BNFC'Position
-data TopeAndKeyword' a = TopeAndUnicodeKw a | TopeAndASCIIKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type TopeOrKeyword = TopeOrKeyword' BNFC'Position
-data TopeOrKeyword' a = TopeOrUnicodeKw a | TopeOrASCIIKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type MapstoKeyword = MapstoKeyword' BNFC'Position
-data MapstoKeyword' a = MapstoUnicodeKw a | MapstoASCIIKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type IdEqOpenKeyword = IdEqOpenKeyword' BNFC'Position
-data IdEqOpenKeyword' a = IdEqOpenKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
-type IdEqCloseKeyword = IdEqCloseKeyword' BNFC'Position
-data IdEqCloseKeyword' a = IdEqCloseKw a
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
-
 type Command = Command' BNFC'Position
 data Command' a
-    = CommandSetOption a String (EqKeyword' a) String
+    = CommandSetOption a String String
     | CommandUnsetOption a String
-    | CommandCheck a (Term' a) (ColonKeyword' a) (Term' a)
+    | CommandCheck a (Term' a) (Term' a)
     | CommandCompute a (Term' a)
     | CommandComputeWHNF a (Term' a)
     | CommandComputeNF a (Term' a)
-    | CommandPostulate a (VarIdent' a) (DeclUsedVars' a) [Param' a] (ColonKeyword' a) (Term' a)
-    | CommandPostulateNoParams a (VarIdent' a) (DeclUsedVars' a) (ColonKeyword' a) (Term' a)
-    | CommandAssume a [VarIdent' a] (ColonKeyword' a) (Term' a)
-    | CommandVariable a (VarIdent' a) (ColonKeyword' a) (Term' a)
-    | CommandVariables a [VarIdent' a] (ColonKeyword' a) (Term' a)
+    | CommandPostulate a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a)
+    | CommandAssume a [VarIdent' a] (Term' a)
     | CommandSection a (SectionName' a)
     | CommandSectionEnd a (SectionName' a)
-    | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (ColonKeyword' a) (Term' a) (AssignKeyword' a) (Term' a)
-    | CommandDefineNoParams a (VarIdent' a) (DeclUsedVars' a) (ColonKeyword' a) (Term' a) (AssignKeyword' a) (Term' a)
-    | CommandDef a (VarIdent' a) (DeclUsedVars' a) [Param' a] (ColonKeyword' a) (Term' a) (AssignKeyword' a) (Term' a)
-    | CommandDefNoParams a (VarIdent' a) (DeclUsedVars' a) (ColonKeyword' a) (Term' a) (AssignKeyword' a) (Term' a)
+    | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type DeclUsedVars = DeclUsedVars' BNFC'Position
-data DeclUsedVars' a
-    = DeclUsedVars a (UsesKeyword' a) [VarIdent' a]
-    | EmptyDeclUsedVars a
+data DeclUsedVars' a = DeclUsedVars a [VarIdent' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type SectionName = SectionName' BNFC'Position
@@ -148,48 +73,47 @@ type Pattern = Pattern' BNFC'Position
 data Pattern' a
     = PatternUnit a
     | PatternVar a (VarIdent' a)
-    | PatternPair a (Pattern' a) (CommaKeyword' a) (Pattern' a)
-    | PatternTuple a (Pattern' a) (CommaKeyword' a) (Pattern' a) (CommaKeyword' a) [Pattern' a]
+    | PatternPair a (Pattern' a) (Pattern' a)
+    | PatternTuple a (Pattern' a) (Pattern' a) [Pattern' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Param = Param' BNFC'Position
 data Param' a
     = ParamPattern a (Pattern' a)
-    | ParamPatternType a [Pattern' a] (ColonKeyword' a) (Term' a)
-    | ParamPatternShape a [Pattern' a] (ColonKeyword' a) (Term' a) (PipeKeyword' a) (Term' a)
-    | ParamPatternShapeDeprecated a (Pattern' a) (ColonKeyword' a) (Term' a) (PipeKeyword' a) (Term' a)
+    | ParamPatternType a [Pattern' a] (Term' a)
+    | ParamPatternShape a [Pattern' a] (Term' a) (Term' a)
+    | ParamPatternShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
     | ParamPatternModalType a [Pattern' a] (ModalColon' a) (Term' a)
-    | ParamPatternModalShape a [Pattern' a] (ModalColon' a) (Term' a) (PipeKeyword' a) (Term' a)
+    | ParamPatternModalShape a [Pattern' a] (ModalColon' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Bind = Bind' BNFC'Position
 data Bind' a
     = BindPattern a (Pattern' a)
-    | BindPatternType a (Pattern' a) (ColonKeyword' a) (Term' a)
+    | BindPatternType a (Pattern' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type ParamDecl = ParamDecl' BNFC'Position
 data ParamDecl' a
     = ParamType a (Term' a)
-    | ParamTermType a (Term' a) (ColonKeyword' a) (Term' a)
-    | ParamTermShape a (Term' a) (ColonKeyword' a) (Term' a) (PipeKeyword' a) (Term' a)
-    | ParamTermTypeDeprecated a (Pattern' a) (ColonKeyword' a) (Term' a)
-    | ParamVarShapeDeprecated a (Pattern' a) (ColonKeyword' a) (Term' a) (PipeKeyword' a) (Term' a)
-    | ParamVarShapeDeprecatedAlt a (Pattern' a) (ColonKeyword' a) (Term' a) (PipeKeyword' a) (Term' a)
+    | ParamTermType a (Term' a) (Term' a)
+    | ParamTermShape a (Term' a) (Term' a) (Term' a)
+    | ParamTermTypeDeprecated a (Pattern' a) (Term' a)
+    | ParamVarShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
     | ParamTermModalType a (Term' a) (ModalColon' a) (Term' a)
-    | ParamTermModalShape a (Term' a) (ModalColon' a) (Term' a) (PipeKeyword' a) (Term' a)
+    | ParamTermModalShape a (Term' a) (ModalColon' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type SigmaParam = SigmaParam' BNFC'Position
 data SigmaParam' a
-    = SigmaParam a (Pattern' a) (ColonKeyword' a) (Term' a)
+    = SigmaParam a (Pattern' a) (Term' a)
     | SigmaParamModal a (Pattern' a) (ModalColon' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Restriction = Restriction' BNFC'Position
 data Restriction' a
-    = Restriction a (Term' a) (MapstoKeyword' a) (Term' a)
-    | ASCII_Restriction a (Term' a) (MapstoKeyword' a) (Term' a)
+    = Restriction a (Term' a) (Term' a)
+    | ASCII_Restriction a (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Modality = Modality' BNFC'Position
@@ -235,50 +159,45 @@ data Term' a
     | CubeProduct a (Term' a) (Term' a)
     | TopeTop a
     | TopeBottom a
-    | TopeEQ a (Term' a) (TopeEqKeyword' a) (Term' a)
-    | TopeLEQ a (Term' a) (TopeLeqKeyword' a) (Term' a)
-    | TopeAnd a (Term' a) (TopeAndKeyword' a) (Term' a)
-    | TopeOr a (Term' a) (TopeOrKeyword' a) (Term' a)
+    | TopeEQ a (Term' a) (Term' a)
+    | TopeLEQ a (Term' a) (Term' a)
+    | TopeAnd a (Term' a) (Term' a)
+    | TopeOr a (Term' a) (Term' a)
     | TopeInv a (Term' a)
-    | ASCII_TopeInv a (Term' a)
     | TopeUninv a (Term' a)
-    | ASCII_TopeUninv a (Term' a)
     | CubeFlip a (Term' a)
-    | ASCII_CubeFlip a (Term' a)
     | CubeUnflip a (Term' a)
-    | ASCII_CubeUnflip a (Term' a)
     | RecBottom a
     | RecOr a [Restriction' a]
-    | RecOrDeprecated a (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) (Term' a)
-    | TypeFun a (ParamDecl' a) (ArrowKeyword' a) (Term' a)
-    | TypeSigma a (Pattern' a) (ColonKeyword' a) (Term' a) (CommaKeyword' a) (Term' a)
-    | TypeSigmaModal a (Pattern' a) (ModalColon' a) (Term' a) (CommaKeyword' a) (Term' a)
-    | TypeSigmaTuple a (SigmaParam' a) (CommaKeyword' a) [SigmaParam' a] (CommaKeyword' a) (Term' a)
+    | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
+    | TypeFun a (ParamDecl' a) (Term' a)
+    | TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | TypeSigmaModal a (Pattern' a) (ModalColon' a) (Term' a) (Term' a)
+    | TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | TypeUnit a
-    | TypeId a (Term' a) (IdEqOpenKeyword' a) (Term' a) (IdEqCloseKeyword' a) (Term' a)
-    | TypeIdSimple a (Term' a) (EqKeyword' a) (Term' a)
+    | TypeId a (Term' a) (Term' a) (Term' a)
+    | TypeIdSimple a (Term' a) (Term' a)
     | TypeRestricted a (Term' a) [Restriction' a]
-    | TypeExtensionDeprecated a (ParamDecl' a) (ArrowKeyword' a) (Term' a)
-    | Let a (Bind' a) (AssignKeyword' a) (Term' a) (InKeyword' a) (Term' a)
+    | TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
+    | Let a (Bind' a) (Term' a) (Term' a)
     | App a (Term' a) (Term' a)
-    | Lambda a [Param' a] (ArrowKeyword' a) (Term' a)
-    | Pair a (Term' a) (CommaKeyword' a) (Term' a)
-    | Tuple a (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) [Term' a]
-    | ModApp a (ModKeyword' a) (Modality' a) (Term' a)
+    | Lambda a [Param' a] (Term' a)
+    | Pair a (Term' a) (Term' a)
+    | Tuple a (Term' a) (Term' a) [Term' a]
+    | ModApp a (Modality' a) (Term' a)
     | ModType a (Modality' a) (Term' a)
     | ModExtract a (ModComp' a) (Term' a)
-    | LetMod a (ModKeyword' a) (ModComp' a) (Bind' a) (AssignKeyword' a) (Term' a) (InKeyword' a) (Term' a)
+    | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
     | Refl a
     | ReflTerm a (Term' a)
-    | ReflTermType a (Term' a) (ColonKeyword' a) (Term' a)
-    | IdJ a (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) (Term' a) (CommaKeyword' a) (Term' a)
+    | ReflTermType a (Term' a) (Term' a)
+    | IdJ a (Term' a) (Term' a) (Term' a) (Term' a) (Term' a) (Term' a)
     | Hole a (HoleIdent' a)
     | Var a (VarIdent' a)
-    | TypeAsc a (Term' a) (AsKeyword' a) (Term' a)
-    | ASCII_CubeProduct a (Term' a) (Term' a)
+    | TypeAsc a (Term' a) (Term' a)
     | ASCII_CubeUnitStar a
     | ASCII_Cube2_0 a
     | ASCII_Cube2_1 a
@@ -287,21 +206,66 @@ data Term' a
     | ASCII_CubeI_1 a
     | ASCII_TopeTop a
     | ASCII_TopeBottom a
-    | ASCII_TopeEQ a (Term' a) (TopeEqKeyword' a) (Term' a)
-    | ASCII_TopeLEQ a (Term' a) (TopeLeqKeyword' a) (Term' a)
-    | ASCII_TopeAnd a (Term' a) (TopeAndKeyword' a) (Term' a)
-    | ASCII_TopeOr a (Term' a) (TopeOrKeyword' a) (Term' a)
-    | ASCII_TypeFun a (ParamDecl' a) (ArrowKeyword' a) (Term' a)
-    | ASCII_TypeSigma a (Pattern' a) (ColonKeyword' a) (Term' a) (CommaKeyword' a) (Term' a)
-    | ASCII_TypeSigmaModal a (Pattern' a) (ModalColon' a) (Term' a) (CommaKeyword' a) (Term' a)
-    | ASCII_TypeSigmaTuple a (SigmaParam' a) (CommaKeyword' a) [SigmaParam' a] (CommaKeyword' a) (Term' a)
-    | ASCII_Lambda a [Param' a] (ArrowKeyword' a) (Term' a)
-    | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (ArrowKeyword' a) (Term' a)
+    | ASCII_TopeEQ a (Term' a) (Term' a)
+    | ASCII_TopeLEQ a (Term' a) (Term' a)
+    | ASCII_TopeAnd a (Term' a) (Term' a)
+    | ASCII_TopeOr a (Term' a) (Term' a)
+    | ASCII_TypeFun a (ParamDecl' a) (Term' a)
+    | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
+    | ASCII_TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
+    | ASCII_Lambda a [Param' a] (Term' a)
+    | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | ASCII_First a (Term' a)
     | ASCII_Second a (Term' a)
-    | Unicode_TypeSigmaAlt a (Pattern' a) (ColonKeyword' a) (Term' a) (CommaKeyword' a) (Term' a)
-    | Unicode_TypeSigmaTupleAlt a (SigmaParam' a) (CommaKeyword' a) [SigmaParam' a] (CommaKeyword' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+commandPostulateNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Command' a
+commandPostulateNoParams = \ _a x vars ty -> CommandPostulate _a x vars [] ty
+
+commandVariable :: a -> VarIdent' a -> Term' a -> Command' a
+commandVariable = \ _a name term -> CommandAssume _a [name] term
+
+commandVariables :: a -> [VarIdent' a] -> Term' a -> Command' a
+commandVariables = \ _a names term -> CommandAssume _a names term
+
+commandDefineNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
+commandDefineNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
+
+commandDef :: a -> VarIdent' a -> DeclUsedVars' a -> [Param' a] -> Term' a -> Term' a -> Command' a
+commandDef = \ _a x vars params ty term -> CommandDefine _a x vars params ty term
+
+commandDefNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
+commandDefNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
+
+noDeclUsedVars :: a -> DeclUsedVars' a
+noDeclUsedVars = \ _a -> DeclUsedVars _a []
+
+paramVarShapeDeprecated :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
+paramVarShapeDeprecated = \ _a pat cube tope -> ParamVarShapeDeprecated _a pat cube tope
+
+ascii_TopeInv :: a -> Term' a -> Term' a
+ascii_TopeInv = \ _a t -> TopeInv _a t
+
+ascii_TopeUninv :: a -> Term' a -> Term' a
+ascii_TopeUninv = \ _a t -> TopeUninv _a t
+
+ascii_CubeFlip :: a -> Term' a -> Term' a
+ascii_CubeFlip = \ _a t -> CubeFlip _a t
+
+ascii_CubeUnflip :: a -> Term' a -> Term' a
+ascii_CubeUnflip = \ _a t -> CubeUnflip _a t
+
+ascii_CubeProduct :: a -> Term' a -> Term' a -> Term' a
+ascii_CubeProduct = \ _a l r -> CubeProduct _a l r
+
+ascii_TypeSigmaModal :: a -> Pattern' a -> ModalColon' a -> Term' a -> Term' a -> Term' a
+ascii_TypeSigmaModal = \ _a p mc t r -> TypeSigmaModal _a p mc t r
+
+unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
+unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
+
+unicode_TypeSigmaTupleAlt :: a -> SigmaParam' a -> [SigmaParam' a] -> Term' a -> Term' a
+unicode_TypeSigmaTupleAlt = \ _a par pars t -> TypeSigmaTuple _a par pars t
 
 newtype VarIdentToken = VarIdentToken Data.Text.Text
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Data, C.Generic, Data.String.IsString)
@@ -344,104 +308,23 @@ instance HasPosition Language where
   hasPosition = \case
     Rzk1 p -> p
 
-instance HasPosition ColonKeyword where
-  hasPosition = \case
-    ColonKw p -> p
-
-instance HasPosition AssignKeyword where
-  hasPosition = \case
-    AssignKw p -> p
-
-instance HasPosition InKeyword where
-  hasPosition = \case
-    InKw p -> p
-
-instance HasPosition AsKeyword where
-  hasPosition = \case
-    AsKw p -> p
-
-instance HasPosition UsesKeyword where
-  hasPosition = \case
-    UsesKw p -> p
-
-instance HasPosition ModKeyword where
-  hasPosition = \case
-    ModKw p -> p
-
-instance HasPosition EqKeyword where
-  hasPosition = \case
-    EqKw p -> p
-
-instance HasPosition CommaKeyword where
-  hasPosition = \case
-    CommaKw p -> p
-
-instance HasPosition PipeKeyword where
-  hasPosition = \case
-    PipeKw p -> p
-
-instance HasPosition ArrowKeyword where
-  hasPosition = \case
-    ArrowUnicodeKw p -> p
-    ArrowASCIIKw p -> p
-
-instance HasPosition TopeEqKeyword where
-  hasPosition = \case
-    TopeEqUnicodeKw p -> p
-    TopeEqASCIIKw p -> p
-
-instance HasPosition TopeLeqKeyword where
-  hasPosition = \case
-    TopeLeqUnicodeKw p -> p
-    TopeLeqASCIIKw p -> p
-
-instance HasPosition TopeAndKeyword where
-  hasPosition = \case
-    TopeAndUnicodeKw p -> p
-    TopeAndASCIIKw p -> p
-
-instance HasPosition TopeOrKeyword where
-  hasPosition = \case
-    TopeOrUnicodeKw p -> p
-    TopeOrASCIIKw p -> p
-
-instance HasPosition MapstoKeyword where
-  hasPosition = \case
-    MapstoUnicodeKw p -> p
-    MapstoASCIIKw p -> p
-
-instance HasPosition IdEqOpenKeyword where
-  hasPosition = \case
-    IdEqOpenKw p -> p
-
-instance HasPosition IdEqCloseKeyword where
-  hasPosition = \case
-    IdEqCloseKw p -> p
-
 instance HasPosition Command where
   hasPosition = \case
-    CommandSetOption p _ _ _ -> p
+    CommandSetOption p _ _ -> p
     CommandUnsetOption p _ -> p
-    CommandCheck p _ _ _ -> p
+    CommandCheck p _ _ -> p
     CommandCompute p _ -> p
     CommandComputeWHNF p _ -> p
     CommandComputeNF p _ -> p
-    CommandPostulate p _ _ _ _ _ -> p
-    CommandPostulateNoParams p _ _ _ _ -> p
-    CommandAssume p _ _ _ -> p
-    CommandVariable p _ _ _ -> p
-    CommandVariables p _ _ _ -> p
+    CommandPostulate p _ _ _ _ -> p
+    CommandAssume p _ _ -> p
     CommandSection p _ -> p
     CommandSectionEnd p _ -> p
-    CommandDefine p _ _ _ _ _ _ _ -> p
-    CommandDefineNoParams p _ _ _ _ _ _ -> p
-    CommandDef p _ _ _ _ _ _ _ -> p
-    CommandDefNoParams p _ _ _ _ _ _ -> p
+    CommandDefine p _ _ _ _ _ -> p
 
 instance HasPosition DeclUsedVars where
   hasPosition = \case
-    DeclUsedVars p _ _ -> p
-    EmptyDeclUsedVars p -> p
+    DeclUsedVars p _ -> p
 
 instance HasPosition SectionName where
   hasPosition = \case
@@ -452,43 +335,42 @@ instance HasPosition Pattern where
   hasPosition = \case
     PatternUnit p -> p
     PatternVar p _ -> p
-    PatternPair p _ _ _ -> p
-    PatternTuple p _ _ _ _ _ -> p
+    PatternPair p _ _ -> p
+    PatternTuple p _ _ _ -> p
 
 instance HasPosition Param where
   hasPosition = \case
     ParamPattern p _ -> p
-    ParamPatternType p _ _ _ -> p
-    ParamPatternShape p _ _ _ _ _ -> p
-    ParamPatternShapeDeprecated p _ _ _ _ _ -> p
+    ParamPatternType p _ _ -> p
+    ParamPatternShape p _ _ _ -> p
+    ParamPatternShapeDeprecated p _ _ _ -> p
     ParamPatternModalType p _ _ _ -> p
-    ParamPatternModalShape p _ _ _ _ _ -> p
+    ParamPatternModalShape p _ _ _ _ -> p
 
 instance HasPosition Bind where
   hasPosition = \case
     BindPattern p _ -> p
-    BindPatternType p _ _ _ -> p
+    BindPatternType p _ _ -> p
 
 instance HasPosition ParamDecl where
   hasPosition = \case
     ParamType p _ -> p
-    ParamTermType p _ _ _ -> p
-    ParamTermShape p _ _ _ _ _ -> p
-    ParamTermTypeDeprecated p _ _ _ -> p
-    ParamVarShapeDeprecated p _ _ _ _ _ -> p
-    ParamVarShapeDeprecatedAlt p _ _ _ _ _ -> p
+    ParamTermType p _ _ -> p
+    ParamTermShape p _ _ _ -> p
+    ParamTermTypeDeprecated p _ _ -> p
+    ParamVarShapeDeprecated p _ _ _ -> p
     ParamTermModalType p _ _ _ -> p
-    ParamTermModalShape p _ _ _ _ _ -> p
+    ParamTermModalShape p _ _ _ _ -> p
 
 instance HasPosition SigmaParam where
   hasPosition = \case
-    SigmaParam p _ _ _ -> p
+    SigmaParam p _ _ -> p
     SigmaParamModal p _ _ _ -> p
 
 instance HasPosition Restriction where
   hasPosition = \case
-    Restriction p _ _ _ -> p
-    ASCII_Restriction p _ _ _ -> p
+    Restriction p _ _ -> p
+    ASCII_Restriction p _ _ -> p
 
 instance HasPosition Modality where
   hasPosition = \case
@@ -531,50 +413,45 @@ instance HasPosition Term where
     CubeProduct p _ _ -> p
     TopeTop p -> p
     TopeBottom p -> p
-    TopeEQ p _ _ _ -> p
-    TopeLEQ p _ _ _ -> p
-    TopeAnd p _ _ _ -> p
-    TopeOr p _ _ _ -> p
+    TopeEQ p _ _ -> p
+    TopeLEQ p _ _ -> p
+    TopeAnd p _ _ -> p
+    TopeOr p _ _ -> p
     TopeInv p _ -> p
-    ASCII_TopeInv p _ -> p
     TopeUninv p _ -> p
-    ASCII_TopeUninv p _ -> p
     CubeFlip p _ -> p
-    ASCII_CubeFlip p _ -> p
     CubeUnflip p _ -> p
-    ASCII_CubeUnflip p _ -> p
     RecBottom p -> p
     RecOr p _ -> p
-    RecOrDeprecated p _ _ _ _ _ _ _ -> p
-    TypeFun p _ _ _ -> p
-    TypeSigma p _ _ _ _ _ -> p
-    TypeSigmaModal p _ _ _ _ _ -> p
-    TypeSigmaTuple p _ _ _ _ _ -> p
+    RecOrDeprecated p _ _ _ _ -> p
+    TypeFun p _ _ -> p
+    TypeSigma p _ _ _ -> p
+    TypeSigmaModal p _ _ _ _ -> p
+    TypeSigmaTuple p _ _ _ -> p
     TypeUnit p -> p
-    TypeId p _ _ _ _ _ -> p
-    TypeIdSimple p _ _ _ -> p
+    TypeId p _ _ _ -> p
+    TypeIdSimple p _ _ -> p
     TypeRestricted p _ _ -> p
-    TypeExtensionDeprecated p _ _ _ -> p
-    Let p _ _ _ _ _ -> p
+    TypeExtensionDeprecated p _ _ -> p
+    Let p _ _ _ -> p
     App p _ _ -> p
-    Lambda p _ _ _ -> p
-    Pair p _ _ _ -> p
-    Tuple p _ _ _ _ _ -> p
-    ModApp p _ _ _ -> p
+    Lambda p _ _ -> p
+    Pair p _ _ -> p
+    Tuple p _ _ _ -> p
+    ModApp p _ _ -> p
     ModType p _ _ -> p
     ModExtract p _ _ -> p
-    LetMod p _ _ _ _ _ _ _ -> p
+    LetMod p _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p
     Refl p -> p
     ReflTerm p _ -> p
-    ReflTermType p _ _ _ -> p
-    IdJ p _ _ _ _ _ _ _ _ _ _ _ -> p
+    ReflTermType p _ _ -> p
+    IdJ p _ _ _ _ _ _ -> p
     Hole p _ -> p
     Var p _ -> p
-    TypeAsc p _ _ _ -> p
-    ASCII_CubeProduct p _ _ -> p
+    TypeAsc p _ _ -> p
     ASCII_CubeUnitStar p -> p
     ASCII_Cube2_0 p -> p
     ASCII_Cube2_1 p -> p
@@ -583,18 +460,15 @@ instance HasPosition Term where
     ASCII_CubeI_1 p -> p
     ASCII_TopeTop p -> p
     ASCII_TopeBottom p -> p
-    ASCII_TopeEQ p _ _ _ -> p
-    ASCII_TopeLEQ p _ _ _ -> p
-    ASCII_TopeAnd p _ _ _ -> p
-    ASCII_TopeOr p _ _ _ -> p
-    ASCII_TypeFun p _ _ _ -> p
-    ASCII_TypeSigma p _ _ _ _ _ -> p
-    ASCII_TypeSigmaModal p _ _ _ _ _ -> p
-    ASCII_TypeSigmaTuple p _ _ _ _ _ -> p
-    ASCII_Lambda p _ _ _ -> p
-    ASCII_TypeExtensionDeprecated p _ _ _ -> p
+    ASCII_TopeEQ p _ _ -> p
+    ASCII_TopeLEQ p _ _ -> p
+    ASCII_TopeAnd p _ _ -> p
+    ASCII_TopeOr p _ _ -> p
+    ASCII_TypeFun p _ _ -> p
+    ASCII_TypeSigma p _ _ _ -> p
+    ASCII_TypeSigmaTuple p _ _ _ -> p
+    ASCII_Lambda p _ _ -> p
+    ASCII_TypeExtensionDeprecated p _ _ -> p
     ASCII_First p _ -> p
     ASCII_Second p _ -> p
-    Unicode_TypeSigmaAlt p _ _ _ _ _ -> p
-    Unicode_TypeSigmaTupleAlt p _ _ _ _ _ -> p
 

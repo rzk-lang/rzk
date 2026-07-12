@@ -43,104 +43,23 @@ transLanguage :: Show a => Language.Rzk.Syntax.Abs.Language' a -> Result
 transLanguage x = case x of
   Language.Rzk.Syntax.Abs.Rzk1 _ -> failure x
 
-transColonKeyword :: Show a => Language.Rzk.Syntax.Abs.ColonKeyword' a -> Result
-transColonKeyword x = case x of
-  Language.Rzk.Syntax.Abs.ColonKw _ -> failure x
-
-transAssignKeyword :: Show a => Language.Rzk.Syntax.Abs.AssignKeyword' a -> Result
-transAssignKeyword x = case x of
-  Language.Rzk.Syntax.Abs.AssignKw _ -> failure x
-
-transInKeyword :: Show a => Language.Rzk.Syntax.Abs.InKeyword' a -> Result
-transInKeyword x = case x of
-  Language.Rzk.Syntax.Abs.InKw _ -> failure x
-
-transAsKeyword :: Show a => Language.Rzk.Syntax.Abs.AsKeyword' a -> Result
-transAsKeyword x = case x of
-  Language.Rzk.Syntax.Abs.AsKw _ -> failure x
-
-transUsesKeyword :: Show a => Language.Rzk.Syntax.Abs.UsesKeyword' a -> Result
-transUsesKeyword x = case x of
-  Language.Rzk.Syntax.Abs.UsesKw _ -> failure x
-
-transModKeyword :: Show a => Language.Rzk.Syntax.Abs.ModKeyword' a -> Result
-transModKeyword x = case x of
-  Language.Rzk.Syntax.Abs.ModKw _ -> failure x
-
-transEqKeyword :: Show a => Language.Rzk.Syntax.Abs.EqKeyword' a -> Result
-transEqKeyword x = case x of
-  Language.Rzk.Syntax.Abs.EqKw _ -> failure x
-
-transCommaKeyword :: Show a => Language.Rzk.Syntax.Abs.CommaKeyword' a -> Result
-transCommaKeyword x = case x of
-  Language.Rzk.Syntax.Abs.CommaKw _ -> failure x
-
-transPipeKeyword :: Show a => Language.Rzk.Syntax.Abs.PipeKeyword' a -> Result
-transPipeKeyword x = case x of
-  Language.Rzk.Syntax.Abs.PipeKw _ -> failure x
-
-transArrowKeyword :: Show a => Language.Rzk.Syntax.Abs.ArrowKeyword' a -> Result
-transArrowKeyword x = case x of
-  Language.Rzk.Syntax.Abs.ArrowUnicodeKw _ -> failure x
-  Language.Rzk.Syntax.Abs.ArrowASCIIKw _ -> failure x
-
-transTopeEqKeyword :: Show a => Language.Rzk.Syntax.Abs.TopeEqKeyword' a -> Result
-transTopeEqKeyword x = case x of
-  Language.Rzk.Syntax.Abs.TopeEqUnicodeKw _ -> failure x
-  Language.Rzk.Syntax.Abs.TopeEqASCIIKw _ -> failure x
-
-transTopeLeqKeyword :: Show a => Language.Rzk.Syntax.Abs.TopeLeqKeyword' a -> Result
-transTopeLeqKeyword x = case x of
-  Language.Rzk.Syntax.Abs.TopeLeqUnicodeKw _ -> failure x
-  Language.Rzk.Syntax.Abs.TopeLeqASCIIKw _ -> failure x
-
-transTopeAndKeyword :: Show a => Language.Rzk.Syntax.Abs.TopeAndKeyword' a -> Result
-transTopeAndKeyword x = case x of
-  Language.Rzk.Syntax.Abs.TopeAndUnicodeKw _ -> failure x
-  Language.Rzk.Syntax.Abs.TopeAndASCIIKw _ -> failure x
-
-transTopeOrKeyword :: Show a => Language.Rzk.Syntax.Abs.TopeOrKeyword' a -> Result
-transTopeOrKeyword x = case x of
-  Language.Rzk.Syntax.Abs.TopeOrUnicodeKw _ -> failure x
-  Language.Rzk.Syntax.Abs.TopeOrASCIIKw _ -> failure x
-
-transMapstoKeyword :: Show a => Language.Rzk.Syntax.Abs.MapstoKeyword' a -> Result
-transMapstoKeyword x = case x of
-  Language.Rzk.Syntax.Abs.MapstoUnicodeKw _ -> failure x
-  Language.Rzk.Syntax.Abs.MapstoASCIIKw _ -> failure x
-
-transIdEqOpenKeyword :: Show a => Language.Rzk.Syntax.Abs.IdEqOpenKeyword' a -> Result
-transIdEqOpenKeyword x = case x of
-  Language.Rzk.Syntax.Abs.IdEqOpenKw _ -> failure x
-
-transIdEqCloseKeyword :: Show a => Language.Rzk.Syntax.Abs.IdEqCloseKeyword' a -> Result
-transIdEqCloseKeyword x = case x of
-  Language.Rzk.Syntax.Abs.IdEqCloseKw _ -> failure x
-
 transCommand :: Show a => Language.Rzk.Syntax.Abs.Command' a -> Result
 transCommand x = case x of
-  Language.Rzk.Syntax.Abs.CommandSetOption _ string1 eqkeyword string2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandSetOption _ string1 string2 -> failure x
   Language.Rzk.Syntax.Abs.CommandUnsetOption _ string -> failure x
-  Language.Rzk.Syntax.Abs.CommandCheck _ term1 colonkeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandCheck _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.CommandCompute _ term -> failure x
   Language.Rzk.Syntax.Abs.CommandComputeWHNF _ term -> failure x
   Language.Rzk.Syntax.Abs.CommandComputeNF _ term -> failure x
-  Language.Rzk.Syntax.Abs.CommandPostulate _ varident declusedvars params colonkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.CommandPostulateNoParams _ varident declusedvars colonkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.CommandAssume _ varidents colonkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.CommandVariable _ varident colonkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.CommandVariables _ varidents colonkeyword term -> failure x
+  Language.Rzk.Syntax.Abs.CommandPostulate _ varident declusedvars params term -> failure x
+  Language.Rzk.Syntax.Abs.CommandAssume _ varidents term -> failure x
   Language.Rzk.Syntax.Abs.CommandSection _ sectionname -> failure x
   Language.Rzk.Syntax.Abs.CommandSectionEnd _ sectionname -> failure x
-  Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params colonkeyword term1 assignkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.CommandDefineNoParams _ varident declusedvars colonkeyword term1 assignkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.CommandDef _ varident declusedvars params colonkeyword term1 assignkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.CommandDefNoParams _ varident declusedvars colonkeyword term1 assignkeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> failure x
 
 transDeclUsedVars :: Show a => Language.Rzk.Syntax.Abs.DeclUsedVars' a -> Result
 transDeclUsedVars x = case x of
-  Language.Rzk.Syntax.Abs.DeclUsedVars _ useskeyword varidents -> failure x
-  Language.Rzk.Syntax.Abs.EmptyDeclUsedVars _ -> failure x
+  Language.Rzk.Syntax.Abs.DeclUsedVars _ varidents -> failure x
 
 transSectionName :: Show a => Language.Rzk.Syntax.Abs.SectionName' a -> Result
 transSectionName x = case x of
@@ -151,43 +70,42 @@ transPattern :: Show a => Language.Rzk.Syntax.Abs.Pattern' a -> Result
 transPattern x = case x of
   Language.Rzk.Syntax.Abs.PatternUnit _ -> failure x
   Language.Rzk.Syntax.Abs.PatternVar _ varident -> failure x
-  Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 commakeyword pattern_2 -> failure x
-  Language.Rzk.Syntax.Abs.PatternTuple _ pattern_1 commakeyword1 pattern_2 commakeyword2 patterns -> failure x
+  Language.Rzk.Syntax.Abs.PatternPair _ pattern_1 pattern_2 -> failure x
+  Language.Rzk.Syntax.Abs.PatternTuple _ pattern_1 pattern_2 patterns -> failure x
 
 transParam :: Show a => Language.Rzk.Syntax.Abs.Param' a -> Result
 transParam x = case x of
   Language.Rzk.Syntax.Abs.ParamPattern _ pattern_ -> failure x
-  Language.Rzk.Syntax.Abs.ParamPatternType _ patterns colonkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.ParamPatternShape _ patterns colonkeyword term1 pipekeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated _ pattern_ colonkeyword term1 pipekeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternType _ patterns term -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternShape _ patterns term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternShapeDeprecated _ pattern_ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ParamPatternModalType _ patterns modalcolon term -> failure x
-  Language.Rzk.Syntax.Abs.ParamPatternModalShape _ patterns modalcolon term1 pipekeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamPatternModalShape _ patterns modalcolon term1 term2 -> failure x
 
 transBind :: Show a => Language.Rzk.Syntax.Abs.Bind' a -> Result
 transBind x = case x of
   Language.Rzk.Syntax.Abs.BindPattern _ pattern_ -> failure x
-  Language.Rzk.Syntax.Abs.BindPatternType _ pattern_ colonkeyword term -> failure x
+  Language.Rzk.Syntax.Abs.BindPatternType _ pattern_ term -> failure x
 
 transParamDecl :: Show a => Language.Rzk.Syntax.Abs.ParamDecl' a -> Result
 transParamDecl x = case x of
   Language.Rzk.Syntax.Abs.ParamType _ term -> failure x
-  Language.Rzk.Syntax.Abs.ParamTermType _ term1 colonkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ParamTermShape _ term1 colonkeyword term2 pipekeyword term3 -> failure x
-  Language.Rzk.Syntax.Abs.ParamTermTypeDeprecated _ pattern_ colonkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.ParamVarShapeDeprecated _ pattern_ colonkeyword term1 pipekeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ParamVarShapeDeprecatedAlt _ pattern_ colonkeyword term1 pipekeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamTermType _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ParamTermShape _ term1 term2 term3 -> failure x
+  Language.Rzk.Syntax.Abs.ParamTermTypeDeprecated _ pattern_ term -> failure x
+  Language.Rzk.Syntax.Abs.ParamVarShapeDeprecated _ pattern_ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ParamTermModalType _ term1 modalcolon term2 -> failure x
-  Language.Rzk.Syntax.Abs.ParamTermModalShape _ term1 modalcolon term2 pipekeyword term3 -> failure x
+  Language.Rzk.Syntax.Abs.ParamTermModalShape _ term1 modalcolon term2 term3 -> failure x
 
 transSigmaParam :: Show a => Language.Rzk.Syntax.Abs.SigmaParam' a -> Result
 transSigmaParam x = case x of
-  Language.Rzk.Syntax.Abs.SigmaParam _ pattern_ colonkeyword term -> failure x
+  Language.Rzk.Syntax.Abs.SigmaParam _ pattern_ term -> failure x
   Language.Rzk.Syntax.Abs.SigmaParamModal _ pattern_ modalcolon term -> failure x
 
 transRestriction :: Show a => Language.Rzk.Syntax.Abs.Restriction' a -> Result
 transRestriction x = case x of
-  Language.Rzk.Syntax.Abs.Restriction _ term1 mapstokeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_Restriction _ term1 mapstokeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.Restriction _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Restriction _ term1 term2 -> failure x
 
 transModality :: Show a => Language.Rzk.Syntax.Abs.Modality' a -> Result
 transModality x = case x of
@@ -230,50 +148,45 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.CubeProduct _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TopeTop _ -> failure x
   Language.Rzk.Syntax.Abs.TopeBottom _ -> failure x
-  Language.Rzk.Syntax.Abs.TopeEQ _ term1 topeeqkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.TopeLEQ _ term1 topeleqkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.TopeAnd _ term1 topeandkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.TopeOr _ term1 topeorkeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.TopeEQ _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TopeLEQ _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TopeAnd _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TopeOr _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TopeInv _ term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TopeInv _ term -> failure x
   Language.Rzk.Syntax.Abs.TopeUninv _ term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TopeUninv _ term -> failure x
   Language.Rzk.Syntax.Abs.CubeFlip _ term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_CubeFlip _ term -> failure x
   Language.Rzk.Syntax.Abs.CubeUnflip _ term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_CubeUnflip _ term -> failure x
   Language.Rzk.Syntax.Abs.RecBottom _ -> failure x
   Language.Rzk.Syntax.Abs.RecOr _ restrictions -> failure x
-  Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 commakeyword1 term2 commakeyword2 term3 commakeyword3 term4 -> failure x
-  Language.Rzk.Syntax.Abs.TypeFun _ paramdecl arrowkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ colonkeyword term1 commakeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.TypeSigmaModal _ pattern_ modalcolon term1 commakeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.TypeSigmaTuple _ sigmaparam commakeyword1 sigmaparams commakeyword2 term -> failure x
+  Language.Rzk.Syntax.Abs.RecOrDeprecated _ term1 term2 term3 term4 -> failure x
+  Language.Rzk.Syntax.Abs.TypeFun _ paramdecl term -> failure x
+  Language.Rzk.Syntax.Abs.TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeSigmaModal _ pattern_ modalcolon term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeSigmaTuple _ sigmaparam sigmaparams term -> failure x
   Language.Rzk.Syntax.Abs.TypeUnit _ -> failure x
-  Language.Rzk.Syntax.Abs.TypeId _ term1 ideqopenkeyword term2 ideqclosekeyword term3 -> failure x
-  Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 eqkeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeId _ term1 term2 term3 -> failure x
+  Language.Rzk.Syntax.Abs.TypeIdSimple _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TypeRestricted _ term restrictions -> failure x
-  Language.Rzk.Syntax.Abs.TypeExtensionDeprecated _ paramdecl arrowkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.Let _ bind assignkeyword term1 inkeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeExtensionDeprecated _ paramdecl term -> failure x
+  Language.Rzk.Syntax.Abs.Let _ bind term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.App _ term1 term2 -> failure x
-  Language.Rzk.Syntax.Abs.Lambda _ params arrowkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.Pair _ term1 commakeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.Tuple _ term1 commakeyword1 term2 commakeyword2 terms -> failure x
-  Language.Rzk.Syntax.Abs.ModApp _ modkeyword modality term -> failure x
+  Language.Rzk.Syntax.Abs.Lambda _ params term -> failure x
+  Language.Rzk.Syntax.Abs.Pair _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.Tuple _ term1 term2 terms -> failure x
+  Language.Rzk.Syntax.Abs.ModApp _ modality term -> failure x
   Language.Rzk.Syntax.Abs.ModType _ modality term -> failure x
   Language.Rzk.Syntax.Abs.ModExtract _ modcomp term -> failure x
-  Language.Rzk.Syntax.Abs.LetMod _ modkeyword modcomp bind assignkeyword term1 inkeyword term2 -> failure x
+  Language.Rzk.Syntax.Abs.LetMod _ modcomp bind term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
   Language.Rzk.Syntax.Abs.Unit _ -> failure x
   Language.Rzk.Syntax.Abs.Refl _ -> failure x
   Language.Rzk.Syntax.Abs.ReflTerm _ term -> failure x
-  Language.Rzk.Syntax.Abs.ReflTermType _ term1 colonkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.IdJ _ term1 commakeyword1 term2 commakeyword2 term3 commakeyword3 term4 commakeyword4 term5 commakeyword5 term6 -> failure x
+  Language.Rzk.Syntax.Abs.ReflTermType _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.IdJ _ term1 term2 term3 term4 term5 term6 -> failure x
   Language.Rzk.Syntax.Abs.Hole _ holeident -> failure x
   Language.Rzk.Syntax.Abs.Var _ varident -> failure x
-  Language.Rzk.Syntax.Abs.TypeAsc _ term1 askeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_CubeProduct _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.TypeAsc _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ASCII_CubeUnitStar _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Cube2_0 _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Cube2_1 _ -> failure x
@@ -282,17 +195,14 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ASCII_CubeI_1 _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TopeTop _ -> failure x
   Language.Rzk.Syntax.Abs.ASCII_TopeBottom _ -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TopeEQ _ term1 topeeqkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TopeLEQ _ term1 topeleqkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TopeAnd _ term1 topeandkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 topeorkeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl arrowkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ colonkeyword term1 commakeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TypeSigmaModal _ pattern_ modalcolon term1 commakeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TypeSigmaTuple _ sigmaparam commakeyword1 sigmaparams commakeyword2 term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_Lambda _ params arrowkeyword term -> failure x
-  Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl arrowkeyword term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeEQ _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeLEQ _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeAnd _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TopeOr _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeFun _ paramdecl term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeSigma _ pattern_ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeSigmaTuple _ sigmaparam sigmaparams term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_Lambda _ params term -> failure x
+  Language.Rzk.Syntax.Abs.ASCII_TypeExtensionDeprecated _ paramdecl term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_First _ term -> failure x
   Language.Rzk.Syntax.Abs.ASCII_Second _ term -> failure x
-  Language.Rzk.Syntax.Abs.Unicode_TypeSigmaAlt _ pattern_ colonkeyword term1 commakeyword term2 -> failure x
-  Language.Rzk.Syntax.Abs.Unicode_TypeSigmaTupleAlt _ sigmaparam commakeyword1 sigmaparams commakeyword2 term -> failure x

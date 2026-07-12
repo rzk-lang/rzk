@@ -119,6 +119,7 @@ extra-source-files:
     test/typecheck/cases/ill-unexpected-lambda.rzk
     test/typecheck/cases/ill-unexpected-pair.rzk
     test/typecheck/cases/ill-unexpected-refl.rzk
+    test/typecheck/cases/ill-unify-id-free-path.rzk
     test/typecheck/cases/ill-unify-terms-path.rzk
     test/typecheck/cases/ill-unify.rzk
     test/typecheck/cases/ill-unset-option-unknown.rzk
@@ -228,6 +229,7 @@ extra-source-files:
     test/typecheck/cases/ill-unexpected-lambda.expect.yaml
     test/typecheck/cases/ill-unexpected-pair.expect.yaml
     test/typecheck/cases/ill-unexpected-refl.expect.yaml
+    test/typecheck/cases/ill-unify-id-free-path.expect.yaml
     test/typecheck/cases/ill-unify-terms-path.expect.yaml
     test/typecheck/cases/ill-unify.expect.yaml
     test/typecheck/cases/ill-unset-option-unknown.expect.yaml
@@ -269,7 +271,6 @@ library
       Rzk.Project.Config
       Rzk.TypeCheck
   other-modules:
-      Language.Rzk.Syntax.KeywordUtils
       Paths_rzk
   autogen-modules:
       Paths_rzk

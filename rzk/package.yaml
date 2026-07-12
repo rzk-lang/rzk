@@ -88,8 +88,6 @@ default-extensions:
 
 library:
   source-dirs: src
-  other-modules:
-    - Language.Rzk.Syntax.KeywordUtils
   generated-other-modules:
     - Paths_rzk
   when:

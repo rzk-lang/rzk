@@ -59,7 +59,9 @@ import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
 import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Language.Rzk.VSCode.Logging
-import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
+import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
+                                                tokenizeSyntaxSymbols)
+import           Free.Scoped                   (untyped)
 import qualified Rzk.Diagnostic                as Diag
 import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
@@ -376,8 +378,17 @@ provideSemanticTokens req responder = do
   mdoc <- getVirtualFile doc
   possibleTokens <- case virtualFileText <$> mdoc of
     Nothing         -> return (Left "Failed to get file content")
-    Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
-      parseModuleSafe (T.filter (/= '\r') sourceCode)
+    Just sourceCode -> do
+      let src = T.filter (/= '\r') sourceCode
+      -- Fixed symbols (commands, keywords, operators) are highlighted from
+      -- the lexer token stream, so they survive parse failures; identifiers
+      -- need the parsed module.
+      astTokens <- liftIO (parseModuleSafe src) >>= \case
+        Left err -> do
+          logWarning ("Failed to parse file for semantic tokens: " <> err)
+          return []
+        Right rzkModule -> return (tokenizeModule rzkModule)
+      return (Right (mergeTokens astTokens (tokenizeSyntaxSymbols src)))
   case possibleTokens of
     Left err -> do
       -- Exception occurred when parsing the module
@@ -458,7 +469,7 @@ provideHover req res = do
           decls = maybe [] cachedModuleDecls (lookup file cached)
       in case find (\(Decl v _ _ _ _ _) -> T.pack (printTree (getVarIdent v)) == name) decls of
            Just (Decl v ty _ _ _ _) ->
-             T.pack (file ++ "\n\n" ++ printTree (getVarIdent v) ++ " : " ++ show ty)
+             T.pack (file ++ "\n\n" ++ printTree (getVarIdent v) ++ " : " ++ show (untyped ty))
            Nothing ->
              T.pack (file ++ "\n\n" ++ T.unpack name ++ " : ?")
 
@@ -472,7 +483,7 @@ provideSymbols req res = do
     declToSymbol :: Decl' -> DocumentSymbol
     declToSymbol (Decl name type' _ _ _ _loc) = DocumentSymbol
       { _name           = T.pack (printTree ident)
-      , _detail         = Just (T.pack (show type'))
+      , _detail         = Just (T.pack (show (untyped type')))
       , _kind           = SymbolKind_Function
       , _tags           = Nothing
       , _deprecated     = Nothing
