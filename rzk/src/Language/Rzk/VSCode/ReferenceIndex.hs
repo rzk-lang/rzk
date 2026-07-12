@@ -117,8 +117,11 @@ indexModules modules = group $
         -- Binders produce a self-link (definition site linked to itself) so
         -- that every binding has a key; keep it out of the reference list,
         -- which 'bindingSites' prepends the definition to.
-        bs = [ Binding n d rs
-             | ((n, d), rs) <- Map.toList $ Map.fromListWith (flip (++))
+        -- Accumulate by prepending (constant time per link) and restore the
+        -- encounter order with one reverse at the end; appending would be
+        -- quadratic in the number of references of a binding.
+        bs = [ Binding n d (reverse rs)
+             | ((n, d), rs) <- Map.toList $ Map.fromListWith (++)
                  [ ((n, d), if r == d then [] else [r]) | Link n d r <- links ]
              ]
 
