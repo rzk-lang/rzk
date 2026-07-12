@@ -99,7 +99,10 @@ indexModules modules = group $
     group links =
       let keys = nubBy ((==) `on` (\(Link n d _) -> (n, d))) links
       in ReferenceIndex
-        [ Binding n d [ r | Link n' d' r <- links, n' == n, d' == d ]
+        -- Binders produce a self-link (definition site linked to itself) so
+        -- that every binding has a key; keep it out of the reference list,
+        -- which 'bindingSites' prepends the definition to.
+        [ Binding n d [ r | Link n' d' r <- links, n' == n, d' == d, r /= d ]
         | Link n d _ <- keys
         ]
 

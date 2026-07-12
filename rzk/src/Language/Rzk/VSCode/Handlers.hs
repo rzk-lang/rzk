@@ -34,7 +34,8 @@ import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
 import           Language.LSP.Diagnostics      (partitionBySource)
-import           Language.LSP.Protocol.Lens    (HasDetail (detail),
+import           Language.LSP.Protocol.Lens    (HasContext (context),
+                                                HasDetail (detail),
                                                 HasDocumentation (documentation),
                                                 HasLabel (label),
                                                 HasParams (params),
@@ -415,10 +416,15 @@ findReferences :: Handler LSP 'Method_TextDocumentReferences
 findReferences req res = do
   let uri' = req ^. params . textDocument . uri
       currentFile = fromMaybe "" (uriToFilePath uri')
+      includeDeclaration = req ^. params . context . to (\(ReferenceContext incl) -> incl)
   referenceIndex <- indexProject currentFile
   case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
-    Just binding -> res $ Right $ InL (map toLspLocation (nub (RefInd.bindingSites binding)))
-    Nothing      -> res $ Right $ InL []
+    Just binding ->
+      let sites
+            | includeDeclaration = RefInd.bindingSites binding
+            | otherwise          = RefInd.bindingRefs binding
+      in res $ Right $ InL (map toLspLocation sites)
+    Nothing -> res $ Right $ InL []
 
 indexProject :: FilePath -> LSP RefInd.ReferenceIndex
 indexProject currentFile = do
