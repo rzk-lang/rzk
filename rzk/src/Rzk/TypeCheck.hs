@@ -40,15 +40,15 @@ instance IsString TermT' where
   fromString = unsafeInferStandalone' . fromString
 
 defaultTypeCheck
-  :: TypeCheck var a
-  -> Either (TypeErrorInScopedContext var) a
+  :: TypeCheck VarIdent a
+  -> Either (TypeErrorInScopedContext VarIdent) a
 defaultTypeCheck = fmap fst . defaultTypeCheckWithHoles' emptyContext
 
 -- | Like 'defaultTypeCheck', but runs in lenient hole mode ('allowHoles') and
 -- also returns the holes recorded during checking (with their goal and context).
 defaultTypeCheckWithHoles
-  :: TypeCheck var a
-  -> Either (TypeErrorInScopedContext var) (a, [HoleInfo])
+  :: TypeCheck VarIdent a
+  -> Either (TypeErrorInScopedContext VarIdent) (a, [HoleInfo])
 defaultTypeCheckWithHoles = defaultTypeCheckWithHoles' (allowHoles emptyContext)
 
 defaultTypeCheckWithHoles'
@@ -1256,6 +1256,17 @@ data ScopeInfo var = ScopeInfo
   , scopeVars :: [(var, VarInfo var)]
   } deriving (Functor, Foldable)
 
+-- | A scope of top-level entries (definitions, postulates, section
+-- assumptions). The payload is pinned at 'VarIdent': shifting the context
+-- under a binder ('enterScopeContext') maps only the keys and never
+-- traverses the elaborated terms, which is what made @S <$>@ on the whole
+-- context account for most of the checker's allocation and residency.
+-- A payload is embedded into the current scope on lookup via 'globalEmbed'.
+data GlobalScopeInfo var = GlobalScopeInfo
+  { gscopeName :: Maybe Rzk.SectionName
+  , gscopeVars :: [(var, VarInfo VarIdent)]
+  } deriving (Functor, Foldable)
+
 addVarToScope :: var -> VarInfo var -> ScopeInfo var -> ScopeInfo var
 addVarToScope var info ScopeInfo{..} = ScopeInfo
   { scopeVars = (var, info) : scopeVars, .. }
@@ -1318,6 +1329,15 @@ data ModalTope var = ModalTope
 
 data Context var = Context
   { localScopes            :: [ScopeInfo var]
+    -- ^ Binder scopes: variables bound while checking the current
+    -- declaration. Top-level entries live in 'globalScopes'.
+  , globalScopes           :: [GlobalScopeInfo var]
+    -- ^ Top-level definitions, postulates and section assumptions, with
+    -- their payloads pinned at 'VarIdent' (see 'GlobalScopeInfo').
+  , globalEmbed            :: VarIdent -> var
+    -- ^ The composed injection of top-level names into the current scope
+    -- (extended by @S .@ at each binder entry; the derived 'Functor'
+    -- composes it on 'fmap'). Embeds a global payload on lookup.
   , localDiscreteTopes     :: [ModalTope var]
     -- ^ Discreteness axioms for the flat cube variables in scope (a flat
     -- point of @2@ or @I@ is an endpoint). Maintained incrementally at
@@ -1358,7 +1378,20 @@ data Context var = Context
     -- the local hypotheses (see 'withHintLemmas'). A caller (the game) supplies
     -- a small curated allow-list per level; each listed lemma whose type fits
     -- the goal is then offered, applied to holes (e.g. @concat ? ? ?@).
-  } deriving (Functor, Foldable)
+  } deriving (Functor)
+
+-- Hand-written because the 'globalEmbed' function field cannot be folded;
+-- its image is exactly the keys of 'globalScopes', which are folded.
+instance Foldable Context where
+  foldMap f Context{..} = mconcat
+    [ foldMap (foldMap f) localScopes
+    , foldMap (foldMap f) globalScopes
+    , foldMap (foldMap f) localDiscreteTopes
+    , foldMap (foldMap f) localTopes
+    , foldMap (foldMap f) localTopesNF
+    , foldMap (foldMap (foldMap f)) localTopesNFUnion
+    , foldMap (foldMap f) actionStack
+    ]
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
 addVarInCurrentScope var info Context{..} = Context
@@ -1368,8 +1401,23 @@ addVarInCurrentScope var info Context{..} = Context
         scope : scopes -> addVarToScope var info scope : scopes
   , .. }
 
+-- | Add a top-level entry (definition, postulate, section assumption) to the
+-- current global scope. Only ever happens at the top level, where variables
+-- are plain 'VarIdent's.
+addVarInCurrentGlobalScope :: VarIdent -> VarInfo VarIdent -> Context VarIdent -> Context VarIdent
+addVarInCurrentGlobalScope var info Context{..} = Context
+  { globalScopes =
+      case globalScopes of
+        []             -> [GlobalScopeInfo Nothing [(var, info)]]
+        scope : scopes -> scope { gscopeVars = (var, info) : gscopeVars scope } : scopes
+  , .. }
+
 applyModalityToScopes :: TModality -> [ScopeInfo var] -> [ScopeInfo var]
 applyModalityToScopes md scopes = map (addModalityToScope md) scopes
+
+applyModalityToGlobalScopes :: TModality -> [GlobalScopeInfo var] -> [GlobalScopeInfo var]
+applyModalityToGlobalScopes md = map $ \scope -> scope
+  { gscopeVars = map (fmap (\VarInfo{..} -> VarInfo{ modAccum = comp modAccum md, .. })) (gscopeVars scope) }
 
 applyModalityToTopes :: TModality -> [ModalTope var] -> [ModalTope var]
 applyModalityToTopes md topes = map (\ModalTope{..} -> ModalTope{tModAccum = comp tModAccum md, ..}) topes
@@ -1377,6 +1425,7 @@ applyModalityToTopes md topes = map (\ModalTope{..} -> ModalTope{tModAccum = com
 applyModality :: TModality -> Context var -> Context var
 applyModality md Context{..} = Context
   { localScopes = applyModalityToScopes md localScopes
+  , globalScopes = applyModalityToGlobalScopes md globalScopes
   , localTopes = applyModalityToTopes md localTopes
   , localTopesNF = applyModalityToTopes md localTopesNF
   , localTopesNFUnion = map (applyModalityToTopes md) localTopesNFUnion
@@ -1390,9 +1439,11 @@ emptyTopeContext =
   , ModalTope Id Sharp topeTopT
   ]
 
-emptyContext :: Context var
+emptyContext :: Context VarIdent
 emptyContext = Context
   { localScopes = [ScopeInfo Nothing []]
+  , globalScopes = [GlobalScopeInfo Nothing []]
+  , globalEmbed = id
   , localDiscreteTopes = []
   , localTopes = emptyTopeContext
   , localTopesNF = emptyTopeContext
@@ -1459,22 +1510,33 @@ availableTopes ctx = map tTope $ filterAccessible (localTopes ctx)
 availableTopesNF :: Context var -> [TermT var]
 availableTopesNF ctx = map tTope $ filterAccessible (localTopesNF ctx)
 
+-- | All in-scope variables: binder-bound locals first, then the top-level
+-- entries with their payloads embedded into the current scope. Locals are
+-- always more recent than the globals, so this matches the pre-split order.
 varInfos :: Context var -> [(var, VarInfo var)]
 varInfos Context{..} = concatMap scopeVars localScopes
+  <> [ (v, globalEmbed <$> info)
+     | (v, info) <- concatMap gscopeVars globalScopes ]
 
 -- | Look up one variable's 'VarInfo' by walking the scopes directly. The
 -- per-variable lookups ('typeOfVar', 'valueOfVar', …) run on every 'typeOf'
 -- of a variable, so going through a projected association list (as the
 -- whole-context views below do) allocates a pair per scanned entry on the
--- hottest path of the checker.
+-- hottest path of the checker. A hit in the global scopes is embedded into
+-- the current scope ('globalEmbed'); the payload itself is never shifted.
 lookupVarInfo :: Eq var => var -> Context var -> Maybe (VarInfo var)
 lookupVarInfo x Context{..} = go localScopes
   where
-    go [] = Nothing
+    go [] = goGlobal globalScopes
     go (scope : scopes) =
       case lookup x (scopeVars scope) of
         Just info -> Just info
         Nothing   -> go scopes
+    goGlobal [] = Nothing
+    goGlobal (scope : scopes) =
+      case lookup x (gscopeVars scope) of
+        Just info -> Just (globalEmbed <$> info)
+        Nothing   -> goGlobal scopes
 
 varTypes :: Context var -> [(var, TermT var)]
 varTypes = map (fmap varType) . varInfos
@@ -1520,11 +1582,18 @@ withSection name sectionBody =
 
 startSection :: Maybe Rzk.SectionName -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 startSection name = local $ \Context{..} -> Context
-  { localScopes = ScopeInfo { scopeName = name, scopeVars = [] } : localScopes
+  { globalScopes = GlobalScopeInfo { gscopeName = name, gscopeVars = [] } : globalScopes
   , .. }
 
+-- | The current global scope, as a plain 'ScopeInfo' (at the top level the
+-- keys and payloads coincide at 'VarIdent').
+askCurrentGlobalScope :: TypeCheck VarIdent (ScopeInfo VarIdent)
+askCurrentGlobalScope = asks globalScopes >>= \case
+  []              -> panicImpossible "no current global scope available"
+  scope : _scopes -> pure ScopeInfo { scopeName = gscopeName scope, scopeVars = gscopeVars scope }
+
 endSection :: [TypeErrorInScopedContext VarIdent] -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
-endSection errs = askCurrentScope >>= scopeToDecls errs
+endSection errs = askCurrentGlobalScope >>= scopeToDecls errs
 
 scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
 scopeToDecls errs ScopeInfo{..} = do
@@ -1784,7 +1853,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
-    update = addVarInCurrentScope x VarInfo
+    update = addVarInCurrentGlobalScope x VarInfo
       { varType = ty
       , varValue = term
       , varOrig = BinderVar (Just x)
@@ -4547,7 +4616,7 @@ checkCoherence (ltope, lterm) (rtope, rterm) =
       unifyTerms ltype rtype
       unifyTerms lterm rterm
 
-inferStandalone :: Eq var => Term var -> Either (TypeErrorInScopedContext var) (TermT var)
+inferStandalone :: Term VarIdent -> Either (TypeErrorInScopedContext VarIdent) (TermT VarIdent)
 inferStandalone term = defaultTypeCheck (infer term)
 
 unsafeInferStandalone' :: Term' -> TermT'
