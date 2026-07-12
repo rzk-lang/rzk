@@ -1,0 +1,34 @@
+name: Cleanup PR caches
+
+# A closed PR leaves its Actions caches (~2 GiB of stack deps per PR for the
+# Windows/macOS lanes) parked on its refs/pull/N/merge ref, where no other
+# run can restore them. The repo cache quota is 10 GiB, so stale PR caches
+# evict the shared develop-ref caches. Delete a PR's caches when it closes.
+#
+# pull_request_target (not pull_request) so the token keeps write permission
+# for PRs from forks; this is safe because the job never checks out or runs
+# PR code.
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    name: "Delete this PR's Actions caches"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧹 Delete caches on refs/pull/${{ github.event.pull_request.number }}/merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          gh api --paginate \
+            "/repos/${{ github.repository }}/actions/caches?ref=${REF}&per_page=100" \
+            --jq '.actions_caches[].id' \
+          | while read -r id; do
+              gh api --method DELETE "/repos/${{ github.repository }}/actions/caches/${id}" \
+                && echo "deleted cache ${id}"
+            done

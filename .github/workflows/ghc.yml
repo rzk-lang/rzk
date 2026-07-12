@@ -39,20 +39,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Full OS coverage on tags and main. PRs (the pre-merge gate) skip
-        # macos-15-intel: the Intel runner pool is small and slow, its caches
-        # rarely survive, and an Intel-macOS-only breakage is still caught
-        # before users see it, by the tag run here and by the release
-        # workflow. Linux-only on develop pushes, which a PR has already
-        # validated; the Linux build still produces the artifact downstream
-        # jobs use.
+        # Full OS coverage on tags and main. Everything else (PRs and develop
+        # pushes) skips macos-15-intel: the Intel runner pool is small and
+        # slow, its caches rarely survive, and an Intel-macOS-only breakage
+        # is still caught before users see it, by the tag run here and by the
+        # release workflow. develop pushes build the same trio as PRs even
+        # though a PR has already validated them: GitHub only lets a PR
+        # restore caches created on its own ref or on the base branch, so
+        # without develop-side builds the Windows/macOS stack caches are
+        # never shared and every new PR starts those jobs cold.
         os: >-
           ${{ (github.ref_name == 'main'
                || startsWith(github.ref, 'refs/tags/'))
               && fromJSON('["ubuntu-latest","windows-latest","macos-15-intel","macos-latest"]')
-              || github.event_name == 'pull_request'
-              && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]')
-              || fromJSON('["ubuntu-latest"]') }}
+              || fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') }}
 
     steps:
       - name: 📥 Checkout repository
