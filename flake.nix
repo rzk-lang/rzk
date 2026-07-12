@@ -39,14 +39,12 @@
         include = [ "Main.hs" "${rzk-js}.cabal" ];
       });
 
-      parserTools = import ./nix/parser-tools.nix { inherit pkgs ghcVersion; };
-
       tools = [
         pkgs.cabal-install
         pkgs.hpack
         nodejs
         pkgs.bun
-      ] ++ parserTools;
+      ];
 
       default = import ./nix/default.nix { inherit inputs pkgs rzk rzk-src ghcVersion tools; };
       ghcjs = import ./nix/ghcjs.nix { inherit inputs pkgs scripts rzk rzk-src rzk-js rzk-js-src ghcVersion tools; };
