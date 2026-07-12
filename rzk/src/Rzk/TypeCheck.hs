@@ -1842,6 +1842,15 @@ traceStartAndFinish :: Show a => String -> a -> a
 traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
   (\x -> trace ("finish [" <> tag <> "] with " <> show x) x)
 
+-- | Monadic 'all' that stops at the first failing element.
+allM :: Monad m => (a -> m Bool) -> [a] -> m Bool
+allM p = go
+  where
+    go []     = return True
+    go (x:xs) = p x >>= \case
+      False -> return False
+      True  -> go xs
+
 entailM :: Eq var => [ModalTope var] -> TermT var -> TypeCheck var Bool
 entailM modalTopes goal = do
   -- genTopes <- generateTopesForPointsM (allTopePoints goal)
@@ -1853,7 +1862,7 @@ entailM modalTopes goal = do
   prettyTope <- ppTermInContext goal
   traceTypeCheck Debug
     ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-      and <$> mapM (`solveRHSM` goal) topes'''
+      allM (`solveRHSM` goal) topes'''
 
 
 generateTopesForModalCubeVarsM :: Eq var => TypeCheck var [ModalTope var]
@@ -2157,9 +2166,9 @@ solveRHSM modalTopes goal =
       | solveRHS topes (topeEQT l r) -> return True
       | solveRHS topes (topeEQT l cube2_0T) -> return True
       | solveRHS topes (topeEQT r cube2_1T) -> return True
-    TopeAndT _ l r -> (&&)
-      <$> solveRHSM modalTopes l
-      <*> solveRHSM modalTopes r
+    TopeAndT _ l r -> solveRHSM modalTopes l >>= \case
+      False -> return False
+      True  -> solveRHSM modalTopes r
     _ | goal `elem` topes -> return True
     TopeInvT{} -> do
       goal' <- nfTope goal
@@ -2172,9 +2181,10 @@ solveRHSM modalTopes goal =
         TopeUninvT{} -> return False
         _            -> solveRHSM modalTopes goal'
     TopeOrT  _ l r -> do
-      l' <- solveRHSM modalTopes l
-      r' <- solveRHSM modalTopes r
-      if (l' || r')
+      found <- solveRHSM modalTopes l >>= \case
+        True  -> return True
+        False -> solveRHSM modalTopes r
+      if found
         then return True
         else do
           lems <- generateTopesForPointsM (allTopePoints goal)
@@ -2183,10 +2193,10 @@ solveRHSM modalTopes goal =
               withTope t = hidden ++ saturateTopes [] (plainTope t : accessible)
 
           case lems' of
-            TopeOrT _ t1 t2 : _ -> do
-              l'' <- solveRHSM (withTope t1) goal
-              r'' <- solveRHSM (withTope t2) goal
-              return (l'' && r'')
+            TopeOrT _ t1 t2 : _ ->
+              solveRHSM (withTope t1) goal >>= \case
+                False -> return False
+                True  -> solveRHSM (withTope t2) goal
             _ -> return False
     _ -> return False
 
