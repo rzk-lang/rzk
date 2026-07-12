@@ -1795,9 +1795,20 @@ ppContext' dir ctx@Context{..} = block dir $ dropWhile null
     -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
     dispName x = maybe (show (Pure x :: Term')) (show . binderDisplayName) (lookup x fbs)
 
+-- | All display names in scope, read off the raw entries: a binder
+-- ('varOrig') never mentions the scope's variables, so no global payload
+-- needs embedding. Going through 'varOrigs' here instead embedded every
+-- global 'VarInfo' once per new top-level name ('checkTopLevelDuplicate'),
+-- quadratically over a project.
+scopeNames :: Context var -> [VarIdent]
+scopeNames Context{..} = mapMaybe entryName (concatMap scopeVars localScopes)
+  <> mapMaybe entryName (concatMap gscopeVars globalScopes)
+  where
+    entryName :: (v, VarInfo w) -> Maybe VarIdent
+    entryName = binderName . varOrig . snd
+
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
-doesShadowName name = asks $ \ctx ->
-  filter (name ==) (mapMaybe snd (varOrigs ctx))
+doesShadowName name = asks (filter (name ==) . scopeNames)
 
 checkTopLevelDuplicate :: VarIdent -> TypeCheck var ()
 checkTopLevelDuplicate name = do
