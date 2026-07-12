@@ -1318,6 +1318,13 @@ data ModalTope var = ModalTope
 
 data Context var = Context
   { localScopes            :: [ScopeInfo var]
+  , localDiscreteTopes     :: [ModalTope var]
+    -- ^ Discreteness axioms for the flat cube variables in scope (a flat
+    -- point of @2@ or @I@ is an endpoint). Maintained incrementally at
+    -- binder entry (see 'enterScopeMaybe'), so 'entailM' does not rescan
+    -- the whole context on every entailment query. A variable's modality
+    -- is fixed at binding time ('addModalityToScope' only touches
+    -- 'modAccum'), so entries never need to be revised.
   , localTopes             :: [ModalTope var]
   , localTopesNF           :: [ModalTope var]
   , localTopesNFUnion      :: [[ModalTope var]]
@@ -1386,6 +1393,7 @@ emptyTopeContext =
 emptyContext :: Context var
 emptyContext = Context
   { localScopes = [ScopeInfo Nothing []]
+  , localDiscreteTopes = []
   , localTopes = emptyTopeContext
   , localTopesNF = emptyTopeContext
   , localTopesNFUnion = [emptyTopeContext]
@@ -1868,21 +1876,8 @@ entailM modalTopes goal = do
     _ -> allM (`solveRHSM` goal) topes'''
 
 
-generateTopesForModalCubeVarsM :: Eq var => TypeCheck var [ModalTope var]
-generateTopesForModalCubeVarsM = do
-  infos <- asks varInfos
-  fmap (nubTermT . concat) $ forM infos $ \(var, info) ->
-    case varModality info of
-      Flat -> do
-        whnfT (varType info) >>= \case
-          Cube2T{} -> do
-            let pt = Pure var
-            return [plainTope (topeOrT (topeEQT pt cube2_0T) (topeEQT pt cube2_1T))]
-          CubeIT{} -> do
-            let pt = Pure var
-            return [plainTope (topeOrT (topeEQT pt cubeI_0T) (topeEQT pt cubeI_1T))]
-          _ -> return []
-      _ -> return []
+generateTopesForModalCubeVarsM :: TypeCheck var [ModalTope var]
+generateTopesForModalCubeVarsM = asks localDiscreteTopes
 
 entailTraceM :: Eq var => [ModalTope var] -> TermT var -> TypeCheck var Bool
 entailTraceM modalTopes goal = do
@@ -2355,15 +2350,25 @@ enterScopeContext orig md ty val context =
     }
     (S <$> context)
 
-enterScopeMaybe :: Binder -> TModality -> TermT var -> Maybe (TermT var) -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeMaybe :: Eq var => Binder -> TModality -> TermT var -> Maybe (TermT var) -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeMaybe orig md ty mval action = do
+  mDiscrete <- case md of
+    Flat -> whnfT ty >>= \case
+      Cube2T{} -> pure (Just (topeOrT (topeEQT z cube2_0T) (topeEQT z cube2_1T)))
+      CubeIT{} -> pure (Just (topeOrT (topeEQT z cubeI_0T) (topeEQT z cubeI_1T)))
+      _        -> pure Nothing
+    _ -> pure Nothing
   newContext <- asks (enterScopeContext orig md ty mval)
-  closeScope orig (runReaderT action newContext)
+  let newContext' = newContext
+        { localDiscreteTopes = maybe id ((:) . plainTope) mDiscrete (localDiscreteTopes newContext) }
+  closeScope orig (runReaderT action newContext')
+  where
+    z = Pure Z
 
-enterScope :: Binder -> TModality -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScope :: Eq var => Binder -> TModality -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig md ty = enterScopeMaybe orig md ty Nothing
 
-enterScopeWithBind :: Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeWithBind :: Eq var => Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeWithBind orig md ty val = enterScopeMaybe orig md ty (Just val)
 
 -- | Run a sub-scope computation and lift it back to the enclosing scope: close
