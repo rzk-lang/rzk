@@ -1462,6 +1462,20 @@ availableTopesNF ctx = map tTope $ filterAccessible (localTopesNF ctx)
 varInfos :: Context var -> [(var, VarInfo var)]
 varInfos Context{..} = concatMap scopeVars localScopes
 
+-- | Look up one variable's 'VarInfo' by walking the scopes directly. The
+-- per-variable lookups ('typeOfVar', 'valueOfVar', …) run on every 'typeOf'
+-- of a variable, so going through a projected association list (as the
+-- whole-context views below do) allocates a pair per scanned entry on the
+-- hottest path of the checker.
+lookupVarInfo :: Eq var => var -> Context var -> Maybe (VarInfo var)
+lookupVarInfo x Context{..} = go localScopes
+  where
+    go [] = Nothing
+    go (scope : scopes) =
+      case lookup x (scopeVars scope) of
+        Just info -> Just info
+        Nothing   -> go scopes
+
 varTypes :: Context var -> [(var, TermT var)]
 varTypes = map (fmap varType) . varInfos
 
@@ -1476,15 +1490,6 @@ varOrigs = map (fmap (binderName . varOrig)) . varInfos
 -- rendering goals, holes and contexts.
 varBinders :: Context var -> [(var, Binder)]
 varBinders = map (fmap varOrig) . varInfos
-
-varModalities :: Context var -> [(var, TModality)]
-varModalities = map (fmap varModality) . varInfos
-
-varLocks :: Context var -> [(var, TModality)]
-varLocks = map (fmap modAccum) . varInfos
-
-varTopLevels :: Context var -> [(var, Bool)]
-varTopLevels = map (fmap varIsTopLevel) . varInfos
 
 withPartialDecls
   :: TypeCheck VarIdent ([Decl'], [err])
@@ -1839,11 +1844,11 @@ type TypeCheck var =
 
 freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
 freeVarsT_ term = do
-  types <- asks varTypes
+  ctx <- ask
   let typeOfVar' x =
-        case lookup x types of
-          Nothing -> panicImpossible "undefined variable"
-          Just ty -> ty
+        case lookupVarInfo x ctx of
+          Nothing   -> panicImpossible "undefined variable"
+          Just info -> varType info
   return (freeVarsT typeOfVar' term)
 
 traceStartAndFinish :: Show a => String -> a -> a
@@ -3087,35 +3092,30 @@ nfT tt = performing (ActionNF tt) $ case tt of
               []   -> nfT type_
               rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
 
+-- | Look up a variable and project one field of its 'VarInfo'; the shared
+-- shape of the per-variable accessors below.
+infoOfVar :: Eq var => (VarInfo var -> a) -> var -> TypeCheck var a
+infoOfVar f x = asks (lookupVarInfo x) >>= \case
+  Nothing   -> issueTypeError $ TypeErrorUndefined x
+  Just info -> return (f info)
+
 checkDefinedVar :: VarIdent -> TypeCheck VarIdent ()
-checkDefinedVar x = asks (lookup x . varInfos) >>= \case
-  Nothing  -> issueTypeError $ TypeErrorUndefined x
-  Just _ty -> return ()
+checkDefinedVar = infoOfVar (const ())
 
 valueOfVar :: Eq var => var -> TypeCheck var (Maybe (TermT var))
-valueOfVar x = asks (lookup x . varValues) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just ty -> return ty
+valueOfVar = infoOfVar varValue
 
 typeOfVar :: Eq var => var -> TypeCheck var (TermT var)
-typeOfVar x = asks (lookup x . varTypes) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just ty -> return ty
+typeOfVar = infoOfVar varType
 
 modalityOfVar :: Eq var => var -> TypeCheck var (TModality)
-modalityOfVar x = asks (lookup x . varModalities) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just m -> return m
+modalityOfVar = infoOfVar varModality
 
 locksOfVar :: Eq var => var -> TypeCheck var (TModality)
-locksOfVar x = asks (lookup x . varLocks) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just m -> return m
+locksOfVar = infoOfVar modAccum
 
 isTopLevelVar :: Eq var => var -> TypeCheck var Bool
-isTopLevelVar x = asks (lookup x . varTopLevels) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just b -> return b
+isTopLevelVar = infoOfVar varIsTopLevel
 
 typeOfUncomputed :: Eq var => TermT var -> TypeCheck var (TermT var)
 typeOfUncomputed = \case
