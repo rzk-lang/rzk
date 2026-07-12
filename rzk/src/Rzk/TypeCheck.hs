@@ -951,7 +951,7 @@ endpointsAgree a b =
 contextEntailsBottom :: Eq var => TypeCheck var Bool
 contextEntailsBottom = asks localTopesEntailBottom >>= \case
   Just b  -> return b
-  Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  Nothing -> entailContextM topeBottomT
 
 -- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it
 -- is a candidate for every goal there (and only there — elsewhere it would not
@@ -966,9 +966,8 @@ recBottomCandidates = do
 -- yes\/no query rather than a check that issues an error.
 coverageHolds :: Eq var => [TermT var] -> TypeCheck var Bool
 coverageHolds topes = do
-  contextTopes <- asks localTopesNF
-  topesNF      <- mapM nfTope topes
-  contextTopes `entailM` foldr topeOrT topeBottomT topesNF
+  topesNF <- mapM nfTope topes
+  entailContextM (foldr topeOrT topeBottomT topesNF)
 
 -- | Tope case-split moves: ways to build a value of the goal by @recOR@,
 -- splitting the proof over a cover of the local tope context. Three sources,
@@ -1327,6 +1326,24 @@ data ModalTope var = ModalTope
   , tTope     :: TermT var
   } deriving (Functor, Foldable, Eq)
 
+-- | The state of the tope-saturation cache in a 'Context'
+-- (see 'localTopesSaturated' and 'withRefreshedTopes').
+data CachedSaturation var
+  = SaturationUncached
+    -- ^ No cache was installed for this tope context ('entailContextM'
+    -- falls back to the per-query pipeline).
+  | SaturationCached (Maybe [[ModalTope var]])
+    -- ^ A deferred pipeline run: forced by the first query under this
+    -- context. 'Nothing' records that the pipeline errored; queries then
+    -- fall back, so the error surfaces exactly where it would have.
+  deriving (Functor)
+
+-- Deliberately empty: the cache's variables duplicate those of
+-- 'localTopesNF', and folding a 'Context' (e.g. collecting names when
+-- printing a scoped error) must not force the deferred pipeline.
+instance Foldable CachedSaturation where
+  foldMap _ _ = mempty
+
 data Context var = Context
   { localScopes            :: [ScopeInfo var]
     -- ^ Binder scopes: variables bound while checking the current
@@ -1349,6 +1366,14 @@ data Context var = Context
   , localTopesNF           :: [ModalTope var]
   , localTopesNFUnion      :: [[ModalTope var]]
   , localTopesEntailBottom :: Maybe Bool
+  , localTopesSaturated    :: CachedSaturation var
+    -- ^ The saturated alternatives for the context's own tope context
+    -- ('localTopesNF' plus the discreteness axioms): exactly the
+    -- preprocessing 'entailM' runs per query, cached at the points where
+    -- the tope context changes ('localTope', 'enterModality',
+    -- 'inAllSubContexts', a flat cube binder) via 'withRefreshedTopes'.
+    -- Ordinary binder entries shift the cached value with the rest of the
+    -- context, which is sound because saturation commutes with renaming.
   , actionStack            :: [Action var]
   , currentCommand         :: Maybe Rzk.Command
   , location               :: Maybe LocationInfo
@@ -1390,6 +1415,8 @@ instance Foldable Context where
     , foldMap (foldMap f) localTopes
     , foldMap (foldMap f) localTopesNF
     , foldMap (foldMap (foldMap f)) localTopesNFUnion
+    -- localTopesSaturated is skipped: its Foldable is deliberately empty
+    -- (folding must not force the deferred saturation pipeline).
     , foldMap (foldMap f) actionStack
     ]
 
@@ -1429,6 +1456,7 @@ applyModality md Context{..} = Context
   , localTopes = applyModalityToTopes md localTopes
   , localTopesNF = applyModalityToTopes md localTopesNF
   , localTopesNFUnion = map (applyModalityToTopes md) localTopesNFUnion
+  , localTopesSaturated = SaturationUncached  -- accessibility changed; 'enterModality' refreshes
   , .. }
 
 emptyTopeContext :: [ModalTope var]
@@ -1440,7 +1468,18 @@ emptyTopeContext =
   ]
 
 emptyContext :: Context VarIdent
-emptyContext = Context
+emptyContext = unseeded { localTopesSaturated = SaturationCached sat }
+  where
+    -- Seed the saturation cache for the empty tope context, so top-level
+    -- entailment queries hit the cached path from the start. Deferred, like
+    -- every other installation (see 'withRefreshedTopes').
+    sat = case runExcept (runWriterT (runReaderT (saturateForEntailment emptyTopeContext) unseeded)) of
+      Left _       -> Nothing
+      Right (s, _) -> Just s
+    unseeded = emptyContextUnseeded
+
+emptyContextUnseeded :: Context VarIdent
+emptyContextUnseeded = Context
   { localScopes = [ScopeInfo Nothing []]
   , globalScopes = [GlobalScopeInfo Nothing []]
   , globalEmbed = id
@@ -1449,6 +1488,7 @@ emptyContext = Context
   , localTopesNF = emptyTopeContext
   , localTopesNFUnion = [emptyTopeContext]
   , localTopesEntailBottom = Just False
+  , localTopesSaturated = SaturationUncached
   , actionStack = []
   , currentCommand = Nothing
   , location = Nothing
@@ -1947,18 +1987,63 @@ allM p = go
 entailM :: Eq var => [ModalTope var] -> TermT var -> TypeCheck var Bool
 entailM modalTopes goal = do
   -- genTopes <- generateTopesForPointsM (allTopePoints goal)
+  topes''' <- saturateForEntailment modalTopes
+  entailSaturatedM topes''' goal
+
+-- | The preprocessing 'entailM' performs before searching: dedup, split off
+-- context disjunctions, and saturate each alternative. Depends only on the
+-- given topes (plus the discreteness axioms of the context), not on the goal
+-- (the points argument of 'saturateTopes' is ignored).
+saturateForEntailment :: Eq var => [ModalTope var] -> TypeCheck var [[ModalTope var]]
+saturateForEntailment modalTopes = do
   discreteAxioms <- generateTopesForModalCubeVarsM
-  let topes'    = nubTermT (modalTopes <> discreteAxioms)
-      topes''   = simplifyLHSwithDisjunctions topes'
-  topes'''  <- mapM (fmap (saturateTopes (allTopePoints goal) . saturateBottom) . saturateInv) topes''
-  asks verbosity >>= \case
-    Debug -> do
-      prettyTopes <- mapM ppTermInContext (map tTope (saturateTopes (allTopePoints goal) (simplifyLHS topes')))
-      prettyTope <- ppTermInContext goal
-      traceTypeCheck Debug
-        ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-          allM (`solveRHSM` goal) topes'''
-    _ -> allM (`solveRHSM` goal) topes'''
+  let topes'  = nubTermT (modalTopes <> discreteAxioms)
+      topes'' = simplifyLHSwithDisjunctions topes'
+  mapM (fmap (saturateTopes [] . saturateBottom) . saturateInv) topes''
+
+-- | Search each saturated alternative for the goal; the shared tail of
+-- 'entailM' and the cached 'entailContextM'.
+entailSaturatedM :: Eq var => [[ModalTope var]] -> TermT var -> TypeCheck var Bool
+entailSaturatedM topes''' goal = asks verbosity >>= \case
+  Debug -> do
+    prettyTopes <- mapM ppTermInContext (map tTope (concat topes'''))
+    prettyTope <- ppTermInContext goal
+    traceTypeCheck Debug
+      ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+        allM (`solveRHSM` goal) topes'''
+  _ -> allM (`solveRHSM` goal) topes'''
+
+-- | Entailment against the context's own tope context, using the
+-- 'localTopesSaturated' cache when one was installed (it is maintained at
+-- the points where the tope context changes); otherwise fall back to the
+-- per-query pipeline over 'localTopesNF'. Matching on the payload of
+-- 'SaturationCached' is what forces the deferred pipeline, so the cost is
+-- paid at the first query under a context, and never for contexts that are
+-- never queried.
+entailContextM :: Eq var => TermT var -> TypeCheck var Bool
+entailContextM goal = asks localTopesSaturated >>= \case
+  SaturationCached (Just topes''') -> entailSaturatedM topes''' goal
+  SaturationCached Nothing         -> fallback
+  SaturationUncached               -> fallback
+  where
+    fallback = asks localTopesNF >>= (`entailM` goal)
+
+-- | Install a deferred 'localTopesSaturated' cache for the transformed
+-- context, and run the action with it. The pipeline's effects (Reader,
+-- Writer, Except) are discharged purely into a thunk: installation costs
+-- nothing, holes recorded by the speculative run are discarded, and a
+-- pipeline error (e.g. a tope guard with a hole in lenient mode, which the
+-- per-query path would never have evaluated) becomes 'Nothing', so errors
+-- surface exactly where they did before. Used at every point where the tope
+-- context changes; ordinary binder entries instead shift the cached value
+-- with the rest of the context (saturation commutes with renaming).
+withRefreshedTopes :: Eq var => (Context var -> Context var) -> TypeCheck var a -> TypeCheck var a
+withRefreshedTopes f action = do
+  ctx' <- asks f
+  let sat = case runExcept (runWriterT (runReaderT (saturateForEntailment (localTopesNF ctx')) ctx')) of
+        Left _       -> Nothing
+        Right (s, _) -> Just s
+  local (const ctx' { localTopesSaturated = SaturationCached sat }) action
 
 
 generateTopesForModalCubeVarsM :: TypeCheck var [ModalTope var]
@@ -2313,9 +2398,8 @@ checkTope :: Eq var => TermT var -> TypeCheck var Bool
 checkTope tope = do
   ctxTopes <- asks availableTopes
   performing (ActionContextEntails ctxTopes tope) $ do
-    topes' <- asks localTopesNF
     tope' <- nfTope tope
-    topes' `entailM` tope'
+    entailContextM tope'
 
 checkTopeEntails :: Eq var => TermT var -> TypeCheck var Bool
 checkTopeEntails tope = do
@@ -2366,7 +2450,7 @@ contextEntailsUnion topes = do
     contextTopes <- asks localTopesNF
     topesNF <- mapM nfTope topes
     let unionRHS = foldr topeOrT topeBottomT topesNF
-    contextTopes `entailM` unionRHS >>= \case
+    entailContextM unionRHS >>= \case
       -- a guard mentioning an (unfilled) hole can't be decided; defer coverage
       False | not (any containsHole topesNF) ->
         issueTypeError $ TypeErrorTopeNotSatisfied (accessibleTopes contextTopes) unionRHS
@@ -2446,7 +2530,10 @@ enterScopeMaybe orig md ty mval action = do
   newContext <- asks (enterScopeContext orig md ty mval)
   let newContext' = newContext
         { localDiscreteTopes = maybe id ((:) . plainTope) mDiscrete (localDiscreteTopes newContext) }
-  closeScope orig (runReaderT action newContext')
+      -- A new discreteness axiom changes the saturation input; ordinary
+      -- binders keep the shifted cache (saturation commutes with renaming).
+      refresh = maybe id (const (withRefreshedTopes id)) mDiscrete
+  closeScope orig (runReaderT (refresh action) newContext')
   where
     z = Pure Z
 
@@ -2471,12 +2558,14 @@ closeScope orig inner = do
   lift (tell holes)
   return b
 
-enterModality :: TModality -> TypeCheck var b -> TypeCheck var b
+enterModality :: Eq var => TModality -> TypeCheck var b -> TypeCheck var b
 enterModality Id action = action
 enterModality md action = do
   newContext <- asks (applyModality md)
   let newContext' = newContext { localTopesEntailBottom = Nothing }
-  lift $ runReaderT action newContext'
+  -- 'applyModality' invalidated the saturation cache (accessibility
+  -- changed); refresh it under the shifted context.
+  lift $ runReaderT (withRefreshedTopes id action) newContext'
 
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
@@ -3213,7 +3302,7 @@ unifyTopes l r = do
   unless equiv $
     issueTypeError (TypeErrorTopesNotEquivalent l r)
 
-inAllSubContexts :: TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
+inAllSubContexts :: Eq var => TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
 inAllSubContexts handleSingle tc = do
   topeSubContexts <- asks localTopesNFUnion
   case topeSubContexts of
@@ -3221,7 +3310,7 @@ inAllSubContexts handleSingle tc = do
     [_] -> handleSingle
     _:_:_ -> do
       forM_ topeSubContexts $ \topes' -> do
-        local (\Context{..} -> Context
+        withRefreshedTopes (\Context{..} -> Context
             { localTopes = topes'
             , localTopesNF = topes'
             , localTopesNFUnion = [topes']
@@ -3602,7 +3691,7 @@ localTope tope tc = do
           | otherwise -> id
   refine $ do
     entailsBottom <- (modalTope' : localTopesNF) `entailM` topeBottomT
-    local (f modalTope' entailsBottom) tc
+    withRefreshedTopes (f modalTope' entailsBottom) tc
   where
     f tope' entailsBottom Context{..} = Context
       { localTopes = plainTope tope : localTopes
