@@ -16,8 +16,8 @@ module Language.Rzk.VSCode.ReferenceIndex (
   identLoc,
 ) where
 
-import           Data.Function       (on)
-import           Data.List           (find, nubBy)
+import qualified Data.Map.Strict     as Map
+import           Data.Maybe          (listToMaybe)
 import qualified Data.Text           as T
 
 import qualified Language.Rzk.Syntax as Rzk
@@ -37,13 +37,13 @@ data Range = Range
   { rangeStart :: Position
   , rangeEnd   :: Position
   }
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 data Location = Location
   { locationUri   :: Uri
   , locationRange :: Range
   }
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 
 data Binding = Binding
   { bindingName :: T.Text
@@ -53,13 +53,18 @@ data Binding = Binding
   deriving (Eq, Show)
 
 data ReferenceIndex = ReferenceIndex
-  { bindings :: [Binding]
+  { bindings    :: [Binding]
+  , occurrences :: Map.Map (FilePath, Int) [(Int, Int, Binding)]
+    -- ^ Every occurrence (definition or reference), keyed by file and line,
+    -- as column spans; identifiers never span lines. This is what makes
+    -- 'lookupAt' a map lookup rather than a scan over all bindings.
   }
   deriving (Show)
 
 data Link = Link T.Text Location Location
 
-type Env = [(T.Text, Location)]
+-- | Names in scope. Locals shadow globals by insertion.
+type Env = Map.Map T.Text Location
 
 varText :: Rzk.VarIdent' a -> T.Text
 varText (Rzk.VarIdent _ (Rzk.VarIdentToken t)) = t
@@ -87,24 +92,35 @@ bindingSites :: Binding -> [Location]
 bindingSites b = bindingDef b : bindingRefs b
 
 lookupAt :: ReferenceIndex -> Uri -> Position -> Maybe Binding
-lookupAt (ReferenceIndex bs) uri pos =
-  find (\b -> locationCovers uri pos (bindingDef b) || any (locationCovers uri pos) (bindingRefs b)) bs
+lookupAt index (Uri path) (Position l c) =
+  case Map.lookup (path, l) (occurrences index) of
+    Nothing    -> Nothing
+    Just spans -> listToMaybe [ b | (s, e, b) <- spans, s <= c, c < e ]
 
 indexModules :: [(FilePath, Rzk.Module)] -> ReferenceIndex
 indexModules modules = group $
   concat [ goCommand file env0 c | (file, m) <- modules, c <- moduleCommands m ]
   where
-    env0 = [ (varText v, loc)
-           | (file, m) <- modules, v <- globalNames m, Just loc <- [identLoc file v] ]
-    group links =
-      let keys = nubBy ((==) `on` (\(Link n d _) -> (n, d))) links
-      in ReferenceIndex
+    -- On duplicate names, the first definition wins (as scope lookup would).
+    env0 = Map.fromListWith (\_new old -> old)
+      [ (varText v, loc)
+      | (file, m) <- modules, v <- globalNames m, Just loc <- [identLoc file v] ]
+    group links = ReferenceIndex
+      { bindings    = bs
+      , occurrences = Map.fromListWith (++)
+          [ ((path, l), [(s, e, b)])
+          | b <- bs
+          , Location (Uri path) (Range (Position l s) (Position _ e)) <- bindingSites b
+          ]
+      }
+      where
         -- Binders produce a self-link (definition site linked to itself) so
         -- that every binding has a key; keep it out of the reference list,
         -- which 'bindingSites' prepends the definition to.
-        [ Binding n d [ r | Link n' d' r <- links, n' == n, d' == d, r /= d ]
-        | Link n d _ <- keys
-        ]
+        bs = [ Binding n d rs
+             | ((n, d), rs) <- Map.toList $ Map.fromListWith (flip (++))
+                 [ ((n, d), if r == d then [] else [r]) | Link n d r <- links ]
+             ]
 
 moduleCommands :: Rzk.Module -> [Rzk.Command]
 moduleCommands (Rzk.Module _ _ cmds) = cmds
@@ -119,12 +135,15 @@ globalNames = concatMap cmd . moduleCommands
       _                                 -> []
 
 use :: FilePath -> Env -> Rzk.VarIdent -> [Link]
-use file env v = case (lookup (varText v) env, identLoc file v) of
+use file env v = case (Map.lookup (varText v) env, identLoc file v) of
   (Just defLoc, Just occLoc) -> [Link (varText v) defLoc occLoc]
   _                          -> []
 
 bindVars :: FilePath -> Env -> [Rzk.VarIdent] -> (Env, [Link])
-bindVars file env vs = (binds ++ env, [ Link n loc loc | (n, loc) <- binds ])
+bindVars file env vs =
+  ( Map.union (Map.fromListWith (\_new old -> old) binds) env
+  , [ Link n loc loc | (n, loc) <- binds ]
+  )
   where
     binds = [ (varText v, loc) | v <- vs, Just loc <- [identLoc file v] ]
 

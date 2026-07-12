@@ -29,6 +29,7 @@ import           Control.Monad.Except          (ExceptT (ExceptT),
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
 import           Data.List                     (find, isSuffixOf, nub, sort, (\\))
+import qualified Data.Map.Strict               as Map
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
@@ -432,17 +433,27 @@ indexProject currentFile = do
   let paths = nub (currentFile : map fst cached)
   mdoc <- getVirtualFile (filePathToNormalizedUri currentFile)
   let msrc = T.filter (/= '\r') <$> (virtualFileText <$> mdoc)
-  mcached <- getCachedReferenceIndex
-  case mcached of
-    Just c
-      | indexCachePaths c == paths
-      , indexCacheCurrent c == currentFile
-      , indexCacheSource c == msrc
-      -> return (indexCache c)
+  ReferenceIndexCache oldModules oldResult <- getCachedReferenceIndex
+  -- Re-parse only what changed: the current file is revalidated against the
+  -- editor buffer, while other files keep their cached parse until a
+  -- file-change notification evicts it (see resetCacheForFiles).
+  entries <- forM paths $ \p ->
+    case Map.lookup p oldModules of
+      Just pm
+        | p /= currentFile || parsedSource pm == msrc -> return (p, pm, False)
+      _ -> do
+        parsed <- parseProjectFile currentFile msrc p
+        let source = if p == currentFile then msrc else Nothing
+        return (p, ParsedModule source parsed, True)
+  let reparsed = or [ r | (_, _, r) <- entries ]
+  case oldResult of
+    Just (ps, index) | ps == paths, not reparsed -> return index
     _ -> do
-      parsed <- forM paths $ \p -> fmap ((,) p <$>) (parseProjectFile currentFile msrc p)
-      let referenceIndex = RefInd.indexModules [ pm | Just pm <- parsed ]
-      cacheReferenceIndex (ReferenceIndexCache paths currentFile msrc referenceIndex)
+      let referenceIndex = RefInd.indexModules
+            [ (p, m) | (p, ParsedModule _ (Just m), _) <- entries ]
+      cacheReferenceIndex $ ReferenceIndexCache
+        (Map.fromList [ (p, pm) | (p, pm, _) <- entries ])
+        (Just (paths, referenceIndex))
       return referenceIndex
 
 parseProjectFile :: FilePath -> Maybe T.Text -> FilePath -> LSP (Maybe Module)
