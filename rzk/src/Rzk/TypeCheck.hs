@@ -5372,11 +5372,17 @@ memoWHNF t                      = t
 -- put in weak head normal form first, which needs the global declarations in
 -- scope (see 'binderTypesInScopeOf'). The dependent part is rendered under
 -- the earlier component's display name, giving @q : B p@.
-binderTypeEntriesM :: Eq var => BinderNames var -> Binder -> TermT var -> TypeCheck var [(VarIdent, Term')]
+-- | A binder's displayed type: a plain type, or a cube together with a tope
+-- for shaped binders like @(t : I | φ t)@.
+data BinderTypeView
+  = TypeView Term'
+  | ShapeView Term' Term'
+
+binderTypeEntriesM :: Eq var => BinderNames var -> Binder -> TermT var -> TypeCheck var [(VarIdent, BinderTypeView)]
 binderTypeEntriesM names binder ty = case binder of
   BinderUnit         -> pure []
   BinderVar Nothing  -> pure []
-  BinderVar (Just x) -> pure [(x, renderBinderType names ty)]
+  BinderVar (Just x) -> pure [(x, TypeView (renderBinderType names ty))]
   BinderPair l r     -> splitViewM ty >>= \case
     Just (TypeSigmaT _ _ md a bscope) -> do
       ls <- binderTypeEntriesM names l a
@@ -5402,18 +5408,22 @@ splitViewM ty = case splitView (memoWHNF ty) of
 -- binder's original identifier (whose position points at its defining
 -- occurrence). Every node of a typed term carries its type, so even a bare
 -- lambda's binder is typed, by the domain of the lambda's own Π-type.
-binderTypesOfTermM :: Eq var => BinderNames var -> TermT var -> TypeCheck var [(VarIdent, Term')]
+binderTypesOfTermM :: Eq var => BinderNames var -> TermT var -> TypeCheck var [(VarIdent, BinderTypeView)]
 binderTypesOfTermM names = go
   where
     go t = case t of
       Pure _ -> pure []
       LambdaT info binder mparam body -> do
-        paramType <- case mparam of
-          Just (_, ty, _) -> pure (Just ty)
+        (paramType, paramTope) <- case mparam of
+          Just (_, ty, mtope) -> pure (Just ty, mtope)
+          -- A bare lambda: the domain (and shape) of its own Π-type.
           Nothing -> case funView (memoWHNF (infoType info)) of
-            Just p  -> pure (Just p)
-            Nothing -> (funView <$> whnfT (infoType info)) `catchError` \_ -> pure Nothing
-        entries <- maybe (pure []) (binderTypeEntriesM names binder) paramType
+            Just (p, mtope) -> pure (Just p, mtope)
+            Nothing ->
+              (maybe (Nothing, Nothing) (\(p, mtope) -> (Just p, mtope)) . funView
+                 <$> whnfT (infoType info))
+                `catchError` \_ -> pure (Nothing, Nothing)
+        entries <- shapedBinderEntries names binder paramType paramTope
         annEntries <- case mparam of
           Nothing -> pure []
           Just (md, ty, mtope) -> do
@@ -5424,7 +5434,7 @@ binderTypesOfTermM names = go
         bodyEntries <- enterScope binder md (fromMaybe universeT paramType) (under binder body)
         pure (entries ++ annEntries ++ bodyEntries)
       TypeFunT _ binder md param mtope ret -> do
-        entries      <- binderTypeEntriesM names binder param
+        entries      <- shapedBinderEntries names binder (Just param) mtope
         paramEntries <- go param
         topeEntries  <- maybe (pure []) (enterScope binder md param . under binder) mtope
         retEntries   <- enterScope binder md param (under binder ret)
@@ -5460,15 +5470,24 @@ binderTypesOfTermM names = go
       Free (AnnF _ f) -> concat <$> mapM go (bifoldr (\_ acc -> acc) (:) [] f)
     under binder = binderTypesOfTermM (underBinder binder names)
     funView t = case stripTypeRestrictions t of
-      TypeFunT _ _ _ param _ _ -> Just param
-      _                        -> Nothing
+      TypeFunT _ _ _ param mtope _ -> Just (param, mtope)
+      _                            -> Nothing
     modalView t = case stripTypeRestrictions t of
       TypeModalT _ _ a -> Just a
       _                -> Nothing
+    -- A shaped plain binder shows its cube together with the tope, as it is
+    -- written: (t : I | φ t). A shaped pair binder splits along the cube,
+    -- the tope constraining the components jointly (as in the surface tier).
+    shapedBinderEntries names' binder mty mtope = case (binder, mty, mtope) of
+      (BinderVar (Just x), Just cube, Just tope) ->
+        pure [(x, ShapeView (renderBinderType names' cube)
+                            (renderBinderType (underBinder binder names') tope))]
+      (_, Just ty, _) -> binderTypeEntriesM names' binder ty
+      _ -> pure []
 
 -- | All local binder types of a declaration: Π and Σ binders from the type,
 -- lambda and let binders from the value.
-declBinderTypes :: Decl' -> TypeCheck VarIdent [(VarIdent, Term')]
+declBinderTypes :: Decl' -> TypeCheck VarIdent [(VarIdent, BinderTypeView)]
 declBinderTypes decl =
   (++) <$> binderTypesOfTermM topLevelBinderNames (declType decl)
        <*> maybe (pure []) (binderTypesOfTermM topLevelBinderNames) (declValue decl)
@@ -5477,7 +5496,7 @@ declBinderTypes decl =
 -- in scope so that 'whnfT' can unfold definitions when splitting pair
 -- binders. Pure at the interface: runs the checker silently and returns no
 -- entries where it fails.
-binderTypesInScopeOf :: [Decl'] -> [Decl'] -> [(VarIdent, Term')]
+binderTypesInScopeOf :: [Decl'] -> [Decl'] -> [(VarIdent, BinderTypeView)]
 binderTypesInScopeOf globalDecls fileDecls =
   case defaultTypeCheck action of
     Left _        -> []

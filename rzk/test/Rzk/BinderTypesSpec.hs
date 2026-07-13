@@ -27,11 +27,14 @@ binderTypesOf src =
       Left err    -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
       Right decls ->
         let ds = concatMap snd decls
-        in [ (pos, show t)
+        in [ (pos, view t)
            | (v, t) <- binderTypesInScopeOf ds ds
            , let VarIdent (RzkPosition _ mpos) _ = getVarIdent v
            , Just pos <- [mpos]
            ]
+  where
+    view (TypeView t)       = show t
+    view (ShapeView c tope) = show c <> " | " <> show tope
 
 exampleModule :: T.Text
 exampleModule = T.unlines
@@ -53,6 +56,10 @@ exampleModule = T.unlines
   , "#define use-quasi (A : U) (B : A -> U)"             -- line 16
   , "  ( (s , t) : quasi-pair A B)"                      -- line 17
   , "  : U := A"                                         -- line 18
+  , "#define shaped (A : U) (a : A)"                     -- line 19
+  , "  ( p : (t : 2 | t === t) -> A)"                    -- line 20
+  , "  : (s : 2 | TOP) -> A"                             -- line 21
+  , "  := \\ r -> a"                                     -- line 22
   ]
 
 spec :: Spec
@@ -84,3 +91,9 @@ spec = describe "declBinderTypes" $ do
   it "splits a pair against a defined Σ-type by computing its WHNF" $ do
     at (17, 6)  `shouldBe` Just "A"                   -- ( (s , t) : quasi-pair A B)
     at (17, 10) `shouldBe` Just "B s"
+
+  it "shows a shaped binder with its tope" $
+    at (20, 10) `shouldBe` Just "2 | t ≡ t"           -- (t : 2 | t === t)
+
+  it "shows a bare lambda binder against a shaped Π with its tope" $
+    at (22, 8) `shouldBe` Just "2 | ⊤"                -- \ r -> against (s : 2 | TOP) -> A

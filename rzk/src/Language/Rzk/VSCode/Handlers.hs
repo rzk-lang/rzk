@@ -540,7 +540,8 @@ provideHover req res = do
           , Just (l, c) <- [mpos]
           ]
         signature = case elaboratedLocal of
-          Just t  -> formatSignature (T.unpack name) (fromTerm' t)
+          Just (TypeView t)       -> formatSignature (T.unpack name) (fromTerm' t)
+          Just (ShapeView c tope) -> T.unpack name ++ " : " ++ show c ++ " | " ++ show tope
           Nothing -> case find declOnSameLine decls of
             Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
             Nothing -> case RefInd.bindingType binding of

@@ -12,8 +12,6 @@ module Language.Rzk.VSCode.ReferenceIndex (
   lookupAt,
   bindingSites,
   locationPath,
-  locationCovers,
-  identLoc,
 ) where
 
 import           Control.Applicative      ((<|>))
@@ -61,9 +59,8 @@ data Binding = Binding
   }
   deriving (Eq, Show)
 
-data ReferenceIndex = ReferenceIndex
-  { bindings    :: [Binding]
-  , occurrences :: Map.Map (FilePath, Int) [(Int, Int, Binding)]
+newtype ReferenceIndex = ReferenceIndex
+  { occurrences :: Map.Map (FilePath, Int) [(Int, Int, Binding)]
     -- ^ Every occurrence (definition or reference), keyed by file and line,
     -- as column spans; identifiers never span lines. This is what makes
     -- 'lookupAt' a map lookup rather than a scan over all bindings.
@@ -92,13 +89,6 @@ identLoc file (Rzk.VarIdent pos (Rzk.VarIdentToken name)) = case pos of
 locationPath :: Location -> FilePath
 locationPath (Location u _) = uriPath u
 
-locationCovers :: Uri -> Position -> Location -> Bool
-locationCovers uri pos (Location u (Range (Position sl sc) (Position _ ec))) =
-  u == uri && covers sl sc ec
-  where
-    Position cl cc = pos
-    covers l s e = cl == l && s <= cc && cc < e
-
 bindingSites :: Binding -> [Location]
 bindingSites b = bindingDef b : bindingRefs b
 
@@ -117,8 +107,7 @@ indexModules modules = group $
       [ (varText v, loc)
       | (file, m) <- modules, v <- globalNames m, Just loc <- [identLoc file v] ]
     group links = ReferenceIndex
-      { bindings    = bs
-      , occurrences = Map.fromListWith (++)
+      { occurrences = Map.fromListWith (++)
           [ ((path, l), [(s, e, b)])
           | b <- bs
           , Location (Uri path) (Range (Position l s) (Position _ e)) <- bindingSites b
