@@ -18,12 +18,22 @@ data RzkCachedModule = RzkCachedModule
 
 type RzkTypecheckCache = [(FilePath, RzkCachedModule)]
 
--- | A parse result for the reference index, together with the source text it
--- was parsed from ('Nothing' when parsed from disk rather than the editor
--- buffer; a failed parse is a 'Nothing' module and is not retried until the
--- source changes).
+-- | Where a parse came from, deciding whether it may be reused.
+data ParseSource
+  = ParsedFromBuffer T.Text
+    -- ^ Parsed from the editor buffer with this text; reusable for the
+    -- current file while the buffer text is unchanged.
+  | ParsedFromDisk
+    -- ^ Parsed from the file on disk; trusted until invalidated by a
+    -- file-change notification.
+  | ParseInvalidated
+    -- ^ The file changed; must be re-parsed. The module is kept as the last
+    -- good parse, which hover falls back to while the file fails to parse.
+
+-- | A parse result for the reference index. A failed parse is a 'Nothing'
+-- module and is not retried until the source changes.
 data ParsedModule = ParsedModule
-  { parsedSource :: Maybe T.Text
+  { parsedSource :: ParseSource
   , parsedModule :: Maybe Module
   }
 
@@ -61,8 +71,12 @@ cacheTypecheckedModules cache = lift $ do
   referenceIndexCache <- asks rzkEnvReferenceIndexCache
   liftIO $ atomically $ do
     writeTVar typecheckCache cache
-    -- A full typecheck follows files changing on disk; drop the parses too.
-    writeTVar referenceIndexCache emptyReferenceIndexCache
+    -- Drop the built index (the declaration set may have changed), but keep
+    -- the parse entries: files changed on disk are already evicted per path
+    -- by 'resetCacheForFiles' on file-change notifications, and a kept entry
+    -- may hold the last good parse of a file that currently has a syntax
+    -- error, which hover falls back to.
+    modifyTVar referenceIndexCache $ \c -> c { indexCacheResult = Nothing }
 
 resetCacheForAllFiles :: LSP ()
 resetCacheForAllFiles = cacheTypecheckedModules []
@@ -74,7 +88,9 @@ resetCacheForFiles paths = lift $ do
   liftIO $ atomically $ do
     modifyTVar typecheckCache (takeWhile ((`notElem` paths) . fst))
     modifyTVar referenceIndexCache $ \c -> ReferenceIndexCache
-      { indexCacheModules = foldr Map.delete (indexCacheModules c) paths
+      { indexCacheModules =
+          foldr (Map.adjust (\pm -> pm { parsedSource = ParseInvalidated }))
+                (indexCacheModules c) paths
       , indexCacheResult  = Nothing
       }
 

@@ -21,6 +21,7 @@ module Language.Rzk.VSCode.Handlers (
   handleFilesChanged,
 ) where
 
+import           Control.Applicative           ((<|>))
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
 import           Control.Monad                 (forM, forM_, when)
@@ -441,15 +442,25 @@ indexProject currentFile = do
   ReferenceIndexCache oldModules oldResult <- getCachedReferenceIndex
   -- Re-parse only what changed: the current file is revalidated against the
   -- editor buffer, while other files keep their cached parse until a
-  -- file-change notification evicts it (see resetCacheForFiles).
+  -- file-change notification invalidates it (see resetCacheForFiles).
+  let reusable p pm = case parsedSource pm of
+        ParseInvalidated   -> False
+        ParsedFromBuffer t -> p /= currentFile || msrc == Just t
+        ParsedFromDisk     -> p /= currentFile || isNothing msrc
   entries <- forM paths $ \p ->
     case Map.lookup p oldModules of
-      Just pm
-        | p /= currentFile || parsedSource pm == msrc -> return (p, pm, False)
-      _ -> do
+      Just pm | reusable p pm -> return (p, pm, False)
+      mold -> do
         parsed <- parseProjectFile currentFile msrc p
-        let source = if p == currentFile then msrc else Nothing
-        return (p, ParsedModule source parsed, True)
+        let source = if p == currentFile
+              then maybe ParsedFromDisk ParsedFromBuffer msrc
+              else ParsedFromDisk
+            -- A failed parse (a syntax error mid-edit) keeps the last good
+            -- module, so hover and navigation stay available; the source is
+            -- still updated, so the parse is retried once per edit, not once
+            -- per request.
+            module_ = parsed <|> (parsedModule =<< mold)
+        return (p, ParsedModule source module_, True)
   let reparsed = or [ r | (_, _, r) <- entries ]
   case oldResult of
     Just (ps, cachedIndex) | ps == paths, not reparsed -> return cachedIndex
