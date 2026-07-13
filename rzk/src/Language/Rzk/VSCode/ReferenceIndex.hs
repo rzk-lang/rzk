@@ -16,6 +16,7 @@ module Language.Rzk.VSCode.ReferenceIndex (
   identLoc,
 ) where
 
+import           Control.Applicative ((<|>))
 import qualified Data.Map.Strict     as Map
 import           Data.Maybe          (listToMaybe)
 import qualified Data.Text           as T
@@ -48,6 +49,11 @@ data Location = Location
 data Binding = Binding
   { bindingName :: T.Text
   , bindingDef  :: Location
+  , bindingType :: Maybe T.Text
+    -- ^ The printed surface annotation of the binder, when it has one
+    -- (e.g. @A@ for @(x : A)@, @I | φ t@ for @(t : I | φ t)@). Top-level
+    -- names carry 'Nothing'; their elaborated type comes from the
+    -- typecheck cache instead.
   , bindingRefs :: [Location]
   }
   deriving (Eq, Show)
@@ -61,7 +67,9 @@ data ReferenceIndex = ReferenceIndex
   }
   deriving (Show)
 
-data Link = Link T.Text Location Location
+-- | One resolved occurrence: name, definition site, occurrence site, and
+-- (for the self-link of a binder) its printed type annotation.
+data Link = Link T.Text Location Location (Maybe T.Text)
 
 -- | Names in scope. Locals shadow globals by insertion.
 type Env = Map.Map T.Text Location
@@ -120,10 +128,13 @@ indexModules modules = group $
         -- Accumulate by prepending (constant time per link) and restore the
         -- encounter order with one reverse at the end; appending would be
         -- quadratic in the number of references of a binding.
-        bs = [ Binding n d (reverse rs)
-             | ((n, d), rs) <- Map.toList $ Map.fromListWith (++)
-                 [ ((n, d), if r == d then [] else [r]) | Link n d r <- links ]
+        bs = [ Binding n d ann (reverse rs)
+             | ((n, d), (rs, ann)) <- Map.toList $ Map.fromListWith merge
+                 [ ((n, d), (if r == d then [] else [r], a)) | Link n d r a <- links ]
              ]
+        -- fromListWith combines as f new old: prepend the new references,
+        -- prefer the earliest annotation (the binder's self-link).
+        merge (rsNew, aNew) (rsOld, aOld) = (rsNew ++ rsOld, aOld <|> aNew)
 
 moduleCommands :: Rzk.Module -> [Rzk.Command]
 moduleCommands (Rzk.Module _ _ cmds) = cmds
@@ -139,19 +150,37 @@ globalNames = concatMap cmd . moduleCommands
 
 use :: FilePath -> Env -> Rzk.VarIdent -> [Link]
 use file env v = case (Map.lookup (varText v) env, identLoc file v) of
-  (Just defLoc, Just occLoc) -> [Link (varText v) defLoc occLoc]
+  (Just defLoc, Just occLoc) -> [Link (varText v) defLoc occLoc Nothing]
   _                          -> []
 
-bindVars :: FilePath -> Env -> [Rzk.VarIdent] -> (Env, [Link])
+typeAnn :: Rzk.Term -> Maybe T.Text
+typeAnn ty = Just (T.pack (Rzk.printTree ty))
+
+shapeAnn :: Rzk.Term -> Rzk.Term -> Maybe T.Text
+shapeAnn cube tope = Just (T.pack (Rzk.printTree cube ++ " | " ++ Rzk.printTree tope))
+
+bindVars :: FilePath -> Env -> [(Rzk.VarIdent, Maybe T.Text)] -> (Env, [Link])
 bindVars file env vs =
-  ( Map.union (Map.fromListWith (\_new old -> old) binds) env
-  , [ Link n loc loc | (n, loc) <- binds ]
+  ( Map.union (Map.fromListWith (\_new old -> old) [ (n, loc) | (n, loc, _) <- binds ]) env
+  , [ Link n loc loc ann | (n, loc, ann) <- binds ]
   )
   where
-    binds = [ (varText v, loc) | v <- vs, Just loc <- [identLoc file v] ]
+    binds = [ (varText v, loc, ann) | (v, ann) <- vs, Just loc <- [identLoc file v] ]
 
-bindPat :: FilePath -> Env -> Rzk.Pattern -> (Env, [Link])
-bindPat file env = bindVars file env . patternVars
+bindPat :: FilePath -> Env -> Maybe T.Text -> Rzk.Pattern -> (Env, [Link])
+bindPat file env ann = bindVars file env . annotatedPatternVars ann
+
+-- | The annotation describes the whole pattern; only a plain variable
+-- pattern inherits it, components of pair patterns are left untyped.
+annotatedPatternVars :: Maybe T.Text -> Rzk.Pattern -> [(Rzk.VarIdent, Maybe T.Text)]
+annotatedPatternVars ann = \case
+  Rzk.PatternVar _ v -> [(v, ann)]
+  p                  -> [ (v, Nothing) | v <- patternVars p ]
+
+annotatedTermPatVars :: Maybe T.Text -> Rzk.Term -> [(Rzk.VarIdent, Maybe T.Text)]
+annotatedTermPatVars ann = \case
+  Rzk.Var _ v -> [(v, ann)]
+  t           -> [ (v, Nothing) | v <- termPatVars t ]
 
 patternVars :: Rzk.Pattern -> [Rzk.VarIdent]
 patternVars = \case
@@ -185,7 +214,7 @@ goCommand file env = \case
   Rzk.CommandSection{}         -> []
   Rzk.CommandSectionEnd{}      -> []
   where
-    def v = [ Link (varText v) loc loc | Just loc <- [identLoc file v] ]
+    def v = [ Link (varText v) loc loc Nothing | Just loc <- [identLoc file v] ]
 
 goTerm :: FilePath -> Env -> Rzk.Term -> [Link]
 goTerm file env = \case
@@ -276,7 +305,7 @@ letScope file env bind val body =
 
 sigmaScope :: FilePath -> Env -> Rzk.Pattern -> Rzk.Term -> Rzk.Term -> [Link]
 sigmaScope file env pat ty ret =
-  let (env', occs) = bindPat file env pat
+  let (env', occs) = bindPat file env (typeAnn ty) pat
   in goTerm file env ty ++ occs ++ goTerm file env' ret
 
 sigmaTupleScope :: FilePath -> Env -> [Rzk.SigmaParam] -> Rzk.Term -> [Link]
@@ -294,9 +323,9 @@ restriction file env = \case
 
 goBind :: FilePath -> Env -> Rzk.Bind -> (Env, [Link])
 goBind file env = \case
-  Rzk.BindPattern _ pat -> bindPat file env pat
+  Rzk.BindPattern _ pat -> bindPat file env Nothing pat
   Rzk.BindPatternType _ pat ty ->
-    let (env', occs) = bindPat file env pat in (env', goTerm file env ty ++ occs)
+    let (env', occs) = bindPat file env (typeAnn ty) pat in (env', goTerm file env ty ++ occs)
 
 goParams :: FilePath -> Env -> [Rzk.Param] -> (Env, [Link])
 goParams _    env []       = (env, [])
@@ -307,43 +336,43 @@ goParams file env (p : ps) =
 
 goParam :: FilePath -> Env -> Rzk.Param -> (Env, [Link])
 goParam file env = \case
-  Rzk.ParamPattern _ pat -> bindPat file env pat
+  Rzk.ParamPattern _ pat -> bindPat file env Nothing pat
   Rzk.ParamPatternType _ pats ty ->
-    let (env', occs) = bindVars file env (concatMap patternVars pats)
+    let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (typeAnn ty)) pats)
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamPatternShape _ pats cube tope ->
-    let (env', occs) = bindVars file env (concatMap patternVars pats)
+    let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (shapeAnn cube tope)) pats)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamPatternShapeDeprecated _ pat cube tope ->
-    let (env', occs) = bindPat file env pat
+    let (env', occs) = bindPat file env (shapeAnn cube tope) pat
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamPatternModalType _ pats _ ty ->
-    let (env', occs) = bindVars file env (concatMap patternVars pats)
+    let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (typeAnn ty)) pats)
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamPatternModalShape _ pats _ cube tope ->
-    let (env', occs) = bindVars file env (concatMap patternVars pats)
+    let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (shapeAnn cube tope)) pats)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
 
 goParamDecl :: FilePath -> Env -> Rzk.ParamDecl -> (Env, [Link])
 goParamDecl file env = \case
   Rzk.ParamType _ ty -> (env, goTerm file env ty)
   Rzk.ParamTermType _ patTerm ty ->
-    let (env', occs) = bindVars file env (termPatVars patTerm)
+    let (env', occs) = bindVars file env (annotatedTermPatVars (typeAnn ty) patTerm)
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamTermShape _ patTerm cube tope ->
-    let (env', occs) = bindVars file env (termPatVars patTerm)
+    let (env', occs) = bindVars file env (annotatedTermPatVars (shapeAnn cube tope) patTerm)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamTermTypeDeprecated _ pat ty ->
-    let (env', occs) = bindPat file env pat
+    let (env', occs) = bindPat file env (typeAnn ty) pat
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamVarShapeDeprecated _ pat cube tope ->
-    let (env', occs) = bindPat file env pat
+    let (env', occs) = bindPat file env (shapeAnn cube tope) pat
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamTermModalType _ patTerm _ ty ->
-    let (env', occs) = bindVars file env (termPatVars patTerm)
+    let (env', occs) = bindVars file env (annotatedTermPatVars (typeAnn ty) patTerm)
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamTermModalShape _ patTerm _ cube tope ->
-    let (env', occs) = bindVars file env (termPatVars patTerm)
+    let (env', occs) = bindVars file env (annotatedTermPatVars (shapeAnn cube tope) patTerm)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
 
 goSigmaParams :: FilePath -> Env -> [Rzk.SigmaParam] -> (Env, [Link])
@@ -356,6 +385,6 @@ goSigmaParams file env (p : ps) =
 goSigmaParam :: FilePath -> Env -> Rzk.SigmaParam -> (Env, [Link])
 goSigmaParam file env = \case
   Rzk.SigmaParam _ pat ty ->
-    let (env', occs) = bindPat file env pat in (env', goTerm file env ty ++ occs)
+    let (env', occs) = bindPat file env (typeAnn ty) pat in (env', goTerm file env ty ++ occs)
   Rzk.SigmaParamModal _ pat _ ty ->
-    let (env', occs) = bindPat file env pat in (env', goTerm file env ty ++ occs)
+    let (env', occs) = bindPat file env (typeAnn ty) pat in (env', goTerm file env ty ++ occs)

@@ -20,6 +20,7 @@ module Language.Rzk.VSCode.Handlers (
   handleFilesChanged,
 ) where
 
+import           Control.Applicative           ((<|>))
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
 import           Control.Monad                 (forM, forM_, when)
@@ -481,14 +482,26 @@ provideHover req res = do
         (Just (toLspRange (RefInd.locationRange (RefInd.bindingDef binding))))
   where
     hoverContent binding cached =
-      let file = RefInd.locationPath (RefInd.bindingDef binding)
-          name = RefInd.bindingName binding
-          decls = maybe [] cachedModuleDecls (lookup file cached)
-      in case find (\(Decl v _ _ _ _ _) -> T.pack (printTree (getVarIdent v)) == name) decls of
-           Just (Decl v ty _ _ _ _) ->
-             T.pack (file ++ "\n\n" ++ printTree (getVarIdent v) ++ " : " ++ show (untyped ty))
-           Nothing ->
-             T.pack (file ++ "\n\n" ++ T.unpack name ++ " : ?")
+      T.pack (file ++ "\n\n" ++ T.unpack name ++ " : " ++ typeString)
+      where
+        file = RefInd.locationPath (RefInd.bindingDef binding)
+        name = RefInd.bindingName binding
+        defLine = RefInd.positionLine (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
+        decls = maybe [] cachedModuleDecls (lookup file cached)
+        -- A local binder shows its surface annotation; a top-level name shows
+        -- its elaborated type from the typecheck cache. Prefer the cached
+        -- declaration on the same line, so that a local that shadows a global
+        -- does not show the global's type; fall back to a name match when no
+        -- declaration carries a usable location.
+        typeString = case RefInd.bindingType binding of
+          Just ann -> T.unpack ann
+          Nothing  -> case find declOnSameLine decls <|> find declWithName decls of
+            Just (Decl _ ty _ _ _ _) -> show (untyped ty)
+            Nothing                  -> "?"
+        declWithName (Decl v _ _ _ _ _) =
+          T.pack (printTree (getVarIdent v)) == name
+        declOnSameLine d@(Decl _ _ _ _ _ mloc) =
+          declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
 
 provideSymbols :: Handler LSP 'Method_TextDocumentDocumentSymbol
 provideSymbols req res = do
