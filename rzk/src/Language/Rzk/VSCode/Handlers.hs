@@ -530,10 +530,12 @@ provideHover req res = do
         -- global's type). The surface annotation from the reference index is
         -- the fallback, e.g. for mid-edit or ill-typed code with no cache.
         defCol = RefInd.positionCharacter (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
+        -- All cached declarations go in scope, so that splitting a pair
+        -- binder can unfold defined Σ-types from any file of the project.
+        allDecls = concatMap (cachedModuleDecls . snd) cached
         elaboratedLocal = lookup (defLine, defCol)
           [ ((l - 1, c - 1), t)
-          | d <- decls
-          , (v, t) <- declBinderTypes d
+          | (v, t) <- binderTypesInScopeOf allDecls decls
           , let VarIdent (RzkPosition _path mpos) _ = getVarIdent v
           , Just (l, c) <- [mpos]
           ]

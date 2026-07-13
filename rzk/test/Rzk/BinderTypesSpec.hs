@@ -26,12 +26,12 @@ binderTypesOf src =
     Right m  -> case defaultTypeCheck (localVerbosity Silent (typecheckModulesWithLocation [("<test>", m)])) of
       Left err    -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
       Right decls ->
-        [ (pos, show t)
-        | d <- concatMap snd decls
-        , (v, t) <- declBinderTypes d
-        , let VarIdent (RzkPosition _ mpos) _ = getVarIdent v
-        , Just pos <- [mpos]
-        ]
+        let ds = concatMap snd decls
+        in [ (pos, show t)
+           | (v, t) <- binderTypesInScopeOf ds ds
+           , let VarIdent (RzkPosition _ mpos) _ = getVarIdent v
+           , Just pos <- [mpos]
+           ]
 
 exampleModule :: T.Text
 exampleModule = T.unlines
@@ -48,6 +48,11 @@ exampleModule = T.unlines
   , "#define uncur (A : U) (B : A -> U)"                 -- line 11
   , "  : (Sigma (x : A) , B x) -> U"                     -- line 12
   , "  := \\ (a , b) -> A"                               -- line 13
+  , "#define quasi-pair (A : U) (B : A -> U) : U"        -- line 14
+  , "  := Sigma (x : A) , B x"                           -- line 15
+  , "#define use-quasi (A : U) (B : A -> U)"             -- line 16
+  , "  ( (s , t) : quasi-pair A B)"                      -- line 17
+  , "  : U := A"                                         -- line 18
   ]
 
 spec :: Spec
@@ -75,3 +80,7 @@ spec = describe "declBinderTypes" $ do
   it "types a bare pair lambda against its Σ domain" $ do
     at (13, 9)  `shouldBe` Just "A"                   -- \ (a , b) ->
     at (13, 13) `shouldBe` Just "B a"
+
+  it "splits a pair against a defined Σ-type by computing its WHNF" $ do
+    at (17, 6)  `shouldBe` Just "A"                   -- ( (s , t) : quasi-pair A B)
+    at (17, 10) `shouldBe` Just "B s"
