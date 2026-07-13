@@ -174,6 +174,16 @@ typecheckFromConfigFile = do
           forM_ parseErrors $ \(path, err) -> do
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError err])
 
+          -- Files after the first parse error are not typechecked at all
+          -- ('collectErrors' stops collecting modules there); mark the ones
+          -- without a parse error of their own as blocked.
+          case parseErrors of
+            [] -> return ()
+            (blockingPath, _) : _ -> do
+              let reported = map fst parsedModules <> map fst parseErrors
+              publishBlockedDiagnostics rootPath blockingPath
+                (filter (`notElem` reported) modifiedFiles)
+
           -- Typecheck the modified modules one at a time on top of the cached
           -- prefix, reporting progress to the client. Each module is cached
           -- and its diagnostics are published as soon as it is checked, so a
@@ -204,13 +214,15 @@ typecheckFromConfigFile = do
             defaultTypeCheckWithHoles $ typecheckModulesWithLocationIncremental
               (map (fmap cachedModuleDecls) checked) [(path, module_)]
           case tcResult of
-            Left (ex :: SomeException) ->
+            Left (ex :: SomeException) -> do
               -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
               --  because exceptions are expected when the file has invalid syntax
               logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
+              publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Left err) -> do
               logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
               publishModuleDiagnostics path [err] []    -- sort of impossible
+              publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Right ((checkedModules, errors), holeInfos)) -> do
               logDebug (T.pack path <> ": " <> tshow (length errors) <> " errors, "
                 <> tshow (length holeInfos) <> " holes")
@@ -221,9 +233,11 @@ typecheckFromConfigFile = do
               publishModuleDiagnostics path errors holeInfos
               -- Stop at the first module with errors, like the batch checker
               -- ('typecheckModulesWithLocation'') does: later modules depend
-              -- on this one and would report cascading errors.
-              when (null errors) $
-                go (i + 1) checked' rest
+              -- on this one and would report cascading errors. Mark the
+              -- modules this run will not reach.
+              if null errors
+                then go (i + 1) checked' rest
+                else publishBlockedDiagnostics rootPath path (map fst rest)
 
     -- Publish the diagnostics of one checked module, grouped by file so all
     -- diagnostics for a file are published in a single call
@@ -248,6 +262,31 @@ typecheckFromConfigFile = do
       forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
         publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
           (filePathToNormalizedUri path') Nothing (partitionBySource diags)
+
+    -- Modules that a run never reaches (they come after a module with an
+    -- error, and every rzk module depends on all earlier ones) get a single
+    -- warning diagnostic naming the blocker, instead of keeping whatever
+    -- diagnostics a previous run left behind. Warning severity keeps the
+    -- file visible in the explorer (yellow badge) while staying distinct
+    -- from a real error in the file itself. It is replaced by real
+    -- diagnostics once the blocker is fixed and the module is reached
+    -- again.
+    publishBlockedDiagnostics :: FilePath -> FilePath -> [FilePath] -> LSP ()
+    publishBlockedDiagnostics rootPath blockingPath notReached =
+      forM_ notReached $ \path ->
+        publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing
+          (partitionBySource [blockedDiagnostic])
+      where
+        blockedDiagnostic = Diagnostic
+          (Range (Position 0 0) (Position 0 99))
+          (Just DiagnosticSeverity_Warning)
+          (Just (InR "not-checked"))
+          Nothing                   -- diagnostic description
+          (Just "rzk")              -- A human-readable string describing the source of this diagnostic
+          ("Not checked: blocked by an error in " <> T.pack (makeRelative rootPath blockingPath))
+          Nothing                   -- tags
+          (Just [])                 -- related information
+          Nothing                   -- data that is preserved between different calls
 
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
