@@ -66,6 +66,19 @@ spec = do
       tokenizeSyntaxSymbols "#lang rzk-1\n#define broken (x : A) :=\n"
         `shouldNotBe` []
 
+    it "mark holes, including named ones" $ do
+      let toks' = tokensOf $ T.unlines
+            [ "#lang rzk-1"                          -- 0
+            , "#define gap (A : U) : A := ?"         -- 1
+            , "#define named (A : U) : A := ?goal"   -- 2
+            ]
+      tokenAt toks' (1, 27) `shouldBe` Just SemanticTokenTypes_Regexp  -- ?
+      tokenAt toks' (2, 29) `shouldBe` Just SemanticTokenTypes_Regexp  -- ?goal
+
+    it "mark holes even in files that do not parse" $
+      tokenizeSyntaxSymbols "#lang rzk-1\n#define broken (x : A) := ?\n"
+        `shouldSatisfy` any ((== SemanticTokenTypes_Regexp) . _tokenType)
+
   describe "formatSignature" $ do
     let fmt name src = case parseTerm (T.pack src) of
           Left err -> error ("parse error: " <> T.unpack err)
