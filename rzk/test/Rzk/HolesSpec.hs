@@ -89,6 +89,17 @@ spec = do
           names (holeTermVars h) `shouldNotContain` ["t"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- Rendering: an anonymous binder that the return type does not use is
+    -- not shown ("U → U" rather than "(x₁ : U) → U"), while a user-written
+    -- name is kept even when unused.
+    it "hides unused anonymous binders in rendered types" $ do
+      case holesOf "#lang rzk-1\n#define mp : (A : U) -> (B : U) -> A -> (A -> B) -> B := ?\n" of
+        [h] -> show (holeGoal h) `shouldBe` "(A : U) → (B : U) → A → (A → B) → B"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+      case holesOf "#lang rzk-1\n#define keep : (x : U) -> U -> U := ?\n" of
+        [h] -> show (holeGoal h) `shouldBe` "(x : U) → U → U"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     it "records every hole in a module" $ do
       let holes = holesOf "#lang rzk-1\n#define p : (A : U) -> (B : U) -> A -> B -> A\n  := \\ A B a b -> ?\n"
       length holes `shouldBe` 1

@@ -667,6 +667,13 @@ fromScope' x used xs = fromTermWith' (x : used) xs . (>>= f)
     f Z     = Pure x
     f (S z) = Pure z
 
+-- | Drop the binder of a scope that does not use it. The error is
+-- unreachable when 'Z' is not among the scope's free variables.
+unusedScope :: Scope Term var -> Term var
+unusedScope scope = scope >>= \case
+  Z   -> error "unusedScope: the bound variable is used"
+  S z -> Pure z
+
 -- | Like 'fromScope'', but additionally restores pattern-binder component names
 -- inside the scope: projections of the bound variable @x@ are folded back to
 -- the names recorded in @binder@ (e.g. @π₁ x@ becomes @t@). For a binder that
@@ -755,6 +762,12 @@ fromTermWith' used vars = go
 
       Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
+      -- An anonymous binder that the return type does not use is not shown:
+      -- @(x₁ : A) → B@ reads better as @A → B@. A user-written name is kept
+      -- even when unused.
+      TypeFun (BinderVar Nothing) Id arg Nothing ret
+        | Z `notElem` freeVars ret ->
+            Rzk.TypeFun loc (Rzk.ParamType loc (go arg)) (go (unusedScope ret))
       TypeFun z Id arg Nothing ret -> withFreshBinder z $ \(x, z', xs) ->
         Rzk.TypeFun loc (Rzk.ParamTermType loc (patternToTerm (binderToPattern z')) (go arg)) (fromScopeBinder' z' x used xs ret)
       TypeFun z Id arg (Just tope) ret -> withFreshBinder z $ \(x, z', xs) ->
