@@ -16,12 +16,15 @@ module Language.Rzk.VSCode.ReferenceIndex (
   identLoc,
 ) where
 
-import           Control.Applicative ((<|>))
-import qualified Data.Map.Strict     as Map
-import           Data.Maybe          (listToMaybe)
-import qualified Data.Text           as T
+import           Control.Applicative      ((<|>))
+import           Data.Bifunctor           (bimap)
+import qualified Data.Map.Strict          as Map
+import           Data.Maybe               (listToMaybe)
+import qualified Data.Text                as T
 
-import qualified Language.Rzk.Syntax as Rzk
+import qualified Free.Scoped              as Scoped
+import qualified Language.Rzk.Free.Syntax as Free
+import qualified Language.Rzk.Syntax      as Rzk
 
 data Uri = Uri
   { uriPath :: FilePath
@@ -171,34 +174,42 @@ printAnn (AnnShape cube tope) =
   T.pack (Rzk.printTree cube ++ " | " ++ Rzk.printTree tope)
 
 -- | Decompose the annotation of a pair pattern into annotations of the two
--- components, surface-syntactically: cube products and Σ-types split. The
--- second component of a dependent Σ is shown with the Σ-binder's own name.
--- For a shape annotation, the tope constrains the components jointly, so the
--- components only inherit their cube.
-splitPairAnn :: BinderAnn -> Maybe (BinderAnn, BinderAnn)
-splitPairAnn (AnnShape cube _tope) = splitPairAnn (AnnType cube)
-splitPairAnn (AnnType ty) = case ty of
-  Rzk.CubeProduct _ a b        -> Just (AnnType a, AnnType b)
-  Rzk.TypeSigma _ _ a b        -> Just (AnnType a, AnnType b)
-  Rzk.ASCII_TypeSigma _ _ a b  -> Just (AnnType a, AnnType b)
-  Rzk.TypeSigmaModal _ _ _ a b -> Just (AnnType a, AnnType b)
-  _                            -> Nothing
-
--- | Same for a tuple pattern against @Σ (x : A, y : B), C@, when the arities
--- agree.
-splitTupleAnn :: Int -> BinderAnn -> Maybe [BinderAnn]
-splitTupleAnn n (AnnShape cube _tope) = splitTupleAnn n (AnnType cube)
-splitTupleAnn n (AnnType ty) = case ty of
-  Rzk.TypeSigmaTuple _ sp sps ret
-    | length (sp : sps) + 1 == n ->
-        Just (map (AnnType . sigmaParamType) (sp : sps) ++ [AnnType ret])
-  Rzk.ASCII_TypeSigmaTuple _ sp sps ret
-    | length (sp : sps) + 1 == n ->
-        Just (map (AnnType . sigmaParamType) (sp : sps) ++ [AnnType ret])
+-- components, through the scoped core: a cube product splits into its two
+-- sides, and for a Σ-type the first component gets the base while the second
+-- gets the family instantiated at the first component (@q : B p@, not
+-- @q : B x@). Substitution in the core is capture-avoiding. For a shape
+-- annotation, the tope constrains the components jointly, so the components
+-- only inherit their cube.
+splitPairAnn :: Rzk.Term -> BinderAnn -> Maybe (BinderAnn, BinderAnn)
+splitPairAnn firstComp (AnnShape cube _tope) = splitPairAnn firstComp (AnnType cube)
+splitPairAnn firstComp (AnnType ty) = case Free.toTerm' ty of
+  Free.CubeProduct a b -> Just (fromCore a, fromCore b)
+  Free.TypeSigma _ _ a scope ->
+    Just ( fromCore a
+         , fromCore (reduceProjections (Scoped.substitute (Free.toTerm' firstComp) scope))
+         )
   _ -> Nothing
   where
-    sigmaParamType (Rzk.SigmaParam _ _ t)        = t
-    sigmaParamType (Rzk.SigmaParamModal _ _ _ t) = t
+    fromCore = AnnType . Free.fromTerm'
+
+-- | Reduce projections of literal pairs (π₁ (a, b) → a). A pattern binder
+-- refers to its components through projections, so substituting a pair for
+-- it leaves these redexes behind.
+reduceProjections :: Scoped.FS Free.TermF a -> Scoped.FS Free.TermF a
+reduceProjections = \case
+  Scoped.Pure x -> Scoped.Pure x
+  Scoped.Free f -> case Scoped.Free (bimap reduceProjections reduceProjections f) of
+    Free.First  (Free.Pair a _) -> a
+    Free.Second (Free.Pair _ b) -> b
+    t                           -> t
+
+-- | A pattern as the term it matches.
+patternTerm :: Rzk.Pattern -> Rzk.Term
+patternTerm = \case
+  Rzk.PatternUnit loc         -> Rzk.Unit loc
+  Rzk.PatternVar loc v        -> Rzk.Var loc v
+  Rzk.PatternPair loc a b     -> Rzk.Pair loc (patternTerm a) (patternTerm b)
+  Rzk.PatternTuple loc a b cs -> Rzk.Tuple loc (patternTerm a) (patternTerm b) (map patternTerm cs)
 
 bindVars :: FilePath -> Env -> [(Rzk.VarIdent, Maybe T.Text)] -> (Env, [Link])
 bindVars file env vs =
@@ -213,30 +224,39 @@ bindPat file env ann = bindVars file env . annotatedPatternVars ann
 
 -- | Distribute an annotation over a pattern: a plain variable inherits it,
 -- a pair pattern splits it along the type when the type's shape allows.
+-- Tuples desugar to left-nested pairs, matching both 'Free.toTerm'''s
+-- treatment of tuple patterns and its translation of Σ-tuples.
 annotatedPatternVars :: Maybe BinderAnn -> Rzk.Pattern -> [(Rzk.VarIdent, Maybe T.Text)]
 annotatedPatternVars ann = \case
   Rzk.PatternUnit _  -> []
   Rzk.PatternVar _ v -> [(v, printAnn <$> ann)]
-  Rzk.PatternPair _ a b -> case ann >>= splitPairAnn of
+  Rzk.PatternPair _ a b -> case ann >>= splitPairAnn (patternTerm a) of
     Just (annA, annB) ->
       annotatedPatternVars (Just annA) a ++ annotatedPatternVars (Just annB) b
     Nothing ->
       annotatedPatternVars Nothing a ++ annotatedPatternVars Nothing b
-  Rzk.PatternTuple _ a b cs -> case ann >>= splitTupleAnn (2 + length cs) of
-    Just anns ->
-      concat (zipWith (annotatedPatternVars . Just) anns (a : b : cs))
-    Nothing ->
-      concatMap (annotatedPatternVars Nothing) (a : b : cs)
+  Rzk.PatternTuple loc a b cs ->
+    -- Reuse the core's own tuple desugaring (left-nested pairs), so this
+    -- split cannot drift from how toTerm' scopes tuple patterns.
+    annotatedPatternVars ann (Free.desugarTuple loc (reverse cs) b a)
 
 annotatedTermPatVars :: Maybe BinderAnn -> Rzk.Term -> [(Rzk.VarIdent, Maybe T.Text)]
 annotatedTermPatVars ann = \case
   Rzk.Var _ v -> [(v, printAnn <$> ann)]
-  Rzk.Pair _ a b -> case ann >>= splitPairAnn of
+  Rzk.Pair _ a b -> case ann >>= splitPairAnn a of
     Just (annA, annB) ->
       annotatedTermPatVars (Just annA) a ++ annotatedTermPatVars (Just annB) b
     Nothing ->
       annotatedTermPatVars Nothing a ++ annotatedTermPatVars Nothing b
+  Rzk.Tuple loc a b cs ->
+    annotatedTermPatVars ann (tuplePairs loc a b cs)
   t -> [ (v, Nothing) | v <- termPatVars t ]
+
+-- | A tuple term as left-nested pairs, following the treatment of tuples in
+-- 'Free.toTerm''.
+tuplePairs :: a -> Rzk.Term' a -> Rzk.Term' a -> [Rzk.Term' a] -> Rzk.Term' a
+tuplePairs loc t1 t2 []       = Rzk.Pair loc t1 t2
+tuplePairs loc t1 t2 (t : ts) = tuplePairs loc (Rzk.Pair loc t1 t2) t ts
 
 termPatVars :: Rzk.Term -> [Rzk.VarIdent]
 termPatVars = \case
