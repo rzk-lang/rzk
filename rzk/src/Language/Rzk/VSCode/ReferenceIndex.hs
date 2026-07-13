@@ -153,11 +153,52 @@ use file env v = case (Map.lookup (varText v) env, identLoc file v) of
   (Just defLoc, Just occLoc) -> [Link (varText v) defLoc occLoc Nothing]
   _                          -> []
 
-typeAnn :: Rzk.Term -> Maybe T.Text
-typeAnn ty = Just (T.pack (Rzk.printTree ty))
+-- | A binder annotation, kept structured so that a pair pattern can be
+-- matched against the shape of its type.
+data BinderAnn
+  = AnnType Rzk.Term            -- ^ @(x : A)@
+  | AnnShape Rzk.Term Rzk.Term  -- ^ @(t : I | φ)@
 
-shapeAnn :: Rzk.Term -> Rzk.Term -> Maybe T.Text
-shapeAnn cube tope = Just (T.pack (Rzk.printTree cube ++ " | " ++ Rzk.printTree tope))
+typeAnn :: Rzk.Term -> Maybe BinderAnn
+typeAnn = Just . AnnType
+
+shapeAnn :: Rzk.Term -> Rzk.Term -> Maybe BinderAnn
+shapeAnn cube tope = Just (AnnShape cube tope)
+
+printAnn :: BinderAnn -> T.Text
+printAnn (AnnType ty) = T.pack (Rzk.printTree ty)
+printAnn (AnnShape cube tope) =
+  T.pack (Rzk.printTree cube ++ " | " ++ Rzk.printTree tope)
+
+-- | Decompose the annotation of a pair pattern into annotations of the two
+-- components, surface-syntactically: cube products and Σ-types split. The
+-- second component of a dependent Σ is shown with the Σ-binder's own name.
+-- For a shape annotation, the tope constrains the components jointly, so the
+-- components only inherit their cube.
+splitPairAnn :: BinderAnn -> Maybe (BinderAnn, BinderAnn)
+splitPairAnn (AnnShape cube _tope) = splitPairAnn (AnnType cube)
+splitPairAnn (AnnType ty) = case ty of
+  Rzk.CubeProduct _ a b        -> Just (AnnType a, AnnType b)
+  Rzk.TypeSigma _ _ a b        -> Just (AnnType a, AnnType b)
+  Rzk.ASCII_TypeSigma _ _ a b  -> Just (AnnType a, AnnType b)
+  Rzk.TypeSigmaModal _ _ _ a b -> Just (AnnType a, AnnType b)
+  _                            -> Nothing
+
+-- | Same for a tuple pattern against @Σ (x : A, y : B), C@, when the arities
+-- agree.
+splitTupleAnn :: Int -> BinderAnn -> Maybe [BinderAnn]
+splitTupleAnn n (AnnShape cube _tope) = splitTupleAnn n (AnnType cube)
+splitTupleAnn n (AnnType ty) = case ty of
+  Rzk.TypeSigmaTuple _ sp sps ret
+    | length (sp : sps) + 1 == n ->
+        Just (map (AnnType . sigmaParamType) (sp : sps) ++ [AnnType ret])
+  Rzk.ASCII_TypeSigmaTuple _ sp sps ret
+    | length (sp : sps) + 1 == n ->
+        Just (map (AnnType . sigmaParamType) (sp : sps) ++ [AnnType ret])
+  _ -> Nothing
+  where
+    sigmaParamType (Rzk.SigmaParam _ _ t)        = t
+    sigmaParamType (Rzk.SigmaParamModal _ _ _ t) = t
 
 bindVars :: FilePath -> Env -> [(Rzk.VarIdent, Maybe T.Text)] -> (Env, [Link])
 bindVars file env vs =
@@ -167,27 +208,35 @@ bindVars file env vs =
   where
     binds = [ (varText v, loc, ann) | (v, ann) <- vs, Just loc <- [identLoc file v] ]
 
-bindPat :: FilePath -> Env -> Maybe T.Text -> Rzk.Pattern -> (Env, [Link])
+bindPat :: FilePath -> Env -> Maybe BinderAnn -> Rzk.Pattern -> (Env, [Link])
 bindPat file env ann = bindVars file env . annotatedPatternVars ann
 
--- | The annotation describes the whole pattern; only a plain variable
--- pattern inherits it, components of pair patterns are left untyped.
-annotatedPatternVars :: Maybe T.Text -> Rzk.Pattern -> [(Rzk.VarIdent, Maybe T.Text)]
+-- | Distribute an annotation over a pattern: a plain variable inherits it,
+-- a pair pattern splits it along the type when the type's shape allows.
+annotatedPatternVars :: Maybe BinderAnn -> Rzk.Pattern -> [(Rzk.VarIdent, Maybe T.Text)]
 annotatedPatternVars ann = \case
-  Rzk.PatternVar _ v -> [(v, ann)]
-  p                  -> [ (v, Nothing) | v <- patternVars p ]
+  Rzk.PatternUnit _  -> []
+  Rzk.PatternVar _ v -> [(v, printAnn <$> ann)]
+  Rzk.PatternPair _ a b -> case ann >>= splitPairAnn of
+    Just (annA, annB) ->
+      annotatedPatternVars (Just annA) a ++ annotatedPatternVars (Just annB) b
+    Nothing ->
+      annotatedPatternVars Nothing a ++ annotatedPatternVars Nothing b
+  Rzk.PatternTuple _ a b cs -> case ann >>= splitTupleAnn (2 + length cs) of
+    Just anns ->
+      concat (zipWith (annotatedPatternVars . Just) anns (a : b : cs))
+    Nothing ->
+      concatMap (annotatedPatternVars Nothing) (a : b : cs)
 
-annotatedTermPatVars :: Maybe T.Text -> Rzk.Term -> [(Rzk.VarIdent, Maybe T.Text)]
+annotatedTermPatVars :: Maybe BinderAnn -> Rzk.Term -> [(Rzk.VarIdent, Maybe T.Text)]
 annotatedTermPatVars ann = \case
-  Rzk.Var _ v -> [(v, ann)]
-  t           -> [ (v, Nothing) | v <- termPatVars t ]
-
-patternVars :: Rzk.Pattern -> [Rzk.VarIdent]
-patternVars = \case
-  Rzk.PatternUnit _         -> []
-  Rzk.PatternVar _ v        -> [v]
-  Rzk.PatternPair _ a b     -> patternVars a ++ patternVars b
-  Rzk.PatternTuple _ a b cs -> concatMap patternVars (a : b : cs)
+  Rzk.Var _ v -> [(v, printAnn <$> ann)]
+  Rzk.Pair _ a b -> case ann >>= splitPairAnn of
+    Just (annA, annB) ->
+      annotatedTermPatVars (Just annA) a ++ annotatedTermPatVars (Just annB) b
+    Nothing ->
+      annotatedTermPatVars Nothing a ++ annotatedTermPatVars Nothing b
+  t -> [ (v, Nothing) | v <- termPatVars t ]
 
 termPatVars :: Rzk.Term -> [Rzk.VarIdent]
 termPatVars = \case
@@ -204,7 +253,12 @@ goCommand file env = \case
   Rzk.CommandPostulate _ name _ ps ty ->
     let (env', occs) = goParams file env ps
     in def name ++ occs ++ goTerm file env' ty
-  Rzk.CommandAssume _ vars ty  -> concatMap def vars ++ goTerm file env ty
+  -- Assumptions (#assume, #variable, #variables) carry their declared type
+  -- as the annotation; unlike #define, nothing is elaborated away.
+  Rzk.CommandAssume _ vars ty ->
+    [ Link (varText v) loc loc (Just (printAnn (AnnType ty)))
+    | v <- vars, Just loc <- [identLoc file v] ]
+      ++ goTerm file env ty
   Rzk.CommandCheck _ a b       -> goTerm file env a ++ goTerm file env b
   Rzk.CommandCompute _ a       -> goTerm file env a
   Rzk.CommandComputeWHNF _ a   -> goTerm file env a
