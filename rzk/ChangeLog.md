@@ -8,6 +8,34 @@ and this project adheres to the
 
 ## Unreleased
 
+Added:
+
+- **Language server: cross-file references, hover, symbols, and better highlighting** (see [#282](https://github.com/rzk-lang/rzk/pull/282)). Go-to-definition and find-references work across the files of a project. Hover shows a definition's elaborated type (falling back to the written annotation), rendered as an rzk code block; long signatures are split across lines, pair binders are split through weak head normalisation, and shaped binders are shown with their tope. Document symbols populate the outline view. Semantic tokens are computed from the lexer token stream, and a per-file parse cache keeps the last good parse across syntax errors, so highlighting, hover, and references keep working while a file is temporarily broken. No grammar changes are involved. A matching `vscode-rzk` release should be pinned to this version, so editor users actually receive the new UX.
+
+- **Language server: typecheck progress reporting and a responsive server** (see [#XXX](https://github.com/rzk-lang/rzk/pull/XXX)). Typechecking now reports its progress to the editor (via `$/progress`), showing the file being checked and the fraction of modules done. The project re-check runs on a worker thread, so requests such as formatting on save are answered while the re-check is still running; a newer change cancels and restarts the re-check, keeping the modules it has finished.
+
+Fixed:
+
+- Subtype checks now respect variance. Three asymmetric checks (tope-family domains, the domain topes of Π-types, and restriction faces) ran in a fixed direction regardless of the ambient variance, so in negative positions they ran backwards. For example, `#!rzk k : (f : (t : 2 | ⊤) → A) → A` was accepted where `#!rzk (f : (t : 2 | t ≡ 0₂) → A) → A` is expected, letting `#!rzk k` apply a partial `#!rzk f` outside its domain. Each check now consults the variance flag; six regression fixtures are added, and the sHoTT corpus is unaffected (see [#269](https://github.com/rzk-lang/rzk/pull/269)).
+
+- Unification no longer equates identity types over different types. Identity types were equated whenever their endpoints unified, accepting e.g. a free homotopy (a path in `#!rzk Δ¹ → A`) where an endpoint-fixing one (a path in `#!rzk hom A x y`) is expected. The underlying types are now compared, invariantly, so subtyping does not leak into equality of identity types (see [#270](https://github.com/rzk-lang/rzk/pull/270)).
+
+Performance:
+
+- A performance pass over the typechecker roughly halves the wall-clock time of a full sHoTT check (26–28 s down to ~13.5 s) and cuts its maximum residency fourfold (8 GB down to 2.1 GB):
+
+  - the tope solver short-circuits its Boolean search, maintains the flat-cube discreteness axioms incrementally, and builds its debug traces only at `Debug` verbosity (see [#273](https://github.com/rzk-lang/rzk/pull/273));
+  - variable lookups no longer project the whole context (see [#276](https://github.com/rzk-lang/rzk/pull/276));
+  - top-level entries are kept unshifted and embedded on lookup (see [#277](https://github.com/rzk-lang/rzk/pull/277));
+  - the name-shadowing check no longer embeds global payloads (see [#279](https://github.com/rzk-lang/rzk/pull/279));
+  - the saturated tope context is cached lazily, recomputed only when the context changes (see [#280](https://github.com/rzk-lang/rzk/pull/280)).
+
+  A corpus benchmark harness under `bench/` records the measurements (see [#274](https://github.com/rzk-lang/rzk/pull/274)).
+
+CI / infrastructure:
+
+- The parser-drift workflow now also fails on LR conflicts and unused rules in the grammar (`make -C rzk check-parser-conflicts`), so a grammar change cannot silently introduce ambiguity (see [#281](https://github.com/rzk-lang/rzk/pull/281)).
+
 ## v0.9.1 — 2026-06-26
 
 Fixed:
