@@ -11,33 +11,44 @@
 module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
   provideCompletions,
+  provideSymbols,
+  findDefinition,
+  findReferences,
+  provideHover,
+  formatSignature,
   formatDocument,
   provideSemanticTokens,
   handleFilesChanged,
 ) where
 
+import           Control.Applicative           ((<|>))
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
-import           Control.Monad                 (forM_, when)
+import           Control.Monad                 (forM, forM_, when)
 import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 MonadError (throwError),
                                                 modifyError, runExceptT)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
-import           Data.List                     (isSuffixOf, sort, (\\))
+import           Data.List                     (find, intercalate, isSuffixOf,
+                                                nub, sort, (\\))
+import qualified Data.Map.Strict               as Map
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
 import           Language.LSP.Diagnostics      (partitionBySource)
-import           Language.LSP.Protocol.Lens    (HasDetail (detail),
+import           Language.LSP.Protocol.Lens    (HasContext (context),
+                                                HasDetail (detail),
                                                 HasDocumentation (documentation),
                                                 HasLabel (label),
                                                 HasParams (params),
+                                                HasPosition (position),
                                                 HasTextDocument (textDocument),
                                                 HasUri (uri), changes, uri)
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
+import qualified Language.LSP.Protocol.Types as LSP
 import           Language.LSP.Server
 import           Language.LSP.VFS              (virtualFileText)
 import           System.FilePath               (makeRelative, (</>))
@@ -45,14 +56,20 @@ import           System.FilePath.Glob          (compile, globDir)
 
 import           Data.Char                     (isDigit)
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
-                                                VarIdent (getVarIdent))
-import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
+                                                VarIdent (getVarIdent),
+                                                fromTerm')
+import           Language.Rzk.Syntax           (Module, Term,
+                                                Term' (ASCII_TypeFun, TypeFun),
+                                                VarIdent' (VarIdent),
                                                 parseModuleFile,
                                                 parseModuleSafe, printTree)
 import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
+import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Language.Rzk.VSCode.Logging
-import           Language.Rzk.VSCode.Tokenize  (tokenizeModule)
+import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
+                                                tokenizeSyntaxSymbols)
+import           Free.Scoped                   (untyped)
 import qualified Rzk.Diagnostic                as Diag
 import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
@@ -89,6 +106,27 @@ filePathToNormalizedUri = toNormalizedUri . filePathToUri
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
+
+fromLspUri :: LSP.Uri -> RefInd.Uri
+fromLspUri u = RefInd.Uri { uriPath = fromMaybe "" (uriToFilePath u) }
+
+toLspUri :: RefInd.Uri -> LSP.Uri
+toLspUri (RefInd.Uri { uriPath = p }) = filePathToUri p
+
+fromLspPosition :: LSP.Position -> RefInd.Position
+fromLspPosition (LSP.Position l c) =
+  RefInd.Position (fromIntegral l) (fromIntegral c)
+
+toLspPosition :: RefInd.Position -> LSP.Position
+toLspPosition (RefInd.Position l c) =
+  LSP.Position (fromIntegral l) (fromIntegral c)
+
+toLspRange :: RefInd.Range -> Range
+toLspRange (RefInd.Range s e) = Range (toLspPosition s) (toLspPosition e)
+
+toLspLocation :: RefInd.Location -> LSP.Location
+toLspLocation (RefInd.Location u r) =
+  LSP.Location (toLspUri u) (toLspRange r)
 
 typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
@@ -348,8 +386,17 @@ provideSemanticTokens req responder = do
   mdoc <- getVirtualFile doc
   possibleTokens <- case virtualFileText <$> mdoc of
     Nothing         -> return (Left "Failed to get file content")
-    Just sourceCode -> fmap (fmap tokenizeModule) $ liftIO $
-      parseModuleSafe (T.filter (/= '\r') sourceCode)
+    Just sourceCode -> do
+      let src = T.filter (/= '\r') sourceCode
+      -- Fixed symbols (commands, keywords, operators) are highlighted from
+      -- the lexer token stream, so they survive parse failures; identifiers
+      -- need the parsed module.
+      astTokens <- liftIO (parseModuleSafe src) >>= \case
+        Left err -> do
+          logWarning ("Failed to parse file for semantic tokens: " <> err)
+          return []
+        Right rzkModule -> return (tokenizeModule rzkModule)
+      return (Right (mergeTokens astTokens (tokenizeSyntaxSymbols src)))
   case possibleTokens of
     Left err -> do
       -- Exception occurred when parsing the module
@@ -362,6 +409,178 @@ provideSemanticTokens req responder = do
           return ()
         Right list ->
           responder (Right (InL (SemanticTokens Nothing list)))
+
+findDefinition :: Handler LSP 'Method_TextDocumentDefinition
+findDefinition req res = do
+  let uri' = req ^. params . textDocument . uri
+      currentFile = fromMaybe "" (uriToFilePath uri')
+  referenceIndex <- indexProject currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
+    Just binding -> res $ Right $ InL $ Definition $ InL (toLspLocation (RefInd.bindingDef binding))
+    Nothing      -> res $ Right $ InR $ InR Null
+
+findReferences :: Handler LSP 'Method_TextDocumentReferences
+findReferences req res = do
+  let uri' = req ^. params . textDocument . uri
+      currentFile = fromMaybe "" (uriToFilePath uri')
+      includeDeclaration = req ^. params . context . to (\(ReferenceContext incl) -> incl)
+  referenceIndex <- indexProject currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
+    Just binding ->
+      let sites
+            | includeDeclaration = RefInd.bindingSites binding
+            | otherwise          = RefInd.bindingRefs binding
+      in res $ Right $ InL (map toLspLocation sites)
+    Nothing -> res $ Right $ InL []
+
+indexProject :: FilePath -> LSP RefInd.ReferenceIndex
+indexProject currentFile = do
+  cached <- getCachedTypecheckedModules
+  let paths = nub (currentFile : map fst cached)
+  mdoc <- getVirtualFile (filePathToNormalizedUri currentFile)
+  let msrc = T.filter (/= '\r') <$> (virtualFileText <$> mdoc)
+  ReferenceIndexCache oldModules oldResult <- getCachedReferenceIndex
+  -- Re-parse only what changed: the current file is revalidated against the
+  -- editor buffer, while other files keep their cached parse until a
+  -- file-change notification invalidates it (see resetCacheForFiles).
+  let reusable p pm = case parsedSource pm of
+        ParseInvalidated   -> False
+        ParsedFromBuffer t -> p /= currentFile || msrc == Just t
+        ParsedFromDisk     -> p /= currentFile || isNothing msrc
+  entries <- forM paths $ \p ->
+    case Map.lookup p oldModules of
+      Just pm | reusable p pm -> return (p, pm, False)
+      mold -> do
+        parsed <- parseProjectFile currentFile msrc p
+        let source = if p == currentFile
+              then maybe ParsedFromDisk ParsedFromBuffer msrc
+              else ParsedFromDisk
+            -- A failed parse (a syntax error mid-edit) keeps the last good
+            -- module, so hover and navigation stay available; the source is
+            -- still updated, so the parse is retried once per edit, not once
+            -- per request.
+            module_ = parsed <|> (parsedModule =<< mold)
+        return (p, ParsedModule source module_, True)
+  let reparsed = or [ r | (_, _, r) <- entries ]
+  case oldResult of
+    Just (ps, cachedIndex) | ps == paths, not reparsed -> return cachedIndex
+    _ -> do
+      let referenceIndex = RefInd.indexModules
+            [ (p, m) | (p, ParsedModule _ (Just m), _) <- entries ]
+      cacheReferenceIndex $ ReferenceIndexCache
+        (Map.fromList [ (p, pm) | (p, pm, _) <- entries ])
+        (Just (paths, referenceIndex))
+      return referenceIndex
+
+parseProjectFile :: FilePath -> Maybe T.Text -> FilePath -> LSP (Maybe Module)
+parseProjectFile currentFile msrc p
+  | p == currentFile = case msrc of
+      Just src -> parseOr (parseModuleSafe src)
+      Nothing  -> parseOr (parseModuleFile p)
+  | otherwise = parseOr (parseModuleFile p)
+  where
+    parseOr act = either (const Nothing) Just <$> liftIO act
+
+-- | A signature for the hover code block. A long function type is split
+-- with one parameter per line, in the style rzk definitions are written:
+--
+-- > is-equiv
+-- >   : ( A : U)
+-- >   → ( B : U)
+-- >   → ( f : A → B)
+-- >   → U
+formatSignature :: String -> Term -> String
+formatSignature name ty
+  | length inline <= 60 = name ++ " : " ++ inline
+  | (piParams@(_ : _), ret) <- peelPi ty =
+      intercalate "\n" (name : zipWith (++) ("  : " : repeat "  → ") (piParams ++ [printTree ret]))
+  | otherwise = name ++ " : " ++ inline
+  where
+    inline = printTree ty
+    peelPi (TypeFun _ param ret)       = let (ps, r) = peelPi ret in (printTree param : ps, r)
+    peelPi (ASCII_TypeFun _ param ret) = let (ps, r) = peelPi ret in (printTree param : ps, r)
+    peelPi r                           = ([], r)
+
+provideHover :: Handler LSP 'Method_TextDocumentHover
+provideHover req res = do
+  let uri' = req ^. params . textDocument . uri
+      pos  = fromLspPosition (req ^. params . position)
+      currentFile = fromMaybe "" $ uriToFilePath uri'
+  referenceIndex <- indexProject currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') pos of
+    Nothing -> res $ Right $ InR Null
+    Just binding -> do
+      cached <- getCachedTypecheckedModules
+      let body = hoverContent binding cached
+      res $ Right $ InL $ Hover
+        (InL (MarkupContent MarkupKind_Markdown body))
+        (Just (toLspRange (RefInd.locationRange (RefInd.bindingDef binding))))
+  where
+    hoverContent binding cached =
+      T.pack (file ++ "\n\n```rzk\n" ++ signature ++ "\n```")
+      where
+        file = RefInd.locationPath (RefInd.bindingDef binding)
+        name = RefInd.bindingName binding
+        defLine = RefInd.positionLine (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
+        decls = maybe [] cachedModuleDecls (lookup file cached)
+        -- The elaborated type is the default: for a local binder, from the
+        -- binder-type walk over the cached declarations; for a top-level
+        -- name, from the declaration itself (preferring the one on the same
+        -- line, so that a local that shadows a global does not show the
+        -- global's type). The surface annotation from the reference index is
+        -- the fallback, e.g. for mid-edit or ill-typed code with no cache.
+        defCol = RefInd.positionCharacter (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
+        -- All cached declarations go in scope, so that splitting a pair
+        -- binder can unfold defined Σ-types from any file of the project.
+        allDecls = concatMap (cachedModuleDecls . snd) cached
+        elaboratedLocal = lookup (defLine, defCol)
+          [ ((l - 1, c - 1), t)
+          | (v, t) <- binderTypesInScopeOf allDecls decls
+          , let VarIdent (RzkPosition _path mpos) _ = getVarIdent v
+          , Just (l, c) <- [mpos]
+          ]
+        signature = case elaboratedLocal of
+          Just (TypeView t)       -> formatSignature (T.unpack name) (fromTerm' t)
+          Just (ShapeView c tope) -> T.unpack name ++ " : " ++ show c ++ " | " ++ show tope
+          Nothing -> case find declOnSameLine decls of
+            Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
+            Nothing -> case RefInd.bindingType binding of
+              Just ann -> T.unpack name ++ " : " ++ T.unpack ann
+              Nothing  -> case find declWithName decls of
+                Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
+                Nothing                  -> T.unpack name ++ " : ?"
+        declWithName (Decl v _ _ _ _ _) =
+          T.pack (printTree (getVarIdent v)) == name
+        declOnSameLine d@(Decl _ _ _ _ _ mloc) =
+          declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
+
+provideSymbols :: Handler LSP 'Method_TextDocumentDocumentSymbol
+provideSymbols req res = do
+  let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
+  cachedModules <- getCachedTypecheckedModules
+  let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
+  res $ Right $ InR $ InL $ map declToSymbol decls
+  where
+    declToSymbol :: Decl' -> DocumentSymbol
+    declToSymbol (Decl name type' _ _ _ _loc) = DocumentSymbol
+      { _name           = T.pack (printTree ident)
+      , _detail         = Just (T.pack (show (untyped type')))
+      , _kind           = SymbolKind_Function
+      , _tags           = Nothing
+      , _deprecated     = Nothing
+      , _range          = range
+      , _selectionRange = range
+      , _children       = Nothing
+      }
+      where
+        ident = getVarIdent name
+        VarIdent pos _ = ident
+        RzkPosition _path pos' = pos
+        (line, col) = fromMaybe (0, 0) pos'
+        len = length (printTree ident)
+        pos0 = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1)))
+        end  = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1) + len))
+        range = Range pos0 end
 
 
 data IsChanged

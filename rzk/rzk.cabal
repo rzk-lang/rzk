@@ -119,6 +119,7 @@ extra-source-files:
     test/typecheck/cases/ill-unexpected-lambda.rzk
     test/typecheck/cases/ill-unexpected-pair.rzk
     test/typecheck/cases/ill-unexpected-refl.rzk
+    test/typecheck/cases/ill-unify-id-free-path.rzk
     test/typecheck/cases/ill-unify-terms-path.rzk
     test/typecheck/cases/ill-unify.rzk
     test/typecheck/cases/ill-unset-option-unknown.rzk
@@ -228,6 +229,7 @@ extra-source-files:
     test/typecheck/cases/ill-unexpected-lambda.expect.yaml
     test/typecheck/cases/ill-unexpected-pair.expect.yaml
     test/typecheck/cases/ill-unexpected-refl.expect.yaml
+    test/typecheck/cases/ill-unify-id-free-path.expect.yaml
     test/typecheck/cases/ill-unify-terms-path.expect.yaml
     test/typecheck/cases/ill-unify.expect.yaml
     test/typecheck/cases/ill-unset-option-unknown.expect.yaml
@@ -300,9 +302,11 @@ library
         Language.Rzk.VSCode.Logging
         Language.Rzk.VSCode.Lsp
         Language.Rzk.VSCode.Tokenize
+        Language.Rzk.VSCode.ReferenceIndex
     build-depends:
         aeson >=2.0.0.0 && <3
       , co-log-core >=0.3.2.0 && <1
+      , containers >=0.6 && <1
       , data-default-class >=0.1.2.0 && <1
       , filepath >=1.4.100.0 && <2
       , lens >=5.0.1 && <6
@@ -374,9 +378,12 @@ test-suite rzk-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Rzk.BinderTypesSpec
       Rzk.DiagnosticSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
+      Rzk.RefIndexSpec
+      Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec
       Paths_rzk
   autogen-modules:
@@ -407,3 +414,6 @@ test-suite rzk-test
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
+  if flag(lsp) && !impl(ghcjs)
+    build-depends:
+        lsp-types >=2.1.1.0 && <3
