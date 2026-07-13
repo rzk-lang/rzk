@@ -14,6 +14,14 @@ Added:
 
 - **Language server: typecheck progress reporting and a responsive server** (see [#XXX](https://github.com/rzk-lang/rzk/pull/XXX)). Typechecking now reports its progress to the editor (via `$/progress`), showing the file being checked and the fraction of modules done. The project re-check runs on a worker thread, so requests such as formatting on save are answered while the re-check is still running; a newer change cancels and restarts the re-check, keeping the modules it has finished. Checking stops at the first module with errors; the modules a run never reaches are now marked with a warning naming the blocker (e.g. `Not checked: blocked by an error in …`) instead of keeping stale diagnostics.
 
+- **Language server: workspace symbol search** (see [#XXX](https://github.com/rzk-lang/rzk/pull/XXX)). Every definition of the project is searchable by name. In VS Code, press `Ctrl+T` (`⌘T` on macOS, "Go to Symbol in Workspace…"), or type `#` followed by the name in Quick Open, e.g. `#yoneda`; Enter jumps to the definition. Matching is case-insensitive and by infix, and the results span all files of the project, not just the open one (that remains the job of document symbols, `Ctrl+Shift+O`). Definitions are served from the typecheck cache, so a module becomes searchable once it has been checked.
+
+- **Language server: holes are highlighted** (see [#XXX](https://github.com/rzk-lang/rzk/pull/XXX)). A hole (`?` or `?name`) now gets its own semantic token. It is computed from the lexer token stream, so holes stay highlighted while the file temporarily fails to parse.
+
+Changed:
+
+- Function types no longer show unused anonymous binders (see [#XXX](https://github.com/rzk-lang/rzk/pull/XXX)). A goal `#!rzk U → U` used to print as `#!rzk (x₁ : U) → U`, with a machine-generated name; the domain is now rendered as a plain parameter everywhere a type is shown (hover, hole goals, error messages). A user-written name is kept even when unused.
+
 Fixed:
 
 - Subtype checks now respect variance. Three asymmetric checks (tope-family domains, the domain topes of Π-types, and restriction faces) ran in a fixed direction regardless of the ambient variance, so in negative positions they ran backwards. For example, `#!rzk k : (f : (t : 2 | ⊤) → A) → A` was accepted where `#!rzk (f : (t : 2 | t ≡ 0₂) → A) → A` is expected, letting `#!rzk k` apply a partial `#!rzk f` outside its domain. Each check now consults the variance flag; six regression fixtures are added, and the sHoTT corpus is unaffected (see [#269](https://github.com/rzk-lang/rzk/pull/269)).
