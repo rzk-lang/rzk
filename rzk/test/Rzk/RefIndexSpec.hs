@@ -24,6 +24,13 @@ indexOf sources = RI.indexModules
 lookupAt' :: RI.ReferenceIndex -> FilePath -> (Int, Int) -> Maybe RI.Binding
 lookupAt' ri path (l, c) = RI.lookupAt ri (RI.Uri path) (RI.Position l c)
 
+-- | Like 'lookupAt'', erroring out loudly when nothing is there, so a
+-- misplaced test position is obvious.
+bindingAt :: RI.ReferenceIndex -> FilePath -> (Int, Int) -> RI.Binding
+bindingAt ri path pos = case lookupAt' ri path pos of
+  Just b  -> b
+  Nothing -> error ("no binding at " <> path <> ":" <> show pos)
+
 defPos :: RI.Binding -> (FilePath, Int, Int)
 defPos b =
   let RI.Location (RI.Uri p) (RI.Range (RI.Position l c) _) = RI.bindingDef b
@@ -65,13 +72,13 @@ spec = describe "reference index" $ do
       (defPos <$> lookupAt' ri "main.rzk" (4, 38)) `shouldBe` Just ("lib.rzk", 1, 8)
 
     it "lists references without duplicating the definition site" $ do
-      let Just b = lookupAt' ri "lib.rzk" (1, 8)
+      let b = bindingAt ri "lib.rzk" (1, 8)
       length (RI.bindingRefs b) `shouldBe` 2                -- two uses in use-id
       RI.bindingDef b `notElem` RI.bindingRefs b `shouldBe` True
       length (RI.bindingSites b) `shouldBe` 3               -- def : refs
 
     it "resolves a local binder and its use" $ do
-      let Just b = lookupAt' ri "main.rzk" (3, 55)          -- x in f (f x)
+      let b = bindingAt ri "main.rzk" (3, 55)               -- x in f (f x)
       defPos b `shouldBe` ("main.rzk", 3, 36)
       length (RI.bindingSites b) `shouldBe` 2
 
@@ -93,7 +100,7 @@ spec = describe "reference index" $ do
       annAt "main.rzk" (2, 13) `shouldBe` Just "C -> U"
 
     it "leaves top-level names to the elaborated tier" $ do
-      let Just b = lookupAt' ri "main.rzk" (3, 8)           -- twice
+      let b = bindingAt ri "main.rzk" (3, 8)                -- twice
       RI.bindingType b `shouldBe` Nothing
 
     it "splits a pair against a Σ-type, instantiating the dependency" $ do
