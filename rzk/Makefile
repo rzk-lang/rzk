@@ -25,6 +25,21 @@ regen-parser:
 	happy --array --info --ghc --coerce $(SYNTAX_DIR)/Par.y
 	rm -f $(SYNTAX_DIR)/Lex.x $(SYNTAX_DIR)/Par.y
 
+# Fail if the grammar has LR conflicts or unused rules. happy resolves
+# shift/reduce and reduce/reduce conflicts silently, by rule order, so a
+# conflict can change what parses without any visible error; an unused rule
+# means a production that can never be reduced (typically a duplicate of
+# another rule). The committed grammar has none of either, and grammar
+# changes must keep it that way. Reads the committed Par.info; run
+# `make regen-parser` first if the grammar changed.
+check-parser-conflicts:
+	@if grep -nE '^(state [0-9]+ contains [0-9]+ .*conflicts|rule [0-9]+ is unused|unused (rules|terminals))' $(SYNTAX_DIR)/Par.info; then \
+	  echo "error: the grammar has LR conflicts or unused rules (see above; details in $(SYNTAX_DIR)/Par.info)"; \
+	  exit 1; \
+	else \
+	  echo "Grammar has no LR conflicts and no unused rules."; \
+	fi
+
 # BNFC-derived auxiliary outputs (not needed for the build).
 pygments: $(GRAMMAR)
 	bnfc --pygments $(GRAMMAR)
@@ -37,4 +52,4 @@ doc/Syntax.pdf: doc/Syntax.tex
 doc/Syntax.tex: $(GRAMMAR)
 	bnfc --latex $(GRAMMAR) -o doc/
 
-.PHONY: regen-parser pygments pdf
+.PHONY: regen-parser check-parser-conflicts pygments pdf
