@@ -378,9 +378,12 @@ test-suite rzk-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Rzk.BinderTypesSpec
       Rzk.DiagnosticSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
+      Rzk.RefIndexSpec
+      Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec
       Paths_rzk
   autogen-modules:
@@ -411,3 +414,6 @@ test-suite rzk-test
   default-language: Haskell2010
   if flag(lsp) && !impl(ghcjs)
     cpp-options: -DLSP_ENABLED
+  if flag(lsp) && !impl(ghcjs)
+    build-depends:
+        lsp-types >=2.1.1.0 && <3

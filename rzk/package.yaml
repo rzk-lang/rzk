@@ -150,6 +150,12 @@ tests:
       - rzk
       - hspec >= 2.7 && < 3
       - hspec-discover >= 2.7 && < 3
+    when:
+      # The LSP specs (semantic tokens, hover formatting) inspect lsp-types
+      # values; the spec modules themselves are guarded by LSP_ENABLED.
+      - condition: flag(lsp) && !impl(ghcjs)
+        dependencies:
+          lsp-types: ">= 2.1.1.0 && < 3"
 
   doctests:
     source-dirs: test
