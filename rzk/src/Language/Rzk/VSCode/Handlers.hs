@@ -22,7 +22,9 @@ module Language.Rzk.VSCode.Handlers (
 ) where
 
 import           Control.Applicative           ((<|>))
-import           Control.Exception             (SomeException, evaluate, try)
+import           Control.Exception             (SomeAsyncException (..),
+                                                SomeException, evaluate,
+                                                fromException, throwIO, try)
 import           Control.Lens
 import           Control.Monad                 (forM, forM_, unless, when)
 import           Control.Monad.Except          (ExceptT (ExceptT),
@@ -74,6 +76,18 @@ import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 import           Text.Read                     (readMaybe)
+
+-- | Like 'try', but re-throws asynchronous exceptions (a worker restart) and
+-- 'ProgressCancelledException' (a client-side progress cancel; delivered by
+-- 'Control.Concurrent.Async.cancelWith', so 'fromException' does not classify
+-- it as asynchronous). Cancellation must abort the whole run instead of being
+-- reported as a typechecker failure of the current module.
+tryTypecheck :: IO a -> IO (Either SomeException a)
+tryTypecheck action = try action >>= \case
+  Left e
+    | Just (SomeAsyncException _) <- fromException e -> throwIO e
+    | Just cancelled <- fromException @ProgressCancelledException e -> throwIO cancelled
+  result -> return result
 
 -- | Given a list of file paths, reads them and parses them as Rzk modules,
 --   returning the same list of file paths but with the parsed module (or parse error)
@@ -186,7 +200,7 @@ typecheckFromConfigFile = do
             (Just (T.pack (makeRelative rootPath path))))
           -- Run in lenient hole mode so holes are collected (and surfaced as
           -- hints) rather than reported as errors while editing.
-          tcResult <- liftIO $ try $ evaluate $
+          tcResult <- liftIO $ tryTypecheck $ evaluate $
             defaultTypeCheckWithHoles $ typecheckModulesWithLocationIncremental
               (map (fmap cachedModuleDecls) checked) [(path, module_)]
           case tcResult of
