@@ -40,15 +40,15 @@ instance IsString TermT' where
   fromString = unsafeInferStandalone' . fromString
 
 defaultTypeCheck
-  :: TypeCheck var a
-  -> Either (TypeErrorInScopedContext var) a
+  :: TypeCheck VarIdent a
+  -> Either (TypeErrorInScopedContext VarIdent) a
 defaultTypeCheck = fmap fst . defaultTypeCheckWithHoles' emptyContext
 
 -- | Like 'defaultTypeCheck', but runs in lenient hole mode ('allowHoles') and
 -- also returns the holes recorded during checking (with their goal and context).
 defaultTypeCheckWithHoles
-  :: TypeCheck var a
-  -> Either (TypeErrorInScopedContext var) (a, [HoleInfo])
+  :: TypeCheck VarIdent a
+  -> Either (TypeErrorInScopedContext VarIdent) (a, [HoleInfo])
 defaultTypeCheckWithHoles = defaultTypeCheckWithHoles' (allowHoles emptyContext)
 
 defaultTypeCheckWithHoles'
@@ -951,7 +951,7 @@ endpointsAgree a b =
 contextEntailsBottom :: Eq var => TypeCheck var Bool
 contextEntailsBottom = asks localTopesEntailBottom >>= \case
   Just b  -> return b
-  Nothing -> asks localTopesNF >>= (`entailM` topeBottomT)
+  Nothing -> entailContextM topeBottomT
 
 -- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it
 -- is a candidate for every goal there (and only there — elsewhere it would not
@@ -966,9 +966,8 @@ recBottomCandidates = do
 -- yes\/no query rather than a check that issues an error.
 coverageHolds :: Eq var => [TermT var] -> TypeCheck var Bool
 coverageHolds topes = do
-  contextTopes <- asks localTopesNF
-  topesNF      <- mapM nfTope topes
-  contextTopes `entailM` foldr topeOrT topeBottomT topesNF
+  topesNF <- mapM nfTope topes
+  entailContextM (foldr topeOrT topeBottomT topesNF)
 
 -- | Tope case-split moves: ways to build a value of the goal by @recOR@,
 -- splitting the proof over a cover of the local tope context. Three sources,
@@ -1256,6 +1255,17 @@ data ScopeInfo var = ScopeInfo
   , scopeVars :: [(var, VarInfo var)]
   } deriving (Functor, Foldable)
 
+-- | A scope of top-level entries (definitions, postulates, section
+-- assumptions). The payload is pinned at 'VarIdent': shifting the context
+-- under a binder ('enterScopeContext') maps only the keys and never
+-- traverses the elaborated terms, which is what made @S <$>@ on the whole
+-- context account for most of the checker's allocation and residency.
+-- A payload is embedded into the current scope on lookup via 'globalEmbed'.
+data GlobalScopeInfo var = GlobalScopeInfo
+  { gscopeName :: Maybe Rzk.SectionName
+  , gscopeVars :: [(var, VarInfo VarIdent)]
+  } deriving (Functor, Foldable)
+
 addVarToScope :: var -> VarInfo var -> ScopeInfo var -> ScopeInfo var
 addVarToScope var info ScopeInfo{..} = ScopeInfo
   { scopeVars = (var, info) : scopeVars, .. }
@@ -1316,12 +1326,54 @@ data ModalTope var = ModalTope
   , tTope     :: TermT var
   } deriving (Functor, Foldable, Eq)
 
+-- | The state of the tope-saturation cache in a 'Context'
+-- (see 'localTopesSaturated' and 'withRefreshedTopes').
+data CachedSaturation var
+  = SaturationUncached
+    -- ^ No cache was installed for this tope context ('entailContextM'
+    -- falls back to the per-query pipeline).
+  | SaturationCached (Maybe [[ModalTope var]])
+    -- ^ A deferred pipeline run: forced by the first query under this
+    -- context. 'Nothing' records that the pipeline errored; queries then
+    -- fall back, so the error surfaces exactly where it would have.
+  deriving (Functor)
+
+-- Deliberately empty: the cache's variables duplicate those of
+-- 'localTopesNF', and folding a 'Context' (e.g. collecting names when
+-- printing a scoped error) must not force the deferred pipeline.
+instance Foldable CachedSaturation where
+  foldMap _ _ = mempty
+
 data Context var = Context
   { localScopes            :: [ScopeInfo var]
+    -- ^ Binder scopes: variables bound while checking the current
+    -- declaration. Top-level entries live in 'globalScopes'.
+  , globalScopes           :: [GlobalScopeInfo var]
+    -- ^ Top-level definitions, postulates and section assumptions, with
+    -- their payloads pinned at 'VarIdent' (see 'GlobalScopeInfo').
+  , globalEmbed            :: VarIdent -> var
+    -- ^ The composed injection of top-level names into the current scope
+    -- (extended by @S .@ at each binder entry; the derived 'Functor'
+    -- composes it on 'fmap'). Embeds a global payload on lookup.
+  , localDiscreteTopes     :: [ModalTope var]
+    -- ^ Discreteness axioms for the flat cube variables in scope (a flat
+    -- point of @2@ or @I@ is an endpoint). Maintained incrementally at
+    -- binder entry (see 'enterScopeMaybe'), so 'entailM' does not rescan
+    -- the whole context on every entailment query. A variable's modality
+    -- is fixed at binding time ('addModalityToScope' only touches
+    -- 'modAccum'), so entries never need to be revised.
   , localTopes             :: [ModalTope var]
   , localTopesNF           :: [ModalTope var]
   , localTopesNFUnion      :: [[ModalTope var]]
   , localTopesEntailBottom :: Maybe Bool
+  , localTopesSaturated    :: CachedSaturation var
+    -- ^ The saturated alternatives for the context's own tope context
+    -- ('localTopesNF' plus the discreteness axioms): exactly the
+    -- preprocessing 'entailM' runs per query, cached at the points where
+    -- the tope context changes ('localTope', 'enterModality',
+    -- 'inAllSubContexts', a flat cube binder) via 'withRefreshedTopes'.
+    -- Ordinary binder entries shift the cached value with the rest of the
+    -- context, which is sound because saturation commutes with renaming.
   , actionStack            :: [Action var]
   , currentCommand         :: Maybe Rzk.Command
   , location               :: Maybe LocationInfo
@@ -1351,7 +1403,22 @@ data Context var = Context
     -- the local hypotheses (see 'withHintLemmas'). A caller (the game) supplies
     -- a small curated allow-list per level; each listed lemma whose type fits
     -- the goal is then offered, applied to holes (e.g. @concat ? ? ?@).
-  } deriving (Functor, Foldable)
+  } deriving (Functor)
+
+-- Hand-written because the 'globalEmbed' function field cannot be folded;
+-- its image is exactly the keys of 'globalScopes', which are folded.
+instance Foldable Context where
+  foldMap f Context{..} = mconcat
+    [ foldMap (foldMap f) localScopes
+    , foldMap (foldMap f) globalScopes
+    , foldMap (foldMap f) localDiscreteTopes
+    , foldMap (foldMap f) localTopes
+    , foldMap (foldMap f) localTopesNF
+    , foldMap (foldMap (foldMap f)) localTopesNFUnion
+    -- localTopesSaturated is skipped: its Foldable is deliberately empty
+    -- (folding must not force the deferred saturation pipeline).
+    , foldMap (foldMap f) actionStack
+    ]
 
 addVarInCurrentScope :: var -> VarInfo var -> Context var -> Context var
 addVarInCurrentScope var info Context{..} = Context
@@ -1361,8 +1428,23 @@ addVarInCurrentScope var info Context{..} = Context
         scope : scopes -> addVarToScope var info scope : scopes
   , .. }
 
+-- | Add a top-level entry (definition, postulate, section assumption) to the
+-- current global scope. Only ever happens at the top level, where variables
+-- are plain 'VarIdent's.
+addVarInCurrentGlobalScope :: VarIdent -> VarInfo VarIdent -> Context VarIdent -> Context VarIdent
+addVarInCurrentGlobalScope var info Context{..} = Context
+  { globalScopes =
+      case globalScopes of
+        []             -> [GlobalScopeInfo Nothing [(var, info)]]
+        scope : scopes -> scope { gscopeVars = (var, info) : gscopeVars scope } : scopes
+  , .. }
+
 applyModalityToScopes :: TModality -> [ScopeInfo var] -> [ScopeInfo var]
 applyModalityToScopes md scopes = map (addModalityToScope md) scopes
+
+applyModalityToGlobalScopes :: TModality -> [GlobalScopeInfo var] -> [GlobalScopeInfo var]
+applyModalityToGlobalScopes md = map $ \scope -> scope
+  { gscopeVars = map (fmap (\VarInfo{..} -> VarInfo{ modAccum = comp modAccum md, .. })) (gscopeVars scope) }
 
 applyModalityToTopes :: TModality -> [ModalTope var] -> [ModalTope var]
 applyModalityToTopes md topes = map (\ModalTope{..} -> ModalTope{tModAccum = comp tModAccum md, ..}) topes
@@ -1370,9 +1452,11 @@ applyModalityToTopes md topes = map (\ModalTope{..} -> ModalTope{tModAccum = com
 applyModality :: TModality -> Context var -> Context var
 applyModality md Context{..} = Context
   { localScopes = applyModalityToScopes md localScopes
+  , globalScopes = applyModalityToGlobalScopes md globalScopes
   , localTopes = applyModalityToTopes md localTopes
   , localTopesNF = applyModalityToTopes md localTopesNF
   , localTopesNFUnion = map (applyModalityToTopes md) localTopesNFUnion
+  , localTopesSaturated = SaturationUncached  -- accessibility changed; 'enterModality' refreshes
   , .. }
 
 emptyTopeContext :: [ModalTope var]
@@ -1383,13 +1467,28 @@ emptyTopeContext =
   , ModalTope Id Sharp topeTopT
   ]
 
-emptyContext :: Context var
-emptyContext = Context
+emptyContext :: Context VarIdent
+emptyContext = unseeded { localTopesSaturated = SaturationCached sat }
+  where
+    -- Seed the saturation cache for the empty tope context, so top-level
+    -- entailment queries hit the cached path from the start. Deferred, like
+    -- every other installation (see 'withRefreshedTopes').
+    sat = case runExcept (runWriterT (runReaderT (saturateForEntailment emptyTopeContext) unseeded)) of
+      Left _       -> Nothing
+      Right (s, _) -> Just s
+    unseeded = emptyContextUnseeded
+
+emptyContextUnseeded :: Context VarIdent
+emptyContextUnseeded = Context
   { localScopes = [ScopeInfo Nothing []]
+  , globalScopes = [GlobalScopeInfo Nothing []]
+  , globalEmbed = id
+  , localDiscreteTopes = []
   , localTopes = emptyTopeContext
   , localTopesNF = emptyTopeContext
   , localTopesNFUnion = [emptyTopeContext]
   , localTopesEntailBottom = Just False
+  , localTopesSaturated = SaturationUncached
   , actionStack = []
   , currentCommand = Nothing
   , location = Nothing
@@ -1451,8 +1550,33 @@ availableTopes ctx = map tTope $ filterAccessible (localTopes ctx)
 availableTopesNF :: Context var -> [TermT var]
 availableTopesNF ctx = map tTope $ filterAccessible (localTopesNF ctx)
 
+-- | All in-scope variables: binder-bound locals first, then the top-level
+-- entries with their payloads embedded into the current scope. Locals are
+-- always more recent than the globals, so this matches the pre-split order.
 varInfos :: Context var -> [(var, VarInfo var)]
 varInfos Context{..} = concatMap scopeVars localScopes
+  <> [ (v, globalEmbed <$> info)
+     | (v, info) <- concatMap gscopeVars globalScopes ]
+
+-- | Look up one variable's 'VarInfo' by walking the scopes directly. The
+-- per-variable lookups ('typeOfVar', 'valueOfVar', …) run on every 'typeOf'
+-- of a variable, so going through a projected association list (as the
+-- whole-context views below do) allocates a pair per scanned entry on the
+-- hottest path of the checker. A hit in the global scopes is embedded into
+-- the current scope ('globalEmbed'); the payload itself is never shifted.
+lookupVarInfo :: Eq var => var -> Context var -> Maybe (VarInfo var)
+lookupVarInfo x Context{..} = go localScopes
+  where
+    go [] = goGlobal globalScopes
+    go (scope : scopes) =
+      case lookup x (scopeVars scope) of
+        Just info -> Just info
+        Nothing   -> go scopes
+    goGlobal [] = Nothing
+    goGlobal (scope : scopes) =
+      case lookup x (gscopeVars scope) of
+        Just info -> Just (globalEmbed <$> info)
+        Nothing   -> goGlobal scopes
 
 varTypes :: Context var -> [(var, TermT var)]
 varTypes = map (fmap varType) . varInfos
@@ -1468,15 +1592,6 @@ varOrigs = map (fmap (binderName . varOrig)) . varInfos
 -- rendering goals, holes and contexts.
 varBinders :: Context var -> [(var, Binder)]
 varBinders = map (fmap varOrig) . varInfos
-
-varModalities :: Context var -> [(var, TModality)]
-varModalities = map (fmap varModality) . varInfos
-
-varLocks :: Context var -> [(var, TModality)]
-varLocks = map (fmap modAccum) . varInfos
-
-varTopLevels :: Context var -> [(var, Bool)]
-varTopLevels = map (fmap varIsTopLevel) . varInfos
 
 withPartialDecls
   :: TypeCheck VarIdent ([Decl'], [err])
@@ -1507,11 +1622,18 @@ withSection name sectionBody =
 
 startSection :: Maybe Rzk.SectionName -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 startSection name = local $ \Context{..} -> Context
-  { localScopes = ScopeInfo { scopeName = name, scopeVars = [] } : localScopes
+  { globalScopes = GlobalScopeInfo { gscopeName = name, gscopeVars = [] } : globalScopes
   , .. }
 
+-- | The current global scope, as a plain 'ScopeInfo' (at the top level the
+-- keys and payloads coincide at 'VarIdent').
+askCurrentGlobalScope :: TypeCheck VarIdent (ScopeInfo VarIdent)
+askCurrentGlobalScope = asks globalScopes >>= \case
+  []              -> panicImpossible "no current global scope available"
+  scope : _scopes -> pure ScopeInfo { scopeName = gscopeName scope, scopeVars = gscopeVars scope }
+
 endSection :: [TypeErrorInScopedContext VarIdent] -> TypeCheck VarIdent ([Decl'], [TypeErrorInScopedContext VarIdent])
-endSection errs = askCurrentScope >>= scopeToDecls errs
+endSection errs = askCurrentGlobalScope >>= scopeToDecls errs
 
 scopeToDecls :: Eq var => [TypeErrorInScopedContext var] -> ScopeInfo var -> TypeCheck var ([Decl var], [TypeErrorInScopedContext var])
 scopeToDecls errs ScopeInfo{..} = do
@@ -1713,9 +1835,20 @@ ppContext' dir ctx@Context{..} = block dir $ dropWhile null
     -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
     dispName x = maybe (show (Pure x :: Term')) (show . binderDisplayName) (lookup x fbs)
 
+-- | All display names in scope, read off the raw entries: a binder
+-- ('varOrig') never mentions the scope's variables, so no global payload
+-- needs embedding. Going through 'varOrigs' here instead embedded every
+-- global 'VarInfo' once per new top-level name ('checkTopLevelDuplicate'),
+-- quadratically over a project.
+scopeNames :: Context var -> [VarIdent]
+scopeNames Context{..} = mapMaybe entryName (concatMap scopeVars localScopes)
+  <> mapMaybe entryName (concatMap gscopeVars globalScopes)
+  where
+    entryName :: (v, VarInfo w) -> Maybe VarIdent
+    entryName = binderName . varOrig . snd
+
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
-doesShadowName name = asks $ \ctx ->
-  filter (name ==) (mapMaybe snd (varOrigs ctx))
+doesShadowName name = asks (filter (name ==) . scopeNames)
 
 checkTopLevelDuplicate :: VarIdent -> TypeCheck var ()
 checkTopLevelDuplicate name = do
@@ -1771,7 +1904,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
   checkTopLevelDuplicate x
   local update tc
   where
-    update = addVarInCurrentScope x VarInfo
+    update = addVarInCurrentGlobalScope x VarInfo
       { varType = ty
       , varValue = term
       , varOrig = BinderVar (Just x)
@@ -1831,46 +1964,90 @@ type TypeCheck var =
 
 freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
 freeVarsT_ term = do
-  types <- asks varTypes
+  ctx <- ask
   let typeOfVar' x =
-        case lookup x types of
-          Nothing -> panicImpossible "undefined variable"
-          Just ty -> ty
+        case lookupVarInfo x ctx of
+          Nothing   -> panicImpossible "undefined variable"
+          Just info -> varType info
   return (freeVarsT typeOfVar' term)
 
 traceStartAndFinish :: Show a => String -> a -> a
 traceStartAndFinish tag = trace ("start [" <> tag <> "]") .
   (\x -> trace ("finish [" <> tag <> "] with " <> show x) x)
 
+-- | Monadic 'all' that stops at the first failing element.
+allM :: Monad m => (a -> m Bool) -> [a] -> m Bool
+allM p = go
+  where
+    go []     = return True
+    go (x:xs) = p x >>= \case
+      False -> return False
+      True  -> go xs
+
 entailM :: Eq var => [ModalTope var] -> TermT var -> TypeCheck var Bool
 entailM modalTopes goal = do
   -- genTopes <- generateTopesForPointsM (allTopePoints goal)
+  topes''' <- saturateForEntailment modalTopes
+  entailSaturatedM topes''' goal
+
+-- | The preprocessing 'entailM' performs before searching: dedup, split off
+-- context disjunctions, and saturate each alternative. Depends only on the
+-- given topes (plus the discreteness axioms of the context), not on the goal
+-- (the points argument of 'saturateTopes' is ignored).
+saturateForEntailment :: Eq var => [ModalTope var] -> TypeCheck var [[ModalTope var]]
+saturateForEntailment modalTopes = do
   discreteAxioms <- generateTopesForModalCubeVarsM
-  let topes'    = nubTermT (modalTopes <> discreteAxioms)
-      topes''   = simplifyLHSwithDisjunctions topes'
-  topes'''  <- mapM (fmap (saturateTopes (allTopePoints goal) . saturateBottom) . saturateInv) topes''
-  prettyTopes <- mapM ppTermInContext (map tTope (saturateTopes (allTopePoints goal) (simplifyLHS topes')))
-  prettyTope <- ppTermInContext goal
-  traceTypeCheck Debug
-    ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
-      and <$> mapM (`solveRHSM` goal) topes'''
+  let topes'  = nubTermT (modalTopes <> discreteAxioms)
+      topes'' = simplifyLHSwithDisjunctions topes'
+  mapM (fmap (saturateTopes [] . saturateBottom) . saturateInv) topes''
+
+-- | Search each saturated alternative for the goal; the shared tail of
+-- 'entailM' and the cached 'entailContextM'.
+entailSaturatedM :: Eq var => [[ModalTope var]] -> TermT var -> TypeCheck var Bool
+entailSaturatedM topes''' goal = asks verbosity >>= \case
+  Debug -> do
+    prettyTopes <- mapM ppTermInContext (map tTope (concat topes'''))
+    prettyTope <- ppTermInContext goal
+    traceTypeCheck Debug
+      ("entail " <> intercalate ", " prettyTopes <> " |- " <> prettyTope) $
+        allM (`solveRHSM` goal) topes'''
+  _ -> allM (`solveRHSM` goal) topes'''
+
+-- | Entailment against the context's own tope context, using the
+-- 'localTopesSaturated' cache when one was installed (it is maintained at
+-- the points where the tope context changes); otherwise fall back to the
+-- per-query pipeline over 'localTopesNF'. Matching on the payload of
+-- 'SaturationCached' is what forces the deferred pipeline, so the cost is
+-- paid at the first query under a context, and never for contexts that are
+-- never queried.
+entailContextM :: Eq var => TermT var -> TypeCheck var Bool
+entailContextM goal = asks localTopesSaturated >>= \case
+  SaturationCached (Just topes''') -> entailSaturatedM topes''' goal
+  SaturationCached Nothing         -> fallback
+  SaturationUncached               -> fallback
+  where
+    fallback = asks localTopesNF >>= (`entailM` goal)
+
+-- | Install a deferred 'localTopesSaturated' cache for the transformed
+-- context, and run the action with it. The pipeline's effects (Reader,
+-- Writer, Except) are discharged purely into a thunk: installation costs
+-- nothing, holes recorded by the speculative run are discarded, and a
+-- pipeline error (e.g. a tope guard with a hole in lenient mode, which the
+-- per-query path would never have evaluated) becomes 'Nothing', so errors
+-- surface exactly where they did before. Used at every point where the tope
+-- context changes; ordinary binder entries instead shift the cached value
+-- with the rest of the context (saturation commutes with renaming).
+withRefreshedTopes :: Eq var => (Context var -> Context var) -> TypeCheck var a -> TypeCheck var a
+withRefreshedTopes f action = do
+  ctx' <- asks f
+  let sat = case runExcept (runWriterT (runReaderT (saturateForEntailment (localTopesNF ctx')) ctx')) of
+        Left _       -> Nothing
+        Right (s, _) -> Just s
+  local (const ctx' { localTopesSaturated = SaturationCached sat }) action
 
 
-generateTopesForModalCubeVarsM :: Eq var => TypeCheck var [ModalTope var]
-generateTopesForModalCubeVarsM = do
-  infos <- asks varInfos
-  fmap (nubTermT . concat) $ forM infos $ \(var, info) ->
-    case varModality info of
-      Flat -> do
-        whnfT (varType info) >>= \case
-          Cube2T{} -> do
-            let pt = Pure var
-            return [plainTope (topeOrT (topeEQT pt cube2_0T) (topeEQT pt cube2_1T))]
-          CubeIT{} -> do
-            let pt = Pure var
-            return [plainTope (topeOrT (topeEQT pt cubeI_0T) (topeEQT pt cubeI_1T))]
-          _ -> return []
-      _ -> return []
+generateTopesForModalCubeVarsM :: TypeCheck var [ModalTope var]
+generateTopesForModalCubeVarsM = asks localDiscreteTopes
 
 entailTraceM :: Eq var => [ModalTope var] -> TermT var -> TypeCheck var Bool
 entailTraceM modalTopes goal = do
@@ -2157,9 +2334,9 @@ solveRHSM modalTopes goal =
       | solveRHS topes (topeEQT l r) -> return True
       | solveRHS topes (topeEQT l cube2_0T) -> return True
       | solveRHS topes (topeEQT r cube2_1T) -> return True
-    TopeAndT _ l r -> (&&)
-      <$> solveRHSM modalTopes l
-      <*> solveRHSM modalTopes r
+    TopeAndT _ l r -> solveRHSM modalTopes l >>= \case
+      False -> return False
+      True  -> solveRHSM modalTopes r
     _ | goal `elem` topes -> return True
     TopeInvT{} -> do
       goal' <- nfTope goal
@@ -2172,9 +2349,10 @@ solveRHSM modalTopes goal =
         TopeUninvT{} -> return False
         _            -> solveRHSM modalTopes goal'
     TopeOrT  _ l r -> do
-      l' <- solveRHSM modalTopes l
-      r' <- solveRHSM modalTopes r
-      if (l' || r')
+      found <- solveRHSM modalTopes l >>= \case
+        True  -> return True
+        False -> solveRHSM modalTopes r
+      if found
         then return True
         else do
           lems <- generateTopesForPointsM (allTopePoints goal)
@@ -2183,10 +2361,10 @@ solveRHSM modalTopes goal =
               withTope t = hidden ++ saturateTopes [] (plainTope t : accessible)
 
           case lems' of
-            TopeOrT _ t1 t2 : _ -> do
-              l'' <- solveRHSM (withTope t1) goal
-              r'' <- solveRHSM (withTope t2) goal
-              return (l'' && r'')
+            TopeOrT _ t1 t2 : _ ->
+              solveRHSM (withTope t1) goal >>= \case
+                False -> return False
+                True  -> solveRHSM (withTope t2) goal
             _ -> return False
     _ -> return False
 
@@ -2220,9 +2398,8 @@ checkTope :: Eq var => TermT var -> TypeCheck var Bool
 checkTope tope = do
   ctxTopes <- asks availableTopes
   performing (ActionContextEntails ctxTopes tope) $ do
-    topes' <- asks localTopesNF
     tope' <- nfTope tope
-    topes' `entailM` tope'
+    entailContextM tope'
 
 checkTopeEntails :: Eq var => TermT var -> TypeCheck var Bool
 checkTopeEntails tope = do
@@ -2273,7 +2450,7 @@ contextEntailsUnion topes = do
     contextTopes <- asks localTopesNF
     topesNF <- mapM nfTope topes
     let unionRHS = foldr topeOrT topeBottomT topesNF
-    contextTopes `entailM` unionRHS >>= \case
+    entailContextM unionRHS >>= \case
       -- a guard mentioning an (unfilled) hole can't be decided; defer coverage
       False | not (any containsHole topesNF) ->
         issueTypeError $ TypeErrorTopeNotSatisfied (accessibleTopes contextTopes) unionRHS
@@ -2342,15 +2519,28 @@ enterScopeContext orig md ty val context =
     }
     (S <$> context)
 
-enterScopeMaybe :: Binder -> TModality -> TermT var -> Maybe (TermT var) -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeMaybe :: Eq var => Binder -> TModality -> TermT var -> Maybe (TermT var) -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeMaybe orig md ty mval action = do
+  mDiscrete <- case md of
+    Flat -> whnfT ty >>= \case
+      Cube2T{} -> pure (Just (topeOrT (topeEQT z cube2_0T) (topeEQT z cube2_1T)))
+      CubeIT{} -> pure (Just (topeOrT (topeEQT z cubeI_0T) (topeEQT z cubeI_1T)))
+      _        -> pure Nothing
+    _ -> pure Nothing
   newContext <- asks (enterScopeContext orig md ty mval)
-  closeScope orig (runReaderT action newContext)
+  let newContext' = newContext
+        { localDiscreteTopes = maybe id ((:) . plainTope) mDiscrete (localDiscreteTopes newContext) }
+      -- A new discreteness axiom changes the saturation input; ordinary
+      -- binders keep the shifted cache (saturation commutes with renaming).
+      refresh = maybe id (const (withRefreshedTopes id)) mDiscrete
+  closeScope orig (runReaderT (refresh action) newContext')
+  where
+    z = Pure Z
 
-enterScope :: Binder -> TModality -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScope :: Eq var => Binder -> TModality -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScope orig md ty = enterScopeMaybe orig md ty Nothing
 
-enterScopeWithBind :: Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
+enterScopeWithBind :: Eq var => Binder -> TModality -> TermT var -> TermT var -> TypeCheck (Inc var) b -> TypeCheck var b
 enterScopeWithBind orig md ty val = enterScopeMaybe orig md ty (Just val)
 
 -- | Run a sub-scope computation and lift it back to the enclosing scope: close
@@ -2368,12 +2558,14 @@ closeScope orig inner = do
   lift (tell holes)
   return b
 
-enterModality :: TModality -> TypeCheck var b -> TypeCheck var b
+enterModality :: Eq var => TModality -> TypeCheck var b -> TypeCheck var b
 enterModality Id action = action
 enterModality md action = do
   newContext <- asks (applyModality md)
   let newContext' = newContext { localTopesEntailBottom = Nothing }
-  lift $ runReaderT action newContext'
+  -- 'applyModality' invalidated the saturation cache (accessibility
+  -- changed); refresh it under the shifted context.
+  lift $ runReaderT (withRefreshedTopes id action) newContext'
 
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
@@ -3069,35 +3261,30 @@ nfT tt = performing (ActionNF tt) $ case tt of
               []   -> nfT type_
               rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
 
+-- | Look up a variable and project one field of its 'VarInfo'; the shared
+-- shape of the per-variable accessors below.
+infoOfVar :: Eq var => (VarInfo var -> a) -> var -> TypeCheck var a
+infoOfVar f x = asks (lookupVarInfo x) >>= \case
+  Nothing   -> issueTypeError $ TypeErrorUndefined x
+  Just info -> return (f info)
+
 checkDefinedVar :: VarIdent -> TypeCheck VarIdent ()
-checkDefinedVar x = asks (lookup x . varInfos) >>= \case
-  Nothing  -> issueTypeError $ TypeErrorUndefined x
-  Just _ty -> return ()
+checkDefinedVar = infoOfVar (const ())
 
 valueOfVar :: Eq var => var -> TypeCheck var (Maybe (TermT var))
-valueOfVar x = asks (lookup x . varValues) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just ty -> return ty
+valueOfVar = infoOfVar varValue
 
 typeOfVar :: Eq var => var -> TypeCheck var (TermT var)
-typeOfVar x = asks (lookup x . varTypes) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just ty -> return ty
+typeOfVar = infoOfVar varType
 
 modalityOfVar :: Eq var => var -> TypeCheck var (TModality)
-modalityOfVar x = asks (lookup x . varModalities) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just m -> return m
+modalityOfVar = infoOfVar varModality
 
 locksOfVar :: Eq var => var -> TypeCheck var (TModality)
-locksOfVar x = asks (lookup x . varLocks) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just m -> return m
+locksOfVar = infoOfVar modAccum
 
 isTopLevelVar :: Eq var => var -> TypeCheck var Bool
-isTopLevelVar x = asks (lookup x . varTopLevels) >>= \case
-  Nothing -> issueTypeError $ TypeErrorUndefined x
-  Just b -> return b
+isTopLevelVar = infoOfVar varIsTopLevel
 
 typeOfUncomputed :: Eq var => TermT var -> TypeCheck var (TermT var)
 typeOfUncomputed = \case
@@ -3115,7 +3302,7 @@ unifyTopes l r = do
   unless equiv $
     issueTypeError (TypeErrorTopesNotEquivalent l r)
 
-inAllSubContexts :: TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
+inAllSubContexts :: Eq var => TypeCheck var () -> TypeCheck var () -> TypeCheck var ()
 inAllSubContexts handleSingle tc = do
   topeSubContexts <- asks localTopesNFUnion
   case topeSubContexts of
@@ -3123,7 +3310,7 @@ inAllSubContexts handleSingle tc = do
     [_] -> handleSingle
     _:_:_ -> do
       forM_ topeSubContexts $ \topes' -> do
-        local (\Context{..} -> Context
+        withRefreshedTopes (\Context{..} -> Context
             { localTopes = topes'
             , localTopesNF = topes'
             , localTopesNFUnion = [topes']
@@ -3289,6 +3476,15 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                           switchVariance $  -- unifying in the negative position!
                             unifyTerms cube cube' -- FIXME: unifyCubes
                           enterScope orig' md cube' $ do
+                            -- The tope checks below are subtyping checks with a fixed
+                            -- direction relative to (subtype, supertype). Which side is
+                            -- the subtype depends on the ambient variance: under
+                            -- Covariant the actual type must be a subtype of the
+                            -- expected one; under Contravariant (inside a domain) the
+                            -- roles are reversed. Invariant is normally handled
+                            -- upstream by running both directions; it is handled here
+                            -- as well for safety.
+                            variance <- asks covariance
                             case ret' of
                               UniverseTopeT{} -> do
                                 -- This is the case for tope families (shapes)
@@ -3300,9 +3496,16 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                                 -- we DO NOT take tope context Φ into account!
                                 expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                                 actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                                actualEntailsExpected <- [plainTope actualTopeNF] `entailM` expectedTopeNF
-                                unless (actualEntailsExpected || containsHole expectedTopeNF || containsHole actualTopeNF) $
-                                  issueTypeError (TypeErrorTopeNotSatisfied [actualTopeNF] expectedTopeNF)
+                                let subEntailsSuper subNF superNF = do
+                                      entails <- [plainTope subNF] `entailM` superNF
+                                      unless (entails || containsHole subNF || containsHole superNF) $
+                                        issueTypeError (TypeErrorTopeNotSatisfied [subNF] superNF)
+                                case variance of
+                                  Covariant     -> subEntailsSuper actualTopeNF expectedTopeNF
+                                  Contravariant -> subEntailsSuper expectedTopeNF actualTopeNF
+                                  Invariant     -> do
+                                    subEntailsSuper actualTopeNF expectedTopeNF
+                                    subEntailsSuper expectedTopeNF actualTopeNF
                               _ -> do
                                 -- this is the case for Π-types and extension types
                                 --
@@ -3311,8 +3514,15 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                                 -- Ξ | Φ, ψ ⊢ φ
                                 expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                                 actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                                localTope expectedTopeNF $
-                                  contextEntails actualTopeNF
+                                let superEntailsSub superNF subNF =
+                                      localTope superNF $
+                                        contextEntails subNF
+                                case variance of
+                                  Covariant     -> superEntailsSub expectedTopeNF actualTopeNF
+                                  Contravariant -> superEntailsSub actualTopeNF expectedTopeNF
+                                  Invariant     -> do
+                                    superEntailsSub expectedTopeNF actualTopeNF
+                                    superEntailsSub actualTopeNF expectedTopeNF
                             case mterm of
                               Nothing -> unifyTerms ret ret'
                               Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
@@ -3327,10 +3537,19 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                           enterScope orig' md a' $ unify Nothing b b'
                         _ -> err
 
-                    TypeIdT _ty x _tA y ->
+                    TypeIdT _ty x tA y ->
                       case actual' of
-                        TypeIdT _ty' x' _tA' y' -> do
-                          -- unify Nothing tA tA' -- TODO: do we need this check?
+                        TypeIdT _ty' x' tA' y' -> do
+                          -- The underlying types must be compared: without this
+                          -- check the routine equates identity types over
+                          -- different types whenever the endpoints unify,
+                          -- accepting e.g. a free homotopy (a path in the type
+                          -- of functions) where an endpoint-fixing one (a path
+                          -- in a hom-type) is expected. Compared invariantly:
+                          -- subtyping between the underlying types must not
+                          -- leak into equality of identity types over them.
+                          mapM_ (\(t1, t2) -> setVariance Invariant (unify Nothing t1 t2))
+                            ((,) <$> tA <*> tA')
                           unify Nothing x x'
                           unify Nothing y y'
                         _ -> err
@@ -3404,15 +3623,26 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                       case actual' of
                         TypeRestrictedT _ty' ty' rs' -> do
                           unify mterm ty ty'
-                          sequence_
-                            [ localTope tope $ do
-                                -- FIXME: can do less entails checks?
-                                contextEntails (foldr topeOrT topeBottomT (map fst rs')) -- expected is less specified than actual
-                                forM_ rs' $ \(tope', term') -> do
-                                  localTope tope' $
-                                    unify Nothing term term'
-                            | (tope, term) <- rs
-                            ]
+                          -- The faces of the supertype must be covered by the faces
+                          -- of the subtype (the subtype is at least as specified),
+                          -- with the boundary terms agreeing on overlaps. Which side
+                          -- is the subtype depends on the ambient variance.
+                          variance <- asks covariance
+                          let subCoversSuper subRs superRs = sequence_
+                                [ localTope tope $ do
+                                    -- FIXME: can do less entails checks?
+                                    contextEntails (foldr topeOrT topeBottomT (map fst subRs))
+                                    forM_ subRs $ \(tope', term') -> do
+                                      localTope tope' $
+                                        unify Nothing term term'
+                                | (tope, term) <- superRs
+                                ]
+                          case variance of
+                            Covariant     -> subCoversSuper rs' rs
+                            Contravariant -> subCoversSuper rs rs'
+                            Invariant     -> do
+                              subCoversSuper rs' rs
+                              subCoversSuper rs rs'
                         _ -> err    -- FIXME: need better unification for restrictions
                     TypeModalT _ty m ty ->
                       case actual' of
@@ -3438,7 +3668,6 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                     _ | holePresent -> return ()
                     _ -> panicImpossible "unexpected term in UNIFY"
 
-
   where
     action = case mterm of
                Nothing   -> ActionUnifyTerms expected actual
@@ -3462,7 +3691,7 @@ localTope tope tc = do
           | otherwise -> id
   refine $ do
     entailsBottom <- (modalTope' : localTopesNF) `entailM` topeBottomT
-    local (f modalTope' entailsBottom) tc
+    withRefreshedTopes (f modalTope' entailsBottom) tc
   where
     f tope' entailsBottom Context{..} = Context
       { localTopes = plainTope tope : localTopes
@@ -4487,7 +4716,7 @@ checkCoherence (ltope, lterm) (rtope, rterm) =
       unifyTerms ltype rtype
       unifyTerms lterm rterm
 
-inferStandalone :: Eq var => Term var -> Either (TypeErrorInScopedContext var) (TermT var)
+inferStandalone :: Term VarIdent -> Either (TypeErrorInScopedContext VarIdent) (TermT VarIdent)
 inferStandalone term = defaultTypeCheck (infer term)
 
 unsafeInferStandalone' :: Term' -> TermT'
@@ -5095,3 +5324,184 @@ defaultCamera = Camera
   , cameraFoV = pi/15
   , cameraAspectRatio = 1
   }
+
+-- * Elaborated types of local binders (for LSP hover)
+
+-- | Naming environment for rendering types found under binders: how to
+-- display each variable, plus the pattern binders passed on the way down,
+-- for projection restoration (as in 'recordHoleShape').
+data BinderNames var = BinderNames
+  { binderNameOf    :: var -> VarIdent
+  , binderNameProjs :: [(VarIdent, [([Proj], VarIdent)])]
+  , binderNamePats  :: [(VarIdent, Binder)]
+  }
+
+topLevelBinderNames :: BinderNames VarIdent
+topLevelBinderNames = BinderNames id [] []
+
+renderBinderType :: BinderNames var -> TermT var -> Term'
+renderBinderType names t =
+  restorePatternVars (binderNamePats names)
+    (foldBinderProjections (binderNameProjs names) (untyped (binderNameOf names <$> t)))
+
+underBinder :: Binder -> BinderNames var -> BinderNames (Inc var)
+underBinder binder names = BinderNames
+  { binderNameOf = \case
+      Z   -> zName
+      S v -> binderNameOf names v
+  , binderNameProjs = case binder of
+      BinderVar{} -> binderNameProjs names
+      _           -> (zName, binderPaths binder) : binderNameProjs names
+  , binderNamePats = case binder of
+      BinderVar{} -> binderNamePats names
+      _           -> (zName, binder) : binderNamePats names
+  }
+  where
+    zName = binderDisplayName binder
+
+-- | The memoised weak head normal form of a typed term, if present.
+memoWHNF :: TermT var -> TermT var
+memoWHNF t@(Free (AnnF info _)) = fromMaybe t (infoWHNF info)
+memoWHNF t                      = t
+
+
+-- | The variables a binder introduces, with rendered types. A pair binder
+-- splits its type along Σ-types and cube products; when the shape is not
+-- syntactic (e.g. the type is a defined name applied to arguments, as in
+-- @((η , (ϵ , (α , β))) : has-quasi-diagrammatic-adj A B f u)@), the type is
+-- put in weak head normal form first, which needs the global declarations in
+-- scope (see 'binderTypesInScopeOf'). The dependent part is rendered under
+-- the earlier component's display name, giving @q : B p@.
+-- | A binder's displayed type: a plain type, or a cube together with a tope
+-- for shaped binders like @(t : I | φ t)@.
+data BinderTypeView
+  = TypeView Term'
+  | ShapeView Term' Term'
+
+binderTypeEntriesM :: Eq var => BinderNames var -> Binder -> TermT var -> TypeCheck var [(VarIdent, BinderTypeView)]
+binderTypeEntriesM names binder ty = case binder of
+  BinderUnit         -> pure []
+  BinderVar Nothing  -> pure []
+  BinderVar (Just x) -> pure [(x, TypeView (renderBinderType names ty))]
+  BinderPair l r     -> splitViewM ty >>= \case
+    Just (TypeSigmaT _ _ md a bscope) -> do
+      ls <- binderTypeEntriesM names l a
+      rs <- enterScope l md a (binderTypeEntriesM (underBinder l names) r bscope)
+      pure (ls ++ rs)
+    Just (CubeProductT _ a b) ->
+      (++) <$> binderTypeEntriesM names l a <*> binderTypeEntriesM names r b
+    _ -> pure []   -- unrecognised shape; the surface annotation is the fallback
+
+-- | View a type as a Σ-type or cube product: syntactically or through the
+-- memoised WHNF if possible, computing the WHNF otherwise. Never throws.
+splitViewM :: Eq var => TermT var -> TypeCheck var (Maybe (TermT var))
+splitViewM ty = case splitView (memoWHNF ty) of
+  Just t  -> pure (Just t)
+  Nothing -> (splitView <$> whnfT ty) `catchError` \_ -> pure Nothing
+  where
+    splitView t = case stripTypeRestrictions t of
+      t'@TypeSigmaT{}   -> Just t'
+      t'@CubeProductT{} -> Just t'
+      _                 -> Nothing
+
+-- | Elaborated types of the local binders of a typed term, keyed by the
+-- binder's original identifier (whose position points at its defining
+-- occurrence). Every node of a typed term carries its type, so even a bare
+-- lambda's binder is typed, by the domain of the lambda's own Π-type.
+binderTypesOfTermM :: Eq var => BinderNames var -> TermT var -> TypeCheck var [(VarIdent, BinderTypeView)]
+binderTypesOfTermM names = go
+  where
+    go t = case t of
+      Pure _ -> pure []
+      LambdaT info binder mparam body -> do
+        (paramType, paramTope) <- case mparam of
+          Just (_, ty, mtope) -> pure (Just ty, mtope)
+          -- A bare lambda: the domain (and shape) of its own Π-type.
+          Nothing -> case funView (memoWHNF (infoType info)) of
+            Just (p, mtope) -> pure (Just p, mtope)
+            Nothing ->
+              (maybe (Nothing, Nothing) (\(p, mtope) -> (Just p, mtope)) . funView
+                 <$> whnfT (infoType info))
+                `catchError` \_ -> pure (Nothing, Nothing)
+        entries <- shapedBinderEntries names binder paramType paramTope
+        annEntries <- case mparam of
+          Nothing -> pure []
+          Just (md, ty, mtope) -> do
+            tyEntries   <- go ty
+            topeEntries <- maybe (pure []) (enterScope binder md ty . under binder) mtope
+            pure (tyEntries ++ topeEntries)
+        let md = maybe Id (\(m, _, _) -> m) mparam
+        bodyEntries <- enterScope binder md (fromMaybe universeT paramType) (under binder body)
+        pure (entries ++ annEntries ++ bodyEntries)
+      TypeFunT _ binder md param mtope ret -> do
+        entries      <- shapedBinderEntries names binder (Just param) mtope
+        paramEntries <- go param
+        topeEntries  <- maybe (pure []) (enterScope binder md param . under binder) mtope
+        retEntries   <- enterScope binder md param (under binder ret)
+        pure (entries ++ paramEntries ++ topeEntries ++ retEntries)
+      TypeSigmaT _ binder md a bscope -> do
+        entries  <- binderTypeEntriesM names binder a
+        aEntries <- go a
+        bEntries <- enterScope binder md a (under binder bscope)
+        pure (entries ++ aEntries ++ bEntries)
+      LetT _ binder manno value body -> do
+        let valueType = case value of
+              Free (AnnF valueInfo _) -> Just (infoType valueInfo)
+              Pure _                  -> manno
+        entries      <- maybe (pure []) (binderTypeEntriesM names binder) valueType
+        annEntries   <- maybe (pure []) go manno
+        valueEntries <- go value
+        bodyEntries  <- enterScopeWithBind binder Id (fromMaybe universeT valueType) value
+                          (under binder body)
+        pure (entries ++ annEntries ++ valueEntries ++ bodyEntries)
+      LetModT _ binder _nu mu manno value body -> do
+        unwrapped <- case value of
+          Pure _ -> pure Nothing
+          Free (AnnF valueInfo _) -> do
+            let vt = infoType valueInfo
+            case modalView (memoWHNF vt) of
+              Just a  -> pure (Just a)
+              Nothing -> (modalView <$> whnfT vt) `catchError` \_ -> pure Nothing
+        entries      <- maybe (pure []) (binderTypeEntriesM names binder) unwrapped
+        annEntries   <- maybe (pure []) go manno
+        valueEntries <- go value
+        bodyEntries  <- enterScope binder mu (fromMaybe universeT unwrapped) (under binder body)
+        pure (entries ++ annEntries ++ valueEntries ++ bodyEntries)
+      Free (AnnF _ f) -> concat <$> mapM go (bifoldr (\_ acc -> acc) (:) [] f)
+    under binder = binderTypesOfTermM (underBinder binder names)
+    funView t = case stripTypeRestrictions t of
+      TypeFunT _ _ _ param mtope _ -> Just (param, mtope)
+      _                            -> Nothing
+    modalView t = case stripTypeRestrictions t of
+      TypeModalT _ _ a -> Just a
+      _                -> Nothing
+    -- A shaped plain binder shows its cube together with the tope, as it is
+    -- written: (t : I | φ t). A shaped pair binder splits along the cube,
+    -- the tope constraining the components jointly (as in the surface tier).
+    shapedBinderEntries names' binder mty mtope = case (binder, mty, mtope) of
+      (BinderVar (Just x), Just cube, Just tope) ->
+        pure [(x, ShapeView (renderBinderType names' cube)
+                            (renderBinderType (underBinder binder names') tope))]
+      (_, Just ty, _) -> binderTypeEntriesM names' binder ty
+      _ -> pure []
+
+-- | All local binder types of a declaration: Π and Σ binders from the type,
+-- lambda and let binders from the value.
+declBinderTypes :: Decl' -> TypeCheck VarIdent [(VarIdent, BinderTypeView)]
+declBinderTypes decl =
+  (++) <$> binderTypesOfTermM topLevelBinderNames (declType decl)
+       <*> maybe (pure []) (binderTypesOfTermM topLevelBinderNames) (declValue decl)
+
+-- | Elaborated types of the local binders of @fileDecls@, with @globalDecls@
+-- in scope so that 'whnfT' can unfold definitions when splitting pair
+-- binders. Pure at the interface: runs the checker silently and returns no
+-- entries where it fails.
+binderTypesInScopeOf :: [Decl'] -> [Decl'] -> [(VarIdent, BinderTypeView)]
+binderTypesInScopeOf globalDecls fileDecls =
+  case defaultTypeCheck action of
+    Left _        -> []
+    Right entries -> entries
+  where
+    action = localVerbosity Silent $
+      localDeclsPrepared globalDecls $
+        concat <$> mapM declBinderTypes fileDecls

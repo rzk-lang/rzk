@@ -24,7 +24,8 @@ maxDiagnosticCount = 100
 handlers :: Handlers LSP
 handlers =
   mconcat
-    [ notificationHandler SMethod_Initialized $ const typecheckFromConfigFile
+    [ notificationHandler SMethod_Initialized $ const $
+        spawnTypecheckWorker typecheckFromConfigFile
     -- TODO: add logging
     -- Empty handlers to silence the errors
     , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()
@@ -37,14 +38,15 @@ handlers =
         return () -- FIXME: typecheck standalone files (if they are not a part of the project)
     -- An empty hadler is needed to silence the error since it is already handled by the LSP package
     , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ const $ pure ()
-    -- , requestHandler SMethod_TextDocumentHover $ \req responder -> do
-    --    TODO: Read from the list of symbols that is supposed to be cached by the typechecker
-    --     let TRequestMessage _ _ _ (HoverParams _doc pos _workDone) = req
-    --         Position _l _c' = pos
-    --         rsp = Hover (InL ms) (Just range')
-    --         ms = mkMarkdown "Hello world"
-    --         range' = Range pos pos
-    --     responder (Right $ InL rsp)
+    -- Progress cancellation is handled by the lsp library's bookkeeping (it
+    -- cancels the corresponding withProgress action); the empty handler only
+    -- silences the missing-handler warning.
+    , notificationHandler SMethod_WindowWorkDoneProgressCancel $ const $ pure ()
+    , requestHandler SMethod_TextDocumentHover provideHover
+    , requestHandler SMethod_TextDocumentDocumentSymbol provideSymbols
+    , requestHandler SMethod_WorkspaceSymbol provideWorkspaceSymbols
+    , requestHandler SMethod_TextDocumentDefinition findDefinition 
+    , requestHandler SMethod_TextDocumentReferences findReferences 
     , requestHandler SMethod_TextDocumentCompletion provideCompletions
     , requestHandler SMethod_TextDocumentSemanticTokensFull provideSemanticTokens
     , requestHandler SMethod_TextDocumentFormatting formatDocument

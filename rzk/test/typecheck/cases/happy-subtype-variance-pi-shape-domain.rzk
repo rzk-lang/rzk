@@ -1,0 +1,22 @@
+#lang rzk-1
+
+-- PROBE: should be ACCEPTED (paper rules / dRzk).
+--
+-- Requirement for `g k`:
+--   (f : (t : 2 | t === 0_2) → A) → A  <:  (f : (t : 2 | TOP) → A) → A
+-- By contravariance of Π domains this needs
+--   (t : 2 | TOP) → A  <:  (t : 2 | t === 0_2) → A
+-- which by S-Pi-Shape needs  t === 0_2 ⊢ TOP  — TRUE.
+--
+-- Semantically: g calls its parameter with total functions, and k is
+-- happy to receive them (it only ever applies f on t === 0_2).
+--
+-- A checker whose Π-domain tope check ignores the variance flag checks
+-- TOP ⊢ t === 0_2 (false) and REJECTS.
+
+#def pi-shape-wrong-reject
+  ( A : U)
+  ( g : ((f : (t : 2 | TOP) → A) → A) → A)
+  ( k : (f : (t : 2 | t === 0_2) → A) → A)
+  : A
+  := g k

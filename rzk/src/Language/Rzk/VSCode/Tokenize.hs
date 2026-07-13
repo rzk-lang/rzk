@@ -2,10 +2,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Rzk.VSCode.Tokenize where
 
+import           Data.Char                   (isAlphaNum)
+import           Data.List                   (sortOn)
+import qualified Data.Text                   as T
 import           Language.LSP.Protocol.Types (SemanticTokenAbsolute (..),
                                               SemanticTokenModifiers (..),
                                               SemanticTokenTypes (..))
 import           Language.Rzk.Syntax
+import           Language.Rzk.Syntax.Lex     (Posn (Pn),
+                                              Tok (T_HoleIdentToken, TK),
+                                              TokSymbol (TokSymbol),
+                                              Token (PT))
+import qualified Language.Rzk.Syntax.Lex     as Lex
 
 tokenizeModule :: Module -> [SemanticTokenAbsolute]
 tokenizeModule (Module _loc langDecl commands) = concat
@@ -25,13 +33,15 @@ tokenizeCommand command = case command of
   CommandComputeNF    _loc term -> tokenizeTerm term
   CommandComputeWHNF  _loc term -> tokenizeTerm term
 
-  CommandPostulate _loc name _declUsedVars params type_ -> concat
+  CommandPostulate _loc name declUsedVars params type_ -> concat
     [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+    , tokenizeDeclUsedVars declUsedVars
     , foldMap tokenizeParam params
     , tokenizeTerm type_
     ]
-  CommandDefine _loc name _declUsedVars params type_ term -> concat
+  CommandDefine _loc name declUsedVars params type_ term -> concat
     [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+    , tokenizeDeclUsedVars declUsedVars
     , foldMap tokenizeParam params
     , foldMap tokenizeTerm [type_, term]
     ]
@@ -40,8 +50,17 @@ tokenizeCommand command = case command of
     [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
     , tokenizeTerm type_
     ]
-  CommandSection    _loc _nameStart -> []
-  CommandSectionEnd _loc _nameEnd -> []
+  CommandSection    _loc name -> tokenizeSectionName name
+  CommandSectionEnd _loc name -> tokenizeSectionName name
+
+tokenizeDeclUsedVars :: DeclUsedVars -> [SemanticTokenAbsolute]
+tokenizeDeclUsedVars (DeclUsedVars _loc vars) =
+  foldMap (\var -> mkToken var SemanticTokenTypes_Parameter []) vars
+
+tokenizeSectionName :: SectionName -> [SemanticTokenAbsolute]
+tokenizeSectionName = \case
+  NoSectionName{}       -> []
+  SomeSectionName _ name -> mkToken name SemanticTokenTypes_Property []
 
 tokenizeBind :: Bind -> [SemanticTokenAbsolute]
 tokenizeBind = \case
@@ -89,7 +108,7 @@ tokenizeTerm' :: Maybe SemanticTokenTypes -> Term -> [SemanticTokenAbsolute]
 tokenizeTerm' varTokenType = go
   where
     go term = case term of
-      Hole{} -> [] -- FIXME
+      Hole{} -> [] -- highlighted from the token stream ('tokenizeSyntaxSymbols')
       Var{} -> case varTokenType of
                  Nothing         -> []
                  Just token_type -> mkToken term token_type []
@@ -285,3 +304,68 @@ mkToken x tokenType tokenModifiers =
         ,  _length = fromIntegral $ Prelude.length (printTree x)
         }
         ]
+
+-- * Syntax highlighting from the token stream
+
+-- | Highlight the fixed syntax of the language (command names, reserved
+-- words, operators) and holes directly from the lexer token stream.
+--
+-- This complements 'tokenizeModule', which highlights identifiers and
+-- special term formers from the parsed module. Fixed symbols do not need
+-- parsing at all: a @:=@ is a @:=@ wherever it occurs, and a hole @?@ (or
+-- @?name@) is its own lexer token. Working on the token stream means that
+-- the grammar (and the abstract syntax) does not have to track positions of
+-- keywords, and that highlighting keeps working for files that
+-- (temporarily) fail to parse.
+tokenizeSyntaxSymbols :: T.Text -> [SemanticTokenAbsolute]
+tokenizeSyntaxSymbols input =
+  [ SemanticTokenAbsolute
+      { _tokenType = tokenType
+      , _tokenModifiers = []
+      , _line = fromIntegral line - 1      -- NOTE: 0-indexed output for LSP
+      , _startChar = fromIntegral col - 1  -- NOTE: 0-indexed output for LSP
+      , _length = fromIntegral (T.length sym)
+      }
+  | PT (Pn _ line col) tok <- Lex.tokens (tryExtractMarkdownCodeBlocks "rzk" input)
+  , Just (sym, tokenType) <- [classifyToken tok]
+  ]
+
+-- | How to highlight a lexer token, if at all: fixed symbols by
+-- 'classifySymbol', holes as a distinct token. Identifiers are left to the
+-- AST pass ('tokenizeModule'), which knows their role.
+classifyToken :: Tok -> Maybe (T.Text, SemanticTokenTypes)
+classifyToken = \case
+  TK (TokSymbol sym _) -> (,) sym <$> classifySymbol sym
+  -- Holes are goals to come back to, so they should stand out; among the
+  -- standard token types, regexp is rendered most distinctly by the default
+  -- themes (themes and clients may restyle it).
+  T_HoleIdentToken sym -> Just (sym, SemanticTokenTypes_Regexp)
+  _                    -> Nothing
+
+-- | How to highlight a fixed symbol of the grammar, if at all.
+classifySymbol :: T.Text -> Maybe SemanticTokenTypes
+classifySymbol s
+  | s `elem` ignored     = Nothing
+  | "#" `T.isPrefixOf` s = Just SemanticTokenTypes_Macro
+  | s == "rzk-1"         = Just SemanticTokenTypes_Macro
+  | T.any isAlphaNum s   = Just SemanticTokenTypes_Keyword
+  | otherwise            = Just SemanticTokenTypes_Operator
+  where
+    -- Plain brackets are left to the editor (e.g. bracket pair colorization).
+    ignored = ["(", ")", "[", "]", "{", "}", ";", "<", ">"]
+
+-- | Combine tokens from the parsed module with tokens from the raw symbol
+-- stream. On overlap (same start position) the AST-based token wins, since
+-- it carries more precise semantics (e.g. @unit@ as an enum member rather
+-- than a keyword). The result is sorted by position, as required for the
+-- LSP delta encoding.
+mergeTokens :: [SemanticTokenAbsolute] -> [SemanticTokenAbsolute] -> [SemanticTokenAbsolute]
+mergeTokens astTokens symbolTokens = go (sortOn key astTokens) (sortOn key symbolTokens)
+  where
+    key t = (_line t, _startChar t)
+    go [] ss = ss
+    go as [] = as
+    go (a:as) (s:ss) = case compare (key a) (key s) of
+      LT -> a : go as (s:ss)
+      EQ -> a : go as ss
+      GT -> s : go (a:as) ss

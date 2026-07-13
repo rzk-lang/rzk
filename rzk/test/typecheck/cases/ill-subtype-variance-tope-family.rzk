@@ -1,0 +1,22 @@
+#lang rzk-1
+
+-- PROBE: should be REJECTED (paper rules / dRzk).
+--
+-- Requirement for `g h`:
+--   (φ : (t : 2 | t === 0_2) → TOPE) → A  <:  (φ : (t : 2 | TOP) → TOPE) → A
+-- By contravariance of Π domains this needs
+--   (t : 2 | TOP) → TOPE  <:  (t : 2 | t === 0_2) → TOPE
+-- which by S-TopeFam (covariant domains) needs  TOP ⊢ t === 0_2  — FALSE.
+--
+-- Semantically: g passes h tope families with no bound at all; h's type
+-- promises its φ is bounded by t === 0_2.
+--
+-- A checker whose S-TopeFam check ignores the variance flag checks
+-- t === 0_2 ⊢ TOP (true) and ACCEPTS.
+
+#def tope-fam-wrong-accept
+  ( A : U)
+  ( g : ((φ : (t : 2 | TOP) → TOPE) → A) → A)
+  ( h : (φ : (t : 2 | t === 0_2) → TOPE) → A)
+  : A
+  := g h

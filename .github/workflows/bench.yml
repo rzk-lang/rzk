@@ -1,0 +1,50 @@
+name: Bench harness
+
+# Keeps bench/bench.hs from bitrotting: compile the Stack script and
+# smoke-test the profile summariser against a fixture with a known answer.
+# No rzk build and no corpus clone: this is a compile-and-parse check only.
+on:
+  push:
+    branches: [develop]
+    paths:
+      - bench/**
+      - .github/workflows/bench.yml
+  pull_request:
+    branches: [develop]
+    paths:
+      - bench/**
+      - .github/workflows/bench.yml
+
+  workflow_dispatch:
+
+jobs:
+  compile:
+    name: "Compile bench.hs and smoke-test the summariser"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Setup Stack
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+
+      - name: 💾 Cache GHC and snapshot packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: bench-stack-${{ runner.os }}-${{ hashFiles('bench/bench.hs') }}
+          restore-keys: bench-stack-${{ runner.os }}-
+
+      # `stack script` (unlike shebang execution) takes the snapshot on the
+      # command line; read it from the script's own header to keep one pin.
+      - name: 🔨 Compile bench/bench.hs
+        run: |
+          RESOLVER=$(sed -n 's/^ *--resolver \(.*\)$/\1/p' bench/bench.hs)
+          stack script --snapshot "$RESOLVER" --no-run --compile bench/bench.hs
+
+      - name: 🧪 Smoke-test the profile summariser
+        run: |
+          bench/bench.hs summary bench/testdata/sample.prof \
+            | grep -F 'tope solver share (inherited %time of outermost solver rows): 42.0%'

@@ -1,0 +1,27 @@
+#lang rzk-1
+
+-- PROBE: should be ACCEPTED (paper rules / dRzk).
+--
+-- Requirement for `g k`:
+--   (x : A [t === 0_2 |-> a]) → A
+--     <:  (x : A [t === 0_2 |-> a, t === 1_2 |-> b]) → A
+-- By contravariance of Π domains this needs
+--   A [t === 0_2 |-> a, t === 1_2 |-> b]  <:  A [t === 0_2 |-> a]
+-- which holds by S-Restr: the single face of the supertype is among the
+-- subtype's faces.
+--
+-- Semantically: g feeds k elements with both boundary promises; k only
+-- relies on the promise at t === 0_2.
+--
+-- A checker whose restriction-face coverage check ignores the variance
+-- flag demands the converse inclusion (false) and REJECTS.
+
+#def restr-wrong-reject
+  ( A : U)
+  ( a : A)
+  ( b : A)
+  ( t : 2)
+  ( g : ((x : A [t === 0_2 |-> a, t === 1_2 |-> b]) → A) → A)
+  ( k : (x : A [t === 0_2 |-> a]) → A)
+  : A
+  := g k
