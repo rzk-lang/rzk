@@ -447,7 +447,7 @@ indexProject currentFile = do
         return (p, ParsedModule source parsed, True)
   let reparsed = or [ r | (_, _, r) <- entries ]
   case oldResult of
-    Just (ps, index) | ps == paths, not reparsed -> return index
+    Just (ps, cachedIndex) | ps == paths, not reparsed -> return cachedIndex
     _ -> do
       let referenceIndex = RefInd.indexModules
             [ (p, m) | (p, ParsedModule _ (Just m), _) <- entries ]
