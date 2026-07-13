@@ -24,7 +24,8 @@ maxDiagnosticCount = 100
 handlers :: Handlers LSP
 handlers =
   mconcat
-    [ notificationHandler SMethod_Initialized $ const typecheckFromConfigFile
+    [ notificationHandler SMethod_Initialized $ const $
+        spawnTypecheckWorker typecheckFromConfigFile
     -- TODO: add logging
     -- Empty handlers to silence the errors
     , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()
@@ -37,6 +38,10 @@ handlers =
         return () -- FIXME: typecheck standalone files (if they are not a part of the project)
     -- An empty hadler is needed to silence the error since it is already handled by the LSP package
     , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ const $ pure ()
+    -- Progress cancellation is handled by the lsp library's bookkeeping (it
+    -- cancels the corresponding withProgress action); the empty handler only
+    -- silences the missing-handler warning.
+    , notificationHandler SMethod_WindowWorkDoneProgressCancel $ const $ pure ()
     , requestHandler SMethod_TextDocumentHover provideHover
     , requestHandler SMethod_TextDocumentDocumentSymbol provideSymbols
     , requestHandler SMethod_TextDocumentDefinition findDefinition 

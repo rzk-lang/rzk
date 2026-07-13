@@ -22,9 +22,11 @@ module Language.Rzk.VSCode.Handlers (
 ) where
 
 import           Control.Applicative           ((<|>))
-import           Control.Exception             (SomeException, evaluate, try)
+import           Control.Exception             (SomeAsyncException (..),
+                                                SomeException, evaluate,
+                                                fromException, throwIO, try)
 import           Control.Lens
-import           Control.Monad                 (forM, forM_, when)
+import           Control.Monad                 (forM, forM_, unless, when)
 import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 MonadError (throwError),
                                                 modifyError, runExceptT)
@@ -33,7 +35,6 @@ import           Data.Default.Class
 import           Data.List                     (find, intercalate, isSuffixOf,
                                                 nub, sort, (\\))
 import qualified Data.Map.Strict               as Map
-import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
@@ -75,6 +76,18 @@ import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 import           Text.Read                     (readMaybe)
+
+-- | Like 'try', but re-throws asynchronous exceptions (a worker restart) and
+-- 'ProgressCancelledException' (a client-side progress cancel; delivered by
+-- 'Control.Concurrent.Async.cancelWith', so 'fromException' does not classify
+-- it as asynchronous). Cancellation must abort the whole run instead of being
+-- reported as a typechecker failure of the current module.
+tryTypecheck :: IO a -> IO (Either SomeException a)
+tryTypecheck action = try action >>= \case
+  Left e
+    | Just (SomeAsyncException _) <- fromException e -> throwIO e
+    | Just cancelled <- fromException @ProgressCancelledException e -> throwIO cancelled
+  result -> return result
 
 -- | Given a list of file paths, reads them and parses them as Rzk modules,
 --   returning the same list of file paths but with the parsed module (or parse error)
@@ -148,8 +161,7 @@ typecheckFromConfigFile = do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
 
-          typecheckedCachedModules <- getCachedTypecheckedModules
-          let cachedModules = map (\(path, RzkCachedModule{..}) -> (path, cachedModuleDecls)) typecheckedCachedModules
+          cachedModules <- getCachedTypecheckedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
@@ -157,56 +169,125 @@ typecheckFromConfigFile = do
           logDebug (tshow (length modifiedFiles) <> " files have been modified")
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
-          -- Run in lenient hole mode so holes are collected (and surfaced as
-          -- hints) rather than reported as errors while editing.
-          tcResults <- liftIO $ try $ evaluate $
-            defaultTypeCheckWithHoles (typecheckModulesWithLocationIncremental cachedModules parsedModules)
-
-          (typeErrors, holeInfos) <- case tcResults of
-            Left (ex :: SomeException) -> do
-              -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
-              --  because exceptions are expected when the file has invalid syntax
-              logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
-              return ([], [])
-            Right (Left err) -> do
-              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
-              return ([err], [])    -- sort of impossible
-            Right (Right ((checkedModules, errors), foundHoles)) -> do
-                -- cache well-typed modules
-                logInfo (tshow (length checkedModules) <> " modules successfully typechecked")
-                logInfo (tshow (length errors) <> " errors found")
-                logInfo (tshow (length foundHoles) <> " holes found")
-                let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
-                cacheTypecheckedModules checkedModules'
-                return (errors, foundHoles)
-
-          -- Reset all published diags
-          -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
-          -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
-          forM_ modifiedFiles $ \path -> do
-            publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
           -- Report parse errors to the client
           forM_ parseErrors $ \(path, err) -> do
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError err])
 
-          -- Report typechecking errors and holes to the client, grouped by file
-          -- so all diagnostics for a file are published in a single call
-          -- (publishDiagnostics replaces a source's diagnostics per URI, so
-          -- publishing them one at a time would clobber all but the last).
-          let errDiagnostics  = [ (filepathOfTypeError err, diagnosticOfTypeError err)
-                                | err <- typeErrors ]
-              holeDiagnostics = [ (path, diagnosticOfHole hole)
-                                | hole <- holeInfos
-                                , Just path <- [holeLocation hole >>= locationFilePath] ]
-              -- group by file path (NE.groupAllWith sorts then groups, and
-              -- yields NonEmpty groups so taking the key is total)
-              diagnosticsByFile =
-                map (\grp -> (fst (NE.head grp), map snd (NE.toList grp))) $
-                NE.groupAllWith fst (errDiagnostics <> holeDiagnostics)
-          forM_ diagnosticsByFile $ \(path, diags) ->
-            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource diags)
+          -- Files after the first parse error are not typechecked at all
+          -- ('collectErrors' stops collecting modules there); mark the ones
+          -- without a parse error of their own as blocked.
+          case parseErrors of
+            [] -> return ()
+            (blockingPath, _) : _ -> do
+              let reported = map fst parsedModules <> map fst parseErrors
+              publishBlockedDiagnostics rootPath blockingPath
+                (filter (`notElem` reported) modifiedFiles)
+
+          -- Typecheck the modified modules one at a time on top of the cached
+          -- prefix, reporting progress to the client. Each module is cached
+          -- and its diagnostics are published as soon as it is checked, so a
+          -- cancelled run keeps the modules it has finished and the next run
+          -- continues from there.
+          unless (null parsedModules) $
+            withProgress "rzk typechecking" Nothing Cancellable $ \reportProgress ->
+              checkModules reportProgress rootPath cachedModules parsedModules
   where
+    checkModules
+      :: (ProgressAmount -> LSP ())
+      -> FilePath                -- ^ Workspace root (for progress messages).
+      -> RzkTypecheckCache       -- ^ Cached results for the unchanged prefix.
+      -> [(FilePath, Module)]    -- ^ Modified modules, in project order.
+      -> LSP ()
+    checkModules reportProgress rootPath cache modules = go (0 :: Int) cache modules
+      where
+        total = length modules
+
+        go _ _ [] = return ()
+        go i checked ((path, module_) : rest) = do
+          reportProgress (ProgressAmount
+            (Just (fromIntegral (100 * i `div` total)))
+            (Just (T.pack (makeRelative rootPath path))))
+          -- Run in lenient hole mode so holes are collected (and surfaced as
+          -- hints) rather than reported as errors while editing.
+          tcResult <- liftIO $ tryTypecheck $ evaluate $
+            defaultTypeCheckWithHoles $ typecheckModulesWithLocationIncremental
+              (map (fmap cachedModuleDecls) checked) [(path, module_)]
+          case tcResult of
+            Left (ex :: SomeException) -> do
+              -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
+              --  because exceptions are expected when the file has invalid syntax
+              logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
+              publishBlockedDiagnostics rootPath path (map fst rest)
+            Right (Left err) -> do
+              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
+              publishModuleDiagnostics path [err] []    -- sort of impossible
+              publishBlockedDiagnostics rootPath path (map fst rest)
+            Right (Right ((checkedModules, errors), holeInfos)) -> do
+              logDebug (T.pack path <> ": " <> tshow (length errors) <> " errors, "
+                <> tshow (length holeInfos) <> " holes")
+              let decls = fromMaybe [] (lookup path checkedModules)
+                  checked' = checked ++
+                    [(path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))]
+              cacheTypecheckedModules checked'
+              publishModuleDiagnostics path errors holeInfos
+              -- Stop at the first module with errors, like the batch checker
+              -- ('typecheckModulesWithLocation'') does: later modules depend
+              -- on this one and would report cascading errors. Mark the
+              -- modules this run will not reach.
+              if null errors
+                then go (i + 1) checked' rest
+                else publishBlockedDiagnostics rootPath path (map fst rest)
+
+    -- Publish the diagnostics of one checked module, grouped by file so all
+    -- diagnostics for a file are published in a single call
+    -- (publishDiagnostics replaces a source's diagnostics per URI, so
+    -- publishing them one at a time would clobber all but the last). The
+    -- module's own file is always published, possibly with an empty list,
+    -- replacing stale diagnostics from the previous run.
+    --
+    -- An empty list needs care: the lsp diagnostic store unions the new
+    -- per-source map over the old one, and @partitionBySource []@ has no
+    -- "rzk" key, so the old diagnostics would survive and be re-sent. A
+    -- max count of 0 forces an empty publish to the client, clearing it.
+    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext VarIdent] -> [HoleInfo] -> LSP ()
+    publishModuleDiagnostics path typeErrors holeInfos = do
+      let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
+                            | err <- typeErrors ]
+          holeDiagnostics = [ (path', [diagnosticOfHole hole])
+                            | hole <- holeInfos
+                            , Just path' <- [holeLocation hole >>= locationFilePath] ]
+          diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
+            Map.fromListWith (flip (<>)) (errDiagnostics <> holeDiagnostics)
+      forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
+        publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
+          (filePathToNormalizedUri path') Nothing (partitionBySource diags)
+
+    -- Modules that a run never reaches (they come after a module with an
+    -- error, and every rzk module depends on all earlier ones) get a single
+    -- warning diagnostic naming the blocker, instead of keeping whatever
+    -- diagnostics a previous run left behind. Warning severity keeps the
+    -- file visible in the explorer (yellow badge) while staying distinct
+    -- from a real error in the file itself. It is replaced by real
+    -- diagnostics once the blocker is fixed and the module is reached
+    -- again.
+    publishBlockedDiagnostics :: FilePath -> FilePath -> [FilePath] -> LSP ()
+    publishBlockedDiagnostics rootPath blockingPath notReached =
+      forM_ notReached $ \path ->
+        publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing
+          (partitionBySource [blockedDiagnostic])
+      where
+        blockedDiagnostic = Diagnostic
+          (Range (Position 0 0) (Position 0 99))
+          (Just DiagnosticSeverity_Warning)
+          (Just (InR "not-checked"))
+          Nothing                   -- diagnostic description
+          (Just "rzk")              -- A human-readable string describing the source of this diagnostic
+          ("Not checked: blocked by an error in " <> T.pack (makeRelative rootPath blockingPath))
+          Nothing                   -- tags
+          (Just [])                 -- related information
+          Nothing                   -- data that is preserved between different calls
+
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
       case location (typeErrorContext err) >>= locationFilePath of
@@ -625,15 +706,21 @@ dropWhileM p (x:xs) = do
     then dropWhileM p xs
     else return (x:xs)
 
+-- | The cache eviction and the re-typecheck run on the typecheck worker
+-- thread, so this handler returns immediately and later requests (e.g. a
+-- formatting request from format-on-save) are answered while the project
+-- re-check is still running. Spawning the worker cancels the previous one,
+-- so a newer change restarts the re-check.
 handleFilesChanged :: Handler LSP 'Method_WorkspaceDidChangeWatchedFiles
 handleFilesChanged msg = do
   let modifiedPaths = msg ^.. params . changes . traverse . uri . to uriToFilePath . _Just
-  if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
-    then do
-      logDebug "rzk.yaml modified. Clearing module cache"
-      resetCacheForAllFiles
-    else do
-      cache <- getCachedTypecheckedModules
-      actualModified <- dropWhileM (hasNotChanged cache) modifiedPaths
-      resetCacheForFiles actualModified
-  typecheckFromConfigFile
+  spawnTypecheckWorker $ do
+    if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
+      then do
+        logDebug "rzk.yaml modified. Clearing module cache"
+        resetCacheForAllFiles
+      else do
+        cache <- getCachedTypecheckedModules
+        actualModified <- dropWhileM (hasNotChanged cache) modifiedPaths
+        resetCacheForFiles actualModified
+    typecheckFromConfigFile
