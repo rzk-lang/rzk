@@ -9,7 +9,8 @@ import           Language.LSP.Protocol.Types (SemanticTokenAbsolute (..),
                                               SemanticTokenModifiers (..),
                                               SemanticTokenTypes (..))
 import           Language.Rzk.Syntax
-import           Language.Rzk.Syntax.Lex     (Posn (Pn), Tok (TK),
+import           Language.Rzk.Syntax.Lex     (Posn (Pn),
+                                              Tok (T_HoleIdentToken, TK),
                                               TokSymbol (TokSymbol),
                                               Token (PT))
 import qualified Language.Rzk.Syntax.Lex     as Lex
@@ -107,7 +108,7 @@ tokenizeTerm' :: Maybe SemanticTokenTypes -> Term -> [SemanticTokenAbsolute]
 tokenizeTerm' varTokenType = go
   where
     go term = case term of
-      Hole{} -> [] -- FIXME
+      Hole{} -> [] -- highlighted from the token stream ('tokenizeSyntaxSymbols')
       Var{} -> case varTokenType of
                  Nothing         -> []
                  Just token_type -> mkToken term token_type []
@@ -307,14 +308,15 @@ mkToken x tokenType tokenModifiers =
 -- * Syntax highlighting from the token stream
 
 -- | Highlight the fixed syntax of the language (command names, reserved
--- words, operators) directly from the lexer token stream.
+-- words, operators) and holes directly from the lexer token stream.
 --
 -- This complements 'tokenizeModule', which highlights identifiers and
 -- special term formers from the parsed module. Fixed symbols do not need
--- parsing at all: a @:=@ is a @:=@ wherever it occurs. Working on the token
--- stream means that the grammar (and the abstract syntax) does not have to
--- track positions of keywords, and that highlighting keeps working for
--- files that (temporarily) fail to parse.
+-- parsing at all: a @:=@ is a @:=@ wherever it occurs, and a hole @?@ (or
+-- @?name@) is its own lexer token. Working on the token stream means that
+-- the grammar (and the abstract syntax) does not have to track positions of
+-- keywords, and that highlighting keeps working for files that
+-- (temporarily) fail to parse.
 tokenizeSyntaxSymbols :: T.Text -> [SemanticTokenAbsolute]
 tokenizeSyntaxSymbols input =
   [ SemanticTokenAbsolute
@@ -324,9 +326,21 @@ tokenizeSyntaxSymbols input =
       , _startChar = fromIntegral col - 1  -- NOTE: 0-indexed output for LSP
       , _length = fromIntegral (T.length sym)
       }
-  | PT (Pn _ line col) (TK (TokSymbol sym _)) <- Lex.tokens (tryExtractMarkdownCodeBlocks "rzk" input)
-  , Just tokenType <- [classifySymbol sym]
+  | PT (Pn _ line col) tok <- Lex.tokens (tryExtractMarkdownCodeBlocks "rzk" input)
+  , Just (sym, tokenType) <- [classifyToken tok]
   ]
+
+-- | How to highlight a lexer token, if at all: fixed symbols by
+-- 'classifySymbol', holes as a distinct token. Identifiers are left to the
+-- AST pass ('tokenizeModule'), which knows their role.
+classifyToken :: Tok -> Maybe (T.Text, SemanticTokenTypes)
+classifyToken = \case
+  TK (TokSymbol sym _) -> (,) sym <$> classifySymbol sym
+  -- Holes are goals to come back to, so they should stand out; among the
+  -- standard token types, regexp is rendered most distinctly by the default
+  -- themes (themes and clients may restyle it).
+  T_HoleIdentToken sym -> Just (sym, SemanticTokenTypes_Regexp)
+  _                    -> Nothing
 
 -- | How to highlight a fixed symbol of the grammar, if at all.
 classifySymbol :: T.Text -> Maybe SemanticTokenTypes
