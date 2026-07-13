@@ -647,15 +647,21 @@ dropWhileM p (x:xs) = do
     then dropWhileM p xs
     else return (x:xs)
 
+-- | The cache eviction and the re-typecheck run on the typecheck worker
+-- thread, so this handler returns immediately and later requests (e.g. a
+-- formatting request from format-on-save) are answered while the project
+-- re-check is still running. Spawning the worker cancels the previous one,
+-- so a newer change restarts the re-check.
 handleFilesChanged :: Handler LSP 'Method_WorkspaceDidChangeWatchedFiles
 handleFilesChanged msg = do
   let modifiedPaths = msg ^.. params . changes . traverse . uri . to uriToFilePath . _Just
-  if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
-    then do
-      logDebug "rzk.yaml modified. Clearing module cache"
-      resetCacheForAllFiles
-    else do
-      cache <- getCachedTypecheckedModules
-      actualModified <- dropWhileM (hasNotChanged cache) modifiedPaths
-      resetCacheForFiles actualModified
-  typecheckFromConfigFile
+  spawnTypecheckWorker $ do
+    if any ("rzk.yaml" `isSuffixOf`) modifiedPaths
+      then do
+        logDebug "rzk.yaml modified. Clearing module cache"
+        resetCacheForAllFiles
+      else do
+        cache <- getCachedTypecheckedModules
+        actualModified <- dropWhileM (hasNotChanged cache) modifiedPaths
+        resetCacheForFiles actualModified
+    typecheckFromConfigFile

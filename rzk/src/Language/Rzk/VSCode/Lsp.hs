@@ -24,7 +24,8 @@ maxDiagnosticCount = 100
 handlers :: Handlers LSP
 handlers =
   mconcat
-    [ notificationHandler SMethod_Initialized $ const typecheckFromConfigFile
+    [ notificationHandler SMethod_Initialized $ const $
+        spawnTypecheckWorker typecheckFromConfigFile
     -- TODO: add logging
     -- Empty handlers to silence the errors
     , notificationHandler SMethod_TextDocumentDidOpen $ \_msg -> pure ()

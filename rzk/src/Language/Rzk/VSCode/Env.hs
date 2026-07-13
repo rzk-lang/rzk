@@ -1,6 +1,9 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Rzk.VSCode.Env where
 
+import           Control.Concurrent.Async   (Async, async, cancel)
 import           Control.Concurrent.STM
+import           Control.Exception          (catch)
 import           Control.Monad.Reader
 import qualified Data.Map.Strict            as Map
 import qualified Data.Text                  as T
@@ -8,6 +11,7 @@ import           Language.LSP.Server
 import           Language.Rzk.Free.Syntax   (VarIdent)
 import           Language.Rzk.Syntax        (Module)
 import qualified Language.Rzk.VSCode.Config as RzkConfig
+import           Language.Rzk.VSCode.Logging
 import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Rzk.TypeCheck              (Decl', TypeErrorInScopedContext)
 
@@ -52,18 +56,42 @@ emptyReferenceIndexCache = ReferenceIndexCache Map.empty Nothing
 data RzkEnv = RzkEnv
   { rzkEnvTypecheckCache      :: TVar RzkTypecheckCache
   , rzkEnvReferenceIndexCache :: TVar ReferenceIndexCache
+  , rzkEnvTypecheckWorker     :: TVar (Maybe (Async ()))
+    -- ^ The thread running the current project typecheck, if any.
   }
 
 defaultRzkEnv :: IO RzkEnv
 defaultRzkEnv = do
   typecheckCache <- newTVarIO []
   referenceIndexCache <- newTVarIO emptyReferenceIndexCache
+  typecheckWorker <- newTVarIO Nothing
   return RzkEnv
     { rzkEnvTypecheckCache = typecheckCache
     , rzkEnvReferenceIndexCache = referenceIndexCache
+    , rzkEnvTypecheckWorker = typecheckWorker
     }
 
 type LSP = LspT RzkConfig.ServerConfig (ReaderT RzkEnv IO)
+
+-- | Run the given action (a project typecheck) on a fresh worker thread,
+-- cancelling the previous worker first. Cancellation waits for the old
+-- worker to stop, so it can no longer write to the caches once the new
+-- one starts. Typechecking runs on a worker so that the handler dispatch
+-- thread stays responsive: 'lsp' dispatches messages sequentially, so a
+-- multi-second re-check run directly in a notification handler would
+-- block every later request (e.g. formatting on save).
+spawnTypecheckWorker :: LSP () -> LSP ()
+spawnTypecheckWorker action = do
+  lspEnv <- getLspEnv
+  rzkEnv <- lift ask
+  let run act = runReaderT (runLspT lspEnv act) rzkEnv
+  liftIO $ do
+    oldWorker <- atomically $ swapTVar (rzkEnvTypecheckWorker rzkEnv) Nothing
+    mapM_ cancel oldWorker
+    worker <- async $
+      run action `catch` \(_ :: ProgressCancelledException) ->
+        run (logInfo (T.pack "Typechecking was cancelled by the client"))
+    atomically $ writeTVar (rzkEnvTypecheckWorker rzkEnv) (Just worker)
 
 cacheTypecheckedModules :: RzkTypecheckCache -> LSP ()
 cacheTypecheckedModules cache = lift $ do
