@@ -12,6 +12,7 @@ module Language.Rzk.VSCode.Handlers (
   typecheckFromConfigFile,
   provideCompletions,
   provideSymbols,
+  provideWorkspaceSymbols,
   findDefinition,
   findReferences,
   provideHover,
@@ -44,6 +45,7 @@ import           Language.LSP.Protocol.Lens    (HasContext (context),
                                                 HasLabel (label),
                                                 HasParams (params),
                                                 HasPosition (position),
+                                                HasQuery (query),
                                                 HasTextDocument (textDocument),
                                                 HasUri (uri), changes, uri)
 import           Language.LSP.Protocol.Message
@@ -554,6 +556,20 @@ provideHover req res = do
         declOnSameLine d@(Decl _ _ _ _ _ mloc) =
           declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
 
+-- | The printed name of a declaration and the range of its defining
+-- occurrence, shared by the document and workspace symbol providers.
+declNameRange :: Decl' -> (T.Text, Range)
+declNameRange (Decl name _ _ _ _ _) = (T.pack (printTree ident), range)
+  where
+    ident = getVarIdent name
+    VarIdent pos _ = ident
+    RzkPosition _path pos' = pos
+    (line, col) = fromMaybe (0, 0) pos'
+    len = length (printTree ident)
+    pos0 = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1)))
+    end  = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1) + len))
+    range = Range pos0 end
+
 provideSymbols :: Handler LSP 'Method_TextDocumentDocumentSymbol
 provideSymbols req res = do
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
@@ -562,8 +578,8 @@ provideSymbols req res = do
   res $ Right $ InR $ InL $ map declToSymbol decls
   where
     declToSymbol :: Decl' -> DocumentSymbol
-    declToSymbol (Decl name type' _ _ _ _loc) = DocumentSymbol
-      { _name           = T.pack (printTree ident)
+    declToSymbol decl@(Decl _ type' _ _ _ _loc) = DocumentSymbol
+      { _name           = symbolName
       , _detail         = Just (T.pack (show (untyped type')))
       , _kind           = SymbolKind_Function
       , _tags           = Nothing
@@ -573,14 +589,31 @@ provideSymbols req res = do
       , _children       = Nothing
       }
       where
-        ident = getVarIdent name
-        VarIdent pos _ = ident
-        RzkPosition _path pos' = pos
-        (line, col) = fromMaybe (0, 0) pos'
-        len = length (printTree ident)
-        pos0 = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1)))
-        end  = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1) + len))
-        range = Range pos0 end
+        (symbolName, range) = declNameRange decl
+
+-- | Workspace-wide symbol search over every typechecked module in the cache.
+-- The query is matched case-insensitively as an infix of the definition name;
+-- an empty query lists all definitions (clients filter further as the user
+-- types).
+provideWorkspaceSymbols :: Handler LSP 'Method_WorkspaceSymbol
+provideWorkspaceSymbols req res = do
+  let symbolQuery = T.toLower (req ^. params . query)
+  cachedModules <- getCachedTypecheckedModules
+  let symbols =
+        [ WorkspaceSymbol
+            { _name          = symbolName
+            , _kind          = SymbolKind_Function
+            , _tags          = Nothing
+            , _containerName = Nothing
+            , _location      = InL (Location (filePathToUri path) range)
+            , _data_         = Nothing
+            }
+        | (path, cachedModule) <- cachedModules
+        , decl <- cachedModuleDecls cachedModule
+        , let (symbolName, range) = declNameRange decl
+        , symbolQuery `T.isInfixOf` T.toLower symbolName
+        ]
+  res $ Right $ InR $ InL symbols
 
 
 data IsChanged

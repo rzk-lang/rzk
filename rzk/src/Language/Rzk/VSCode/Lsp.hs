@@ -39,6 +39,7 @@ handlers =
     , notificationHandler SMethod_WorkspaceDidChangeConfiguration $ const $ pure ()
     , requestHandler SMethod_TextDocumentHover provideHover
     , requestHandler SMethod_TextDocumentDocumentSymbol provideSymbols
+    , requestHandler SMethod_WorkspaceSymbol provideWorkspaceSymbols
     , requestHandler SMethod_TextDocumentDefinition findDefinition 
     , requestHandler SMethod_TextDocumentReferences findReferences 
     , requestHandler SMethod_TextDocumentCompletion provideCompletions
