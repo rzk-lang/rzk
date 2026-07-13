@@ -15,12 +15,12 @@ module Language.Rzk.VSCode.Handlers (
   findDefinition,
   findReferences,
   provideHover,
+  formatSignature,
   formatDocument,
   provideSemanticTokens,
   handleFilesChanged,
 ) where
 
-import           Control.Applicative           ((<|>))
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
 import           Control.Monad                 (forM, forM_, when)
@@ -29,7 +29,8 @@ import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 modifyError, runExceptT)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Default.Class
-import           Data.List                     (find, isSuffixOf, nub, sort, (\\))
+import           Data.List                     (find, intercalate, isSuffixOf,
+                                                nub, sort, (\\))
 import qualified Data.Map.Strict               as Map
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
@@ -54,8 +55,11 @@ import           System.FilePath.Glob          (compile, globDir)
 
 import           Data.Char                     (isDigit)
 import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
-                                                VarIdent (getVarIdent))
-import           Language.Rzk.Syntax           (Module, VarIdent' (VarIdent),
+                                                VarIdent (getVarIdent),
+                                                fromTerm')
+import           Language.Rzk.Syntax           (Module, Term,
+                                                Term' (ASCII_TypeFun, TypeFun),
+                                                VarIdent' (VarIdent),
                                                 parseModuleFile,
                                                 parseModuleSafe, printTree)
 import qualified Language.Rzk.VSCode.Config    as RzkConfig
@@ -466,6 +470,26 @@ parseProjectFile currentFile msrc p
   where
     parseOr act = either (const Nothing) Just <$> liftIO act
 
+-- | A signature for the hover code block. A long function type is split
+-- with one parameter per line, in the style rzk definitions are written:
+--
+-- > is-equiv
+-- >   : ( A : U)
+-- >   → ( B : U)
+-- >   → ( f : A → B)
+-- >   → U
+formatSignature :: String -> Term -> String
+formatSignature name ty
+  | length inline <= 60 = name ++ " : " ++ inline
+  | (piParams@(_ : _), ret) <- peelPi ty =
+      intercalate "\n" (name : zipWith (++) ("  : " : repeat "  → ") (piParams ++ [printTree ret]))
+  | otherwise = name ++ " : " ++ inline
+  where
+    inline = printTree ty
+    peelPi (TypeFun _ param ret)       = let (ps, r) = peelPi ret in (printTree param : ps, r)
+    peelPi (ASCII_TypeFun _ param ret) = let (ps, r) = peelPi ret in (printTree param : ps, r)
+    peelPi r                           = ([], r)
+
 provideHover :: Handler LSP 'Method_TextDocumentHover
 provideHover req res = do
   let uri' = req ^. params . textDocument . uri
@@ -478,26 +502,39 @@ provideHover req res = do
       cached <- getCachedTypecheckedModules
       let body = hoverContent binding cached
       res $ Right $ InL $ Hover
-        (InL (MarkupContent MarkupKind_PlainText body))
+        (InL (MarkupContent MarkupKind_Markdown body))
         (Just (toLspRange (RefInd.locationRange (RefInd.bindingDef binding))))
   where
     hoverContent binding cached =
-      T.pack (file ++ "\n\n" ++ T.unpack name ++ " : " ++ typeString)
+      T.pack (file ++ "\n\n```rzk\n" ++ signature ++ "\n```")
       where
         file = RefInd.locationPath (RefInd.bindingDef binding)
         name = RefInd.bindingName binding
         defLine = RefInd.positionLine (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
         decls = maybe [] cachedModuleDecls (lookup file cached)
-        -- A local binder shows its surface annotation; a top-level name shows
-        -- its elaborated type from the typecheck cache. Prefer the cached
-        -- declaration on the same line, so that a local that shadows a global
-        -- does not show the global's type; fall back to a name match when no
-        -- declaration carries a usable location.
-        typeString = case RefInd.bindingType binding of
-          Just ann -> T.unpack ann
-          Nothing  -> case find declOnSameLine decls <|> find declWithName decls of
-            Just (Decl _ ty _ _ _ _) -> show (untyped ty)
-            Nothing                  -> "?"
+        -- The elaborated type is the default: for a local binder, from the
+        -- binder-type walk over the cached declarations; for a top-level
+        -- name, from the declaration itself (preferring the one on the same
+        -- line, so that a local that shadows a global does not show the
+        -- global's type). The surface annotation from the reference index is
+        -- the fallback, e.g. for mid-edit or ill-typed code with no cache.
+        defCol = RefInd.positionCharacter (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
+        elaboratedLocal = lookup (defLine, defCol)
+          [ ((l - 1, c - 1), t)
+          | d <- decls
+          , (v, t) <- declBinderTypes d
+          , let VarIdent (RzkPosition _path mpos) _ = getVarIdent v
+          , Just (l, c) <- [mpos]
+          ]
+        signature = case elaboratedLocal of
+          Just t  -> formatSignature (T.unpack name) (fromTerm' t)
+          Nothing -> case find declOnSameLine decls of
+            Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
+            Nothing -> case RefInd.bindingType binding of
+              Just ann -> T.unpack name ++ " : " ++ T.unpack ann
+              Nothing  -> case find declWithName decls of
+                Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
+                Nothing                  -> T.unpack name ++ " : ?"
         declWithName (Decl v _ _ _ _ _) =
           T.pack (printTree (getVarIdent v)) == name
         declOnSameLine d@(Decl _ _ _ _ _ mloc) =
