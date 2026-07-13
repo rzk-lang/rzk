@@ -231,6 +231,11 @@ typecheckFromConfigFile = do
     -- publishing them one at a time would clobber all but the last). The
     -- module's own file is always published, possibly with an empty list,
     -- replacing stale diagnostics from the previous run.
+    --
+    -- An empty list needs care: the lsp diagnostic store unions the new
+    -- per-source map over the old one, and @partitionBySource []@ has no
+    -- "rzk" key, so the old diagnostics would survive and be re-sent. A
+    -- max count of 0 forces an empty publish to the client, clearing it.
     publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext VarIdent] -> [HoleInfo] -> LSP ()
     publishModuleDiagnostics path typeErrors holeInfos = do
       let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
@@ -241,7 +246,8 @@ typecheckFromConfigFile = do
           diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
             Map.fromListWith (flip (<>)) (errDiagnostics <> holeDiagnostics)
       forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
-        publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path') Nothing (partitionBySource diags)
+        publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
+          (filePathToNormalizedUri path') Nothing (partitionBySource diags)
 
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
