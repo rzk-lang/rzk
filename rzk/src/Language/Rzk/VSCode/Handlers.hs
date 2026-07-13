@@ -24,7 +24,7 @@ module Language.Rzk.VSCode.Handlers (
 import           Control.Applicative           ((<|>))
 import           Control.Exception             (SomeException, evaluate, try)
 import           Control.Lens
-import           Control.Monad                 (forM, forM_, when)
+import           Control.Monad                 (forM, forM_, unless, when)
 import           Control.Monad.Except          (ExceptT (ExceptT),
                                                 MonadError (throwError),
                                                 modifyError, runExceptT)
@@ -33,7 +33,6 @@ import           Data.Default.Class
 import           Data.List                     (find, intercalate, isSuffixOf,
                                                 nub, sort, (\\))
 import qualified Data.Map.Strict               as Map
-import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (fromMaybe, isNothing)
 import qualified Data.Text                     as T
 import qualified Data.Yaml                     as Yaml
@@ -148,8 +147,7 @@ typecheckFromConfigFile = do
           rawPaths <- liftIO $ globDir (map compile (include config)) rootPath
           let paths = concatMap sort rawPaths
 
-          typecheckedCachedModules <- getCachedTypecheckedModules
-          let cachedModules = map (\(path, RzkCachedModule{..}) -> (path, cachedModuleDecls)) typecheckedCachedModules
+          cachedModules <- getCachedTypecheckedModules
           let cachedPaths = map fst cachedModules
               modifiedFiles = paths \\ cachedPaths
 
@@ -157,56 +155,80 @@ typecheckFromConfigFile = do
           logDebug (tshow (length modifiedFiles) <> " files have been modified")
 
           (parseErrors, parsedModules) <- liftIO $ collectErrors <$> parseFiles modifiedFiles
-          -- Run in lenient hole mode so holes are collected (and surfaced as
-          -- hints) rather than reported as errors while editing.
-          tcResults <- liftIO $ try $ evaluate $
-            defaultTypeCheckWithHoles (typecheckModulesWithLocationIncremental cachedModules parsedModules)
-
-          (typeErrors, holeInfos) <- case tcResults of
-            Left (ex :: SomeException) -> do
-              -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
-              --  because exceptions are expected when the file has invalid syntax
-              logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
-              return ([], [])
-            Right (Left err) -> do
-              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
-              return ([err], [])    -- sort of impossible
-            Right (Right ((checkedModules, errors), foundHoles)) -> do
-                -- cache well-typed modules
-                logInfo (tshow (length checkedModules) <> " modules successfully typechecked")
-                logInfo (tshow (length errors) <> " errors found")
-                logInfo (tshow (length foundHoles) <> " holes found")
-                let checkedModules' = map (\(path, decls) -> (path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))) checkedModules
-                cacheTypecheckedModules checkedModules'
-                return (errors, foundHoles)
-
-          -- Reset all published diags
-          -- TODO: remove this after properly grouping by path below, after which there can be an empty list of errors
-          -- TODO: handle clearing diagnostics for files that got removed from the project (rzk.yaml)
-          forM_ modifiedFiles $ \path -> do
-            publishDiagnostics 0 (filePathToNormalizedUri path) Nothing (partitionBySource [])
 
           -- Report parse errors to the client
           forM_ parseErrors $ \(path, err) -> do
             publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError err])
 
-          -- Report typechecking errors and holes to the client, grouped by file
-          -- so all diagnostics for a file are published in a single call
-          -- (publishDiagnostics replaces a source's diagnostics per URI, so
-          -- publishing them one at a time would clobber all but the last).
-          let errDiagnostics  = [ (filepathOfTypeError err, diagnosticOfTypeError err)
-                                | err <- typeErrors ]
-              holeDiagnostics = [ (path, diagnosticOfHole hole)
-                                | hole <- holeInfos
-                                , Just path <- [holeLocation hole >>= locationFilePath] ]
-              -- group by file path (NE.groupAllWith sorts then groups, and
-              -- yields NonEmpty groups so taking the key is total)
-              diagnosticsByFile =
-                map (\grp -> (fst (NE.head grp), map snd (NE.toList grp))) $
-                NE.groupAllWith fst (errDiagnostics <> holeDiagnostics)
-          forM_ diagnosticsByFile $ \(path, diags) ->
-            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource diags)
+          -- Typecheck the modified modules one at a time on top of the cached
+          -- prefix, reporting progress to the client. Each module is cached
+          -- and its diagnostics are published as soon as it is checked, so a
+          -- cancelled run keeps the modules it has finished and the next run
+          -- continues from there.
+          unless (null parsedModules) $
+            withProgress "rzk typechecking" Nothing Cancellable $ \reportProgress ->
+              checkModules reportProgress rootPath cachedModules parsedModules
   where
+    checkModules
+      :: (ProgressAmount -> LSP ())
+      -> FilePath                -- ^ Workspace root (for progress messages).
+      -> RzkTypecheckCache       -- ^ Cached results for the unchanged prefix.
+      -> [(FilePath, Module)]    -- ^ Modified modules, in project order.
+      -> LSP ()
+    checkModules reportProgress rootPath cache modules = go (0 :: Int) cache modules
+      where
+        total = length modules
+
+        go _ _ [] = return ()
+        go i checked ((path, module_) : rest) = do
+          reportProgress (ProgressAmount
+            (Just (fromIntegral (100 * i `div` total)))
+            (Just (T.pack (makeRelative rootPath path))))
+          -- Run in lenient hole mode so holes are collected (and surfaced as
+          -- hints) rather than reported as errors while editing.
+          tcResult <- liftIO $ try $ evaluate $
+            defaultTypeCheckWithHoles $ typecheckModulesWithLocationIncremental
+              (map (fmap cachedModuleDecls) checked) [(path, module_)]
+          case tcResult of
+            Left (ex :: SomeException) ->
+              -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
+              --  because exceptions are expected when the file has invalid syntax
+              logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
+            Right (Left err) -> do
+              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
+              publishModuleDiagnostics path [err] []    -- sort of impossible
+            Right (Right ((checkedModules, errors), holeInfos)) -> do
+              logDebug (T.pack path <> ": " <> tshow (length errors) <> " errors, "
+                <> tshow (length holeInfos) <> " holes")
+              let decls = fromMaybe [] (lookup path checkedModules)
+                  checked' = checked ++
+                    [(path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))]
+              cacheTypecheckedModules checked'
+              publishModuleDiagnostics path errors holeInfos
+              -- Stop at the first module with errors, like the batch checker
+              -- ('typecheckModulesWithLocation'') does: later modules depend
+              -- on this one and would report cascading errors.
+              when (null errors) $
+                go (i + 1) checked' rest
+
+    -- Publish the diagnostics of one checked module, grouped by file so all
+    -- diagnostics for a file are published in a single call
+    -- (publishDiagnostics replaces a source's diagnostics per URI, so
+    -- publishing them one at a time would clobber all but the last). The
+    -- module's own file is always published, possibly with an empty list,
+    -- replacing stale diagnostics from the previous run.
+    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext VarIdent] -> [HoleInfo] -> LSP ()
+    publishModuleDiagnostics path typeErrors holeInfos = do
+      let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
+                            | err <- typeErrors ]
+          holeDiagnostics = [ (path', [diagnosticOfHole hole])
+                            | hole <- holeInfos
+                            , Just path' <- [holeLocation hole >>= locationFilePath] ]
+          diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
+            Map.fromListWith (flip (<>)) (errDiagnostics <> holeDiagnostics)
+      forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
+        publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path') Nothing (partitionBySource diags)
+
     filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
     filepathOfTypeError (PlainTypeError err) =
       case location (typeErrorContext err) >>= locationFilePath of
