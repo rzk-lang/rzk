@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- A hole in a point position of a tope — here the recOR branch /guard/ `? ≤ ?`,
+-- whose points (the arguments of ≤) are in inference position. In the default
+-- (strict) mode the point cannot be guessed, so it is reported rather than
+-- admitted. In lenient (hole-checking) mode the same hole is instead recorded
+-- as a point of an as-yet-unknown cube and the sketch yields hints (see the
+-- "recOR branch guard point position" case in HolesSpec).
+#define square (A : U) (a : A)
+  : (2 × 2) → A
+  := \ (t , s) → recOR ( ? ≤ ? ↦ a , ? ↦ a )

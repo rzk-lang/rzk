@@ -4328,6 +4328,25 @@ inferAs expectedKind term = do
   unifyTypes ty expectedKind kind
   return term'
 
+-- | Infer a cube point — the argument of @≡@ or @≤@. A point in inferring
+-- position is normally elaborated by 'inferAs' @cubeT@, but a bare hole there
+-- would hit 'TypeErrorCannotInferHole' because 'infer' cannot guess the cube.
+-- In lenient (hole-checking) mode that hole is a work in progress, so instead of
+-- rejecting it we record it as a point of an as-yet-unknown cube (a hole whose
+-- type is itself a hole of type @cubeT@, the same shape 'allIntroductionsOf'
+-- uses for a tope point) and carry on. This lets a sketch such as
+-- @recOR((? ≤ ?) ↦ ?, …)@ yield hole hints rather than a hard error.
+inferPoint :: Eq var => Term var -> TypeCheck var (TermT var)
+inferPoint (Hole mname) = do
+  reject <- asks holesAreErrors
+  if reject
+    then issueTypeError (TypeErrorCannotInferHole (Hole mname))
+    else do
+      let cube = HoleT TypeInfo{ infoType = cubeT, infoWHNF = Nothing, infoNF = Nothing } Nothing
+      recordHole mname cube
+      return (HoleT TypeInfo{ infoType = cube, infoWHNF = Nothing, infoNF = Nothing } mname)
+inferPoint term = inferAs cubeT term
+
 infer :: Eq var => Term var -> TypeCheck var (TermT var)
 infer tt = performing (ActionInfer tt) $ case tt of
   Hole _mname -> issueTypeError (TypeErrorCannotInferHole tt)
@@ -4422,17 +4441,21 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TopeBottom -> pure topeBottomT
 
   TopeEQ l r -> do
-    l' <- inferAs cubeT l
+    l' <- inferPoint l
     lt <- typeOf l'
     r' <- typecheck r lt
     return (topeEQT l' r')
 
   TopeLEQ l r -> do
-    l' <- inferAs cubeT l
-    r' <- inferAs cubeT r
+    l' <- inferPoint l
+    r' <- inferPoint r
     lTy <- typeOf l'
     rTy <- typeOf r'
     case (lTy, rTy) of
+      -- An as-yet-unknown cube (a hole left by 'inferPoint' in lenient mode):
+      -- the interval cube cannot be pinned down, so we accept the tope as a
+      -- sketch rather than demanding a concrete 2 or 𝕀.
+      _ | isHoleT lTy || isHoleT rTy -> return (topeLEQT l' r')
       (Cube2T{}, Cube2T{}) -> return (topeLEQT l' r')
       (CubeIT{}, CubeIT{}) -> return (topeLEQT l' r')
       (CubeIT{}, Cube2T{}) -> do
