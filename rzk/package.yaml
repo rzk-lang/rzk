@@ -48,7 +48,7 @@ when:
 
 # Lower bounds here are loose so the package builds under the GHCJS path
 # (miso's pinned Nixpkgs ships an older Haskell package set). The
-# GHC-9.6.3-coherent floors live in cabal.project's `constraints:` block,
+# GHC-9.8.2-coherent floors live in cabal.project's `constraints:` block,
 # which is read by cabal but not by cabal2nix → Nix.
 dependencies:
   # Upper bounds are at the next super-major, so a new GHC's boot libraries

@@ -4,9 +4,8 @@ let
   # https://nixos.wiki/wiki/Haskell#Overrides
   hpkgs = pkgs.haskell.packages.${ghcVersion}.override {
     overrides = final: prev: {
-      # free-foil is not in the pinned nixpkgs (kind-generics and
-      # kind-generics-th are), so it is taken from Hackage at the version the
-      # Stack resolver uses. Bump this together with stack.yaml.
+      # free-foil is not in nixpkgs, so it is taken from Hackage at the version
+      # the Stack resolver uses. Bump this together with stack.yaml.
       free-foil = final.callHackageDirect
         {
           pkg = "free-foil";
