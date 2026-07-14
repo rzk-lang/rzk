@@ -34,6 +34,13 @@ jobs:
   build-and-deploy-with-ghcjs:
     name: "Build with GHCJS (and deploy Rzk playground)"
     runs-on: ubuntu-latest
+    # Advisory, not a gate. The library depends on free-foil, which the GHCJS
+    # Haskell package set (miso's pinned nixpkgs) does not carry, so this lane
+    # cannot even evaluate. The "rzk as a library in the browser" case is guarded
+    # by wasm.yml, and the playground itself is moving to a Miso/WASM build, which
+    # is where the effort should go rather than into packaging free-foil for a
+    # 2019-era GHCJS. Remove this once the playground no longer needs GHCJS.
+    continue-on-error: true
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v6
