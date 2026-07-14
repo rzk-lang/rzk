@@ -39,7 +39,8 @@ module Language.Rzk.Foil.Syntax where
 
 import           Control.Monad.Foil             (NameBinder)
 import qualified Control.Monad.Foil             as Foil
-import           Control.Monad.Foil.Internal    (unsafeAssertFresh)
+import           Control.Monad.Foil.Internal    (Substitution (..),
+                                                 unsafeAssertFresh)
 import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
                                                  ZipMatch (..), alphaEquiv,
                                                  substitute, unsafeEqAST)
@@ -54,6 +55,7 @@ import           Data.Bifunctor.TH              (deriveBifoldable,
                                                  deriveBifunctor,
                                                  deriveBitraversable)
 import           Data.Bitraversable             (Bitraversable (..))
+import qualified Data.IntMap                    as IntMap
 import           Generics.Kind.TH                (deriveGenericK)
 import qualified GHC.Generics                   as GHC
 import           Unsafe.Coerce                  (unsafeCoerce)
@@ -370,6 +372,37 @@ openWith
   => Foil.Scope l -> Foil.Name l -> ScopedAST NameBinder sig n -> AST NameBinder sig l
 openWith scope name (ScopedAST binder body) =
   substitute scope (Foil.addRename (Foil.sink Foil.identitySubst) binder name) body
+
+-- | Replace a /free/ name by a term.
+--
+-- A section's assumption is a free name at the top level, and closing the section
+-- abstracts it out of the definitions that use it; this is how those definitions
+-- are rewritten. free-foil's substitutions are keyed by a binder, so the map is
+-- built directly.
+substituteName
+  :: Foil.Distinct n
+  => Foil.Scope n -> Foil.Name n -> TermT n -> TermT n -> TermT n
+substituteName scope name value =
+  substituteT scope (UnsafeSubstitution (IntMap.singleton (Foil.nameId name) value))
+
+-- | Abstract a free name out of a term: the binder the continuation receives binds
+-- what the name stood for.
+--
+-- The name stays in the scope index (a scope only ever grows), but the term no
+-- longer mentions it, which is what makes the resulting Π or λ closed over it.
+abstractName
+  :: Foil.Distinct n
+  => Foil.Scope n
+  -> Foil.Name n
+  -> TermT n
+  -> (forall l. Foil.DExt n l => NameBinder n l -> TermT l -> r)
+  -> r
+abstractName scope name term k =
+  Foil.withFresh scope $ \binder ->
+    let scope' = Foil.extendScope binder scope
+        term' = substituteName scope' (Foil.sink name) (Var (Foil.nameOf binder))
+                  (Foil.sink term)
+     in k binder term'
 
 -- | Instantiate a scoped term with a term: the successor of @substituteT x scope@.
 instantiateT :: Foil.Distinct n => Foil.Scope n -> ScopedTermT n -> TermT n -> TermT n

@@ -15,7 +15,6 @@
 -- candidate terms.
 module Rzk.TypeCheck.Judgements where
 
-import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (asks, local)
@@ -266,8 +265,8 @@ destructuringBinder :: Binder -> TermT n -> Binder
 destructuringBinder orig param = case orig of
   BinderPair{} -> orig                 -- already a pattern: keep the user's names
   _ -> case param of
-    CubeProductT{} -> fst (go 1 param)
-    TypeSigmaT{}   -> fst (go 1 param)
+    CubeProductT{} -> fst (go (1 :: Int) param)
+    TypeSigmaT{}   -> fst (go (1 :: Int) param)
     _              -> orig             -- not a product/Σ: leave the binder alone
   where
     -- a product/Σ becomes a pair; we recurse into a product's components (plain

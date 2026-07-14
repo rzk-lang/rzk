@@ -277,7 +277,10 @@ renderForSVG mainColor dim t term = do
 
 drawCube :: Int -> [(String, RenderObjectData)] -> String
 drawCube dim objects =
-  renderCube defaultCamera (if dim > 2 then pi/7 else 0) (`lookup` objects)
+  renderCube defaultCamera rotation (`lookup` objects)
+  where
+    rotation :: Double
+    rotation = if dim > 2 then pi/7 else 0
 
 -- | The dimension of a cube, if it is a power of the directed interval.
 dimOf :: TermT n -> Maybe Int
@@ -413,7 +416,7 @@ renderTermSVG' t = whnfT t >>= \t' -> typeOf t >>= \case
 -- | Render a term of a function type by applying it to the variable it abstracts
 -- over, and drawing that.
 renderApplied
-  :: (Distinct l, Foil.DExt n l)
+  :: Foil.DExt n l
   => Foil.NameBinder n l -> TermT n -> TermT n -> ScopedTermT n
   -> TypeCheck l (Maybe String)
 renderApplied binder t' arg ret = do

@@ -415,6 +415,16 @@ applyModality md ctx = ctx
 mapNameMap :: (a -> b) -> NameMap n a -> NameMap n b
 mapNameMap f (NameMap m) = NameMap (IntMap.map f m)
 
+-- | Replace what a name stands for.
+--
+-- Closing a section rewrites the definitions made in it, so that each takes the
+-- section's assumptions as explicit parameters; this is how the rewritten entries
+-- go back into the context.
+insertVarInfo :: Foil.Name n -> VarInfo n -> Context n -> Context n
+insertVarInfo name info ctx = ctx { ctxVars = replace (ctxVars ctx) }
+  where
+    replace (NameMap m) = NameMap (IntMap.insert (Foil.nameId name) info m)
+
 -- * Topes
 
 isAccessible :: ModalTope n -> Bool

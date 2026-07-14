@@ -275,6 +275,7 @@ library
       Rzk.Render.Geometry
       Rzk.TypeCheck
       Rzk.TypeCheck.Context
+      Rzk.TypeCheck.Decl
       Rzk.TypeCheck.Display
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval

@@ -200,7 +200,7 @@ inScope orig md ty scoped k = do
 -- type a λ is being checked against, or the tope of a shape: all of them are
 -- opened under the /one/ binder the λ introduces.
 openScoped
-  :: (Bifunctor sig, Distinct l, DExt n l)
+  :: (Bifunctor sig, DExt n l)
   => NameBinder n l -> ScopedAST NameBinder sig n -> TypeCheck l (AST NameBinder sig l)
 openScoped binder scoped = do
   scope <- asks ctxScope
