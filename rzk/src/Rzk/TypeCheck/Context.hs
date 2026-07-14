@@ -75,7 +75,7 @@ data Verbosity
 data LocationInfo = LocationInfo
   { locationFilePath :: Maybe FilePath
   , locationLine     :: Maybe Int
-  } deriving (Show)
+  } deriving (Eq, Show)
 
 -- | What is known about a hypothesis, local or top-level.
 data VarInfo n = VarInfo
@@ -136,6 +136,16 @@ data Context n = Context
   , ctxNamed               :: Map VarIdent (Foil.Name n)
     -- ^ The surface name of each top-level entry (and of each named binder), for
     -- resolving an identifier the parser produced.
+  , ctxBound               :: [Foil.Name n]
+    -- ^ Every name in scope, most recently bound first.
+    --
+    -- The order has to be recorded, not recovered: free-foil refreshes a binder
+    -- only when its name clashes, so after a substitution an inner binder may
+    -- well carry a /smaller/ id than an outer one (@\\ x2 -> \\ x1 -> …@), and the
+    -- ascending order of 'ctxVars' is not the order things were bound in. Display
+    -- depends on this: names claim their display name oldest-first, so that an
+    -- inner binder is the one refreshed away from an outer name, and not the
+    -- other way round.
   , ctxSections            :: [SectionInfo n]
     -- ^ The open sections, innermost first. Each records the entries declared in
     -- it, so closing it can turn them into declarations.
@@ -196,6 +206,7 @@ emptyContext = Context
   { ctxScope = Foil.emptyScope
   , ctxVars = Foil.emptyNameMap
   , ctxNamed = Map.empty
+  , ctxBound = []
   , ctxSections = [SectionInfo Nothing []]
   , ctxDiscreteTopes = []
   , ctxTopes = emptyTopeContext
@@ -264,6 +275,7 @@ enterBinder
 enterBinder binder info discrete ctx = (sinkContextUnchecked ctx)
   { ctxScope = Foil.extendScope binder (ctxScope ctx)
   , ctxVars = Foil.addNameBinder binder (sinkVarInfo info) (sinkVars (ctxVars ctx))
+  , ctxBound = Foil.nameOf binder : sinkNames (ctxBound ctx)
   , ctxNamed = case binderName (varOrig info) of
       Nothing   -> sinkNamed (ctxNamed ctx)
       Just name -> Map.insert name (Foil.nameOf binder) (sinkNamed (ctxNamed ctx))
@@ -320,11 +332,20 @@ sinkVars = unsafeCoerce
 sinkNamed :: DExt n l => Map VarIdent (Foil.Name n) -> Map VarIdent (Foil.Name l)
 sinkNamed = unsafeCoerce
 
+sinkNames :: DExt n l => [Foil.Name n] -> [Foil.Name l]
+sinkNames = unsafeCoerce
+
 -- * Lookup
 
 -- | What a name stands for. Total: every name in scope has an entry.
 lookupVarInfo :: Foil.Name n -> Context n -> VarInfo n
 lookupVarInfo name ctx = Foil.lookupName name (ctxVars ctx)
+
+-- | Every hypothesis in scope, oldest binding first (see 'ctxBound': the ids
+-- themselves do not tell us this).
+varsInScope :: Context n -> [(Foil.Name n, VarInfo n)]
+varsInScope ctx =
+  [ (name, lookupVarInfo name ctx) | name <- reverse (ctxBound ctx) ]
 
 -- | The name a surface identifier resolves to, if any.
 lookupNamed :: VarIdent -> Context n -> Maybe (Foil.Name n)

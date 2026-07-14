@@ -222,6 +222,12 @@ type ScopedTermT = ScopedAST NameBinder (AnnSig TypeInfo TermSig)
 -- | A scope of an untyped term.
 type ScopedTerm = ScopedAST NameBinder TermSig
 
+-- | The annotation of a node: its type, and its memoised normal forms. A
+-- variable carries none — its type lives in the context.
+typeInfoOf :: TermT n -> Maybe (TypeInfo (TermT n))
+typeInfoOf (Var _)                = Nothing
+typeInfoOf (Node (AnnSig info _)) = Just info
+
 -- | Drop every annotation, for printing and for the surface-facing API.
 untyped :: TermT n -> Term n
 untyped (Var name)              = Var name

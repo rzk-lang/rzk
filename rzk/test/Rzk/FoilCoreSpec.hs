@@ -25,6 +25,7 @@ import           Language.Rzk.Free.Syntax  (Binder (..), TModality (..),
                                            VarIdent, binderName)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
+import           Rzk.TypeCheck.Display (namingOfContext, ppName)
 
 -- | Parse a term of the surface syntax, or fail loudly.
 parse :: T.Text -> Rzk.Term
@@ -123,6 +124,17 @@ spec = do
                 case untyped (varType info) of
                   Var name -> Foil.nameId name `shouldBe` Foil.nameId nameA
                   _        -> expectationFailure "the type of x is no longer a variable"
+
+    it "lets the outer binder keep its name when an inner one shadows it" $
+      -- Display names are claimed oldest binding first (see 'ctxBound'), so the
+      -- inner 'x' is the one refreshed. The order cannot be read off the name
+      -- ids: free-foil refreshes a binder only on a clash, so after a
+      -- substitution an inner binder may carry a smaller id than an outer one.
+      withFreshBinder emptyContext (hypothesis "x" universeT) $ \bOuter ctxOuter ->
+        withFreshBinder ctxOuter (hypothesis "x" universeT) $ \bInner ctxInner -> do
+          let naming = namingOfContext ctxInner
+          ppName naming (Foil.sink (Foil.nameOf bOuter)) `shouldBe` "x"
+          ppName naming (Foil.nameOf bInner) `shouldNotBe` "x"
 
     it "records the names in scope for the shadowing check" $
       withFreshBinder emptyContext (hypothesis "A" universeT) $ \_bA ctxA ->

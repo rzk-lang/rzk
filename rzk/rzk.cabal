@@ -275,6 +275,9 @@ library
       Rzk.Render.Geometry
       Rzk.TypeCheck
       Rzk.TypeCheck.Context
+      Rzk.TypeCheck.Display
+      Rzk.TypeCheck.Error
+      Rzk.TypeCheck.Monad
   other-modules:
       Paths_rzk
   autogen-modules:
