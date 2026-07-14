@@ -6,7 +6,7 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Surface syntax to the free-foil core (roadmap M2, stage 1).
+-- | Surface syntax to the free-foil core.
 --
 -- A transcription of @toTerm@ from "Language.Rzk.Free.Syntax", with the variable
 -- handling replaced. The environment is still a function from a surface

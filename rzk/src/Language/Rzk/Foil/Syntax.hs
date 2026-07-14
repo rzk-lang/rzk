@@ -20,7 +20,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
--- | The core syntax on @free-foil@ (roadmap M2, stage 1).
+-- | The core syntax on @free-foil@.
 --
 -- This is the successor of "Language.Rzk.Free.Syntax"'s @TermF@ \/ @TermT@,
 -- built on 'Foil.AST' instead of the vendored @Free.Scoped@. It is compiled but
@@ -376,3 +376,184 @@ cubeT = UniverseCubeT TypeInfo
 topeT :: TermT n
 topeT = UniverseTopeT TypeInfo
   { infoType = universeT, infoWHNF = Just topeT, infoNF = Just topeT }
+
+cubeUnitT :: TermT n
+cubeUnitT = CubeUnitT TypeInfo
+  { infoType = cubeT, infoWHNF = Just cubeUnitT, infoNF = Just cubeUnitT }
+
+cubeUnitStarT :: TermT n
+cubeUnitStarT = CubeUnitStarT TypeInfo
+  { infoType = cubeUnitT, infoWHNF = Just cubeUnitStarT, infoNF = Just cubeUnitStarT }
+
+cube2T :: TermT n
+cube2T = Cube2T TypeInfo
+  { infoType = cubeT, infoWHNF = Just cube2T, infoNF = Just cube2T }
+
+cube2_0T :: TermT n
+cube2_0T = Cube2_0T TypeInfo
+  { infoType = cube2T, infoWHNF = Just cube2_0T, infoNF = Just cube2_0T }
+
+cube2_1T :: TermT n
+cube2_1T = Cube2_1T TypeInfo
+  { infoType = cube2T, infoWHNF = Just cube2_1T, infoNF = Just cube2_1T }
+
+cubeIT :: TermT n
+cubeIT = CubeIT TypeInfo
+  { infoType = cubeT, infoWHNF = Just cubeIT, infoNF = Just cubeIT }
+
+cubeI_0T :: TermT n
+cubeI_0T = CubeI_0T TypeInfo
+  { infoType = cubeIT, infoWHNF = Just cubeI_0T, infoNF = Just cubeI_0T }
+
+cubeI_1T :: TermT n
+cubeI_1T = CubeI_1T TypeInfo
+  { infoType = cubeIT, infoWHNF = Just cubeI_1T, infoNF = Just cubeI_1T }
+
+topeTopT :: TermT n
+topeTopT = TopeTopT TypeInfo
+  { infoType = topeT, infoWHNF = Just topeTopT, infoNF = Just topeTopT }
+
+topeBottomT :: TermT n
+topeBottomT = TopeBottomT TypeInfo
+  { infoType = topeT, infoWHNF = Just topeBottomT, infoNF = Just topeBottomT }
+
+typeUnitT :: TermT n
+typeUnitT = TypeUnitT TypeInfo
+  { infoType = universeT, infoWHNF = Just typeUnitT, infoNF = Just typeUnitT }
+
+unitT :: TermT n
+unitT = UnitT TypeInfo
+  { infoType = typeUnitT, infoWHNF = Just unitT, infoNF = Just unitT }
+
+-- | @recBOT@ is its own type: it inhabits every type in a contradictory context.
+recBottomT :: TermT n
+recBottomT = RecBottomT TypeInfo
+  { infoType = recBottomT, infoWHNF = Just recBottomT, infoNF = Just recBottomT }
+
+-- * Smart constructors
+--
+-- Each builds the 'TypeInfo' of the node it makes, so the checker never writes a
+-- raw @FooT@. A node whose head is already a value ('lambdaT', 'pairT', the type
+-- formers) memoises itself as its own WHNF.
+
+-- ** The tope layer
+
+topeEQT :: TermT n -> TermT n -> TermT n
+topeEQT l r = TopeEQT (topeInfo topeT) l r
+
+topeLEQT :: TermT n -> TermT n -> TermT n
+topeLEQT l r = TopeLEQT (topeInfo topeT) l r
+
+topeOrT :: TermT n -> TermT n -> TermT n
+topeOrT l r = TopeOrT (topeInfo topeT) l r
+
+topeAndT :: TermT n -> TermT n -> TermT n
+topeAndT l r = TopeAndT (topeInfo topeT) l r
+
+topeInvT :: TermT n -> TermT n
+topeInvT t = TopeInvT (topeInfo (typeModalT universeT Op topeT)) t
+
+topeUninvT :: TermT n -> TermT n
+topeUninvT t = TopeUninvT (topeInfo topeT) t
+
+-- | An unreduced node of the given type.
+topeInfo :: TermT n -> TypeInfo (TermT n)
+topeInfo ty = TypeInfo { infoType = ty, infoWHNF = Nothing, infoNF = Nothing }
+
+-- ** Cubes
+
+cubeProductT :: TermT n -> TermT n -> TermT n
+cubeProductT l r = CubeProductT (topeInfo cubeT) l r
+
+cubeFlipT :: TermT n -> TermT n -> TermT n
+cubeFlipT cubeTy t = CubeFlipT (topeInfo (typeModalT cubeT Op cubeTy)) t
+
+cubeUnflipT :: TermT n -> TermT n -> TermT n
+cubeUnflipT cubeTy t = CubeUnflipT (topeInfo cubeTy) t
+
+-- ** Types
+
+typeFunT
+  :: Binder -> TModality -> TermT n -> Maybe (ScopedTermT n) -> ScopedTermT n
+  -> TermT n
+typeFunT orig md cube mtope ret = t
+  where t = TypeFunT (valueInfo t universeT) orig md cube mtope ret
+
+typeSigmaT :: Binder -> TModality -> TermT n -> ScopedTermT n -> TermT n
+typeSigmaT orig md a b = t
+  where t = TypeSigmaT (valueInfo t universeT) orig md a b
+
+typeIdT :: TermT n -> Maybe (TermT n) -> TermT n -> TermT n
+typeIdT x tA y = t
+  where t = TypeIdT (valueInfo t universeT) x tA y
+
+typeRestrictedT :: TermT n -> [(TermT n, TermT n)] -> TermT n
+typeRestrictedT ty rs = TypeRestrictedT (topeInfo universeT) ty rs
+
+typeModalT :: TermT n -> TModality -> TermT n -> TermT n
+typeModalT ty md te = TypeModalT (topeInfo ty) md te
+
+typeAscT :: TermT n -> TermT n -> TermT n
+typeAscT x ty = TypeAscT (topeInfo ty) x ty
+
+-- | A node that is already a value: it is its own weak head normal form.
+valueInfo :: TermT n -> TermT n -> TypeInfo (TermT n)
+valueInfo t ty = TypeInfo { infoType = ty, infoWHNF = Just t, infoNF = Nothing }
+
+-- ** Terms
+
+lambdaT
+  :: TermT n -> Binder -> Maybe (LambdaParam (ScopedTermT n) (TermT n))
+  -> ScopedTermT n -> TermT n
+lambdaT ty orig mparam body = t
+  where t = LambdaT (valueInfo t ty) orig mparam body
+
+pairT :: TermT n -> TermT n -> TermT n -> TermT n
+pairT ty l r = t
+  where t = PairT (valueInfo t ty) l r
+
+appT :: TermT n -> TermT n -> TermT n -> TermT n
+appT ty f x = AppT (topeInfo ty) f x
+
+firstT :: TermT n -> TermT n -> TermT n
+firstT ty arg = FirstT (topeInfo ty) arg
+
+secondT :: TermT n -> TermT n -> TermT n
+secondT ty arg = SecondT (topeInfo ty) arg
+
+letT :: TermT n -> Binder -> Maybe (TermT n) -> TermT n -> ScopedTermT n -> TermT n
+letT ty orig mparam val body = LetT (topeInfo ty) orig mparam val body
+
+letModT
+  :: TermT n -> Binder -> TModality -> TModality -> Maybe (TermT n) -> TermT n
+  -> ScopedTermT n -> TermT n
+letModT ty orig app inn mparam val body =
+  LetModT (topeInfo ty) orig app inn mparam val body
+
+-- | @refl@ normalises to a bare @refl@: its endpoints are recoverable from the
+-- type, so they are dropped from the normal form.
+reflT :: TermT n -> Maybe (TermT n, Maybe (TermT n)) -> TermT n
+reflT ty mx = ReflT info mx
+  where
+    info = TypeInfo
+      { infoType = ty
+      , infoWHNF = Just (ReflT info Nothing)
+      , infoNF   = Just (ReflT info Nothing)
+      }
+
+idJT
+  :: TermT n -> TermT n -> TermT n -> TermT n -> TermT n -> TermT n -> TermT n
+  -> TermT n
+idJT ty tA a tC d x p = IdJT (topeInfo ty) tA a tC d x p
+
+recOrT :: TermT n -> [(TermT n, TermT n)] -> TermT n
+recOrT ty rs = RecOrT (topeInfo ty) rs
+
+modAppT :: TermT n -> TModality -> TermT n -> TermT n
+modAppT ty md term = ModAppT (topeInfo ty) md term
+
+modExtractT :: TermT n -> TModality -> TModality -> TermT n -> TermT n
+modExtractT ty app inn term = ModExtractT (topeInfo ty) app inn term
+
+holeT :: TermT n -> Maybe VarIdent -> TermT n
+holeT ty mname = HoleT (topeInfo ty) mname

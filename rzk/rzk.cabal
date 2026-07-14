@@ -257,7 +257,6 @@ library
   exposed-modules:
       Free.Scoped
       Free.Scoped.TH
-      Language.Rzk.Foil.Context
       Language.Rzk.Foil.Convert
       Language.Rzk.Foil.Print
       Language.Rzk.Foil.Syntax
@@ -275,6 +274,7 @@ library
       Rzk.Project.Config
       Rzk.Render.Geometry
       Rzk.TypeCheck
+      Rzk.TypeCheck.Context
   other-modules:
       Paths_rzk
   autogen-modules:
@@ -397,6 +397,7 @@ test-suite rzk-test
   other-modules:
       Rzk.BinderTypesSpec
       Rzk.DiagnosticSpec
+      Rzk.FoilCoreSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
       Rzk.RefIndexSpec

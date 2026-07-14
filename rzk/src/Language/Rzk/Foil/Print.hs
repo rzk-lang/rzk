@@ -5,7 +5,7 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The free-foil core back to surface syntax (roadmap M2, stage 1).
+-- | The free-foil core back to surface syntax.
 --
 -- A transcription of @fromTermWith'@ from "Language.Rzk.Free.Syntax". The
 -- structure is the same, and so are the display rules:
@@ -237,7 +237,7 @@ fromTerm used supply names = go
 -- an occurrence of exactly this binder's variable.
 --
 -- (free-foil's own @freeVarsOf@ would do, but it is not in the 0.2.0 release --
--- see the handoff: it is one of the unreleased helpers on @main@.)
+-- it is one of the unreleased helpers on free-foil's @main@.)
 scopeUsesItsBinder :: ScopedAST Foil.NameBinder TermSig n -> Bool
 scopeUsesItsBinder (ScopedAST binder body) =
   Foil.nameId (Foil.nameOf binder) `elem` nameIdsOf body
