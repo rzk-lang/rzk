@@ -329,9 +329,9 @@ sinkTopes = map sinkModalTope
 -- 'Foil.addNameBinder' can supply the new one.
 --
 -- A coercion, not a traversal: mapping 'sinkVarInfo' over the map would rebuild
--- its whole spine at every binder, which is the cost this milestone exists to
--- remove. The @DExt@ constraint carries the obligation even though the coercion
--- cannot consume it.
+-- its whole spine at every binder, which is the cost the free-foil representation
+-- exists to remove. The @DExt@ constraint carries the obligation even though the
+-- coercion cannot consume it.
 sinkVars :: DExt n l => NameMap n (VarInfo n) -> NameMap n (VarInfo l)
 sinkVars = unsafeCoerce
 
