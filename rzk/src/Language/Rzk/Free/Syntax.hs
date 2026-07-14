@@ -48,6 +48,11 @@ instance Show VarIdent where
 instance Eq VarIdent where
   (==) = (==) `on` (void . getVarIdent)
 
+-- | Identifiers are ordered by name, ignoring the source position, so that the
+-- order agrees with 'Eq'. Only used to key identifiers in a set or a map.
+instance Ord VarIdent where
+  compare (VarIdent (Rzk.VarIdent _ x)) (VarIdent (Rzk.VarIdent _ y)) = compare x y
+
 instance IsString VarIdent where
   fromString s = VarIdent (Rzk.VarIdent (RzkPosition Nothing Nothing) (fromString s))
 

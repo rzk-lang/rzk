@@ -21,6 +21,8 @@ import           Data.List                (intercalate, intersect, nub, partitio
                                            tails, (\\))
 import           Data.Maybe               (catMaybes, fromMaybe, isNothing,
                                            mapMaybe)
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
 import           Data.String              (IsString (..))
 import           Data.Tuple               (swap)
 
@@ -1374,6 +1376,12 @@ data Context var = Context
     -- 'inAllSubContexts', a flat cube binder) via 'withRefreshedTopes'.
     -- Ordinary binder entries shift the cached value with the rest of the
     -- context, which is sound because saturation commutes with renaming.
+  , scopeNameSet           :: Set VarIdent
+    -- ^ The names bound in 'localScopes' and 'globalScopes', for the shadowing
+    -- check, which runs at every binder entry and would otherwise scan every
+    -- top-level name each time. Entries are never removed (a closed section
+    -- leaves its names behind), so this over-approximates: a member may turn
+    -- out not to shadow. That is why membership only gates the exact scan.
   , actionStack            :: [Action var]
   , actionStackDepth       :: Int
     -- ^ The length of 'actionStack', maintained alongside it. Every judgement
@@ -1431,6 +1439,7 @@ addVarInCurrentScope var info Context{..} = Context
       case localScopes of
         []             -> [ScopeInfo Nothing [(var, info)]]
         scope : scopes -> addVarToScope var info scope : scopes
+  , scopeNameSet = addBinderNames (varOrig info) scopeNameSet
   , .. }
 
 -- | Add a top-level entry (definition, postulate, section assumption) to the
@@ -1442,7 +1451,15 @@ addVarInCurrentGlobalScope var info Context{..} = Context
       case globalScopes of
         []             -> [GlobalScopeInfo Nothing [(var, info)]]
         scope : scopes -> scope { gscopeVars = (var, info) : gscopeVars scope } : scopes
+  , scopeNameSet = addBinderNames (varOrig info) scopeNameSet
   , .. }
+
+-- | Record the name a binder introduces (if any) in the shadowing-check set.
+addBinderNames :: Binder -> Set VarIdent -> Set VarIdent
+addBinderNames orig names =
+  case binderName orig of
+    Nothing   -> names
+    Just name -> Set.insert name names
 
 applyModalityToScopes :: TModality -> [ScopeInfo var] -> [ScopeInfo var]
 applyModalityToScopes md scopes = map (addModalityToScope md) scopes
@@ -1494,6 +1511,7 @@ emptyContextUnseeded = Context
   , localTopesNFUnion = [emptyTopeContext]
   , localTopesEntailBottom = Just False
   , localTopesSaturated = SaturationUncached
+  , scopeNameSet = Set.empty
   , actionStack = []
   , actionStackDepth = 0
   , currentCommand = Nothing
@@ -1853,8 +1871,16 @@ scopeNames Context{..} = mapMaybe entryName (concatMap scopeVars localScopes)
     entryName :: (v, VarInfo w) -> Maybe VarIdent
     entryName = binderName . varOrig . snd
 
+-- | The bound names a new name would shadow. The exact answer needs a scan of
+-- every name in scope, including every top-level definition, and the check runs
+-- at every binder entry; so the scan only runs when 'scopeNameSet' says there is
+-- something to find, which for a fresh name is almost never.
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
-doesShadowName name = asks (filter (name ==) . scopeNames)
+doesShadowName name = do
+  mayShadow <- asks (Set.member name . scopeNameSet)
+  if mayShadow
+    then asks (filter (name ==) . scopeNames)
+    else return []
 
 checkTopLevelDuplicate :: VarIdent -> TypeCheck var ()
 checkTopLevelDuplicate name = do
