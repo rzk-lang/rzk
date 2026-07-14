@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.Rzk.VSCode.ReferenceIndex (
@@ -20,8 +21,15 @@ import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (listToMaybe)
 import qualified Data.Text                as T
 
-import qualified Free.Scoped              as Scoped
-import qualified Language.Rzk.Free.Syntax as Free
+import qualified Control.Monad.Foil        as Foil
+import           Control.Monad.Free.Foil   (ScopedAST (..))
+import           Language.Rzk.Foil.Convert (withOpenTerm)
+import qualified Language.Rzk.Foil.Names   as Free
+import           Language.Rzk.Foil.Print   (fromTerm)
+import           Language.Rzk.Foil.Syntax  (Term, instantiateUntyped,
+                                            pattern CubeProduct, pattern First,
+                                            pattern Pair, pattern Second,
+                                            pattern TypeSigma)
 import qualified Language.Rzk.Syntax      as Rzk
 
 data Uri = Uri
@@ -171,26 +179,35 @@ printAnn (AnnShape cube tope) =
 -- only inherit their cube.
 splitPairAnn :: Rzk.Term -> BinderAnn -> Maybe (BinderAnn, BinderAnn)
 splitPairAnn firstComp (AnnShape cube _tope) = splitPairAnn firstComp (AnnType cube)
-splitPairAnn firstComp (AnnType ty) = case Free.toTerm' ty of
-  Free.CubeProduct a b -> Just (fromCore a, fromCore b)
-  Free.TypeSigma _ _ a scope ->
-    Just ( fromCore a
-         , fromCore (reduceProjections (Scoped.substitute (Free.toTerm' firstComp) scope))
-         )
-  _ -> Nothing
+splitPairAnn firstComp (AnnType ty) =
+  -- The annotation is an open term (it mentions whatever is in scope where it was
+  -- written), so every identifier in it gets a name, and the names are mapped back
+  -- when it is printed.
+  withOpenTerm (Rzk.Pair Nothing ty firstComp) $ \scope names paired ->
+    case paired of
+      Pair ty' first' -> case ty' of
+        CubeProduct a b -> Just (render names a, render names b)
+        TypeSigma _ _ a scoped ->
+          Just ( render names a
+               , render names (reduceProjections (instantiateUntyped scope scoped first'))
+               )
+        _ -> Nothing
+      _ -> Nothing
   where
-    fromCore = AnnType . Free.fromTerm'
+    render names = AnnType . fromTerm [] [] names
 
--- | Reduce projections of literal pairs (π₁ (a, b) → a). A pattern binder
--- refers to its components through projections, so substituting a pair for
--- it leaves these redexes behind.
-reduceProjections :: Scoped.FS Free.TermF a -> Scoped.FS Free.TermF a
+-- | Reduce projections of literal pairs (π₁ (a, b) → a). A pattern binder refers to
+-- its components through projections, so substituting a pair for it leaves these
+-- redexes behind.
+reduceProjections :: Term n -> Term n
 reduceProjections = \case
-  Scoped.Pure x -> Scoped.Pure x
-  Scoped.Free f -> case Scoped.Free (bimap reduceProjections reduceProjections f) of
-    Free.First  (Free.Pair a _) -> a
-    Free.Second (Free.Pair _ b) -> b
-    t                           -> t
+  First t -> case reduceProjections t of
+    Pair a _ -> a
+    t'       -> First t'
+  Second t -> case reduceProjections t of
+    Pair _ b -> b
+    t'       -> Second t'
+  t -> t
 
 -- | A pattern as the term it matches.
 patternTerm :: Rzk.Pattern -> Rzk.Term

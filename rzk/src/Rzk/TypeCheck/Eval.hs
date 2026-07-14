@@ -35,7 +35,7 @@ import           Control.Monad.Free.Foil     (AST (Node, Var),
 import           Data.Bifunctor              (Bifunctor)
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax    (Binder (..), TModality (..),
+import           Language.Rzk.Foil.Names    (Binder (..), TModality (..),
                                               TypeInfo (..), VarIdent)
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display

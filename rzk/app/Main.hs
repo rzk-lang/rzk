@@ -75,7 +75,7 @@ main = do
             putStrLn "An error occurred when typechecking!"
             putStrLn $ unlines
               [ "Type Error:"
-              , ppTypeErrorInScopedContext' BottomUp err
+              , ppTypeErrorInScopedContext BottomUp err
               ]
       if jsonFlag
         -- Machine-readable mode: emit every diagnostic (type errors as errors,
@@ -84,21 +84,21 @@ main = do
         then do
           let diagnostics = case typecheckModulesWithHoles modules of
                 Left err -> [diagnoseTypeError BottomUp err]
-                Right (_decls, errors, holes) ->
+                Right (Checked _ctx _decls errors, holes) ->
                   map (diagnoseTypeError BottomUp) errors ++ map diagnoseHole holes
           BL8.putStrLn (encode diagnostics)
           when (any ((== SeverityError) . diagnosticSeverity) diagnostics) exitFailure
         else if allowHolesFlag
           then case typecheckModulesWithHoles modules of
             Left err -> reportError err >> exitFailure
-            Right (_decls, errors, holes) -> do
+            Right (Checked _ctx _decls errors, holes) -> do
               forM_ holes (putStr . ppHoleInfo)
               case errors of
                 [] -> putStrLn ("Everything is ok! (" <> show (length holes) <> " hole(s))")
                 _  -> do forM_ errors reportError; exitFailure
-          else case defaultTypeCheck (typecheckModulesWithLocation modules) of
+          else case typecheckModules modules of
             Left err -> reportError err >> exitFailure
-            Right _decls -> putStrLn "Everything is ok!"
+            Right _checked -> putStrLn "Everything is ok!"
 
     Lsp ->
 #ifdef LSP_ENABLED

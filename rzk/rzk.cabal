@@ -255,12 +255,10 @@ flag lsp
 
 library
   exposed-modules:
-      Free.Scoped
-      Free.Scoped.TH
       Language.Rzk.Foil.Convert
+      Language.Rzk.Foil.Names
       Language.Rzk.Foil.Print
       Language.Rzk.Foil.Syntax
-      Language.Rzk.Free.Syntax
       Language.Rzk.Syntax
       Language.Rzk.Syntax.Abs
       Language.Rzk.Syntax.Layout

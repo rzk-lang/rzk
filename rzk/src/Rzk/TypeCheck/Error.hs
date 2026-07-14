@@ -23,7 +23,7 @@ import qualified Control.Monad.Foil       as Foil
 import           Data.List                (intercalate)
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax (TModality (..), VarIdent, getVarIdent,
+import           Language.Rzk.Foil.Names (TModality (..), VarIdent, getVarIdent,
                                            ppVarIdentWithLocation)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.TypeCheck.Context

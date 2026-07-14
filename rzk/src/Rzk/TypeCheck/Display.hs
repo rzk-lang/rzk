@@ -19,9 +19,10 @@ import           Control.Monad.Foil.Internal (NameMap (..))
 import qualified Data.IntMap                 as IntMap
 import           Data.List                   ((\\))
 
-import           Language.Rzk.Foil.Print     (Display, fromTerm)
+import           Language.Rzk.Foil.Print     (fromTerm)
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax    (Binder (..), TypeInfo (..),
+import           Language.Rzk.Foil.Names    (Binder (..), Display,
+                                              TypeInfo (..),
                                               VarIdent, binderIsCompound,
                                               binderLeaves, binderToPattern,
                                               defaultVarIdents,

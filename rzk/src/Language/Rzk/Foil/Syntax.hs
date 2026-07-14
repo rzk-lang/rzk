@@ -60,7 +60,7 @@ import           Generics.Kind.TH                (deriveGenericK)
 import qualified GHC.Generics                   as GHC
 import           Unsafe.Coerce                  (unsafeCoerce)
 
-import           Language.Rzk.Free.Syntax       (Binder (..), TModality (..),
+import           Language.Rzk.Foil.Names        (Binder (..), TModality (..),
                                                  TypeInfo (..), VarIdent)
 
 -- * The signature
@@ -408,6 +408,12 @@ abstractName scope name term k =
 instantiateT :: Foil.Distinct n => Foil.Scope n -> ScopedTermT n -> TermT n -> TermT n
 instantiateT scope (ScopedAST binder body) arg =
   substituteT scope (Foil.addSubst Foil.identitySubst binder arg) body
+
+-- | Instantiate a scoped /untyped/ term. There are no memoised normal forms to
+-- invalidate, so this is free-foil's own substitution.
+instantiateUntyped :: Foil.Distinct n => Foil.Scope n -> ScopedTerm n -> Term n -> Term n
+instantiateUntyped scope (ScopedAST binder body) arg =
+  substitute scope (Foil.addSubst Foil.identitySubst binder arg) body
 
 -- | Substitution that invalidates the memoised normal forms of every node it
 -- rebuilds, and substitutes into each node's type.

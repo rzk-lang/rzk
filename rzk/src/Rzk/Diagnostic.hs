@@ -15,7 +15,7 @@ module Rzk.Diagnostic where
 import           Data.Aeson           (ToJSON (..), Value (String), object,
                                        (.=))
 
-import           Language.Rzk.Free.Syntax (VarIdent)
+import           Language.Rzk.Foil.Names  (VarIdent)
 import           Rzk.TypeCheck
 
 -- | Diagnostic severity, mirroring the usual LSP levels.
@@ -123,7 +123,7 @@ instance ToJSON HoleData where
 
 -- | A stable tag for a type error, used as its diagnostic code. Independent of
 -- the variable type, so it survives the scoped-error unfolding.
-typeErrorTag :: TypeError var -> String
+typeErrorTag :: TypeError n -> String
 typeErrorTag = \case
   TypeErrorOther{}                 -> "TypeErrorOther"
   TypeErrorUnify{}                 -> "TypeErrorUnify"
@@ -151,27 +151,25 @@ typeErrorTag = \case
   TypeErrorUnusedUsedVariables{}   -> "TypeErrorUnusedUsedVariables"
   TypeErrorImplicitAssumption{}    -> "TypeErrorImplicitAssumption"
 
--- | The tag of a scoped type error (peels the binder layers; the tag does not
--- depend on the variable type).
-typeErrorTagInScopedContext :: TypeErrorInScopedContext var -> String
-typeErrorTagInScopedContext = \case
-  PlainTypeError e    -> typeErrorTag (typeErrorError e)
-  ScopedTypeError _ e -> typeErrorTagInScopedContext e
+-- | The tag of a type error.
+--
+-- An error carries the context it was raised in, so there are no binder layers to
+-- peel: the old representation nested the error one Inc deeper at every binder.
+typeErrorTagInScopedContext :: TypeErrorInScopedContext -> String
+typeErrorTagInScopedContext (TypeErrorInScopedContext _ctx err) = typeErrorTag err
 
--- | The source location of a scoped type error (the enclosing command's line).
-locationOfTypeError :: TypeErrorInScopedContext var -> Maybe LocationInfo
-locationOfTypeError = \case
-  PlainTypeError e    -> location (typeErrorContext e)
-  ScopedTypeError _ e -> locationOfTypeError e
+-- | The source location of a type error (the enclosing command's line).
+locationOfTypeError :: TypeErrorInScopedContext -> Maybe LocationInfo
+locationOfTypeError (TypeErrorInScopedContext ctx _err) = ctxLocation ctx
 
 -- | A structured diagnostic for a type error. The message is the usual
 -- formatted error text; severity is always 'SeverityError'.
-diagnoseTypeError :: OutputDirection -> TypeErrorInScopedContext VarIdent -> Diagnostic
+diagnoseTypeError :: OutputDirection -> TypeErrorInScopedContext -> Diagnostic
 diagnoseTypeError dir err = Diagnostic
   { diagnosticSeverity = SeverityError
   , diagnosticCode     = typeErrorTagInScopedContext err
   , diagnosticLocation = locationOfTypeError err
-  , diagnosticMessage  = ppTypeErrorInScopedContext' dir err
+  , diagnosticMessage  = ppTypeErrorInScopedContext dir err
   , diagnosticHole     = Nothing
   }
 

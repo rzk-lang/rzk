@@ -26,7 +26,7 @@ import           Debug.Trace              (trace)
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 
-import           Language.Rzk.Free.Syntax (VarIdent)
+import           Language.Rzk.Foil.Names (VarIdent)
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error

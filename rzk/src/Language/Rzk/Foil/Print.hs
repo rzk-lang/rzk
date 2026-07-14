@@ -7,7 +7,7 @@
 
 -- | The free-foil core back to surface syntax.
 --
--- A transcription of @fromTermWith'@ from "Language.Rzk.Free.Syntax". The
+-- A transcription of @fromTermWith'@ from "Language.Rzk.Foil.Names". The
 -- structure is the same, and so are the display rules:
 --
 --   * a binder's user-written name is kept, refreshed only against names already
@@ -29,7 +29,8 @@ import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Data.Bifoldable          (bifoldMap)
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax (Binder (..), Proj (..), TModality (..),
+import           Language.Rzk.Foil.Names (Binder (..), Display, Proj (..),
+                                           TModality (..),
                                            VarIdent, binderIsCompound,
                                            binderLeaves, binderPaths,
                                            binderToPattern, defaultVarIdents,
@@ -38,11 +39,6 @@ import           Language.Rzk.Free.Syntax (Binder (..), Proj (..), TModality (..
                                            modsToModComp, patternToTerm,
                                            refreshVar)
 import qualified Language.Rzk.Syntax      as Rzk
-
--- | What a bound name is shown as: the display name standing for the variable
--- itself, and the (freshened) binder, which gives the pattern to print and the
--- component names to fold projections back to.
-type Display = (VarIdent, Binder)
 
 -- | Print a closed term.
 fromTermClosed :: Term Foil.VoidS -> Rzk.Term

@@ -35,7 +35,7 @@ import           Control.Monad.Free.Foil   (AST (Var), ScopedAST (..))
 
 import           Language.Rzk.Foil.Convert (Env, toTerm)
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax  (Binder (..), TModality (..),
+import           Language.Rzk.Foil.Names  (Binder (..), TModality (..),
                                             VarIdent, patternToTerm, varIdentAt)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
@@ -637,3 +637,52 @@ typecheckModulesWithHolesAndLemmas
   -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 typecheckModulesWithHolesAndLemmas lemmas modules =
   checkedModules modules (withHintLemmas lemmas (allowHoles emptyContext))
+
+-- * What a consumer sees
+
+-- | A declaration, rendered: no scope index, and nothing to re-elaborate.
+--
+-- This is what the LSP shows — a name, a type, a location — and it is all it needs.
+-- The elaborated terms stay inside the 'Checked' package, which is what a /resume/
+-- needs.
+data DeclView = DeclView
+  { declViewName         :: VarIdent
+  , declViewType         :: Rendered
+  , declViewIsAssumption :: Bool
+  , declViewLocation     :: Maybe LocationInfo
+  } deriving (Eq, Show)
+
+-- | The declarations of a checked run, rendered, grouped by the file they came
+-- from.
+declViews :: Checked -> [(FilePath, [DeclView])]
+declViews (Checked ctx decls _errs) = map (fmap (map view)) decls
+  where
+    naming = namingOfContext ctx
+    view decl = DeclView
+      { declViewName = declName decl
+      , declViewType = renderTerm naming (untyped (declType decl))
+      , declViewIsAssumption = declIsAssumption decl
+      , declViewLocation = declLocation decl
+      }
+
+-- | Continue checking from a prefix that has already been checked.
+--
+-- This is the incremental path: the cached context /is/ the elaborated prefix, so
+-- nothing is replayed and nothing is re-elaborated.
+recheckFrom
+  :: Checked
+  -> [(FilePath, Rzk.Module)]
+  -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
+recheckFrom (Checked ctx decls _errs) modules =
+  runExcept $ runWriterT $ flip runReaderT ctx $
+    checkModules modules $ \newDecls errs -> do
+      ctx' <- ask
+      pure (Checked ctx' (map (fmap (map sinkDecl)) decls <> newDecls) errs)
+
+-- | The errors of a checked run.
+checkedErrors :: Checked -> [TypeErrorInScopedContext]
+checkedErrors (Checked _ _ errs) = errs
+
+-- | Nothing checked yet: the empty context, and no declarations.
+emptyChecked :: Checked
+emptyChecked = Checked emptyContext [] []

@@ -22,7 +22,7 @@ import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (Var))
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax (Binder, TModality (..),
+import           Language.Rzk.Foil.Names (Binder, TModality (..),
                                            TypeInfo (..))
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display (panicImpossible)

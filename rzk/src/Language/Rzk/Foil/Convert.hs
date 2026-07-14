@@ -8,7 +8,7 @@
 
 -- | Surface syntax to the free-foil core.
 --
--- A transcription of @toTerm@ from "Language.Rzk.Free.Syntax", with the variable
+-- A transcription of @toTerm@ from "Language.Rzk.Foil.Names", with the variable
 -- handling replaced. The environment is still a function from a surface
 -- identifier to a term, as before; what changes is what happens at a binder:
 --
@@ -20,16 +20,24 @@
 -- A pattern binder still binds exactly /one/ variable, as before: the components
 -- of @\\ (t , s) -> …@ are projections of it, and 'Binder' records the names so
 -- they can be shown back to the user.
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Rzk.Foil.Convert where
 
-import           Control.Monad.Foil       (Distinct, NameBinder, Scope)
+import           Control.Monad.Foil       (Distinct, NameBinder, NameMap, Scope)
 import qualified Control.Monad.Foil       as Foil
+import           Control.Monad.Foil.Internal (NameMap (..))
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
+import           Data.Data                (Data, cast, gmapQ)
+import qualified Data.IntMap              as IntMap
+import           Data.Map                 (Map)
+import qualified Data.Map                 as Map
+import qualified Data.Set                 as Set
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax (Binder (..), TModality (..), VarIdent,
-                                           holeName, toBinder, varIdent)
-import qualified Language.Rzk.Free.Syntax as Free
+import           Language.Rzk.Foil.Names (Binder (..), Display, TModality (..),
+                                           VarIdent, holeName, toBinder, varIdent)
+import qualified Language.Rzk.Foil.Names as Free
 import qualified Language.Rzk.Syntax      as Rzk
 
 -- | The environment: what a surface identifier stands for in the current scope.
@@ -264,3 +272,50 @@ toTerm scope env = go
     restriction = \case
       Rzk.Restriction _loc tope term       -> (go tope, go term)
       Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
+
+-- * Open terms
+
+-- | Elaborate a surface term whose free identifiers are not known in advance.
+--
+-- Each identifier occurring anywhere in the term gets a name in a fresh scope, so
+-- an /open/ term (the annotation of a binder, say, taken out of its context) can be
+-- put into the core, transformed, and printed back with the names it came in with.
+-- The reference index needs this: it splits the annotation of a pair binder through
+-- the core, and has no typing context to hand.
+withOpenTerm
+  :: forall r. Rzk.Term
+  -> (forall n. Distinct n
+        => Foil.Scope n -> NameMap n Display -> Term n -> r)
+  -> r
+withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
+  where
+    idents = nubOrd (map varIdent (collectVarIdents term))
+
+    go :: forall n. Distinct n
+       => Foil.Scope n -> [(VarIdent, Foil.Name n)] -> Map VarIdent Display
+       -> [VarIdent] -> r
+    go scope bound names [] =
+      k scope (namesOf bound names) (toTerm scope (envOf bound) term)
+    go scope bound names (x : xs) =
+      Foil.withFresh scope $ \binder ->
+        let scope' = Foil.extendScope binder scope
+            bound' = (x, Foil.nameOf binder) : map (fmap Foil.sink) bound
+         in go scope' bound' (Map.insert x (x, BinderVar (Just x)) names) xs
+
+    envOf bound x = case lookup x bound of
+      Just v  -> Var v
+      Nothing -> Var (snd (head bound))  -- unreachable: every identifier is bound above
+
+    namesOf bound names = NameMap $ IntMap.fromList
+      [ (Foil.nameId v, display)
+      | (x, v) <- bound
+      , Just display <- [Map.lookup x names]
+      ]
+
+-- | Every identifier occurring in a piece of surface syntax, bound or free.
+collectVarIdents :: Data a => a -> [Rzk.VarIdent]
+collectVarIdents x =
+  maybe [] (:[]) (cast x) ++ concat (gmapQ collectVarIdents x)
+
+nubOrd :: Ord a => [a] -> [a]
+nubOrd = Set.toList . Set.fromList
