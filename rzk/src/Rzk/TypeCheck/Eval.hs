@@ -185,14 +185,23 @@ underScope2 orig md ty scoped1 scoped2 k = do
 -- | Open a scoped term for a computation whose result says nothing about the new
 -- scope (a check, or a rendered string).
 inScope
-  :: Distinct n
-  => Binder -> TModality -> TermT n -> ScopedTermT n
-  -> (forall l. (DExt n l, Distinct l) => TermT l -> TypeCheck l a)
+  :: (Bifunctor sig, Distinct n)
+  => Binder -> TModality -> TermT n -> ScopedAST NameBinder sig n
+  -> (forall l. (DExt n l, Distinct l) => AST NameBinder sig l -> TypeCheck l a)
   -> TypeCheck n a
-inScope orig md ty scoped k = do
+inScope orig md ty = inScopeWith orig md ty Nothing
+
+-- | Like 'inScope', for a binder that stands for a known value (a @let@).
+inScopeWith
+  :: (Bifunctor sig, Distinct n)
+  => Binder -> TModality -> TermT n -> Maybe (TermT n)
+  -> ScopedAST NameBinder sig n
+  -> (forall l. (DExt n l, Distinct l) => AST NameBinder sig l -> TypeCheck l a)
+  -> TypeCheck n a
+inScopeWith orig md ty mval scoped k = do
   scope <- asks ctxScope
   withScopedT scope scoped $ \binder body ->
-    underBinder binder orig md ty Nothing (k body)
+    underBinder binder orig md ty mval (k body)
 
 -- | Open a scoped term with a binder that has just been entered.
 --

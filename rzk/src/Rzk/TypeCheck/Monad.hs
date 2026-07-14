@@ -76,6 +76,10 @@ type TypeCheck n =
 runTypeCheck :: TypeCheck Foil.VoidS a -> Either TypeErrorInScopedContext a
 runTypeCheck tc = fst <$> runExcept (runWriterT (runReaderT tc emptyContext))
 
+-- | Run a judgement in a given context, discarding the holes it records.
+runTypeCheckIn :: Context n -> TypeCheck n a -> Either TypeErrorInScopedContext a
+runTypeCheckIn ctx tc = fst <$> runExcept (runWriterT (runReaderT tc ctx))
+
 -- | Run a judgement in another scope's context.
 --
 -- The error channel and the hole channel are shared and carry no scope index, so

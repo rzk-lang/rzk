@@ -274,6 +274,7 @@ library
       Rzk.Project.Config
       Rzk.Render.Geometry
       Rzk.TypeCheck
+      Rzk.TypeCheck.BinderTypes
       Rzk.TypeCheck.Context
       Rzk.TypeCheck.Decl
       Rzk.TypeCheck.Display
