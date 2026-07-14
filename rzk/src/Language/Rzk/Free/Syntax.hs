@@ -199,12 +199,31 @@ termIsNF (Free (AnnF info f)) = t'
   where
     t' = Free (AnnF info { infoWHNF = Just t', infoNF = Just t' } f)
 
-invalidateWHNF :: TermT var -> TermT var
-invalidateWHNF = transFS $ \(AnnF info f) ->
-  AnnF info { infoWHNF = Nothing, infoNF = Nothing } f
-
+-- | Substitute for the bound variable of a scope, dropping the memoised WHNF\/NF
+-- of every node rebuilt on the way (the substitution invalidates them).
+--
+-- This is a single traversal. Substituting and invalidating used to be two
+-- passes (@'substitute' x . invalidateWHNF@), each rebuilding every node of the
+-- scope and allocating a fresh 'TypeInfo' for it, and substitution is the
+-- checker's single largest source of allocation.
 substituteT :: TermT var -> Scope TermT var -> TermT var
-substituteT x = substitute x . invalidateWHNF
+substituteT x = substituteInvalidatingT $ \case
+  Z   -> x
+  S y -> Pure y
+
+-- | Monadic bind on a typed term that also invalidates the memoised WHNF\/NF of
+-- every node it rebuilds. A top-level definition because it is polymorphically
+-- recursive: under a scope the variable type changes to @'Inc' var@.
+substituteInvalidatingT :: (a -> TermT b) -> TermT a -> TermT b
+substituteInvalidatingT f (Pure x) = f x
+substituteInvalidatingT f (Free (AnnF info t)) = Free (AnnF info' t')
+  where
+    t' = bimap (substituteInvalidatingT (traverse f)) (substituteInvalidatingT f) t
+    info' = TypeInfo
+      { infoType = substituteInvalidatingT f (infoType info)
+      , infoWHNF = Nothing
+      , infoNF   = Nothing
+      }
 
 type Term' = Term VarIdent
 type TermT' = TermT VarIdent
