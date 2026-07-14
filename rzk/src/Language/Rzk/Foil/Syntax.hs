@@ -38,8 +38,11 @@
 module Language.Rzk.Foil.Syntax where
 
 import           Control.Monad.Foil             (NameBinder)
+import qualified Control.Monad.Foil             as Foil
+import           Control.Monad.Foil.Internal    (unsafeAssertFresh)
 import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
-                                                 ZipMatch (..))
+                                                 ZipMatch (..), alphaEquiv,
+                                                 substitute, unsafeEqAST)
 import           Control.Monad.Free.Foil.Generic (Mappings (..),
                                                  ZipMatchK (..),
                                                  genericZipMatch2,
@@ -53,6 +56,7 @@ import           Data.Bifunctor.TH              (deriveBifoldable,
 import           Data.Bitraversable             (Bitraversable (..))
 import           Generics.Kind.TH                (deriveGenericK)
 import qualified GHC.Generics                   as GHC
+import           Unsafe.Coerce                  (unsafeCoerce)
 
 import           Language.Rzk.Free.Syntax       (Binder (..), TModality (..),
                                                  TypeInfo (..), VarIdent)
@@ -246,6 +250,138 @@ termIsNF :: TermT n -> TermT n
 termIsNF t@Var{} = t
 termIsNF (Node (AnnSig info sig)) = t'
   where t' = Node (AnnSig info { infoWHNF = Just t', infoNF = Just t' } sig)
+
+-- * Equality
+
+-- | Syntactic equality of two terms of the same scope.
+--
+-- Annotation-blind, as the old derived 'Eq' was, but it also requires the two to
+-- bind the same names, so it is /conservative/: two α-equivalent terms whose
+-- binders differ are not equal. That is what the tope-context scans want — the
+-- terms there come from the same context — and it is cheaper than 'alphaEqT',
+-- which walks the scope.
+eqT :: Foil.Distinct n => TermT n -> TermT n -> Bool
+eqT = unsafeEqAST
+
+-- | α-equivalence: name-blind and annotation-blind. The old representation's 'Eq'
+-- compared binder names, so @\\ x -> x@ and @\\ y -> y@ were unequal; they are the
+-- same term, and this says so.
+alphaEqT :: Foil.Distinct n => Foil.Scope n -> TermT n -> TermT n -> Bool
+alphaEqT = alphaEquiv
+
+elemT :: Foil.Distinct n => TermT n -> [TermT n] -> Bool
+elemT t = any (eqT t)
+
+notElemT :: Foil.Distinct n => TermT n -> [TermT n] -> Bool
+notElemT t = not . elemT t
+
+nubT :: Foil.Distinct n => [TermT n] -> [TermT n]
+nubT []       = []
+nubT (t : ts) = t : nubT (filter (not . eqT t) ts)
+
+-- * Holes
+
+isHoleT :: TermT n -> Bool
+isHoleT HoleT{} = True
+isHoleT _       = False
+
+-- | Does the term contain a hole anywhere (including nested, e.g. @f ?@)?
+containsHole :: TermT n -> Bool
+containsHole HoleT{} = True
+containsHole (Var _) = False
+containsHole (Node (AnnSig _ sig)) =
+  bifoldr (\scoped acc -> containsHoleScoped scoped || acc) (\t acc -> containsHole t || acc) False sig
+  where
+    containsHoleScoped (ScopedAST _ body) = containsHole body
+
+-- * Going under a binder, and substituting
+
+-- | Go under the binder of a scoped term.
+--
+-- The binder is used as it stands when its name is free in the ambient scope,
+-- which is the common case and costs nothing. It has to be renamed when the name
+-- is taken — sinking a term into a scope that has grown since the term was built
+-- can do that — and only then is the body traversed.
+withScopedT
+  :: Foil.Distinct n
+  => Foil.Scope n
+  -> ScopedTermT n
+  -> (forall l. Foil.DExt n l => NameBinder n l -> TermT l -> r)
+  -> r
+withScopedT scope (ScopedAST binder body) k
+  | Foil.member (Foil.nameOf binder) scope =
+      Foil.withFresh scope $ \binder' ->
+        let scope' = Foil.extendScope binder' scope
+            rename = Foil.addRename (Foil.sink Foil.identitySubst) binder (Foil.nameOf binder')
+         in k binder' (substitute scope' rename body)
+  | otherwise =
+      -- The name is fresh here, so the body already /is/ a term of the extended
+      -- scope; the coercion says exactly that, and is the same one
+      -- 'Foil.withRefreshed' performs on its own fast path.
+      unsafeAssertFresh binder $ \binder' -> k binder' (unsafeCoerce body)
+
+-- | Go under two scoped terms that stand for /one/ variable.
+--
+-- A Π-type and a λ over a shape each carry a tope scope beside the body, under
+-- what the user wrote as a single binder. On free-foil each 'ScopedAST' has its
+-- own 'NameBinder', so the second is instantiated with the first's name: they
+-- behave as two abstractions over one argument, as they did before.
+withScopedT2
+  :: Foil.Distinct n
+  => Foil.Scope n
+  -> ScopedTermT n
+  -> ScopedTermT n
+  -> (forall l. Foil.DExt n l => NameBinder n l -> TermT l -> TermT l -> r)
+  -> r
+withScopedT2 scope scoped1 scoped2 k =
+  withScopedT scope scoped1 $ \binder body1 ->
+    k binder body1 (openWith (Foil.extendScope binder scope) (Foil.nameOf binder) scoped2)
+
+-- | Open a scoped term with a name that is already in scope.
+openWith
+  :: Foil.DExt n l
+  => Foil.Scope l -> Foil.Name l -> ScopedTermT n -> TermT l
+openWith scope name (ScopedAST binder body) =
+  substitute scope (Foil.addRename (Foil.sink Foil.identitySubst) binder name) body
+
+-- | Instantiate a scoped term with a term: the successor of @substituteT x scope@.
+instantiateT :: Foil.Distinct n => Foil.Scope n -> ScopedTermT n -> TermT n -> TermT n
+instantiateT scope (ScopedAST binder body) arg =
+  substituteT scope (Foil.addSubst Foil.identitySubst binder arg) body
+
+-- | Substitution that invalidates the memoised normal forms of every node it
+-- rebuilds, and substitutes into each node's type.
+--
+-- A renaming ('substitute') keeps the memo, since a renamed term reduces exactly
+-- as the original does. A real substitution does not: a variable is in weak head
+-- normal form, and what replaces it need not be. This is one traversal, as
+-- substituting and invalidating separately was two.
+substituteT
+  :: Foil.Distinct o
+  => Foil.Scope o
+  -> Foil.Substitution TermT i o
+  -> TermT i
+  -> TermT o
+substituteT scope subst term = go scope subst term
+  where
+    go
+      :: forall i' o'. Foil.Distinct o'
+      => Foil.Scope o' -> Foil.Substitution TermT i' o' -> TermT i' -> TermT o'
+    go _ subst' (Var name) = Foil.lookupSubst subst' name
+    go scope' subst' (Node (AnnSig info sig)) = Node (AnnSig info' sig')
+      where
+        info' = TypeInfo
+          { infoType = go scope' subst' (infoType info)
+          , infoWHNF = Nothing
+          , infoNF   = Nothing
+          }
+        sig' = bimap goScoped (go scope' subst') sig
+
+        goScoped (ScopedAST binder body) =
+          Foil.withRefreshed scope' (Foil.nameOf binder) $ \binder' ->
+            let scope'' = Foil.extendScope binder' scope'
+                subst'' = Foil.addRename (Foil.sink subst') binder (Foil.nameOf binder')
+             in ScopedAST binder' (go scope'' subst'' body)
 
 -- * Pattern synonyms
 --

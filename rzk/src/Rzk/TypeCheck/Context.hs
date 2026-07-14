@@ -269,7 +269,8 @@ enterBinder
   :: DExt n l
   => NameBinder n l
   -> VarInfo n       -- ^ its type, value and modality
-  -> [ModalTope n]   -- ^ discreteness axioms the binder brings (a flat cube point)
+  -> [ModalTope l]   -- ^ discreteness axioms the binder brings (a flat cube point,
+                     --   which are about the variable itself, hence at its scope)
   -> Context n
   -> Context l
 enterBinder binder info discrete ctx = (sinkContextUnchecked ctx)
@@ -279,7 +280,7 @@ enterBinder binder info discrete ctx = (sinkContextUnchecked ctx)
   , ctxNamed = case binderName (varOrig info) of
       Nothing   -> sinkNamed (ctxNamed ctx)
       Just name -> Map.insert name (Foil.nameOf binder) (sinkNamed (ctxNamed ctx))
-  , ctxDiscreteTopes = map sinkModalTope discrete <> sinkTopes (ctxDiscreteTopes ctx)
+  , ctxDiscreteTopes = discrete <> sinkTopes (ctxDiscreteTopes ctx)
   , ctxNameSet = addBinderNames (varOrig info) (ctxNameSet ctx)
   }
 

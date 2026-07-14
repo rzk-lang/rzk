@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -15,13 +16,15 @@
 module Rzk.TypeCheck.Monad where
 
 import           Control.Monad            (unless)
-import           Control.Monad.Except     (Except, MonadError (throwError))
+import           Control.Monad.Except     (Except, MonadError (throwError),
+                                           runExcept)
 import           Control.Monad.Reader     (ReaderT (..), ask, asks, local)
 import           Control.Monad.Trans      (lift)
-import           Control.Monad.Writer     (WriterT, tell)
+import           Control.Monad.Writer     (WriterT, runWriterT, tell)
 import           Debug.Trace              (trace)
 
 import           Control.Monad.Foil       (Distinct)
+import qualified Control.Monad.Foil       as Foil
 
 import           Language.Rzk.Free.Syntax (VarIdent)
 import           Rzk.TypeCheck.Context
@@ -68,6 +71,10 @@ data HoleInfo = HoleInfo
 type TypeCheck n =
   ReaderT (Context n)
     (WriterT [HoleInfo] (Except TypeErrorInScopedContext))
+
+-- | Run a judgement in the empty context, discarding the holes it records.
+runTypeCheck :: TypeCheck Foil.VoidS a -> Either TypeErrorInScopedContext a
+runTypeCheck tc = fst <$> runExcept (runWriterT (runReaderT tc emptyContext))
 
 -- | Run a judgement in another scope's context.
 --

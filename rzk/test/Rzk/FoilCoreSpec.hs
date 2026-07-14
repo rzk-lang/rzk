@@ -13,7 +13,8 @@
 module Rzk.FoilCoreSpec (spec) where
 
 import qualified Control.Monad.Foil       as Foil
-import           Control.Monad.Free.Foil  (AST (Var), alphaEquiv)
+import           Control.Monad.Free.Foil  (AST (Var), ScopedAST (..),
+                                           alphaEquiv)
 import qualified Data.Set                 as Set
 import qualified Data.Text                as T
 import           Test.Hspec
@@ -26,6 +27,10 @@ import           Language.Rzk.Free.Syntax  (Binder (..), TModality (..),
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display (namingOfContext, ppName)
+import           Rzk.TypeCheck.Error   (OutputDirection (..),
+                                        ppTypeErrorInScopedContext)
+import           Rzk.TypeCheck.Eval    (whnfT)
+import           Rzk.TypeCheck.Monad   (runTypeCheck)
 
 -- | Parse a term of the surface syntax, or fail loudly.
 parse :: T.Text -> Rzk.Term
@@ -139,3 +144,31 @@ spec = do
     it "records the names in scope for the shadowing check" $
       withFreshBinder emptyContext (hypothesis "A" universeT) $ \_bA ctxA ->
         Set.toList (ctxNameSet ctxA) `shouldBe` ["A" :: VarIdent]
+
+  describe "evaluation" $ do
+    -- The identity on the directed interval, applied to an endpoint. A cube-layer
+    -- term, so this drives the whole reduction path: whnfT dispatches on the
+    -- layer, nfTope reduces the redex, and the argument is substituted into the
+    -- body (invalidating the memo on the way).
+    let identityOn2 :: TermT Foil.VoidS
+        identityOn2 = Foil.withFresh Foil.emptyScope $ \binder ->
+          let t = BinderVar (Just "t")
+              ty = typeFunT t Id cube2T Nothing (ScopedAST binder cube2T)
+           in lambdaT ty t (Just (LambdaParam Id cube2T Nothing))
+                (ScopedAST binder (Var (Foil.nameOf binder)))
+
+        applied = appT cube2T identityOn2 cube2_0T
+
+    it "reduces (\\ t -> t) 0₂ to 0₂" $
+      case runTypeCheck (whnfT applied) of
+        Left err -> expectationFailure (ppTypeErrorInScopedContext TopDown err)
+        Right result ->
+          alphaEquiv Foil.emptyScope (untyped result) (untyped cube2_0T)
+            `shouldBe` True
+
+    it "does not reduce the unapplied identity" $
+      case runTypeCheck (whnfT identityOn2) of
+        Left err -> expectationFailure (ppTypeErrorInScopedContext TopDown err)
+        Right result ->
+          alphaEquiv Foil.emptyScope (untyped result) (untyped cube2_0T)
+            `shouldBe` False
