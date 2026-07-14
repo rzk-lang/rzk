@@ -46,8 +46,6 @@ import           Control.Monad.Foil.Internal (NameMap (..))
 import qualified Data.IntMap                 as IntMap
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
-import           Data.Set                    (Set)
-import qualified Data.Set                    as Set
 import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Language.Rzk.Foil.Syntax
