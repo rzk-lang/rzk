@@ -305,26 +305,30 @@ defaultVarIdents =
 -- $setup
 -- >>> :set -XOverloadedStrings
 -- >>> import qualified Data.Text as T
+-- >>> import qualified Data.Set as Set
 
 -- | Given a list of used variable names in the current context,
 -- generate a unique fresh name based on a given one.
 --
 -- >>> print $ refreshVar ["x", "y", "x₁", "z"] "x"
 -- x₂
--- | Refresh a name against a /set/ of taken ones.
---
--- The list version is O(taken) per call, and naming a whole context calls it once
--- per entry, which made reading the naming off a context with ~1500 top-level
--- entries quadratic.
-refreshVarIn :: Set VarIdent -> VarIdent -> VarIdent
-refreshVarIn taken x
-  | x `Set.member` taken = refreshVarIn taken (incVarIdentIndex x)
-  | otherwise            = x
-
 refreshVar :: [VarIdent] -> VarIdent -> VarIdent
 refreshVar vars x
   | x `elem` vars = refreshVar vars (incVarIdentIndex x)
   | otherwise     = x
+
+-- | Refresh a name against a /set/ of taken ones.
+--
+-- The list version above is O(taken) per call, and naming a whole context calls it
+-- once per entry, which made reading the naming off a context with every top-level
+-- definition of a project in it quadratic.
+--
+-- >>> print $ refreshVarIn (Set.fromList ["x", "y", "x₁", "z"]) "x"
+-- x₂
+refreshVarIn :: Set VarIdent -> VarIdent -> VarIdent
+refreshVarIn taken x
+  | x `Set.member` taken = refreshVarIn taken (incVarIdentIndex x)
+  | otherwise            = x
 
 incVarIdentIndex :: VarIdent -> VarIdent
 incVarIdentIndex (VarIdent (Rzk.VarIdent loc token)) =
