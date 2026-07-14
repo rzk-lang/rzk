@@ -270,10 +270,10 @@ library
       Language.Rzk.Syntax.Print
       Rzk
       Rzk.Diagnostic
-      Rzk.FoilSpike
       Rzk.Format
       Rzk.Main
       Rzk.Project.Config
+      Rzk.Render.Geometry
       Rzk.TypeCheck
   other-modules:
       Paths_rzk

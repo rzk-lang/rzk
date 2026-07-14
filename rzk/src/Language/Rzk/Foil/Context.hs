@@ -115,7 +115,7 @@ mapNameMap f (NameMap m) = NameMap (IntMap.map f m)
 -- say): extend the scope with it, record what it is called and what it stands
 -- for, and carry the rest of the context in.
 enterBinder
-  :: (Distinct n, DExt n l)
+  :: DExt n l
   => NameBinder n l
   -> Binder          -- ^ the names it introduces (for display)
   -> VarInfo n       -- ^ its type, value and modality

@@ -1,4 +1,7 @@
-{-# OPTIONS_GHC -fno-warn-missing-pattern-synonym-signatures #-}
+-- The 'ZipMatchK' instances below are orphans: the class is free-foil's and the
+-- constant types they cover ('TModality', 'VarIdent', 'Binder') are still the old
+-- module's. They come home when the old core goes away.
+{-# OPTIONS_GHC -fno-warn-missing-pattern-synonym-signatures -fno-warn-orphans #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
@@ -35,7 +38,6 @@
 module Language.Rzk.Foil.Syntax where
 
 import           Control.Monad.Foil             (NameBinder)
-import qualified Control.Monad.Foil             as Foil
 import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
                                                  ZipMatch (..))
 import           Control.Monad.Free.Foil.Generic (Mappings (..),
@@ -216,6 +218,9 @@ type TermT = AST NameBinder (AnnSig TypeInfo TermSig)
 
 -- | A scope: a binder together with the term it binds over.
 type ScopedTermT = ScopedAST NameBinder (AnnSig TypeInfo TermSig)
+
+-- | A scope of an untyped term.
+type ScopedTerm = ScopedAST NameBinder TermSig
 
 -- | Drop every annotation, for printing and for the surface-facing API.
 untyped :: TermT n -> Term n

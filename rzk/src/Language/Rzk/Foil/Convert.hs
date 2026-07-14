@@ -22,10 +22,9 @@
 -- they can be shown back to the user.
 module Language.Rzk.Foil.Convert where
 
-import           Control.Monad.Foil       (DExt, Distinct, NameBinder, Scope)
+import           Control.Monad.Foil       (Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
-import           Data.Functor             (void)
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Free.Syntax (Binder (..), TModality (..), VarIdent,

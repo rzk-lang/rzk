@@ -64,12 +64,18 @@ fromTerm used supply names = go
     -- is operationally the same (the checker instantiates both with the same
     -- argument), but they must be /shown/ under one name, so each scope's binder
     -- is mapped to the same display name.
+    withBinder1 :: Binder -> ScopedTerm n -> ((Binder, Rzk.Term) -> r) -> r
+    withBinder1 z s k = withBinder z $ \z' printScope -> k (z', printScope s)
+
+    withBinder2 :: Binder -> ScopedTerm n -> ScopedTerm n -> ((Binder, Rzk.Term, Rzk.Term) -> r) -> r
+    withBinder2 z s1 s2 k =
+      withBinder z $ \z' printScope -> k (z', printScope s1, printScope s2)
+
     withBinder
       :: Binder
-      -> [ScopedAST Foil.NameBinder TermSig n]
-      -> ((Binder, [Rzk.Term]) -> r)
+      -> (Binder -> (ScopedTerm n -> Rzk.Term) -> r)
       -> r
-    withBinder z scopes k = k (z', map printScope scopes)
+    withBinder z k = k z' printScope
       where
         (z', supply') = freshenBinder used supply z
         x = displayNameOf z' supply'
@@ -159,20 +165,20 @@ fromTerm used supply names = go
     -- An anonymous binder the codomain does not use is not shown: @(x₁ : A) → B@
     -- reads better as @A → B@. A user-written name is kept even when unused.
     go (TypeFun z@(BinderVar Nothing) Id arg Nothing ret)
-      | not (scopeUsesItsBinder ret) = withBinder z [ret] $ \(_z', [ret']) ->
+      | not (scopeUsesItsBinder ret) = withBinder1 z ret $ \(_z', ret') ->
           Rzk.TypeFun loc (Rzk.ParamType loc (go arg)) ret'
-    go (TypeFun z md arg Nothing ret) = withBinder z [ret] $ \(z', [ret']) ->
+    go (TypeFun z md arg Nothing ret) = withBinder1 z ret $ \(z', ret') ->
       let pat = patternToTerm (binderToPattern z')
        in case md of
             Id -> Rzk.TypeFun loc (Rzk.ParamTermType loc pat (go arg)) ret'
             _  -> Rzk.TypeFun loc (Rzk.ParamTermModalType loc pat (fromTModalityToModalColon md) (go arg)) ret'
-    go (TypeFun z md arg (Just tope) ret) = withBinder z [tope, ret] $ \(z', [tope', ret']) ->
+    go (TypeFun z md arg (Just tope) ret) = withBinder2 z tope ret $ \(z', tope', ret') ->
       let pat = patternToTerm (binderToPattern z')
        in case md of
             Id -> Rzk.TypeFun loc (Rzk.ParamTermShape loc pat (go arg) tope') ret'
             _  -> Rzk.TypeFun loc (Rzk.ParamTermModalShape loc pat (fromTModalityToModalColon md) (go arg) tope') ret'
 
-    go (TypeSigma z md a b) = withBinder z [b] $ \(z', [b']) ->
+    go (TypeSigma z md a b) = withBinder1 z b $ \(z', b') ->
       case md of
         Id -> Rzk.TypeSigma loc (binderToPattern z') (go a) b'
         _  -> Rzk.TypeSigmaModal loc (binderToPattern z') (fromTModalityToModalColon md) (go a) b'
@@ -181,23 +187,23 @@ fromTerm used supply names = go
     go (TypeId l Nothing r) = Rzk.TypeIdSimple loc (go l) (go r)
     go (App l r) = Rzk.App loc (go l) (go r)
 
-    go (Lambda z Nothing body) = withBinder z [body] $ \(z', [body']) ->
+    go (Lambda z Nothing body) = withBinder1 z body $ \(z', body') ->
       Rzk.Lambda loc [Rzk.ParamPattern loc (binderToPattern z')] body'
-    go (Lambda z (Just (LambdaParam md ty Nothing)) body) = withBinder z [body] $ \(z', [body']) ->
+    go (Lambda z (Just (LambdaParam md ty Nothing)) body) = withBinder1 z body $ \(z', body') ->
       let pat = binderToPattern z'
           param = case md of
             Id -> Rzk.ParamPatternType loc [pat] (go ty)
             _  -> Rzk.ParamPatternModalType loc [pat] (fromTModalityToModalColon md) (go ty)
        in Rzk.Lambda loc [param] body'
     go (Lambda z (Just (LambdaParam md cube (Just tope))) body) =
-      withBinder z [tope, body] $ \(z', [tope', body']) ->
+      withBinder2 z tope body $ \(z', tope', body') ->
         let pat = binderToPattern z'
             param = case md of
               Id -> Rzk.ParamPatternShape loc [pat] (go cube) tope'
               _  -> Rzk.ParamPatternModalShape loc [pat] (fromTModalityToModalColon md) (go cube) tope'
          in Rzk.Lambda loc [param] body'
 
-    go (Let z mty val body) = withBinder z [body] $ \(z', [body']) ->
+    go (Let z mty val body) = withBinder1 z body $ \(z', body') ->
       let bind = case mty of
             Nothing -> Rzk.BindPattern loc (binderToPattern z')
             Just ty -> Rzk.BindPatternType loc (binderToPattern z') (go ty)
@@ -218,7 +224,7 @@ fromTerm used supply names = go
     go (TypeModal m ty) = Rzk.ModType loc (goMod m) (go ty)
     go (ModApp m t) = Rzk.ModApp loc (goMod m) (go t)
     go (ModExtract app inn t) = Rzk.ModExtract loc (Rzk.Comp loc (goMod app) (goMod inn)) (go t)
-    go (LetMod z app inn mty val body) = withBinder z [body] $ \(z', [body']) ->
+    go (LetMod z app inn mty val body) = withBinder1 z body $ \(z', body') ->
       let bind = case mty of
             Nothing -> Rzk.BindPattern loc (binderToPattern z')
             Just ty -> Rzk.BindPatternType loc (binderToPattern z') (go ty)
