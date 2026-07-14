@@ -21,6 +21,8 @@ import           Data.List                (intercalate, intersect, nub, partitio
                                            tails, (\\))
 import           Data.Maybe               (catMaybes, fromMaybe, isNothing,
                                            mapMaybe)
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
 import           Data.String              (IsString (..))
 import           Data.Tuple               (swap)
 
@@ -1374,7 +1376,18 @@ data Context var = Context
     -- 'inAllSubContexts', a flat cube binder) via 'withRefreshedTopes'.
     -- Ordinary binder entries shift the cached value with the rest of the
     -- context, which is sound because saturation commutes with renaming.
+  , scopeNameSet           :: Set VarIdent
+    -- ^ The names bound in 'localScopes' and 'globalScopes', for the shadowing
+    -- check, which runs at every binder entry and would otherwise scan every
+    -- top-level name each time. Entries are never removed (a closed section
+    -- leaves its names behind), so this over-approximates: a member may turn
+    -- out not to shadow. That is why membership only gates the exact scan.
   , actionStack            :: [Action var]
+  , actionStackDepth       :: Int
+    -- ^ The length of 'actionStack', maintained alongside it. Every judgement
+    -- goes through 'performing', which checks the depth against
+    -- 'maxActionStackDepth'; measuring the list there made each action cost
+    -- O(depth), and so each path O(depth²).
   , currentCommand         :: Maybe Rzk.Command
   , location               :: Maybe LocationInfo
   , verbosity              :: Verbosity
@@ -1426,6 +1439,7 @@ addVarInCurrentScope var info Context{..} = Context
       case localScopes of
         []             -> [ScopeInfo Nothing [(var, info)]]
         scope : scopes -> addVarToScope var info scope : scopes
+  , scopeNameSet = addBinderNames (varOrig info) scopeNameSet
   , .. }
 
 -- | Add a top-level entry (definition, postulate, section assumption) to the
@@ -1437,7 +1451,15 @@ addVarInCurrentGlobalScope var info Context{..} = Context
       case globalScopes of
         []             -> [GlobalScopeInfo Nothing [(var, info)]]
         scope : scopes -> scope { gscopeVars = (var, info) : gscopeVars scope } : scopes
+  , scopeNameSet = addBinderNames (varOrig info) scopeNameSet
   , .. }
+
+-- | Record the name a binder introduces (if any) in the shadowing-check set.
+addBinderNames :: Binder -> Set VarIdent -> Set VarIdent
+addBinderNames orig names =
+  case binderName orig of
+    Nothing   -> names
+    Just name -> Set.insert name names
 
 applyModalityToScopes :: TModality -> [ScopeInfo var] -> [ScopeInfo var]
 applyModalityToScopes md scopes = map (addModalityToScope md) scopes
@@ -1489,7 +1511,9 @@ emptyContextUnseeded = Context
   , localTopesNFUnion = [emptyTopeContext]
   , localTopesEntailBottom = Just False
   , localTopesSaturated = SaturationUncached
+  , scopeNameSet = Set.empty
   , actionStack = []
+  , actionStackDepth = 0
   , currentCommand = Nothing
   , location = Nothing
   , verbosity = Normal
@@ -1847,8 +1871,16 @@ scopeNames Context{..} = mapMaybe entryName (concatMap scopeVars localScopes)
     entryName :: (v, VarInfo w) -> Maybe VarIdent
     entryName = binderName . varOrig . snd
 
+-- | The bound names a new name would shadow. The exact answer needs a scan of
+-- every name in scope, including every top-level definition, and the check runs
+-- at every binder entry; so the scan only runs when 'scopeNameSet' says there is
+-- something to find, which for a fresh name is almost never.
 doesShadowName :: VarIdent -> TypeCheck var [VarIdent]
-doesShadowName name = asks (filter (name ==) . scopeNames)
+doesShadowName name = do
+  mayShadow <- asks (Set.member name . scopeNameSet)
+  if mayShadow
+    then asks (filter (name ==) . scopeNames)
+    else return []
 
 checkTopLevelDuplicate :: VarIdent -> TypeCheck var ()
 checkTopLevelDuplicate name = do
@@ -2567,13 +2599,28 @@ enterModality md action = do
   -- changed); refresh it under the shifted context.
   lift $ runReaderT (withRefreshedTopes id action) newContext'
 
+-- | The depth of nested judgements ('performing') at which type checking gives
+-- up. Well-typed input stays far below it; the cap catches a non-terminating
+-- search. FIXME: expose as a parameter (@--max-depth@ and @rzk.yaml@).
+maxActionStackDepth :: Int
+maxActionStackDepth = 1000
+
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
   ctx@Context{..} <- ask
-  unless (length actionStack < 1000) $  -- FIXME: which depth is reasonable? factor out into a parameter
+  unless (actionStackDepth < maxActionStackDepth) $
     issueTypeError $ TypeErrorOther "maximum depth reached"
-  traceTypeCheck Debug (ppSomeAction (varOrigs ctx) (length actionStack) action) $
-    local (const Context { actionStack = action : actionStack, .. }) $ tc
+  let ctx' = Context
+        { actionStack = action : actionStack
+        , actionStackDepth = actionStackDepth + 1
+        , .. }
+  -- The trace message is built only when it is actually printed: at normal
+  -- verbosity 'ppSomeAction' would render the action's terms on every
+  -- judgement, and the thunk for it would be allocated on every judgement.
+  if verbosity <= Debug
+    then trace (ppSomeAction (varOrigs ctx) actionStackDepth action) $
+           local (const ctx') tc
+    else local (const ctx') tc
 
 stripTypeRestrictions :: TermT var -> TermT var
 stripTypeRestrictions (TypeRestrictedT _ty ty _restriction) = stripTypeRestrictions ty
