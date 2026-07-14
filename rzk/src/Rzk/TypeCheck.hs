@@ -2746,11 +2746,12 @@ memoizeWHNF t@(Free (AnnF info f)) = do
 -- >>> unsafeTypeCheck' $ whnfT "(\\ (x : Unit) -> x) unit"
 -- unit : Unit
 whnfT :: Eq var => TermT var -> TypeCheck var (TermT var)
+-- A memoised weak head normal form is answered before entering 'performing',
+-- which would push an action and rebuild the context just to look a value up.
+-- The caches are hit constantly (every 'typeOf' consults one), and the
+-- bookkeeping costs more than the answer.
+whnfT (Free (AnnF info _)) | Just tt' <- infoWHNF info = pure tt'
 whnfT tt = performing (ActionWHNF tt) $ case tt of
-  -- use cached result if it exists
-  Free (AnnF info _)
-    | Just tt' <- infoWHNF info -> pure tt'
-
   -- universe constants
   UniverseT{} -> pure tt
   UniverseCubeT{} -> pure tt
