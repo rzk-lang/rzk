@@ -17,7 +17,6 @@ import           System.FilePath          (dropExtension, (</>), takeDirectory,
                                            takeFileName)
 import           System.FilePath.Glob     (compile, globDir1)
 
-import           Language.Rzk.Foil.Names   (VarIdent)
 import qualified Language.Rzk.Syntax        as Rzk
 import           Rzk.Diagnostic           (locationOfTypeError,
                                            typeErrorTagInScopedContext)

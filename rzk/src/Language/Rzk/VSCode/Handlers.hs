@@ -191,15 +191,15 @@ typecheckFromConfigFile = do
           -- continues from there.
           unless (null parsedModules) $
             withProgress "rzk typechecking" Nothing Cancellable $ \reportProgress ->
-              checkModules reportProgress rootPath cachedModules parsedModules
+              checkModulesInProject reportProgress rootPath cachedModules parsedModules
   where
-    checkModules
+    checkModulesInProject
       :: (ProgressAmount -> LSP ())
       -> FilePath                -- ^ Workspace root (for progress messages).
       -> RzkTypecheckCache       -- ^ Cached results for the unchanged prefix.
       -> [(FilePath, Module)]    -- ^ Modified modules, in project order.
       -> LSP ()
-    checkModules reportProgress rootPath cache modules = go (0 :: Int) cache modules
+    checkModulesInProject reportProgress rootPath cache modules = go (0 :: Int) cache modules
       where
         total = length modules
 

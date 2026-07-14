@@ -342,6 +342,12 @@ sinkNames = unsafeCoerce
 lookupVarInfo :: Foil.Name n -> Context n -> VarInfo n
 lookupVarInfo name ctx = Foil.lookupName name (ctxVars ctx)
 
+-- | What every name in scope stands for, in no particular order.
+varInfos :: Context n -> [VarInfo n]
+varInfos ctx = IntMap.elems m
+  where
+    NameMap m = ctxVars ctx
+
 -- | Every hypothesis in scope, oldest binding first (see 'ctxBound': the ids
 -- themselves do not tell us this).
 varsInScope :: Context n -> [(Foil.Name n, VarInfo n)]

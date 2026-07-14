@@ -304,7 +304,8 @@ withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
 
     envOf bound x = case lookup x bound of
       Just v  -> Var v
-      Nothing -> Var (snd (head bound))  -- unreachable: every identifier is bound above
+      -- unreachable: every identifier occurring in the term was given a name above
+      Nothing -> error ("withOpenTerm: uncollected identifier " <> show x)
 
     namesOf bound names = NameMap $ IntMap.fromList
       [ (Foil.nameId v, display)

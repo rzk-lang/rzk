@@ -16,10 +16,8 @@
 -- whose components are projections of it.
 module Language.Rzk.Foil.Names where
 
-import           Data.Char           (chr, isDigit, ord)
+import           Data.Char           (chr, ord)
 import           Data.Coerce         (coerce)
-import           Data.Function       (on)
-import           Data.Functor        (void)
 import           Data.List           (intercalate)
 import           Data.Maybe          (fromMaybe)
 import           Data.String         (IsString (..))
@@ -73,8 +71,16 @@ newtype VarIdent = VarIdent { getVarIdent :: Rzk.VarIdent' RzkPosition }
 instance Show VarIdent where
   show = Rzk.printTree . getVarIdent
 
+-- | Identifiers are equal when they are spelled the same, whatever their source
+-- positions.
+--
+-- Written out rather than @(==) \`on\` (void . getVarIdent)@, which allocated a
+-- position-free copy of the whole syntax node and compared that: identifier
+-- equality is on the hot path (every name lookup, every refreshing of a display
+-- name, every match of two terms that mention a hole), and profiling put it at 6%
+-- of the checker's time.
 instance Eq VarIdent where
-  (==) = (==) `on` (void . getVarIdent)
+  VarIdent (Rzk.VarIdent _ x) == VarIdent (Rzk.VarIdent _ y) = x == y
 
 -- | Identifiers are ordered by name, ignoring the source position, so that the
 -- order agrees with 'Eq'. Only used to key identifiers in a set or a map.
@@ -289,7 +295,7 @@ freshenBinderLeaves used = snd . go used
 defaultVarIdents :: [VarIdent]
 defaultVarIdents =
   [ fromString name
-  | n <- [1..]
+  | n <- [1 :: Int ..]
   , let name = "x" <> map digitToSub (show n) ]
   where
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
@@ -326,5 +332,5 @@ incIndex s = T.pack $ name <> newIndex
     digitFromSub c = chr ((ord c - ord '₀') + ord '0')
     digitToSub c = chr ((ord c - ord '0') + ord '₀')
     (name, index) = break isDigitSub (T.unpack s)
-    oldIndexN = read ('0' : map digitFromSub index) -- FIXME: read
+    oldIndexN = read ('0' : map digitFromSub index) :: Int -- FIXME: read
     newIndex = map digitToSub (show (oldIndexN + 1))

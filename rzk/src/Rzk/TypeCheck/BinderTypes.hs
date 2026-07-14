@@ -24,7 +24,7 @@ import           Data.Bifoldable          (bifoldr)
 import           Data.Maybe               (fromMaybe)
 
 import           Control.Monad.Foil       (Distinct)
-import           Control.Monad.Free.Foil  (AST (Node, Var), ScopedAST (..))
+import           Control.Monad.Free.Foil  (AST (Node, Var))
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), TModality (..),

@@ -86,7 +86,7 @@ typeOf t = typeOfUncomputed t >>= whnfT
 -- A definition can depend on a section assumption without naming it: through the
 -- type of something else it uses. Closing a section has to see that dependency, and
 -- it is exactly what distinguishes an implicit assumption from an explicit one.
-freeVarsDeep :: Distinct n => TermT n -> TypeCheck n [Foil.Name n]
+freeVarsDeep :: TermT n -> TypeCheck n [Foil.Name n]
 freeVarsDeep t = do
   ctx <- ask
   let typeOfName v = varType (lookupVarInfo v ctx)

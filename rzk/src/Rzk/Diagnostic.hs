@@ -15,7 +15,6 @@ module Rzk.Diagnostic where
 import           Data.Aeson           (ToJSON (..), Value (String), object,
                                        (.=))
 
-import           Language.Rzk.Foil.Names  (VarIdent)
 import           Rzk.TypeCheck
 
 -- | Diagnostic severity, mirroring the usual LSP levels.

@@ -16,13 +16,10 @@ module Language.Rzk.VSCode.ReferenceIndex (
 ) where
 
 import           Control.Applicative      ((<|>))
-import           Data.Bifunctor           (bimap)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (listToMaybe)
 import qualified Data.Text                as T
 
-import qualified Control.Monad.Foil        as Foil
-import           Control.Monad.Free.Foil   (ScopedAST (..))
 import           Language.Rzk.Foil.Convert (withOpenTerm)
 import qualified Language.Rzk.Foil.Names   as Free
 import           Language.Rzk.Foil.Print   (fromTerm)

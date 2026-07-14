@@ -46,7 +46,6 @@ import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
                                                  substitute, unsafeEqAST)
 import           Control.Monad.Free.Foil.Generic (Mappings (..),
                                                  ZipMatchK (..),
-                                                 genericZipMatch2,
                                                  zipMatchViaChooseLeft,
                                                  zipMatchViaEq)
 import           Data.Bifoldable                (Bifoldable (..))
@@ -164,10 +163,121 @@ instance ZipMatchK (,) where
 
 instance ZipMatchK LambdaParam
 
--- | Structural matching, derived generically; 'Control.Monad.Free.Foil.alphaEquiv'
--- is driven by it.
+-- | Structural matching, written out.
+--
+-- This drives 'Control.Monad.Free.Foil.alphaEquiv' and
+-- 'Control.Monad.Free.Foil.unsafeEqAST', so it runs on every comparison of two
+-- terms — which, in a dependent typechecker, is most of the work. The generic
+-- implementation ('genericZipMatch2') builds a @Generics.Kind@ representation of
+-- the node (@fromK@) and takes it apart again (@toK@) on each one, which profiling
+-- showed to be about a fifth of the checker's time and a third of its allocation.
+-- Written out, it allocates only the result.
 instance ZipMatch TermSig where
-  zipMatch = genericZipMatch2
+  zipMatch = go
+    where
+      go :: TermSig s t -> TermSig s' t' -> Maybe (TermSig (s, s') (t, t'))
+      go UniverseF UniverseF = Just UniverseF
+      go UniverseCubeF UniverseCubeF = Just UniverseCubeF
+      go UniverseTopeF UniverseTopeF = Just UniverseTopeF
+      go CubeUnitF CubeUnitF = Just CubeUnitF
+      go CubeUnitStarF CubeUnitStarF = Just CubeUnitStarF
+      go Cube2F Cube2F = Just Cube2F
+      go Cube2_0F Cube2_0F = Just Cube2_0F
+      go Cube2_1F Cube2_1F = Just Cube2_1F
+      go CubeIF CubeIF = Just CubeIF
+      go CubeI_0F CubeI_0F = Just CubeI_0F
+      go CubeI_1F CubeI_1F = Just CubeI_1F
+      go TopeTopF TopeTopF = Just TopeTopF
+      go TopeBottomF TopeBottomF = Just TopeBottomF
+      go RecBottomF RecBottomF = Just RecBottomF
+      go UnitF UnitF = Just UnitF
+      go TypeUnitF TypeUnitF = Just TypeUnitF
+
+      go (CubeProductF a b) (CubeProductF a' b') = Just (CubeProductF (a, a') (b, b'))
+      go (CubeFlipF t) (CubeFlipF t') = Just (CubeFlipF (t, t'))
+      go (CubeUnflipF t) (CubeUnflipF t') = Just (CubeUnflipF (t, t'))
+      go (TopeEQF a b) (TopeEQF a' b') = Just (TopeEQF (a, a') (b, b'))
+      go (TopeLEQF a b) (TopeLEQF a' b') = Just (TopeLEQF (a, a') (b, b'))
+      go (TopeAndF a b) (TopeAndF a' b') = Just (TopeAndF (a, a') (b, b'))
+      go (TopeOrF a b) (TopeOrF a' b') = Just (TopeOrF (a, a') (b, b'))
+      go (TopeInvF t) (TopeInvF t') = Just (TopeInvF (t, t'))
+      go (TopeUninvF t) (TopeUninvF t') = Just (TopeUninvF (t, t'))
+      go (AppF f x) (AppF f' x') = Just (AppF (f, f') (x, x'))
+      go (PairF a b) (PairF a' b') = Just (PairF (a, a') (b, b'))
+      go (FirstF t) (FirstF t') = Just (FirstF (t, t'))
+      go (SecondF t) (SecondF t') = Just (SecondF (t, t'))
+      go (TypeAscF t ty) (TypeAscF t' ty') = Just (TypeAscF (t, t') (ty, ty'))
+
+      go (RecOrF rs) (RecOrF rs') = RecOrF <$> zipPairs rs rs'
+      go (TypeRestrictedF ty rs) (TypeRestrictedF ty' rs') =
+        TypeRestrictedF (ty, ty') <$> zipPairs rs rs'
+
+      go (TypeIdF a mtA b) (TypeIdF a' mtA' b') =
+        (\mtA'' -> TypeIdF (a, a') mtA'' (b, b')) <$> zipMaybe mtA mtA'
+      go (ReflF mx) (ReflF mx') = ReflF <$> zipRefl mx mx'
+      go (IdJF a b c d e f) (IdJF a' b' c' d' e' f') =
+        Just (IdJF (a, a') (b, b') (c, c') (d, d') (e, e') (f, f'))
+
+      -- A modality is part of the term and must agree; a 'Binder' is not (it records
+      -- the names a binder introduces, for display), so the left one is kept.
+      go (TypeFunF binder md param mtope ret) (TypeFunF _ md' param' mtope' ret')
+        | md == md' =
+            (\mtope'' -> TypeFunF binder md (param, param') mtope'' (ret, ret'))
+              <$> zipMaybe mtope mtope'
+      go (TypeSigmaF binder md a b) (TypeSigmaF _ md' a' b')
+        | md == md' = Just (TypeSigmaF binder md (a, a') (b, b'))
+      go (LetF binder mty val body) (LetF _ mty' val' body') =
+        (\mty'' -> LetF binder mty'' (val, val') (body, body')) <$> zipMaybe mty mty'
+      go (LambdaF binder mparam body) (LambdaF _ mparam' body') =
+        (\mparam'' -> LambdaF binder mparam'' (body, body')) <$> zipParam mparam mparam'
+      go (TypeModalF md ty) (TypeModalF md' ty')
+        | md == md' = Just (TypeModalF md (ty, ty'))
+      go (ModAppF md t) (ModAppF md' t')
+        | md == md' = Just (ModAppF md (t, t'))
+      go (ModExtractF app inn t) (ModExtractF app' inn' t')
+        | app == app', inn == inn' = Just (ModExtractF app inn (t, t'))
+      go (LetModF binder app inn mty val body) (LetModF _ app' inn' mty' val' body')
+        | app == app', inn == inn' =
+            (\mty'' -> LetModF binder app inn mty'' (val, val') (body, body'))
+              <$> zipMaybe mty mty'
+
+      -- A hole's name is part of the term: two differently named holes are different.
+      go (HoleF mname) (HoleF mname')
+        | mname == mname' = Just (HoleF mname)
+
+      go _ _ = Nothing
+
+-- | Match two optional fields: both present, or both absent.
+zipMaybe :: Maybe a -> Maybe b -> Maybe (Maybe (a, b))
+zipMaybe Nothing  Nothing  = Just Nothing
+zipMaybe (Just a) (Just b) = Just (Just (a, b))
+zipMaybe _        _        = Nothing
+
+-- | Match two lists of pairs (a @recOR@'s branches, an extension type's faces),
+-- which must have the same length.
+zipPairs :: [(a, b)] -> [(a', b')] -> Maybe [((a, a'), (b, b'))]
+zipPairs [] [] = Just []
+zipPairs ((a, b) : xs) ((a', b') : ys) = (((a, a'), (b, b')) :) <$> zipPairs xs ys
+zipPairs _ _ = Nothing
+
+-- | Match the endpoints of a @refl@.
+zipRefl
+  :: Maybe (a, Maybe b) -> Maybe (a', Maybe b')
+  -> Maybe (Maybe ((a, a'), Maybe (b, b')))
+zipRefl Nothing Nothing = Just Nothing
+zipRefl (Just (x, mty)) (Just (x', mty')) =
+  (\mty'' -> Just ((x, x'), mty'')) <$> zipMaybe mty mty'
+zipRefl _ _ = Nothing
+
+-- | Match a λ's domain annotation: the modality must agree.
+zipParam
+  :: Maybe (LambdaParam s t) -> Maybe (LambdaParam s' t')
+  -> Maybe (Maybe (LambdaParam (s, s') (t, t')))
+zipParam Nothing Nothing = Just Nothing
+zipParam (Just (LambdaParam md ty mtope)) (Just (LambdaParam md' ty' mtope'))
+  | md == md' = (\mtope'' -> Just (LambdaParam md (ty, ty') mtope'')) <$> zipMaybe mtope mtope'
+zipParam _ _ = Nothing
+
 
 -- * Annotations
 --

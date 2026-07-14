@@ -21,7 +21,7 @@
 -- (@makeAssumptionExplicit@), rewriting the later definitions to apply them to it.
 module Rzk.TypeCheck.Decl where
 
-import           Control.Monad             (forM, unless, when)
+import           Control.Monad             (forM, when)
 import           Control.Monad.Except      (catchError, runExcept)
 import           Control.Monad.Reader      (ask, asks, local, runReaderT)
 import           Control.Monad.Writer      (runWriterT)
@@ -397,8 +397,7 @@ addParams params = Rzk.Lambda Nothing params
 -- before it stand, the error is reported, and the rest of the module is skipped.
 -- The strict entry points turn the first collected error back into a thrown one.
 withCommand
-  :: Distinct n
-  => Rzk.Command
+  :: Rzk.Command
   -> ([Decl n] -> [TypeErrorInScopedContext] -> TypeCheck n r)
   -> TypeCheck n r
   -> TypeCheck n r

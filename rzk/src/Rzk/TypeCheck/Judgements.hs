@@ -69,9 +69,17 @@ isCubeOrTopeType t = isCubeType t || case t of
 -- * Shadowing
 
 -- | All display names in scope.
+--
+-- Only the names that are still /in scope/: a closed section's assumptions keep
+-- their entries in the name map (a scope only ever grows), but they can no longer
+-- be shadowed or duplicated. The order does not matter here, so the list is not
+-- reversed into binding order as 'varsInScope' would.
 scopeNames :: Context n -> [VarIdent]
 scopeNames ctx =
-  [ name | (_, info) <- varsInScope ctx, Just name <- [binderName (varOrig info)] ]
+  [ name
+  | v <- ctxBound ctx
+  , Just name <- [binderName (varOrig (lookupVarInfo v ctx))]
+  ]
 
 -- | The bound names a new name would shadow.
 --
