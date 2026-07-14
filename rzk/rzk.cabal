@@ -257,6 +257,7 @@ library
   exposed-modules:
       Free.Scoped
       Free.Scoped.TH
+      Language.Rzk.Foil.Syntax
       Language.Rzk.Free.Syntax
       Language.Rzk.Syntax
       Language.Rzk.Syntax.Abs
