@@ -491,11 +491,15 @@ toTerm bvars = go
 
     -- Translate a surface pattern into a 'Binder', keeping the pair\/tuple
     -- structure so the component names can be restored when rendering.
-    toBinder (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) = BinderVar Nothing
-    toBinder (Rzk.PatternVar _loc x)                    = BinderVar (Just (varIdent x))
-    toBinder (Rzk.PatternUnit _loc)                     = BinderUnit
-    toBinder (Rzk.PatternPair _loc l r)                 = BinderPair (toBinder l) (toBinder r)
-    toBinder (Rzk.PatternTuple loc p1 p2 ps)            = toBinder (desugarTuple loc (reverse ps) p2 p1)
+-- | The names a surface pattern introduces. Shared with the free-foil core
+-- (see "Language.Rzk.Foil.Convert"), so the two representations agree on what a
+-- binder is called.
+toBinder :: Rzk.Pattern -> Binder
+toBinder (Rzk.PatternVar _loc (Rzk.VarIdent _ "_")) = BinderVar Nothing
+toBinder (Rzk.PatternVar _loc x)                    = BinderVar (Just (varIdent x))
+toBinder (Rzk.PatternUnit _loc)                     = BinderUnit
+toBinder (Rzk.PatternPair _loc l r)                 = BinderPair (toBinder l) (toBinder r)
+toBinder (Rzk.PatternTuple loc p1 p2 ps)            = toBinder (desugarTuple loc (reverse ps) p2 p1)
 
 patternToTerm :: Rzk.Pattern -> Rzk.Term
 patternToTerm = ptt

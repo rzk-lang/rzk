@@ -295,6 +295,63 @@ pattern HoleT info mname = Node (AnnSig info (HoleF mname))
   UnitT, TypeUnitT, TypeAscT, TypeRestrictedT, TypeModalT, ModAppT, ModExtractT,
   LetModT, HoleT #-}
 
+-- ** Untyped patterns
+--
+-- The same constructors on 'Term' (no annotation), for the surface conversions
+-- and the printer.
+
+pattern Universe = Node UniverseF
+pattern UniverseCube = Node UniverseCubeF
+pattern UniverseTope = Node UniverseTopeF
+pattern CubeUnit = Node CubeUnitF
+pattern CubeUnitStar = Node CubeUnitStarF
+pattern Cube2 = Node Cube2F
+pattern Cube2_0 = Node Cube2_0F
+pattern Cube2_1 = Node Cube2_1F
+pattern CubeI = Node CubeIF
+pattern CubeI_0 = Node CubeI_0F
+pattern CubeI_1 = Node CubeI_1F
+pattern CubeProduct l r = Node (CubeProductF l r)
+pattern CubeFlip t = Node (CubeFlipF t)
+pattern CubeUnflip t = Node (CubeUnflipF t)
+pattern TopeTop = Node TopeTopF
+pattern TopeBottom = Node TopeBottomF
+pattern TopeEQ l r = Node (TopeEQF l r)
+pattern TopeLEQ l r = Node (TopeLEQF l r)
+pattern TopeAnd l r = Node (TopeAndF l r)
+pattern TopeOr l r = Node (TopeOrF l r)
+pattern TopeInv t = Node (TopeInvF t)
+pattern TopeUninv t = Node (TopeUninvF t)
+pattern RecBottom = Node RecBottomF
+pattern RecOr rs = Node (RecOrF rs)
+pattern TypeFun orig md param mtope ret = Node (TypeFunF orig md param mtope ret)
+pattern TypeSigma orig md a b = Node (TypeSigmaF orig md a b)
+pattern TypeId a mtA b = Node (TypeIdF a mtA b)
+pattern App f x = Node (AppF f x)
+pattern Let orig mparam val body = Node (LetF orig mparam val body)
+pattern Lambda orig mparam body = Node (LambdaF orig mparam body)
+pattern Pair l r = Node (PairF l r)
+pattern First t = Node (FirstF t)
+pattern Second t = Node (SecondF t)
+pattern Refl mx = Node (ReflF mx)
+pattern IdJ a b c d e f = Node (IdJF a b c d e f)
+pattern Unit = Node UnitF
+pattern TypeUnit = Node TypeUnitF
+pattern TypeAsc term ty = Node (TypeAscF term ty)
+pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
+pattern TypeModal md ty = Node (TypeModalF md ty)
+pattern ModApp md t = Node (ModAppF md t)
+pattern ModExtract app inn t = Node (ModExtractF app inn t)
+pattern LetMod orig app inn mparam val body = Node (LetModF orig app inn mparam val body)
+pattern Hole mname = Node (HoleF mname)
+
+{-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
+  Cube2, Cube2_0, Cube2_1, CubeI, CubeI_0, CubeI_1, CubeProduct, CubeFlip,
+  CubeUnflip, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd, TopeOr, TopeInv,
+  TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App, Let, Lambda,
+  Pair, First, Second, Refl, IdJ, Unit, TypeUnit, TypeAsc, TypeRestricted,
+  TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+
 -- * Closed constants
 --
 -- They are closed, so they generalise over the scope index: no shifting, no
