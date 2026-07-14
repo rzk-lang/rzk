@@ -8,7 +8,7 @@ module Rzk.BinderTypesSpec (spec) where
 
 import qualified Data.Text                as T
 
-import           Language.Rzk.Free.Syntax (RzkPosition (RzkPosition),
+import           Language.Rzk.Foil.Names (RzkPosition (RzkPosition),
                                            getVarIdent)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Language.Rzk.Syntax      (VarIdent' (VarIdent))
@@ -23,15 +23,14 @@ binderTypesOf :: T.Text -> [((Int, Int), String)]
 binderTypesOf src =
   case Rzk.parseModule src of
     Left err -> error ("parse error: " <> T.unpack err)
-    Right m  -> case defaultTypeCheck (localVerbosity Silent (typecheckModulesWithLocation [("<test>", m)])) of
-      Left err    -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
-      Right decls ->
-        let ds = concatMap snd decls
-        in [ (pos, view t)
-           | (v, t) <- binderTypesInScopeOf ds ds
-           , let VarIdent (RzkPosition _ mpos) _ = getVarIdent v
-           , Just pos <- [mpos]
-           ]
+    Right m  -> case typecheckModules [("<test>", m)] of
+      Left err -> error ("typecheck threw: " <> ppTypeErrorInScopedContext BottomUp err)
+      Right checked ->
+        [ (pos, view t)
+        | (v, t) <- binderTypesOfFile checked "<test>"
+        , let VarIdent (RzkPosition _ mpos) _ = getVarIdent v
+        , Just pos <- [mpos]
+        ]
   where
     view (TypeView t)       = show t
     view (ShapeView c tope) = show c <> " | " <> show tope

@@ -58,9 +58,8 @@ import           System.FilePath               (makeRelative, (</>))
 import           System.FilePath.Glob          (compile, globDir)
 
 import           Data.Char                     (isDigit)
-import           Language.Rzk.Free.Syntax      (RzkPosition (RzkPosition),
-                                                VarIdent (getVarIdent),
-                                                fromTerm')
+import           Language.Rzk.Foil.Names       (RzkPosition (RzkPosition),
+                                                VarIdent (getVarIdent))
 import           Language.Rzk.Syntax           (Module, Term,
                                                 Term' (ASCII_TypeFun, TypeFun),
                                                 VarIdent' (VarIdent),
@@ -72,7 +71,6 @@ import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
                                                 tokenizeSyntaxSymbols)
-import           Free.Scoped                   (untyped)
 import qualified Rzk.Diagnostic                as Diag
 import           Rzk.Format                    (format)
 import           Rzk.Project.Config            (ProjectConfig (include))
@@ -193,15 +191,15 @@ typecheckFromConfigFile = do
           -- continues from there.
           unless (null parsedModules) $
             withProgress "rzk typechecking" Nothing Cancellable $ \reportProgress ->
-              checkModules reportProgress rootPath cachedModules parsedModules
+              checkModulesInProject reportProgress rootPath cachedModules parsedModules
   where
-    checkModules
+    checkModulesInProject
       :: (ProgressAmount -> LSP ())
       -> FilePath                -- ^ Workspace root (for progress messages).
       -> RzkTypecheckCache       -- ^ Cached results for the unchanged prefix.
       -> [(FilePath, Module)]    -- ^ Modified modules, in project order.
       -> LSP ()
-    checkModules reportProgress rootPath cache modules = go (0 :: Int) cache modules
+    checkModulesInProject reportProgress rootPath cache modules = go (0 :: Int) cache modules
       where
         total = length modules
 
@@ -212,9 +210,13 @@ typecheckFromConfigFile = do
             (Just (T.pack (makeRelative rootPath path))))
           -- Run in lenient hole mode so holes are collected (and surfaced as
           -- hints) rather than reported as errors while editing.
+          -- Resume from the context of the last module that is still cached: it
+          -- /is/ the elaborated prefix, so nothing is replayed or re-elaborated.
+          let prefix = case reverse checked of
+                (_, entry) : _ -> cachedModuleChecked entry
+                []             -> emptyChecked
           tcResult <- liftIO $ tryTypecheck $ evaluate $
-            defaultTypeCheckWithHoles $ typecheckModulesWithLocationIncremental
-              (map (fmap cachedModuleDecls) checked) [(path, module_)]
+            recheckFrom prefix [(path, module_)]
           case tcResult of
             Left (ex :: SomeException) -> do
               -- Just a warning to be logged in the "Output" panel and not shown to the user as an error message
@@ -222,15 +224,17 @@ typecheckFromConfigFile = do
               logWarning ("Encountered an exception while typechecking:\n" <> tshow ex)
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Left err) -> do
-              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext' BottomUp err))
+              logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext BottomUp err))
               publishModuleDiagnostics path [err] []    -- sort of impossible
               publishBlockedDiagnostics rootPath path (map fst rest)
-            Right (Right ((checkedModules, errors), holeInfos)) -> do
+            Right (Right (checkedNow, holeInfos)) -> do
+              let errors = checkedErrors checkedNow
               logDebug (T.pack path <> ": " <> tshow (length errors) <> " errors, "
                 <> tshow (length holeInfos) <> " holes")
-              let decls = fromMaybe [] (lookup path checkedModules)
+              let decls = fromMaybe [] (lookup path (declViews checkedNow))
                   checked' = checked ++
-                    [(path, RzkCachedModule decls (filter ((== path) . filepathOfTypeError) errors))]
+                    [(path, RzkCachedModule checkedNow decls
+                        (filter ((== path) . filepathOfTypeError) errors))]
               cacheTypecheckedModules checked'
               publishModuleDiagnostics path errors holeInfos
               -- Stop at the first module with errors, like the batch checker
@@ -252,7 +256,7 @@ typecheckFromConfigFile = do
     -- per-source map over the old one, and @partitionBySource []@ has no
     -- "rzk" key, so the old diagnostics would survive and be re-sent. A
     -- max count of 0 forces an empty publish to the client, clearing it.
-    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext VarIdent] -> [HoleInfo] -> LSP ()
+    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [HoleInfo] -> LSP ()
     publishModuleDiagnostics path typeErrors holeInfos = do
       let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
                             | err <- typeErrors ]
@@ -290,12 +294,11 @@ typecheckFromConfigFile = do
           (Just [])                 -- related information
           Nothing                   -- data that is preserved between different calls
 
-    filepathOfTypeError :: TypeErrorInScopedContext var -> FilePath
-    filepathOfTypeError (PlainTypeError err) =
-      case location (typeErrorContext err) >>= locationFilePath of
+    filepathOfTypeError :: TypeErrorInScopedContext -> FilePath
+    filepathOfTypeError (TypeErrorInScopedContext ctx _err) =
+      case ctxLocation ctx >>= locationFilePath of
         Just path -> path
         _         -> error "the impossible happened! Please contact Abdelrahman immediately!!!"
-    filepathOfTypeError (ScopedTypeError _orig err) = filepathOfTypeError err
 
     -- Map a structured library diagnostic to an LSP diagnostic. The range is
     -- line-level (whole line), reflecting the granularity rzk currently retains.
@@ -323,7 +326,7 @@ typecheckFromConfigFile = do
       Diag.SeverityInformation -> DiagnosticSeverity_Information
       Diag.SeverityHint        -> DiagnosticSeverity_Hint
 
-    diagnosticOfTypeError :: TypeErrorInScopedContext VarIdent -> Diagnostic
+    diagnosticOfTypeError :: TypeErrorInScopedContext -> Diagnostic
     diagnosticOfTypeError = lspDiagnosticOf . Diag.diagnoseTypeError TopDown
 
     diagnosticOfHole :: HoleInfo -> Diagnostic
@@ -388,10 +391,10 @@ provideCompletions req res = do
   logDebug ("Sending " <> T.pack (show (length items)) <> " completion items")
   res $ Right $ InL items
   where
-    declsToItems :: FilePath -> (FilePath, [Decl']) -> [CompletionItem]
+    declsToItems :: FilePath -> (FilePath, [DeclView]) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
-    declToItem :: FilePath -> FilePath -> Decl' -> CompletionItem
-    declToItem rootDir path (Decl name type' _ _ _ _loc) = def
+    declToItem :: FilePath -> FilePath -> DeclView -> CompletionItem
+    declToItem rootDir path (DeclView name type' _ _loc) = def
 
       & label .~ T.pack (printTree $ getVarIdent name)
       & detail ?~ T.pack (show type')
@@ -613,34 +616,36 @@ provideHover req res = do
         -- global's type). The surface annotation from the reference index is
         -- the fallback, e.g. for mid-edit or ill-typed code with no cache.
         defCol = RefInd.positionCharacter (RefInd.rangeStart (RefInd.locationRange (RefInd.bindingDef binding)))
-        -- All cached declarations go in scope, so that splitting a pair
-        -- binder can unfold defined Σ-types from any file of the project.
-        allDecls = concatMap (cachedModuleDecls . snd) cached
+        -- The whole checked project is in scope, so that splitting a pair binder
+        -- can unfold defined Σ-types from any file of it.
+        binderTypes = case reverse cached of
+          (_, entry) : _ -> binderTypesOfFile (cachedModuleChecked entry) file
+          []             -> []
         elaboratedLocal = lookup (defLine, defCol)
           [ ((l - 1, c - 1), t)
-          | (v, t) <- binderTypesInScopeOf allDecls decls
+          | (v, t) <- binderTypes
           , let VarIdent (RzkPosition _path mpos) _ = getVarIdent v
           , Just (l, c) <- [mpos]
           ]
         signature = case elaboratedLocal of
-          Just (TypeView t)       -> formatSignature (T.unpack name) (fromTerm' t)
+          Just (TypeView t)       -> formatSignature (T.unpack name) (getRendered t)
           Just (ShapeView c tope) -> T.unpack name ++ " : " ++ show c ++ " | " ++ show tope
           Nothing -> case find declOnSameLine decls of
-            Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
+            Just d  -> formatSignature (T.unpack name) (getRendered (declViewType d))
             Nothing -> case RefInd.bindingType binding of
               Just ann -> T.unpack name ++ " : " ++ T.unpack ann
               Nothing  -> case find declWithName decls of
-                Just (Decl _ ty _ _ _ _) -> formatSignature (T.unpack name) (fromTerm' (untyped ty))
-                Nothing                  -> T.unpack name ++ " : ?"
-        declWithName (Decl v _ _ _ _ _) =
+                Just d  -> formatSignature (T.unpack name) (getRendered (declViewType d))
+                Nothing -> T.unpack name ++ " : ?"
+        declWithName (DeclView v _ _ _) =
           T.pack (printTree (getVarIdent v)) == name
-        declOnSameLine d@(Decl _ _ _ _ _ mloc) =
+        declOnSameLine d@(DeclView _ _ _ mloc) =
           declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
 
 -- | The printed name of a declaration and the range of its defining
 -- occurrence, shared by the document and workspace symbol providers.
-declNameRange :: Decl' -> (T.Text, Range)
-declNameRange (Decl name _ _ _ _ _) = (T.pack (printTree ident), range)
+declNameRange :: DeclView -> (T.Text, Range)
+declNameRange (DeclView name _ _ _) = (T.pack (printTree ident), range)
   where
     ident = getVarIdent name
     VarIdent pos _ = ident
@@ -658,10 +663,10 @@ provideSymbols req res = do
   let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
   res $ Right $ InR $ InL $ map declToSymbol decls
   where
-    declToSymbol :: Decl' -> DocumentSymbol
-    declToSymbol decl@(Decl _ type' _ _ _ _loc) = DocumentSymbol
+    declToSymbol :: DeclView -> DocumentSymbol
+    declToSymbol decl@(DeclView _ type' _ _loc) = DocumentSymbol
       { _name           = symbolName
-      , _detail         = Just (T.pack (show (untyped type')))
+      , _detail         = Just (T.pack (show type'))
       , _kind           = SymbolKind_Function
       , _tags           = Nothing
       , _deprecated     = Nothing
@@ -704,15 +709,18 @@ data IsChanged
 -- | Detects if the given path has changes in its declaration compared to what's in the cache
 isChanged :: RzkTypecheckCache -> FilePath -> LSP IsChanged
 isChanged cache path = toIsChanged $ do
-  let cacheWithoutErrors = map (fmap cachedModuleDecls) cache
   errors <- maybeToEitherLSP $ cachedModuleErrors <$> lookup path cache
   cachedDecls <- maybeToEitherLSP $ cachedModuleDecls <$> lookup path cache
   module' <- toExceptTLifted $ parseModuleFile path
+  -- Re-check this file from the context of the prefix before it.
+  let prefix = case reverse (takeWhile ((/= path) . fst) cache) of
+        (_, entry) : _ -> cachedModuleChecked entry
+        []             -> emptyChecked
   e <- toExceptTLifted $ try @SomeException $ evaluate $
-    defaultTypeCheck (typecheckModulesWithLocationIncremental (takeWhile ((/= path) . fst) cacheWithoutErrors) [(path, module')])
-  (checkedModules, errors') <- toExceptT $ return e
-  decls' <- maybeToEitherLSP $ lookup path checkedModules
-  return $ if null errors' && null errors && decls' == cachedDecls
+    recheckFrom prefix [(path, module')]
+  (checkedNow, _holes) <- toExceptT $ return e
+  decls' <- maybeToEitherLSP $ lookup path (declViews checkedNow)
+  return $ if null (checkedErrors checkedNow) && null errors && decls' == cachedDecls
     then NotChanged
     else HasChanged
   where

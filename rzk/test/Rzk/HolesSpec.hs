@@ -14,7 +14,7 @@ import           System.Environment  (lookupEnv)
 import           System.FilePath     ((</>))
 
 import qualified Language.Rzk.Syntax as Rzk
-import           Language.Rzk.Free.Syntax (VarIdent)
+import           Language.Rzk.Foil.Names (VarIdent)
 import           Rzk.Diagnostic      (typeErrorTagInScopedContext)
 import           Rzk.TypeCheck
 
@@ -27,8 +27,8 @@ holesOf src =
   case Rzk.parseModule src of
     Left err -> error ("parse error: " <> T.unpack err)
     Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
-      Left err            -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
-      Right (_, _, holes) -> holes
+      Left err          -> error ("typecheck threw: " <> ppTypeErrorInScopedContext BottomUp err)
+      Right (_, holes)  -> holes
 
 -- | Like 'holesOf', but allow-lists the given named top-level lemmas for the
 -- candidate hints (see 'withHintLemmas'\/'typecheckModulesWithHolesAndLemmas').
@@ -37,8 +37,8 @@ holesWithLemmas lemmas src =
   case Rzk.parseModule src of
     Left err -> error ("parse error: " <> T.unpack err)
     Right m  -> case typecheckModulesWithHolesAndLemmas lemmas [("<test>", m)] of
-      Left err            -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
-      Right (_, _, holes) -> holes
+      Left err         -> error ("typecheck threw: " <> ppTypeErrorInScopedContext BottomUp err)
+      Right (_, holes) -> holes
 
 names :: [HoleEntry] -> [String]
 names = map (show . holeEntryName)
@@ -52,7 +52,7 @@ errTagsOf src =
     Left err -> error ("parse error: " <> T.unpack err)
     Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
       Left err           -> [typeErrorTagInScopedContext err]
-      Right (_, errs, _) -> map typeErrorTagInScopedContext errs
+      Right (checked, _) -> map typeErrorTagInScopedContext (checkedErrors checked)
 
 -- | Like 'holesOf'/'errTagsOf', but reads a module from @test/files/@ (so a
 -- large example need not be inlined). Honours @RZK_TEST_ROOT@ like the other
@@ -64,8 +64,9 @@ checkFile name = do
   case Rzk.parseModule src of
     Left err -> error ("parse error: " <> T.unpack err)
     Right m  -> case typecheckModulesWithHoles [(name, m)] of
-      Left err           -> error ("typecheck threw: " <> ppTypeErrorInScopedContext' BottomUp err)
-      Right (_, errs, hs) -> pure (hs, map typeErrorTagInScopedContext errs)
+      Left err            -> error ("typecheck threw: " <> ppTypeErrorInScopedContext BottomUp err)
+      Right (checked, hs) ->
+        pure (hs, map typeErrorTagInScopedContext (checkedErrors checked))
 
 spec :: Spec
 spec = do

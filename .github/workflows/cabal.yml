@@ -47,10 +47,11 @@ jobs:
             constraint-flag: ""
             run-doctests: true
           # Oldest: catches drift in the lower bounds declared in rzk.cabal.
-          # Pinned to GHC 9.6.3 (the version the Nix flake pins) because that's
-          # the project's de facto minimum — base-4.18 is wide enough for the
-          # oldest-allowed versions of our deps. Newer GHCs ship a base that no
-          # published `--prefer-oldest` plan can satisfy. Needs `--reorder-
+          # Pinned to GHC 9.8.2 (the version the Nix flake pins for the native
+          # build) because that's the project's de facto minimum: free-foil
+          # needs template-haskell-2.21, which first ships with GHC 9.8. Newer
+          # GHCs ship a base that no published `--prefer-oldest` plan can
+          # satisfy. Needs `--reorder-
           # goals` so the solver picks deps in dependency order rather than
           # source order, which is what makes a coherent plan findable at all.
           # Doctest runtime check is skipped on this lane: doctest-parallel
@@ -60,7 +61,7 @@ jobs:
           # interaction, not a real lower-bounds problem. The build itself
           # (including compiling the doctest test-suite) still runs, which is
           # what verifies the lower bounds form a coherent plan.
-          - ghc: "9.6.3"
+          - ghc: "9.8.2"
             bounds: "oldest"
             constraint-flag: "--prefer-oldest --reorder-goals"
             run-doctests: false
