@@ -278,6 +278,7 @@ library
       Rzk.TypeCheck.Display
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
+      Rzk.TypeCheck.Judgements
       Rzk.TypeCheck.Monad
       Rzk.TypeCheck.Render
       Rzk.TypeCheck.Unify

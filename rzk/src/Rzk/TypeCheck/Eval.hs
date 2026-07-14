@@ -32,6 +32,7 @@ import           Control.Monad.Foil          (DExt, Distinct, NameBinder)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (Node, Var),
                                               ScopedAST (..))
+import           Data.Bifunctor              (Bifunctor)
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Free.Syntax    (Binder (..), TModality (..),
@@ -192,6 +193,67 @@ inScope orig md ty scoped k = do
   scope <- asks ctxScope
   withScopedT scope scoped $ \binder body ->
     underBinder binder orig md ty Nothing (k body)
+
+-- | Open a scoped term with a binder that has just been entered.
+--
+-- The scoped term lives in the enclosing scope, and so may be the codomain of the
+-- type a λ is being checked against, or the tope of a shape: all of them are
+-- opened under the /one/ binder the λ introduces.
+openScoped
+  :: (Bifunctor sig, Distinct l, DExt n l)
+  => NameBinder n l -> ScopedAST NameBinder sig n -> TypeCheck l (AST NameBinder sig l)
+openScoped binder scoped = do
+  scope <- asks ctxScope
+  pure (openWith scope (Foil.nameOf binder) scoped)
+
+-- | A scope that does not use its binder: the codomain of a non-dependent function
+-- type, say.
+constScope :: Distinct n => TermT n -> TypeCheck n (ScopedTermT n)
+constScope t = do
+  scope <- asks ctxScope
+  pure (Foil.withFresh scope $ \binder -> ScopedAST binder (Foil.sink t))
+
+-- | Enter the binder of an /untyped/ scope — the body of a λ, or of a let, as the
+-- user wrote it — and elaborate it into a typed one.
+--
+-- The binder comes from the term being checked, and the scopes of the /type/ it is
+-- checked against are opened under that same binder with 'openScoped'.
+elaborateUnder
+  :: Distinct n
+  => Binder -> TModality -> TermT n -> Maybe (TermT n)
+  -> ScopedTerm n
+  -> (forall l. (DExt n l, Distinct l)
+        => NameBinder n l -> Term l -> TypeCheck l (TermT l))
+  -> TypeCheck n (ScopedTermT n)
+elaborateUnder orig md ty mval scoped k = do
+  scope <- asks ctxScope
+  withScopedT scope scoped $ \binder body ->
+    ScopedAST binder <$> underBinder binder orig md ty mval (k binder body)
+
+-- | Enter the binder of an untyped scope and run a computation under it.
+--
+-- The result may not mention the new scope — but a 'ScopedAST' /hides/ its scope,
+-- so the continuation can pack whatever it built with the binder it was given and
+-- hand back as many scoped terms as it likes. That is how a λ returns its
+-- elaborated body, its shape tope and the type it turned out to have, all at once.
+checkUnderWith
+  :: Distinct n
+  => Binder -> TModality -> TermT n -> Maybe (TermT n) -> ScopedTerm n
+  -> (forall l. (DExt n l, Distinct l)
+        => NameBinder n l -> Term l -> TypeCheck l a)
+  -> TypeCheck n a
+checkUnderWith orig md ty mval scoped k = do
+  scope <- asks ctxScope
+  withScopedT scope scoped $ \binder body ->
+    underBinder binder orig md ty mval (k binder body)
+
+checkUnder
+  :: Distinct n
+  => Binder -> TModality -> TermT n -> ScopedTerm n
+  -> (forall l. (DExt n l, Distinct l)
+        => NameBinder n l -> Term l -> TypeCheck l a)
+  -> TypeCheck n a
+checkUnder orig md ty = checkUnderWith orig md ty Nothing
 
 -- * Modalities
 

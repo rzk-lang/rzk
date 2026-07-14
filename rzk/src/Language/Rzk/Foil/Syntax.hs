@@ -327,10 +327,10 @@ containsHole (Node (AnnSig _ sig)) =
 -- is taken — sinking a term into a scope that has grown since the term was built
 -- can do that — and only then is the body traversed.
 withScopedT
-  :: Foil.Distinct n
+  :: (Bifunctor sig, Foil.Distinct n)
   => Foil.Scope n
-  -> ScopedTermT n
-  -> (forall l. Foil.DExt n l => NameBinder n l -> TermT l -> r)
+  -> ScopedAST NameBinder sig n
+  -> (forall l. Foil.DExt n l => NameBinder n l -> AST NameBinder sig l -> r)
   -> r
 withScopedT scope (ScopedAST binder body) k
   | Foil.member (Foil.nameOf binder) scope =
@@ -362,9 +362,12 @@ withScopedT2 scope scoped1 scoped2 k =
     k binder body1 (openWith (Foil.extendScope binder scope) (Foil.nameOf binder) scoped2)
 
 -- | Open a scoped term with a name that is already in scope.
+--
+-- Generic in the signature, so that a λ's (untyped) body and the codomain of the
+-- Π it is checked against can be opened under one and the same binder.
 openWith
-  :: Foil.DExt n l
-  => Foil.Scope l -> Foil.Name l -> ScopedTermT n -> TermT l
+  :: (Bifunctor sig, Foil.DExt n l)
+  => Foil.Scope l -> Foil.Name l -> ScopedAST NameBinder sig n -> AST NameBinder sig l
 openWith scope name (ScopedAST binder body) =
   substitute scope (Foil.addRename (Foil.sink Foil.identitySubst) binder name) body
 

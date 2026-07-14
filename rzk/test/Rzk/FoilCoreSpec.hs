@@ -26,10 +26,11 @@ import           Language.Rzk.Free.Syntax  (Binder (..), TModality (..),
                                            VarIdent, binderName)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
-import           Rzk.TypeCheck.Display (namingOfContext, ppName)
+import           Rzk.TypeCheck.Display (namingOfContext, ppName, ppTerm)
 import           Rzk.TypeCheck.Error   (OutputDirection (..),
                                         ppTypeErrorInScopedContext)
-import           Rzk.TypeCheck.Eval    (whnfT)
+import           Rzk.TypeCheck.Eval    (nfT, whnfT)
+import           Rzk.TypeCheck.Judgements (infer, typecheck)
 import           Rzk.TypeCheck.Monad   (runTypeCheck)
 
 -- | Parse a term of the surface syntax, or fail loudly.
@@ -172,3 +173,41 @@ spec = do
         Right result ->
           alphaEquiv Foil.emptyScope (untyped result) (untyped cube2_0T)
             `shouldBe` False
+
+  describe "the checker" $ do
+    -- Parse, elaborate, infer, normalise, and print back: the whole pipeline of
+    -- the new core, end to end.
+    let inferAndShow :: T.Text -> Either String String
+        inferAndShow t =
+          case runTypeCheck (infer (core t) >>= nfT) of
+            Left err     -> Left (ppTypeErrorInScopedContext TopDown err)
+            Right result -> Right (ppTerm (namingOfContext emptyContext) (untyped result))
+
+        checkAndShow :: T.Text -> T.Text -> Either String String
+        checkAndShow t ty =
+          case runTypeCheck (infer (core ty) >>= typecheck (core t) >>= nfT) of
+            Left err     -> Left (ppTypeErrorInScopedContext TopDown err)
+            Right result -> Right (ppTerm (namingOfContext emptyContext) (untyped result))
+
+    it "infers and evaluates (\\ (x : Unit) -> x) unit" $
+      inferAndShow "(\\ (x : Unit) -> x) unit" `shouldBe` Right "unit"
+
+    it "infers a dependent function type" $
+      inferAndShow "(A : U) -> A -> A" `shouldBe` Right "(A : U) → A → A"
+
+    it "checks the identity against its type" $
+      -- the elaborated lambda carries the domain it was checked against
+      checkAndShow "\\ A -> \\ (x : A) -> x" "(A : U) -> A -> A"
+        `shouldBe` Right "\\ (A : U) → \\ (x : A) → x"
+
+    it "rejects a term that does not have the expected type" $
+      case checkAndShow "\\ A -> \\ (x : A) -> A" "(A : U) -> A -> A" of
+        Left err -> err `shouldContain` "cannot unify"
+        Right t  -> expectationFailure ("expected a type error, got " <> t)
+
+    -- A cube domain with a pair pattern: the binder binds one variable whose
+    -- components are projections, and the pattern is shown back.
+    it "checks a function from a cube point" $
+      checkAndShow "\\ A -> \\ (a : A) -> \\ ((t, s) : 2 * 2) -> a"
+                   "(A : U) -> (a : A) -> (t : 2 * 2) -> A"
+        `shouldBe` Right "\\ (A : U) → \\ (a : A) → \\ ((t, s) : 2 × 2) → a"

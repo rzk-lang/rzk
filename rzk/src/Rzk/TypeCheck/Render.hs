@@ -377,14 +377,6 @@ inScopeMaybeTope orig md ty mtope k =
         tope' <- openScoped binder tope
         localTope tope' (k binder)
 
--- | Open a scoped term with a binder that has just been entered.
-openScoped
-  :: (Distinct l, Foil.DExt n l)
-  => Foil.NameBinder n l -> ScopedTermT n -> TypeCheck l (TermT l)
-openScoped binder scoped = do
-  scope <- asks ctxScope
-  pure (openWith scope (Foil.nameOf binder) scoped)
-
 renderTermSVG :: Distinct n => TermT n -> TypeCheck n (Maybe String)
 renderTermSVG = renderTermSVGFor "red" 0 (Nothing, [])  -- red for terms, by default
 

@@ -115,6 +115,10 @@ ppTermT naming t =
     Nothing   -> ppTerm naming (untyped t)
     Just info -> ppTerm naming (untyped t) <> " : " <> ppTerm naming (untyped (infoType info))
 
+-- | What a name is called, and the (freshened) binder it was introduced by.
+displayOf :: Naming n -> Foil.Name n -> Display
+displayOf naming name = Foil.lookupName name (namingOf naming)
+
 -- | A variable as the user sees it: a pattern binder shows as its pattern
 -- (@(t, s)@), anything else by its display name.
 ppName :: Naming n -> Foil.Name n -> String
