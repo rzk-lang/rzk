@@ -27,10 +27,12 @@ import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Data.Data                (Data, cast, gmapQ)
+import           Data.Functor             (void)
 import qualified Data.IntMap              as IntMap
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
+import           Debug.Trace              (trace)   -- FIXME: use proper mechanisms for warnings
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), Display, TModality (..),
@@ -85,18 +87,41 @@ bindings (Rzk.PatternTuple loc p1 p2 ps) t =
 toTerm :: forall n. Distinct n => Scope n -> Env n -> Rzk.Term -> Term n
 toTerm scope env = go
   where
+    -- Desugar a deprecated notation, telling the user what to write instead.
+    deprecated t t' = trace msg (go t')
+      where
+        msg = unlines
+          [ "[DEPRECATED]:" <> ppBNFC'Position (Rzk.hasPosition t)
+          , "the following notation is deprecated and will be removed from future version of rzk:"
+          , "  " <> Rzk.printTree t
+          , "instead consider using the following notation:"
+          , "  " <> Rzk.printTree t'
+          ]
+
+    ppBNFC'Position Nothing = ""
+    ppBNFC'Position (Just (line_, col)) = " at line " <> show line_ <> " column " <> show col
+
+    -- A notation that is fine, but that a simpler one says as well.
+    lint orig suggestion = trace $ unlines
+      [ "[HINT]:" <> ppBNFC'Position (Rzk.hasPosition orig) <> " consider replacing"
+      , "  " <> Rzk.printTree orig
+      , "with the following"
+      , "  " <> Rzk.printTree suggestion
+      ]
+
     go :: Rzk.Term -> Term n
     go = \case
       -- ASCII aliases and deprecations are desugared exactly as before.
-      Rzk.RecOrDeprecated loc psi phi a_psi a_phi ->
-        go (Rzk.RecOr loc [Rzk.Restriction loc psi a_psi, Rzk.Restriction loc phi a_phi])
-      Rzk.TypeExtensionDeprecated loc shape type_ -> go (Rzk.TypeFun loc shape type_)
-      Rzk.TypeFun loc (Rzk.ParamTermTypeDeprecated loc' pat type_) ret ->
-        go (Rzk.TypeFun loc (Rzk.ParamTermType loc' (Free.patternToTerm pat) type_) ret)
-      Rzk.TypeFun loc (Rzk.ParamVarShapeDeprecated loc' pat cube tope) ret ->
-        go (Rzk.TypeFun loc (Rzk.ParamTermShape loc' (Free.patternToTerm pat) cube tope) ret)
-      Rzk.Lambda loc (Rzk.ParamPatternShapeDeprecated loc' pat cube tope : params) body ->
-        go (Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] cube tope : params) body)
+      t@(Rzk.RecOrDeprecated loc psi phi a_psi a_phi) -> deprecated t
+        (Rzk.RecOr loc [Rzk.Restriction loc psi a_psi, Rzk.Restriction loc phi a_phi])
+      t@(Rzk.TypeExtensionDeprecated loc shape type_) -> deprecated t
+        (Rzk.TypeFun loc shape type_)
+      t@(Rzk.TypeFun loc (Rzk.ParamTermTypeDeprecated loc' pat type_) ret) -> deprecated t
+        (Rzk.TypeFun loc (Rzk.ParamTermType loc' (Free.patternToTerm pat) type_) ret)
+      t@(Rzk.TypeFun loc (Rzk.ParamVarShapeDeprecated loc' pat cube tope) ret) -> deprecated t
+        (Rzk.TypeFun loc (Rzk.ParamTermShape loc' (Free.patternToTerm pat) cube tope) ret)
+      t@(Rzk.Lambda loc (Rzk.ParamPatternShapeDeprecated loc' pat cube tope : params) body) -> deprecated t
+        (Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] cube tope : params) body)
 
       Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
       Rzk.ASCII_Cube2_0 loc -> go (Rzk.Cube2_0 loc)
@@ -185,9 +210,15 @@ toTerm scope env = go
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = Free.unsafeTermToPattern patTerm
          in TypeFun (toBinder pat) Id (go arg) Nothing (toScopedPattern scope pat env ret)
-      Rzk.TypeFun _loc (Rzk.ParamTermShape _loc' patTerm cube tope) ret ->
-        let pat = Free.unsafeTermToPattern patTerm
-         in TypeFun (toBinder pat) Id (go cube)
+      t@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm cube tope) ret) ->
+        let lint' = case tope of
+              -- a shape whose tope is a predicate applied to exactly the binder
+              -- is the type of that predicate, and says so more directly
+              Rzk.App _loc fun arg | void arg == void patTerm ->
+                lint t (Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)
+              _ -> id
+            pat = Free.unsafeTermToPattern patTerm
+         in lint' $ TypeFun (toBinder pat) Id (go cube)
               (Just (toScopedPattern scope pat env tope))
               (toScopedPattern scope pat env ret)
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
@@ -242,11 +273,16 @@ toTerm scope env = go
             (Rzk.Lambda loc (Rzk.ParamPatternType loc' pats ty : params) body))
       Rzk.Lambda loc (Rzk.ParamPatternShape _ [] _cube _tope : params) body ->
         go (Rzk.Lambda loc params body)
-      Rzk.Lambda loc (Rzk.ParamPatternShape loc' (pat:pats) cube tope : params) body ->
-        Lambda (toBinder pat)
-          (Just (LambdaParam Id (go cube) (Just (toScopedPattern scope pat env tope))))
-          (toScopedPattern scope pat env
-            (Rzk.Lambda loc (Rzk.ParamPatternShape loc' pats cube tope : params) body))
+      t@(Rzk.Lambda loc (Rzk.ParamPatternShape loc' (pat:pats) cube tope : params) body) ->
+        let lint' = case tope of
+              Rzk.App _loc fun arg
+                | null pats && void arg == void (Free.patternToTerm pat) ->
+                    lint t (Rzk.Lambda loc (Rzk.ParamPatternType loc' [pat] fun : params) body)
+              _ -> id
+         in lint' $ Lambda (toBinder pat)
+              (Just (LambdaParam Id (go cube) (Just (toScopedPattern scope pat env tope))))
+              (toScopedPattern scope pat env
+                (Rzk.Lambda loc (Rzk.ParamPatternShape loc' pats cube tope : params) body))
 
       Rzk.Let _loc (Rzk.BindPattern _ pat) val expr ->
         Let (toBinder pat) Nothing (go val) (toScopedPattern scope pat env expr)
