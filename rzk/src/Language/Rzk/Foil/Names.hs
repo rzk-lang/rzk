@@ -27,6 +27,24 @@ import qualified Data.Text           as T
 
 import qualified Language.Rzk.Syntax as Rzk
 
+-- | An identifier that is not in scope becomes a hole under a /marked/ name.
+--
+-- A free-foil term refers to a variable by name, and an unresolved identifier has
+-- none — so the term cannot represent it. Elaboration marks it instead, and the
+-- checker reports it when it reaches it, which is what keeps the error where the
+-- identifier was used (inside the binders and topes it was written under) rather
+-- than at the top of the declaration.
+--
+-- The marker cannot be mistaken for a hole the user wrote: the grammar forbids @#@
+-- in an identifier.
+markUnresolved :: VarIdent -> VarIdent
+markUnresolved x = fromString ('#' : show x)
+
+unmarkUnresolved :: VarIdent -> Maybe VarIdent
+unmarkUnresolved x = case show x of
+  '#' : name -> Just (fromString name)
+  _          -> Nothing
+
 -- | What a bound name is shown as: the display name standing for the variable
 -- itself, and the (freshened) binder, which gives the pattern to print and the
 -- component names to fold projections back to.

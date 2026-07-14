@@ -17,7 +17,7 @@ import           Control.Monad.Foil          (NameMap)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import qualified Data.IntMap                 as IntMap
-import           Data.List                   ((\\))
+import           Data.List                   (nub, (\\))
 
 import           Language.Rzk.Foil.Print     (fromTerm)
 import           Language.Rzk.Foil.Syntax
@@ -100,9 +100,20 @@ instance Eq Rendered where
   l == r = show l == show r
 
 -- | A term as surface syntax, with the context's names.
+--
+-- A binder /inside/ the term is freshened only against the names the term itself
+-- mentions — not against everything in scope. A type shows the binder it was
+-- written with (@Σ (a : A), B a@), even where the context happens to have an @a@ of
+-- its own: the two are different variables, and shadowing is what binders are for.
 renderTerm :: Naming n -> Term n -> Rendered
-renderTerm naming =
-  Rendered . fromTerm (namingUsed naming) (namingSupply naming) (namingOf naming)
+renderTerm naming t = Rendered (fromTerm used supply (namingOf naming) t)
+  where
+    used = nub $ concat
+      [ x : binderLeaves binder
+      | v <- freeVarsOfTerm t
+      , let (x, binder) = displayOf naming v
+      ]
+    supply = defaultVarIdents \\ used
 
 -- | A term shown to the user.
 ppTerm :: Naming n -> Term n -> String

@@ -15,6 +15,7 @@
 -- candidate terms.
 module Rzk.TypeCheck.Judgements where
 
+import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (asks, local)
@@ -34,7 +35,8 @@ import           Language.Rzk.Foil.Names (Binder (..), TModality (..),
                                            binderDisplayName, binderIsCompound,
                                            binderLeaves, binderName,
                                            freshenBinderLeaves, getVarIdent,
-                                           ppVarIdentWithLocation)
+                                           ppVarIdentWithLocation,
+                                           unmarkUnresolved)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
@@ -478,14 +480,16 @@ recordHoleShape mname goalTy mshape = do
             (x, _)                                -> [x]
         ]
 
-  -- the goal shape, rendered under the shape's own binder
-  goalShape <- forM mshape $ \(orig, tope) -> do
-    let shapeBinder = fromMaybe "t" (binderName orig)
-    rendered <- withBinder (BinderVar (Just shapeBinder)) Id goal' $ \binder -> do
+  -- The goal shape, rendered under the shape's own binder. The name is read back
+  -- from the naming rather than assumed: if the declared name is taken (the goal
+  -- @(t : 2 × 2 | Δ¹×Δ¹ t)@ under an enclosing @t@), the binder is refreshed, and
+  -- the tope must be shown under the /same/ name it is.
+  goalShape <- forM mshape $ \(orig, tope) ->
+    withBinder (BinderVar (binderName orig <|> Just "t")) Id goal' $ \binder -> do
       topeAt <- openScoped binder tope
       naming' <- asks namingOfContext
-      pure (renderTerm naming' (untyped topeAt))
-    pure (shapeBinder, rendered)
+      let (shapeBinder, _) = displayOf naming' (Foil.nameOf binder)
+      pure (shapeBinder, renderTerm naming' (untyped topeAt))
 
   -- the introduction forms for the goal itself (constituents left as holes); the Π
   -- binder is freshened against the names in scope so that it does not shadow.
@@ -564,6 +568,11 @@ pruneVacuousFaces ty = return ty
 
 typecheck :: Distinct n => Term n -> TermT n -> TypeCheck n (TermT n)
 typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
+  -- An identifier that was not in scope: elaboration marked it, and this is where
+  -- it is reported, under the binders and topes it was written beneath.
+  Hole (Just name) | Just x <- unmarkUnresolved name ->
+    issueTypeError (TypeErrorUndefined x)
+
   -- A hole is checked against a known type (this is checking position): in strict
   -- mode it is reported as an unsolved hole; in lenient mode its goal and context
   -- are recorded and it is treated as inhabiting the expected type.
@@ -769,6 +778,8 @@ inferAs expectedKind term = do
 
 infer :: Distinct n => Term n -> TypeCheck n (TermT n)
 infer tt = performing (ActionInfer tt) $ case tt of
+  Hole (Just name) | Just x <- unmarkUnresolved name ->
+    issueTypeError (TypeErrorUndefined x)
   Hole _mname -> issueTypeError (TypeErrorCannotInferHole tt)
   Var x -> do
     topLevel <- isTopLevelVar x

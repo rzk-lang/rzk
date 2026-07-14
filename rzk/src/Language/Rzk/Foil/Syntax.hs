@@ -311,6 +311,15 @@ isHoleT :: TermT n -> Bool
 isHoleT HoleT{} = True
 isHoleT _       = False
 
+-- | The name of every hole in a term.
+holeNamesOf :: Term n -> [Maybe VarIdent]
+holeNamesOf (Hole mname) = [mname]
+holeNamesOf (Var _)      = []
+holeNamesOf (Node sig)   = bifoldr (\scoped acc -> holeNamesOfScoped scoped <> acc)
+                                   (\t acc -> holeNamesOf t <> acc) [] sig
+  where
+    holeNamesOfScoped (ScopedAST _ body) = holeNamesOf body
+
 -- | Does the term contain a hole anywhere (including nested, e.g. @f ?@)?
 containsHole :: TermT n -> Bool
 containsHole HoleT{} = True

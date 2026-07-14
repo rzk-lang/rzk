@@ -25,7 +25,8 @@ import           Control.Monad.Except        (runExcept)
 import           Control.Monad.Reader        (ask, asks, local,
                                               runReaderT)
 import           Control.Monad.Writer        (runWriterT)
-import           Data.List                   (intercalate, nub, tails)
+import           Data.List                   (intercalate, nub, nubBy,
+                                              tails)
 import           Data.Maybe                  (catMaybes)
 
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder)
@@ -78,6 +79,39 @@ typeOfUncomputed = \case
 
 typeOf :: Distinct n => TermT n -> TypeCheck n (TermT n)
 typeOf t = typeOfUncomputed t >>= whnfT
+
+-- | The free variables of a typed term, including those that occur only in the
+-- /types/ of the variables it mentions.
+--
+-- A definition can depend on a section assumption without naming it: through the
+-- type of something else it uses. Closing a section has to see that dependency, and
+-- it is exactly what distinguishes an implicit assumption from an explicit one.
+freeVarsDeep :: Distinct n => TermT n -> TypeCheck n [Foil.Name n]
+freeVarsDeep t = do
+  ctx <- ask
+  let typeOfName v = varType (lookupVarInfo v ctx)
+
+      -- a node's own free variables, and those of its type
+      partial term = case typeInfoOf term of
+        Nothing   -> freeVarsOfTermT term
+        Just info -> freeVarsOfTermT term <> freeVarsOfTermT (infoType info)
+
+      go vars latest
+        | null new  = vars
+        | otherwise = go (new <> vars) (foldMap (partial . typeOfName) new)
+        where
+          new = filter (`notElemName` vars) (nubNames latest)
+
+  pure (go [] (partial t))
+
+nubNames :: [Foil.Name n] -> [Foil.Name n]
+nubNames = nubBy (\a b -> Foil.nameId a == Foil.nameId b)
+
+elemName :: Foil.Name n -> [Foil.Name n] -> Bool
+elemName x = any (\y -> Foil.nameId x == Foil.nameId y)
+
+notElemName :: Foil.Name n -> [Foil.Name n] -> Bool
+notElemName x = not . elemName x
 
 -- * Substitution, in the monad
 

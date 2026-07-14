@@ -22,7 +22,7 @@ import           Test.Hspec
 import           Language.Rzk.Foil.Convert (toTermClosed)
 import           Language.Rzk.Foil.Print   (fromTermClosed)
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Free.Syntax  (Binder (..), TModality (..),
+import           Language.Rzk.Foil.Names  (Binder (..), TModality (..),
                                            VarIdent, binderName)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context

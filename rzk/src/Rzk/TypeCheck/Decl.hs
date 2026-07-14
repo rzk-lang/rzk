@@ -35,8 +35,9 @@ import           Control.Monad.Free.Foil   (AST (Var), ScopedAST (..))
 
 import           Language.Rzk.Foil.Convert (Env, toTerm)
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Foil.Names  (Binder (..), TModality (..),
-                                            VarIdent, patternToTerm, varIdentAt)
+import           Language.Rzk.Foil.Names   (Binder (..), TModality (..),
+                                            VarIdent, markUnresolved,
+                                            patternToTerm, varIdentAt)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
@@ -260,14 +261,31 @@ makeAssumptionExplicit
 makeAssumptionExplicit _ [] = pure (False {- UNUSED -}, [])
 makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
   scope <- asks ctxScope
-  let usesA t = any (sameName a) (freeVarsOfTermT t)
-      inType = usesA (varType xInfo)
-      inBody = any usesA (varValue xInfo)
-      hasAssumption = inType || inBody
-      declared = any (sameName a) (varDeclaredAssumptions xInfo)
+  -- Two notions of use, and the difference between them is what 'implicit' means.
+  -- The deep one follows the types of the variables the entry mentions, so it sees
+  -- a dependency the entry never names; the shallow one is a syntactic occurrence.
+  deepVars <- do
+    inTy <- freeVarsDeep (varType xInfo)
+    inVal <- concat <$> traverse freeVarsDeep (varValue xInfo)
+    pure (inTy <> inVal)
+  -- The syntactic check reads the declaration as the user wrote it, from the
+  -- context — not the entry, which the assumptions abstracted before this one have
+  -- already rewritten (and which therefore mentions them).
+  written <- asks (lookupVarInfo x)
+  let hasAssumption = a `elemName` deepVars
+      inTypeSyntactically = a `elemName` freeVarsOfTermT (varType written)
+      inBodySyntactically = any (elemName a . freeVarsOfTermT) (varValue written)
+      declared = a `elemName` varDeclaredAssumptions xInfo
+      -- used, but never written down: neither in the type, nor in the body, nor in
+      -- the 'uses' clause
+      implicit = and
+        [ hasAssumption
+        , not (inTypeSyntactically || inBodySyntactically)
+        , not declared
+        ]
   if hasAssumption
     then do
-      unless declared $
+      when implicit $
         issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
       let xInfo' = abstractOver scope a aInfo xInfo
           xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
@@ -276,8 +294,6 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
     else do
       (used, xs'') <- makeAssumptionExplicit assumption xs
       return (used, (x, xInfo) : xs'')
-  where
-    sameName p q = Foil.nameId p == Foil.nameId q
 
 -- | Give an entry the assumption as an explicit parameter.
 abstractOver
@@ -374,8 +390,26 @@ addParams :: [Rzk.Param] -> Rzk.Term -> Rzk.Term
 addParams []     = id
 addParams params = Rzk.Lambda Nothing params
 
-withCommand :: Rzk.Command -> TypeCheck n a -> TypeCheck n a
-withCommand command = local $ \ctx -> ctx { ctxCurrentCommand = Just command }
+-- | Run a command, recording which one it is and where.
+--
+-- An error raised anywhere in the command (or in the rest of the module, which is
+-- checked inside it) is /collected/ rather than thrown: the declarations made
+-- before it stand, the error is reported, and the rest of the module is skipped.
+-- The strict entry points turn the first collected error back into a thrown one.
+withCommand
+  :: Distinct n
+  => Rzk.Command
+  -> ([Decl n] -> [TypeErrorInScopedContext] -> TypeCheck n r)
+  -> TypeCheck n r
+  -> TypeCheck n r
+withCommand command k action =
+  local atCommand (action `catchError` \err -> k [] [err])
+  where
+    atCommand ctx = ctx
+      { ctxCurrentCommand = Just command
+      , ctxLocation = updatePosition (Rzk.hasPosition command) <$> ctxLocation ctx
+      }
+    updatePosition pos loc = loc { locationLine = fst <$> pos }
 
 -- | Elaborate a surface term in the current top-level scope: a free identifier
 -- resolves to the top-level entry it names.
@@ -385,7 +419,7 @@ elaborate term = do
   let env :: Env n
       env name = case lookupNamed name ctx of
         Just v  -> Var v
-        Nothing -> panicImpossible ("undefined variable: " <> show name)
+        Nothing -> Hole (Just (markUnresolved name))
   pure (toTerm (ctxScope ctx) env term)
 
 -- | Is a surface identifier defined at the top level?
@@ -429,19 +463,19 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandUnsetOption _loc optionName) : more ->
     announce ("Unsetting option " <> optionName) $
-      withCommand command $
+      withCommand command k $
         unsetOption optionName $
           checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandSetOption _loc optionName optionValue) : more ->
     announce ("Setting option " <> optionName <> " = " <> optionValue) $
-      withCommand command $
+      withCommand command k $
         setOption optionName optionValue $
           checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : more ->
     announce (" Checking #define " <> Rzk.printTree name) $
-      withCommand command $ do
+      withCommand command k $ do
         used <- mapM (checkDefined . varIdentAt path) vars
         paramDecls <- concat <$> mapM paramToParamDecl params
         -- Store the elaborated type and term unreduced, but memoise their WHNF on
@@ -466,7 +500,7 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
-      withCommand command $ do
+      withCommand command k $ do
         used <- mapM (checkDefined . varIdentAt path) vars
         paramDecls <- concat <$> mapM paramToParamDecl params
         tyTerm <- elaborate (addParamDecls paramDecls ty)
@@ -478,7 +512,7 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandAssume _loc names ty) : more ->
     announce (" Checking #assume "
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
-      withCommand command $ do
+      withCommand command k $ do
         tyTerm <- elaborate ty
         ty' <- typecheck tyTerm universeT
         assume (map (varIdentAt path) names) ty' $ \assumed ->
@@ -487,7 +521,7 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandCheck _loc term ty) : more ->
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $
-      withCommand command $ do
+      withCommand command k $ do
         tyTerm <- elaborate ty
         ty' <- typecheck tyTerm universeT >>= whnfT
         termTerm <- elaborate term
@@ -499,7 +533,7 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandComputeNF _loc term) : more ->
     announce (" Computing NF for " <> Rzk.printTree term) $
-      withCommand command $ do
+      withCommand command k $ do
         term' <- elaborate term >>= infer >>= nfT
         shown <- ppInContext term'
         traceTypeCheck Normal ("  " <> shown) $
@@ -507,14 +541,14 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandComputeWHNF _loc term) : more ->
     announce (" Computing WHNF for " <> Rzk.printTree term) $
-      withCommand command $ do
+      withCommand command k $ do
         term' <- elaborate term >>= infer >>= whnfT
         shown <- ppInContext term'
         traceTypeCheck Normal ("  " <> shown) $
           checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandSection _loc name) : more ->
-    withCommand command $ do
+    withCommand command k $ do
       (sectionCommands, more') <- splitSectionCommands name more
       withSection (Just name) i sectionCommands path total $ \sectionDecls sectionErrs ->
         if null sectionErrs
@@ -523,7 +557,7 @@ checkCommands path i total commands k = case commands of
           else k sectionDecls sectionErrs
 
   command@(Rzk.CommandSectionEnd _loc endName) : _more ->
-    withCommand command $
+    withCommand command k $
       issueTypeError $ TypeErrorOther $
         "unexpected #end " <> Rzk.printTree endName <> ", no section was declared!"
   where
