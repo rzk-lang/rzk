@@ -160,11 +160,14 @@ data Context n = Context
   , ctxTopesSaturated      :: CachedSaturation n
     -- ^ The saturated alternatives for this tope context, cached at the points
     -- where the tope context changes.
-  , ctxNameSet             :: Set VarIdent
-    -- ^ The names bound anywhere in scope, for the shadowing check, which runs at
-    -- every binder entry and would otherwise scan every top-level name each time.
-    -- Entries are never removed (a closed section leaves its names behind), so
-    -- this over-approximates: membership only gates the exact scan.
+  , ctxShadow              :: Map VarIdent [VarIdent]
+    -- ^ The identifiers in scope, keyed by their spelling (a 'VarIdent' compares by
+    -- spelling and carries the position of its defining occurrence, so the values
+    -- are what a shadowing report names).
+    --
+    -- The check runs at every binder entry, and scanning every name in scope each
+    -- time was O(context) per binder — with every top-level definition of a project
+    -- in scope, that is most of them.
   , ctxActionStack         :: [Action n]
   , ctxActionStackDepth    :: Int
     -- ^ The length of 'ctxActionStack', maintained alongside it: measuring the
@@ -214,7 +217,7 @@ emptyContext = Context
   , ctxTopesNFUnion = [emptyTopeContext]
   , ctxTopesEntailBottom = Just False
   , ctxTopesSaturated = SaturationUncached
-  , ctxNameSet = Set.empty
+  , ctxShadow = Map.empty
   , ctxActionStack = []
   , ctxActionStackDepth = 0
   , ctxCurrentCommand = Nothing
@@ -281,7 +284,7 @@ enterBinder binder info discrete ctx = (sinkContextUnchecked ctx)
       Nothing   -> sinkNamed (ctxNamed ctx)
       Just name -> Map.insert name (Foil.nameOf binder) (sinkNamed (ctxNamed ctx))
   , ctxDiscreteTopes = discrete <> sinkTopes (ctxDiscreteTopes ctx)
-  , ctxNameSet = addBinderNames (varOrig info) (ctxNameSet ctx)
+  , ctxShadow = addBinderNames (varOrig info) (ctxShadow ctx)
   }
 
 -- | Enter a /fresh/ binder: one the checker invents rather than one a term
@@ -296,12 +299,16 @@ withFreshBinder ctx info k =
   Foil.withFresh (ctxScope ctx) $ \binder ->
     k binder (enterBinder binder info [] ctx)
 
--- | Record the name a binder introduces (if any) in the shadowing-check set.
-addBinderNames :: Binder -> Set VarIdent -> Set VarIdent
+-- | Record the name a binder introduces (if any), for the shadowing check.
+addBinderNames :: Binder -> Map VarIdent [VarIdent] -> Map VarIdent [VarIdent]
 addBinderNames orig names =
   case binderName orig of
     Nothing   -> names
-    Just name -> Set.insert name names
+    Just name -> Map.insertWith (<>) name [name] names
+
+-- | The identifiers in scope spelled like this one.
+shadowedBy :: VarIdent -> Context n -> [VarIdent]
+shadowedBy name ctx = Map.findWithDefault [] name (ctxShadow ctx)
 
 -- * Sinking the parts
 

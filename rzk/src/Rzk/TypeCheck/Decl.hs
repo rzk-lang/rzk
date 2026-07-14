@@ -36,7 +36,7 @@ import           Control.Monad.Free.Foil   (AST (Var), ScopedAST (..))
 import           Language.Rzk.Foil.Convert (Env, toTerm)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names   (Binder (..), TModality (..),
-                                            VarIdent, markUnresolved,
+                                            VarIdent, binderName, markUnresolved,
                                             patternToTerm, varIdentAt)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
@@ -177,11 +177,17 @@ endSection errs = do
   let decls = map (toDecl loc) kept
       assumptions = [ name | (name, info) <- infos, varIsAssumption info ]
       isAssumption v = any (sameName v) assumptions
+      -- the names the section's assumptions were written with, which leave scope
+      assumedNames =
+        [ x | (_, info) <- infos, varIsAssumption info
+            , Just x <- [binderName (varOrig info)] ]
+
       -- the definitions of the section are now abstracted over its assumptions
       ctx' = foldr (uncurry insertVarInfo) ctx
         { ctxSections = closeInnermost (ctxSections ctx)
         , ctxBound = filter (not . isAssumption) (ctxBound ctx)
         , ctxNamed = Map.filter (not . isAssumption) (ctxNamed ctx)
+        , ctxShadow = foldr Map.delete (ctxShadow ctx) assumedNames
         } kept
 
       -- The section's definitions outlive it, so the enclosing section adopts

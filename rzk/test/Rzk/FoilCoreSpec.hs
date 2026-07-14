@@ -15,7 +15,6 @@ module Rzk.FoilCoreSpec (spec) where
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (Var), ScopedAST (..),
                                            alphaEquiv)
-import qualified Data.Set                 as Set
 import qualified Data.Text                as T
 import           Test.Hspec
 
@@ -144,7 +143,7 @@ spec = do
 
     it "records the names in scope for the shadowing check" $
       withFreshBinder emptyContext (hypothesis "A" universeT) $ \_bA ctxA ->
-        Set.toList (ctxNameSet ctxA) `shouldBe` ["A" :: VarIdent]
+        shadowedBy "A" ctxA `shouldBe` ["A" :: VarIdent]
 
   describe "evaluation" $ do
     -- The identity on the directed interval, applied to an endpoint. A cube-layer

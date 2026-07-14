@@ -18,16 +18,16 @@ import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import qualified Data.IntMap                 as IntMap
 import           Data.List                   (nub, (\\))
+import qualified Data.Set                    as Set
 
 import           Language.Rzk.Foil.Print     (fromTerm)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names    (Binder (..), Display,
-                                              TypeInfo (..),
-                                              VarIdent, binderIsCompound,
-                                              binderLeaves, binderToPattern,
-                                              defaultVarIdents,
+                                              TypeInfo (..), VarIdent,
+                                              binderIsCompound, binderLeaves,
+                                              binderToPattern, defaultVarIdents,
                                               freshenBinderLeaves, fromVarIdent,
-                                              refreshVar)
+                                              refreshVarIn)
 import qualified Language.Rzk.Syntax         as Rzk
 import           Rzk.TypeCheck.Context
 
@@ -57,14 +57,17 @@ namingOfContext ctx = Naming
   , namingSupply = defaultVarIdents \\ used
   }
   where
-    (entries, used) = go [] defaultVarIdents (varsInScope ctx)
+    (entries, usedSet) = go Set.empty defaultVarIdents (varsInScope ctx)
+    used = Set.toList usedSet
 
     -- Name the entries in binding order, each avoiding the names already taken.
+    -- The taken names are a set: this runs once per entry, and a context can hold
+    -- every top-level definition of a project.
     go taken _supply [] = ([], taken)
     go taken supply ((v, info) : rest) =
       case varOrig info of
         BinderVar (Just x) ->
-          let x' = refreshVar taken x
+          let x' = refreshVarIn taken x
            in name (x', BinderVar (Just x')) [x'] supply
         BinderVar Nothing ->
           case supply of
@@ -76,12 +79,12 @@ namingOfContext ctx = Naming
           -- pattern), and its leaves are freshened together.
           case supply of
             x : supply' ->
-              let binder' = freshenBinderLeaves taken binder
+              let binder' = freshenBinderLeaves (Set.toList taken) binder
                in name (x, binder') (x : binderLeaves binder') supply'
             [] -> panicImpossible "not enough fresh variables"
       where
         name display claimed supply' =
-          let (acc, taken') = go (claimed <> taken) supply' rest
+          let (acc, taken') = go (foldr Set.insert taken claimed) supply' rest
            in ((Foil.nameId v, display) : acc, taken')
 
 -- | A term already rendered for the user, kept as surface syntax rather than a

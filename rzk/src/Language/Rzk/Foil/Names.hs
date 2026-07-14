@@ -21,6 +21,8 @@ import           Data.Coerce         (coerce)
 import           Data.List           (intercalate)
 import           Data.Maybe          (fromMaybe)
 import           Data.String         (IsString (..))
+import           Data.Set            (Set)
+import qualified Data.Set            as Set
 import qualified Data.Text           as T
 
 import qualified Language.Rzk.Syntax as Rzk
@@ -309,6 +311,16 @@ defaultVarIdents =
 --
 -- >>> print $ refreshVar ["x", "y", "x₁", "z"] "x"
 -- x₂
+-- | Refresh a name against a /set/ of taken ones.
+--
+-- The list version is O(taken) per call, and naming a whole context calls it once
+-- per entry, which made reading the naming off a context with ~1500 top-level
+-- entries quadratic.
+refreshVarIn :: Set VarIdent -> VarIdent -> VarIdent
+refreshVarIn taken x
+  | x `Set.member` taken = refreshVarIn taken (incVarIdentIndex x)
+  | otherwise            = x
+
 refreshVar :: [VarIdent] -> VarIdent -> VarIdent
 refreshVar vars x
   | x `elem` vars = refreshVar vars (incVarIdentIndex x)

@@ -23,7 +23,6 @@ import           Control.Monad.Writer     (censor)
 import           Data.List                (intercalate, tails)
 import           Data.Maybe               (fromMaybe, isNothing)
 import           Data.String              (fromString)
-import qualified Data.Set                 as Set
 
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
@@ -68,31 +67,9 @@ isCubeOrTopeType t = isCubeType t || case t of
 
 -- * Shadowing
 
--- | All display names in scope.
---
--- Only the names that are still /in scope/: a closed section's assumptions keep
--- their entries in the name map (a scope only ever grows), but they can no longer
--- be shadowed or duplicated. The order does not matter here, so the list is not
--- reversed into binding order as 'varsInScope' would.
-scopeNames :: Context n -> [VarIdent]
-scopeNames ctx =
-  [ name
-  | v <- ctxBound ctx
-  , Just name <- [binderName (varOrig (lookupVarInfo v ctx))]
-  ]
-
--- | The bound names a new name would shadow.
---
--- The exact answer needs a scan of every name in scope, including every top-level
--- definition, and the check runs at every binder entry; so the scan only runs when
--- the name set says there is something to find, which for a fresh name is almost
--- never.
+-- | The names in scope a new one would shadow.
 doesShadowName :: VarIdent -> TypeCheck n [VarIdent]
-doesShadowName name = do
-  mayShadow <- asks (Set.member name . ctxNameSet)
-  if mayShadow
-    then asks (filter (name ==) . scopeNames)
-    else return []
+doesShadowName name = asks (shadowedBy name)
 
 checkTopLevelDuplicate :: Distinct n => VarIdent -> TypeCheck n ()
 checkTopLevelDuplicate name =
