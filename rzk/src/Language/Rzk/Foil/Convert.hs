@@ -20,8 +20,6 @@
 -- A pattern binder still binds exactly /one/ variable, as before: the components
 -- of @\\ (t , s) -> …@ are projections of it, and 'Binder' records the names so
 -- they can be shown back to the user.
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Rzk.Foil.Convert where
 
 import           Control.Monad.Foil       (Distinct, NameBinder, NameMap, Scope)
