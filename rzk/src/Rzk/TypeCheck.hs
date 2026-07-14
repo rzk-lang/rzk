@@ -1375,6 +1375,11 @@ data Context var = Context
     -- Ordinary binder entries shift the cached value with the rest of the
     -- context, which is sound because saturation commutes with renaming.
   , actionStack            :: [Action var]
+  , actionStackDepth       :: Int
+    -- ^ The length of 'actionStack', maintained alongside it. Every judgement
+    -- goes through 'performing', which checks the depth against
+    -- 'maxActionStackDepth'; measuring the list there made each action cost
+    -- O(depth), and so each path O(depth²).
   , currentCommand         :: Maybe Rzk.Command
   , location               :: Maybe LocationInfo
   , verbosity              :: Verbosity
@@ -1490,6 +1495,7 @@ emptyContextUnseeded = Context
   , localTopesEntailBottom = Just False
   , localTopesSaturated = SaturationUncached
   , actionStack = []
+  , actionStackDepth = 0
   , currentCommand = Nothing
   , location = Nothing
   , verbosity = Normal
@@ -2567,13 +2573,28 @@ enterModality md action = do
   -- changed); refresh it under the shifted context.
   lift $ runReaderT (withRefreshedTopes id action) newContext'
 
+-- | The depth of nested judgements ('performing') at which type checking gives
+-- up. Well-typed input stays far below it; the cap catches a non-terminating
+-- search. FIXME: expose as a parameter (@--max-depth@ and @rzk.yaml@).
+maxActionStackDepth :: Int
+maxActionStackDepth = 1000
+
 performing :: Eq var => Action var -> TypeCheck var a -> TypeCheck var a
 performing action tc = do
   ctx@Context{..} <- ask
-  unless (length actionStack < 1000) $  -- FIXME: which depth is reasonable? factor out into a parameter
+  unless (actionStackDepth < maxActionStackDepth) $
     issueTypeError $ TypeErrorOther "maximum depth reached"
-  traceTypeCheck Debug (ppSomeAction (varOrigs ctx) (length actionStack) action) $
-    local (const Context { actionStack = action : actionStack, .. }) $ tc
+  let ctx' = Context
+        { actionStack = action : actionStack
+        , actionStackDepth = actionStackDepth + 1
+        , .. }
+  -- The trace message is built only when it is actually printed: at normal
+  -- verbosity 'ppSomeAction' would render the action's terms on every
+  -- judgement, and the thunk for it would be allocated on every judgement.
+  if verbosity <= Debug
+    then trace (ppSomeAction (varOrigs ctx) actionStackDepth action) $
+           local (const ctx') tc
+    else local (const ctx') tc
 
 stripTypeRestrictions :: TermT var -> TermT var
 stripTypeRestrictions (TypeRestrictedT _ty ty _restriction) = stripTypeRestrictions ty
