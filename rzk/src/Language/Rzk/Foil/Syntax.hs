@@ -279,6 +279,30 @@ nubT :: Foil.Distinct n => [TermT n] -> [TermT n]
 nubT []       = []
 nubT (t : ts) = t : nubT (filter (not . eqT t) ts)
 
+-- * Free variables
+
+-- | The free variables of a term.
+--
+-- free-foil has @freeVarsOf@ only on its unreleased @main@, so this is written
+-- here. A name bound on the way down is dropped from the result, which is what
+-- makes the coercion back to the outer scope right.
+freeVarsOfTerm :: Term n -> [Foil.Name n]
+freeVarsOfTerm (Var x)    = [x]
+freeVarsOfTerm (Node sig) = bifoldMap freeVarsOfScoped freeVarsOfTerm sig
+  where
+    freeVarsOfScoped :: ScopedTerm n' -> [Foil.Name n']
+    freeVarsOfScoped (ScopedAST binder body) =
+      unsafeCoerce
+        [ x
+        | x <- freeVarsOfTerm body
+        , Foil.nameId x /= Foil.nameId (Foil.nameOf binder)
+        ]
+
+-- | The free variables of a typed term, not counting those that occur only in the
+-- types of its nodes ('Bifoldable' skips the annotation, as it did before).
+freeVarsOfTermT :: TermT n -> [Foil.Name n]
+freeVarsOfTermT = freeVarsOfTerm . untyped
+
 -- * Holes
 
 isHoleT :: TermT n -> Bool

@@ -279,6 +279,7 @@ library
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
       Rzk.TypeCheck.Monad
+      Rzk.TypeCheck.Render
       Rzk.TypeCheck.Unify
   other-modules:
       Paths_rzk
