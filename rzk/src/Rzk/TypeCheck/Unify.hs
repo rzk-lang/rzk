@@ -29,6 +29,7 @@ import           Rzk.TypeCheck.Display (panicImpossible)
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Monad
+import           Rzk.TypeCheck.NbE (nbeConvertible)
 
 -- | Open two scoped terms under /one/ binder, so that the two sides of a
 -- comparison are compared as functions of the same variable.
@@ -76,11 +77,23 @@ unifyViaDecompose expected actual = do
   same <- alphaEq expected actual
   if same
     then return ()
-    else case (expected, actual) of
-      (AppT _ f x, AppT _ g y) -> do
-        unify Nothing f g
-        setVariance Invariant $ unify Nothing x y
-      _ -> issueTypeError (TypeErrorOther "cannot decompose")
+    else do
+      -- The NbE fast path: a shared-evaluation βδη-conversion check over the
+      -- context-insensitive fragment. 'True' is definite (see the module's
+      -- soundness note); 'False' only means "do not know", and unification
+      -- proceeds unchanged. It must run /before/ the application decomposition
+      -- below: decomposing @f x@ against @g y@ compares the arguments pairwise,
+      -- which for βδ-equal but structurally different applications creates
+      -- false subgoals (e.g. @16 =? 128@ from @16 · 16 =? 128 + 128@) that the
+      -- old path then grinds through only to fail and unwind.
+      fastPath <- nbeConvertible expected actual
+      if fastPath
+        then return ()
+        else case (expected, actual) of
+          (AppT _ f x, AppT _ g y) -> do
+            unify Nothing f g
+            setVariance Invariant $ unify Nothing x y
+          _ -> issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyTypes :: Distinct n => TermT n -> TermT n -> TermT n -> TypeCheck n ()
 unifyTypes = unify . Just
