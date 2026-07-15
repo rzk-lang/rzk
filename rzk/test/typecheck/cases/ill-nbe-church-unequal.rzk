@@ -1,0 +1,24 @@
+#lang rzk-1
+
+-- A wrong Church-numeral equation must still be rejected: the NbE fast path
+-- (Rzk.TypeCheck.NbE) answers only "definitely convertible" or "do not
+-- know", so inequality must surface from the ordinary unification.
+
+#define CN : U
+  := (X : U) → (X → X) → X → X
+
+#define czero : CN
+  := \ X s x → x
+
+#define csucc (n : CN) : CN
+  := \ X s x → s (n X s x)
+
+#define cadd (m n : CN) : CN
+  := \ X s x → m X s (n X s x)
+
+#define c1 : CN := csucc czero
+#define c2 : CN := cadd c1 c1
+#define c4 : CN := cadd c2 c2
+
+-- 2 + 2 is not 2
+#define test-wrong : cadd c2 c2 = c2 := refl
