@@ -194,6 +194,14 @@ data Context n = Context
   , ctxHintLemmas          :: [VarIdent]
     -- ^ Named top-level definitions a hole's candidate list may draw on, beyond
     -- the local hypotheses (see 'withHintLemmas').
+  , ctxWarnOverhang        :: Bool
+    -- ^ When 'True', a restriction face or @recOR@ guard that overhangs the
+    -- local tope context (is not entailed by it, while still overlapping it)
+    -- is reported with a non-fatal hint. Off by default: deciding the
+    -- overhang costs a solver entailment per face and guard, and the overhang
+    -- is legitimate (see @happy-restrict-face-not-contained@). Enabled with
+    -- @#set-option "warn-overhang" "yes"@. The /disjointness/ error next to
+    -- it is unaffected: a vacuous face is always rejected.
   }
 
 -- | An open section: the entries declared in it, newest first.
@@ -227,6 +235,7 @@ emptyContext = Context
   , ctxHolesAreErrors = True
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
+  , ctxWarnOverhang = False
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.

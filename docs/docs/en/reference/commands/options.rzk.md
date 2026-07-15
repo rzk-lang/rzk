@@ -27,6 +27,13 @@ Controls the rendering backend for diagrams.
 - `"latex"` — enable rendering in LaTeX format
 - `"none"` — disable rendering (default)
 
+### `warn-overhang`
+
+Controls the non-fatal hint printed when a restriction face or a `recOR` guard overhangs the local tope context (is not entailed by it, while still overlapping it). Overhang is legitimate — for example, restricting with an already-defined shape whose faces live on the whole cube — so the hint is informational only. Deciding whether a face overhangs costs a solver query per face, so the hint is off by default.
+
+- `"yes"` — print the hint for overhanging faces and guards
+- `"no"` — do not check for overhang (default)
+
 ## Examples
 
 ```rzk
