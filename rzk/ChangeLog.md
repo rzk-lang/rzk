@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.10.0 — 2026-07-15
+
+This release replaces the typechecker's internal term representation and makes checking roughly nine times faster. There are no surface-language changes; for users the release is a performance release, plus one new option. For packagers and library users it is a major version: the library API is reorganised, **GHC 9.8 or newer is now required** to build rzk, and the GHCJS-built browser playground is not rebuilt for this release (see below).
+
+Changed:
+
+- **The core representation moved to free-foil** (see [#289](https://github.com/rzk-lang/rzk/pull/289), [#292](https://github.com/rzk-lang/rzk/pull/292)). The typechecker now uses [free-foil](https://github.com/fizruk/free-foil) scope-safe names (integer identifiers with type-level scope indexing) instead of the previous well-scoped de Bruijn representation, whose depth-relative variables made every comparison walk successor chains. The library module layout is reorganised accordingly (`Language.Rzk.Foil.*`, `Rzk.TypeCheck.*`), which is what makes this a major version under the PVP. This raises the compiler floor: **building rzk now requires GHC ≥ 9.8**. The surface language, CLI, and LSP behaviour are unchanged.
+
+- **The browser playground cannot be built from this release** (a consequence of the free-foil migration). The playground is compiled with GHCJS from miso's pinned 2019-era package set, which does not carry free-foil, so the GHCJS lane no longer builds and the playground is not rebuilt or redeployed for v0.10.0; the deployed playground remains the v0.9.2 one. The library itself builds under the GHC WebAssembly backend (the `wasm` CI lane), and the planned replacement is a Miso playground on that backend rather than packaging free-foil for GHCJS.
+
+- **The overhang hint is now opt-in** (see [#295](https://github.com/rzk-lang/rzk/pull/295)). The non-fatal hint that a restriction face or `#!rzk recOR` guard overhangs the local tope context required a solver query per face just to decide whether to print; it is now off by default and enabled with `#!rzk #set-option "warn-overhang" = "yes"`. A face *disjoint* from the context is still a hard error.
+
+Performance:
+
+- A full check of the sHoTT corpus goes from ~13.4 s (v0.9.2) to **~1.5 s**, and maximum residency from 2.1 GB to **233 MB**. The pieces, each measured separately:
+
+    - The free-foil representation itself removes the dominant cost of v0.9.2, variable comparison along de Bruijn successor chains (see [#289](https://github.com/rzk-lang/rzk/pull/289)).
+    - The runtime is configured with a 64 MB nursery (`-A64m`), letting the checker's short-lived allocation die young: GC time drops by two thirds (see [#290](https://github.com/rzk-lang/rzk/pull/290)).
+    - Beta reduction is spine-batched: a curried application peels the head's lambda chain into a single substitution instead of one per argument, which alone cut wall time by 28% and halved peak residency at its merge point (see [#291](https://github.com/rzk-lang/rzk/pull/291)).
+    - **Conversion checking gets a normalisation-by-evaluation fast path** (see [#293](https://github.com/rzk-lang/rzk/pull/293)). Both sides of a comparison are evaluated call-by-need into a value domain with closures and compared structurally; anything context-sensitive falls back to the ordinary unification unchanged, so the fast path cannot change what typechecks. Besides its share of the sHoTT win, this repairs a cliff on computation-heavy code: checking `#!rzk cmul c16 c16 = cadd c128 c128` for Church numerals took 177 seconds (and unbalanced variants did not finish); it now checks in 0.05 seconds.
+    - The hole-recording channel uses the CPS writer, removing an allocation on every bind of the typechecking monad (see [#294](https://github.com/rzk-lang/rzk/pull/294)); the judgement stack tracks its depth instead of measuring it (see [#288](https://github.com/rzk-lang/rzk/pull/288)).
+
 ## v0.9.2 — 2026-07-13
 
 Added:
