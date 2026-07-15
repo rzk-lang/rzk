@@ -276,7 +276,7 @@ enterBinder
   -> Context l
 enterBinder binder info discrete ctx = (sinkContextUnchecked ctx)
   { ctxScope = Foil.extendScope binder (ctxScope ctx)
-  , ctxVars = Foil.addNameBinder binder (sinkVarInfo info) (sinkVars (ctxVars ctx))
+  , ctxVars = Foil.addNameBinder binder (Foil.sink info) (sinkVars (ctxVars ctx))
   , ctxBound = Foil.nameOf binder : sinkNames (ctxBound ctx)
   , ctxNamed = case binderName (varOrig info) of
       Nothing   -> sinkNamed (ctxNamed ctx)
@@ -310,36 +310,28 @@ shadowedBy name ctx = Map.findWithDefault [] name (ctxShadow ctx)
 
 -- * Sinking the parts
 
--- | Sinking one entry is free-foil's own 'Foil.sink', field by field: a handful
--- of coercions, and no traversal of the terms.
-sinkVarInfo :: DExt n l => VarInfo n -> VarInfo l
-sinkVarInfo info = info
-  { varType = Foil.sink (varType info)
-  , varValue = Foil.sink <$> varValue info
-  , varDeclaredAssumptions = Foil.sink <$> varDeclaredAssumptions info
-  }
+instance Foil.Sinkable VarInfo where
+  sinkabilityProof rename info = info
+    { varType = Foil.sinkabilityProof rename (varType info)
+    , varValue = Foil.sinkabilityProof rename <$> varValue info
+    , varDeclaredAssumptions = rename <$> varDeclaredAssumptions info
+    }
 
-sinkModalTope :: DExt n l => ModalTope n -> ModalTope l
-sinkModalTope tope = tope { tTope = Foil.sink (tTope tope) }
+instance Foil.Sinkable ModalTope where
+  sinkabilityProof rename tope =
+    tope { tTope = Foil.sinkabilityProof rename (tTope tope) }
+
+sinkVars :: DExt n l => NameMap n (VarInfo n) -> NameMap n (VarInfo l)
+sinkVars = Foil.sinkContainer
 
 sinkTopes :: DExt n l => [ModalTope n] -> [ModalTope l]
-sinkTopes = map sinkModalTope
-
--- | Sink the /values/ of the name map, keeping its keys at the old scope, so that
--- 'Foil.addNameBinder' can supply the new one.
---
--- A coercion, not a traversal: mapping 'sinkVarInfo' over the map would rebuild
--- its whole spine at every binder, which is the cost the free-foil representation
--- exists to remove. The @DExt@ constraint carries the obligation even though the
--- coercion cannot consume it.
-sinkVars :: DExt n l => NameMap n (VarInfo n) -> NameMap n (VarInfo l)
-sinkVars = unsafeCoerce
+sinkTopes = Foil.sinkContainer
 
 sinkNamed :: DExt n l => Map VarIdent (Foil.Name n) -> Map VarIdent (Foil.Name l)
-sinkNamed = unsafeCoerce
+sinkNamed = Foil.sinkContainer
 
 sinkNames :: DExt n l => [Foil.Name n] -> [Foil.Name l]
-sinkNames = unsafeCoerce
+sinkNames = Foil.sinkContainer
 
 -- * Lookup
 

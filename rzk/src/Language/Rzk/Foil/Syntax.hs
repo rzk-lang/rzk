@@ -42,18 +42,19 @@ import qualified Control.Monad.Foil             as Foil
 import           Control.Monad.Foil.Internal    (Substitution (..),
                                                  unsafeAssertFresh)
 import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
-                                                 ZipMatch (..), alphaEquiv,
+                                                 alphaEquiv,
                                                  substitute, unsafeEqAST)
-import           Control.Monad.Free.Foil.Generic (Mappings (..),
+import           Data.ZipMatchK                 (Mappings (..),
                                                  ZipMatchK (..),
                                                  zipMatchViaChooseLeft,
                                                  zipMatchViaEq)
+import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
+import           Data.ZipMatchK.TH              (deriveZipMatchK)
 import           Data.Bifoldable                (Bifoldable (..))
 import           Data.Bifunctor                 (Bifunctor (..))
 import           Data.Bifunctor.TH              (deriveBifoldable,
                                                  deriveBifunctor,
                                                  deriveBitraversable)
-import           Data.Bitraversable             (Bitraversable (..))
 import qualified Data.IntMap                    as IntMap
 import           Generics.Kind.TH                (deriveGenericK)
 import qualified GHC.Generics                   as GHC
@@ -155,174 +156,37 @@ instance ZipMatchK Binder where
 instance ZipMatchK (Maybe VarIdent) where
   zipMatchWithK = zipMatchViaEq
 
--- | Pairs occur in the signature (a @recOR@'s branches, an extension type's
--- restrictions, the endpoints of @refl@), and the generic machinery needs to know
--- how to match them.
-instance ZipMatchK (,) where
-  zipMatchWithK (f :^: (g :^: M0)) (a1, b1) (a2, b2) = (,) <$> f a1 a2 <*> g b1 b2
-
 instance ZipMatchK LambdaParam
 
--- | Structural matching, written out.
---
--- This drives 'Control.Monad.Free.Foil.alphaEquiv' and
--- 'Control.Monad.Free.Foil.unsafeEqAST', so it runs on every comparison of two
--- terms — which, in a dependent typechecker, is most of the work. The generic
--- implementation ('genericZipMatch2') builds a @Generics.Kind@ representation of
--- the node (@fromK@) and takes it apart again (@toK@) on each one, which profiling
--- showed to be about a fifth of the checker's time and a third of its allocation.
--- Written out, it allocates only the result.
-instance ZipMatch TermSig where
-  zipMatch = go
-    where
-      go :: TermSig s t -> TermSig s' t' -> Maybe (TermSig (s, s') (t, t'))
-      go UniverseF UniverseF = Just UniverseF
-      go UniverseCubeF UniverseCubeF = Just UniverseCubeF
-      go UniverseTopeF UniverseTopeF = Just UniverseTopeF
-      go CubeUnitF CubeUnitF = Just CubeUnitF
-      go CubeUnitStarF CubeUnitStarF = Just CubeUnitStarF
-      go Cube2F Cube2F = Just Cube2F
-      go Cube2_0F Cube2_0F = Just Cube2_0F
-      go Cube2_1F Cube2_1F = Just Cube2_1F
-      go CubeIF CubeIF = Just CubeIF
-      go CubeI_0F CubeI_0F = Just CubeI_0F
-      go CubeI_1F CubeI_1F = Just CubeI_1F
-      go TopeTopF TopeTopF = Just TopeTopF
-      go TopeBottomF TopeBottomF = Just TopeBottomF
-      go RecBottomF RecBottomF = Just RecBottomF
-      go UnitF UnitF = Just UnitF
-      go TypeUnitF TypeUnitF = Just TypeUnitF
-
-      go (CubeProductF a b) (CubeProductF a' b') = Just (CubeProductF (a, a') (b, b'))
-      go (CubeFlipF t) (CubeFlipF t') = Just (CubeFlipF (t, t'))
-      go (CubeUnflipF t) (CubeUnflipF t') = Just (CubeUnflipF (t, t'))
-      go (TopeEQF a b) (TopeEQF a' b') = Just (TopeEQF (a, a') (b, b'))
-      go (TopeLEQF a b) (TopeLEQF a' b') = Just (TopeLEQF (a, a') (b, b'))
-      go (TopeAndF a b) (TopeAndF a' b') = Just (TopeAndF (a, a') (b, b'))
-      go (TopeOrF a b) (TopeOrF a' b') = Just (TopeOrF (a, a') (b, b'))
-      go (TopeInvF t) (TopeInvF t') = Just (TopeInvF (t, t'))
-      go (TopeUninvF t) (TopeUninvF t') = Just (TopeUninvF (t, t'))
-      go (AppF f x) (AppF f' x') = Just (AppF (f, f') (x, x'))
-      go (PairF a b) (PairF a' b') = Just (PairF (a, a') (b, b'))
-      go (FirstF t) (FirstF t') = Just (FirstF (t, t'))
-      go (SecondF t) (SecondF t') = Just (SecondF (t, t'))
-      go (TypeAscF t ty) (TypeAscF t' ty') = Just (TypeAscF (t, t') (ty, ty'))
-
-      go (RecOrF rs) (RecOrF rs') = RecOrF <$> zipPairs rs rs'
-      go (TypeRestrictedF ty rs) (TypeRestrictedF ty' rs') =
-        TypeRestrictedF (ty, ty') <$> zipPairs rs rs'
-
-      go (TypeIdF a mtA b) (TypeIdF a' mtA' b') =
-        (\mtA'' -> TypeIdF (a, a') mtA'' (b, b')) <$> zipMaybe mtA mtA'
-      go (ReflF mx) (ReflF mx') = ReflF <$> zipRefl mx mx'
-      go (IdJF a b c d e f) (IdJF a' b' c' d' e' f') =
-        Just (IdJF (a, a') (b, b') (c, c') (d, d') (e, e') (f, f'))
-
-      -- A modality is part of the term and must agree; a 'Binder' is not (it records
-      -- the names a binder introduces, for display), so the left one is kept.
-      go (TypeFunF binder md param mtope ret) (TypeFunF _ md' param' mtope' ret')
-        | md == md' =
-            (\mtope'' -> TypeFunF binder md (param, param') mtope'' (ret, ret'))
-              <$> zipMaybe mtope mtope'
-      go (TypeSigmaF binder md a b) (TypeSigmaF _ md' a' b')
-        | md == md' = Just (TypeSigmaF binder md (a, a') (b, b'))
-      go (LetF binder mty val body) (LetF _ mty' val' body') =
-        (\mty'' -> LetF binder mty'' (val, val') (body, body')) <$> zipMaybe mty mty'
-      go (LambdaF binder mparam body) (LambdaF _ mparam' body') =
-        (\mparam'' -> LambdaF binder mparam'' (body, body')) <$> zipParam mparam mparam'
-      go (TypeModalF md ty) (TypeModalF md' ty')
-        | md == md' = Just (TypeModalF md (ty, ty'))
-      go (ModAppF md t) (ModAppF md' t')
-        | md == md' = Just (ModAppF md (t, t'))
-      go (ModExtractF app inn t) (ModExtractF app' inn' t')
-        | app == app', inn == inn' = Just (ModExtractF app inn (t, t'))
-      go (LetModF binder app inn mty val body) (LetModF _ app' inn' mty' val' body')
-        | app == app', inn == inn' =
-            (\mty'' -> LetModF binder app inn mty'' (val, val') (body, body'))
-              <$> zipMaybe mty mty'
-
-      -- A hole's name is part of the term: two differently named holes are different.
-      go (HoleF mname) (HoleF mname')
-        | mname == mname' = Just (HoleF mname)
-
-      go _ _ = Nothing
-
--- | Match two optional fields: both present, or both absent.
-zipMaybe :: Maybe a -> Maybe b -> Maybe (Maybe (a, b))
-zipMaybe Nothing  Nothing  = Just Nothing
-zipMaybe (Just a) (Just b) = Just (Just (a, b))
-zipMaybe _        _        = Nothing
-
--- | Match two lists of pairs (a @recOR@'s branches, an extension type's faces),
--- which must have the same length.
-zipPairs :: [(a, b)] -> [(a', b')] -> Maybe [((a, a'), (b, b'))]
-zipPairs [] [] = Just []
-zipPairs ((a, b) : xs) ((a', b') : ys) = (((a, a'), (b, b')) :) <$> zipPairs xs ys
-zipPairs _ _ = Nothing
-
--- | Match the endpoints of a @refl@.
-zipRefl
-  :: Maybe (a, Maybe b) -> Maybe (a', Maybe b')
-  -> Maybe (Maybe ((a, a'), Maybe (b, b')))
-zipRefl Nothing Nothing = Just Nothing
-zipRefl (Just (x, mty)) (Just (x', mty')) =
-  (\mty'' -> Just ((x, x'), mty'')) <$> zipMaybe mty mty'
-zipRefl _ _ = Nothing
-
--- | Match a λ's domain annotation: the modality must agree.
-zipParam
-  :: Maybe (LambdaParam s t) -> Maybe (LambdaParam s' t')
-  -> Maybe (Maybe (LambdaParam (s, s') (t, t')))
-zipParam Nothing Nothing = Just Nothing
-zipParam (Just (LambdaParam md ty mtope)) (Just (LambdaParam md' ty' mtope'))
-  | md == md' = (\mtope'' -> Just (LambdaParam md (ty, ty') mtope'')) <$> zipMaybe mtope mtope'
-zipParam _ _ = Nothing
+-- | The node matcher, TH-derived: an explicit instance, so no @Generics.Kind@
+-- view is rebuilt per comparison. It drives 'Control.Monad.Free.Foil.alphaEquiv'
+-- and 'Control.Monad.Free.Foil.unsafeEqAST', run on every comparison of two
+-- terms, which in a dependent checker is most of the work. This replaced a
+-- hand-written 44-constructor matcher carried on free-foil 0.2.0 (which had no
+-- deriver); the deriver is the point of moving to this free-foil.
+deriveZipMatchK ''TermSig
 
 
 -- * Annotations
 --
--- 'AnnSig' is the old @AnnF@: the annotation is applied to the signature's /term/
--- parameter, so a node's type is a term in the node's own scope. That is what a
--- dependent theory needs, and it is why free-foil's own annotation mechanisms
--- (a plain type parameter, as BNFC's @--functor@ produces) do not fit.
+-- 'AnnSig' is @Control.Monad.Free.Foil.Annotated@'s: the annotation is a functor
+-- of the signature's /term/ parameter, so a node's type is a term in the node's
+-- own scope. free-foil provides it with a /derived/ (explicit) 'ZipMatchK', its
+-- 'Bifunctor' (recurses into the annotation, for substitution) and its
+-- 'Bifoldable' (does not, so a term's free variables exclude those only in its
+-- type). All rzk adds is how its own annotation, 'TypeInfo', matches.
 
-data AnnSig ann sig scope term = AnnSig
-  { annOf :: ann term
-  , sigOf :: sig scope term
-  } deriving (Functor, Foldable, Traversable, GHC.Generic)
-
--- | Important: does not compare the annotation.
-instance Eq (sig scope term) => Eq (AnnSig ann sig scope term) where
-  AnnSig _ l == AnnSig _ r = l == r
-
-instance (Functor ann, Bifunctor sig) => Bifunctor (AnnSig ann sig) where
-  bimap f g (AnnSig ann sig) = AnnSig (fmap g ann) (bimap f g sig)
-
--- | Important: does not fold over the annotation, so the free variables of a
--- term do not include those occurring only in its type (as before, the checker
--- adds them explicitly where it needs them).
-instance Bifoldable sig => Bifoldable (AnnSig ann sig) where
-  bifoldMap f g (AnnSig _ann sig) = bifoldMap f g sig
-
-instance (Traversable ann, Bitraversable sig) => Bitraversable (AnnSig ann sig) where
-  bitraverse f g (AnnSig ann sig) = AnnSig <$> traverse g ann <*> bitraverse f g sig
-
--- | α-equivalence must ignore the annotation, as the old structural 'Eq' did.
---
--- It does, and for free: 'zipMatch' returns the signature at /pairs/, so the
--- annotation is paired lazily and never compared, and 'Control.Monad.Free.Foil.alphaEquiv'
--- then consumes the zipped structure with 'bifoldMap', which (above) does not
--- visit the annotation. So the pair is discarded unforced — in particular the
--- universe tower inside a type is never walked.
-instance ZipMatch sig => ZipMatch (AnnSig TypeInfo sig) where
-  zipMatch (AnnSig ann1 sig1) (AnnSig ann2 sig2) =
-    AnnSig (pairTypeInfo ann1 ann2) <$> zipMatch sig1 sig2
-    where
-      pairTypeInfo (TypeInfo ty1 whnf1 nf1) (TypeInfo ty2 whnf2 nf2) = TypeInfo
-        { infoType = (ty1, ty2)
-        , infoWHNF = (,) <$> whnf1 <*> whnf2
-        , infoNF   = (,) <$> nf1 <*> nf2
-        }
+-- | The annotation is ignored in matching, so two terms differing only in their
+-- types are α-equivalent. The 'ZipMatchK' API makes an annotation holding terms
+-- construct its result through the mapping, so it cannot be dropped from the
+-- match — but it is made lazy: 'infoType' below is a thunk never forced, because
+-- 'AnnSig's 'Bifoldable' does not visit the annotation. So the 30-deep universe
+-- tower inside a type is never walked. The memoised forms are dropped (every
+-- consumer of the zipped result discards them). This is the annotation-blind
+-- pattern from the 'Control.Monad.Free.Foil.Annotated' haddock.
+instance ZipMatchK TypeInfo where
+  zipMatchWithK (f :^: M0) (TypeInfo t1 _ _) (TypeInfo t2 _ _) =
+    Just (TypeInfo (maybe (error "ZipMatchK TypeInfo: annotation forced") id (f t1 t2)) Nothing Nothing)
 
 -- * Terms
 

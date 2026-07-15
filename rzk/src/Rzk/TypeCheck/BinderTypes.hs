@@ -26,6 +26,7 @@ import           Data.Maybe               (fromMaybe)
 import           Control.Monad.Foil       (Distinct)
 import           Control.Monad.Free.Foil  (AST (Node, Var))
 
+import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), TModality (..),
                                            TypeInfo (..), VarIdent)
