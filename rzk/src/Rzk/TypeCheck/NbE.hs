@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -16,13 +17,15 @@
 -- 'False' and the fast path cannot change what typechecks, only how fast.
 --
 -- Soundness is a subset argument: 'True' is answered only for terms that are
--- βδ-convertible up to α and the one-step η above, entirely inside the
--- context-insensitive fragment of the theory. Everything context-sensitive —
--- topes and extension types ('tryRestriction', @recOR@, @recBOT@), holes,
--- modalities — evaluates to an opaque 'VAbort' that poisons the comparison
--- into 'False'. Every 'True' is therefore also a success of the old
--- unification (its α-fast-path and structural cases, with reflexive tope
--- entailment); see the NbE spike notes for the argument in full.
+-- βδ-convertible up to α and the one-step η above, with every construct whose
+-- /reduction/ consults the context — @recOR@ guard selection, holes, the
+-- modal constructs — evaluating to an opaque 'VAbort' that poisons the
+-- comparison into 'False'. Extension types and @recBOT@ are compared
+-- structurally (see the note at their 'eval' case): a structurally identical
+-- pair of restricted types is also accepted by the ordinary unification,
+-- through reflexive coverage and the cross-face coherences already proved at
+-- formation. Every 'True' is therefore also a success of the old unification;
+-- see the NbE spike notes for the argument in full.
 --
 -- The evaluator is a pure function of the 'Context': 'valueOfVar' is a plain
 -- reader-only lookup, and fresh variables for comparing closures are de
@@ -44,7 +47,7 @@
 -- and demand-driven definition unfolding (our 'unfoldNeu' — unfold at an
 -- elimination or on a comparison mismatch, comparing neutral spines first —
 -- is a simplified form of smalltt's glued evaluation). For the fragment this
--- module deliberately aborts on (tope-indexed reduction, extension types),
+-- module deliberately aborts on (tope-indexed reduction such as @recOR@),
 -- the template is cubical: Sterling and Angiuli, /Normalization for Cubical
 -- Type Theory/ (LICS 2021), and its implementation lineage in @cooltt@.
 -- What is specific to rzk is only the packaging: the all-or-nothing
@@ -83,9 +86,22 @@ data Val n
     -- closed over the environment. Covers constructors (pairs, @refl@),
     -- types (Π, Σ, identity, universes) and the cube/tope operators, which
     -- are compared structurally only (reflexivity is entailment).
-  | VAbort
+  | VAbort AbortReason
     -- ^ A construct outside the context-insensitive fragment. Poisons the
-    -- comparison: 'conv' answers 'False' the moment it meets one.
+    -- comparison: 'conv' answers 'False' the moment it meets one. The
+    -- reason records which construct, for diagnostics and probes.
+
+-- | Why evaluation gave up: which context-sensitive construct was met.
+data AbortReason
+  = AbortHole
+  | AbortRecOr
+  | AbortRecBottom
+  | AbortRestricted
+  | AbortModal
+  | AbortStuckElim
+    -- ^ An elimination of a non-canonical, non-neutral value (an abort
+    -- propagating through an application, projection or @idJ@).
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Neu n
   = NVar (Foil.Name n)
@@ -133,17 +149,27 @@ eval ctx env = \case
          VNeutral np  -> VNeutral
            (NIdJ (eval ctx env tA) (eval ctx env a) (eval ctx env tC)
                  vd (eval ctx env x) np)
-         _ -> VAbort
+         VAbort r -> VAbort r
+         _ -> VAbort AbortStuckElim
 
-  -- the context-sensitive fragment
-  HoleT{} -> VAbort
-  RecOrT{} -> VAbort
-  RecBottomT{} -> VAbort
-  TypeRestrictedT{} -> VAbort
-  TypeModalT{} -> VAbort
-  ModAppT{} -> VAbort
-  ModExtractT{} -> VAbort
-  LetModT{} -> VAbort
+  -- The context-sensitive fragment. A @recOR@ reduces by deciding its guards
+  -- against the tope context, and a hole defers by design, so both abort. The
+  -- modal constructs reduce under 'enterModality', which eval does not track.
+  --
+  -- An extension type ('TypeRestrictedT') and @recBOT@ do /not/ abort: they
+  -- fall through to the generic constructor case below and are compared
+  -- structurally. For two restricted types with structurally identical
+  -- underlying types and face lists this is sound: the ordinary unification
+  -- proves the same pair by reflexive coverage (each face entails the
+  -- disjunction containing itself) and by re-checking the cross-face
+  -- coherences that were already proved when the type was formed (entailment
+  -- is monotone in the tope context). Two @recBOT@s unify unconditionally.
+  HoleT{} -> VAbort AbortHole
+  RecOrT{} -> VAbort AbortRecOr
+  TypeModalT{} -> VAbort AbortModal
+  ModAppT{} -> VAbort AbortModal
+  ModExtractT{} -> VAbort AbortModal
+  LetModT{} -> VAbort AbortModal
 
   -- everything else is a plain constructor: evaluate the fields
   Node (AnnSig _info sig) ->
@@ -159,7 +185,8 @@ applyVal ctx f v = case f of
   VNeutral neu -> case unfoldNeu ctx neu of
     Just f' -> applyVal ctx f' v
     Nothing -> VNeutral (NApp neu v)
-  _ -> VAbort
+  VAbort r -> VAbort r
+  _ -> VAbort AbortStuckElim
 
 applyClosure :: Context n -> Closure n -> Val n -> Val n
 applyClosure ctx (Closure env binder body) v =
@@ -173,9 +200,12 @@ projVal
 projVal ctx neu pick v = case forceVal ctx v of
   VCon (PairF l r) -> pick l r
   VNeutral n       -> VNeutral (neu n)
-  _                -> VAbort
+  VAbort r         -> VAbort r
+  _                -> VAbort AbortStuckElim
 
 -- | Unfold a neutral's head definition once (replaying the spine), if it has one.
+-- A top-level definition's value is cached (see 'cachedDefVal'); a local value
+-- (rare at the head of a neutral) is evaluated in place.
 unfoldNeu :: Context n -> Neu n -> Maybe (Val n)
 unfoldNeu ctx = \case
   NVar x   -> eval ctx IntMap.empty <$> varValue (lookupVarInfo x ctx)
@@ -187,7 +217,8 @@ unfoldNeu ctx = \case
     (\vp -> case forceVal ctx vp of
         VCon ReflF{} -> d
         VNeutral np  -> VNeutral (NIdJ tA a tC d x np)
-        _            -> VAbort)
+        VAbort r     -> VAbort r
+        _            -> VAbort AbortStuckElim)
     <$> unfoldNeu ctx n
 
 -- | Unfold definitions at the head until the value is canonical or truly stuck.
@@ -200,8 +231,8 @@ forceVal _ v = v
 -- | 'False' means "do not know", never a definite inequality.
 conv :: Context n -> Int -> Val n -> Val n -> Bool
 conv ctx lvl l r = case (forceVal ctx l, forceVal ctx r) of
-  (VAbort, _) -> False
-  (_, VAbort) -> False
+  (VAbort _, _) -> False
+  (_, VAbort _) -> False
 
   (VLam c1, VLam c2) ->
     conv ctx (lvl + 1) (applyClosure ctx c1 (freshV lvl)) (applyClosure ctx c2 (freshV lvl))
@@ -256,3 +287,4 @@ convNeu ctx lvl = go
 nbeConvertible :: TermT n -> TermT n -> TypeCheck n Bool
 nbeConvertible t1 t2 = asks $ \ctx ->
   conv ctx 0 (eval ctx IntMap.empty t1) (eval ctx IntMap.empty t2)
+
