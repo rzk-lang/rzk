@@ -1080,26 +1080,9 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                 Nothing   -> pure t
                 Just term -> whnfT term
 
-            AppT ty f x ->
-              whnfT f >>= \case
-                LambdaT _ty _orig _arg body ->
-                  instantiate body x >>= whnfT
-                f' -> typeOf f' >>= \case
-                  TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
-                    x' <- enterModality md $ nfT x
-                    sideCondition <- instantiate tope x' >>= nfT
-                    pure (topeAndT (AppT ty f' x') sideCondition)
-                  -- FIXME: this seems to be a hack, and will not work in all
-                  -- situations! FIXME: for now, it seems to add ~2x slowdown
-                  TypeFunT info _orig md _param _mtope ret@(ScopedAST _ TypeRestrictedT{})
-                    | TypeRestrictedT{} <- infoType info -> pure (AppT ty f' x)
-                    | otherwise -> do
-                        x' <- enterModality md $ whnfT x
-                        ret' <- instantiate ret x'
-                        tryRestriction ret' >>= \case -- FIXME: too many unnecessary checks?
-                          Nothing  -> pure (AppT ty { infoType = ret' } f' x')
-                          Just tt' -> whnfT tt'
-                  _ -> pure (AppT ty f' x)
+            AppT{} -> do
+              scope <- asks ctxScope
+              uncurry (applySpine scope) (collectAppSpine tt)
 
             LetT _ty _orig _mparam val body ->
               instantiate body val >>= whnfT
@@ -1155,6 +1138,91 @@ firstMatching [] = pure Nothing
 firstMatching ((tope, t) : rest) = checkTope tope >>= \case
   True  -> pure (Just t)
   False -> firstMatching rest
+
+-- * Application, reducing a whole spine at once
+--
+-- A curried application @f x y z@ is a left-nested tower of 'AppT'. Reducing it
+-- one argument at a time rebuilds the intermediate lambdas — @f x@ produces
+-- @\\ y z -> …@ only for the next argument to tear it apart — and each rebuild is
+-- a full 'substituteT' traversal (~70% of beta reductions on sHoTT are such
+-- spines). Instead, collect the spine, then peel the head's syntactic lambda
+-- chain into a /single/ substitution: @\\ a b c -> body@ applied to @x y z@ maps
+-- @{a↦x, b↦y, c↦z}@ and substitutes into @body@ once.
+--
+-- Sound because 'whnfT' of a lambda is the identity — a lambda, its binder
+-- shape-restricted or not, is already in weak head normal form — so the
+-- intermediate lambdas this skips building would have been returned unchanged,
+-- and substitution composes. Beta reduction ignores the binder's domain (the
+-- shape restriction is a typing obligation, not enforced during reduction); the
+-- tope and modality side-conditions fire only for a /neutral/ function of
+-- shape-restricted function type, which is never a lambda. The moment the body
+-- is not a syntactic lambda the substitution is applied and control returns to
+-- 'whnfT' via 'applySpine'; a neutral head goes to 'applyWhnfFun', unchanged.
+
+-- | The head of an application spine and its arguments, in application order,
+-- each paired with the type annotation of its 'AppT' node (needed to rebuild a
+-- neutral application).
+collectAppSpine :: TermT n -> (TermT n, [(TypeInfo (TermT n), TermT n)])
+collectAppSpine = go []
+  where
+    go acc (AppT ty f x) = go ((ty, x) : acc) f
+    go acc h             = (h, acc)
+
+-- | Apply a function term to a spine of arguments, reducing.
+applySpine
+  :: Distinct n
+  => Foil.Scope n -> TermT n -> [(TypeInfo (TermT n), TermT n)] -> TypeCheck n (TermT n)
+applySpine _ h [] = whnfT h
+applySpine scope h pairs = whnfT h >>= \h' -> case h' of
+  LambdaT _ _ _ (ScopedAST binder body) | (_, x) : rest <- pairs ->
+    peelLambdas scope (Foil.addSubst Foil.identitySubst binder x) body rest
+  _ -> applyNeutral scope h' pairs
+
+-- | Peel the head's syntactic lambda chain into one substitution, then reduce.
+-- @subst@ maps the binders consumed so far to their arguments; @body@ is the
+-- current lambda's body, at the scope those binders extended into.
+peelLambdas
+  :: forall i n. Distinct n
+  => Foil.Scope n -> Foil.Substitution TermT i n -> TermT i
+  -> [(TypeInfo (TermT n), TermT n)] -> TypeCheck n (TermT n)
+peelLambdas scope subst body pairs = case pairs of
+  [] -> whnfT (substituteT scope subst body)
+  (_, x) : rest -> case body of
+    LambdaT _ _ _ (ScopedAST binder body') ->
+      peelLambdas scope (Foil.addSubst subst binder x) body' rest
+    _ -> applySpine scope (substituteT scope subst body) pairs
+
+-- | Apply a non-lambda (already WHNF) function to a spine, one argument at a
+-- time: this is the type-directed part of application, unchanged from before.
+applyNeutral
+  :: Distinct n
+  => Foil.Scope n -> TermT n -> [(TypeInfo (TermT n), TermT n)] -> TypeCheck n (TermT n)
+applyNeutral _ h [] = pure h
+applyNeutral scope h ((ty, x) : rest) = do
+  r <- applyWhnfFun ty h x
+  if null rest then pure r else applySpine scope r rest
+
+-- | Apply a non-lambda function @f'@ (already WHNF) to one argument @x@. A
+-- shape-restricted function contributes a tope side-condition; a function whose
+-- return type is restricted refines the application's type; everything else is a
+-- neutral application. Extracted verbatim from the old single-argument @AppT@ case.
+applyWhnfFun :: Distinct n => TypeInfo (TermT n) -> TermT n -> TermT n -> TypeCheck n (TermT n)
+applyWhnfFun ty f' x = typeOf f' >>= \case
+  TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
+    x' <- enterModality md $ nfT x
+    sideCondition <- instantiate tope x' >>= nfT
+    pure (topeAndT (AppT ty f' x') sideCondition)
+  -- FIXME: this seems to be a hack, and will not work in all
+  -- situations! FIXME: for now, it seems to add ~2x slowdown
+  TypeFunT info _orig md _param _mtope ret@(ScopedAST _ TypeRestrictedT{})
+    | TypeRestrictedT{} <- infoType info -> pure (AppT ty f' x)
+    | otherwise -> do
+        x' <- enterModality md $ whnfT x
+        ret' <- instantiate ret x'
+        tryRestriction ret' >>= \case -- FIXME: too many unnecessary checks?
+          Nothing  -> pure (AppT ty { infoType = ret' } f' x')
+          Just tt' -> whnfT tt'
+  _ -> pure (AppT ty f' x)
 
 -- * Normal form of the tope layer
 
