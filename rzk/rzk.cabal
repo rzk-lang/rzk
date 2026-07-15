@@ -300,8 +300,8 @@ library
     , bytestring >=0.10.8.2 && <1
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
-    , free-foil ==0.2.*
-    , kind-generics >=0.4 && <1
+    , free-foil >=0.3.2 && <0.4
+    , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
     , template-haskell >=2.14.0.0 && <3
@@ -351,8 +351,8 @@ executable rzk
     , bytestring >=0.10.8.2 && <1
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
-    , free-foil ==0.2.*
-    , kind-generics >=0.4 && <1
+    , free-foil >=0.3.2 && <0.4
+    , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
     , rzk
@@ -386,8 +386,8 @@ test-suite doctests
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
     , doctest-parallel >=0.3 && <1
-    , free-foil ==0.2.*
-    , kind-generics >=0.4 && <1
+    , free-foil >=0.3.2 && <0.4
+    , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
     , rzk
@@ -430,10 +430,10 @@ test-suite rzk-test
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
     , filepath >=1.4 && <2
-    , free-foil ==0.2.*
+    , free-foil >=0.3.2 && <0.4
     , hspec >=2.7 && <3
     , hspec-discover >=2.7 && <3
-    , kind-generics >=0.4 && <1
+    , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
     , rzk

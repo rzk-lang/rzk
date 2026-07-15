@@ -35,6 +35,7 @@ import           Control.Monad.Free.Foil     (AST (Node, Var),
                                               ScopedAST (..))
 import           Data.Bifunctor              (Bifunctor)
 
+import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names    (Binder (..), TModality (..),
                                               TypeInfo (..), VarIdent)

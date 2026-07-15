@@ -2,7 +2,9 @@ resolver: lts-24.34
 packages:
   - rzk
 
-# kind-generics-th is not in the snapshot; free-foil's generic deriving
-# (deriveGenericK, used for the ZipMatchK instances) needs it.
+# Not in the snapshot: free-foil 0.3.2 (its ZipMatchK TH deriver, explicit
+# annotated ZipMatchK, and sinkContainer are what the core relies on) and the
+# kind-generics deriving it needs.
 extra-deps:
+  - free-foil-0.3.2
   - kind-generics-th-0.2.3.3
