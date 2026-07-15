@@ -24,7 +24,7 @@ import           Control.Monad               (forM, forM_, unless)
 import           Control.Monad.Except        (runExcept)
 import           Control.Monad.Reader        (ask, asks, local,
                                               runReaderT)
-import           Control.Monad.Writer        (runWriterT)
+import           Control.Monad.Trans.Writer.CPS (runWriterT)
 import           Data.List                   (intercalate, nub, nubBy,
                                               tails)
 import           Data.Maybe                  (catMaybes)
