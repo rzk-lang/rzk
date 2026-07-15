@@ -121,6 +121,9 @@ localRenderBackend backend = local $ \ctx -> ctx { ctxRenderBackend = backend }
 localHideTerm :: Bool -> TypeCheck n a -> TypeCheck n a
 localHideTerm hide = local $ \ctx -> ctx { ctxRenderHideTerm = hide }
 
+localWarnOverhang :: Bool -> TypeCheck n a -> TypeCheck n a
+localWarnOverhang warn = local $ \ctx -> ctx { ctxWarnOverhang = warn }
+
 -- | Render the enclosed action with the proof term hidden.
 hidingTerm :: TypeCheck n a -> TypeCheck n a
 hidingTerm = localHideTerm True

@@ -20,7 +20,7 @@
 --   * and the solver normalises the topes it reasons about ('nfTope').
 module Rzk.TypeCheck.Eval where
 
-import           Control.Monad               (forM, forM_, unless)
+import           Control.Monad               (forM, forM_, unless, when)
 import           Control.Monad.Except        (runExcept)
 import           Control.Monad.Reader        (ask, asks, local,
                                               runReaderT)
@@ -865,16 +865,21 @@ checkTopeAgainstContext what tope = do
     if disjoint && not (containsHole tope)
       then issueTypeError (TypeErrorTopeContextDisjoint tope topes)
       else do
-        entailed <- checkTopeEntails tope     -- tope |- AND(accessible context)
-        unless entailed $ do
-          naming <- asks namingOfContext
-          traceTypeCheck Normal
-            (intercalate "\n" $
-              [ "Warning: " <> what <> " overhangs the local tope context"
-              , "  " <> ppTerm naming (untyped tope)
-              , "is not entailed by the local context (normalised)"
-              ] <> map (("  " <>) . ppTerm naming . untyped) topes)
-            (return ())
+        -- The hint below is opt-in (#set-option "warn-overhang"): deciding
+        -- whether the tope overhangs costs a solver entailment per face and
+        -- guard, and overhang is legitimate.
+        warnOverhang <- asks ctxWarnOverhang
+        when warnOverhang $ do
+          entailed <- checkTopeEntails tope   -- tope |- AND(accessible context)
+          unless entailed $ do
+            naming <- asks namingOfContext
+            traceTypeCheck Normal
+              (intercalate "\n" $
+                [ "Warning: " <> what <> " overhangs the local tope context"
+                , "  " <> ppTerm naming (untyped tope)
+                , "is not entailed by the local context (normalised)"
+                ] <> map (("  " <>) . ppTerm naming . untyped) topes)
+              (return ())
 
 -- * Restrictions and η
 

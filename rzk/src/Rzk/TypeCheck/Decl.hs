@@ -363,6 +363,13 @@ setOption "render-hide-term" = \case
   "no"  -> localHideTerm False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"render-hide-term\" (use \"yes\" or \"no\")"
+-- The overhang hint costs a solver entailment per restriction face and recOR
+-- guard, so it is off by default and opted into per module (or scope).
+setOption "warn-overhang" = \case
+  "yes" -> localWarnOverhang True
+  "no"  -> localWarnOverhang False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-overhang\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -370,6 +377,7 @@ unsetOption :: Distinct n => String -> TypeCheck n a -> TypeCheck n a
 unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
+unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
