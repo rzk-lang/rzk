@@ -128,7 +128,20 @@ executables:
     ghc-options:
       - -threaded
       - -rtsopts
-      - -with-rtsopts=-N
+      # The checker is garbage-collection bound: it allocates about 12 GB checking
+      # sHoTT, almost all of it short-lived, and with the default 4 MB nursery the
+      # collector took nearly two thirds of the wall clock. A 64 MB nursery lets a
+      # generation die before it is collected: sHoTT goes from 5.0 s to 2.2 s, GC
+      # from 3.2 s to 0.6 s, and peak residency and memory in use both *fall*
+      # (fewer objects are promoted). Larger nurseries keep buying time, but not
+      # for free: -A128m is 3% faster again and costs another 0.9 GB.
+      #
+      # -N stays: the parallel collector is what makes a large nursery pay (with
+      # -N1 the same run takes 5.6 s). Both options have to reach GHC as a single
+      # -with-rtsopts argument: GHC keeps only the last of several, and cabal's
+      # ghc-options field splits on whitespace unless the whole token is quoted —
+      # hence the literal quotes (written with YAML single-quoting) around it.
+      - '"-with-rtsopts=-N -A64m"'
     dependencies:
       - rzk
     when:
