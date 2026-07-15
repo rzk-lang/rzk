@@ -8,6 +8,6 @@ authors:
   - family-names: Danko
     given-names: Danila
 title: "Rzk: a  proof assistant for synthetic $\\infty$-categories"
-version: 0.9.2
-date-released: 2026-07-13
+version: 0.10.0
+date-released: 2026-07-15
 url: "https://github.com/rzk-lang/rzk"
