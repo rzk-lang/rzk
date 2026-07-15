@@ -1187,11 +1187,67 @@ peelLambdas
   => Foil.Scope n -> Foil.Substitution TermT i n -> TermT i
   -> [(TypeInfo (TermT n), TermT n)] -> TypeCheck n (TermT n)
 peelLambdas scope subst body pairs = case pairs of
-  [] -> whnfT (substituteT scope subst body)
+  [] -> whnfWithSubst scope subst body
   (_, x) : rest -> case body of
     LambdaT _ _ _ (ScopedAST binder body') ->
       peelLambdas scope (Foil.addSubst subst binder x) body' rest
-    _ -> applySpine scope (substituteT scope subst body) pairs
+    _ -> applySpineSubst scope subst body pairs
+
+-- | Weak head normal form of a term under an environment: the shapes that keep
+-- reducing (a variable, an application spine, a let) are followed /under/ the
+-- substitution, so a chain of nested redexes threads one environment instead of
+-- stacking a 'substituteT' traversal per reduction step. Anything else
+-- materialises once and returns to the ordinary 'whnfT', which also restores
+-- the type-directed dispatch (cube/tope layer, restrictions) for the result.
+whnfWithSubst
+  :: forall i n. Distinct n
+  => Foil.Scope n -> Foil.Substitution TermT i n -> TermT i -> TypeCheck n (TermT n)
+whnfWithSubst scope subst body = case body of
+  Var x -> whnfT (Foil.lookupSubst subst x)
+  AppT{} -> applySpineSubst scope subst body []
+  LetT _ty _orig _mparam val (ScopedAST binder letBody) ->
+    whnfWithSubst scope (Foil.addSubst subst binder (substituteT scope subst val)) letBody
+  TypeAscT _ty term _ty' -> whnfWithSubst scope subst term
+  FirstT ty t ->
+    whnfWithSubst scope subst t >>= \case
+      PairT _ l _r -> whnfT l
+      t'           -> pure (FirstT (substTypeInfo scope subst ty) t')
+  SecondT ty t ->
+    whnfWithSubst scope subst t >>= \case
+      PairT _ _l r -> whnfT r
+      t'           -> pure (SecondT (substTypeInfo scope subst ty) t')
+  _ -> whnfT (substituteT scope subst body)
+
+-- | Apply a term under an environment to a spine of (already materialised)
+-- arguments. The term's own application spine is collected first and its
+-- arguments substituted individually (lazily — a 'TypeInfo' annotation is only
+-- forced if a neutral application is rebuilt), so a lambda head continues
+-- 'peelLambdas' under the same environment without materialising the redex.
+applySpineSubst
+  :: forall i n. Distinct n
+  => Foil.Scope n -> Foil.Substitution TermT i n -> TermT i
+  -> [(TypeInfo (TermT n), TermT n)] -> TypeCheck n (TermT n)
+applySpineSubst scope subst t pairsN = case h of
+    LambdaT _ _ _ (ScopedAST binder hbody) | (_, x) : rest <- pairs ->
+      peelLambdas scope (Foil.addSubst subst binder x) hbody rest
+    Var x -> applySpine scope (Foil.lookupSubst subst x) pairs
+    _ -> applySpine scope (substituteT scope subst h) pairs
+  where
+    (h, pairsI) = collectAppSpine t
+    pairs = map substPair pairsI ++ pairsN
+    substPair (ty, x) = (substTypeInfo scope subst ty, substituteT scope subst x)
+
+-- | Substitute into a node annotation, dropping the (invalidated) memoised
+-- forms. The type field is lazy, so it is only forced if the node is rebuilt.
+substTypeInfo
+  :: Distinct n
+  => Foil.Scope n -> Foil.Substitution TermT i n
+  -> TypeInfo (TermT i) -> TypeInfo (TermT n)
+substTypeInfo scope subst ty = TypeInfo
+  { infoType = substituteT scope subst (infoType ty)
+  , infoWHNF = Nothing
+  , infoNF   = Nothing
+  }
 
 -- | Apply a non-lambda (already WHNF) function to a spine, one argument at a
 -- time: this is the type-directed part of application, unchanged from before.
