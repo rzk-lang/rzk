@@ -1,0 +1,41 @@
+#lang rzk-1
+
+-- Church numerals: the definitional equalities below hold only after full
+-- βδ-normalisation of structurally different applications, which exercises
+-- the NbE conversion fast path (Rzk.TypeCheck.NbE). Kept small so that the
+-- ordinary unification path also checks this file quickly.
+
+#define CN : U
+  := (X : U) → (X → X) → X → X
+
+#define czero : CN
+  := \ X s x → x
+
+#define csucc (n : CN) : CN
+  := \ X s x → s (n X s x)
+
+#define cadd (m n : CN) : CN
+  := \ X s x → m X s (n X s x)
+
+#define cmul (m n : CN) : CN
+  := \ X s → m X (n X s)
+
+#define cexp (m n : CN) : CN
+  := \ X → n (X → X) (m X)
+
+#define c1 : CN := csucc czero
+#define c2 : CN := cadd c1 c1
+#define c4 : CN := cadd c2 c2
+#define c8 : CN := cadd c4 c4
+#define c16 : CN := cadd c8 c8
+#define c64 : CN := cadd (cadd c16 c16) (cadd c16 c16)
+
+-- 8 * 8 = 64, mul against an addition chain
+#define test-mul : cmul c8 c8 = c64 := refl
+
+-- 2 ^ 4 = 16, exp against a doubling chain
+#define test-exp : cexp c2 c4 = c16 := refl
+
+-- endpoints as inline applications (regression: these must not be
+-- decomposed into the false subgoal 4 =? 16)
+#define test-inline : cmul c4 c4 = cadd c8 c8 := refl
