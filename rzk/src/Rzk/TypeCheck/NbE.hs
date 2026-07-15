@@ -24,8 +24,7 @@
 -- structurally (see the note at their 'eval' case): a structurally identical
 -- pair of restricted types is also accepted by the ordinary unification,
 -- through reflexive coverage and the cross-face coherences already proved at
--- formation. Every 'True' is therefore also a success of the old unification;
--- see the NbE spike notes for the argument in full.
+-- formation. Every 'True' is therefore also a success of the old unification.
 --
 -- The evaluator is a pure function of the 'Context': 'valueOfVar' is a plain
 -- reader-only lookup, and fresh variables for comparing closures are de
@@ -89,14 +88,12 @@ data Val n
   | VAbort AbortReason
     -- ^ A construct outside the context-insensitive fragment. Poisons the
     -- comparison: 'conv' answers 'False' the moment it meets one. The
-    -- reason records which construct, for diagnostics and probes.
+    -- reason records which construct, for diagnostics.
 
 -- | Why evaluation gave up: which context-sensitive construct was met.
 data AbortReason
   = AbortHole
   | AbortRecOr
-  | AbortRecBottom
-  | AbortRestricted
   | AbortModal
   | AbortStuckElim
     -- ^ An elimination of a non-canonical, non-neutral value (an abort
