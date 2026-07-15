@@ -22,9 +22,9 @@ diagnose src =
   case Rzk.parseModule src of
     Left err -> error ("parse error: " <> T.unpack err)
     Right m  -> case typecheckModulesWithHoles [("<test>", m)] of
-      Left err                 -> [diagnoseTypeError BottomUp err]
-      Right (_, errors, holes) ->
-        map (diagnoseTypeError BottomUp) errors ++ map diagnoseHole holes
+      Left err -> [diagnoseTypeError BottomUp err]
+      Right (checked, holes) ->
+        map (diagnoseTypeError BottomUp) (checkedErrors checked) ++ map diagnoseHole holes
 
 spec :: Spec
 spec = do

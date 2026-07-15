@@ -45,5 +45,6 @@ rzk/doc/
 rzk/src/Language/Rzk/Syntax/Lex.x
 rzk/src/Language/Rzk/Syntax/Par.y
 
-# Personal scratch / research notes (not part of the build)
-/notes/
+# Personal scratch / research notes (not part of the build).
+# No trailing slash: the entry must also match a symlink into a personal notes repo.
+/notes

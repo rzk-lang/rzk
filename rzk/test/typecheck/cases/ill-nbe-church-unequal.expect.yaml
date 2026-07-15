@@ -1,0 +1,5 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+line: 24
+regression_for:
+  - nbe-conversion-fastpath

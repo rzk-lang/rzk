@@ -1,0 +1,16 @@
+#lang rzk-1
+
+-- The overhang hint is opt-in: deciding whether a restriction face or recOR
+-- guard overhangs the local tope context costs a solver entailment per face,
+-- so it is off by default and enabled with this option. The definition below
+-- overhangs (see happy-restrict-face-not-contained); with the option on it
+-- still typechecks — the hint is non-fatal — and the option name must be
+-- recognised by #set-option and #unset-option.
+
+#set-option "warn-overhang" = "yes"
+
+#define faceOverhang (t : 2 * 2 | first t === 0_2)
+  : Unit [ (first t === 0_2) \/ (second t === 0_2) |-> unit ]
+  := unit
+
+#unset-option "warn-overhang"

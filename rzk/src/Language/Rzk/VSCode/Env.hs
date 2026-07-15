@@ -8,16 +8,27 @@ import           Control.Monad.Reader
 import qualified Data.Map.Strict            as Map
 import qualified Data.Text                  as T
 import           Language.LSP.Server
-import           Language.Rzk.Free.Syntax   (VarIdent)
 import           Language.Rzk.Syntax        (Module)
 import qualified Language.Rzk.VSCode.Config as RzkConfig
 import           Language.Rzk.VSCode.Logging
 import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
-import           Rzk.TypeCheck              (Decl', TypeErrorInScopedContext)
+import           Rzk.TypeCheck              (Checked, DeclView,
+                                             TypeErrorInScopedContext)
 
+-- | What checking one module produced.
+--
+-- 'cachedModuleChecked' is the state of the whole run /after/ this module: the
+-- top-level scope and every declaration elaborated so far. That is what a resume
+-- starts from — a cached elaborated term names the definitions it uses by their
+-- foil name, which only means anything in the scope that produced it, so the scope
+-- has to be cached with them.
+--
+-- 'cachedModuleDecls' is the rendered view of this module's own declarations,
+-- which is all that completion, symbols and hover need.
 data RzkCachedModule = RzkCachedModule
-  { cachedModuleDecls  :: [Decl']
-  , cachedModuleErrors :: [TypeErrorInScopedContext VarIdent]
+  { cachedModuleChecked :: Checked
+  , cachedModuleDecls   :: [DeclView]
+  , cachedModuleErrors  :: [TypeErrorInScopedContext]
   }
 
 type RzkTypecheckCache = [(FilePath, RzkCachedModule)]

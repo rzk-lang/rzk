@@ -17,20 +17,18 @@ import           System.FilePath          (dropExtension, (</>), takeDirectory,
                                            takeFileName)
 import           System.FilePath.Glob     (compile, globDir1)
 
-import           Language.Rzk.Free.Syntax   (VarIdent)
 import qualified Language.Rzk.Syntax        as Rzk
-import           Rzk.Diagnostic            (typeErrorTag)
-import           Rzk.TypeCheck              (Context (..), Decl', LocationInfo (..),
-                                           OutputDirection (..), TypeError (..),
-                                           TypeErrorInContext (..),
-                                           TypeErrorInScopedContext (..),
-                                           Verbosity (..), defaultTypeCheck,
-                                           localVerbosity, ppTypeErrorInScopedContext',
-                                           typecheckModulesWithLocation,
-                                           typecheckModulesWithLocation')
+import           Rzk.Diagnostic           (locationOfTypeError,
+                                           typeErrorTagInScopedContext)
+import           Rzk.TypeCheck            (Checked, Context (..),
+                                           LocationInfo (..),
+                                           OutputDirection (..),
+                                           TypeErrorInScopedContext,
+                                           Verbosity (..), checkedErrors,
+                                           checkedModules, emptyContext,
+                                           ppTypeErrorInScopedContext)
 
 import           Test.Hspec
-import           Unsafe.Coerce            (unsafeCoerce)
 
 data Expect = Expect
   { expectStatus          :: String
@@ -52,24 +50,19 @@ instance FromJSON Expect where
     <*> o .:? "modules"
     <*> o .:? "api"
 
--- | Strip 'ScopedTypeError' layers; take the leaf 'TypeError'.
--- Scoped layers change the type parameter ('Inc'); we only need the constructor name, so 'unsafeCoerce' is used for recursion (same shape at runtime).
-peelTypeError :: TypeErrorInScopedContext VarIdent -> TypeError VarIdent
-peelTypeError = \case
-  PlainTypeError e    -> typeErrorError e
-  ScopedTypeError _ e -> peelTypeError (unsafeCoerce e)
+-- | The line an error was raised on.
+--
+-- An error carries the context it was raised in, so there are no binder layers to
+-- peel: the old representation nested the error one Inc deeper at every binder, and
+-- this had to unsafeCoerce its way back out.
+errorLine :: TypeErrorInScopedContext -> Maybe Int
+errorLine err = locationOfTypeError err >>= locationLine
 
-errorLine :: TypeErrorInScopedContext VarIdent -> Maybe Int
-errorLine = \case
-  PlainTypeError e ->
-    location (typeErrorContext e) >>= locationLine
-  ScopedTypeError _ e -> errorLine (unsafeCoerce e)
-
--- | The constructor name of a type error, used to match @error_tag@ in
--- fixtures. This is the library's 'typeErrorTag' (also used for diagnostic
--- codes), aliased here so the two cannot drift apart.
-typeErrorConstructorName :: TypeError VarIdent -> String
-typeErrorConstructorName = typeErrorTag
+-- | The constructor name of a type error, used to match @error_tag@ in fixtures.
+-- This is the library's own tag (also used for diagnostic codes), so the two cannot
+-- drift apart.
+typeErrorConstructorName :: TypeErrorInScopedContext -> String
+typeErrorConstructorName = typeErrorTagInScopedContext
 
 casesRoot :: FilePath
 casesRoot = "test/typecheck/cases"
@@ -104,32 +97,41 @@ loadModules ((relPath, absPath) : rest) = do
     Right m  -> fmap (fmap ((relPath, m) :)) $ loadModules rest
 
 -- | Run the checker with @verbosity = Silent@ so @traceTypeCheck Normal@ does not
--- clutter @stack test@ output (CLI keeps default @Normal@ via @emptyContext@).
-runStrict :: [(FilePath, Rzk.Module)] -> Either (TypeErrorInScopedContext VarIdent) [(FilePath, [Decl'])]
-runStrict = defaultTypeCheck . localVerbosity Silent . typecheckModulesWithLocation
+-- clutter @stack test@ output (the CLI keeps the default @Normal@).
+silently :: Context n -> Context n
+silently ctx = ctx { ctxVerbosity = Silent }
 
-runCollect :: [(FilePath, Rzk.Module)] -> Either (TypeErrorInScopedContext VarIdent) ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent])
-runCollect = defaultTypeCheck . localVerbosity Silent . typecheckModulesWithLocation'
+-- | Strict: the first error stops the run and is returned.
+runStrict :: [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
+runStrict ms = case checkedModules ms (silently emptyContext) of
+  Left err -> Left err
+  Right (checked, _holes) -> case checkedErrors checked of
+    err : _ -> Left err
+    []      -> Right checked
 
-assertExpect :: String -> Expect -> Either (TypeErrorInScopedContext VarIdent) [(FilePath, [Decl'])] -> IO ()
+-- | Collect: every error is returned, and the run continues past them.
+runCollect :: [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
+runCollect ms = fst <$> checkedModules ms (silently emptyContext)
+
+assertExpect :: String -> Expect -> Either TypeErrorInScopedContext Checked -> IO ()
 assertExpect _label Expect{..} (Right _) | expectStatus /= "ok" =
   expectationFailure "expected type error (status: error), but typechecking succeeded"
 assertExpect label Expect{..} (Left err) | expectStatus == "ok" =
   expectationFailure $ "unexpected type error in " <> label <> ":\n"
-    <> ppTypeErrorInScopedContext' BottomUp err
+    <> ppTypeErrorInScopedContext BottomUp err
 assertExpect label Expect{..} (Left err) | expectStatus == "error" = do
-  let tag = typeErrorConstructorName (peelTypeError err)
+  let tag = typeErrorConstructorName err
   case expectErrorTag of
     Nothing -> expectationFailure "expect.yaml missing error_tag for status: error"
     Just want | want /= tag ->
       expectationFailure $ "wrong error constructor in " <> label <> ": wanted "
         <> want <> ", got " <> tag <> "\nFull message:\n"
-        <> ppTypeErrorInScopedContext' BottomUp err
+        <> ppTypeErrorInScopedContext BottomUp err
     Just _ -> pure ()
   case expectMessageContains of
     Nothing -> pure ()
     Just subs -> do
-      let msg = ppTypeErrorInScopedContext' BottomUp err
+      let msg = ppTypeErrorInScopedContext BottomUp err
       mapM_ (\s -> unless (s `isInfixOf` msg) $
         expectationFailure $ "in " <> label <> ", message missing substring "
           <> show s <> ":\n" <> msg) subs
@@ -146,10 +148,11 @@ assertExpect _label Expect{expectStatus = "ok"} (Right _) = pure ()
 assertExpect label Expect{expectStatus = st} _ =
   expectationFailure $ "in " <> label <> ", unknown status " <> show st
 
-assertExpectCollect :: String -> Expect -> Either (TypeErrorInScopedContext VarIdent) ([(FilePath, [Decl'])], [TypeErrorInScopedContext VarIdent]) -> IO ()
+assertExpectCollect :: String -> Expect -> Either TypeErrorInScopedContext Checked -> IO ()
 assertExpectCollect _label _ (Left err) =
-  expectationFailure $ "unexpected fatal error: " <> ppTypeErrorInScopedContext' BottomUp err
-assertExpectCollect label Expect{..} (Right (_decls, errs)) = case expectStatus of
+  expectationFailure $ "unexpected fatal error: " <> ppTypeErrorInScopedContext BottomUp err
+assertExpectCollect label Expect{..} (Right checked) = case checkedErrors checked of
+ errs -> case expectStatus of
   "ok" | not (null errs) ->
     expectationFailure $ "in " <> label <> ", expected ok but got errors: " <> show (length errs)
   "ok" -> pure ()
@@ -157,7 +160,7 @@ assertExpectCollect label Expect{..} (Right (_decls, errs)) = case expectStatus 
     [] ->
       expectationFailure $ "in " <> label <> ", expected type errors but got none"
     err : _ -> do
-      let tag = typeErrorConstructorName (peelTypeError err)
+      let tag = typeErrorConstructorName err
       case expectErrorTag of
         Nothing -> expectationFailure "expect.yaml missing error_tag for status: error"
         Just want | want /= tag ->
@@ -167,7 +170,7 @@ assertExpectCollect label Expect{..} (Right (_decls, errs)) = case expectStatus 
       case expectMessageContains of
         Nothing -> pure ()
         Just subs -> do
-          let msg = ppTypeErrorInScopedContext' BottomUp err
+          let msg = ppTypeErrorInScopedContext BottomUp err
           mapM_ (\s -> unless (s `isInfixOf` msg) $
             expectationFailure $ "in " <> label <> ", message missing substring "
               <> show s) subs

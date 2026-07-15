@@ -1,5 +1,5 @@
 name: rzk
-version: 0.9.2
+version: 0.10.0
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -48,7 +48,7 @@ when:
 
 # Lower bounds here are loose so the package builds under the GHCJS path
 # (miso's pinned Nixpkgs ships an older Haskell package set). The
-# GHC-9.6.3-coherent floors live in cabal.project's `constraints:` block,
+# GHC-9.8.2-coherent floors live in cabal.project's `constraints:` block,
 # which is read by cabal but not by cabal2nix → Nix.
 dependencies:
   # Upper bounds are at the next super-major, so a new GHC's boot libraries
@@ -63,7 +63,12 @@ dependencies:
   base: ">= 4.7 && < 5"
   bifunctors: ">= 5.5.3 && < 6"
   bytestring: ">= 0.10.8.2 && < 1"
+  containers: ">= 0.6 && < 1"
   directory: ">= 1.2.7.0 && < 2"
+  free-foil: ">= 0.3.2 && < 0.4"
+  transformers: ">= 0.5 && < 1"
+  kind-generics: ">= 0.5 && < 1"
+  kind-generics-th: ">= 0.2 && < 1"
   Glob: ">= 0.9.3 && < 1"
   mtl: ">= 2.2.2 && < 3"
   template-haskell: ">= 2.14.0.0 && < 3"
@@ -109,7 +114,6 @@ library:
         aeson: ">= 2.0.0.0 && < 3"
         async: ">= 2.2 && < 3"
         co-log-core: ">= 0.3.2.0 && < 1"
-        containers: ">= 0.6 && < 1"
         data-default-class: ">= 0.1.2.0 && < 1"
         filepath: ">= 1.4.100.0 && < 2"
         lens: ">= 5.0.1 && < 6"
@@ -125,7 +129,20 @@ executables:
     ghc-options:
       - -threaded
       - -rtsopts
-      - -with-rtsopts=-N
+      # The checker is garbage-collection bound: it allocates about 12 GB checking
+      # sHoTT, almost all of it short-lived, and with the default 4 MB nursery the
+      # collector took nearly two thirds of the wall clock. A 64 MB nursery lets a
+      # generation die before it is collected: sHoTT goes from 5.0 s to 2.2 s, GC
+      # from 3.2 s to 0.6 s, and peak residency and memory in use both *fall*
+      # (fewer objects are promoted). Larger nurseries keep buying time, but not
+      # for free: -A128m is 3% faster again and costs another 0.9 GB.
+      #
+      # -N stays: the parallel collector is what makes a large nursery pay (with
+      # -N1 the same run takes 5.6 s). Both options have to reach GHC as a single
+      # -with-rtsopts argument: GHC keeps only the last of several, and cabal's
+      # ghc-options field splits on whitespace unless the whole token is quoted —
+      # hence the literal quotes (written with YAML single-quoting) around it.
+      - '"-with-rtsopts=-N -A64m"'
     dependencies:
       - rzk
     when:

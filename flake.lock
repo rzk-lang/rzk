@@ -98,7 +98,7 @@
         "type": "github"
       }
     },
-    "nixpkgs-node": {
+    "nixpkgs-recent": {
       "locked": {
         "lastModified": 1767313136,
         "narHash": "sha256-16KkgfdYqjaeRGBaYsNrhPRRENs0qzkQVUooNHtoy2w=",
@@ -122,7 +122,7 @@
         "miso": "miso",
         "nix-filter": "nix-filter",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-node": "nixpkgs-node"
+        "nixpkgs-recent": "nixpkgs-recent"
       }
     },
     "systems": {

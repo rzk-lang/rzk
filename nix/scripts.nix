@@ -38,7 +38,7 @@ let scripts =
           inputsInclude = [
             "flake-utils"
             "nixpkgs"
-            "nixpkgs-node"
+            "nixpkgs-recent"
             "miso"
             "nix-filter"
           ];

@@ -93,13 +93,13 @@ parseRzkFilesOrStdin = \case
 typecheckString :: T.Text -> Either T.Text T.Text
 typecheckString moduleString = do
   rzkModule <- Rzk.parseModule moduleString
-  case defaultTypeCheck (typecheckModules [rzkModule]) of
+  case typecheckModules [("<stdin>", rzkModule)] of
     Left err -> Left $ T.unlines
       [ "An error occurred when typechecking!"
       , "Rendering type error... (this may take a few seconds)"
       , T.unlines
         [ "Type Error:"
-        , T.pack $ ppTypeErrorInScopedContext' BottomUp err
+        , T.pack $ ppTypeErrorInScopedContext BottomUp err
         ]
       ]
     Right _ -> pure "Everything is ok!"
