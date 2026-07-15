@@ -282,6 +282,7 @@ library
       Rzk.TypeCheck.Eval
       Rzk.TypeCheck.Judgements
       Rzk.TypeCheck.Monad
+      Rzk.TypeCheck.NbE
       Rzk.TypeCheck.Render
       Rzk.TypeCheck.Unify
   other-modules:
