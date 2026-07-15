@@ -1,0 +1,29 @@
+#lang rzk-1
+
+#define CN : U
+  := (X : U) → (X → X) → X → X
+
+#define czero : CN
+  := \ X s x → x
+
+#define csucc (n : CN) : CN
+  := \ X s x → s (n X s x)
+
+#define cadd (m n : CN) : CN
+  := \ X s x → m X s (n X s x)
+
+#define cmul (m n : CN) : CN
+  := \ X s → m X (n X s)
+
+#define c1 : CN := csucc czero
+#define c2 : CN := cadd c1 c1
+#define c4 : CN := cadd c2 c2
+#define c8 : CN := cadd c4 c4
+#define c16 : CN := cadd c8 c8
+#define c32 : CN := cadd c16 c16
+#define c64 : CN := cadd c32 c32
+
+#define c128 : CN := cadd c64 c64
+
+-- 8 * 16 = 128, all chains balanced
+#define test-mul-8-16 : cmul c8 c16 = c128 := refl
