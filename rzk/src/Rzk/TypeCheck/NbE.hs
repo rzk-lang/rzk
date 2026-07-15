@@ -28,6 +28,29 @@
 -- reader-only lookup, and fresh variables for comparing closures are de
 -- Bruijn levels ('NLevel'), so the foil scope machinery is never extended and
 -- no quote function is needed.
+--
+-- == Attribution
+--
+-- None of the underlying techniques are ours. Semantic conversion checking —
+-- evaluate both sides into a value domain with closures and compare the
+-- values, applying functions to fresh generic values — is the algorithm of
+-- Coquand, /An algorithm for type-checking dependent types/ (Science of
+-- Computer Programming 26, 1996), the implementation-level core of
+-- normalisation by evaluation (Berger and Schwichtenberg, LICS 1991). The
+-- concrete implementation shape follows the style popularised by András
+-- Kovács' <https://github.com/AndrasKovacs/smalltt smalltt> and
+-- <https://github.com/AndrasKovacs/elaboration-zoo elaboration-zoo>:
+-- environment machines with closures, de Bruijn levels for fresh variables,
+-- and demand-driven definition unfolding (our 'unfoldNeu' — unfold at an
+-- elimination or on a comparison mismatch, comparing neutral spines first —
+-- is a simplified form of smalltt's glued evaluation). For the fragment this
+-- module deliberately aborts on (tope-indexed reduction, extension types),
+-- the template is cubical: Sterling and Angiuli, /Normalization for Cubical
+-- Type Theory/ (LICS 2021), and its implementation lineage in @cooltt@.
+-- What is specific to rzk is only the packaging: the all-or-nothing
+-- gating ('True' or do-not-know, never refute), and 'VAbort' poisoning of
+-- the context-sensitive fragment so that the fast path stays sound by a
+-- subset argument.
 module Rzk.TypeCheck.NbE (nbeConvertible) where
 
 import           Control.Monad.Reader              (asks)
