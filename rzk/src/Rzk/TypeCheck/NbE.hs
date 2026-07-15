@@ -118,6 +118,16 @@ data Neu n
 -- ids of the binders passed on the way down to values; a missing id belongs
 -- to the ambient scope @n@ (the same invariant 'peelLambdas' relies on for
 -- its substitution).
+--
+-- One binder, not @NameBinders i l@: every scope field of every 'TermSig'
+-- constructor is a unary 'ScopedAST' (even a pair-pattern lambda binds one
+-- variable operationally), so a multi-binder closure would have nothing to
+-- be built from without peeling syntactic lambda chains in 'eval'. Peeling
+-- (the eval/apply arity optimisation of Marlow and Peyton Jones' fast
+-- curry) does not pay here the way spine-batching paid at the term level:
+-- an intermediate 'VLam' costs one closure and one persistent
+-- 'IntMap.insert', not a 'substituteT' traversal, and η-comparison and
+-- partial application want one-argument-at-a-time semantics anyway.
 data Closure n where
   Closure :: Env n -> NameBinder i l -> TermT l -> Closure n
 
