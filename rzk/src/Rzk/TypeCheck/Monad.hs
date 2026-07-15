@@ -20,7 +20,8 @@ import           Control.Monad.Except     (Except, MonadError (throwError),
                                            runExcept)
 import           Control.Monad.Reader     (ReaderT (..), ask, asks, local)
 import           Control.Monad.Trans      (lift)
-import           Control.Monad.Writer     (WriterT, runWriterT, tell)
+import           Control.Monad.Trans.Writer.CPS (WriterT, runWriterT)
+import           Control.Monad.Writer.CPS (tell)
 import           Debug.Trace              (trace)
 
 import           Control.Monad.Foil       (Distinct)

@@ -66,6 +66,7 @@ dependencies:
   containers: ">= 0.6 && < 1"
   directory: ">= 1.2.7.0 && < 2"
   free-foil: ">= 0.3.2 && < 0.4"
+  transformers: ">= 0.5 && < 1"
   kind-generics: ">= 0.5 && < 1"
   kind-generics-th: ">= 0.2 && < 1"
   Glob: ">= 0.9.3 && < 1"

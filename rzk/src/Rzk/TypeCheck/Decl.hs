@@ -24,7 +24,7 @@ module Rzk.TypeCheck.Decl where
 import           Control.Monad             (forM, when)
 import           Control.Monad.Except      (catchError, runExcept)
 import           Control.Monad.Reader      (ask, asks, local, runReaderT)
-import           Control.Monad.Writer      (runWriterT)
+import           Control.Monad.Trans.Writer.CPS (runWriterT)
 import           Data.List                 (intercalate)
 import qualified Data.Map                  as Map
 import           Debug.Trace               (trace)
