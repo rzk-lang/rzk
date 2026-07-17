@@ -26,6 +26,7 @@ extra-source-files:
     test/typecheck/cases/happy-interval-subtyping.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-lattice-eq-gives-leq.rzk
+    test/typecheck/cases/happy-lattice-mixed-cube.rzk
     test/typecheck/cases/happy-lattice.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
@@ -149,6 +150,7 @@ extra-source-files:
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
     test/typecheck/cases/happy-lattice-eq-gives-leq.expect.yaml
+    test/typecheck/cases/happy-lattice-mixed-cube.expect.yaml
     test/typecheck/cases/happy-lattice.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml
