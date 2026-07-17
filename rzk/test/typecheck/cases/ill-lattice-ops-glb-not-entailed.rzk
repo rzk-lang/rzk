@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- inf s u <= t does NOT entail t <= s (e.g. s = 0₂, u = 1₂, t = 1₂).
+
+#define glbNotEntailed
+  (s u : 2)
+  (t : 2 | inf s u <= t)
+  (f : (x : 2 | (x <= s) /\ (x <= u)) -> U)
+  : U
+  := f t

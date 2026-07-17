@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "union of the topes"
+regression_for:
+  - lattice-II-not-totally-ordered

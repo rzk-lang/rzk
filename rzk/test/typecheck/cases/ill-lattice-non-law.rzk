@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- A non-law must be rejected. In a distributive lattice meet does distribute
+-- over join, but the two sides below are NOT equal in general:
+--   sup a (inf b c)  is a join, whereas  inf a (sup b c)  is a meet.
+-- This guards the DNF normalisation in nfTope together with the LUB/GLB solver
+-- clauses against over-proving (accepting a spurious lattice identity).
+
+#define nonLaw
+  (a b c : 2)
+  (f : (x : 2 | sup a (inf b c) === inf a (sup b c)) -> U)
+  : U
+  := f a

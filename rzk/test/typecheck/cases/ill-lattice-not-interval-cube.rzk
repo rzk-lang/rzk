@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- Lattice operations are defined only on the interval cubes 2 and 𝕀. Applying
+-- sup (or inf) to points of another cube -- here the unit cube 1 -- is a type
+-- error (TypeErrorNotIntervalCube), not a silent success.
+
+#define notIntervalCube
+  (f : (x : 1) -> U)
+  : U
+  := f (sup *_1 *_1)

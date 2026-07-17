@@ -1,0 +1,212 @@
+#lang rzk-1
+
+-- Lattice sup/inf on the interval cubes 2 and II.
+--
+-- * bounds and endpoint absorption: solveRHSM sup/inf clauses + nfTope
+-- * LUB/GLB against the local tope context: goal-directed universal property
+-- * commutativity / associativity / idempotence / absorption / distributivity:
+--   DNF normalisation in nfTope (meet distributes over join), discharged by the
+--   solver's LUB/GLB rules -- no canonical ordering, no total order (works on II).
+
+#define dummy : U := Unit -> Unit
+
+-- --------------------------------------------------------------------------
+-- bounds and endpoint absorption
+-- --------------------------------------------------------------------------
+
+#define supLowerBoundsEntailed
+  (s u : 2)
+  (f : (x : 2 | (s <= x) /\ (u <= x)) -> U)
+  : U
+  := f (sup s u)
+
+#define infUpperBoundsEntailed
+  (s u : 2)
+  (f : (x : 2 | (x <= s) /\ (x <= u)) -> U)
+  : U
+  := f (inf s u)
+
+#define supZeroAbsorptionEntailed
+  (v : 2)
+  (f : (x : 2 | x === v) -> U)
+  : U
+  := f (sup 0_2 v)
+
+#define infOneAbsorptionEntailed
+  (s : 2)
+  (f : (x : 2 | x === s) -> U)
+  : U
+  := f (inf s 1_2)
+
+-- --------------------------------------------------------------------------
+-- LUB/GLB against the local tope context
+-- --------------------------------------------------------------------------
+
+#define lubEntailed
+  (s u : 2)
+  (t : 2 | (s <= t) /\ (u <= t))
+  (f : (x : 2 | sup s u <= x) -> U)
+  : U
+  := f t
+
+#define glbEntailed
+  (s u : 2)
+  (t : 2 | (t <= s) /\ (t <= u))
+  (f : (x : 2 | x <= inf s u) -> U)
+  : U
+  := f t
+
+#define recOrLubCoverage
+  (s u : 2)
+  (t : 2 | (s <= t) /\ (u <= t))
+  : U
+  := recOR( sup s u <= t |-> dummy , t <= sup s u |-> dummy )
+
+-- --------------------------------------------------------------------------
+-- lattice terms in the HYPOTHESES (LHS)
+-- --------------------------------------------------------------------------
+
+#define lhsSupElim
+  (s u : 2)
+  (t : 2 | sup s u <= t)
+  (f : (x : 2 | (s <= x) /\ (u <= x)) -> U)
+  : U
+  := f t
+
+#define lhsInfElim
+  (s u : 2)
+  (t : 2 | t <= inf s u)
+  (f : (x : 2 | (x <= s) /\ (x <= u)) -> U)
+  : U
+  := f t
+
+#define lhsSupElimTrans
+  (s u v : 2)
+  (t : 2 | (sup s u <= t) /\ (t <= v))
+  (f : (x : 2 | s <= v) -> U)
+  : U
+  := f t
+
+#define lhsLatticeEqElim
+  (s u : 2)
+  (t : 2 | sup s u === t)
+  (f : (x : 2 | s <= x) -> U)
+  : U
+  := f t
+
+-- --------------------------------------------------------------------------
+-- distributive-lattice laws on 2 and on II
+-- --------------------------------------------------------------------------
+
+#define commSup2
+  (a b : 2)
+  (f : (x : 2 | sup a b === sup b a) -> U)
+  : U
+  := f a
+
+#define commInf2
+  (a b : 2)
+  (f : (x : 2 | inf a b === inf b a) -> U)
+  : U
+  := f a
+
+#define assocSup2
+  (a b c : 2)
+  (f : (x : 2 | sup (sup a b) c === sup a (sup b c)) -> U)
+  : U
+  := f a
+
+#define assocInf2
+  (a b c : 2)
+  (f : (x : 2 | inf (inf a b) c === inf a (inf b c)) -> U)
+  : U
+  := f a
+
+#define idemSup2
+  (a : 2)
+  (f : (x : 2 | sup a a === a) -> U)
+  : U
+  := f a
+
+#define absorpSup2
+  (a b : 2)
+  (f : (x : 2 | sup a (inf a b) === a) -> U)
+  : U
+  := f a
+
+#define absorpInf2
+  (a b : 2)
+  (f : (x : 2 | inf a (sup a b) === a) -> U)
+  : U
+  := f a
+
+#define distMeetOverJoin2
+  (a b c : 2)
+  (f : (x : 2 | inf a (sup b c) === sup (inf a b) (inf a c)) -> U)
+  : U
+  := f a
+
+#define distJoinOverMeet2
+  (a b c : 2)
+  (f : (x : 2 | sup a (inf b c) === inf (sup a b) (sup a c)) -> U)
+  : U
+  := f a
+
+#define distMeetOverJoinI
+  (a b c : II)
+  (f : (x : II | inf a (sup b c) === sup (inf a b) (inf a c)) -> U)
+  : U
+  := f a
+
+#define distJoinOverMeetI
+  (a b c : II)
+  (f : (x : II | sup a (inf b c) === inf (sup a b) (sup a c)) -> U)
+  : U
+  := f a
+
+-- --------------------------------------------------------------------------
+-- many-variable (4-6) lattice identities
+-- --------------------------------------------------------------------------
+
+#define joinReassoc5
+  (a b c d e : 2)
+  (f : (x : 2 | sup (sup (sup (sup a b) c) d) e === sup e (sup d (sup c (sup b a)))) -> U)
+  : U
+  := f a
+
+#define meetReassoc5
+  (a b c d e : 2)
+  (f : (x : 2 | inf (inf (inf (inf a b) c) d) e === inf e (inf d (inf c (inf b a)))) -> U)
+  : U
+  := f a
+
+#define distMeetOfJoins4
+  (a b c d : 2)
+  (f : (x : 2 | inf (sup a b) (sup c d)
+             === sup (sup (inf a c) (inf a d)) (sup (inf b c) (inf b d))) -> U)
+  : U
+  := f a
+
+#define distMeetOfJoins4I
+  (a b c d : II)
+  (f : (x : II | inf (sup a b) (sup c d)
+              === sup (sup (inf a c) (inf a d)) (sup (inf b c) (inf b d))) -> U)
+  : U
+  := f a
+
+#define distMeetOfJoins6
+  (a b c d e g : 2)
+  (f : (x : 2 | inf (sup a b) (sup (sup c d) (sup e g))
+             === sup (sup (sup (inf a c) (inf a d)) (sup (inf a e) (inf a g)))
+                     (sup (sup (inf b c) (inf b d)) (sup (inf b e) (inf b g)))) -> U)
+  : U
+  := f a
+
+-- --------------------------------------------------------------------------
+-- total order of 2 vs II via the lattice join
+-- --------------------------------------------------------------------------
+
+#define joinEqualsOneArg2
+  (a b : 2)
+  : U
+  := recOR( sup a b === a |-> dummy , sup a b === b |-> dummy )

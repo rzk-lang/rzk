@@ -167,6 +167,8 @@ toTerm scope env = go
       Rzk.TopeUninv _loc t -> TopeUninv (go t)
       Rzk.CubeFlip _loc t -> CubeFlip (go t)
       Rzk.CubeUnflip _loc t -> CubeUnflip (go t)
+      Rzk.CubeSup _loc l r -> CubeSup (go l) (go r)
+      Rzk.CubeInf _loc l r -> CubeInf (go l) (go r)
       Rzk.RecBottom _loc -> RecBottom
       Rzk.RecOr _loc rs -> RecOr (map restriction rs)
       Rzk.TypeId _loc x tA y -> TypeId (go x) (Just (go tA)) (go y)

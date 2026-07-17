@@ -146,6 +146,8 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.CubeI_0 _ -> failure x
   Language.Rzk.Syntax.Abs.CubeI_1 _ -> failure x
   Language.Rzk.Syntax.Abs.CubeProduct _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.CubeSup _ term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.CubeInf _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.TopeTop _ -> failure x
   Language.Rzk.Syntax.Abs.TopeBottom _ -> failure x
   Language.Rzk.Syntax.Abs.TopeEQ _ term1 term2 -> failure x

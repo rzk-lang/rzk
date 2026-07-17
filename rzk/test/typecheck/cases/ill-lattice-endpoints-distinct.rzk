@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- The endpoints of the interval are distinct: 0_2 === 1_2 is NOT entailed by
+-- the empty context. This is the cardinal soundness invariant of the interval
+-- (0 != 1). The equality-to-order and antisymmetry clauses used by the lattice
+-- solver must never collapse the two endpoints.
+
+#define endpointsDistinct
+  (f : (x : 2 | 0_2 === 1_2) -> U)
+  : U
+  := f 0_2

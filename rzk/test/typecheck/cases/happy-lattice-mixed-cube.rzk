@@ -1,0 +1,34 @@
+#lang rzk-1
+
+-- Mixing the interval cubes: since 2 <: 𝕀, sup/inf of a 2-point and an 𝕀-point
+-- is accepted and lands in 𝕀, coercing the 2 side up (mirroring the adjacent
+-- (t ≤ s) tope, which already accepts a mixed pair). Both orientations of the
+-- pair are checked, against an 𝕀-valued function argument.
+
+#define supMixedLandsInII
+  (a : II)
+  (b : 2)
+  (f : (x : II | (a <= x) /\ (b <= x)) -> U)
+  : U
+  := f (sup a b)
+
+#define infMixedLandsInII
+  (a : II)
+  (b : 2)
+  (f : (x : II | (x <= a) /\ (x <= b)) -> U)
+  : U
+  := f (inf a b)
+
+#define supMixedFlipped
+  (a : 2)
+  (b : II)
+  (f : (x : II | (a <= x) /\ (b <= x)) -> U)
+  : U
+  := f (sup a b)
+
+#define infMixedFlipped
+  (a : 2)
+  (b : II)
+  (f : (x : II | (x <= a) /\ (x <= b)) -> U)
+  : U
+  := f (inf a b)

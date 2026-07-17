@@ -293,6 +293,8 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.CubeI_0 _ -> prPrec i 7 (concatD [doc (showString "0\7522")])
     Language.Rzk.Syntax.Abs.CubeI_1 _ -> prPrec i 7 (concatD [doc (showString "1\7522")])
     Language.Rzk.Syntax.Abs.CubeProduct _ term1 term2 -> prPrec i 5 (concatD [prt 5 term1, doc (showString "\215"), prt 6 term2])
+    Language.Rzk.Syntax.Abs.CubeSup _ term1 term2 -> prPrec i 5 (concatD [prt 5 term1, doc (showString "\8852"), prt 6 term2])
+    Language.Rzk.Syntax.Abs.CubeInf _ term1 term2 -> prPrec i 5 (concatD [prt 5 term1, doc (showString "\8851"), prt 6 term2])
     Language.Rzk.Syntax.Abs.TopeTop _ -> prPrec i 7 (concatD [doc (showString "\8868")])
     Language.Rzk.Syntax.Abs.TopeBottom _ -> prPrec i 7 (concatD [doc (showString "\8869")])
     Language.Rzk.Syntax.Abs.TopeEQ _ term1 term2 -> prPrec i 4 (concatD [prt 5 term1, doc (showString "\8801"), prt 5 term2])

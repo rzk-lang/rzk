@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- The equality-to-order derivation must not over-generate: a === b entails
+-- a <= b, but says nothing about an unrelated point c. So a <= c is NOT
+-- entailed. Companion to happy-lattice-eq-gives-leq (which checks the sound
+-- direction is available).
+
+#define eqNoLeak
+  (a b c : 2)
+  (t : 2 | a === b)
+  (f : (x : 2 | a <= x) -> U)
+  : U
+  := f c

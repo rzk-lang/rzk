@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - lattice-eq-entails-order

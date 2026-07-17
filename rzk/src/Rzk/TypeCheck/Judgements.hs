@@ -813,6 +813,42 @@ infer tt = performing (ActionInfer tt) $ case tt of
         issueTypeError $ TypeErrorOther $
           "unflip expects an interval cube (2 or 𝕀) under _op; got " <> tyStr
 
+  CubeSup l r -> do
+    l' <- inferAs cubeT l
+    r' <- inferAs cubeT r
+    lTy <- typeOf l'
+    rTy <- typeOf r'
+    case (lTy, rTy) of
+      (Cube2T{}, Cube2T{}) -> return (cubeSupT cube2T l' r')
+      (CubeIT{}, CubeIT{}) -> return (cubeSupT cubeIT l' r')
+      -- Mixed 2/𝕀 lands in 𝕀 (the join of a 2-point and an 𝕀-point), coercing
+      -- the 2 side up via 2 <: 𝕀, as the adjacent TopeLEQ does.
+      (CubeIT{}, Cube2T{}) -> do
+        r'' <- typecheck r cubeIT
+        return (cubeSupT cubeIT l' r'')
+      (Cube2T{}, CubeIT{}) -> do
+        l'' <- typecheck l cubeIT
+        return (cubeSupT cubeIT l'' r')
+      _ -> issueTypeError $ TypeErrorNotIntervalCube "sup" lTy rTy
+
+  CubeInf l r -> do
+    l' <- inferAs cubeT l
+    r' <- inferAs cubeT r
+    lTy <- typeOf l'
+    rTy <- typeOf r'
+    case (lTy, rTy) of
+      (Cube2T{}, Cube2T{}) -> return (cubeInfT cube2T l' r')
+      (CubeIT{}, CubeIT{}) -> return (cubeInfT cubeIT l' r')
+      -- Mixed 2/𝕀 lands in 𝕀 (the meet of a 2-point and an 𝕀-point), coercing
+      -- the 2 side up via 2 <: 𝕀, as the adjacent TopeLEQ does.
+      (CubeIT{}, Cube2T{}) -> do
+        r'' <- typecheck r cubeIT
+        return (cubeInfT cubeIT l' r'')
+      (Cube2T{}, CubeIT{}) -> do
+        l'' <- typecheck l cubeIT
+        return (cubeInfT cubeIT l'' r')
+      _ -> issueTypeError $ TypeErrorNotIntervalCube "inf" lTy rTy
+
   Pair l r -> do
     l' <- infer l
     r' <- infer r

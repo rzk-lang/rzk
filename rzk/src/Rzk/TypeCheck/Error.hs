@@ -55,6 +55,7 @@ data TypeError n
   | TypeErrorUnusedVariable (Foil.Name n) (TermT n)
   | TypeErrorUnusedUsedVariables [Foil.Name n] (Foil.Name n)
   | TypeErrorImplicitAssumption (Foil.Name n, TermT n) (Foil.Name n)
+  | TypeErrorNotIntervalCube String (TermT n) (TermT n)
 
 -- | An error, together with the context it was raised in.
 --
@@ -238,6 +239,14 @@ ppTypeError naming = \case
     , "  " <> ppVar a <> " : " <> ppU (untyped aType)
     , "used in definition of"
     , "  " <> ppVar name
+    ]
+
+  TypeErrorNotIntervalCube op lType rType -> block TopDown
+    [ op <> " expects both points in the same interval cube (2 or 𝕀)"
+    , "but got a point of type"
+    , "  " <> ppU (untyped lType)
+    , "and a point of type"
+    , "  " <> ppU (untyped rType)
     ]
   where
     ppU = ppTerm naming

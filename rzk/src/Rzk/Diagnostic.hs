@@ -149,6 +149,7 @@ typeErrorTag = \case
   TypeErrorUnusedVariable{}        -> "TypeErrorUnusedVariable"
   TypeErrorUnusedUsedVariables{}   -> "TypeErrorUnusedUsedVariables"
   TypeErrorImplicitAssumption{}    -> "TypeErrorImplicitAssumption"
+  TypeErrorNotIntervalCube{}       -> "TypeErrorNotIntervalCube"
 
 -- | The tag of a type error.
 --

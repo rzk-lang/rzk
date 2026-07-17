@@ -133,6 +133,9 @@ CubeI.          Term7 ::= "𝕀" ;
 CubeI_0.        Term7 ::= "0ᵢ" ;
 CubeI_1.        Term7 ::= "1ᵢ" ;
 CubeProduct.    Term5 ::= Term5 "×" Term6 ;
+-- Lattice operations on cube points (join/meet)
+CubeSup.        Term5 ::= Term5 "⊔" Term6 ;
+CubeInf.        Term5 ::= Term5 "⊓" Term6 ;
 -- Topes
 TopeTop.        Term7 ::= "⊤" ;
 TopeBottom.     Term7 ::= "⊥" ;
@@ -196,6 +199,10 @@ coercions Term 7 ;
 
 ascii_CubeProduct.    Term5 ::= Term5 "*" Term6 ;
 define ascii_CubeProduct l r = CubeProduct l r ;
+ascii_CubeSup.        Term6 ::= "sup" Term7 Term7 ;
+define ascii_CubeSup l r = CubeSup l r ;
+ascii_CubeInf.        Term6 ::= "inf" Term7 Term7 ;
+define ascii_CubeInf l r = CubeInf l r ;
 
 ASCII_CubeUnitStar.   Term7 ::= "*_1" ;
 ASCII_Cube2_0.        Term7 ::= "0_2" ;

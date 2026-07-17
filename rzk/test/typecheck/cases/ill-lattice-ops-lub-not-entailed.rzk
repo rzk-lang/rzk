@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- t <= sup s u does NOT entail s <= t (e.g. s = 1₂, u = 0₂, t = 0₂).
+-- Application forces `contextEntails` on the callee's shape guard.
+
+#define lubNotEntailed
+  (s u : 2)
+  (t : 2 | t <= sup s u)
+  (f : (x : 2 | (s <= x) /\ (u <= x)) -> U)
+  : U
+  := f t

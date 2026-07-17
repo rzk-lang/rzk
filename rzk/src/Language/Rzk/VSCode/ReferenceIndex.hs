@@ -313,6 +313,8 @@ goTerm file env = \case
   Rzk.ASCII_TypeExtensionDeprecated _ pd ty -> paramDeclScope file env pd ty
 
   Rzk.CubeProduct _ a b         -> goTerm file env a ++ goTerm file env b
+  Rzk.CubeSup _ a b             -> goTerm file env a ++ goTerm file env b
+  Rzk.CubeInf _ a b             -> goTerm file env a ++ goTerm file env b
   Rzk.TopeEQ _ a b              -> goTerm file env a ++ goTerm file env b
   Rzk.TopeLEQ _ a b             -> goTerm file env a ++ goTerm file env b
   Rzk.TopeAnd _ a b             -> goTerm file env a ++ goTerm file env b

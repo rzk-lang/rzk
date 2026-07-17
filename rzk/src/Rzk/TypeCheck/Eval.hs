@@ -590,7 +590,33 @@ generateTopes newTopes oldTopes
       , [ topeLEQT cubeI_0T x | TopeLEQT _ty Cube2_0T{} x <- newTopes ]
       , [ topeLEQT x cubeI_1T | TopeLEQT _ty x Cube2_1T{} <- newTopes ]
       , [ topeLEQT cubeI_1T x | TopeLEQT _ty Cube2_1T{} x <- newTopes ]
+
+      , [ topeLEQT a c | TopeLEQT _ty (CubeSupT _ a _) c <- newTopes ]
+      , [ topeLEQT b c | TopeLEQT _ty (CubeSupT _ _ b) c <- newTopes ]
+      , [ topeLEQT c a | TopeLEQT _ty c (CubeInfT _ a _) <- newTopes ]
+      , [ topeLEQT c b | TopeLEQT _ty c (CubeInfT _ _ b) <- newTopes ]
+
+      -- Turn an equality into the two inequalities, but only when a side is a
+      -- lattice term, so it can feed the sup/inf extraction rules above (e.g.
+      -- @sup s u ≡ t@ ⊢ @sup s u ≤ t@ ⊢ @s ≤ t@). Gating on a lattice operand
+      -- keeps this off the equality-heavy non-lattice fragment (extension-type
+      -- faces), where the direct @solveRHS (topeEQT l r)@ guard already proves
+      -- @l ≤ r@ from @l ≡ r@ and the extra topes would only bloat saturation.
+      , [ leq
+        | TopeEQT _ty x y <- newTopes
+        , isLatticePoint x || isLatticePoint y
+        , leq <- [topeLEQT x y, topeLEQT y x] ]
       ]
+
+-- | Is this cube point a lattice term (a @sup@ or @inf@)? Used to keep the
+-- lattice-specific solver work (equality-to-order generation, the
+-- antisymmetry fallback for equality goals) off the equality-heavy
+-- non-lattice fragment, where it would only cost time without proving
+-- anything new.
+isLatticePoint :: TermT n -> Bool
+isLatticePoint CubeSupT{} = True
+isLatticePoint CubeInfT{} = True
+isLatticePoint _          = False
 
 generateTopesForPointsM :: Distinct n => [TermT n] -> TypeCheck n [TermT n]
 generateTopesForPointsM points = do
@@ -687,23 +713,45 @@ solveRHSM modalTopes goal =
       solveRHSM modalTopes $ topeAndT
         (topeEQT (firstT cubeI l) x)
         (topeEQT (secondT cubeJ l) y)
-    TopeEQT  _ty l r
-      | or
-          [ eqT l r
-          , goal `elemT` topes
-          , topeEQT r l `elemT` topes
-          ] -> return True
+    TopeEQT  _ty Cube2_0T{} CubeI_0T{} -> return True
+    TopeEQT  _ty CubeI_0T{} Cube2_0T{} -> return True
+    TopeEQT  _ty Cube2_1T{} CubeI_1T{} -> return True
+    TopeEQT  _ty CubeI_1T{} Cube2_1T{} -> return True
     TopeEQT  _ty l r -> do
-      lType <- typeOf l
-      rType <- typeOf r
-      return $ case (lType, rType) of
-        (CubeUnitT{}, CubeUnitT{}) -> True
-        _                          -> False
+      let old = or
+            [ eqT l r
+            , goal `elemT` topes
+            , topeEQT r l `elemT` topes
+            ]
+      if old
+        then return True
+        else do
+          lType <- typeOf l
+          rType <- typeOf r
+          case (lType, rType) of
+            (CubeUnitT{}, CubeUnitT{}) -> return True
+            -- Antisymmetry: prove @l ≡ r@ from @l ≤ r ∧ r ≤ l@. Only worth
+            -- trying when a side is a lattice term (the law goals like
+            -- @sup a b ≡ sup b a@); on the non-lattice fragment this cannot
+            -- prove anything the @old@ check above did not, so we skip it to
+            -- leave ordinary sHoTT solving unchanged from before the lattice.
+            _ | isLatticePoint l || isLatticePoint r ->
+                  solveRHSM modalTopes (topeAndT (topeLEQT l r) (topeLEQT r l))
+            _ -> return False
     TopeLEQT _ty l r
       | eqT l r -> return True
+      | goal `elemT` topes -> return True
       | solveRHS topes (topeEQT l r) -> return True
       | solveRHS topes (topeEQT l cube2_0T) -> return True
       | solveRHS topes (topeEQT r cube2_1T) -> return True
+    TopeLEQT _ty (CubeSupT _ a b) r ->
+      solveRHSM modalTopes (topeAndT (topeLEQT a r) (topeLEQT b r))
+    TopeLEQT _ty l (CubeInfT _ a b) ->
+      solveRHSM modalTopes (topeAndT (topeLEQT l a) (topeLEQT l b))
+    TopeLEQT _ty l (CubeSupT _ a b) ->
+      solveRHSM modalTopes (topeOrT (topeLEQT l a) (topeLEQT l b))
+    TopeLEQT _ty (CubeInfT _ a b) r ->
+      solveRHSM modalTopes (topeOrT (topeLEQT a r) (topeLEQT b r))
     TopeAndT _ l r -> solveRHSM modalTopes l >>= \case
       False -> return False
       True  -> solveRHSM modalTopes r
@@ -751,6 +799,10 @@ solveRHS topes tope =
     TopeEQT  _ty l (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y)
       | solveRHS topes (topeEQT (firstT cubeI l) x)
       , solveRHS topes (topeEQT (secondT cubeJ l) y) -> True
+    TopeEQT  _ty Cube2_0T{} CubeI_0T{} -> True
+    TopeEQT  _ty CubeI_0T{} Cube2_0T{} -> True
+    TopeEQT  _ty Cube2_1T{} CubeI_1T{} -> True
+    TopeEQT  _ty CubeI_1T{} Cube2_1T{} -> True
     TopeEQT  _ty l r -> or
       [ eqT l r
       , tope `elemT` topes
@@ -1035,6 +1087,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   CubeI_1T{} -> pure tt
   CubeFlipT{} -> nfTope tt
   CubeUnflipT{} -> nfTope tt
+  CubeSupT{} -> nfTope tt
+  CubeInfT{} -> nfTope tt
 
   -- tope layer (except vars, pairs of points, and applications)
   TopeTopT{} -> pure tt
@@ -1232,6 +1286,32 @@ applyWhnfFun ty f' x = typeOf f' >>= \case
 
 -- * Normal form of the tope layer
 
+nfSupT :: TermT n -> TermT n -> TermT n -> TermT n
+nfSupT ty l r = case (l, r) of
+  (Cube2_0T{}, _) -> r
+  (_, Cube2_0T{}) -> l
+  (Cube2_1T{}, _) -> l
+  (_, Cube2_1T{}) -> r
+  (CubeI_0T{}, _) -> r
+  (_, CubeI_0T{}) -> l
+  (CubeI_1T{}, _) -> l
+  (_, CubeI_1T{}) -> r
+  _               -> cubeSupT ty l r
+
+nfInfT :: TermT n -> TermT n -> TermT n -> TermT n
+nfInfT ty l r = case (l, r) of
+  (Cube2_0T{}, _) -> l
+  (_, Cube2_0T{}) -> r
+  (Cube2_1T{}, _) -> r
+  (_, Cube2_1T{}) -> l
+  (CubeI_0T{}, _) -> l
+  (_, CubeI_0T{}) -> r
+  (CubeI_1T{}, _) -> r
+  (_, CubeI_1T{}) -> l
+  (CubeSupT _ a b, _) -> nfSupT ty (nfInfT ty a r) (nfInfT ty b r)
+  (_, CubeSupT _ a b) -> nfSupT ty (nfInfT ty l a) (nfInfT ty l b)
+  _                   -> cubeInfT ty l r
+
 nfTope :: Distinct n => TermT n -> TypeCheck n (TermT n)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   HoleT{} -> pure tt
@@ -1282,6 +1362,16 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       ModAppT _ Op CubeI_0T{} -> pure cubeI_1T
       ModAppT _ Op CubeI_1T{} -> pure cubeI_0T
       t'                      -> pure (CubeUnflipT ty t')
+
+  CubeSupT ty l r -> do
+    l' <- nfTope l
+    r' <- nfTope r
+    pure (nfSupT (infoType ty) l' r')
+
+  CubeInfT ty l r -> do
+    l' <- nfTope l
+    r' <- nfTope r
+    pure (nfInfT (infoType ty) l' r')
 
   -- tope layer constants
   TopeTopT{} -> pure tt
@@ -1474,6 +1564,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
   CubeProductT{} -> nfTope tt
   CubeFlipT{} -> nfTope tt
   CubeUnflipT{} -> nfTope tt
+  CubeSupT{} -> nfTope tt
+  CubeInfT{} -> nfTope tt
 
   -- tope layer constants
   TopeTopT{} -> pure tt

@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- From unrestricted t alone, sup s u <= t is not entailed (local context is ⊤).
+
+#define lubUnconditional
+  (s u t : 2)
+  (f : (x : 2 | sup s u <= x) -> U)
+  : U
+  := f t
