@@ -595,9 +595,28 @@ generateTopes newTopes oldTopes
       , [ topeLEQT b c | TopeLEQT _ty (CubeSupT _ _ b) c <- newTopes ]
       , [ topeLEQT c a | TopeLEQT _ty c (CubeInfT _ a _) <- newTopes ]
       , [ topeLEQT c b | TopeLEQT _ty c (CubeInfT _ _ b) <- newTopes ]
-      , [ topeLEQT x y | TopeEQT _ty x y <- newTopes ]
-      , [ topeLEQT y x | TopeEQT _ty x y <- newTopes ]
+
+      -- Turn an equality into the two inequalities, but only when a side is a
+      -- lattice term, so it can feed the sup/inf extraction rules above (e.g.
+      -- @sup s u ≡ t@ ⊢ @sup s u ≤ t@ ⊢ @s ≤ t@). Gating on a lattice operand
+      -- keeps this off the equality-heavy non-lattice fragment (extension-type
+      -- faces), where the direct @solveRHS (topeEQT l r)@ guard already proves
+      -- @l ≤ r@ from @l ≡ r@ and the extra topes would only bloat saturation.
+      , [ leq
+        | TopeEQT _ty x y <- newTopes
+        , isLatticePoint x || isLatticePoint y
+        , leq <- [topeLEQT x y, topeLEQT y x] ]
       ]
+
+-- | Is this cube point a lattice term (a @sup@ or @inf@)? Used to keep the
+-- lattice-specific solver work (equality-to-order generation, the
+-- antisymmetry fallback for equality goals) off the equality-heavy
+-- non-lattice fragment, where it would only cost time without proving
+-- anything new.
+isLatticePoint :: TermT n -> Bool
+isLatticePoint CubeSupT{} = True
+isLatticePoint CubeInfT{} = True
+isLatticePoint _          = False
 
 generateTopesForPointsM :: Distinct n => [TermT n] -> TypeCheck n [TermT n]
 generateTopesForPointsM points = do
@@ -711,7 +730,14 @@ solveRHSM modalTopes goal =
           rType <- typeOf r
           case (lType, rType) of
             (CubeUnitT{}, CubeUnitT{}) -> return True
-            _ -> solveRHSM modalTopes (topeAndT (topeLEQT l r) (topeLEQT r l))
+            -- Antisymmetry: prove @l ≡ r@ from @l ≤ r ∧ r ≤ l@. Only worth
+            -- trying when a side is a lattice term (the law goals like
+            -- @sup a b ≡ sup b a@); on the non-lattice fragment this cannot
+            -- prove anything the @old@ check above did not, so we skip it to
+            -- leave ordinary sHoTT solving unchanged from before the lattice.
+            _ | isLatticePoint l || isLatticePoint r ->
+                  solveRHSM modalTopes (topeAndT (topeLEQT l r) (topeLEQT r l))
+            _ -> return False
     TopeLEQT _ty l r
       | eqT l r -> return True
       | goal `elemT` topes -> return True
