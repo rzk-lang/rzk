@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorNotIntervalCube
+message_contains:
+  - expects both points in the same interval cube
+regression_for:
+  - lattice-ops-interval-cubes-only
