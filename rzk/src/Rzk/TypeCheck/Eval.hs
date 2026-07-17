@@ -452,7 +452,19 @@ saturateTopes topes = saturated <> inaccessible
       accessible
 
 saturateInv :: Distinct n => [ModalTope n] -> TypeCheck n [ModalTope n]
-saturateInv modalTopes = do
+saturateInv modalTopes
+  -- When every tope sits at the identity modality, saturateInv adds nothing
+  -- consultable: the op-inversions it would produce are tagged at 'Op' with an
+  -- 'Id' lock, so 'coe Op Id = False' makes them inaccessible, and the
+  -- un-inversion set 'accessibleUnderOp' is empty ('coe Id Op = False'). The
+  -- op-inverted topes only become live once a modality shift puts 'Op' (or
+  -- 'Sharp') into the lock, and a modal goal re-runs saturateInv on the shifted
+  -- context (see the 'TypeModalT' case of 'solveRHSM'), which is where op
+  -- reasoning needs them. Skipping here keeps the whole modality-free fragment
+  -- (all of ordinary sHoTT) off the op-inversion machinery, which otherwise
+  -- 'nfTope'-inverts every context tope on every entailment.
+  | all isIdentityTope modalTopes = return modalTopes
+  | otherwise = do
     -- FIXME: this is a workaround; ideally we should regenerate all topes on
     -- EVERY modality change in any layer, but that would produce too many; for
     -- now we also invert topes that were accessible before the modality shift.
@@ -469,6 +481,8 @@ saturateInv modalTopes = do
     let newTopes = nubModalTopes (invResults <> uninvResults)
         fresh = filter (\t -> not (elemModalTope t modalTopes)) newTopes
     return (modalTopes <> fresh)
+  where
+    isIdentityTope mt = tModVar mt == Id && tModAccum mt == Id
 
 -- | Ex falso for BOT, lifted across modalities.
 --
