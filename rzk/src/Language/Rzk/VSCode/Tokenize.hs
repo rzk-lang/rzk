@@ -77,10 +77,6 @@ tokenizeParam = \case
     [ foldMap tokenizePattern pats
     , tokenizeTerm cube
     , tokenizeTope tope ]
-  ParamPatternShapeDeprecated _loc pat cube tope -> concat
-    [ tokenizePattern pat
-    , tokenizeTerm cube
-    , tokenizeTope tope ]
   ParamPatternModalType _loc pats mc ty -> concat
     [ foldMap tokenizePattern pats
     , tokenizeModalColon mc
@@ -235,10 +231,6 @@ tokenizeTerm' varTokenType = go
       ModApp _loc md te -> concat [tokenizeModality md, go te]
       ModExtract _loc comp te -> concat [tokenizeModComp comp, go te]
 
-      RecOrDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
-      TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
-      ASCII_TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
-
 
 tokenizeRestriction :: Restriction -> [SemanticTokenAbsolute]
 tokenizeRestriction (Restriction _loc tope term) = concat
@@ -256,14 +248,6 @@ tokenizeParamDecl = \case
     , tokenizeTerm type_ ]
   ParamTermShape _loc pat cube tope -> concat
     [ tokenizeTerm pat
-    , tokenizeTerm cube
-    , tokenizeTope tope
-    ]
-  ParamTermTypeDeprecated _loc pat type_ -> concat
-    [ tokenizePattern pat
-    , tokenizeTerm type_ ]
-  ParamVarShapeDeprecated _loc pat cube tope -> concat
-    [ tokenizePattern pat
     , tokenizeTerm cube
     , tokenizeTope tope
     ]

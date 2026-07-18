@@ -309,8 +309,6 @@ goTerm file env = \case
   Rzk.ASCII_TypeSigmaTuple _ sp sps ret     -> sigmaTupleScope file env (sp : sps) ret
   Rzk.TypeFun _ pd ret                      -> paramDeclScope file env pd ret
   Rzk.ASCII_TypeFun _ pd ret                -> paramDeclScope file env pd ret
-  Rzk.TypeExtensionDeprecated _ pd ty       -> paramDeclScope file env pd ty
-  Rzk.ASCII_TypeExtensionDeprecated _ pd ty -> paramDeclScope file env pd ty
 
   Rzk.CubeProduct _ a b         -> goTerm file env a ++ goTerm file env b
   Rzk.CubeSup _ a b             -> goTerm file env a ++ goTerm file env b
@@ -328,7 +326,6 @@ goTerm file env = \case
   Rzk.CubeFlip _ a              -> goTerm file env a
   Rzk.CubeUnflip _ a            -> goTerm file env a
   Rzk.RecOr _ rs                -> concatMap (restriction file env) rs
-  Rzk.RecOrDeprecated _ a b c d -> concatMap (goTerm file env) [a, b, c, d]
   Rzk.TypeId _ a b c            -> concatMap (goTerm file env) [a, b, c]
   Rzk.TypeIdSimple _ a b        -> goTerm file env a ++ goTerm file env b
   Rzk.TypeRestricted _ a rs     -> goTerm file env a ++ concatMap (restriction file env) rs
@@ -422,9 +419,6 @@ goParam file env = \case
   Rzk.ParamPatternShape _ pats cube tope ->
     let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (shapeAnn cube tope)) pats)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamPatternShapeDeprecated _ pat cube tope ->
-    let (env', occs) = bindPat file env (shapeAnn cube tope) pat
-    in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamPatternModalType _ pats _ ty ->
     let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (typeAnn ty)) pats)
     in (env', goTerm file env ty ++ occs)
@@ -440,12 +434,6 @@ goParamDecl file env = \case
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamTermShape _ patTerm cube tope ->
     let (env', occs) = bindVars file env (annotatedTermPatVars (shapeAnn cube tope) patTerm)
-    in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamTermTypeDeprecated _ pat ty ->
-    let (env', occs) = bindPat file env (typeAnn ty) pat
-    in (env', goTerm file env ty ++ occs)
-  Rzk.ParamVarShapeDeprecated _ pat cube tope ->
-    let (env', occs) = bindPat file env (shapeAnn cube tope) pat
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamTermModalType _ patTerm _ ty ->
     let (env', occs) = bindVars file env (annotatedTermPatVars (typeAnn ty) patTerm)

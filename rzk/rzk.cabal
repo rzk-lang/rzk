@@ -439,6 +439,7 @@ test-suite rzk-test
       Rzk.FoilCoreSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
+      Rzk.ParserSpec
       Rzk.RefIndexSpec
       Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec

@@ -42,11 +42,11 @@ layoutSep   = List.nub $ TokSymbol ";" 45 : map (delimSep . snd) layoutWords
 parenOpen, parenClose :: [TokSymbol]
 parenOpen  =
   [ TokSymbol "(" 17
-  , TokSymbol "[" 60
+  , TokSymbol "[" 58
   ]
 parenClose =
   [ TokSymbol ")" 18
-  , TokSymbol "]" 63
+  , TokSymbol "]" 61
   ]
 
 -- | Report an error during layout resolution.
