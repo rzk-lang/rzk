@@ -470,13 +470,35 @@ addParams params = Rzk.Lambda Nothing params
 -- support.
 
 -- | Stage 1: the sort must be @U@ (families are stage 2).
-checkDataSort :: Distinct n => Rzk.DataSort -> TypeCheck n ()
-checkDataSort = \case
-  Rzk.NoDataSort _ -> return ()
-  Rzk.SomeDataSort _ Rzk.Universe{} -> return ()
-  Rzk.SomeDataSort _ sort -> issueTypeError $ TypeErrorOther $
-    "the sort of a #data must be U (inductive families are not supported yet), got "
-      <> Rzk.printTree sort
+-- | One index of a family, as declared in the sort: its binder (when the
+-- sort names it, as in @(n : nat) → U@) and its type.
+data SortIndex = SortIndex
+  { sortIndexVar  :: Maybe Rzk.VarIdent
+  , sortIndexType :: Rzk.Term
+  }
+
+-- | The index telescope of the sort. The sort must be @U@ (no indices) or a
+-- Π-telescope of plain types ending in @U@.
+dataSortIndices :: Distinct n => Rzk.DataSort -> TypeCheck n [SortIndex]
+dataSortIndices = \case
+  Rzk.NoDataSort _        -> pure []
+  Rzk.SomeDataSort _ sort -> go sort
+  where
+    go = \case
+      Rzk.Universe{} -> pure []
+      Rzk.TypeFun _ param ret       -> (:) <$> indexOf param <*> go ret
+      Rzk.ASCII_TypeFun _ param ret -> (:) <$> indexOf param <*> go ret
+      sort -> issueTypeError $ TypeErrorOther $
+        "the sort of a #data must be U, or an index telescope ending in U, got "
+          <> Rzk.printTree sort
+    indexOf = \case
+      Rzk.ParamType _ ty -> pure (SortIndex Nothing ty)
+      Rzk.ParamTermType _ (Rzk.Var _ v) ty -> pure (SortIndex (Just v) ty)
+      Rzk.ParamTermType _ pat _ -> issueTypeError $ TypeErrorOther $
+        "an index binder of a #data sort must be a plain variable, got "
+          <> Rzk.printTree pat
+      p -> issueTypeError $ TypeErrorOther $
+        "an index of a #data sort must be a plain type, got " <> Rzk.printTree p
 
 dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
 dataBodyParts = \case
@@ -523,10 +545,13 @@ data DataConSurface = DataConSurface
     -- ^ the field telescope, one entry per bound variable
   , dataConFieldPats  :: [Rzk.Term]
     -- ^ the field patterns as terms, in the same order
-  , dataConRecursive  :: [Int]
-    -- ^ 0-based positions of the directly recursive fields (their type is
-    -- the declared type applied to its parameters); each contributes an
-    -- induction hypothesis to the eliminator's method
+  , dataConRecursive  :: [(Int, [Rzk.Term])]
+    -- ^ the directly recursive fields (their type is the declared type
+    -- applied to its parameters and some index terms): 0-based position
+    -- and the index terms; each contributes an induction hypothesis to
+    -- the eliminator's method
+  , dataConRetIndices :: [Rzk.Term]
+    -- ^ the index terms of the constructor's return type
   , dataConType       :: Rzk.Term
     -- ^ the constructor's full surface type: params → fields → D params
   , dataConProbe      :: Rzk.Term
@@ -579,49 +604,66 @@ surfacePiSpine = go []
       Rzk.ParamTermModalType _ _ _ t    -> [t]
       Rzk.ParamTermModalShape _ _ _ c _ -> [c]
 
--- | Is the term the given name applied to exactly the given variables, in
--- order? (A syntactic check: this is how constructor return types and
--- directly recursive fields are recognised.)
-matchesDataApplied :: Rzk.VarIdent -> [Rzk.VarIdent] -> Rzk.Term -> Bool
-matchesDataApplied dataName paramVars t = case surfaceAppSpine t of
-  (Rzk.Var _ h, args) ->
-    identTokenOf h == identTokenOf dataName
-      && map (Just . identTokenOf) paramVars == map varTokenOf args
-  _ -> False
+-- | Is the term the given name applied to exactly the given parameter
+-- variables (in order, the uniformity requirement) and then exactly
+-- @arity@ index terms? Returns those index terms. A syntactic check: this
+-- is how constructor return types and directly recursive fields are
+-- recognised.
+dataAppliedIndices :: Rzk.VarIdent -> [Rzk.VarIdent] -> Int -> Rzk.Term -> Maybe [Rzk.Term]
+dataAppliedIndices dataName paramVars arity t = case surfaceAppSpine t of
+  (Rzk.Var _ h, args)
+    | identTokenOf h == identTokenOf dataName
+    , (paramArgs, indexArgs) <- splitAt (length paramVars) args
+    , map (Just . identTokenOf) paramVars == map varTokenOf paramArgs
+    , length indexArgs == arity
+    -> Just indexArgs
+  _ -> Nothing
   where
     varTokenOf (Rzk.Var _ v) = Just (identTokenOf v)
     varTokenOf _             = Nothing
+
+matchesDataApplied :: Rzk.VarIdent -> [Rzk.VarIdent] -> Int -> Rzk.Term -> Bool
+matchesDataApplied dataName paramVars arity =
+  maybe False (const True) . dataAppliedIndices dataName paramVars arity
 
 surfacePi :: Rzk.VarIdent -> Rzk.Term -> Rzk.Term -> Rzk.Term
 surfacePi v ty = Rzk.TypeFun Nothing (Rzk.ParamTermType Nothing (surfaceVar v) ty)
 
 dataConSurface
   :: Distinct n
-  => Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.ParamDecl] -> Rzk.Constructor
+  => Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.ParamDecl] -> Int -> Rzk.Constructor
   -> TypeCheck n DataConSurface
-dataConSurface dataName paramVars paramDecls (Rzk.Constructor _loc cname cparams ctype) = do
+dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cname cparams ctype) = do
   fieldDecls <- concat <$> mapM (dataFieldToParamDecl cname) cparams
   let defaultRet = surfaceApps (surfaceVar dataName) (map surfaceVar paramVars)
-      isRec = matchesDataApplied dataName paramVars
-  case ctype of
-    Rzk.NoConstructorType _ -> return ()
+      recIndicesOf = dataAppliedIndices dataName paramVars indexArity
+  (ret, retIndices) <- case ctype of
+    Rzk.NoConstructorType _
+      | indexArity == 0 -> pure (defaultRet, [])
+      | otherwise -> issueTypeError $ TypeErrorOther $
+          "constructor " <> Rzk.printTree cname
+            <> " must spell out its return type: the family has "
+            <> show indexArity <> " index(es)"
     Rzk.SomeConstructorType _ ret
-      | isRec ret -> return ()
+      | Just ixs <- recIndicesOf ret -> pure (ret, ixs)
       | otherwise -> issueTypeError $ TypeErrorOther $
           "the return type of constructor " <> Rzk.printTree cname
-            <> " must be the declared type applied to its parameters ("
-            <> Rzk.printTree defaultRet
-            <> "); indexed families are not supported yet"
+            <> " must be the declared type applied to its parameters and "
+            <> show indexArity <> " index(es), like "
+            <> Rzk.printTree defaultRet <> " …"
   let fieldTypes = [ ty | Rzk.ParamTermType _ _ ty <- fieldDecls ]
-      recursiveIdxs = [ j | (j, ty) <- zip [0 ..] fieldTypes, isRec ty ]
+      recursive =
+        [ (j, ixs) | (j, ty) <- zip [0 ..] fieldTypes, Just ixs <- [recIndicesOf ty] ]
+      isRec ty = maybe False (const True) (recIndicesOf ty)
       nonRecTypes = [ ty | ty <- fieldTypes, not (isRec ty) ]
       nonRecDecls = [ d | d@(Rzk.ParamTermType _ _ ty) <- fieldDecls, not (isRec ty) ]
   pure DataConSurface
     { dataConName = cname
     , dataConFields = fieldDecls
     , dataConFieldPats = concatMap fieldPats cparams
-    , dataConRecursive = recursiveIdxs
-    , dataConType = addParamDecls (paramDecls <> fieldDecls) defaultRet
+    , dataConRecursive = recursive
+    , dataConRetIndices = retIndices
+    , dataConType = addParamDecls (paramDecls <> fieldDecls) ret
     , dataConProbe = addParamDecls nonRecDecls (Rzk.TypeUnit Nothing)
     , dataConNonRec = nonRecTypes
     , dataConLocalNames = identTokenOf cname
@@ -684,11 +726,17 @@ withDataDecls
   -> Rzk.VarIdent         -- ^ the datatype name (surface)
   -> [Rzk.VarIdent]       -- ^ the parameter variables
   -> [Rzk.ParamDecl]      -- ^ the parameter telescope
+  -> [SortIndex]          -- ^ the index telescope of the sort
   -> [DataConSurface]     -- ^ the constructors, preprocessed
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
   -> TypeCheck n r
-withDataDecls path used name paramVars paramDecls consData k = do
-  dTyTerm <- elaborate (addParamDecls paramDecls (Rzk.Universe Nothing))
+withDataDecls path used name paramVars paramDecls sortIndices consData k = do
+  -- The type former's type spells the sort as written: params → indices → U.
+  let sortTerm = foldr wrapIndex (Rzk.Universe Nothing) sortIndices
+      wrapIndex (SortIndex mv ty) body = case mv of
+        Just v  -> surfacePi v ty body
+        Nothing -> surfaceArrow ty body
+  dTyTerm <- elaborate (addParamDecls paramDecls sortTerm)
   dTy <- memoizeWHNF =<< typecheck dTyTerm universeT
   dDeps <- assumptionDepsOf dTy
   withTopLevel (varIdentAt path name) dTy Nothing False
@@ -698,6 +746,7 @@ withDataDecls path used name paramVars paramDecls consData k = do
   where
     numParams  = length paramDecls
     numMethods = length consData
+    indexArity = length sortIndices
 
     bindCons
       :: forall m. DExt n m
@@ -723,7 +772,7 @@ withDataDecls path used name paramVars paramDecls consData k = do
           ty : _ -> do
             let (domains, codomain) = surfacePiSpine ty
             domainsClean <- mapM (fmap (not . dOccursIn) . elaborate) domains
-            pure (matchesDataApplied name paramVars codomain && and domainsClean)
+            pure (matchesDataApplied name paramVars indexArity codomain && and domainsClean)
           [] -> pure False
         issueTypeError $ TypeErrorOther $ if funRec
           then "constructor " <> Rzk.printTree (dataConName con)
@@ -741,7 +790,8 @@ withDataDecls path used name paramVars paramDecls consData k = do
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
       conDeps <- assumptionDepsOf conTy
       let role = DataRole dName numParams
-            (DataConKind index (length (dataConFields con)) (dataConRecursive con))
+            (DataConKind index (length (dataConFields con))
+              (map fst (dataConRecursive con)))
       withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
         (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
           bindCons (Foil.sink dName) (Foil.sinkContainer usedHere) (index + 1) rest
@@ -753,64 +803,85 @@ withDataDecls path used name paramVars paramDecls consData k = do
     bindElims dName usedHere declsAcc = do
       let avoid = identTokenOf name
             : map identTokenOf paramVars
+            <> [ identTokenOf v | SortIndex (Just v) _ <- sortIndices ]
             <> concatMap dataConLocalNames consData
-      motiveV <- freshIdent path avoid "C"
-      scrutV <- freshIdent path (identTokenOf motiveV : avoid) "x"
+      -- Anonymous indices of the sort get fresh names; named ones keep the
+      -- user's spelling (later index types may depend on them).
+      freshIx <- freshIdents (length [ () | SortIndex Nothing _ <- sortIndices ]) avoid "i"
+      let indexVars = go sortIndices freshIx
+            where
+              go [] _ = []
+              go (SortIndex (Just v) _ : rest) fresh = v : go rest fresh
+              go (SortIndex Nothing _ : rest) (f : fresh) = f : go rest fresh
+              go (SortIndex Nothing _ : _) [] =
+                error "impossible: not enough fresh index names"
+          indexDecls =
+            [ Rzk.ParamTermType Nothing (surfaceVar v) (sortIndexType si)
+            | (v, si) <- zip indexVars sortIndices ]
+          avoid' = map identTokenOf indexVars <> avoid
+      motiveV <- freshIdent path avoid' "C"
+      scrutV <- freshIdent path (identTokenOf motiveV : avoid') "x"
       -- Distinct induction-hypothesis binders, one per recursive field of
       -- the widest constructor; separate methods reuse the same names.
       let maxRec = maximum (0 : map (length . dataConRecursive) consData)
       ihNames <- freshIdents maxRec
-        (identTokenOf motiveV : identTokenOf scrutV : avoid) "ih"
+        (identTokenOf motiveV : identTokenOf scrutV : avoid') "ih"
       let dApplied = surfaceApps (surfaceVar name) (map surfaceVar paramVars)
+          dAppliedIx = surfaceApps dApplied (map surfaceVar indexVars)
+          motive = surfaceVar motiveV
+          -- The motive abstracts over the indices (and, dependently, the
+          -- scrutinee); a method's hypotheses and codomain instantiate it
+          -- at the relevant index terms.
+          motiveSort dependent = addParamDecls indexDecls $
+            if dependent
+              then surfaceArrow dAppliedIx (Rzk.Universe Nothing)
+              else Rzk.Universe Nothing
           -- One method per constructor: its fields with an induction
           -- hypothesis interleaved after each recursive field (HoTT-book
-          -- style), then (for @ind-D@) the motive at the constructor
-          -- applied to parameters and fields, or (for @rec-D@) the bare
-          -- motive.
+          -- style), then the motive at the constructor's return indices
+          -- (and, for @ind-D@, at the constructor applied to parameters
+          -- and fields).
           methodTy dependent con = wrapFields (0 :: Int)
             (zip [0 :: Int ..] (zip (dataConFields con) (dataConFieldPats con)))
             where
-              wrapFields _ [] =
-                if dependent
-                  then Rzk.App Nothing (surfaceVar motiveV) $ surfaceApps
-                    (surfaceVar (dataConName con))
-                    (map surfaceVar paramVars <> dataConFieldPats con)
-                  else surfaceVar motiveV
+              wrapFields _ [] = surfaceApps motive $
+                dataConRetIndices con
+                  <> [ surfaceApps (surfaceVar (dataConName con))
+                        (map surfaceVar paramVars <> dataConFieldPats con)
+                     | dependent ]
               wrapFields nRec ((j, (fieldDecl, fpat)) : more)
-                | j `elem` dataConRecursive con =
+                | Just fieldIxs <- lookup j (dataConRecursive con) =
                     Rzk.TypeFun Nothing fieldDecl $
                       surfacePi (ihNames !! nRec)
-                        (if dependent
-                          then Rzk.App Nothing (surfaceVar motiveV) fpat
-                          else surfaceVar motiveV)
+                        (surfaceApps motive (fieldIxs <> [ fpat | dependent ]))
                         (wrapFields (nRec + 1) more)
                 | otherwise =
                     Rzk.TypeFun Nothing fieldDecl (wrapFields nRec more)
-          indTy = addParamDecls paramDecls $
-            surfacePi motiveV (surfaceArrow dApplied (Rzk.Universe Nothing)) $
-              foldr (surfaceArrow . methodTy True)
-                (surfacePi scrutV dApplied
-                  (Rzk.App Nothing (surfaceVar motiveV) (surfaceVar scrutV)))
-                consData
-          recTy = addParamDecls paramDecls $
-            surfacePi motiveV (Rzk.Universe Nothing) $
-              foldr (surfaceArrow . methodTy False)
-                (surfaceArrow dApplied (surfaceVar motiveV))
+          elimTail dependent = addParamDecls indexDecls $
+            if dependent
+              then surfacePi scrutV dAppliedIx $
+                surfaceApps motive (map surfaceVar indexVars <> [surfaceVar scrutV])
+              else surfaceArrow dAppliedIx $
+                surfaceApps motive (map surfaceVar indexVars)
+          elimTy dependent = addParamDecls paramDecls $
+            surfacePi motiveV (motiveSort dependent) $
+              foldr (surfaceArrow . methodTy dependent)
+                (elimTail dependent)
                 consData
           indName = prefixedIdent "ind-" name
           recName = prefixedIdent "rec-" name
-      indTyT <- elaborate indTy
+      indTyT <- elaborate (elimTy True)
       indTy' <- memoizeWHNF =<< typecheck indTyT universeT
       indDeps <- assumptionDepsOf indTy'
       withTopLevel (varIdentAt path indName) indTy' Nothing False
         (nubNames (usedHere <> indDeps))
-        (Just (DataRole dName numParams (DataElimKind numMethods ElimInd))) $ \_ indDecl -> do
-          recTyT <- elaborate recTy
+        (Just (DataRole dName numParams (DataElimKind numMethods indexArity ElimInd))) $ \_ indDecl -> do
+          recTyT <- elaborate (elimTy False)
           recTy' <- memoizeWHNF =<< typecheck recTyT universeT
           recDeps <- assumptionDepsOf recTy'
           withTopLevel (varIdentAt path recName) recTy' Nothing False
             (nubNames (Foil.sinkContainer usedHere <> recDeps))
-            (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods ElimRec))) $ \_ recDecl ->
+            (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
               k (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
 
 prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent
@@ -928,7 +999,7 @@ checkCommands path i total commands k = case commands of
     announce (" Checking #data " <> Rzk.printTree name) $
       withCommand command k $ do
         used <- mapM (checkDefined . varIdentAt path) vars
-        checkDataSort sort
+        sortIndices <- dataSortIndices sort
         let (cons, elims) = dataBodyParts body
         case elims of
           [] -> return ()
@@ -937,8 +1008,9 @@ checkCommands path i total commands k = case commands of
               <> Rzk.printTree elimName <> ")"
         paramVars <- dataParamVars params
         paramDecls <- concat <$> mapM paramToParamDecl params
-        consData <- mapM (dataConSurface name paramVars paramDecls) cons
-        withDataDecls path used name paramVars paramDecls consData $ \decls ->
+        consData <- mapM
+          (dataConSurface name paramVars paramDecls (length sortIndices)) cons
+        withDataDecls path used name paramVars paramDecls sortIndices consData $ \decls ->
           checkCommands path (i + 1) total more $ \moreDecls errs ->
             k (sinkDecls decls <> moreDecls) errs
 

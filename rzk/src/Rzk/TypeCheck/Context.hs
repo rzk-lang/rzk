@@ -116,9 +116,10 @@ data DataRoleKind
     -- method index), the number of its own fields after the parameters,
     -- and the 0-based positions of its recursive fields (each contributes
     -- an induction hypothesis right after the field in the method)
-  | DataElimKind Int ElimKind
+  | DataElimKind Int Int ElimKind
     -- ^ an eliminator: the number of methods (one per constructor, in
-    -- declaration order); the motive and the scrutinee surround them
+    -- declaration order) and the number of indices of the family; the
+    -- spine is parameters, motive, methods, indices, scrutinee
 
 -- | Which eliminator; the ι-rule is the same for both.
 data ElimKind = ElimInd | ElimRec

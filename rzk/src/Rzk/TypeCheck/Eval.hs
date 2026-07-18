@@ -1273,8 +1273,11 @@ tryDataElimStep
   -> [(TypeInfo (TermT n), TermT n)]  -- ^ the collected spine arguments
   -> TypeCheck n (Maybe (TermT n))
 tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
-  Just (DataRole dataType numParams (DataElimKind numMethods _elimKind))
-    | (prefix, (_, scrut) : after) <- splitAt (numParams + 1 + numMethods) pairs ->
+  Just (DataRole dataType numParams (DataElimKind numMethods numIndices _elimKind))
+    -- The spine is parameters, motive, methods, indices, scrutinee. The
+    -- index arguments are dropped on a step: the scrutinee determines them.
+    | (beforeIndices, rest) <- splitAt (numParams + 1 + numMethods) pairs
+    , (_indices, (_, scrut) : after) <- splitAt numIndices rest ->
         whnfT scrut >>= \scrut' -> case collectAppSpine scrut' of
           (Var c, cargs) -> asks (varDataRole . lookupVarInfo c) >>= \case
             Just (DataRole dataType' conNumParams (DataConKind conIndex conNumFields recIdxs))
@@ -1282,14 +1285,26 @@ tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
               , length cargs == conNumParams + conNumFields -> do
                   let method = snd (pairs !! (numParams + 1 + conIndex))
                       fields = map snd (drop conNumParams cargs)
-                      prefixArgs = map snd prefix
+                      prefixArgs = map snd beforeIndices
                   -- The method takes an induction hypothesis right after each
                   -- recursive field: the eliminator itself, applied to the
-                  -- field (the spine is built here; evaluation stays lazy).
+                  -- field's own indices (read off the field's type) and the
+                  -- field. The spine is built here; evaluation stays lazy.
                   args <- fmap concat $ forM (zip [0 ..] fields) $ \(j, fieldArg) ->
                     if j `elem` recIdxs
                       then do
-                        ih <- applyTyped (Var v) (prefixArgs <> [fieldArg])
+                        fieldIxs <-
+                          if numIndices == 0
+                            then pure []
+                            else do
+                              fieldTy <- typeOf fieldArg
+                              case collectAppSpine fieldTy of
+                                (Var d, targs)
+                                  | Foil.nameId d == Foil.nameId dataType ->
+                                      pure (map snd (drop conNumParams targs))
+                                _ -> panicImpossible
+                                  "a recursive field's type is not the datatype"
+                        ih <- applyTyped (Var v) (prefixArgs <> fieldIxs <> [fieldArg])
                         pure [fieldArg, ih]
                       else pure [fieldArg]
                   Just <$> applyTyped method (args <> map snd after)

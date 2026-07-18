@@ -1,0 +1,4 @@
+status: ok
+warnings: []
+regression_for:
+  - data-stage2-indexed-families

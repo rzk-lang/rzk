@@ -1,0 +1,5 @@
+status: error
+error_tag: TypeErrorUnify
+line: 6
+regression_for:
+  - data-stage2-index-well-formedness
