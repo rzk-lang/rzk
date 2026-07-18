@@ -7,10 +7,22 @@ cabal-version:       >=1.10
 
 executable rzk-js
   main-is:             Main.hs
-  ghcjs-options:
-    -dedupe
-  build-depends:       base, rzk, text >=1.2.3.1
-  if impl(ghcjs)
-    build-depends:
-      ghcjs-base, ghcjs-prim
+  build-depends:       base
+                     , rzk
+                     , text >=1.2.3.1
+                     , aeson >=2.0.0.0
+                     , bytestring
   default-language:    Haskell2010
+
+  -- This wrapper is built only with the GHC WebAssembly backend
+  -- (wasm32-wasi-cabal). It uses GHC.Wasm.Prim and a `foreign export
+  -- javascript`, neither of which exists on a native GHC, so it is not
+  -- buildable elsewhere (a native `cabal build all` skips it).
+  if !arch(wasm32)
+    buildable: False
+  else
+    build-depends: ghc-experimental
+    ghc-options:
+      -no-hs-main
+      -optl-mexec-model=reactor
+      -optl-Wl,--export=rzkTypecheck
