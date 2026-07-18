@@ -108,6 +108,7 @@ library:
         - Language.Rzk.VSCode.Handlers
         - Language.Rzk.VSCode.Logging
         - Language.Rzk.VSCode.Lsp
+        - Language.Rzk.VSCode.PositionEncoding
         - Language.Rzk.VSCode.Tokenize
         - Language.Rzk.VSCode.ReferenceIndex
       dependencies:
