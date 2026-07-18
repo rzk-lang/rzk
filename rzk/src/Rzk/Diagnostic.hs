@@ -173,12 +173,6 @@ diagnoseTypeError dir err = Diagnostic
   , diagnosticHole     = Nothing
   }
 
--- | A structured diagnostic for a hole, carrying the hole's goal and local
--- context. A hole is an unfilled obligation, so it is a 'SeverityWarning' —
--- mirroring Agda's yellow \"unsolved\" highlight, and visible in the editor's
--- problems panel (unlike 'SeverityHint', which editors render almost
--- invisibly). Finished work still rejects holes outright: the strict default
--- of @rzk typecheck@ reports them as errors (cf. Agda's @--safe@).
 -- | A checker warning as a diagnostic: warning severity, with the warning's
 -- constructor name as the stable code (like 'diagnoseTypeError' does for
 -- errors).
@@ -204,6 +198,12 @@ ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
 checkWarningTag :: CheckWarning -> String
 checkWarningTag = diagnosticCode . diagnoseCheckWarning
 
+-- | A structured diagnostic for a hole, carrying the hole's goal and local
+-- context. A hole is an unfilled obligation, so it is a 'SeverityWarning' —
+-- mirroring Agda's yellow \"unsolved\" highlight, and visible in the editor's
+-- problems panel (unlike 'SeverityHint', which editors render almost
+-- invisibly). Finished work still rejects holes outright: the strict default
+-- of @rzk typecheck@ reports them as errors (cf. Agda's @--safe@).
 diagnoseHole :: HoleInfo -> Diagnostic
 diagnoseHole hole = Diagnostic
   { diagnosticSeverity = SeverityWarning
