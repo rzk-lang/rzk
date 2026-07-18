@@ -10,6 +10,7 @@
     "prepare": "tsc && vite build"
   },
   "dependencies": {
+    "@bjorn3/browser_wasi_shim": "^0.4.1",
     "@uiw/react-codemirror": "^4.21.18",
     "re-resizable": "^6.9.11",
     "react": "^18.2.0",

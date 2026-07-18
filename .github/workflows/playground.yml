@@ -1,0 +1,116 @@
+name: Playground (build and deploy the Rzk playground)
+
+# Builds the rzk logic core to WebAssembly (rzk-js/build-wasm.sh, GHC wasm
+# backend) and the Vite frontend, then publishes rzk-playground/dist to GitHub
+# Pages. This replaces the retired GHCJS lane: the logic core is the same rzk
+# library, now cross-compiled to wasm32-wasi (see wasm.yml) instead of GHCJS.
+
+on:
+  # No `paths:` filter on push: it is unreliable on tag pushes (GitHub often
+  # skips the run), which must always deploy. The filter is kept on PRs, where
+  # it only saves CI and never gates a deploy.
+  push:
+    branches: [main, develop]
+    tags: [v*]
+  pull_request:
+    branches: [develop]
+    paths:
+      - .github/workflows/playground.yml
+      - cabal.project
+      - rzk/**
+      - rzk-js/**
+      - rzk-playground/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Cancel an in-flight run when a PR gets a new commit; never cancel a push/tag
+# run (those deploy the playground).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-deploy:
+    name: "Build the wasm playground and deploy"
+    runs-on: ubuntu-latest
+    # Advisory: this lane depends on an external ghc-wasm-meta tarball download,
+    # the same stance as wasm.yml. It builds and deploys but does not gate
+    # unrelated work.
+    continue-on-error: true
+    env:
+      # GHC wasm flavour; keep in sync with wasm.yml.
+      FLAVOUR: "9.12"
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Install the GHC WASM toolchain (ghc-wasm-meta)
+        run: |
+          cd "$(mktemp -d)"
+          curl -f -L --retry 5 \
+            https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/archive/master/ghc-wasm-meta-master.tar.gz \
+            | tar xz --strip-components=1
+          ./setup.sh
+          ~/.ghc-wasm/add_to_github_path.sh
+
+      - name: 💾 Restore cached wasm cabal store
+        uses: actions/cache@v4
+        with:
+          path: ~/.ghc-wasm/.cabal/store
+          key: wasm-cabal-${{ runner.os }}-ghc${{ env.FLAVOUR }}-${{ hashFiles('rzk/rzk.cabal', 'cabal.project') }}
+          restore-keys: |
+            wasm-cabal-${{ runner.os }}-ghc${{ env.FLAVOUR }}-
+
+      - name: 🟢 Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: rzk-playground/package-lock.json
+
+      - name: 🔨 Build the wasm logic core
+        run: ./rzk-js/build-wasm.sh
+
+      - name: 🔨 Build the playground frontend
+        # base must match the deploy target below: main is published to the root
+        # `playground/`, every other ref to `<ref>/playground/`. Vite reads
+        # ASSET_URL as its base, and the loader fetches the wasm relative to it.
+        env:
+          ASSET_URL: ${{ github.ref_name == 'main' && format('/{0}/playground/', github.event.repository.name) || format('/{0}/{1}/playground/', github.event.repository.name, github.ref_name) }}
+        run: |
+          cd rzk-playground
+          npm ci
+          npm run build
+
+      - name: '🚀 Publish playground (${{ github.ref_name }})'
+        if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: rzk-playground/dist
+          target-folder: ${{ github.ref_name }}/playground
+          clean: false
+          single-commit: true
+
+      - name: '🚀 Publish playground (latest)'
+        if: ${{ startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'v') && github.event_name == 'push' }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: rzk-playground/dist
+          target-folder: latest/playground
+          clean: false
+          single-commit: true
+
+      - name: '🚀 Publish playground'
+        if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: rzk-playground/dist
+          target-folder: playground
+          clean: false
+          single-commit: true
