@@ -50,20 +50,19 @@ The symbols used in Syntax are the following:
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
   | ( | ) | , | |
-  | { | } | ↦ | ♭
-  | _b | ♯ | _# | _op
-  | _id | / | :♭ | :♯
-  | :ᵒᵖ | :_id | :_b | :_#
-  | :_op | 1 | *₁ | 2
-  | 0₂ | 1₂ | 0ᵢ | 1ᵢ
-  | × | ⊔ | ⊓ | ⊤
-  | ⊥ | ≡ | ≤ | ∧
-  | ∨ | → | =_{ | [
-  | ] | < | > | \
-  | $extract$ | refl_{ | * | *_1
-  | 0_2 | 1_2 | 0_I | 1_I
-  | === | <= | /\ | \/
-  | -> | |-> | ∑ |
+  | ↦ | ♭ | _b | ♯
+  | _# | _op | _id | /
+  | :♭ | :♯ | :ᵒᵖ | :_id
+  | :_b | :_# | :_op | 1
+  | *₁ | 2 | 0₂ | 1₂
+  | 0ᵢ | 1ᵢ | × | ⊔
+  | ⊓ | ⊤ | ⊥ | ≡
+  | ≤ | ∧ | ∨ | →
+  | =_{ | } | [ | ]
+  | \ | $extract$ | refl_{ | *
+  | *_1 | 0_2 | 1_2 | 0_I
+  | 1_I | === | <= | /\
+  | \/ | -> | |-> | ∑
 
 ===Comments===
 Single-line comments begin with --. Multiple-line comments are enclosed with {- and -}.
@@ -116,7 +115,6 @@ All other symbols are terminals.
   | //Param// | -> | //Pattern//
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``)``
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``|`` //Term// ``)``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// ``)``
   |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// ``|`` //Term// ``)``
   | //[Param]// | -> | //Param//
@@ -126,9 +124,6 @@ All other symbols are terminals.
   | //ParamDecl// | -> | //Term6//
   |  |  **|**  | ``(`` //Term// ``:`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``:`` //Term// ``|`` //Term// ``)``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
-  |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   |  |  **|**  | ``(`` //Term// //ModalColon// //Term// ``)``
   |  |  **|**  | ``(`` //Term// //ModalColon// //Term// ``|`` //Term// ``)``
   | //SigmaParam// | -> | //Pattern// ``:`` //Term//
@@ -170,9 +165,7 @@ All other symbols are terminals.
   |  |  **|**  | ``⊥``
   |  |  **|**  | ``recBOT``
   |  |  **|**  | ``recOR`` ``(`` //[Restriction]// ``)``
-  |  |  **|**  | ``recOR`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``Unit``
-  |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
   |  |  **|**  | ``mod`` //Modality// //Term7//
@@ -193,7 +186,6 @@ All other symbols are terminals.
   |  |  **|**  | ``1_I``
   |  |  **|**  | ``TOP``
   |  |  **|**  | ``BOT``
-  |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
   | //Term5// | -> | //Term5// ``×`` //Term6//
   |  |  **|**  | //Term5// ``⊔`` //Term6//
   |  |  **|**  | //Term5// ``⊓`` //Term6//

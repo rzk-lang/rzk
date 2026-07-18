@@ -87,17 +87,6 @@ bindings (Rzk.PatternTuple loc p1 p2 ps) t =
 toTerm :: forall n. Distinct n => Scope n -> Env n -> Rzk.Term -> Term n
 toTerm scope env = go
   where
-    -- Desugar a deprecated notation, telling the user what to write instead.
-    deprecated t t' = trace msg (go t')
-      where
-        msg = unlines
-          [ "[DEPRECATED]:" <> ppBNFC'Position (Rzk.hasPosition t)
-          , "the following notation is deprecated and will be removed from future version of rzk:"
-          , "  " <> Rzk.printTree t
-          , "instead consider using the following notation:"
-          , "  " <> Rzk.printTree t'
-          ]
-
     ppBNFC'Position Nothing = ""
     ppBNFC'Position (Just (line_, col)) = " at line " <> show line_ <> " column " <> show col
 
@@ -111,18 +100,7 @@ toTerm scope env = go
 
     go :: Rzk.Term -> Term n
     go = \case
-      -- ASCII aliases and deprecations are desugared exactly as before.
-      t@(Rzk.RecOrDeprecated loc psi phi a_psi a_phi) -> deprecated t
-        (Rzk.RecOr loc [Rzk.Restriction loc psi a_psi, Rzk.Restriction loc phi a_phi])
-      t@(Rzk.TypeExtensionDeprecated loc shape type_) -> deprecated t
-        (Rzk.TypeFun loc shape type_)
-      t@(Rzk.TypeFun loc (Rzk.ParamTermTypeDeprecated loc' pat type_) ret) -> deprecated t
-        (Rzk.TypeFun loc (Rzk.ParamTermType loc' (Free.patternToTerm pat) type_) ret)
-      t@(Rzk.TypeFun loc (Rzk.ParamVarShapeDeprecated loc' pat cube tope) ret) -> deprecated t
-        (Rzk.TypeFun loc (Rzk.ParamTermShape loc' (Free.patternToTerm pat) cube tope) ret)
-      t@(Rzk.Lambda loc (Rzk.ParamPatternShapeDeprecated loc' pat cube tope : params) body) -> deprecated t
-        (Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] cube tope : params) body)
-
+      -- ASCII aliases are desugared exactly as before.
       Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
       Rzk.ASCII_Cube2_0 loc -> go (Rzk.Cube2_0 loc)
       Rzk.ASCII_Cube2_1 loc -> go (Rzk.Cube2_1 loc)
@@ -136,8 +114,6 @@ toTerm scope env = go
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
       Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
-      Rzk.ASCII_TypeExtensionDeprecated loc shape type_ ->
-        go (Rzk.TypeExtensionDeprecated loc shape type_)
       Rzk.ASCII_First loc term -> go (Rzk.First loc term)
       Rzk.ASCII_Second loc term -> go (Rzk.Second loc term)
       Rzk.ASCII_CubeI loc -> go (Rzk.CubeI loc)

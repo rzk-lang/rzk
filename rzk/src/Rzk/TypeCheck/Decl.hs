@@ -382,8 +382,6 @@ unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 paramToParamDecl :: Distinct n => Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
-paramToParamDecl (Rzk.ParamPatternShapeDeprecated loc pat cube tope) = pure
-  [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope ]
 paramToParamDecl (Rzk.ParamPatternShape loc pats cube tope) = pure
   [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope | pat <- pats]
 paramToParamDecl (Rzk.ParamPatternType loc pats ty) = pure

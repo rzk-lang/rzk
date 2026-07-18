@@ -69,7 +69,6 @@ separator nonempty Pattern1 "," ;
 ParamPattern.          Param ::= Pattern ;
 ParamPatternType.      Param ::= "(" [Pattern] ":" Term ")" ;
 ParamPatternShape.     Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
-ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
 ParamPatternModalType. Param ::= "(" [Pattern] ModalColon Term ")" ;
 ParamPatternModalShape. Param ::= "(" [Pattern] ModalColon Term "|" Term ")" ;
 separator nonempty Param "" ;
@@ -82,10 +81,6 @@ BindPatternType.  Bind ::= Pattern ":" Term  ;
 ParamType.             ParamDecl ::= Term6 ;
 ParamTermType.         ParamDecl ::= "(" Term ":" Term ")" ;
 ParamTermShape.        ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
-ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
-ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
-paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
-define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
 ParamTermModalType.    ParamDecl ::= "(" Term ModalColon Term ")" ;
 ParamTermModalShape.   ParamDecl ::= "(" Term ModalColon Term "|" Term ")" ;
 
@@ -158,7 +153,6 @@ define ascii_CubeUnflip t = CubeUnflip t ;
 -- Tope disjunction elimination
 RecBottom.        Term7 ::= "recBOT" ;
 RecOr.            Term7 ::= "recOR" "(" [Restriction] ")" ;
-RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
@@ -168,7 +162,6 @@ TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
-TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 -- Terms
 Let.            Term1 ::= "let" Bind ":=" Term "in" Term ;
 App.            Term6 ::= Term6 Term7 ;
@@ -226,8 +219,6 @@ ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," 
 
 ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
 ASCII_Restriction. Restriction ::= Term "|->" Term ;
-
-ASCII_TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "->" Term ">" ;
 
 ASCII_First.          Term6 ::= "first" Term7 ;
 ASCII_Second.         Term6 ::= "second" Term7 ;

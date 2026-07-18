@@ -82,7 +82,6 @@ data Param' a
     = ParamPattern a (Pattern' a)
     | ParamPatternType a [Pattern' a] (Term' a)
     | ParamPatternShape a [Pattern' a] (Term' a) (Term' a)
-    | ParamPatternShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
     | ParamPatternModalType a [Pattern' a] (ModalColon' a) (Term' a)
     | ParamPatternModalShape a [Pattern' a] (ModalColon' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
@@ -98,8 +97,6 @@ data ParamDecl' a
     = ParamType a (Term' a)
     | ParamTermType a (Term' a) (Term' a)
     | ParamTermShape a (Term' a) (Term' a) (Term' a)
-    | ParamTermTypeDeprecated a (Pattern' a) (Term' a)
-    | ParamVarShapeDeprecated a (Pattern' a) (Term' a) (Term' a)
     | ParamTermModalType a (Term' a) (ModalColon' a) (Term' a)
     | ParamTermModalShape a (Term' a) (ModalColon' a) (Term' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
@@ -171,7 +168,6 @@ data Term' a
     | CubeUnflip a (Term' a)
     | RecBottom a
     | RecOr a [Restriction' a]
-    | RecOrDeprecated a (Term' a) (Term' a) (Term' a) (Term' a)
     | TypeFun a (ParamDecl' a) (Term' a)
     | TypeSigma a (Pattern' a) (Term' a) (Term' a)
     | TypeSigmaModal a (Pattern' a) (ModalColon' a) (Term' a) (Term' a)
@@ -180,7 +176,6 @@ data Term' a
     | TypeId a (Term' a) (Term' a) (Term' a)
     | TypeIdSimple a (Term' a) (Term' a)
     | TypeRestricted a (Term' a) [Restriction' a]
-    | TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | Let a (Bind' a) (Term' a) (Term' a)
     | App a (Term' a) (Term' a)
     | Lambda a [Param' a] (Term' a)
@@ -216,7 +211,6 @@ data Term' a
     | ASCII_TypeSigma a (Pattern' a) (Term' a) (Term' a)
     | ASCII_TypeSigmaTuple a (SigmaParam' a) [SigmaParam' a] (Term' a)
     | ASCII_Lambda a [Param' a] (Term' a)
-    | ASCII_TypeExtensionDeprecated a (ParamDecl' a) (Term' a)
     | ASCII_First a (Term' a)
     | ASCII_Second a (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
@@ -241,9 +235,6 @@ commandDefNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
 
 noDeclUsedVars :: a -> DeclUsedVars' a
 noDeclUsedVars = \ _a -> DeclUsedVars _a []
-
-paramVarShapeDeprecated :: a -> Pattern' a -> Term' a -> Term' a -> ParamDecl' a
-paramVarShapeDeprecated = \ _a pat cube tope -> ParamVarShapeDeprecated _a pat cube tope
 
 ascii_TopeInv :: a -> Term' a -> Term' a
 ascii_TopeInv = \ _a t -> TopeInv _a t
@@ -351,7 +342,6 @@ instance HasPosition Param where
     ParamPattern p _ -> p
     ParamPatternType p _ _ -> p
     ParamPatternShape p _ _ _ -> p
-    ParamPatternShapeDeprecated p _ _ _ -> p
     ParamPatternModalType p _ _ _ -> p
     ParamPatternModalShape p _ _ _ _ -> p
 
@@ -365,8 +355,6 @@ instance HasPosition ParamDecl where
     ParamType p _ -> p
     ParamTermType p _ _ -> p
     ParamTermShape p _ _ _ -> p
-    ParamTermTypeDeprecated p _ _ -> p
-    ParamVarShapeDeprecated p _ _ _ -> p
     ParamTermModalType p _ _ _ -> p
     ParamTermModalShape p _ _ _ _ -> p
 
@@ -433,7 +421,6 @@ instance HasPosition Term where
     CubeUnflip p _ -> p
     RecBottom p -> p
     RecOr p _ -> p
-    RecOrDeprecated p _ _ _ _ -> p
     TypeFun p _ _ -> p
     TypeSigma p _ _ _ -> p
     TypeSigmaModal p _ _ _ _ -> p
@@ -442,7 +429,6 @@ instance HasPosition Term where
     TypeId p _ _ _ -> p
     TypeIdSimple p _ _ -> p
     TypeRestricted p _ _ -> p
-    TypeExtensionDeprecated p _ _ -> p
     Let p _ _ _ -> p
     App p _ _ -> p
     Lambda p _ _ -> p
@@ -478,7 +464,6 @@ instance HasPosition Term where
     ASCII_TypeSigma p _ _ _ -> p
     ASCII_TypeSigmaTuple p _ _ _ -> p
     ASCII_Lambda p _ _ -> p
-    ASCII_TypeExtensionDeprecated p _ _ -> p
     ASCII_First p _ -> p
     ASCII_Second p _ -> p
 
