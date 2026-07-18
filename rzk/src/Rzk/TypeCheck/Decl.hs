@@ -1,4 +1,7 @@
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+-- The scope-extension evidence on 'sinkDeclGroups' (a coercion) is its
+-- soundness contract, not an argument it can consume, so GHC calls it
+-- redundant. It stays.
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-redundant-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
@@ -29,6 +32,7 @@ import           Data.List                 (intercalate)
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
+import           Unsafe.Coerce             (unsafeCoerce)
 
 import           Control.Monad.Foil        (DExt, Distinct, NameBinder)
 import qualified Control.Monad.Foil        as Foil
@@ -63,15 +67,29 @@ data Decl n = Decl
   , declLocation     :: Maybe LocationInfo
   }
 
--- | A declaration sinks along a scope extension, by coercion (see the note in
--- "Rzk.TypeCheck.Context").
+-- | A declaration sinks along a scope extension by coercion, like the
+-- context does (see the note in "Rzk.TypeCheck.Context"); the proof
+-- obligation is discharged field by field.
+instance Foil.Sinkable Decl where
+  sinkabilityProof rename decl = decl
+    { declNameOf = rename (declNameOf decl)
+    , declType = Foil.sinkabilityProof rename (declType decl)
+    , declValue = Foil.sinkabilityProof rename <$> declValue decl
+    , declUsedVars = rename <$> declUsedVars decl
+    }
+
 sinkDecl :: DExt n l => Decl n -> Decl l
-sinkDecl decl = decl
-  { declNameOf = Foil.sink (declNameOf decl)
-  , declType = Foil.sink (declType decl)
-  , declValue = Foil.sink <$> declValue decl
-  , declUsedVars = Foil.sink <$> declUsedVars decl
-  }
+sinkDecl = Foil.sink
+
+-- | Sinking a whole list is a coercion too, with no per-element rebuild.
+sinkDecls :: DExt n l => [Decl n] -> [Decl l]
+sinkDecls = Foil.sinkContainer
+
+-- | The per-file groups also sink by coercion. 'Foil.sinkContainer' cannot
+-- see through the pair (its element must be the sunk type itself), but the
+-- sinkability argument is the same: only the declarations mention the scope.
+sinkDeclGroups :: DExt n l => [(FilePath, [Decl n])] -> [(FilePath, [Decl l])]
+sinkDeclGroups = unsafeCoerce
 
 -- | What a run of the checker produced: the top-level scope, the declarations in
 -- it, and the errors found.
@@ -123,9 +141,9 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           { declName = name
           , declNameOf = Foil.nameOf binder
           , declType = Foil.sink ty
-          , declValue = Foil.sink <$> mval
+          , declValue = Foil.sinkContainer mval
           , declIsAssumption = isAssumption
-          , declUsedVars = Foil.sink <$> usedVars
+          , declUsedVars = Foil.sinkContainer usedVars
           , declLocation = ctxLocation ctx
           }
     inContext ctx' (k binder decl)
@@ -633,7 +651,7 @@ withDataDecls path used name paramVars paramDecls consData k = do
   dDeps <- assumptionDepsOf dTy
   withTopLevel (varIdentAt path name) dTy Nothing False
     (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
-      bindCons (Foil.nameOf dBinder) (map Foil.sink used) 0 consData [sinkDecl dDecl] $
+      bindCons (Foil.nameOf dBinder) (Foil.sinkContainer used) 0 consData [sinkDecl dDecl] $
         \dName usedL declsAcc -> bindElims dName usedL declsAcc
   where
     numParams  = length paramDecls
@@ -665,8 +683,8 @@ withDataDecls path used name paramVars paramDecls consData k = do
       let role = DataRole dName numParams (DataConKind index (length (dataConFields con)))
       withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
         (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
-          bindCons (Foil.sink dName) (map Foil.sink usedHere) (index + 1) rest
-            (map sinkDecl acc <> [conDecl]) kk
+          bindCons (Foil.sink dName) (Foil.sinkContainer usedHere) (index + 1) rest
+            (sinkDecls acc <> [conDecl]) kk
 
     bindElims
       :: forall m. DExt n m
@@ -710,9 +728,9 @@ withDataDecls path used name paramVars paramDecls consData k = do
           recTy' <- memoizeWHNF =<< typecheck recTyT universeT
           recDeps <- assumptionDepsOf recTy'
           withTopLevel (varIdentAt path recName) recTy' Nothing False
-            (nubNames (map Foil.sink usedHere <> recDeps))
+            (nubNames (Foil.sinkContainer usedHere <> recDeps))
             (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods ElimRec))) $ \_ recDecl ->
-              k (map sinkDecl (map sinkDecl declsAcc <> [indDecl]) <> [recDecl])
+              k (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
 
 prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent
 prefixedIdent p (Rzk.VarIdent pos (Rzk.VarIdentToken t)) =
@@ -841,7 +859,7 @@ checkCommands path i total commands k = case commands of
         consData <- mapM (dataConSurface name paramVars paramDecls) cons
         withDataDecls path used name paramVars paramDecls consData $ \decls ->
           checkCommands path (i + 1) total more $ \moreDecls errs ->
-            k (map sinkDecl decls <> moreDecls) errs
+            k (sinkDecls decls <> moreDecls) errs
 
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
@@ -862,7 +880,7 @@ checkCommands path i total commands k = case commands of
         ty' <- typecheck tyTerm universeT
         assume (map (varIdentAt path) names) ty' $ \assumed ->
           checkCommands path (i + 1) total more $ \decls errs ->
-            k (map sinkDecl assumed <> decls) errs
+            k (sinkDecls assumed <> decls) errs
 
   command@(Rzk.CommandCheck _loc term ty) : more ->
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $
@@ -898,7 +916,7 @@ checkCommands path i total commands k = case commands of
       withSection (Just name) i sectionCommands path total $ \sectionDecls sectionErrs ->
         if null sectionErrs
           then checkCommands path (i + countCommands sectionCommands) total more' $
-            \decls errs -> k (map sinkDecl sectionDecls <> decls) errs
+            \decls errs -> k (sinkDecls sectionDecls <> decls) errs
           else k sectionDecls sectionErrs
 
   command@(Rzk.CommandSectionEnd _loc endName) : _more ->
@@ -976,7 +994,7 @@ checkModules (m@(path, _) : ms) k =
     case errs of
       _:_ -> k [(path, decls)] errs
       _ -> checkModules ms $ \rest errors ->
-        k ((path, map sinkDecl decls) : rest) errors
+        k ((path, sinkDecls decls) : rest) errors
 
 -- * The public entry points
 
@@ -1088,7 +1106,7 @@ recheckFrom (Checked ctx decls _errs _warnings) modules =
   fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
     checkModules modules $ \newDecls errs -> do
       ctx' <- ask
-      pure (Checked ctx' (map (fmap (map sinkDecl)) decls <> newDecls) errs [])
+      pure (Checked ctx' (sinkDeclGroups decls <> newDecls) errs [])
   where
     -- Only this run's warnings: like the errors, the prefix's warnings were
     -- already reported when the prefix was checked.
