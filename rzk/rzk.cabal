@@ -373,6 +373,7 @@ library
         Language.Rzk.VSCode.Handlers
         Language.Rzk.VSCode.Logging
         Language.Rzk.VSCode.Lsp
+        Language.Rzk.VSCode.PositionEncoding
         Language.Rzk.VSCode.Tokenize
         Language.Rzk.VSCode.ReferenceIndex
     build-depends:
@@ -466,6 +467,7 @@ test-suite rzk-test
       Rzk.FormatSpec
       Rzk.HolesSpec
       Rzk.ParserSpec
+      Rzk.PositionEncodingSpec
       Rzk.RefIndexSpec
       Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec

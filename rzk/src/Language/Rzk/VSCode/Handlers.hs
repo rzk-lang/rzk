@@ -67,6 +67,7 @@ import           Language.Rzk.Syntax           (Module, Term,
                                                 parseModuleSafe, printTree)
 import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
+import qualified Language.Rzk.VSCode.PositionEncoding as Enc
 import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
@@ -126,20 +127,50 @@ fromLspUri u = RefInd.Uri { uriPath = fromMaybe "" (uriToFilePath u) }
 toLspUri :: RefInd.Uri -> LSP.Uri
 toLspUri (RefInd.Uri { uriPath = p }) = filePathToUri p
 
-fromLspPosition :: LSP.Position -> RefInd.Position
-fromLspPosition (LSP.Position l c) =
-  RefInd.Position (fromIntegral l) (fromIntegral c)
+-- | The astral-line map of a file, for position conversion at the LSP
+-- boundary (see "Language.Rzk.VSCode.PositionEncoding"): from the editor
+-- buffer when the file is open, from disk otherwise. A file that cannot be
+-- read converts as all-BMP, i.e. the conversion is the identity.
+astralLinesOfFile :: FilePath -> LSP Enc.AstralLines
+astralLinesOfFile path = do
+  mdoc <- getVirtualFile (filePathToNormalizedUri path)
+  case virtualFileText <$> mdoc of
+    Just text -> return (Enc.astralLines (T.filter (/= '\r') text))
+    Nothing -> liftIO $ do
+      result <- try @SomeException (readFile path)
+      return $ case result of
+        Left _    -> Enc.astralLines ""
+        Right src -> Enc.astralLines (T.filter (/= '\r') (T.pack src))
 
-toLspPosition :: RefInd.Position -> LSP.Position
-toLspPosition (RefInd.Position l c) =
-  LSP.Position (fromIntegral l) (fromIntegral c)
+fromLspPosition :: Enc.AstralLines -> LSP.Position -> RefInd.Position
+fromLspPosition als (LSP.Position l c) =
+  RefInd.Position (fromIntegral l)
+    (Enc.colFromUtf16 als (fromIntegral l) (fromIntegral c))
 
-toLspRange :: RefInd.Range -> Range
-toLspRange (RefInd.Range s e) = Range (toLspPosition s) (toLspPosition e)
+toLspPosition :: Enc.AstralLines -> RefInd.Position -> LSP.Position
+toLspPosition als (RefInd.Position l c) =
+  LSP.Position (fromIntegral l)
+    (fromIntegral (Enc.colToUtf16 als l c))
 
-toLspLocation :: RefInd.Location -> LSP.Location
-toLspLocation (RefInd.Location u r) =
-  LSP.Location (toLspUri u) (toLspRange r)
+toLspRange :: Enc.AstralLines -> RefInd.Range -> Range
+toLspRange als (RefInd.Range s e) =
+  Range (toLspPosition als s) (toLspPosition als e)
+
+-- | Convert locations to LSP, fetching the astral-line map once per file.
+toLspLocations :: [RefInd.Location] -> LSP [LSP.Location]
+toLspLocations locations = do
+  let files = nub (map RefInd.locationPath locations)
+  alss <- Map.fromList <$> forM files (\f -> (,) f <$> astralLinesOfFile f)
+  return
+    [ LSP.Location (toLspUri u) (toLspRange als r)
+    | RefInd.Location u r <- locations
+    , Just als <- [Map.lookup (RefInd.uriPath u) alss]
+    ]
+
+toLspLocation :: RefInd.Location -> LSP LSP.Location
+toLspLocation (RefInd.Location u r) = do
+  als <- astralLinesOfFile (RefInd.uriPath u)
+  return (LSP.Location (toLspUri u) (toLspRange als r))
 
 typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
@@ -172,7 +203,8 @@ typecheckFromConfigFile = do
 
           -- Report parse errors to the client
           forM_ parseErrors $ \(path, err) -> do
-            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError err])
+            als <- astralLinesOfFile path
+            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError als err])
 
           -- Files after the first parse error are not typechecked at all
           -- ('collectErrors' stops collecting modules there); mark the ones
@@ -339,8 +371,8 @@ typecheckFromConfigFile = do
     diagnosticOfWarning :: CheckWarning -> Diagnostic
     diagnosticOfWarning = lspDiagnosticOf . Diag.diagnoseCheckWarning
 
-    diagnosticOfParseError :: T.Text -> Diagnostic
-    diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))
+    diagnosticOfParseError :: Enc.AstralLines -> T.Text -> Diagnostic
+    diagnosticOfParseError als err = Diagnostic (Enc.rangeToUtf16 als (Range (Position errLine errColumnStart) (Position errLine errColumnEnd)))
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "parse-error")
                       Nothing
@@ -425,11 +457,11 @@ fullDocumentRange source
   | otherwise =
       let newlineCount = T.count (T.singleton '\n') source
           endLine = newlineCount
-          -- Length of last line (after last newline); if no newline, whole text is one line
+          -- Length of the last line (after the last newline; if no newline,
+          -- the whole text is one line), in UTF-16 units as LSP counts them.
           endCharacter
             | T.last source == '\n' = 0
-            | Just i <- T.findIndex (== '\n') (T.reverse source) = fromIntegral i
-            | otherwise = fromIntegral (T.length source)
+            | otherwise = fromIntegral (Enc.utf16Length (T.takeWhileEnd (/= '\n') source))
       in Range (Position 0 0) (Position (fromIntegral endLine) endCharacter)
 
 formatDocument :: Handler LSP 'Method_TextDocumentFormatting
@@ -489,7 +521,8 @@ provideSemanticTokens req responder = do
           logWarning ("Failed to parse file for semantic tokens: " <> err)
           return []
         Right rzkModule -> return (tokenizeModule rzkModule)
-      return (Right (mergeTokens astTokens (tokenizeSyntaxSymbols src)))
+      return (Right (Enc.tokensToUtf16 (Enc.astralLines src)
+        (mergeTokens astTokens (tokenizeSyntaxSymbols src))))
   case possibleTokens of
     Left err -> do
       -- Exception occurred when parsing the module
@@ -508,8 +541,11 @@ findDefinition req res = do
   let uri' = req ^. params . textDocument . uri
       currentFile = fromMaybe "" (uriToFilePath uri')
   referenceIndex <- indexProject currentFile
-  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
-    Just binding -> res $ Right $ InL $ Definition $ InL (toLspLocation (RefInd.bindingDef binding))
+  als <- astralLinesOfFile currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition als (req ^. params . position)) of
+    Just binding -> do
+      location <- toLspLocation (RefInd.bindingDef binding)
+      res $ Right $ InL $ Definition $ InL location
     Nothing      -> res $ Right $ InR $ InR Null
 
 findReferences :: Handler LSP 'Method_TextDocumentReferences
@@ -518,12 +554,14 @@ findReferences req res = do
       currentFile = fromMaybe "" (uriToFilePath uri')
       includeDeclaration = req ^. params . context . to (\(ReferenceContext incl) -> incl)
   referenceIndex <- indexProject currentFile
-  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
-    Just binding ->
+  als <- astralLinesOfFile currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition als (req ^. params . position)) of
+    Just binding -> do
       let sites
             | includeDeclaration = RefInd.bindingSites binding
             | otherwise          = RefInd.bindingRefs binding
-      in res $ Right $ InL (map toLspLocation sites)
+      locations <- toLspLocations sites
+      res $ Right $ InL locations
     Nothing -> res $ Right $ InL []
 
 indexProject :: FilePath -> LSP RefInd.ReferenceIndex
@@ -597,17 +635,19 @@ formatSignature name ty
 provideHover :: Handler LSP 'Method_TextDocumentHover
 provideHover req res = do
   let uri' = req ^. params . textDocument . uri
-      pos  = fromLspPosition (req ^. params . position)
       currentFile = fromMaybe "" $ uriToFilePath uri'
   referenceIndex <- indexProject currentFile
+  als <- astralLinesOfFile currentFile
+  let pos = fromLspPosition als (req ^. params . position)
   case RefInd.lookupAt referenceIndex (fromLspUri uri') pos of
     Nothing -> res $ Right $ InR Null
     Just binding -> do
       cached <- getCachedTypecheckedModules
       let body = hoverContent binding cached
+      LSP.Location _ defRange <- toLspLocation (RefInd.bindingDef binding)
       res $ Right $ InL $ Hover
         (InL (MarkupContent MarkupKind_Markdown body))
-        (Just (toLspRange (RefInd.locationRange (RefInd.bindingDef binding))))
+        (Just defRange)
   where
     hoverContent binding cached =
       T.pack (file ++ "\n\n```rzk\n" ++ signature ++ "\n```")
@@ -651,42 +691,46 @@ provideHover req res = do
 
 -- | The printed name of a declaration and the range of its defining
 -- occurrence, shared by the document and workspace symbol providers.
-declNameRange :: DeclView -> (T.Text, Range)
-declNameRange (DeclView name _ _ _ _) = (T.pack (printTree ident), range)
+declNameRange :: Enc.AstralLines -> DeclView -> (T.Text, Range)
+declNameRange als (DeclView name _ _ _ _) = (T.pack (printTree ident), range)
   where
     ident = getVarIdent name
     VarIdent pos _ = ident
     RzkPosition _path pos' = pos
     (line, col) = fromMaybe (0, 0) pos'
     len = length (printTree ident)
-    pos0 = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1)))
-    end  = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1) + len))
+    line0 = max 0 (line - 1)
+    col0 = max 0 (col - 1)
+    pos0 = Position (fromIntegral line0) (fromIntegral (Enc.colToUtf16 als line0 col0))
+    end  = Position (fromIntegral line0) (fromIntegral (Enc.colToUtf16 als line0 (col0 + len)))
     range = Range pos0 end
 
 provideSymbols :: Handler LSP 'Method_TextDocumentDocumentSymbol
 provideSymbols req res = do
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   cachedModules <- getCachedTypecheckedModules
+  als <- astralLinesOfFile currentFile
   let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
-  res $ Right $ InR $ InL $ outline decls
+  res $ Right $ InR $ InL $ outline als decls
   where
     -- A #data contributes one symbol with its constructors as children; the
     -- generated eliminators stay out of the outline (they are not in the
     -- source; workspace symbol search still finds them).
-    outline :: [DeclView] -> [DocumentSymbol]
-    outline [] = []
-    outline (d : ds) = case declViewKind d of
+    outline :: Enc.AstralLines -> [DeclView] -> [DocumentSymbol]
+    outline _ [] = []
+    outline als (d : ds) = case declViewKind d of
       DeclKindData ->
         let isChildOf c = case declViewKind c of
               DeclKindDataCon parent -> parent == declViewName d
               _                      -> False
             (childDecls, rest) = span isChildOf ds
-        in declToSymbol (Just (map (declToSymbol Nothing) childDecls)) d : outline rest
-      DeclKindDataElim _ -> outline ds
-      _ -> declToSymbol Nothing d : outline ds
+        in declToSymbol als (Just (map (declToSymbol als Nothing) childDecls)) d
+             : outline als rest
+      DeclKindDataElim _ -> outline als ds
+      _ -> declToSymbol als Nothing d : outline als ds
 
-    declToSymbol :: Maybe [DocumentSymbol] -> DeclView -> DocumentSymbol
-    declToSymbol mchildren decl@(DeclView _ type' _ _loc kind) = DocumentSymbol
+    declToSymbol :: Enc.AstralLines -> Maybe [DocumentSymbol] -> DeclView -> DocumentSymbol
+    declToSymbol als mchildren decl@(DeclView _ type' _ _loc kind) = DocumentSymbol
       { _name           = symbolName
       , _detail         = Just (T.pack (show type'))
       , _kind           = symbolKindOfDecl kind
@@ -697,7 +741,7 @@ provideSymbols req res = do
       , _children       = mchildren
       }
       where
-        (symbolName, range) = declNameRange decl
+        (symbolName, range) = declNameRange als decl
 
 -- | The LSP symbol kind of a declaration, mirroring the semantic token
 -- choices at the declaration site (class for a data type, enum member for a
@@ -717,20 +761,21 @@ provideWorkspaceSymbols :: Handler LSP 'Method_WorkspaceSymbol
 provideWorkspaceSymbols req res = do
   let symbolQuery = T.toLower (req ^. params . query)
   cachedModules <- getCachedTypecheckedModules
-  let symbols =
-        [ WorkspaceSymbol
-            { _name          = symbolName
-            , _kind          = symbolKindOfDecl (declViewKind decl)
-            , _tags          = Nothing
-            , _containerName = Nothing
-            , _location      = InL (Location (filePathToUri path) range)
-            , _data_         = Nothing
-            }
-        | (path, cachedModule) <- cachedModules
-        , decl <- cachedModuleDecls cachedModule
-        , let (symbolName, range) = declNameRange decl
-        , symbolQuery `T.isInfixOf` T.toLower symbolName
-        ]
+  symbols <- fmap concat $ forM cachedModules $ \(path, cachedModule) -> do
+    als <- astralLinesOfFile path
+    return
+      [ WorkspaceSymbol
+          { _name          = symbolName
+          , _kind          = symbolKindOfDecl (declViewKind decl)
+          , _tags          = Nothing
+          , _containerName = Nothing
+          , _location      = InL (Location (filePathToUri path) range)
+          , _data_         = Nothing
+          }
+      | decl <- cachedModuleDecls cachedModule
+      , let (symbolName, range) = declNameRange als decl
+      , symbolQuery `T.isInfixOf` T.toLower symbolName
+      ]
   res $ Right $ InR $ InL symbols
 
 
