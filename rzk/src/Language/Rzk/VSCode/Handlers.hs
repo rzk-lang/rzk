@@ -19,6 +19,7 @@ module Language.Rzk.VSCode.Handlers (
   formatSignature,
   formatDocument,
   provideSemanticTokens,
+  useSiteTokens,
   handleFilesChanged,
 ) where
 
@@ -43,6 +44,7 @@ import           Language.LSP.Diagnostics      (partitionBySource)
 import           Language.LSP.Protocol.Lens    (HasContext (context),
                                                 HasDetail (detail),
                                                 HasDocumentation (documentation),
+                                                HasKind (kind),
                                                 HasLabel (label),
                                                 HasParams (params),
                                                 HasPosition (position),
@@ -433,9 +435,10 @@ provideCompletions req res = do
     declsToItems :: FilePath -> (FilePath, [DeclView]) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
     declToItem :: FilePath -> FilePath -> DeclView -> CompletionItem
-    declToItem rootDir path (DeclView name type' _ _loc _kind) = def
+    declToItem rootDir path (DeclView name type' _ _loc declKind) = def
 
       & label .~ T.pack (printTree $ getVarIdent name)
+      & kind ?~ completionKindOfDecl declKind
       & detail ?~ T.pack (show type')
       & documentation ?~ InR (MarkupContent MarkupKind_Markdown $ T.pack $
           "---\nDefined" ++
@@ -508,7 +511,16 @@ formatDocument req res = do
 provideSemanticTokens :: Handler LSP 'Method_TextDocumentSemanticTokensFull
 provideSemanticTokens req responder = do
   let doc = req ^. params . textDocument . uri . to toNormalizedUri
+      currentFile = fromMaybe "" (uriToFilePath (req ^. params . textDocument . uri))
   mdoc <- getVirtualFile doc
+  -- Use-site classification needs name resolution (an occurrence of a
+  -- constructor is a plain variable to the AST walk): the reference index
+  -- resolves the occurrences, and the typecheck cache knows each
+  -- declaration's kind.
+  referenceIndex <- indexProject currentFile
+  cachedModules <- getCachedTypecheckedModules
+  let declsByFile = [ (path, cachedModuleDecls m) | (path, m) <- cachedModules ]
+      overlay = useSiteTokens declsByFile referenceIndex currentFile
   possibleTokens <- case virtualFileText <$> mdoc of
     Nothing         -> return (Left "Failed to get file content")
     Just sourceCode -> do
@@ -521,8 +533,10 @@ provideSemanticTokens req responder = do
           logWarning ("Failed to parse file for semantic tokens: " <> err)
           return []
         Right rzkModule -> return (tokenizeModule rzkModule)
+      -- On overlapping positions: the AST walk wins (it has the declaration
+      -- modifiers), then the use-site overlay, then the lexer baseline.
       return (Right (Enc.tokensToUtf16 (Enc.astralLines src)
-        (mergeTokens astTokens (tokenizeSyntaxSymbols src))))
+        (mergeTokens (mergeTokens astTokens overlay) (tokenizeSyntaxSymbols src))))
   case possibleTokens of
     Left err -> do
       -- Exception occurred when parsing the module
@@ -730,10 +744,10 @@ provideSymbols req res = do
       _ -> declToSymbol als Nothing d : outline als ds
 
     declToSymbol :: Enc.AstralLines -> Maybe [DocumentSymbol] -> DeclView -> DocumentSymbol
-    declToSymbol als mchildren decl@(DeclView _ type' _ _loc kind) = DocumentSymbol
+    declToSymbol als mchildren decl@(DeclView _ type' _ _loc declKind) = DocumentSymbol
       { _name           = symbolName
       , _detail         = Just (T.pack (show type'))
-      , _kind           = symbolKindOfDecl kind
+      , _kind           = symbolKindOfDecl declKind
       , _tags           = Nothing
       , _deprecated     = Nothing
       , _range          = range
@@ -752,6 +766,69 @@ symbolKindOfDecl = \case
   DeclKindDataCon _  -> SymbolKind_EnumMember
   DeclKindDataElim _ -> SymbolKind_Function
   DeclKindDefine     -> SymbolKind_Function
+
+-- | The completion kind of a declaration, mirroring 'symbolKindOfDecl'.
+completionKindOfDecl :: DeclKind -> CompletionItemKind
+completionKindOfDecl = \case
+  DeclKindData       -> CompletionItemKind_Class
+  DeclKindDataCon _  -> CompletionItemKind_EnumMember
+  DeclKindDataElim _ -> CompletionItemKind_Function
+  DeclKindDefine     -> CompletionItemKind_Function
+
+-- | The checker-derived token overlay for identifier /uses/: an occurrence
+-- that resolves to a product of a @#data@ declaration is coloured by its
+-- kind wherever it appears — a constructor as an enum member, the type as a
+-- class, a generated eliminator as a library function. Occurrences are
+-- matched to declarations by definition site (file and line) /and/ name, so
+-- a local that shadows a constructor stays plain, and plain definitions are
+-- left to the lexer baseline. Positions are code points, like every other
+-- token source; the UTF-16 conversion happens after merging.
+useSiteTokens
+  :: [(FilePath, [DeclView])]  -- ^ the typechecked declarations, per file
+  -> RefInd.ReferenceIndex
+  -> FilePath                  -- ^ the file to produce tokens for
+  -> [SemanticTokenAbsolute]
+useSiteTokens declsByFile refIndex path =
+  [ SemanticTokenAbsolute
+      { _line = fromIntegral l
+      , _startChar = fromIntegral s
+      , _length = fromIntegral (e - s)
+      , _tokenType = tokenType
+      , _tokenModifiers = modifiers
+      }
+  | (binding, l, s, e) <- RefInd.fileOccurrences refIndex path
+  , Just (tokenType, modifiers) <- [classify binding]
+  ]
+  where
+    classify binding = do
+      let RefInd.Location (RefInd.Uri defPath) range = RefInd.bindingDef binding
+          defStart = RefInd.rangeStart range
+          key = ( defPath
+                , RefInd.positionLine defStart
+                , RefInd.positionCharacter defStart
+                , RefInd.bindingName binding )
+      declKind <- Map.lookup key kindTable
+      case declKind of
+        DeclKindData       -> Just (SemanticTokenTypes_Class, [])
+        DeclKindDataCon _  -> Just (SemanticTokenTypes_EnumMember, [])
+        DeclKindDataElim _ ->
+          Just (SemanticTokenTypes_Function, [SemanticTokenModifiers_DefaultLibrary])
+        DeclKindDefine     -> Nothing
+    -- Keyed by the declared name's own position, which is what the index
+    -- records as the definition site (a constructor's key is where it is
+    -- written, also in a multi-line declaration). The generated eliminators
+    -- share the type name's position — its derived zero-width entries — so
+    -- the name is part of the key.
+    kindTable = Map.fromList
+      [ ((file, line - 1, col - 1, name), declViewKind d)
+      | (_, decls) <- declsByFile
+      , d <- decls
+      , let ident = getVarIdent (declViewName d)
+      , let name = T.pack (printTree ident)
+      , VarIdent (RzkPosition mpath mpos) _ <- [ident]
+      , Just file <- [mpath]
+      , Just (line, col) <- [mpos]
+      ]
 
 -- | Workspace-wide symbol search over every typechecked module in the cache.
 -- The query is matched case-insensitively as an infix of the definition name;
