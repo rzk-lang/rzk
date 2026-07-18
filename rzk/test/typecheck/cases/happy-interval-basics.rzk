@@ -1,7 +1,7 @@
 #lang rzk-1
 
 -- Extension types are needed to map out of cubes into types.
--- You cannot simply write `(t : 2) -> A`; you need `<{(t : 2) | TOP} -> A>`.
+-- You cannot simply write `(t : 2) -> A`; you need `(t : 2 | TOP) -> A`.
 
 -- Basic extension type over 2
 #define arr2

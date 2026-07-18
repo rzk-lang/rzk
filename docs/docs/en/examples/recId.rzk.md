@@ -1,6 +1,6 @@
 # Tope disjuction elimination along identity paths
 
-\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)\) (written `recOR(psi, phi, a_psi, a_phi)` in the code)
+\(\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)\) (written `recOR(psi |-> a_psi, phi |-> a_phi)` in the code)
 is well-typed when \(a_\psi\) and \(a_\phi\) are _definitionally equal_ on \(\psi \land \phi\).
 Sometimes this is too strong since many terms are not _definitionally_ equal, but only equal up to a path.
 Luckily, assuming relative function extensionality, we can define a weaker version of \(rec_{\lor}\) (`recOR`),
@@ -162,7 +162,7 @@ Finally, we bring everything together into `recId`:
 
 ```rzk
 -- A weaker version of recOR, demanding only a path between a and b:
--- recOR(ψ, φ, a, b) demands that for ψ ∧ φ we have a == b (definitionally)
+-- recOR(ψ ↦ a, φ ↦ b) demands that for ψ ∧ φ we have a == b (definitionally)
 -- (recId ψ φ a b e) demands that e is the proof that a = b (intensionally) for ψ ∧ φ
 #define recId uses (r) -- we declare that recId is using r on purpose
   ( a_psi : (t : ψ) → A t)
