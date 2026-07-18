@@ -496,8 +496,8 @@ one for the left case and one for the right:
 #check ind-coprod
   : ( A : U) → (B : U)
   → ( C : coprod A B → U)
-  → ( (a : A) → C (inl A B a))
-  → ( (b : B) → C (inr A B b))
+  → ( ( a : A) → C (inl A B a))
+  → ( ( b : B) → C (inr A B b))
   → ( z : coprod A B) → C z
 ```
 
@@ -522,8 +522,8 @@ Recursion for coproducts is the generated non-dependent version:
 #check rec-coprod
   : ( A : U) → (B : U)
   → ( C : U)
-  → ( (a : A) → C)
-  → ( (b : B) → C)
+  → ( ( a : A) → C)
+  → ( ( b : B) → C)
   → coprod A B → C
 ```
 
@@ -597,7 +597,7 @@ and the following proof goes through by induction with two `#!rzk refl` cases:
 
 ```rzk
 #define not-not-is-identity
-  : (z : Bool) → not (not z) = z
+  : ( z : Bool) → not (not z) = z
   := ind-Bool
       ( \ z → not (not z) = z)
       ( refl)

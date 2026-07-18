@@ -39,7 +39,7 @@
 #check ind-bool : (C : bool → U) → C false → C true → (b : bool) → C b
 #check rec-coprod
   : ( A : U) → (B : U) → (C : U)
-  → ( (a : A) → C) → ((b : B) → C)
+  → ( ( a : A) → C) → ((b : B) → C)
   → coprod A B → C
 ```
 
