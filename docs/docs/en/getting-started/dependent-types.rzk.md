@@ -456,105 +456,75 @@ Given types $A$ and $B$ a coproduct type $A + B$ corresponds intuitively
 to a disjoint union of $A$ and $B$ (in set theory). We also have a nullary
 version: $\mathbf{0}$ (empty type).
 
-In Rzk, empty type and coproduct types do not exist, but a weaker version can be postulated.
+In Rzk, the empty type and coproduct types are declared as inductive types with the `#!rzk #data` command.
 
-### Postulating the empty type
+### The empty type
 
-For example, an empty type can be postulated as follows:
+The empty type is an inductive type with no constructors:
 
 ```rzk
-#postulate Void
-  : U
-#postulate ind-Void
-  ( C : Void → U)
-  : ( z : Void) → C z
+#data Void
 ```
 
-Since there should be no values of type `#!rzk Void`,
+The declaration generates the induction principle `#!rzk ind-Void` and its non-dependent version `#!rzk rec-Void`:
+
+```rzk
+#check ind-Void : (C : Void → U) → (z : Void) → C z
+#check rec-Void : (C : U) → Void → C
+```
+
+Since there are no values of type `#!rzk Void`,
 the induction principle corresponds to the principle that from falsehood anything follows.
-A non-dependent version of that corresponds to the recursion principle,
-which we can define in terms of `#!rzk ind-Void`:
+
+### The coproduct type
+
+The coproduct is an inductive type with two constructors —
+one injecting a term from `#!rzk A` and one injecting a term of `#!rzk B`:
 
 ```rzk
-#define rec-Void
-  ( C : U)
-  : Void → C
-  := ind-Void (\ _ → C)
+#data coprod
+  ( A B : U)
+  :=
+    inl (a : A)
+  | inr (b : B)
 ```
 
-### Postulating the coproduct type
-
-!!! warning "Postulating coproducts"
-
-    This subsection currently provides postulates with little explanation.
-    Once Rzk has support for user-defined (higher) inductive types or built-in coproducts,
-    this section will be updated.
-
-Similarly, we can postulate the coproduct:
-
-```rzk
-#postulate coprod
-  ( A B : U)
-  : U
-```
-
-There are two ways to create a term of type `#!rzk coprod A B` —
-inject a term from `#!rzk A` or a term of `#!rzk B`:
-
-```rzk
-#postulate inl
-  ( A B : U)
-  : A → coprod A B
-#postulate inr
-  ( A B : U)
-  : B → coprod A B
-```
-
-To eliminate a coproduct, we have to provide two handlers —
+To eliminate a coproduct, the generated induction principle asks for two handlers —
 one for the left case and one for the right:
 
 ```rzk
-#postulate ind-coprod
-  ( A B : U)
-  ( C : coprod A B → U)
-  ( l : (a : A) → C (inl A B a))
-  ( r : (b : B) → C (inr A B b))
-  : ( z : coprod A B) → C z
+#check ind-coprod
+  : ( A : U) → (B : U)
+  → ( C : coprod A B → U)
+  → ( (a : A) → C (inl A B a))
+  → ( (b : B) → C (inr A B b))
+  → ( z : coprod A B) → C z
 ```
 
-Since we are postulating the induction principle,
-we also have to provide the computational rules explicitly.
-However, in Rzk, we can only postulate _propositional_ computational rules:
+The computation rules are _definitional_: `#!rzk ind-coprod A B C l r (inl A B a)`
+computes to `#!rzk l a` automatically, with no explicit rewriting.
+For example, the following holds by `#!rzk refl`:
 
 ```rzk
-#postulate ind-coprod-inl
+#define compute-ind-coprod-inl
   ( A B : U)
   ( C : coprod A B → U)
   ( l : (a : A) → C (inl A B a))
   ( r : (b : B) → C (inr A B b))
   ( a : A)
   : ind-coprod A B C l r (inl A B a) = l a
-
-#postulate ind-coprod-inr
-  ( A B : U)
-  ( C : coprod A B → U)
-  ( l : (a : A) → C (inl A B a))
-  ( r : (b : B) → C (inr A B b))
-  ( b : B)
-  : ind-coprod A B C l r (inr A B b) = r b
+  := refl
 ```
 
-We can now define recursion for coproducts
-as a special case of induction:
+Recursion for coproducts is the generated non-dependent version:
 
 ```rzk
-#define rec-coprod
-  ( A B : U)
-  ( C : U)
-  ( l : A → C)
-  ( r : B → C)
-  : coprod A B → C
-  := ind-coprod A B (\ _ → C) l r
+#check rec-coprod
+  : ( A : U) → (B : U)
+  → ( C : U)
+  → ( (a : A) → C)
+  → ( (b : B) → C)
+  → coprod A B → C
 ```
 
 The uniqueness principle for coproducts says
@@ -586,48 +556,22 @@ we have to provide some intermediate types explicitly:
 
 ## Booleans
 
-!!! warning "Postulating booleans"
-
-    This subsection currently provides postulates with little explanation.
-    Once Rzk has support for user-defined (higher) inductive types or built-in booleans,
-    this section will be updated.
+The booleans are an inductive type with two constructors and no fields:
 
 ```rzk
-#postulate Bool
-  : U
-#postulate false
-  : Bool
-#postulate true
-  : Bool
+#data Bool := false | true
 ```
 
-```rzk
-#postulate ind-Bool
-  ( C : Bool → U)
-  ( f : C false)
-  ( t : C true)
-  : ( z : Bool) → C z
-```
+The generated induction and recursion principles have the expected types:
 
 ```rzk
-#postulate ind-Bool-false
-  ( C : Bool → U)
-  ( f : C false)
-  ( t : C true)
-  : ind-Bool C f t false = f
-#postulate ind-Bool-true
-  ( C : Bool → U)
-  ( f : C false)
-  ( t : C true)
-  : ind-Bool C f t true = t
-```
+#check ind-Bool
+  : ( C : Bool → U)
+  → C false
+  → C true
+  → ( z : Bool) → C z
 
-```rzk
-#define rec-Bool
-  ( C : U)
-  ( f t : C)
-  : Bool → C
-  := ind-Bool (\ _ → C) f t
+#check rec-Bool : (C : U) → C → C → Bool → C
 ```
 
 ```rzk
@@ -647,11 +591,11 @@ we have to provide some intermediate types explicitly:
   := rec-Bool Bool true false
 ```
 
-Unfortunately, because computation rules are postulated
-in a weak form, they do not compute automatically and have to be used explicitly,
-so the following proof does not work:
+Since the computation rules of an inductive type are definitional,
+`#!rzk not (not false)` computes to `#!rzk false` and `#!rzk not (not true)` to `#!rzk true`,
+and the following proof goes through by induction with two `#!rzk refl` cases:
 
-```{unchecked .rzk}
+```rzk
 #define not-not-is-identity
   : (z : Bool) → not (not z) = z
   := ind-Bool
@@ -660,16 +604,23 @@ so the following proof does not work:
       ( refl)
 ```
 
-There is a way to fix the proof, but we'll need to learn more about
-the identity types before we can do that.
+!!! warning "Inductive types and the simplicial structure"
+
+    An inductive type comes with exactly its induction principle.
+    How the type interacts with the _simplicial_ structure of Rzk is a separate matter, and generally not derivable.
+    In particular, the induction principle of `#!rzk Bool` does not prove that `#!rzk Bool` is discrete:
+    discreteness of `#!rzk Bool` is equivalent to the assumption that there merely exists a type
+    with two points not connected by an arrow, and the unaugmented theory cannot prove this assumption.
+    Thus a user who wants `#!rzk Bool` discrete must still assume a disconnectedness principle;
+    declaring `#!rzk #data Bool` proves nothing new about `#!rzk 2 → Bool`.
 
 ## Natural numbers
 
 !!! warning "Postulating natural numbers"
 
     This subsection currently provides postulates without explanations.
-    Once Rzk has support for user-defined (higher) inductive types or built-in natural numbers,
-    this section will be updated.
+    The natural numbers are a _recursive_ inductive type, which `#!rzk #data` does not support yet;
+    once it does, this section will use a native declaration like the sections above.
 
 ```rzk
 #postulate ℕ

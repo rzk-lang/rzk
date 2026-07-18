@@ -37,6 +37,7 @@ nav:
           - Unit type: reference/builtins/unit.rzk.md
       - Commands:
           - Define and Postulate: reference/commands/define-postulate.rzk.md
+          - Data: reference/commands/data.rzk.md
           - Compute: reference/commands/compute.rzk.md
           - Check: reference/commands/check.rzk.md
           - Options: reference/commands/options.rzk.md

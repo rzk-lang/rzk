@@ -37,6 +37,7 @@ nav:
           - Единичный тип: reference/builtins/unit.rzk.md
       - Команды:
           - Определения и постулаты: reference/commands/define-postulate.rzk.md
+          - Индуктивные типы (data): reference/commands/data.rzk.md
           - Вычисления: reference/commands/compute.rzk.md
           - Проверка типов: reference/commands/check.rzk.md
           - Опции решателя: reference/commands/options.rzk.md
