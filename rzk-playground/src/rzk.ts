@@ -14,8 +14,18 @@ let loading: Promise<void> | null = null
 
 async function load(): Promise<void> {
   const base = import.meta.env.BASE_URL
-  const jsffiModule = await import(/* @vite-ignore */ base + 'rzk-js.ghc_wasm_jsffi.js')
-  const ghc_wasm_jsffi = jsffiModule.default
+
+  // The JSFFI glue is a generated ESM module served from /public. Vite forbids
+  // importing /public files from source, so fetch it as text and import it via
+  // a blob URL, which sits outside Vite's module graph.
+  const glueSource = await (await fetch(base + 'rzk-js.ghc_wasm_jsffi.js')).text()
+  const glueUrl = URL.createObjectURL(new Blob([glueSource], { type: 'text/javascript' }))
+  let ghc_wasm_jsffi
+  try {
+    ghc_wasm_jsffi = (await import(/* @vite-ignore */ glueUrl)).default
+  } finally {
+    URL.revokeObjectURL(glueUrl)
+  }
 
   // A reactor needs stdin and (unused) stdout/stderr file descriptors.
   const fds = [
@@ -25,7 +35,7 @@ async function load(): Promise<void> {
   ]
   const wasi = new WASI(['rzk-js.wasm'], [], fds)
 
-  const module = await WebAssembly.compileStreaming(fetch(base + 'rzk-js.wasm'))
+  const module = await WebAssembly.compile(await (await fetch(base + 'rzk-js.wasm')).arrayBuffer())
   // The JSFFI glue and the instance are mutually recursive: the glue's imports
   // read the instance's exports, so pass a reference object and fill it after.
   const exportsRef: Record<string, unknown> = {}
