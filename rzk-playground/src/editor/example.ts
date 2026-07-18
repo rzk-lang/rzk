@@ -63,9 +63,9 @@ export const example = `#lang rzk-1
     (I : CUBE)
     (psi : I -> TOPE)
     (phi : I -> TOPE)
-    (A : {t : I | psi t \\/ phi t} -> U)
-    (a : {t : I | psi t} -> A t)
-  : {t : I | psi t /\\ phi t} -> A t
+    (A : (t : I | psi t \\/ phi t) -> U)
+    (a : (t : I | psi t) -> A t)
+  : (t : I | psi t /\\ phi t) -> A t
   := \\t -> a t
 
 -- Reformulate extension type as an extension of a restriction.
@@ -73,8 +73,8 @@ export const example = `#lang rzk-1
     (I : CUBE)
     (psi : I -> TOPE)
     (phi : I -> TOPE)
-    (A : {t : I | psi t \\/ phi t} -> U)
-    (a : {t : I | psi t} -> A t)
+    (A : (t : I | psi t \\/ phi t) -> U)
+    (a : (t : I | psi t) -> A t)
   : (t : psi) -> A t [ psi t /\\ phi t |-> restrict I psi phi A a t ]
   := a
 
@@ -84,10 +84,10 @@ export const example = `#lang rzk-1
     (I : CUBE)
     (psi : I -> TOPE)
     (phi : I -> TOPE)
-    (A : {t : I | psi t \\/ phi t} -> U)
+    (A : (t : I | psi t \\/ phi t) -> U)
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
-    (e : {t : I | psi t /\\ phi t} -> a_psi t = a_phi t)
+    (e : (t : I | psi t /\\ phi t) -> a_psi t = a_phi t)
   : restrict I psi phi A a_psi = restrict I phi psi A a_phi
   := (first (second (r I
       (\\t -> psi t /\\ phi t)
@@ -98,21 +98,21 @@ export const example = `#lang rzk-1
       (\\t -> a_phi t)))) e
 
 -- A weaker version of recOR, demanding only a path between a and b:
--- recOR(psi, phi, a, b) demands that for psi /\\ phi we have a == b (definitionally)
+-- recOR(psi t |-> a t, phi t |-> b t) demands that for psi /\\ phi we have a == b (definitionally)
 -- (recId psi phi a b e) demands that e is the proof that a = b (intensionally) for psi /\\ phi
 #def recId
     (r : relfunext2)
     (I : CUBE)
     (psi : I -> TOPE)
     (phi : I -> TOPE)
-    (A : {t : I | psi t \\/ phi t} -> U)
+    (A : (t : I | psi t \\/ phi t) -> U)
     (a_psi : (t : psi) -> A t)
     (a_phi : (t : phi) -> A t)
-    (e : {t : I | psi t /\\ phi t} -> a_psi t = a_phi t)
-  : {t : I | psi t \\/ phi t} -> A t
+    (e : (t : I | psi t /\\ phi t) -> a_psi t = a_phi t)
+  : (t : I | psi t \\/ phi t) -> A t
   := \\t -> recOR(
         psi t |-> transport
-          ({t : I | psi t /\\ phi t} -> A t)
+          ((t : I | psi t /\\ phi t) -> A t)
           (\\ra -> (t : psi) -> A t [ psi t /\\ phi t |-> ra t])
           (restrict I psi phi A a_psi)
           (restrict I phi psi A a_phi)
@@ -129,12 +129,12 @@ export const example = `#lang rzk-1
     (I : CUBE)
     (psi : I -> TOPE)
     (phi : I -> TOPE)
-    (A : {t : I | psi t \\/ phi t} -> U)
-    (a b : {t : I | psi t \\/ phi t} -> A t)
+    (A : (t : I | psi t \\/ phi t) -> U)
+    (a b : (t : I | psi t \\/ phi t) -> A t)
     (e_psi : (t : psi) -> a t = b t)
     (e_phi : (t : phi) -> a t = b t)
-    (border-is-a-set : {t : I | psi t /\\ phi t} -> isaset (A t))
-  : {t : I | psi t \\/ phi t} -> a t = b t
+    (border-is-a-set : (t : I | psi t /\\ phi t) -> isaset (A t))
+  : (t : I | psi t \\/ phi t) -> a t = b t
   := recId r I psi phi
         (\\t -> a t = b t)
         e_psi e_phi
