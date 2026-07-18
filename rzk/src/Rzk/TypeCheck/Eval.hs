@@ -1251,9 +1251,14 @@ applySpine _ h [] = whnfT h
 applySpine scope h pairs = whnfT h >>= \h' -> case h' of
   LambdaT _ _ _ (ScopedAST binder body) | (_, x) : rest <- pairs ->
     peelLambdas scope (Foil.addSubst Foil.identitySubst binder x) body rest
-  _ -> tryDataElimStep h' pairs >>= \case
-    Just stepped -> whnfT stepped
-    Nothing      -> applyNeutral scope h' pairs
+  _ -> do
+    -- The head may itself be a (neutral) application: a definition whose
+    -- value is an under-applied eliminator, say. The ι-rule needs the full
+    -- spine, so the head's own arguments are collected back in.
+    let (h'', headPairs) = collectAppSpine h'
+    tryDataElimStep h'' (headPairs <> pairs) >>= \case
+      Just stepped -> whnfT stepped
+      Nothing      -> applyNeutral scope h' pairs
 
 -- | Try to fire a @#data@ ι-rule on an application spine: the head is a
 -- generated eliminator, the scrutinee argument is headed by a fully applied

@@ -21,6 +21,12 @@ extra-source-files:
     grammar/Syntax.cf
     test/typecheck/SCHEMA.md
     test/typecheck/cases/happy-check.rzk
+    test/typecheck/cases/happy-data-bool.rzk
+    test/typecheck/cases/happy-data-coprod.rzk
+    test/typecheck/cases/happy-data-empty.rzk
+    test/typecheck/cases/happy-data-eta-short.rzk
+    test/typecheck/cases/happy-data-large-warning.rzk
+    test/typecheck/cases/happy-data-section.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-subtyping.rzk
@@ -56,6 +62,13 @@ extra-source-files:
     test/typecheck/cases/happy-tope-shapes.rzk
     test/typecheck/cases/ill-bare-lambda-compute.rzk
     test/typecheck/cases/ill-bare-refl-compute.rzk
+    test/typecheck/cases/ill-data-clash-generated.rzk
+    test/typecheck/cases/ill-data-duplicate-constructor.rzk
+    test/typecheck/cases/ill-data-eliminator-clause.rzk
+    test/typecheck/cases/ill-data-non-u-sort.rzk
+    test/typecheck/cases/ill-data-recursive.rzk
+    test/typecheck/cases/ill-data-return-type.rzk
+    test/typecheck/cases/ill-data-shape-field.rzk
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-hole-infer.rzk
     test/typecheck/cases/ill-hole-pattern-binder-names.rzk
@@ -145,6 +158,12 @@ extra-source-files:
     test/typecheck/cases/uses-whnf-discarded.rzk
     test/typecheck/cases/uses-whnf-masked-transitive.rzk
     test/typecheck/cases/happy-check.expect.yaml
+    test/typecheck/cases/happy-data-bool.expect.yaml
+    test/typecheck/cases/happy-data-coprod.expect.yaml
+    test/typecheck/cases/happy-data-empty.expect.yaml
+    test/typecheck/cases/happy-data-eta-short.expect.yaml
+    test/typecheck/cases/happy-data-large-warning.expect.yaml
+    test/typecheck/cases/happy-data-section.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
@@ -180,6 +199,13 @@ extra-source-files:
     test/typecheck/cases/happy-tope-shapes.expect.yaml
     test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
     test/typecheck/cases/ill-bare-refl-compute.expect.yaml
+    test/typecheck/cases/ill-data-clash-generated.expect.yaml
+    test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
+    test/typecheck/cases/ill-data-eliminator-clause.expect.yaml
+    test/typecheck/cases/ill-data-non-u-sort.expect.yaml
+    test/typecheck/cases/ill-data-recursive.expect.yaml
+    test/typecheck/cases/ill-data-return-type.expect.yaml
+    test/typecheck/cases/ill-data-shape-field.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-hole-infer.expect.yaml
     test/typecheck/cases/ill-hole-pattern-binder-names.expect.yaml
