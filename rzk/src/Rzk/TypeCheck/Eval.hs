@@ -1274,15 +1274,25 @@ tryDataElimStep
   -> TypeCheck n (Maybe (TermT n))
 tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
   Just (DataRole dataType numParams (DataElimKind numMethods _elimKind))
-    | (_, (_, scrut) : after) <- splitAt (numParams + 1 + numMethods) pairs ->
+    | (prefix, (_, scrut) : after) <- splitAt (numParams + 1 + numMethods) pairs ->
         whnfT scrut >>= \scrut' -> case collectAppSpine scrut' of
           (Var c, cargs) -> asks (varDataRole . lookupVarInfo c) >>= \case
-            Just (DataRole dataType' conNumParams (DataConKind conIndex conNumFields))
+            Just (DataRole dataType' conNumParams (DataConKind conIndex conNumFields recIdxs))
               | Foil.nameId dataType' == Foil.nameId dataType
               , length cargs == conNumParams + conNumFields -> do
                   let method = snd (pairs !! (numParams + 1 + conIndex))
-                      args = map snd (drop conNumParams cargs) <> map snd after
-                  Just <$> applyTyped method args
+                      fields = map snd (drop conNumParams cargs)
+                      prefixArgs = map snd prefix
+                  -- The method takes an induction hypothesis right after each
+                  -- recursive field: the eliminator itself, applied to the
+                  -- field (the spine is built here; evaluation stays lazy).
+                  args <- fmap concat $ forM (zip [0 ..] fields) $ \(j, fieldArg) ->
+                    if j `elem` recIdxs
+                      then do
+                        ih <- applyTyped (Var v) (prefixArgs <> [fieldArg])
+                        pure [fieldArg, ih]
+                      else pure [fieldArg]
+                  Just <$> applyTyped method (args <> map snd after)
             _ -> pure Nothing
           _ -> pure Nothing
   _ -> pure Nothing

@@ -1,0 +1,25 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#data list
+  ( A : U)
+  :=
+    nil
+  | cons (x : A) (xs : list A)
+
+#check ind-list
+  : ( A : U)
+  → ( C : list A → U)
+  → C (nil A)
+  → ( (x : A) → (xs : list A) → C xs → C (cons A x xs))
+  → ( l : list A) → C l
+
+#define length (A : U) (l : list A) : nat
+  := rec-list A nat zero (\ _ _ ih → suc ih) l
+
+#define example : list nat
+  := cons nat zero (cons nat (suc zero) (nil nat))
+
+#define length-example : length nat example =_{nat} suc (suc zero)
+  := refl

@@ -111,9 +111,11 @@ data DataRole n = DataRole
   }
 
 data DataRoleKind
-  = DataConKind Int Int
+  = DataConKind Int Int [Int]
     -- ^ a constructor: its 0-based position among the constructors (= the
-    -- method index), and the number of its own fields after the parameters
+    -- method index), the number of its own fields after the parameters,
+    -- and the 0-based positions of its recursive fields (each contributes
+    -- an induction hypothesis right after the field in the method)
   | DataElimKind Int ElimKind
     -- ^ an eliminator: the number of methods (one per constructor, in
     -- declaration order); the motive and the scrutinee surround them

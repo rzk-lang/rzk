@@ -10,13 +10,17 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
 - **recBOT body well-formedness:** `ill-recbot-term-not-function`, `ill-recbot-term-undefined` (ill-typed bodies must not be admitted under an absurd hypothesis).
 - **Holes (strict mode):** `ill-hole-unsolved` (a hole is an error by default), `ill-hole-infer` (a hole in inference position cannot be guessed). The lenient mode and the structured goal/context query are covered by `Rzk.HolesSpec`, not by YAML fixtures.
 - **NbE conversion fast path:** `happy-nbe-church-conversion` (βδ-equal but structurally different Church-numeral applications, including inline endpoints that must not decompose into false subgoals), `ill-nbe-church-unequal` (a wrong equation still fails through the ordinary unification — the fast path never refutes).
-- **Inductive types (`#data`, stage 1):** well-typed declarations and
+- **Inductive types (`#data`, stages 1–2):** well-typed declarations and
   computation through the generated eliminators (`happy-data-bool`,
-  `happy-data-coprod`, `happy-data-empty`), uniform section closure
-  (`happy-data-section`), the largeness warning (`happy-data-large-warning`,
-  asserted via the `warnings` field); stage-1 rejections
-  (`ill-data-recursive`, `ill-data-non-u-sort`, `ill-data-return-type`,
-  `ill-data-shape-field`, `ill-data-eliminator-clause`) and name clashes
+  `happy-data-coprod`, `happy-data-empty`), recursion with induction
+  hypotheses (`happy-data-nat` with a genuine induction proof,
+  `happy-data-list`), uniform section closure with and without recursion
+  (`happy-data-section`, `happy-data-rec-section`), the largeness warning
+  (`happy-data-large-warning`, asserted via the `warnings` field);
+  rejections (`ill-data-negative` for strict positivity,
+  `ill-data-fun-field` for function-typed recursive fields,
+  `ill-data-non-u-sort`, `ill-data-return-type`, `ill-data-shape-field`,
+  `ill-data-eliminator-clause`) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`).
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 

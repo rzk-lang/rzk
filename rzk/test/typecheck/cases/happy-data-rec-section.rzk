@@ -1,0 +1,25 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#section counted
+
+#assume T : U
+
+#data counter uses (T)
+  :=
+    stop (t : T)
+  | tick (c : counter)
+
+#define ticks uses (T)
+  ( c : counter)
+  : nat
+  := rec-counter nat (\ _ → zero) (\ _ ih → suc ih) c
+
+#end counted
+
+#check counter : U → U
+#check tick : (T : U) → counter T → counter T
+#define ticks-two (T : U) (t : T)
+  : ticks T (tick T (tick T (stop T t))) =_{nat} suc (suc zero)
+  := refl

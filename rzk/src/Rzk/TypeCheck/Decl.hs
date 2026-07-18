@@ -523,10 +523,17 @@ data DataConSurface = DataConSurface
     -- ^ the field telescope, one entry per bound variable
   , dataConFieldPats  :: [Rzk.Term]
     -- ^ the field patterns as terms, in the same order
+  , dataConRecursive  :: [Int]
+    -- ^ 0-based positions of the directly recursive fields (their type is
+    -- the declared type applied to its parameters); each contributes an
+    -- induction hypothesis to the eliminator's method
   , dataConType       :: Rzk.Term
     -- ^ the constructor's full surface type: params → fields → D params
   , dataConProbe      :: Rzk.Term
-    -- ^ fields → Unit: the fields alone, for the recursion and largeness checks
+    -- ^ the non-recursive fields → Unit, for the positivity and largeness
+    -- checks (a directly recursive field mentions the type legitimately)
+  , dataConNonRec     :: [Rzk.Term]
+    -- ^ the non-recursive field types, for the per-field error message
   , dataConLocalNames :: [Rzk.VarIdentToken]
     -- ^ every binder token of the constructor, for freshening
   }
@@ -557,6 +564,34 @@ surfaceAppSpine = go []
 surfaceArrow :: Rzk.Term -> Rzk.Term -> Rzk.Term
 surfaceArrow a = Rzk.TypeFun Nothing (Rzk.ParamType Nothing a)
 
+-- | The domains and codomain of a surface Π-chain (domain types only; for
+-- the shaped and modal parameter forms the carrier is what matters here).
+surfacePiSpine :: Rzk.Term -> ([Rzk.Term], Rzk.Term)
+surfacePiSpine = go []
+  where
+    go acc (Rzk.TypeFun _ param ret)       = go (domainsOf param <> acc) ret
+    go acc (Rzk.ASCII_TypeFun _ param ret) = go (domainsOf param <> acc) ret
+    go acc t                               = (reverse acc, t)
+    domainsOf = \case
+      Rzk.ParamType _ t                 -> [t]
+      Rzk.ParamTermType _ _ t           -> [t]
+      Rzk.ParamTermShape _ _ cube _     -> [cube]
+      Rzk.ParamTermModalType _ _ _ t    -> [t]
+      Rzk.ParamTermModalShape _ _ _ c _ -> [c]
+
+-- | Is the term the given name applied to exactly the given variables, in
+-- order? (A syntactic check: this is how constructor return types and
+-- directly recursive fields are recognised.)
+matchesDataApplied :: Rzk.VarIdent -> [Rzk.VarIdent] -> Rzk.Term -> Bool
+matchesDataApplied dataName paramVars t = case surfaceAppSpine t of
+  (Rzk.Var _ h, args) ->
+    identTokenOf h == identTokenOf dataName
+      && map (Just . identTokenOf) paramVars == map varTokenOf args
+  _ -> False
+  where
+    varTokenOf (Rzk.Var _ v) = Just (identTokenOf v)
+    varTokenOf _             = Nothing
+
 surfacePi :: Rzk.VarIdent -> Rzk.Term -> Rzk.Term -> Rzk.Term
 surfacePi v ty = Rzk.TypeFun Nothing (Rzk.ParamTermType Nothing (surfaceVar v) ty)
 
@@ -567,21 +602,28 @@ dataConSurface
 dataConSurface dataName paramVars paramDecls (Rzk.Constructor _loc cname cparams ctype) = do
   fieldDecls <- concat <$> mapM (dataFieldToParamDecl cname) cparams
   let defaultRet = surfaceApps (surfaceVar dataName) (map surfaceVar paramVars)
+      isRec = matchesDataApplied dataName paramVars
   case ctype of
     Rzk.NoConstructorType _ -> return ()
     Rzk.SomeConstructorType _ ret
-      | retMatchesDefault ret -> return ()
+      | isRec ret -> return ()
       | otherwise -> issueTypeError $ TypeErrorOther $
           "the return type of constructor " <> Rzk.printTree cname
             <> " must be the declared type applied to its parameters ("
             <> Rzk.printTree defaultRet
-            <> "); inductive families are not supported yet"
+            <> "); indexed families are not supported yet"
+  let fieldTypes = [ ty | Rzk.ParamTermType _ _ ty <- fieldDecls ]
+      recursiveIdxs = [ j | (j, ty) <- zip [0 ..] fieldTypes, isRec ty ]
+      nonRecTypes = [ ty | ty <- fieldTypes, not (isRec ty) ]
+      nonRecDecls = [ d | d@(Rzk.ParamTermType _ _ ty) <- fieldDecls, not (isRec ty) ]
   pure DataConSurface
     { dataConName = cname
     , dataConFields = fieldDecls
     , dataConFieldPats = concatMap fieldPats cparams
+    , dataConRecursive = recursiveIdxs
     , dataConType = addParamDecls (paramDecls <> fieldDecls) defaultRet
-    , dataConProbe = addParamDecls fieldDecls (Rzk.TypeUnit Nothing)
+    , dataConProbe = addParamDecls nonRecDecls (Rzk.TypeUnit Nothing)
+    , dataConNonRec = nonRecTypes
     , dataConLocalNames = identTokenOf cname
         : map identTokenOf (concatMap fieldVars cparams)
     }
@@ -592,16 +634,6 @@ dataConSurface dataName paramVars paramDecls (Rzk.Constructor _loc cname cparams
     fieldPats = \case
       Rzk.ParamPatternType _ pats _ -> map patternToTerm pats
       _                             -> []
-    -- The return type, when spelled out, must be exactly the declared type
-    -- applied to the parameter variables, in order (a syntactic check; any
-    -- other spelling is an index, which is stage 2).
-    retMatchesDefault ret = case surfaceAppSpine ret of
-      (Rzk.Var _ h, args) ->
-        identTokenOf h == identTokenOf dataName
-          && map (Just . identTokenOf) paramVars == map varTokenOf args
-      _ -> False
-    varTokenOf (Rzk.Var _ v) = Just (identTokenOf v)
-    varTokenOf _             = Nothing
 
 -- | The assumptions an entry depends on, possibly only through the types of
 -- what it mentions. The generated entries of a @#data@ declare these
@@ -612,6 +644,16 @@ assumptionDepsOf ty = do
   ctx <- ask
   deep <- freeVarsDeep ty
   pure [ v | v <- deep, varIsAssumption (lookupVarInfo v ctx) ]
+
+-- | Several distinct fresh identifiers with a shared base.
+freshIdents
+  :: Int -> [Rzk.VarIdentToken] -> T.Text -> TypeCheck n [Rzk.VarIdent]
+freshIdents n avoid base = go n avoid []
+  where
+    go 0 _ acc = pure (reverse acc)
+    go k avoidNow acc = do
+      ident <- freshIdent Nothing avoidNow base
+      go (k - 1) (identTokenOf ident : avoidNow) (ident : acc)
 
 -- | An identifier that is neither bound at the top level nor among the given
 -- local binder tokens; primes are appended until one is free. Used for the
@@ -665,11 +707,29 @@ withDataDecls path used name paramVars paramDecls consData k = do
       -> TypeCheck m r
     bindCons dName usedHere _index [] acc kk = kk dName usedHere acc
     bindCons dName usedHere index (con : rest) acc kk = do
+      -- Directly recursive fields (type = the declared type applied to its
+      -- parameters) are recognised syntactically and excluded from the
+      -- probe; any other occurrence of the type in a field is an error.
+      let dOccursIn t = any ((== Foil.nameId dName) . Foil.nameId) (freeVarsOfTerm t)
       probeT <- elaborate (dataConProbe con)
-      let recursive = any (\v -> Foil.nameId v == Foil.nameId dName) (freeVarsOfTerm probeT)
-      when recursive $ issueTypeError $ TypeErrorOther $
-        "constructor " <> Rzk.printTree (dataConName con)
-          <> " is recursive; recursive inductive types are not supported yet"
+      when (dOccursIn probeT) $ do
+        -- Locate the offending field for a precise message: a positive but
+        -- function-typed recursive field is meaningful and merely
+        -- unsupported; anything else violates strict positivity.
+        offending <- forM (dataConNonRec con) $ \ty -> do
+          t <- elaborate ty
+          pure (ty, dOccursIn t)
+        funRec <- case [ ty | (ty, True) <- offending ] of
+          ty : _ -> do
+            let (domains, codomain) = surfacePiSpine ty
+            domainsClean <- mapM (fmap (not . dOccursIn) . elaborate) domains
+            pure (matchesDataApplied name paramVars codomain && and domainsClean)
+          [] -> pure False
+        issueTypeError $ TypeErrorOther $ if funRec
+          then "constructor " <> Rzk.printTree (dataConName con)
+            <> " has a function-typed recursive field; only directly recursive fields are supported for now"
+          else "constructor " <> Rzk.printTree (dataConName con)
+            <> " is not strictly positive: the declared type may occur in a field only as the type of the whole field"
       when (containsUniverse probeT) $ do
         loc <- asks ctxLocation
         recordCheckWarning $ LargeInductiveTypeWarning
@@ -680,7 +740,8 @@ withDataDecls path used name paramVars paramDecls consData k = do
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
       conDeps <- assumptionDepsOf conTy
-      let role = DataRole dName numParams (DataConKind index (length (dataConFields con)))
+      let role = DataRole dName numParams
+            (DataConKind index (length (dataConFields con)) (dataConRecursive con))
       withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
         (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
           bindCons (Foil.sink dName) (Foil.sinkContainer usedHere) (index + 1) rest
@@ -695,16 +756,36 @@ withDataDecls path used name paramVars paramDecls consData k = do
             <> concatMap dataConLocalNames consData
       motiveV <- freshIdent path avoid "C"
       scrutV <- freshIdent path (identTokenOf motiveV : avoid) "x"
+      -- Distinct induction-hypothesis binders, one per recursive field of
+      -- the widest constructor; separate methods reuse the same names.
+      let maxRec = maximum (0 : map (length . dataConRecursive) consData)
+      ihNames <- freshIdents maxRec
+        (identTokenOf motiveV : identTokenOf scrutV : avoid) "ih"
       let dApplied = surfaceApps (surfaceVar name) (map surfaceVar paramVars)
-          -- One method per constructor: its fields, then (for @ind-D@) the
-          -- motive at the constructor applied to parameters and fields, or
-          -- (for @rec-D@) the bare motive.
-          methodTy dependent con = addParamDecls (dataConFields con) $
-            if dependent
-              then Rzk.App Nothing (surfaceVar motiveV) $ surfaceApps
-                (surfaceVar (dataConName con))
-                (map surfaceVar paramVars <> dataConFieldPats con)
-              else surfaceVar motiveV
+          -- One method per constructor: its fields with an induction
+          -- hypothesis interleaved after each recursive field (HoTT-book
+          -- style), then (for @ind-D@) the motive at the constructor
+          -- applied to parameters and fields, or (for @rec-D@) the bare
+          -- motive.
+          methodTy dependent con = wrapFields (0 :: Int)
+            (zip [0 :: Int ..] (zip (dataConFields con) (dataConFieldPats con)))
+            where
+              wrapFields _ [] =
+                if dependent
+                  then Rzk.App Nothing (surfaceVar motiveV) $ surfaceApps
+                    (surfaceVar (dataConName con))
+                    (map surfaceVar paramVars <> dataConFieldPats con)
+                  else surfaceVar motiveV
+              wrapFields nRec ((j, (fieldDecl, fpat)) : more)
+                | j `elem` dataConRecursive con =
+                    Rzk.TypeFun Nothing fieldDecl $
+                      surfacePi (ihNames !! nRec)
+                        (if dependent
+                          then Rzk.App Nothing (surfaceVar motiveV) fpat
+                          else surfaceVar motiveV)
+                        (wrapFields (nRec + 1) more)
+                | otherwise =
+                    Rzk.TypeFun Nothing fieldDecl (wrapFields nRec more)
           indTy = addParamDecls paramDecls $
             surfacePi motiveV (surfaceArrow dApplied (Rzk.Universe Nothing)) $
               foldr (surfaceArrow . methodTy True)
