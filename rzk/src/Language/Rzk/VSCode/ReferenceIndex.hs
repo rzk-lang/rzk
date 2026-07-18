@@ -109,8 +109,7 @@ indexModules modules = group $
   where
     -- On duplicate names, the first definition wins (as scope lookup would).
     env0 = Map.fromListWith (\_new old -> old)
-      [ (varText v, loc)
-      | (file, m) <- modules, v <- globalNames m, Just loc <- [identLoc file v] ]
+      (concat [ globalEntries file m | (file, m) <- modules ])
     group links = ReferenceIndex
       { occurrences = Map.fromListWith (++)
           [ ((path, l), [(s, e, b)])
@@ -136,14 +135,35 @@ indexModules modules = group $
 moduleCommands :: Rzk.Module -> [Rzk.Command]
 moduleCommands (Rzk.Module _ _ cmds) = cmds
 
-globalNames :: Rzk.Module -> [Rzk.VarIdent]
-globalNames = concatMap cmd . moduleCommands
+-- | The top-level names a module contributes, with their definition sites.
+-- A @#data@ contributes its type name and constructors, plus the /derived/
+-- eliminator names @ind-D@ and @rec-D@: they have no source declaration, so
+-- they point at the @#data@ name with a zero-width range — resolvable (and
+-- jumped to) from their uses, but never occluding the name they sit on.
+globalEntries :: FilePath -> Rzk.Module -> [(T.Text, Location)]
+globalEntries file = concatMap cmd . moduleCommands
   where
+    plain v = [ (varText v, loc) | Just loc <- [identLoc file v] ]
+    derived prefix v =
+      [ (prefix <> varText v, zeroWidth loc) | Just loc <- [identLoc file v] ]
+    zeroWidth (Location u (Range s _)) = Location u (Range s s)
     cmd = \case
-      Rzk.CommandDefine _ name _ _ _ _  -> [name]
-      Rzk.CommandPostulate _ name _ _ _ -> [name]
-      Rzk.CommandAssume _ vars _        -> vars
+      Rzk.CommandDefine _ name _ _ _ _  -> plain name
+      Rzk.CommandPostulate _ name _ _ _ -> plain name
+      Rzk.CommandAssume _ vars _        -> concatMap plain vars
+      Rzk.CommandData _ name _ _ _ body -> concat
+        [ plain name
+        , derived "ind-" name
+        , derived "rec-" name
+        , concatMap plain (constructorNames body)
+        ]
       _                                 -> []
+
+constructorNames :: Rzk.DataBody -> [Rzk.VarIdent]
+constructorNames = \case
+  Rzk.NoDataBody _ -> []
+  Rzk.SomeDataBody _ cons _elims ->
+    [ cname | Rzk.Constructor _ cname _ _ <- cons ]
 
 use :: FilePath -> Env -> Rzk.VarIdent -> [Link]
 use file env v = case (Map.lookup (varText v) env, identLoc file v) of

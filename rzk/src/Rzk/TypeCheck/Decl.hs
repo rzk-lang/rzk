@@ -1034,7 +1034,18 @@ data DeclView = DeclView
   , declViewType         :: Rendered
   , declViewIsAssumption :: Bool
   , declViewLocation     :: Maybe LocationInfo
+  , declViewKind         :: DeclKind
   } deriving (Eq, Show)
+
+-- | What kind of declaration a 'DeclView' renders: a plain definition, or
+-- one of the products of a @#data@ (the symbol providers group constructors
+-- under their type and keep the generated eliminators out of the outline).
+data DeclKind
+  = DeclKindDefine
+  | DeclKindData
+  | DeclKindDataCon VarIdent   -- ^ a constructor of the named type
+  | DeclKindDataElim VarIdent  -- ^ a generated eliminator of the named type
+  deriving (Eq, Show)
 
 -- | The declarations of a checked run, rendered, grouped by the file they came
 -- from.
@@ -1042,11 +1053,27 @@ declViews :: Checked -> [(FilePath, [DeclView])]
 declViews (Checked ctx decls _errs _warnings) = map (fmap (map view)) decls
   where
     naming = namingOfContext ctx
+    -- The type formers carry no role themselves; they are the names the
+    -- constructor and eliminator roles point at.
+    formerIds =
+      [ Foil.nameId (dataRoleDataType role)
+      | d <- concatMap snd decls
+      , Just role <- [varDataRole (lookupVarInfo (declNameOf d) ctx)] ]
+    parentNameOf p = case binderName (varOrig (lookupVarInfo p ctx)) of
+      Just x  -> x
+      Nothing -> "_"
+    kindOf d = case varDataRole (lookupVarInfo (declNameOf d) ctx) of
+      Just (DataRole parent _ DataConKind{})  -> DeclKindDataCon (parentNameOf parent)
+      Just (DataRole parent _ DataElimKind{}) -> DeclKindDataElim (parentNameOf parent)
+      Nothing
+        | Foil.nameId (declNameOf d) `elem` formerIds -> DeclKindData
+        | otherwise -> DeclKindDefine
     view decl = DeclView
       { declViewName = declName decl
       , declViewType = renderTerm naming (untyped (declType decl))
       , declViewIsAssumption = declIsAssumption decl
       , declViewLocation = declLocation decl
+      , declViewKind = kindOf decl
       }
 
 -- | Continue checking from a prefix that has already been checked.

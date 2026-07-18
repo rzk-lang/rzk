@@ -401,7 +401,7 @@ provideCompletions req res = do
     declsToItems :: FilePath -> (FilePath, [DeclView]) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
     declToItem :: FilePath -> FilePath -> DeclView -> CompletionItem
-    declToItem rootDir path (DeclView name type' _ _loc) = def
+    declToItem rootDir path (DeclView name type' _ _loc _kind) = def
 
       & label .~ T.pack (printTree $ getVarIdent name)
       & detail ?~ T.pack (show type')
@@ -644,15 +644,15 @@ provideHover req res = do
               Nothing  -> case find declWithName decls of
                 Just d  -> formatSignature (T.unpack name) (getRendered (declViewType d))
                 Nothing -> T.unpack name ++ " : ?"
-        declWithName (DeclView v _ _ _) =
+        declWithName (DeclView v _ _ _ _) =
           T.pack (printTree (getVarIdent v)) == name
-        declOnSameLine d@(DeclView _ _ _ mloc) =
+        declOnSameLine d@(DeclView _ _ _ mloc _) =
           declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
 
 -- | The printed name of a declaration and the range of its defining
 -- occurrence, shared by the document and workspace symbol providers.
 declNameRange :: DeclView -> (T.Text, Range)
-declNameRange (DeclView name _ _ _) = (T.pack (printTree ident), range)
+declNameRange (DeclView name _ _ _ _) = (T.pack (printTree ident), range)
   where
     ident = getVarIdent name
     VarIdent pos _ = ident
@@ -668,21 +668,46 @@ provideSymbols req res = do
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   cachedModules <- getCachedTypecheckedModules
   let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
-  res $ Right $ InR $ InL $ map declToSymbol decls
+  res $ Right $ InR $ InL $ outline decls
   where
-    declToSymbol :: DeclView -> DocumentSymbol
-    declToSymbol decl@(DeclView _ type' _ _loc) = DocumentSymbol
+    -- A #data contributes one symbol with its constructors as children; the
+    -- generated eliminators stay out of the outline (they are not in the
+    -- source; workspace symbol search still finds them).
+    outline :: [DeclView] -> [DocumentSymbol]
+    outline [] = []
+    outline (d : ds) = case declViewKind d of
+      DeclKindData ->
+        let isChildOf c = case declViewKind c of
+              DeclKindDataCon parent -> parent == declViewName d
+              _                      -> False
+            (childDecls, rest) = span isChildOf ds
+        in declToSymbol (Just (map (declToSymbol Nothing) childDecls)) d : outline rest
+      DeclKindDataElim _ -> outline ds
+      _ -> declToSymbol Nothing d : outline ds
+
+    declToSymbol :: Maybe [DocumentSymbol] -> DeclView -> DocumentSymbol
+    declToSymbol mchildren decl@(DeclView _ type' _ _loc kind) = DocumentSymbol
       { _name           = symbolName
       , _detail         = Just (T.pack (show type'))
-      , _kind           = SymbolKind_Function
+      , _kind           = symbolKindOfDecl kind
       , _tags           = Nothing
       , _deprecated     = Nothing
       , _range          = range
       , _selectionRange = range
-      , _children       = Nothing
+      , _children       = mchildren
       }
       where
         (symbolName, range) = declNameRange decl
+
+-- | The LSP symbol kind of a declaration, mirroring the semantic token
+-- choices at the declaration site (class for a data type, enum member for a
+-- constructor, function otherwise).
+symbolKindOfDecl :: DeclKind -> SymbolKind
+symbolKindOfDecl = \case
+  DeclKindData       -> SymbolKind_Class
+  DeclKindDataCon _  -> SymbolKind_EnumMember
+  DeclKindDataElim _ -> SymbolKind_Function
+  DeclKindDefine     -> SymbolKind_Function
 
 -- | Workspace-wide symbol search over every typechecked module in the cache.
 -- The query is matched case-insensitively as an infix of the definition name;
@@ -695,7 +720,7 @@ provideWorkspaceSymbols req res = do
   let symbols =
         [ WorkspaceSymbol
             { _name          = symbolName
-            , _kind          = SymbolKind_Function
+            , _kind          = symbolKindOfDecl (declViewKind decl)
             , _tags          = Nothing
             , _containerName = Nothing
             , _location      = InL (Location (filePathToUri path) range)
