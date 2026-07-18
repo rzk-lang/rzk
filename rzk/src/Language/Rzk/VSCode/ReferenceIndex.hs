@@ -282,6 +282,29 @@ goCommand file env = \case
     [ Link (varText v) loc loc (Just (printAnn (AnnType ty)))
     | v <- vars, Just loc <- [identLoc file v] ]
       ++ goTerm file env ty
+  -- A #data declares the type, its constructors, and (implicitly) the
+  -- generated eliminators; the type name is in scope in the sort and in
+  -- the constructor types (for return types, and for recursion later).
+  Rzk.CommandData _ name _ ps sort body ->
+    let (env', occs) = goParams file env ps
+        envD = case identLoc file name of
+          Just loc -> Map.insert (varText name) loc env'
+          Nothing  -> env'
+        goSort = case sort of
+          Rzk.SomeDataSort _ ty -> goTerm file envD ty
+          Rzk.NoDataSort _      -> []
+        goBody = case body of
+          Rzk.SomeDataBody _ cons elims -> concat
+            [ concatMap goCon cons
+            , concatMap (\(Rzk.DataElim _ _elim ty) -> goTerm file envD ty) elims
+            ]
+          Rzk.NoDataBody _ -> []
+        goCon (Rzk.Constructor _ cname cps cty) =
+          let (env'', coccs) = goParams file envD cps
+          in def cname ++ coccs ++ case cty of
+               Rzk.SomeConstructorType _ ty -> goTerm file env'' ty
+               Rzk.NoConstructorType _      -> []
+    in def name ++ occs ++ goSort ++ goBody
   Rzk.CommandCheck _ a b       -> goTerm file env a ++ goTerm file env b
   Rzk.CommandCompute _ a       -> goTerm file env a
   Rzk.CommandComputeWHNF _ a   -> goTerm file env a

@@ -53,6 +53,42 @@ tokenizeCommand command = case command of
   CommandSection    _loc name -> tokenizeSectionName name
   CommandSectionEnd _loc name -> tokenizeSectionName name
 
+  CommandData _loc name declUsedVars params sort body -> concat
+    [ mkToken name SemanticTokenTypes_Class [SemanticTokenModifiers_Declaration]
+    , tokenizeDeclUsedVars declUsedVars
+    , foldMap tokenizeParam params
+    , tokenizeDataSort sort
+    , tokenizeDataBody body
+    ]
+
+tokenizeDataSort :: DataSort -> [SemanticTokenAbsolute]
+tokenizeDataSort = \case
+  SomeDataSort _loc ty -> tokenizeTerm ty
+  NoDataSort _loc      -> []
+
+tokenizeDataBody :: DataBody -> [SemanticTokenAbsolute]
+tokenizeDataBody = \case
+  NoDataBody _loc -> []
+  SomeDataBody _loc cons elims -> concat
+    [ foldMap tokenizeConstructor cons
+    , foldMap tokenizeDataElim elims
+    ]
+
+tokenizeConstructor :: Constructor -> [SemanticTokenAbsolute]
+tokenizeConstructor (Constructor _loc name params ctype) = concat
+  [ mkToken name SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
+  , foldMap tokenizeParam params
+  , case ctype of
+      SomeConstructorType _loc' ty -> tokenizeTerm ty
+      NoConstructorType _loc'      -> []
+  ]
+
+tokenizeDataElim :: DataElim -> [SemanticTokenAbsolute]
+tokenizeDataElim (DataElim _loc name ty) = concat
+  [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+  , tokenizeTerm ty
+  ]
+
 tokenizeDeclUsedVars :: DeclUsedVars -> [SemanticTokenAbsolute]
 tokenizeDeclUsedVars (DeclUsedVars _loc vars) =
   foldMap (\var -> mkToken var SemanticTokenTypes_Parameter []) vars

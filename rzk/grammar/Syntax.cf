@@ -47,6 +47,10 @@ commandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ":" T
 define commandDef x vars params ty term = CommandDefine x vars params ty term ;
 commandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ":" Term ":=" Term ;
 define commandDefNoParams x vars ty term = CommandDefine x vars [] ty term ;
+
+CommandData.              Command ::= "#data" VarIdent DeclUsedVars [Param] DataSort DataBody ;
+commandDataNoParams.      Command ::= "#data" VarIdent DeclUsedVars DataSort DataBody ;
+define commandDataNoParams x vars sort body = CommandData x vars [] sort body ;
 terminator Command ";" ;
 
 DeclUsedVars. DeclUsedVars ::= "uses" "(" [VarIdent] ")" ;
@@ -55,6 +59,28 @@ define noDeclUsedVars = DeclUsedVars [] ;
 
 NoSectionName.    SectionName ::= ;
 SomeSectionName.  SectionName ::= VarIdent ;
+
+-- The sort of a #data declaration (defaults to U when omitted)
+SomeDataSort. DataSort ::= ":" Term ;
+NoDataSort.   DataSort ::= ;
+
+-- The constructor list of a #data declaration (omitted for an empty family)
+SomeDataBody. DataBody ::= ":=" [Constructor] [DataElim] ;
+NoDataBody.   DataBody ::= ;
+
+-- A constructor: name, fields, and an optional return type (defaults to
+-- the declared type applied to its parameters)
+Constructor.           Constructor ::= VarIdent [Param] ConstructorType ;
+constructorNoParams.   Constructor ::= VarIdent ConstructorType ;
+define constructorNoParams x ty = Constructor x [] ty ;
+separator nonempty Constructor "|" ;
+
+SomeConstructorType. ConstructorType ::= ":" Term ;
+NoConstructorType.   ConstructorType ::= ;
+
+-- An optional re-ascription of a generated eliminator's type
+DataElim. DataElim ::= "eliminator" VarIdent ":" Term ;
+terminator DataElim "" ;
 
 -- Patterns
 PatternUnit.      Pattern ::= "unit" ;

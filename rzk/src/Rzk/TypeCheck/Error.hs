@@ -344,6 +344,8 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
           "  Error occurred when checking\n    #define " <> Rzk.printTree name
         Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
           "  Error occurred when checking\n    #postulate " <> Rzk.printTree name
+        Just (Rzk.CommandData _loc name _vars _params _sort _body) ->
+          "  Error occurred when checking\n    #data " <> Rzk.printTree name
         Just (Rzk.CommandCheck _loc term ty) ->
           "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
         Just (Rzk.CommandCompute _loc term) ->

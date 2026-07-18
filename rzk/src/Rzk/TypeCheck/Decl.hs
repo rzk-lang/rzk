@@ -509,6 +509,12 @@ checkCommands path i total commands k = case commands of
             checkCommands path (i + 1) total more $ \decls errs ->
               k (sinkDecl decl : decls) errs
 
+  command@(Rzk.CommandData _loc name _declUsedVars _params _sort _body) : more ->
+    announce (" Checking #data " <> Rzk.printTree name) $
+      withCommand command k $ do
+        _ <- issueTypeError $ TypeErrorOther "#data is not yet supported"
+        checkCommands path (i + 1) total more k
+
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
       withCommand command k $ do
