@@ -572,3 +572,39 @@ spec = do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
         [h] -> holeDiagram h `shouldBe` Nothing
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "inductive types in the inventory (#data)" $ do
+    let intros = map show . holeIntroductions
+        cands  = map show . holeCandidates
+        natPrelude = "#lang rzk-1\n#data nat := zero | suc (n : nat)\n"
+        vecPrelude = natPrelude
+          <> "#data vec (A : U) : nat → U :=\n"
+          <> "    nil : vec A zero\n"
+          <> "  | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)\n"
+
+    it "introduces a datatype goal by its constructors, applied to holes" $
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> intros h `shouldBe` ["zero", "suc ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "filters constructors whose indices cannot meet the goal's" $
+      -- nil : vec A zero cannot fit a goal at index (suc n)
+      case holesOf (vecPrelude
+          <> "#define g (A : U) (n : nat) (v : vec A (suc n)) : vec A (suc n) := ?\n") of
+        [h] -> intros h `shouldBe` ["cons ? ? ? ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "offers the generated eliminators over a datatype hypothesis" $
+      -- the motive is a λ over a hole, like idJ's, so the spine fits any goal
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> do
+          cands h `shouldContain` ["rec-nat ? ? ? m"]
+          cands h `shouldContain` ["ind-nat (\\ x₁ → ?) ? ? m"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "instantiates the eliminator at the hypothesis's indices" $
+      case holesOf (vecPrelude
+          <> "#define g (A : U) (n : nat) (v : vec A (suc n)) : vec A (suc n) := ?\n") of
+        [h] ->
+          cands h `shouldContain` ["ind-vec A (\\ i → \\ x₁ → ?) ? ? (suc n) v"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
