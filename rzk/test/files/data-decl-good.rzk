@@ -1,0 +1,15 @@
+#lang rzk-1
+
+#data coprod
+  ( A : U)
+  ( B : U)
+  :=
+    inl (a : A)
+  | inr (b : B)
+
+#data bool := false | true
+
+#data with-arrow
+  ( A : U)
+  :=
+    fun (f : A → A)
