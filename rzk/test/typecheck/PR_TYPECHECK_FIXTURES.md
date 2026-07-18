@@ -10,6 +10,14 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
 - **recBOT body well-formedness:** `ill-recbot-term-not-function`, `ill-recbot-term-undefined` (ill-typed bodies must not be admitted under an absurd hypothesis).
 - **Holes (strict mode):** `ill-hole-unsolved` (a hole is an error by default), `ill-hole-infer` (a hole in inference position cannot be guessed). The lenient mode and the structured goal/context query are covered by `Rzk.HolesSpec`, not by YAML fixtures.
 - **NbE conversion fast path:** `happy-nbe-church-conversion` (βδ-equal but structurally different Church-numeral applications, including inline endpoints that must not decompose into false subgoals), `ill-nbe-church-unequal` (a wrong equation still fails through the ordinary unification — the fast path never refutes).
+- **Inductive types (`#data`, stage 1):** well-typed declarations and
+  computation through the generated eliminators (`happy-data-bool`,
+  `happy-data-coprod`, `happy-data-empty`), uniform section closure
+  (`happy-data-section`), the largeness warning (`happy-data-large-warning`,
+  asserted via the `warnings` field); stage-1 rejections
+  (`ill-data-recursive`, `ill-data-non-u-sort`, `ill-data-return-type`,
+  `ill-data-shape-field`, `ill-data-eliminator-clause`) and name clashes
+  (`ill-data-duplicate-constructor`, `ill-data-clash-generated`).
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 
 # Regression tests
@@ -35,6 +43,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
 | Pattern-binder name restoration | `ill-hole-pattern-binder-names` | A pair-pattern lambda `\ (a , b) -> ?` renders its components by name in the strict-mode error: the goal `B (first p)` folds to `B a` and the binder shows as `(a , b)`, not `π₁ x` of a fresh variable. Lenient-mode goals/context covered by `Rzk.HolesSpec`. |
 | Bare pattern point in tope | `ill-tope-pattern-binder-bare` | A pattern-bound point used bare (not projected) in a shape's membership tope renders as the pattern: a type error's local tope context shows `Δ² (t , s)`, not `Δ² x₁`. Complements the projection-folding restoration above. |
+| `#data` stage 1 (M3, design/inductive-types.md) | `happy-data-*`, `ill-data-*` | The declaration registers the type former before checking constructors (the prototype's ordering bug); the ι-rule fires in WHNF and NF (refl on computed equalities); section closure abstracts the whole family uniformly (`makeAssumptionExplicit` forces the type former). Stage-1 rejections are `TypeErrorOther` with distinguishing `message_contains`. |
 
 # Test schema
 

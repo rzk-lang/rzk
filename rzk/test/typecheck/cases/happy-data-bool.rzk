@@ -1,0 +1,19 @@
+#lang rzk-1
+
+-- The simplest inductive type: booleans, with computation through the
+-- generated eliminators.
+#data bool := false | true
+
+#check ind-bool : (C : bool → U) → C false → C true → (b : bool) → C b
+#check rec-bool : (C : U) → C → C → bool → C
+
+#define not (b : bool) : bool
+  := rec-bool bool true false b
+
+-- the ι-rule is definitional: refl checks against a computed equality
+#define not-not-true : not (not true) =_{bool} true
+  := refl
+
+-- and induction proves the general statement
+#define not-not (b : bool) : not (not b) =_{bool} b
+  := ind-bool (\ b' → not (not b') =_{bool} b') refl refl b

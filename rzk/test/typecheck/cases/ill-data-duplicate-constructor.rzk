@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Constructors are ordinary top-level names, so a duplicate is the same
+-- error as a duplicate #define.
+#data d := c | c

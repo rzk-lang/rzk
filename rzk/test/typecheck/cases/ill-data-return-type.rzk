@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- The spelled-out return type of a constructor must be the declared type
+-- applied to its parameters, in order (anything else is an index).
+#data d (A : U) := c : d Unit

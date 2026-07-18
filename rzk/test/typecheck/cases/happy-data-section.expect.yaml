@@ -1,0 +1,4 @@
+status: ok
+warnings: []
+regression_for:
+  - data-stage1-uniform-section-closure

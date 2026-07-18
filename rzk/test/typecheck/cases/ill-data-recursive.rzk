@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Recursion is stage 2; stage 1 hard-rejects any occurrence of the declared
+-- type in a constructor field.
+#data nat := zero | suc (n : nat)

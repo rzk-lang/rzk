@@ -1,0 +1,27 @@
+#lang rzk-1
+
+-- A #data inside a #section closes over the used assumptions uniformly:
+-- the type former, the constructors, and the eliminators all gain the
+-- section parameter, and the ι-rule keeps computing afterwards.
+#section wrap-section
+
+#assume T : U
+
+#data wrap uses (T)
+  := mk (x : T)
+
+#define unwrap uses (T)
+  (w : wrap)
+  : T
+  := rec-wrap T (\ x → x) w
+
+#end wrap-section
+
+#check wrap : U → U
+#check mk : (T : U) → T → wrap T
+#check ind-wrap
+  : (T : U) → (C : wrap T → U) → ((x : T) → C (mk T x)) → (w : wrap T) → C w
+
+#define unwrap-mk (T : U) (x : T)
+  : unwrap T (mk T x) =_{T} x
+  := refl

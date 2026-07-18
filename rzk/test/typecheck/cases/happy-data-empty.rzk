@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- The empty family: no := at all, and the eliminator is ex falso.
+#data empty
+
+#check ind-empty : (C : empty → U) → (v : empty) → C v
+
+#define absurd (C : U) (v : empty) : C
+  := rec-empty C v

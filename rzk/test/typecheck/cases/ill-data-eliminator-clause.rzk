@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- The eliminator re-ascription clause parses (the grammar covers all
+-- stages) but is not supported before the HIT stage.
+#data d := c
+  eliminator ind-d : (C : d → U) → C c → (x : d) → C x

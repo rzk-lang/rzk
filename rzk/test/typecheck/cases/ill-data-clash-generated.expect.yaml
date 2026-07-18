@@ -1,0 +1,5 @@
+status: error
+error_tag: TypeErrorDuplicateTopLevel
+line: 7
+regression_for:
+  - data-stage1-name-clashes

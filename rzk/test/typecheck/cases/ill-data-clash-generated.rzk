@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- The generated eliminator names are ordinary top-level names too, so a
+-- #data whose ind-D is already taken is an error.
+#define ind-d (x : Unit) : Unit := x
+
+#data d := c

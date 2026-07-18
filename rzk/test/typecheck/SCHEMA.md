@@ -23,5 +23,6 @@ Test cases live under `test/typecheck/cases/`.
 | `regression_for` | no | Traceability: GitHub issue/PR URLs, commit themes, or short **semantic** rule names (e.g. `contextEntailsUnion-recOR-boundary`). Avoid `TypeCheck.hs` line numbers and `issueTypeError-<line>` tags — they go stale. |
 | `modules` | no | If set (directory case), ordered list of module files for one `typecheckModulesWithLocation` run. |
 | `api` | no | Omit or `strict` (default): `typecheckModulesWithLocation` (throws on first error). `collect`: `typecheckModulesWithLocation'` — returns a list of errors without using `throwError`; note that the typechecker still stops per-module chaining when a module reports errors (see implementation in `Rzk.TypeCheck`). |
+| `warnings` | no | For `status: ok` runs: the run's warning tags (diagnostic codes, e.g. `LargeInductiveTypeWarning`) must match this list exactly, order-insensitively. `warnings: []` asserts a warning-free run; an absent field asserts nothing. |
 
 Parse failures are always test failures; they are not expressed in this schema.

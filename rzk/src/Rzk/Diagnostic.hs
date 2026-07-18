@@ -198,6 +198,12 @@ diagnoseCheckWarning (LargeInductiveTypeWarning dataName conName loc) = Diagnost
 ppCheckWarning :: CheckWarning -> String
 ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
 
+-- | The stable tag of a warning (its diagnostic code), used to match
+-- @warnings@ in fixtures; sharing the definition keeps the two from
+-- drifting apart.
+checkWarningTag :: CheckWarning -> String
+checkWarningTag = diagnosticCode . diagnoseCheckWarning
+
 diagnoseHole :: HoleInfo -> Diagnostic
 diagnoseHole hole = Diagnostic
   { diagnosticSeverity = SeverityWarning
