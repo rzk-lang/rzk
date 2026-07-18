@@ -49,11 +49,25 @@ The eliminator arguments come in the order: parameters, motive, one method per c
 
     A constructor field whose type is or quantifies over a universe (e.g. `#!rzk box (X : U)`) makes the type _large_. Since Rzk currently has `#!rzk U : U`, a large inductive type is a known shortcut to inconsistency, so the declaration is accepted with a warning.
 
+Recursion is supported for _directly_ recursive fields, i.e. fields whose type is the declared type applied to its parameters, such as `#!rzk suc (n : nat)`. Each recursive field contributes an induction hypothesis to the eliminator's method, right after the field:
+
+```rzk
+#data nat := zero | suc (n : nat)
+
+#check ind-nat
+  : ( C : nat → U)
+  → C zero
+  → ( ( n : nat) → C n → C (suc n))
+  → ( x : nat) → C x
+```
+
+Constructor fields must be strictly positive in the declared type.
+
 ## Current restrictions
 
-At the moment, `#data` supports non-recursive declarations only:
+At the moment:
 
-- constructor fields may not mention the declared type (recursive types such as natural numbers are planned);
+- recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
 - the sort must be `#!rzk U` and a constructor's return type, when spelled out, must be the declared type applied to its parameters (indexed families are planned);
 - constructors may not take cube or shape arguments (over the directed interval they would declare directed cells);
 - the `eliminator` re-ascription clause is parsed but not yet supported.
