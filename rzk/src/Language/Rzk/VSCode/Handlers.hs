@@ -225,7 +225,7 @@ typecheckFromConfigFile = do
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Left err) -> do
               logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext BottomUp err))
-              publishModuleDiagnostics path [err] []    -- sort of impossible
+              publishModuleDiagnostics path [err] [] []    -- sort of impossible
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Right (checkedNow, holeInfos)) -> do
               let errors = checkedErrors checkedNow
@@ -236,7 +236,7 @@ typecheckFromConfigFile = do
                     [(path, RzkCachedModule checkedNow decls
                         (filter ((== path) . filepathOfTypeError) errors))]
               cacheTypecheckedModules checked'
-              publishModuleDiagnostics path errors holeInfos
+              publishModuleDiagnostics path errors (checkedWarnings checkedNow) holeInfos
               -- Stop at the first module with errors, like the batch checker
               -- ('typecheckModulesWithLocation'') does: later modules depend
               -- on this one and would report cascading errors. Mark the
@@ -256,15 +256,19 @@ typecheckFromConfigFile = do
     -- per-source map over the old one, and @partitionBySource []@ has no
     -- "rzk" key, so the old diagnostics would survive and be re-sent. A
     -- max count of 0 forces an empty publish to the client, clearing it.
-    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [HoleInfo] -> LSP ()
-    publishModuleDiagnostics path typeErrors holeInfos = do
+    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [CheckWarning] -> [HoleInfo] -> LSP ()
+    publishModuleDiagnostics path typeErrors warnings holeInfos = do
       let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
                             | err <- typeErrors ]
+          warnDiagnostics = [ (path', [diagnosticOfWarning warning])
+                            | warning <- warnings
+                            , let path' = fromMaybe path
+                                    (warningLocation warning >>= locationFilePath) ]
           holeDiagnostics = [ (path', [diagnosticOfHole hole])
                             | hole <- holeInfos
                             , Just path' <- [holeLocation hole >>= locationFilePath] ]
           diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
-            Map.fromListWith (flip (<>)) (errDiagnostics <> holeDiagnostics)
+            Map.fromListWith (flip (<>)) (errDiagnostics <> warnDiagnostics <> holeDiagnostics)
       forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
         publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
           (filePathToNormalizedUri path') Nothing (partitionBySource diags)
@@ -331,6 +335,9 @@ typecheckFromConfigFile = do
 
     diagnosticOfHole :: HoleInfo -> Diagnostic
     diagnosticOfHole = lspDiagnosticOf . Diag.diagnoseHole
+
+    diagnosticOfWarning :: CheckWarning -> Diagnostic
+    diagnosticOfWarning = lspDiagnosticOf . Diag.diagnoseCheckWarning
 
     diagnosticOfParseError :: T.Text -> Diagnostic
     diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))

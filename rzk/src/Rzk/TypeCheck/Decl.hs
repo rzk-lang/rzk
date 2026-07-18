@@ -86,6 +86,7 @@ data Checked where
     => Context n
     -> [(FilePath, [Decl n])]
     -> [TypeErrorInScopedContext]
+    -> [CheckWarning]
     -> Checked
 
 -- * Entering a top-level entry
@@ -651,13 +652,13 @@ withDataDecls path used name paramVars paramDecls consData k = do
       when recursive $ issueTypeError $ TypeErrorOther $
         "constructor " <> Rzk.printTree (dataConName con)
           <> " is recursive; recursive inductive types are not supported yet"
-      when (containsUniverse probeT) $
-        traceTypeCheck Normal
-          ("Warning: large inductive type: a field of constructor "
-            <> Rzk.printTree (dataConName con)
-            <> " stores a universe; predicatively "
-            <> Rzk.printTree name <> " lives above U")
-          (return ())
+      when (containsUniverse probeT) $ do
+        loc <- asks ctxLocation
+        recordCheckWarning $ LargeInductiveTypeWarning
+          { warningDataName = varIdentAt path name
+          , warningConName = varIdentAt path (dataConName con)
+          , warningLocation = loc
+          }
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
       conDeps <- assumptionDepsOf conTy
@@ -980,19 +981,24 @@ checkModules (m@(path, _) : ms) k =
 -- * The public entry points
 
 -- | Check the modules, and package the result with the scope it was checked in.
+-- The warnings live on the writer channel during the run and are folded into
+-- the 'Checked' package here.
 checkedModules :: [(FilePath, Rzk.Module)] -> Context Foil.VoidS -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 checkedModules modules ctx =
-  runExcept $ runWriterT $ flip runReaderT ctx $
+  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
     checkModules modules $ \decls errs -> do
       ctx' <- ask
-      pure (Checked ctx' decls errs)
+      pure (Checked ctx' decls errs [])
+  where
+    package (Checked ctx' decls errs _, (holes, warnings)) =
+      (Checked ctx' decls errs warnings, holes)
 
 -- | Check the modules strictly: an unfilled hole is an error, and the first error
 -- stops the run.
 typecheckModules
   :: [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
 typecheckModules modules = do
-  (checked@(Checked _ _ errs), _holes) <- checkedModules modules emptyContext
+  (checked@(Checked _ _ errs _), _holes) <- checkedModules modules emptyContext
   case errs of
     err : _ -> Left err
     []      -> Right checked
@@ -1033,7 +1039,7 @@ data DeclView = DeclView
 -- | The declarations of a checked run, rendered, grouped by the file they came
 -- from.
 declViews :: Checked -> [(FilePath, [DeclView])]
-declViews (Checked ctx decls _errs) = map (fmap (map view)) decls
+declViews (Checked ctx decls _errs _warnings) = map (fmap (map view)) decls
   where
     naming = namingOfContext ctx
     view decl = DeclView
@@ -1051,16 +1057,25 @@ recheckFrom
   :: Checked
   -> [(FilePath, Rzk.Module)]
   -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
-recheckFrom (Checked ctx decls _errs) modules =
-  runExcept $ runWriterT $ flip runReaderT ctx $
+recheckFrom (Checked ctx decls _errs _warnings) modules =
+  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
     checkModules modules $ \newDecls errs -> do
       ctx' <- ask
-      pure (Checked ctx' (map (fmap (map sinkDecl)) decls <> newDecls) errs)
+      pure (Checked ctx' (map (fmap (map sinkDecl)) decls <> newDecls) errs [])
+  where
+    -- Only this run's warnings: like the errors, the prefix's warnings were
+    -- already reported when the prefix was checked.
+    package (Checked ctx' decls' errs _, (holes, warnings)) =
+      (Checked ctx' decls' errs warnings, holes)
 
 -- | The errors of a checked run.
 checkedErrors :: Checked -> [TypeErrorInScopedContext]
-checkedErrors (Checked _ _ errs) = errs
+checkedErrors (Checked _ _ errs _) = errs
+
+-- | The warnings of a checked run.
+checkedWarnings :: Checked -> [CheckWarning]
+checkedWarnings (Checked _ _ _ warnings) = warnings
 
 -- | Nothing checked yet: the empty context, and no declarations.
 emptyChecked :: Checked
-emptyChecked = Checked emptyContext [] []
+emptyChecked = Checked emptyContext [] [] []

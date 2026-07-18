@@ -157,7 +157,7 @@ fitsInto :: Distinct n => TermT n -> TermT n -> TermT n -> TypeCheck n Bool
 fitsInto term ty target = do
   ty'     <- stripTypeRestrictions <$> whnfT ty
   target' <- stripTypeRestrictions <$> whnfT target
-  censor (const []) $ local structuralHoleUnify
+  censor (const mempty) $ local structuralHoleUnify
     ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
 
 -- | The eliminators a value of the given (weak head normal) type admits, each as a
@@ -335,7 +335,7 @@ allIntroductionsOf target inScopeNames = do
 -- probing are discarded, leaving a pure yes\/no query.
 endpointsAgree :: Distinct n => TermT n -> TermT n -> TypeCheck n Bool
 endpointsAgree a b =
-  censor (const [])
+  censor (const mempty)
     ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
 
 -- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it is a
@@ -435,7 +435,7 @@ recordHoleShape mname goalTy mshape = do
   -- for each local hypothesis (and allow-listed lemma), the elimination spines that
   -- land in the goal (arguments left as holes). Probing must not leak holes into the
   -- recorded output, hence the 'censor'.
-  candidates <- censor (const []) $ do
+  candidates <- censor (const mempty) $ do
     elims <- concat <$>
       mapM (\(v, _) -> allEliminationsInto goalTy (Var v)) (locals ++ lemmaVars)
     -- context-driven moves (independent of the goal's head and the hypotheses): ex
@@ -478,11 +478,11 @@ recordHoleShape mname goalTy mshape = do
 
   -- the introduction forms for the goal itself (constituents left as holes); the Π
   -- binder is freshened against the names in scope so that it does not shadow.
-  introductions <- censor (const []) (allIntroductionsOf goalTy inScopeNames)
+  introductions <- censor (const mempty) (allIntroductionsOf goalTy inScopeNames)
   -- the goal cell: an SVG of the shape the hole must inhabit (an arrow, triangle or
   -- square), drawn from an abstract inhabitant with the proof term hidden. 'Nothing'
   -- when the goal is not a renderable shape.
-  diagram <- censor (const []) (renderGoalCellSVG goal')
+  diagram <- censor (const mempty) (renderGoalCellSVG goal')
 
   recordHoleInfo HoleInfo
     { holeName          = mname

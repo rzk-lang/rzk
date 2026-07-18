@@ -179,6 +179,25 @@ diagnoseTypeError dir err = Diagnostic
 -- problems panel (unlike 'SeverityHint', which editors render almost
 -- invisibly). Finished work still rejects holes outright: the strict default
 -- of @rzk typecheck@ reports them as errors (cf. Agda's @--safe@).
+-- | A checker warning as a diagnostic: warning severity, with the warning's
+-- constructor name as the stable code (like 'diagnoseTypeError' does for
+-- errors).
+diagnoseCheckWarning :: CheckWarning -> Diagnostic
+diagnoseCheckWarning (LargeInductiveTypeWarning dataName conName loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "LargeInductiveTypeWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "large inductive type: a field of constructor " <> show conName
+        <> " stores a universe; predicatively " <> show dataName
+        <> " lives above U"
+  , diagnosticHole     = Nothing
+  }
+
+-- | A checker warning as a human-readable line (the CLI).
+ppCheckWarning :: CheckWarning -> String
+ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
+
 diagnoseHole :: HoleInfo -> Diagnostic
 diagnoseHole hole = Diagnostic
   { diagnosticSeverity = SeverityWarning

@@ -29,7 +29,8 @@ import qualified Data.Text.IO            as T
 
 import           Paths_rzk               (version)
 import           Rzk.Diagnostic          (Diagnostic (..), Severity (..),
-                                          diagnoseHole, diagnoseTypeError,
+                                          diagnoseCheckWarning, diagnoseHole,
+                                          diagnoseTypeError, ppCheckWarning,
                                           ppHoleInfo)
 import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
@@ -84,21 +85,26 @@ main = do
         then do
           let diagnostics = case typecheckModulesWithHoles modules of
                 Left err -> [diagnoseTypeError BottomUp err]
-                Right (Checked _ctx _decls errors, holes) ->
-                  map (diagnoseTypeError BottomUp) errors ++ map diagnoseHole holes
+                Right (Checked _ctx _decls errors warnings, holes) ->
+                  map (diagnoseTypeError BottomUp) errors
+                    ++ map diagnoseCheckWarning warnings
+                    ++ map diagnoseHole holes
           BL8.putStrLn (encode diagnostics)
           when (any ((== SeverityError) . diagnosticSeverity) diagnostics) exitFailure
         else if allowHolesFlag
           then case typecheckModulesWithHoles modules of
             Left err -> reportError err >> exitFailure
-            Right (Checked _ctx _decls errors, holes) -> do
+            Right (Checked _ctx _decls errors warnings, holes) -> do
+              forM_ warnings (putStrLn . ppCheckWarning)
               forM_ holes (putStr . ppHoleInfo)
               case errors of
                 [] -> putStrLn ("Everything is ok! (" <> show (length holes) <> " hole(s))")
                 _  -> do forM_ errors reportError; exitFailure
           else case typecheckModules modules of
             Left err -> reportError err >> exitFailure
-            Right _checked -> putStrLn "Everything is ok!"
+            Right checked -> do
+              forM_ (checkedWarnings checked) (putStrLn . ppCheckWarning)
+              putStrLn "Everything is ok!"
 
     Lsp ->
 #ifdef LSP_ENABLED
