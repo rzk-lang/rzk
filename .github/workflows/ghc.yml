@@ -129,6 +129,14 @@ jobs:
         run: ./bin/rzk typecheck
         shell: bash
 
+      # The playground bundles this file as its initial snippet (via a raw
+      # import); checking it standalone keeps it from rotting when syntax
+      # changes. It cannot join rzk.yaml: its definitions clash with
+      # recId.rzk.md in the shared scope of a single run.
+      - name: Check the playground's initial snippet
+        run: ./bin/rzk typecheck rzk-playground/src/editor/example.rzk
+        shell: bash
+
   mkdocs:
     needs: [build]
     name: "Build and Deploy MkDocs to GitHub Pages"
