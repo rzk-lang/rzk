@@ -87,7 +87,43 @@ data VarInfo n = VarInfo
   , varIsTopLevel          :: Bool
   , varDeclaredAssumptions :: [Foil.Name n]
   , varLocation            :: Maybe LocationInfo
+  , varDataRole            :: Maybe (DataRole n)
+    -- ^ the role the entry plays for a @#data@ declaration, if any
   }
+
+-- | The role a top-level entry plays for a @#data@ declaration. The ι-rule
+-- (in 'Rzk.TypeCheck.Eval') recognises an eliminator head and a
+-- constructor-headed scrutinee by these; both entries are otherwise opaque
+-- (they carry no value).
+--
+-- The argument counts speak of the entry's elaborated type: a constructor
+-- takes the datatype's parameters and then its own fields; an eliminator
+-- takes the parameters, the motive, one method per constructor (in
+-- declaration order), and the scrutinee. Closing a section prepends the
+-- section's assumptions uniformly to all entries of a declaration, so
+-- 'abstractOver' bumps the parameter counts.
+data DataRole n = DataRole
+  { dataRoleDataType  :: Foil.Name n
+    -- ^ the type former this entry belongs to
+  , dataRoleNumParams :: Int
+    -- ^ the datatype parameters the entry takes before anything else
+  , dataRoleKind      :: DataRoleKind
+  }
+
+data DataRoleKind
+  = DataConKind Int Int
+    -- ^ a constructor: its 0-based position among the constructors (= the
+    -- method index), and the number of its own fields after the parameters
+  | DataElimKind Int ElimKind
+    -- ^ an eliminator: the number of methods (one per constructor, in
+    -- declaration order); the motive and the scrutinee surround them
+
+-- | Which eliminator; the ι-rule is the same for both.
+data ElimKind = ElimInd | ElimRec
+
+-- | Add one leading parameter (a section assumption made explicit).
+bumpDataRoleParams :: DataRole n -> DataRole n
+bumpDataRoleParams role = role { dataRoleNumParams = dataRoleNumParams role + 1 }
 
 -- | A tope, together with the modalities under which it is available.
 data ModalTope n = ModalTope
@@ -324,7 +360,10 @@ instance Foil.Sinkable VarInfo where
     { varType = Foil.sinkabilityProof rename (varType info)
     , varValue = Foil.sinkabilityProof rename <$> varValue info
     , varDeclaredAssumptions = rename <$> varDeclaredAssumptions info
+    , varDataRole = renameRole <$> varDataRole info
     }
+    where
+      renameRole role = role { dataRoleDataType = rename (dataRoleDataType role) }
 
 instance Foil.Sinkable ModalTope where
   sinkabilityProof rename tope =

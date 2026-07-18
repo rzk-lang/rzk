@@ -281,6 +281,18 @@ freeVarsOfTerm (Node sig) = bifoldMap freeVarsOfScoped freeVarsOfTerm sig
 freeVarsOfTermT :: TermT n -> [Foil.Name n]
 freeVarsOfTermT = freeVarsOfTerm . untyped
 
+-- | Does the term mention the universe @U@ anywhere? A constructor field
+-- whose type does is what makes an inductive type /large/ (see the
+-- largeness warning in "Rzk.TypeCheck.Decl").
+containsUniverse :: Term n -> Bool
+containsUniverse Universe   = True
+containsUniverse (Var _)    = False
+containsUniverse (Node sig) =
+  bifoldr (\scoped acc -> containsUniverseScoped scoped || acc)
+          (\t acc -> containsUniverse t || acc) False sig
+  where
+    containsUniverseScoped (ScopedAST _ body) = containsUniverse body
+
 -- * Holes
 
 isHoleT :: TermT n -> Bool

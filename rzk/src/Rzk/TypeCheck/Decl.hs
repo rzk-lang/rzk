@@ -27,6 +27,7 @@ import           Control.Monad.Reader      (ask, asks, local, runReaderT)
 import           Control.Monad.Trans.Writer.CPS (runWriterT)
 import           Data.List                 (intercalate)
 import qualified Data.Map                  as Map
+import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
 
 import           Control.Monad.Foil        (DExt, Distinct, NameBinder)
@@ -97,9 +98,10 @@ withTopLevel
   -> Maybe (TermT n)     -- ^ its value, for a definition
   -> Bool                -- ^ is it an assumption (a @#assume@)?
   -> [Foil.Name n]       -- ^ the variables it declared it uses
+  -> Maybe (DataRole n)  -- ^ its role for a @#data@ declaration, if any
   -> (forall l. (DExt n l, Distinct l) => NameBinder n l -> Decl l -> TypeCheck l r)
   -> TypeCheck n r
-withTopLevel name ty mval isAssumption usedVars k = do
+withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
@@ -113,6 +115,7 @@ withTopLevel name ty mval isAssumption usedVars k = do
           , varIsTopLevel = True
           , varDeclaredAssumptions = usedVars
           , varLocation = ctxLocation ctx
+          , varDataRole = mrole
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterBinder binder info [] ctx)
         decl = Decl
@@ -243,12 +246,14 @@ collectSectionDecls
 collectSectionDecls _tolerate errs recent [] = pure (recent, errs)
 collectSectionDecls tolerate errs recent (entry@(name, info) : rest)
   | varIsAssumption info = do
-      (used, recent') <- makeAssumptionExplicit entry recent
-      unusedErr <-
-        if null errs && not used && not tolerate
-          then local (\c -> c { ctxLocation = varLocation info }) $
-            pure <$> typeErrorHere (TypeErrorUnusedVariable name (varType info))
-          else return []
+      (use, recent') <- makeAssumptionExplicit entry recent
+      unusedErr <- case use of
+        AssumptionUsed -> return []
+        AssumptionUnused
+          | null errs && not tolerate ->
+              local (\c -> c { ctxLocation = varLocation info }) $
+                pure <$> typeErrorHere (TypeErrorUnusedVariable name (varType info))
+          | otherwise -> return []
       collectSectionDecls tolerate (errs <> unusedErr) recent' rest
   | otherwise =
       collectSectionDecls tolerate errs (entry : recent) rest
@@ -259,47 +264,71 @@ collectSectionDecls tolerate errs recent (entry@(name, info) : rest)
 -- every later definition that mentions /that/ definition is rewritten to apply it
 -- to the assumption. A definition that mentions it without declaring it in its
 -- @uses@ clause is an implicit assumption, and an error.
+-- | Whether an assumption was taken up by (abstracted into) any definition
+-- that followed it in its section.
+data AssumptionUse = AssumptionUsed | AssumptionUnused
+
 makeAssumptionExplicit
-  :: Distinct n
+  :: forall n. Distinct n
   => (Foil.Name n, VarInfo n)
   -> [(Foil.Name n, VarInfo n)]
-  -> TypeCheck n (Bool, [(Foil.Name n, VarInfo n)])
-makeAssumptionExplicit _ [] = pure (False {- UNUSED -}, [])
-makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
-  scope <- asks ctxScope
-  -- Two notions of use, and the difference between them is what 'implicit' means.
-  -- The deep one follows the types of the variables the entry mentions, so it sees
-  -- a dependency the entry never names; the shallow one is a syntactic occurrence.
-  deepVars <- do
-    inTy <- freeVarsDeep (varType xInfo)
-    inVal <- concat <$> traverse freeVarsDeep (varValue xInfo)
-    pure (inTy <> inVal)
-  -- The syntactic check reads the declaration as the user wrote it, from the
-  -- context — not the entry, which the assumptions abstracted before this one have
-  -- already rewritten (and which therefore mentions them).
-  written <- asks (lookupVarInfo x)
-  let hasAssumption = a `elemName` deepVars
-      inTypeSyntactically = a `elemName` freeVarsOfTermT (varType written)
-      inBodySyntactically = any (elemName a . freeVarsOfTermT) (varValue written)
-      declared = a `elemName` varDeclaredAssumptions xInfo
-      -- used, but never written down: neither in the type, nor in the body, nor in
-      -- the 'uses' clause
-      implicit = and
-        [ hasAssumption
-        , not (inTypeSyntactically || inBodySyntactically)
-        , not declared
-        ]
-  if hasAssumption
-    then do
-      when implicit $
-        issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
-      let xInfo' = abstractOver scope a aInfo xInfo
-          xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
-      (_used, xs'') <- makeAssumptionExplicit assumption xs'
-      return (True {- USED -}, (x, xInfo') : xs'')
-    else do
-      (used, xs'') <- makeAssumptionExplicit assumption xs
-      return (used, (x, xInfo) : xs'')
+  -> TypeCheck n (AssumptionUse, [(Foil.Name n, VarInfo n)])
+makeAssumptionExplicit (a, aInfo) entries = do
+    -- A #data family closes over a section assumption uniformly: its type
+    -- former is abstracted whenever any entry of the family uses the
+    -- assumption, even though the former's own type (params → U) cannot
+    -- mention it. Abstracting the former rewrites every later use of it to
+    -- an application, so the constructors and eliminators (which all
+    -- mention the former) follow through the ordinary deep-use path; not
+    -- forcing the former would leave one unparameterised type inhabited by
+    -- constructors of every instantiation.
+    forced <- fmap concat $ forM entries $ \(_x, xInfo) ->
+      case varDataRole xInfo of
+        Nothing   -> pure []
+        Just role -> do
+          inTy <- freeVarsDeep (varType xInfo)
+          pure [ Foil.nameId (dataRoleDataType role) | a `elemName` inTy ]
+    go forced entries
+  where
+    go _ [] = pure (AssumptionUnused, [])
+    go forced ((x, xInfo) : xs) = do
+      scope <- asks ctxScope
+      -- Two notions of use, and the difference between them is what 'implicit' means.
+      -- The deep one follows the types of the variables the entry mentions, so it sees
+      -- a dependency the entry never names; the shallow one is a syntactic occurrence.
+      deepVars <- do
+        inTy <- freeVarsDeep (varType xInfo)
+        inVal <- concat <$> traverse freeVarsDeep (varValue xInfo)
+        pure (inTy <> inVal)
+      -- The syntactic check reads the declaration as the user wrote it, from the
+      -- context — not the entry, which the assumptions abstracted before this one have
+      -- already rewritten (and which therefore mentions them).
+      written <- asks (lookupVarInfo x)
+      let forcedFormer = Foil.nameId x `elem` forced
+          hasAssumption = forcedFormer || a `elemName` deepVars
+          inTypeSyntactically = a `elemName` freeVarsOfTermT (varType written)
+          inBodySyntactically = any (elemName a . freeVarsOfTermT) (varValue written)
+          declared = a `elemName` varDeclaredAssumptions xInfo
+          -- used, but never written down: neither in the type, nor in the body, nor in
+          -- the 'uses' clause. A forced type former is exempt: the use lives in its
+          -- constructors, which have their own declarations.
+          implicit = and
+            [ hasAssumption
+            , not (inTypeSyntactically || inBodySyntactically)
+            , not declared
+            , not forcedFormer
+            ]
+      if hasAssumption
+        then do
+          when implicit $
+            issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
+          let xInfo' = abstractOver scope a aInfo xInfo
+              xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
+          (_use, xs'') <- go forced xs'
+          return (AssumptionUsed, (x, xInfo') : xs'')
+        else do
+          (use, xs'') <- go forced xs
+          return (use, (x, xInfo) : xs'')
 
 -- | Give an entry the assumption as an explicit parameter.
 abstractOver
@@ -312,6 +341,10 @@ abstractOver scope a aInfo info = info
   , varModAccum = Id
   , varDeclaredAssumptions =
       filter (\v -> Foil.nameId v /= Foil.nameId a) (varDeclaredAssumptions info)
+  -- All products of a #data depend on the datatype (deeply, through their
+  -- types), so a section assumption is abstracted over all of them
+  -- uniformly, and the spine layouts the ι-rule relies on shift together.
+  , varDataRole = bumpDataRoleParams <$> varDataRole info
   }
   where
     orig = varOrig aInfo
@@ -401,6 +434,288 @@ addParamDecls (paramDecl : paramDecls)
 addParams :: [Rzk.Param] -> Rzk.Term -> Rzk.Term
 addParams []     = id
 addParams params = Rzk.Lambda Nothing params
+
+-- * @#data@ declarations
+--
+-- A @#data@ elaborates to ordinary top-level entries: the type former, one
+-- entry per constructor, and the generated eliminators @ind-D@ and @rec-D@.
+-- All of them are opaque (no value); computation is the ι-rule in
+-- "Rzk.TypeCheck.Eval", driven by the 'DataRole's recorded here. The types
+-- of the generated entries are built as /surface/ terms and pushed through
+-- the ordinary 'elaborate' and 'typecheck', so nothing here constructs core
+-- terms by hand.
+--
+-- Stage 1 (see @design/inductive-types.md@): no recursion, no indices, sort
+-- @U@ only, no eliminator re-ascription clauses. The declaration grammar
+-- already covers the later stages; this checker rejects what it does not
+-- support.
+
+-- | Stage 1: the sort must be @U@ (families are stage 2).
+checkDataSort :: Distinct n => Rzk.DataSort -> TypeCheck n ()
+checkDataSort = \case
+  Rzk.NoDataSort _ -> return ()
+  Rzk.SomeDataSort _ Rzk.Universe{} -> return ()
+  Rzk.SomeDataSort _ sort -> issueTypeError $ TypeErrorOther $
+    "the sort of a #data must be U (inductive families are not supported yet), got "
+      <> Rzk.printTree sort
+
+dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
+dataBodyParts = \case
+  Rzk.NoDataBody _              -> ([], [])
+  Rzk.SomeDataBody _ cons elims -> (cons, elims)
+
+-- | The parameters of a @#data@ must be plain typed variables @(x : A)@:
+-- the constructors and eliminators apply the type former to them.
+dataParamVars :: Distinct n => [Rzk.Param] -> TypeCheck n [Rzk.VarIdent]
+dataParamVars = fmap concat . mapM paramVarsOf
+  where
+    paramVarsOf = \case
+      Rzk.ParamPatternType _ pats _ty -> forM pats $ \case
+        Rzk.PatternVar _ v -> pure v
+        pat -> issueTypeError $ TypeErrorOther $
+          "a parameter of a #data must be a plain variable, got "
+            <> Rzk.printTree pat
+      p -> issueTypeError $ TypeErrorOther $
+        "a parameter of a #data must be a typed variable (x : A), got "
+          <> Rzk.printTree p
+
+-- | A constructor field: a typed parameter, with cube/shape fields rejected
+-- (over a directed interval they would declare directed cells, out of scope
+-- for M3) and modal fields deferred (crisp induction).
+dataFieldToParamDecl :: Distinct n => Rzk.VarIdent -> Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
+dataFieldToParamDecl cname = \case
+  p@Rzk.ParamPatternType{} -> paramToParamDecl p
+  Rzk.ParamPattern _ pat -> issueTypeError $ TypeErrorOther $
+    "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
+  Rzk.ParamPatternShape{} -> issueTypeError $ TypeErrorOther $
+    "constructor " <> Rzk.printTree cname
+      <> " takes a cube or shape argument; over the directed interval this would declare a directed cell, which is not supported"
+  Rzk.ParamPatternModalType{} -> modalFieldError cname
+  Rzk.ParamPatternModalShape{} -> modalFieldError cname
+
+modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
+modalFieldError cname = issueTypeError $ TypeErrorOther $
+  "modal fields are not supported yet in constructor " <> Rzk.printTree cname
+
+-- | A constructor, preprocessed at the surface level.
+data DataConSurface = DataConSurface
+  { dataConName       :: Rzk.VarIdent
+  , dataConFields     :: [Rzk.ParamDecl]
+    -- ^ the field telescope, one entry per bound variable
+  , dataConFieldPats  :: [Rzk.Term]
+    -- ^ the field patterns as terms, in the same order
+  , dataConType       :: Rzk.Term
+    -- ^ the constructor's full surface type: params → fields → D params
+  , dataConProbe      :: Rzk.Term
+    -- ^ fields → Unit: the fields alone, for the recursion and largeness checks
+  , dataConLocalNames :: [Rzk.VarIdentToken]
+    -- ^ every binder token of the constructor, for freshening
+  }
+
+surfacePatternVars :: Rzk.Pattern -> [Rzk.VarIdent]
+surfacePatternVars = \case
+  Rzk.PatternVar _ v        -> [v]
+  Rzk.PatternPair _ a b     -> surfacePatternVars a <> surfacePatternVars b
+  Rzk.PatternTuple _ a b cs -> concatMap surfacePatternVars (a : b : cs)
+  Rzk.PatternUnit _         -> []
+
+identTokenOf :: Rzk.VarIdent -> Rzk.VarIdentToken
+identTokenOf (Rzk.VarIdent _ tok) = tok
+
+surfaceVar :: Rzk.VarIdent -> Rzk.Term
+surfaceVar = Rzk.Var Nothing
+
+surfaceApps :: Rzk.Term -> [Rzk.Term] -> Rzk.Term
+surfaceApps f []       = f
+surfaceApps f (x : xs) = surfaceApps (Rzk.App Nothing f x) xs
+
+surfaceAppSpine :: Rzk.Term -> (Rzk.Term, [Rzk.Term])
+surfaceAppSpine = go []
+  where
+    go acc (Rzk.App _ f x) = go (x : acc) f
+    go acc t               = (t, acc)
+
+surfaceArrow :: Rzk.Term -> Rzk.Term -> Rzk.Term
+surfaceArrow a = Rzk.TypeFun Nothing (Rzk.ParamType Nothing a)
+
+surfacePi :: Rzk.VarIdent -> Rzk.Term -> Rzk.Term -> Rzk.Term
+surfacePi v ty = Rzk.TypeFun Nothing (Rzk.ParamTermType Nothing (surfaceVar v) ty)
+
+dataConSurface
+  :: Distinct n
+  => Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.ParamDecl] -> Rzk.Constructor
+  -> TypeCheck n DataConSurface
+dataConSurface dataName paramVars paramDecls (Rzk.Constructor _loc cname cparams ctype) = do
+  fieldDecls <- concat <$> mapM (dataFieldToParamDecl cname) cparams
+  let defaultRet = surfaceApps (surfaceVar dataName) (map surfaceVar paramVars)
+  case ctype of
+    Rzk.NoConstructorType _ -> return ()
+    Rzk.SomeConstructorType _ ret
+      | retMatchesDefault ret -> return ()
+      | otherwise -> issueTypeError $ TypeErrorOther $
+          "the return type of constructor " <> Rzk.printTree cname
+            <> " must be the declared type applied to its parameters ("
+            <> Rzk.printTree defaultRet
+            <> "); inductive families are not supported yet"
+  pure DataConSurface
+    { dataConName = cname
+    , dataConFields = fieldDecls
+    , dataConFieldPats = concatMap fieldPats cparams
+    , dataConType = addParamDecls (paramDecls <> fieldDecls) defaultRet
+    , dataConProbe = addParamDecls fieldDecls (Rzk.TypeUnit Nothing)
+    , dataConLocalNames = identTokenOf cname
+        : map identTokenOf (concatMap fieldVars cparams)
+    }
+  where
+    fieldVars = \case
+      Rzk.ParamPatternType _ pats _ -> concatMap surfacePatternVars pats
+      _                             -> []
+    fieldPats = \case
+      Rzk.ParamPatternType _ pats _ -> map patternToTerm pats
+      _                             -> []
+    -- The return type, when spelled out, must be exactly the declared type
+    -- applied to the parameter variables, in order (a syntactic check; any
+    -- other spelling is an index, which is stage 2).
+    retMatchesDefault ret = case surfaceAppSpine ret of
+      (Rzk.Var _ h, args) ->
+        identTokenOf h == identTokenOf dataName
+          && map (Just . identTokenOf) paramVars == map varTokenOf args
+      _ -> False
+    varTokenOf (Rzk.Var _ v) = Just (identTokenOf v)
+    varTokenOf _             = Nothing
+
+-- | The assumptions an entry depends on, possibly only through the types of
+-- what it mentions. The generated entries of a @#data@ declare these
+-- dependencies, so that closing a section abstracts the assumption over all
+-- of them uniformly instead of reporting an implicit assumption.
+assumptionDepsOf :: TermT n -> TypeCheck n [Foil.Name n]
+assumptionDepsOf ty = do
+  ctx <- ask
+  deep <- freeVarsDeep ty
+  pure [ v | v <- deep, varIsAssumption (lookupVarInfo v ctx) ]
+
+-- | An identifier that is neither bound at the top level nor among the given
+-- local binder tokens; primes are appended until one is free. Used for the
+-- motive and scrutinee binders of the generated eliminator types, which
+-- close over the user's field types.
+freshIdent
+  :: Maybe FilePath -> [Rzk.VarIdentToken] -> T.Text -> TypeCheck n Rzk.VarIdent
+freshIdent path avoid base = do
+  ctx <- ask
+  let candidates =
+        [ Rzk.VarIdent Nothing (Rzk.VarIdentToken (base <> T.replicate p "'"))
+        | p <- [0 ..] ]
+      isFree cand = identTokenOf cand `notElem` avoid
+        && case lookupNamed (varIdentAt path cand) ctx of
+             Nothing -> True
+             Just _  -> False
+  case filter isFree candidates of
+    cand : _ -> pure cand
+    []       -> panicImpossible "no fresh identifier candidate"
+
+-- | Bind the products of one @#data@ declaration: the type former, the
+-- constructors (checked in a scope where the type former exists), and the
+-- generated eliminators @ind-D@ and @rec-D@.
+withDataDecls
+  :: forall n r. Distinct n
+  => Maybe FilePath
+  -> [Foil.Name n]        -- ^ the declared used variables
+  -> Rzk.VarIdent         -- ^ the datatype name (surface)
+  -> [Rzk.VarIdent]       -- ^ the parameter variables
+  -> [Rzk.ParamDecl]      -- ^ the parameter telescope
+  -> [DataConSurface]     -- ^ the constructors, preprocessed
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
+  -> TypeCheck n r
+withDataDecls path used name paramVars paramDecls consData k = do
+  dTyTerm <- elaborate (addParamDecls paramDecls (Rzk.Universe Nothing))
+  dTy <- memoizeWHNF =<< typecheck dTyTerm universeT
+  dDeps <- assumptionDepsOf dTy
+  withTopLevel (varIdentAt path name) dTy Nothing False
+    (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
+      bindCons (Foil.nameOf dBinder) (map Foil.sink used) 0 consData [sinkDecl dDecl] $
+        \dName usedL declsAcc -> bindElims dName usedL declsAcc
+  where
+    numParams  = length paramDecls
+    numMethods = length consData
+
+    bindCons
+      :: forall m. DExt n m
+      => Foil.Name m -> [Foil.Name m] -> Int -> [DataConSurface] -> [Decl m]
+      -> (forall l. (DExt n l, Distinct l)
+            => Foil.Name l -> [Foil.Name l] -> [Decl l] -> TypeCheck l r)
+      -> TypeCheck m r
+    bindCons dName usedHere _index [] acc kk = kk dName usedHere acc
+    bindCons dName usedHere index (con : rest) acc kk = do
+      probeT <- elaborate (dataConProbe con)
+      let recursive = any (\v -> Foil.nameId v == Foil.nameId dName) (freeVarsOfTerm probeT)
+      when recursive $ issueTypeError $ TypeErrorOther $
+        "constructor " <> Rzk.printTree (dataConName con)
+          <> " is recursive; recursive inductive types are not supported yet"
+      when (containsUniverse probeT) $
+        traceTypeCheck Normal
+          ("Warning: large inductive type: a field of constructor "
+            <> Rzk.printTree (dataConName con)
+            <> " stores a universe; predicatively "
+            <> Rzk.printTree name <> " lives above U")
+          (return ())
+      conTyTerm <- elaborate (dataConType con)
+      conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
+      conDeps <- assumptionDepsOf conTy
+      let role = DataRole dName numParams (DataConKind index (length (dataConFields con)))
+      withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
+        (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
+          bindCons (Foil.sink dName) (map Foil.sink usedHere) (index + 1) rest
+            (map sinkDecl acc <> [conDecl]) kk
+
+    bindElims
+      :: forall m. DExt n m
+      => Foil.Name m -> [Foil.Name m] -> [Decl m] -> TypeCheck m r
+    bindElims dName usedHere declsAcc = do
+      let avoid = identTokenOf name
+            : map identTokenOf paramVars
+            <> concatMap dataConLocalNames consData
+      motiveV <- freshIdent path avoid "C"
+      scrutV <- freshIdent path (identTokenOf motiveV : avoid) "x"
+      let dApplied = surfaceApps (surfaceVar name) (map surfaceVar paramVars)
+          -- One method per constructor: its fields, then (for @ind-D@) the
+          -- motive at the constructor applied to parameters and fields, or
+          -- (for @rec-D@) the bare motive.
+          methodTy dependent con = addParamDecls (dataConFields con) $
+            if dependent
+              then Rzk.App Nothing (surfaceVar motiveV) $ surfaceApps
+                (surfaceVar (dataConName con))
+                (map surfaceVar paramVars <> dataConFieldPats con)
+              else surfaceVar motiveV
+          indTy = addParamDecls paramDecls $
+            surfacePi motiveV (surfaceArrow dApplied (Rzk.Universe Nothing)) $
+              foldr (surfaceArrow . methodTy True)
+                (surfacePi scrutV dApplied
+                  (Rzk.App Nothing (surfaceVar motiveV) (surfaceVar scrutV)))
+                consData
+          recTy = addParamDecls paramDecls $
+            surfacePi motiveV (Rzk.Universe Nothing) $
+              foldr (surfaceArrow . methodTy False)
+                (surfaceArrow dApplied (surfaceVar motiveV))
+                consData
+          indName = prefixedIdent "ind-" name
+          recName = prefixedIdent "rec-" name
+      indTyT <- elaborate indTy
+      indTy' <- memoizeWHNF =<< typecheck indTyT universeT
+      indDeps <- assumptionDepsOf indTy'
+      withTopLevel (varIdentAt path indName) indTy' Nothing False
+        (nubNames (usedHere <> indDeps))
+        (Just (DataRole dName numParams (DataElimKind numMethods ElimInd))) $ \_ indDecl -> do
+          recTyT <- elaborate recTy
+          recTy' <- memoizeWHNF =<< typecheck recTyT universeT
+          recDeps <- assumptionDepsOf recTy'
+          withTopLevel (varIdentAt path recName) recTy' Nothing False
+            (nubNames (map Foil.sink usedHere <> recDeps))
+            (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods ElimRec))) $ \_ recDecl ->
+              k (map sinkDecl (map sinkDecl declsAcc <> [indDecl]) <> [recDecl])
+
+prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent
+prefixedIdent p (Rzk.VarIdent pos (Rzk.VarIdentToken t)) =
+  Rzk.VarIdent pos (Rzk.VarIdentToken (p <> t))
 
 -- | Run a command, recording which one it is and where.
 --
@@ -498,7 +813,7 @@ checkCommands path i total commands k = case commands of
         ty' <- memoizeWHNF =<< typecheck tyTerm universeT
         valTerm <- elaborate (addParams params term)
         term' <- memoizeWHNF =<< typecheck valTerm ty'
-        withTopLevel (varIdentAt path name) ty' (Just term') False used $ \binder decl -> do
+        withTopLevel (varIdentAt path name) ty' (Just term') False used Nothing $ \binder decl -> do
           backend <- asks ctxRenderBackend
           termSVG <- case backend of
             Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
@@ -509,11 +824,23 @@ checkCommands path i total commands k = case commands of
             checkCommands path (i + 1) total more $ \decls errs ->
               k (sinkDecl decl : decls) errs
 
-  command@(Rzk.CommandData _loc name _declUsedVars _params _sort _body) : more ->
+  command@(Rzk.CommandData _loc name (Rzk.DeclUsedVars _ vars) params sort body) : more ->
     announce (" Checking #data " <> Rzk.printTree name) $
       withCommand command k $ do
-        _ <- issueTypeError $ TypeErrorOther "#data is not yet supported"
-        checkCommands path (i + 1) total more k
+        used <- mapM (checkDefined . varIdentAt path) vars
+        checkDataSort sort
+        let (cons, elims) = dataBodyParts body
+        case elims of
+          [] -> return ()
+          Rzk.DataElim _ elimName _ : _ -> issueTypeError $ TypeErrorOther $
+            "eliminator clauses are not supported yet (eliminator "
+              <> Rzk.printTree elimName <> ")"
+        paramVars <- dataParamVars params
+        paramDecls <- concat <$> mapM paramToParamDecl params
+        consData <- mapM (dataConSurface name paramVars paramDecls) cons
+        withDataDecls path used name paramVars paramDecls consData $ \decls ->
+          checkCommands path (i + 1) total more $ \moreDecls errs ->
+            k (map sinkDecl decls <> moreDecls) errs
 
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
@@ -522,7 +849,7 @@ checkCommands path i total commands k = case commands of
         paramDecls <- concat <$> mapM paramToParamDecl params
         tyTerm <- elaborate (addParamDecls paramDecls ty)
         ty' <- memoizeWHNF =<< typecheck tyTerm universeT
-        withTopLevel (varIdentAt path name) ty' Nothing False used $ \_binder decl ->
+        withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
           checkCommands path (i + 1) total more $ \decls errs ->
             k (sinkDecl decl : decls) errs
 
@@ -591,7 +918,7 @@ assume
   -> TypeCheck n r
 assume [] _ty k = k []
 assume (name : names) ty k =
-  withTopLevel name ty Nothing True [] $ \_binder decl ->
+  withTopLevel name ty Nothing True [] Nothing $ \_binder decl ->
     assume names (Foil.sink ty) $ \decls ->
       k (sinkDecl decl : decls)
 
