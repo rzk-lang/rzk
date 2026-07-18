@@ -4,10 +4,6 @@ import { Resizable } from 're-resizable';
 import * as rzk from './rzk';
 import { KeyBindProvider, ShortcutType } from 'react-keybinds';
 
-declare let window: Window & typeof globalThis & {
-  rzkTypecheck_: (input: { input: string }) => void
-};
-
 function Root({ typecheckedOnStartState }:
   {
     typecheckedOnStartState: [boolean, React.Dispatch<React.SetStateAction<boolean>>]
@@ -31,8 +27,8 @@ function Root({ typecheckedOnStartState }:
 
   const [output, setOutput] = useState("Starting...");
 
-  const typecheck = useCallback(() => {
-    const result = rzk.typecheck(text)
+  const typecheck = useCallback(async () => {
+    const result = await rzk.typecheck(text)
     if (result.status == 'ok') {
       setOutput(`Everything is OK!`)
     } else {
@@ -43,16 +39,12 @@ function Root({ typecheckedOnStartState }:
   const [rzkTypeCheckAvailable, setRzkTypeCheckAvailable] = useState(false)
 
   useEffect(() => {
-    function checkRzkTypecheckAvailable() {
-      if (!window.rzkTypecheck_) {
-        window.setTimeout(checkRzkTypecheckAvailable, 100)
-      } else {
-        setRzkTypeCheckAvailable(true)
-      }
-    }
-
-    checkRzkTypecheckAvailable()
-  }, [text])
+    let cancelled = false
+    rzk.initRzk()
+      .then(() => { if (!cancelled) setRzkTypeCheckAvailable(true) })
+      .catch((e) => { if (!cancelled) setOutput(`Failed to load rzk: ${e}`) })
+    return () => { cancelled = true }
+  }, [])
 
   // Typecheck when function and text are ready
   useEffect(() => {
