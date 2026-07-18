@@ -1,0 +1,14 @@
+#lang rzk-1
+
+-- A definition whose value is an under-applied eliminator (no binder):
+-- the ι-rule must fire through the neutral-application head.
+#data bool := false | true
+
+#define not : bool → bool
+  := rec-bool bool true false
+
+#define not-false : not false =_{bool} true
+  := refl
+
+#define not-not (b : bool) : not (not b) =_{bool} b
+  := ind-bool (\ b' → not (not b') =_{bool} b') refl refl b

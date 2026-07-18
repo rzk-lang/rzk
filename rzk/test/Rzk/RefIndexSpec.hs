@@ -122,6 +122,30 @@ spec = describe "reference index" $ do
       annAt "main.rzk" (13, 5) `shouldBe` Just "A"          -- h
       annAt "main.rzk" (13, 9) `shouldBe` Just "B h"        -- k
       annAt "main.rzk" (13, 13) `shouldBe` Just "C"         -- l
+
+  describe "#data declarations" $ do
+    let dataSrc = T.unlines
+          [ "#lang rzk-1"                                        -- 0
+          , "#data bool := false | true"                         -- 1
+          , "#define not (b : bool) : bool"                      -- 2
+          , "  := rec-bool bool true false b"                    -- 3
+          ]
+        riData = indexOf [("data.rzk", dataSrc)]
+
+    it "resolves the type name at a use after the declaration" $
+      defPos (bindingAt riData "data.rzk" (2, 17)) `shouldBe` ("data.rzk", 1, 6)
+
+    it "resolves a constructor at a use after the declaration" $
+      -- `true` in the body of `not`
+      defPos (bindingAt riData "data.rzk" (3, 19)) `shouldBe` ("data.rzk", 1, 22)
+
+    it "resolves a generated eliminator to the #data name" $
+      -- `rec-bool` has no source declaration; it derives from `bool`
+      defPos (bindingAt riData "data.rzk" (3, 5)) `shouldBe` ("data.rzk", 1, 6)
+
+    it "does not occlude the type name with the derived entries" $
+      -- hovering the declaration's own `bool` must hit `bool`, not ind-bool
+      RI.bindingName (bindingAt riData "data.rzk" (1, 6)) `shouldBe` "bool"
 #else
 spec :: Spec
 spec = describe "reference index" (pure ())

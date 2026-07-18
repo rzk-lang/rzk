@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "sort of a #data must be U"
+line: 4
+regression_for:
+  - data-stage1-reject-families

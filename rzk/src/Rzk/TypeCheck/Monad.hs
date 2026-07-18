@@ -69,9 +69,21 @@ data HoleInfo = HoleInfo
   , holeLocation      :: Maybe LocationInfo
   } deriving (Eq, Show)
 
+-- | A non-fatal finding of the checker, recorded on the writer channel
+-- beside the holes and carried out of a run in @Checked@. Structured, so
+-- the CLI, the LSP, and (later) safe mode each decide how to present or
+-- escalate it.
+data CheckWarning
+  = LargeInductiveTypeWarning
+      { warningDataName :: VarIdent
+      , warningConName  :: VarIdent
+      , warningLocation :: Maybe LocationInfo
+      }
+  deriving (Eq, Show)
+
 type TypeCheck n =
   ReaderT (Context n)
-    (WriterT [HoleInfo] (Except TypeErrorInScopedContext))
+    (WriterT ([HoleInfo], [CheckWarning]) (Except TypeErrorInScopedContext))
 
 -- | Run a judgement in the empty context, discarding the holes it records.
 runTypeCheck :: TypeCheck Foil.VoidS a -> Either TypeErrorInScopedContext a
@@ -169,7 +181,12 @@ performing action tc = do
 -- * Holes
 
 recordHoleInfo :: HoleInfo -> TypeCheck n ()
-recordHoleInfo info = lift (tell [info])
+recordHoleInfo info = lift (tell ([info], []))
+
+-- * Warnings
+
+recordCheckWarning :: CheckWarning -> TypeCheck n ()
+recordCheckWarning warning = lift (tell ([], [warning]))
 
 -- * Locations
 

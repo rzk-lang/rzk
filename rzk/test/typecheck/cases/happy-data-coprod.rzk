@@ -1,0 +1,23 @@
+#lang rzk-1
+
+-- A parameterised inductive type, with an explicit return type on one
+-- constructor (it must be the declared type applied to the parameters).
+#data coprod
+  ( A B : U)
+  :=
+    inl (a : A) : coprod A B
+  | inr (b : B)
+
+#check ind-coprod
+  : ( A : U) → (B : U)
+  → ( C : coprod A B → U)
+  → ( (a : A) → C (inl A B a))
+  → ( (b : B) → C (inr A B b))
+  → ( x : coprod A B) → C x
+
+#define swap (A B : U) (x : coprod A B) : coprod B A
+  := rec-coprod A B (coprod B A) (\ a → inr B A a) (\ b → inl B A b) x
+
+#define swap-swap-inl (A B : U) (a : A)
+  : swap B A (swap A B (inl A B a)) =_{coprod A B} inl A B a
+  := refl

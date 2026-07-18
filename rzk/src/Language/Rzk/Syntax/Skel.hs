@@ -56,6 +56,7 @@ transCommand x = case x of
   Language.Rzk.Syntax.Abs.CommandSection _ sectionname -> failure x
   Language.Rzk.Syntax.Abs.CommandSectionEnd _ sectionname -> failure x
   Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.CommandData _ varident declusedvars params datasort databody -> failure x
 
 transDeclUsedVars :: Show a => Language.Rzk.Syntax.Abs.DeclUsedVars' a -> Result
 transDeclUsedVars x = case x of
@@ -65,6 +66,29 @@ transSectionName :: Show a => Language.Rzk.Syntax.Abs.SectionName' a -> Result
 transSectionName x = case x of
   Language.Rzk.Syntax.Abs.NoSectionName _ -> failure x
   Language.Rzk.Syntax.Abs.SomeSectionName _ varident -> failure x
+
+transDataSort :: Show a => Language.Rzk.Syntax.Abs.DataSort' a -> Result
+transDataSort x = case x of
+  Language.Rzk.Syntax.Abs.SomeDataSort _ term -> failure x
+  Language.Rzk.Syntax.Abs.NoDataSort _ -> failure x
+
+transDataBody :: Show a => Language.Rzk.Syntax.Abs.DataBody' a -> Result
+transDataBody x = case x of
+  Language.Rzk.Syntax.Abs.SomeDataBody _ constructors dataelims -> failure x
+  Language.Rzk.Syntax.Abs.NoDataBody _ -> failure x
+
+transConstructor :: Show a => Language.Rzk.Syntax.Abs.Constructor' a -> Result
+transConstructor x = case x of
+  Language.Rzk.Syntax.Abs.Constructor _ varident params constructortype -> failure x
+
+transConstructorType :: Show a => Language.Rzk.Syntax.Abs.ConstructorType' a -> Result
+transConstructorType x = case x of
+  Language.Rzk.Syntax.Abs.SomeConstructorType _ term -> failure x
+  Language.Rzk.Syntax.Abs.NoConstructorType _ -> failure x
+
+transDataElim :: Show a => Language.Rzk.Syntax.Abs.DataElim' a -> Result
+transDataElim x = case x of
+  Language.Rzk.Syntax.Abs.DataElim _ varident term -> failure x
 
 transPattern :: Show a => Language.Rzk.Syntax.Abs.Pattern' a -> Result
 transPattern x = case x of

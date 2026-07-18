@@ -50,6 +50,7 @@ pattern TokenIdent s line col <- PT (Pn _ line col) (T_VarIdentToken s)
 data FormatState = FormatState
   { parensDepth      :: Int  -- ^ The level of parentheses nesting
   , letDepth         :: Int  -- ^ The level of #let nesting
+  , inDataCommand    :: Bool -- ^ Inside a #data command (its := may stay inline for a short declaration)
   , definingName     :: Bool -- ^ After #define, in name or assumptions (to detect the : for the type)
   , lambdaArrow      :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   , eqBraceDepth     :: Int  -- ^ Depth inside =_{ ... }; 0 = not inside, 1 = at top level after =_{
@@ -69,7 +70,7 @@ formatTextEdits contents =
     Left _err     -> [] -- TODO: log error (in a CLI and LSP friendly way)
     Right allToks -> go (initialState {allTokens = allToks}) allToks
   where
-    initialState = FormatState { parensDepth = 0, letDepth  = 0, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
+    initialState = FormatState { parensDepth = 0, letDepth  = 0, inDataCommand = False, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents
@@ -122,6 +123,11 @@ formatTextEdits contents =
           ]
 
     go s (Token "#postulate" _ _ : tks) = go (s {definingName = True}) tks
+
+    -- Both canonical #data layouts keep their := where the user put it: on
+    -- one line for a short declaration, on its own line in the multi-line
+    -- layout (design/inductive-types.md §3).
+    go s (Token "#data" _ _ : tks) = go (s {inDataCommand = True}) tks
 
     go s (Token "#define" defLine defCol : TokenIdent _name nameLine nameCol : tks)
       = edits ++ go (s {definingName = True}) tks
@@ -259,7 +265,7 @@ formatTextEdits contents =
 
     -- Line break before := (only the top-level one) and one space after
     go s (Token ":=" line col : tks)
-      | letDepth s == 0 = defEdits ++ edits ++ go s tks
+      | letDepth s == 0 && not (inDataCommand s) = defEdits ++ edits ++ go s tks
       | otherwise = edits ++ go s tks
       where
         lineContent = contentLines line
@@ -293,7 +299,7 @@ formatTextEdits contents =
           ]
 
     -- Reset any state necessary after finishing a command
-    go s (Token ";" _ _ : tks) = go s tks
+    go s (Token ";" _ _ : tks) = go s {inDataCommand = False} tks
 
     -- One space (or new line) around binary operators and replace ASCII w/ unicode
     go s (Token tk line col : tks) = edits ++ go s' tks

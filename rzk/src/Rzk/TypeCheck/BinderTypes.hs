@@ -203,7 +203,7 @@ declBinderTypes decl =
 -- Pure at the interface: it runs the checker silently and returns no entries where
 -- it fails.
 binderTypesOfFile :: Checked -> FilePath -> [(VarIdent, BinderTypeView)]
-binderTypesOfFile (Checked ctx decls _errs) path =
+binderTypesOfFile (Checked ctx decls _errs _warnings) path =
   case runTypeCheckIn ctx action of
     Left _        -> []
     Right entries -> entries

@@ -173,6 +173,31 @@ diagnoseTypeError dir err = Diagnostic
   , diagnosticHole     = Nothing
   }
 
+-- | A checker warning as a diagnostic: warning severity, with the warning's
+-- constructor name as the stable code (like 'diagnoseTypeError' does for
+-- errors).
+diagnoseCheckWarning :: CheckWarning -> Diagnostic
+diagnoseCheckWarning (LargeInductiveTypeWarning dataName conName loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "LargeInductiveTypeWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "large inductive type: a field of constructor " <> show conName
+        <> " stores a universe; predicatively " <> show dataName
+        <> " lives above U"
+  , diagnosticHole     = Nothing
+  }
+
+-- | A checker warning as a human-readable line (the CLI).
+ppCheckWarning :: CheckWarning -> String
+ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
+
+-- | The stable tag of a warning (its diagnostic code), used to match
+-- @warnings@ in fixtures; sharing the definition keeps the two from
+-- drifting apart.
+checkWarningTag :: CheckWarning -> String
+checkWarningTag = diagnosticCode . diagnoseCheckWarning
+
 -- | A structured diagnostic for a hole, carrying the hole's goal and local
 -- context. A hole is an unfilled obligation, so it is a 'SeverityWarning' —
 -- mirroring Agda's yellow \"unsolved\" highlight, and visible in the editor's

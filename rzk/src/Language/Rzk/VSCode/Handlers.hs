@@ -257,7 +257,7 @@ typecheckFromConfigFile = do
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Left err) -> do
               logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext BottomUp err))
-              publishModuleDiagnostics path [err] []    -- sort of impossible
+              publishModuleDiagnostics path [err] [] []    -- sort of impossible
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Right (checkedNow, holeInfos)) -> do
               let errors = checkedErrors checkedNow
@@ -268,7 +268,7 @@ typecheckFromConfigFile = do
                     [(path, RzkCachedModule checkedNow decls
                         (filter ((== path) . filepathOfTypeError) errors))]
               cacheTypecheckedModules checked'
-              publishModuleDiagnostics path errors holeInfos
+              publishModuleDiagnostics path errors (checkedWarnings checkedNow) holeInfos
               -- Stop at the first module with errors, like the batch checker
               -- ('typecheckModulesWithLocation'') does: later modules depend
               -- on this one and would report cascading errors. Mark the
@@ -288,15 +288,19 @@ typecheckFromConfigFile = do
     -- per-source map over the old one, and @partitionBySource []@ has no
     -- "rzk" key, so the old diagnostics would survive and be re-sent. A
     -- max count of 0 forces an empty publish to the client, clearing it.
-    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [HoleInfo] -> LSP ()
-    publishModuleDiagnostics path typeErrors holeInfos = do
+    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [CheckWarning] -> [HoleInfo] -> LSP ()
+    publishModuleDiagnostics path typeErrors warnings holeInfos = do
       let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
                             | err <- typeErrors ]
+          warnDiagnostics = [ (path', [diagnosticOfWarning warning])
+                            | warning <- warnings
+                            , let path' = fromMaybe path
+                                    (warningLocation warning >>= locationFilePath) ]
           holeDiagnostics = [ (path', [diagnosticOfHole hole])
                             | hole <- holeInfos
                             , Just path' <- [holeLocation hole >>= locationFilePath] ]
           diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
-            Map.fromListWith (flip (<>)) (errDiagnostics <> holeDiagnostics)
+            Map.fromListWith (flip (<>)) (errDiagnostics <> warnDiagnostics <> holeDiagnostics)
       forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
         publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
           (filePathToNormalizedUri path') Nothing (partitionBySource diags)
@@ -364,6 +368,9 @@ typecheckFromConfigFile = do
     diagnosticOfHole :: HoleInfo -> Diagnostic
     diagnosticOfHole = lspDiagnosticOf . Diag.diagnoseHole
 
+    diagnosticOfWarning :: CheckWarning -> Diagnostic
+    diagnosticOfWarning = lspDiagnosticOf . Diag.diagnoseCheckWarning
+
     diagnosticOfParseError :: Enc.AstralLines -> T.Text -> Diagnostic
     diagnosticOfParseError als err = Diagnostic (Enc.rangeToUtf16 als (Range (Position errLine errColumnStart) (Position errLine errColumnEnd)))
                       (Just DiagnosticSeverity_Error)
@@ -426,7 +433,7 @@ provideCompletions req res = do
     declsToItems :: FilePath -> (FilePath, [DeclView]) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
     declToItem :: FilePath -> FilePath -> DeclView -> CompletionItem
-    declToItem rootDir path (DeclView name type' _ _loc) = def
+    declToItem rootDir path (DeclView name type' _ _loc _kind) = def
 
       & label .~ T.pack (printTree $ getVarIdent name)
       & detail ?~ T.pack (show type')
@@ -677,15 +684,15 @@ provideHover req res = do
               Nothing  -> case find declWithName decls of
                 Just d  -> formatSignature (T.unpack name) (getRendered (declViewType d))
                 Nothing -> T.unpack name ++ " : ?"
-        declWithName (DeclView v _ _ _) =
+        declWithName (DeclView v _ _ _ _) =
           T.pack (printTree (getVarIdent v)) == name
-        declOnSameLine d@(DeclView _ _ _ mloc) =
+        declOnSameLine d@(DeclView _ _ _ mloc _) =
           declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
 
 -- | The printed name of a declaration and the range of its defining
 -- occurrence, shared by the document and workspace symbol providers.
 declNameRange :: Enc.AstralLines -> DeclView -> (T.Text, Range)
-declNameRange als (DeclView name _ _ _) = (T.pack (printTree ident), range)
+declNameRange als (DeclView name _ _ _ _) = (T.pack (printTree ident), range)
   where
     ident = getVarIdent name
     VarIdent pos _ = ident
@@ -704,21 +711,47 @@ provideSymbols req res = do
   cachedModules <- getCachedTypecheckedModules
   als <- astralLinesOfFile currentFile
   let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
-  res $ Right $ InR $ InL $ map (declToSymbol als) decls
+  res $ Right $ InR $ InL $ outline als decls
   where
-    declToSymbol :: Enc.AstralLines -> DeclView -> DocumentSymbol
-    declToSymbol als decl@(DeclView _ type' _ _loc) = DocumentSymbol
+    -- A #data contributes one symbol with its constructors as children; the
+    -- generated eliminators stay out of the outline (they are not in the
+    -- source; workspace symbol search still finds them).
+    outline :: Enc.AstralLines -> [DeclView] -> [DocumentSymbol]
+    outline _ [] = []
+    outline als (d : ds) = case declViewKind d of
+      DeclKindData ->
+        let isChildOf c = case declViewKind c of
+              DeclKindDataCon parent -> parent == declViewName d
+              _                      -> False
+            (childDecls, rest) = span isChildOf ds
+        in declToSymbol als (Just (map (declToSymbol als Nothing) childDecls)) d
+             : outline als rest
+      DeclKindDataElim _ -> outline als ds
+      _ -> declToSymbol als Nothing d : outline als ds
+
+    declToSymbol :: Enc.AstralLines -> Maybe [DocumentSymbol] -> DeclView -> DocumentSymbol
+    declToSymbol als mchildren decl@(DeclView _ type' _ _loc kind) = DocumentSymbol
       { _name           = symbolName
       , _detail         = Just (T.pack (show type'))
-      , _kind           = SymbolKind_Function
+      , _kind           = symbolKindOfDecl kind
       , _tags           = Nothing
       , _deprecated     = Nothing
       , _range          = range
       , _selectionRange = range
-      , _children       = Nothing
+      , _children       = mchildren
       }
       where
         (symbolName, range) = declNameRange als decl
+
+-- | The LSP symbol kind of a declaration, mirroring the semantic token
+-- choices at the declaration site (class for a data type, enum member for a
+-- constructor, function otherwise).
+symbolKindOfDecl :: DeclKind -> SymbolKind
+symbolKindOfDecl = \case
+  DeclKindData       -> SymbolKind_Class
+  DeclKindDataCon _  -> SymbolKind_EnumMember
+  DeclKindDataElim _ -> SymbolKind_Function
+  DeclKindDefine     -> SymbolKind_Function
 
 -- | Workspace-wide symbol search over every typechecked module in the cache.
 -- The query is matched case-insensitively as an infix of the definition name;
@@ -733,7 +766,7 @@ provideWorkspaceSymbols req res = do
     return
       [ WorkspaceSymbol
           { _name          = symbolName
-          , _kind          = SymbolKind_Function
+          , _kind          = symbolKindOfDecl (declViewKind decl)
           , _tags          = Nothing
           , _containerName = Nothing
           , _location      = InL (Location (filePathToUri path) range)

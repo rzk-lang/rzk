@@ -177,6 +177,7 @@ instance Print (Language.Rzk.Syntax.Abs.Command' a) where
     Language.Rzk.Syntax.Abs.CommandSection _ sectionname -> prPrec i 0 (concatD [doc (showString "#section"), prt 0 sectionname])
     Language.Rzk.Syntax.Abs.CommandSectionEnd _ sectionname -> prPrec i 0 (concatD [doc (showString "#end"), prt 0 sectionname])
     Language.Rzk.Syntax.Abs.CommandDefine _ varident declusedvars params term1 term2 -> prPrec i 0 (concatD [doc (showString "#define"), prt 0 varident, prt 0 declusedvars, prt 0 params, doc (showString ":"), prt 0 term1, doc (showString ":="), prt 0 term2])
+    Language.Rzk.Syntax.Abs.CommandData _ varident declusedvars params datasort databody -> prPrec i 0 (concatD [doc (showString "#data"), prt 0 varident, prt 0 declusedvars, prt 0 params, prt 0 datasort, prt 0 databody])
 
 instance Print [Language.Rzk.Syntax.Abs.Command' a] where
   prt _ [] = concatD []
@@ -190,6 +191,38 @@ instance Print (Language.Rzk.Syntax.Abs.SectionName' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.NoSectionName _ -> prPrec i 0 (concatD [])
     Language.Rzk.Syntax.Abs.SomeSectionName _ varident -> prPrec i 0 (concatD [prt 0 varident])
+
+instance Print (Language.Rzk.Syntax.Abs.DataSort' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.SomeDataSort _ term -> prPrec i 0 (concatD [doc (showString ":"), prt 0 term])
+    Language.Rzk.Syntax.Abs.NoDataSort _ -> prPrec i 0 (concatD [])
+
+instance Print (Language.Rzk.Syntax.Abs.DataBody' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.SomeDataBody _ constructors dataelims -> prPrec i 0 (concatD [doc (showString ":="), prt 0 constructors, prt 0 dataelims])
+    Language.Rzk.Syntax.Abs.NoDataBody _ -> prPrec i 0 (concatD [])
+
+instance Print (Language.Rzk.Syntax.Abs.Constructor' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.Constructor _ varident params constructortype -> prPrec i 0 (concatD [prt 0 varident, prt 0 params, prt 0 constructortype])
+
+instance Print [Language.Rzk.Syntax.Abs.Constructor' a] where
+  prt _ [] = concatD []
+  prt _ [x] = concatD [prt 0 x]
+  prt _ (x:xs) = concatD [prt 0 x, doc (showString "|"), prt 0 xs]
+
+instance Print (Language.Rzk.Syntax.Abs.ConstructorType' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.SomeConstructorType _ term -> prPrec i 0 (concatD [doc (showString ":"), prt 0 term])
+    Language.Rzk.Syntax.Abs.NoConstructorType _ -> prPrec i 0 (concatD [])
+
+instance Print (Language.Rzk.Syntax.Abs.DataElim' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.DataElim _ varident term -> prPrec i 0 (concatD [doc (showString "eliminator"), prt 0 varident, doc (showString ":"), prt 0 term])
+
+instance Print [Language.Rzk.Syntax.Abs.DataElim' a] where
+  prt _ [] = concatD []
+  prt _ (x:xs) = concatD [prt 0 x, prt 0 xs]
 
 instance Print (Language.Rzk.Syntax.Abs.Pattern' a) where
   prt i = \case

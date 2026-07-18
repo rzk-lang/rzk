@@ -58,6 +58,7 @@ data Command' a
     | CommandSection a (SectionName' a)
     | CommandSectionEnd a (SectionName' a)
     | CommandDefine a (VarIdent' a) (DeclUsedVars' a) [Param' a] (Term' a) (Term' a)
+    | CommandData a (VarIdent' a) (DeclUsedVars' a) [Param' a] (DataSort' a) (DataBody' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type DeclUsedVars = DeclUsedVars' BNFC'Position
@@ -67,6 +68,29 @@ data DeclUsedVars' a = DeclUsedVars a [VarIdent' a]
 type SectionName = SectionName' BNFC'Position
 data SectionName' a
     = NoSectionName a | SomeSectionName a (VarIdent' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type DataSort = DataSort' BNFC'Position
+data DataSort' a = SomeDataSort a (Term' a) | NoDataSort a
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type DataBody = DataBody' BNFC'Position
+data DataBody' a
+    = SomeDataBody a [Constructor' a] [DataElim' a] | NoDataBody a
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type Constructor = Constructor' BNFC'Position
+data Constructor' a
+    = Constructor a (VarIdent' a) [Param' a] (ConstructorType' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type ConstructorType = ConstructorType' BNFC'Position
+data ConstructorType' a
+    = SomeConstructorType a (Term' a) | NoConstructorType a
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
+type DataElim = DataElim' BNFC'Position
+data DataElim' a = DataElim a (VarIdent' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type Pattern = Pattern' BNFC'Position
@@ -233,8 +257,14 @@ commandDef = \ _a x vars params ty term -> CommandDefine _a x vars params ty ter
 commandDefNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> Term' a -> Term' a -> Command' a
 commandDefNoParams = \ _a x vars ty term -> CommandDefine _a x vars [] ty term
 
+commandDataNoParams :: a -> VarIdent' a -> DeclUsedVars' a -> DataSort' a -> DataBody' a -> Command' a
+commandDataNoParams = \ _a x vars sort body -> CommandData _a x vars [] sort body
+
 noDeclUsedVars :: a -> DeclUsedVars' a
 noDeclUsedVars = \ _a -> DeclUsedVars _a []
+
+constructorNoParams :: a -> VarIdent' a -> ConstructorType' a -> Constructor' a
+constructorNoParams = \ _a x ty -> Constructor _a x [] ty
 
 ascii_TopeInv :: a -> Term' a -> Term' a
 ascii_TopeInv = \ _a t -> TopeInv _a t
@@ -320,6 +350,7 @@ instance HasPosition Command where
     CommandSection p _ -> p
     CommandSectionEnd p _ -> p
     CommandDefine p _ _ _ _ _ -> p
+    CommandData p _ _ _ _ _ -> p
 
 instance HasPosition DeclUsedVars where
   hasPosition = \case
@@ -329,6 +360,29 @@ instance HasPosition SectionName where
   hasPosition = \case
     NoSectionName p -> p
     SomeSectionName p _ -> p
+
+instance HasPosition DataSort where
+  hasPosition = \case
+    SomeDataSort p _ -> p
+    NoDataSort p -> p
+
+instance HasPosition DataBody where
+  hasPosition = \case
+    SomeDataBody p _ _ -> p
+    NoDataBody p -> p
+
+instance HasPosition Constructor where
+  hasPosition = \case
+    Constructor p _ _ _ -> p
+
+instance HasPosition ConstructorType where
+  hasPosition = \case
+    SomeConstructorType p _ -> p
+    NoConstructorType p -> p
+
+instance HasPosition DataElim where
+  hasPosition = \case
+    DataElim p _ _ -> p
 
 instance HasPosition Pattern where
   hasPosition = \case

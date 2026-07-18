@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- Indexed families are stage 2; the sort of a stage-1 #data must be U.
+#data fin : U → U := stub

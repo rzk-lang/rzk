@@ -39,6 +39,9 @@ spec = do
     it "Moves trailing binary operators to next line (except lambda arrow)" $ do
       formats "bin-ops"
 
+    it "Keeps both canonical #data layouts (inline and multi-line)" $ do
+      formats "data-decl"
+
     it "Adds relevant spaces to structure constructions like a tree" $ do
       formats "tree-structure"
 

@@ -35,13 +35,13 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``II`` | ``Sigma``
   | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
-  | ``as`` | ``first`` | ``flip_op`` | ``flipᵒᵖ``
-  | ``idJ`` | ``in`` | ``inf`` | ``inv_op``
-  | ``invᵒᵖ`` | ``let`` | ``mod`` | ``recBOT``
-  | ``recOR`` | ``refl`` | ``second`` | ``sup``
-  | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ``
-  | ``unit`` | ``uses`` | ``Σ`` | ``π₁``
-  | ``π₂`` | ``ᵒᵖ`` | ``𝕀`` |
+  | ``as`` | ``eliminator`` | ``first`` | ``flip_op``
+  | ``flipᵒᵖ`` | ``idJ`` | ``in`` | ``inf``
+  | ``inv_op`` | ``invᵒᵖ`` | ``let`` | ``mod``
+  | ``recBOT`` | ``recOR`` | ``refl`` | ``second``
+  | ``sup`` | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op``
+  | ``uninvᵒᵖ`` | ``unit`` | ``uses`` | ``Σ``
+  | ``π₁`` | ``π₂`` | ``ᵒᵖ`` | ``𝕀``
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -49,20 +49,21 @@ The symbols used in Syntax are the following:
   | #compute | #compute-whnf | #compute-nf | #postulate
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
-  | ( | ) | , | |
-  | ↦ | ♭ | _b | ♯
-  | _# | _op | _id | /
-  | :♭ | :♯ | :ᵒᵖ | :_id
-  | :_b | :_# | :_op | 1
-  | *₁ | 2 | 0₂ | 1₂
-  | 0ᵢ | 1ᵢ | × | ⊔
-  | ⊓ | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | } | [ | ]
-  | \ | $extract$ | refl_{ | *
-  | *_1 | 0_2 | 1_2 | 0_I
-  | 1_I | === | <= | /\
-  | \/ | -> | |-> | ∑
+  | #data | ( | ) | |
+  | , | ↦ | ♭ | _b
+  | ♯ | _# | _op | _id
+  | / | :♭ | :♯ | :ᵒᵖ
+  | :_id | :_b | :_# | :_op
+  | 1 | *₁ | 2 | 0₂
+  | 1₂ | 0ᵢ | 1ᵢ | ×
+  | ⊔ | ⊓ | ⊤ | ⊥
+  | ≡ | ≤ | ∧ | ∨
+  | → | =_{ | } | [
+  | ] | \ | $extract$ | refl_{
+  | * | *_1 | 0_2 | 1_2
+  | 0_I | 1_I | === | <=
+  | /\ | \/ | -> | |->
+  | ∑ |  |  |
 
 ===Comments===
 Single-line comments begin with --. Multiple-line comments are enclosed with {- and -}.
@@ -97,12 +98,27 @@ All other symbols are terminals.
   |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#data`` //VarIdent// //DeclUsedVars// //[Param]// //DataSort// //DataBody//
+  |  |  **|**  | ``#data`` //VarIdent// //DeclUsedVars// //DataSort// //DataBody//
   | //[Command]// | -> | **eps**
   |  |  **|**  | //Command// ``;`` //[Command]//
   | //DeclUsedVars// | -> | ``uses`` ``(`` //[VarIdent]// ``)``
   |  |  **|**  | **eps**
   | //SectionName// | -> | **eps**
   |  |  **|**  | //VarIdent//
+  | //DataSort// | -> | ``:`` //Term//
+  |  |  **|**  | **eps**
+  | //DataBody// | -> | ``:=`` //[Constructor]// //[DataElim]//
+  |  |  **|**  | **eps**
+  | //Constructor// | -> | //VarIdent// //[Param]// //ConstructorType//
+  |  |  **|**  | //VarIdent// //ConstructorType//
+  | //[Constructor]// | -> | //Constructor//
+  |  |  **|**  | //Constructor// ``|`` //[Constructor]//
+  | //ConstructorType// | -> | ``:`` //Term//
+  |  |  **|**  | **eps**
+  | //DataElim// | -> | ``eliminator`` //VarIdent// ``:`` //Term//
+  | //[DataElim]// | -> | **eps**
+  |  |  **|**  | //DataElim// //[DataElim]//
   | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``

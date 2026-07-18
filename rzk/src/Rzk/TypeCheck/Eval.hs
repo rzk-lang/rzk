@@ -153,6 +153,7 @@ binderInfo orig md ty mval loc = VarInfo
   , varIsTopLevel = False
   , varDeclaredAssumptions = []
   , varLocation = loc
+  , varDataRole = Nothing
   }
 
 -- | Run an action under a binder that has already been chosen.
@@ -1250,7 +1251,53 @@ applySpine _ h [] = whnfT h
 applySpine scope h pairs = whnfT h >>= \h' -> case h' of
   LambdaT _ _ _ (ScopedAST binder body) | (_, x) : rest <- pairs ->
     peelLambdas scope (Foil.addSubst Foil.identitySubst binder x) body rest
-  _ -> applyNeutral scope h' pairs
+  _ -> do
+    -- The head may itself be a (neutral) application: a definition whose
+    -- value is an under-applied eliminator, say. The ι-rule needs the full
+    -- spine, so the head's own arguments are collected back in.
+    let (h'', headPairs) = collectAppSpine h'
+    tryDataElimStep h'' (headPairs <> pairs) >>= \case
+      Just stepped -> whnfT stepped
+      Nothing      -> applyNeutral scope h' pairs
+
+-- | Try to fire a @#data@ ι-rule on an application spine: the head is a
+-- generated eliminator, the scrutinee argument is headed by a fully applied
+-- constructor of the same datatype. Returns the method applied to the
+-- constructor's fields (and any leftover spine arguments), unreduced.
+--
+-- A non-'Var' head answers 'Nothing' immediately, so the common neutral
+-- spine pays one pattern match; a 'Var' head pays one 'lookupVarInfo'.
+tryDataElimStep
+  :: Distinct n
+  => TermT n                          -- ^ the head, in WHNF
+  -> [(TypeInfo (TermT n), TermT n)]  -- ^ the collected spine arguments
+  -> TypeCheck n (Maybe (TermT n))
+tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
+  Just (DataRole dataType numParams (DataElimKind numMethods _elimKind))
+    | (_, (_, scrut) : after) <- splitAt (numParams + 1 + numMethods) pairs ->
+        whnfT scrut >>= \scrut' -> case collectAppSpine scrut' of
+          (Var c, cargs) -> asks (varDataRole . lookupVarInfo c) >>= \case
+            Just (DataRole dataType' conNumParams (DataConKind conIndex conNumFields))
+              | Foil.nameId dataType' == Foil.nameId dataType
+              , length cargs == conNumParams + conNumFields -> do
+                  let method = snd (pairs !! (numParams + 1 + conIndex))
+                      args = map snd (drop conNumParams cargs) <> map snd after
+                  Just <$> applyTyped method args
+            _ -> pure Nothing
+          _ -> pure Nothing
+  _ -> pure Nothing
+tryDataElimStep _ _ = pure Nothing
+
+-- | Apply a term to arguments left to right, annotating each application
+-- node with its actual type. The spine machinery reuses the annotations of
+-- existing nodes, which a freshly built ι-redex does not have.
+applyTyped :: Distinct n => TermT n -> [TermT n] -> TypeCheck n (TermT n)
+applyTyped f [] = pure f
+applyTyped f (x : xs) = typeOf f >>= \case
+  TypeFunT _info _orig _md _param _mtope ret -> do
+    retTy <- instantiate ret x
+    applyTyped (appT retTy f x) xs
+  _ -> panicImpossible "ι-rule applies a method beyond its arity"
 
 -- | Peel the head's syntactic lambda chain into one substitution, then reduce.
 -- @subst@ maps the binders consumed so far to their arguments; @body@ is the
@@ -1636,7 +1683,14 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 x' <- enterModality md $ nfT x
                 sideCondition <- instantiate tope x' >>= nfT
                 pure (topeAndT (AppT ty f' x') sideCondition)
-              _ -> AppT ty <$> nfT f' <*> nfT x
+              _ -> do
+                -- The ι-redex of a generated eliminator only exists at the
+                -- node holding the full spine, which the recursion above
+                -- never hands to 'whnfT' as a whole.
+                let (h, pairs) = collectAppSpine (AppT ty f' x)
+                tryDataElimStep h pairs >>= \case
+                  Just stepped -> nfT stepped
+                  Nothing      -> AppT ty <$> nfT f' <*> nfT x
         LetT _ty _orig _mparam val body ->
           instantiate body val >>= nfT
         LetModT ty orig app inn mparam val body ->
