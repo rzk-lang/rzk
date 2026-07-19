@@ -432,6 +432,40 @@ spec = do
       in flip oneHole (holesWithLemmas ["deep"] deepSrc) $ \h ->
            cands h `shouldContain` ["deep ? ? ? ? ? ? ? ?"]
 
+  describe "holeCandidates under shadowing" $ do
+    let cands = map show . holeCandidates
+        -- the motive λ rebinds b, so at the inner hole the telescope's b is
+        -- shadowed and the λ's b displays as b₁.
+        src = "#lang rzk-1\n"
+           <> "#def transport (A : U) (B : A → U) (x y : A) (p : x = y) (b : B x)\n"
+           <> "  : B y\n"
+           <> "  := (idJ (A, x, \\ b → \\ q → x = ?, ?, y, p))\n"
+
+    -- A candidate is inserted as source text, so a hypothesis that cannot be
+    -- referred to by its displayed name is not offered: the inner b displays
+    -- as b₁ (undefined in the source), and writing b would resolve to the
+    -- inner binder, not the shadowed outer one.
+    it "does not offer a display-renamed (shadowed) hypothesis" $ do
+      case holesOf src of
+        [h1, _h2] -> do
+          filter (isInfixOf "b₁") (cands h1) `shouldBe` []
+          cands h1 `shouldContain` ["x"]
+          cands h1 `shouldContain` ["y"]
+        hs -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
+
+    -- The idJ move's own motive binders are freshened against the names in
+    -- scope: at transport's initial hole (b : B x in the telescope), the
+    -- offered motive binds b₁, not a shadowing b. Accepting the move then
+    -- never sets up the shadowing of the previous test in the first place.
+    it "freshens the idJ motive binders against the telescope" $ do
+      let src0 = "#lang rzk-1\n"
+              <> "#def transport (A : U) (B : A → U) (x y : A) (p : x = y) (b : B x)\n"
+              <> "  : B y\n"
+              <> "  := ?\n"
+      case holesOf src0 of
+        [h] -> cands h `shouldBe` ["idJ (A, x, \\ b₁ → \\ q → ?, ?, y, p)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
@@ -449,6 +483,22 @@ spec = do
     it "freshens the λ binder so it does not shadow an in-scope name" $ do
       case holesOf "#lang rzk-1\n#define endo : U -> U\n  := \\ A -> (t : 2) -> A\n#define f : (A : U) -> (t : 2) -> endo A\n  := \\ A t -> ?\n" of
         [h] -> intros h `shouldBe` ["\\ t₁ → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- An anonymous Π domain is named inside the move, not by the renderer, so
+    -- the freshening sees the choice: a λ binder `x₁` already introduced by
+    -- the user (or by a previous introduction tap) is not shadowed — the next
+    -- introduction binds `x₂`. (Regression: the anonymous binder used to be
+    -- named at render time, so two successive taps on `B → A → C` both bound
+    -- `x₁`, making the outer binder inaccessible.)
+    it "freshens an anonymous λ binder against an enclosing λ binder" $ do
+      case holesOf "#lang rzk-1\n#def f (A B C : U) : B → A → C := \\ x₁ → ?\n" of
+        [h] -> intros h `shouldBe` ["\\ x₂ → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "freshens an anonymous λ binder against a telescope binder" $ do
+      case holesOf "#lang rzk-1\n#def g (A B : U) (x₁ : B) : A → B := ?\n" of
+        [h] -> intros h `shouldBe` ["\\ x₂ → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- A named pattern domain (e.g. a cube point) keeps its pattern, so the λ
@@ -475,6 +525,23 @@ spec = do
     it "introduces a Σ goal as a pair of holes" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> (b : B a) -> Σ (w : A) , B w\n  := \\ A B a b -> ?\n" of
         [h] -> intros h `shouldBe` ["(?, ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A U-goal is introduced by the type formers: a function type, a Σ-type,
+    -- an identity type, the unit type, and every user-declared datatype in
+    -- scope, applied to holes through its parameter telescope.
+    it "introduces a U goal by the type formers, including datatypes" $ do
+      case holesOf ("#lang rzk-1\n#data bool := false | true\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def T : U := ?\n") of
+        [h] -> intros h `shouldBe`
+                 ["? → ?", "Σ (x : ?), ?", "? =_{ ? } ?", "Unit", "bool", "coprod ? ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The Σ introduction's binder is freshened like a λ's.
+    it "freshens the Σ introduction's binder against the context" $ do
+      case holesOf "#lang rzk-1\n#def T (x : Unit) : U := ?\n" of
+        [h] -> intros h `shouldContain` ["Σ (x₁ : ?), ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- An identity type whose endpoints already agree is introduced by refl.

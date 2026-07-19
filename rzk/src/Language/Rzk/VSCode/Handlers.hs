@@ -765,6 +765,7 @@ symbolKindOfDecl = \case
   DeclKindData       -> SymbolKind_Class
   DeclKindDataCon _  -> SymbolKind_EnumMember
   DeclKindDataElim _ -> SymbolKind_Function
+  DeclKindPostulate  -> SymbolKind_Function
   DeclKindDefine     -> SymbolKind_Function
 
 -- | The completion kind of a declaration, mirroring 'symbolKindOfDecl'.
@@ -773,12 +774,18 @@ completionKindOfDecl = \case
   DeclKindData       -> CompletionItemKind_Class
   DeclKindDataCon _  -> CompletionItemKind_EnumMember
   DeclKindDataElim _ -> CompletionItemKind_Function
+  DeclKindPostulate  -> CompletionItemKind_Function
   DeclKindDefine     -> CompletionItemKind_Function
 
 -- | The checker-derived token overlay for identifier /uses/: an occurrence
 -- that resolves to a product of a @#data@ declaration is coloured by its
 -- kind wherever it appears — a constructor as an enum member, the type as a
--- class, a generated eliminator as a library function. Occurrences are
+-- class, a generated eliminator as a library function — and an occurrence
+-- of a postulate or an assumption is marked abstract (declared, but not
+-- proven), so a proof that leans on an axiom is visible at a glance.
+-- Postulates, top-level assumptions, and in-section assumptions get
+-- distinct type/modifier combinations, in decreasing order of severity.
+-- Occurrences are
 -- matched to declarations by definition site (file and line) /and/ name, so
 -- a local that shadows a constructor stays plain, and plain definitions are
 -- left to the lexer baseline. Positions are code points, like every other
@@ -800,7 +807,20 @@ useSiteTokens declsByFile refIndex path =
   , Just (tokenType, modifiers) <- [classify binding]
   ]
   where
-    classify binding = do
+    classify binding
+      -- Assumptions do not survive to the typechecked declarations (the
+      -- section mechanism folds them into their users), so they are
+      -- recognised by their syntactic definition site instead. A
+      -- top-level assumption is a file-wide axiom; one inside a section
+      -- is a hypothesis discharged at its #end, so it keeps the
+      -- parameter token type and only gains the abstract modifier.
+      | Just scope <- RefInd.assumeScopeAt refIndex (RefInd.bindingDef binding) =
+          Just $ case scope of
+            RefInd.AssumeTopLevel ->
+              (SemanticTokenTypes_Function, [SemanticTokenModifiers_Abstract])
+            RefInd.AssumeInSection ->
+              (SemanticTokenTypes_Parameter, [SemanticTokenModifiers_Abstract])
+      | otherwise = do
       let RefInd.Location (RefInd.Uri defPath) range = RefInd.bindingDef binding
           defStart = RefInd.rangeStart range
           key = ( defPath
@@ -813,6 +833,15 @@ useSiteTokens declsByFile refIndex path =
         DeclKindDataCon _  -> Just (SemanticTokenTypes_EnumMember, [])
         DeclKindDataElim _ ->
           Just (SemanticTokenTypes_Function, [SemanticTokenModifiers_DefaultLibrary])
+        -- The abstract and static modifiers are in the default legend, so
+        -- no custom legend is needed; clients style function.abstract
+        -- distinctly (the VS Code extension maps it to a bright scope).
+        -- The static modifier only distinguishes a postulate (a permanent
+        -- axiom) from a top-level assumption (discharged at module end),
+        -- so a postulate can be styled louder.
+        DeclKindPostulate  ->
+          Just ( SemanticTokenTypes_Function
+               , [SemanticTokenModifiers_Abstract, SemanticTokenModifiers_Static] )
         DeclKindDefine     -> Nothing
     -- Keyed by the declared name's own position, which is what the index
     -- records as the definition site (a constructor's key is where it is
