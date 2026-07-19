@@ -330,6 +330,20 @@ refreshVarIn taken x
   | x `Set.member` taken = refreshVarIn taken (incVarIdentIndex x)
   | otherwise            = x
 
+-- | 'freshenBinderLeaves' against a /set/ of taken names, for the same
+-- reason 'refreshVarIn' exists beside 'refreshVar'.
+freshenBinderLeavesIn :: Set VarIdent -> Binder -> Binder
+freshenBinderLeavesIn used = snd . go used
+  where
+    go u (BinderVar (Just x)) =
+      let x' = refreshVarIn u x in (Set.insert x' u, BinderVar (Just x'))
+    go u b@(BinderVar Nothing) = (u, b)
+    go u BinderUnit            = (u, BinderUnit)
+    go u (BinderPair l r)      =
+      let (u1, l') = go u l
+          (u2, r') = go u1 r
+      in (u2, BinderPair l' r')
+
 incVarIdentIndex :: VarIdent -> VarIdent
 incVarIdentIndex (VarIdent (Rzk.VarIdent loc token)) =
   VarIdent (Rzk.VarIdent loc (coerce incIndex token))

@@ -517,6 +517,24 @@ spec = do
           cands h `shouldContain` ["x₁"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- The same shape at a Void goal, with the coproduct eliminators: the
+    -- moves survive the parse-back check, and every motive binder is named
+    -- in the move, freshened past the in-scope x₁ (an accepted eliminator
+    -- must not shadow the variable it just eliminated).
+    it "offers the coproduct eliminators with freshened motive binders" $ do
+      case holesOf ("#lang rzk-1\n#data Void\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def prod (A B : U) : U := Σ (a : A) , B\n"
+                 <> "#def neg (A : U) : U := A → Void\n"
+                 <> "#def t (A B : U) : prod (neg A) (neg B) → coprod A B → Void\n"
+                 <> "  := \\ (na , nb) → \\ x₁ → ?\n") of
+        [h] -> do
+          cands h `shouldContain` ["rec-coprod A B ? ? ? x₁"]
+          cands h `shouldContain` ["ind-coprod A B (\\ x₂ → ?) ? ? x₁"]
+          cands h `shouldContain` ["ind-Void (\\ x₂ → ?) (na ?)"]
+          filter (isInfixOf "\\ x₁") (cands h) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- A whole-point use of a pattern-bound variable renders as the pattern
     -- itself, which is also the pair expression a move may insert.
     it "renders a whole-point pattern use as the pattern" $ do
