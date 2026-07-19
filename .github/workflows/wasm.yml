@@ -33,6 +33,9 @@ jobs:
   build-with-wasm:
     name: "Build rzk library with the GHC WASM backend"
     runs-on: ubuntu-latest
+    # A stalled external download must not hold a runner for the 6-hour
+    # default; a cold install plus build fits well within this.
+    timeout-minutes: 60
     # Advisory: this lane depends on external toolchain downloads and is a
     # signal that the wasm/frontend use case still builds, not a gate on
     # unrelated work. Same stance as the cabal.yml Hackage-drift lane.
@@ -69,12 +72,21 @@ jobs:
 
       - name: 🧰 Install the GHC WASM toolchain (ghc-wasm-meta)
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 30
         run: |
           cd "$(mktemp -d)"
           # gitlab.haskell.org first; on failure, the read-only GitHub
           # mirror (github.com/haskell-wasm/ghc-wasm-meta) of the same
-          # pinned revision.
-          fetch() { curl -f -L --retry 5 -o ghc-wasm-meta.tar.gz "$1"; }
+          # pinned revision. gitlab.haskell.org sits behind an anti-bot
+          # layer that can tarpit a connection rather than refuse it, and a
+          # stalled transfer never triggers --retry or the fallback, so the
+          # transfer is failed explicitly when it makes no progress
+          # (under 1 kB/s for 30 s) or takes over two minutes in total.
+          fetch() {
+            curl -f -L --retry 5 --connect-timeout 15 \
+              --speed-limit 1024 --speed-time 30 --max-time 120 \
+              -o ghc-wasm-meta.tar.gz "$1"
+          }
           fetch "https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/archive/${GHC_WASM_META_REV}/ghc-wasm-meta-${GHC_WASM_META_REV}.tar.gz" \
             || fetch "https://github.com/haskell-wasm/ghc-wasm-meta/archive/${GHC_WASM_META_REV}.tar.gz"
           tar xzf ghc-wasm-meta.tar.gz --strip-components=1
