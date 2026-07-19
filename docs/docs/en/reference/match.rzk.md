@@ -1,6 +1,6 @@
 # Pattern matching
 
-The `match` expression eliminates a value of an inductive type declared with [`#data`](commands/data.rzk.md), with one branch per constructor. It is notation for the generated induction principle: typechecking elaborates every `match` into an application of `ind-<name>`, so computation and termination behave exactly as they do for the eliminator.
+The `match` expression eliminates a value of an inductive type declared with [`#data`](commands/data.rzk.md), with one branch per constructor. It is notation for the generated induction principle, in the Epigram discipline[^epigram] recently revived by Project Pterodactyl[^ptero]: typechecking elaborates every `match` into an application of `ind-<name>`, so computation and termination behave exactly as they do for the eliminator.
 
 ```rzk
 #lang rzk-1
@@ -53,7 +53,7 @@ A `match` used in checking position takes its motive from the expected type: whe
 
 In the `suc` branch the goal is `plus (suc k) zero =_{nat} suc k` and the hypothesis `ih : plus k zero =_{nat} k` is available; path induction over `ih` turns it into the congruence for `suc` that finishes the proof.
 
-When the scrutinee is not a variable, the motive is constant: the goal must not depend on the scrutinee. Finally, an explicit motive can be written after `into`; it is the *family* the match eliminates into, applied to the indices and the scrutinee:
+When the scrutinee is not a variable, the motive is constant: the goal must not depend on the scrutinee. Finally, an explicit motive can be written after `into`. It is the *family* the match eliminates into, applied to the indices and the scrutinee:
 
 ```rzk
 #define plus'
@@ -64,11 +64,11 @@ When the scrutinee is not a variable, the motive is constant: the goal must not 
       | suc k ih ⇒ suc ih)
 ```
 
-A `match` without `into` is only accepted where its type is already known; in inference position (e.g. under `#compute`), write the motive explicitly.
+A `match` without `into` is only accepted where its type is already known. In inference position (e.g. under `#compute`), write the motive explicitly.
 
 ## The convoy pattern
 
-To let a branch use a hypothesis *at the refined scrutinee*, make the motive a function type and apply the match to the hypothesis afterwards (the convoy pattern of Coq folklore). For example, with
+To let a branch use a hypothesis *at the refined scrutinee*, make the motive a function type and apply the match to the hypothesis afterwards (the convoy pattern of Coq folklore[^cpdt]). For example, with
 
 ```rzk
 #data bool := false | true
@@ -98,7 +98,7 @@ In each branch the argument `h'` has type `C` at the constructor, and `C (not (n
 
 ## Indexed families
 
-Matching on a value of an indexed family works the same way; an `into` motive then abstracts the indices before the scrutinee:
+Matching on a value of an indexed family works the same way. An `into` motive abstracts the indices before the scrutinee:
 
 ```rzk
 #data vec
@@ -131,4 +131,10 @@ The motive may use the indices. For instance, the safe head on `vec A (suc n)` c
       | cons k x tail ih ⇒ x)
 ```
 
-When the goal depends on the indices of a variable scrutinee, the built motive keeps the indices fixed, which is usually not what the induction needs; write the dependent motive with `into` in that case.
+When the goal depends on the indices of a variable scrutinee, the built motive keeps the indices fixed, which is usually not what the induction needs. Write the dependent motive with `into` in that case.
+
+[^epigram]: Conor McBride and James McKinna. _The view from the left._ Journal of Functional Programming 14(1), pp. 69–111, 2004. <https://doi.org/10.1017/S0956796803004829>
+
+[^ptero]: Jon Sterling. _Is it time for a new proof assistant?_ Talk at the Homotopy Type Theory Electronic Seminar Talks (HoTTEST), 25 September 2025. <https://www.youtube.com/watch?v=7oBkEbKJvnE>
+
+[^cpdt]: Adam Chlipala. _Certified Programming with Dependent Types._ MIT Press, 2013. <http://adam.chlipala.net/cpdt/> — the convoy pattern is named in the MoreDep chapter, <http://adam.chlipala.net/cpdt/html/MoreDep.html>.
