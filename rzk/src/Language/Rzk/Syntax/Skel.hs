@@ -206,8 +206,12 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ShapeTypeModal _ pattern_ modalcolon term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.ShapeIntro _ term -> failure x
   Language.Rzk.Syntax.Abs.ShapeElim _ term -> failure x
-  Language.Rzk.Syntax.Abs.LetMod _ modcomp bind term1 term2 -> failure x
-  Language.Rzk.Syntax.Abs.LetModInto _ modcomp bind term1 term2 term3 -> failure x
+  Language.Rzk.Syntax.Abs.LetMod _ modality bind term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.LetModExt _ modality bind term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.LetModComp _ modality1 modality2 bind term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.LetModInto _ modality bind term1 term2 term3 -> failure x
+  Language.Rzk.Syntax.Abs.LetModExtInto _ modality bind term1 term2 term3 -> failure x
+  Language.Rzk.Syntax.Abs.LetModCompInto _ modality1 modality2 bind term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
   Language.Rzk.Syntax.Abs.Unit _ -> failure x

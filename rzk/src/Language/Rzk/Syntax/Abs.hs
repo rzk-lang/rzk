@@ -219,8 +219,12 @@ data Term' a
     | ShapeTypeModal a (Pattern' a) (ModalColon' a) (Term' a) (Term' a)
     | ShapeIntro a (Term' a)
     | ShapeElim a (Term' a)
-    | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
-    | LetModInto a (ModComp' a) (Bind' a) (Term' a) (Term' a) (Term' a)
+    | LetMod a (Modality' a) (Bind' a) (Term' a) (Term' a)
+    | LetModExt a (Modality' a) (Bind' a) (Term' a) (Term' a)
+    | LetModComp a (Modality' a) (Modality' a) (Bind' a) (Term' a) (Term' a)
+    | LetModInto a (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
+    | LetModExtInto a (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
+    | LetModCompInto a (Modality' a) (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -524,7 +528,11 @@ instance HasPosition Term where
     ShapeIntro p _ -> p
     ShapeElim p _ -> p
     LetMod p _ _ _ _ -> p
+    LetModExt p _ _ _ _ -> p
+    LetModComp p _ _ _ _ _ -> p
     LetModInto p _ _ _ _ _ -> p
+    LetModExtInto p _ _ _ _ _ -> p
+    LetModCompInto p _ _ _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p

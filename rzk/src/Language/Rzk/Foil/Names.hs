@@ -151,19 +151,11 @@ toModality Rzk.Op{}          = Op
 toModality Rzk.ASCII_Op{}    = Op
 toModality Rzk.Id{}          = Id
 
-modCompToMods :: Rzk.ModComp -> (TModality, TModality)
-modCompToMods (Rzk.Single _ m)      = (Id, toModality m)
-modCompToMods (Rzk.Comp _ ext inn)  = (toModality ext, toModality inn)
-
 fromMod :: TModality -> Rzk.Modality
 fromMod Sharp = Rzk.Sharp Nothing
 fromMod Flat  = Rzk.Flat Nothing
 fromMod Op    = Rzk.Op Nothing
 fromMod Id    = Rzk.Id Nothing
-
-modsToModComp :: TModality -> TModality -> Rzk.ModComp
-modsToModComp Id inn  = Rzk.Single Nothing (fromMod inn)
-modsToModComp ext inn = Rzk.Comp Nothing (fromMod ext) (fromMod inn)
 
 
 -- | A tuple pattern is sugar for nested pairs.

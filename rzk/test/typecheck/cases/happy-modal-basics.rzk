@@ -28,14 +28,14 @@
   : A
   :=
   let mod _op x_1 := x in
-  let mod _op / _op x_2 := x_1 in
+  let _op mod _op x_2 := x_1 in
   x_2
 
 #def sharp-join (A : U) (a : _# (_# A))
   : _# A
   :=
   let mod _# x_1 := a in
-  let mod _# / _# x_2 := x_1 in
+  let _# mod _# x_2 := x_1 in
   mod _# x_2
 
 #def flat-to-sharp (A :_b U) (x :_b A)
@@ -54,14 +54,14 @@
   : _id A
   :=
   let mod _id x_1 := a in
-  let mod _id / _id x_2 := x_1 in
+  let mod _id x_2 := x_1 in
   mod _id x_2
 
 #def op-op-is-id (A : U) (x : _op (_op A))
   : _id A
   :=
   let mod _op x_1 := x in
-  let mod _op / _op x_2 := x_1 in
+  let _op mod _op x_2 := x_1 in
   mod _id x_2
 
 -- comp(Flat, Op) = Flat: flat var stays accessible inside op-under-flat
@@ -319,4 +319,23 @@
 #def id-eta
   (A : U) (x : _id A)
   : (let mod _id a := x in mod _id a) = x
+  := refl
+
+-- ============ Single-modality sugar: `let m x := t` ============
+-- `let m x := t in u` is sugar for `let mod m x := mod m t in u`, i.e.
+-- `let mod m x := mod m t in u`, checking that `t` is available under `m`.
+
+#def sharp-let-sugar
+  (A : U) (a :_# A)
+  : (let _# x := a in mod _# x) = (let mod _# x := mod _# a in mod _# x)
+  := refl
+
+#def op-let-sugar
+  (A :_op U) (a :_op A)
+  : (let _op x := a in mod _op x) = mod _op a
+  := refl
+
+#def flat-let-sugar
+  (A :_b U) (a :_b A)
+  : (let _b x := a in mod _b x) = mod _b a
   := refl

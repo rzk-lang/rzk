@@ -6,7 +6,7 @@
   : _# A
   :=
   let mod _# x_1 := a into (\ _ -> _# A) in
-  let mod _# / _# x_2 := x_1 in
+  let _# mod _# x_2 := x_1 in
   mod _# x_2
 
 #def double-op-into
@@ -15,7 +15,7 @@
   : A
   :=
   let mod _op x_1 := x into (\ _ -> A) in
-  let mod _op / _op x_2 := x_1 in
+  let _op mod _op x_2 := x_1 in
   x_2
 
 #def into-agrees-with-plain
