@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorUnify
+regression_for:
+  - shape-binder-modality-mismatch

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#define bad
+  (x : shape (i :_b 2 | i === 0_2))
+  : shape (i : 2 | i === 0_2)
+  := x

@@ -36,13 +36,14 @@ The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``II`` | ``Sigma``
   | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
   | ``as`` | ``compute`` | ``eliminate`` | ``first``
-  | ``flip_op`` | ``flipᵒᵖ`` | ``idJ`` | ``in``
-  | ``inf`` | ``into`` | ``inv_op`` | ``invᵒᵖ``
-  | ``let`` | ``match`` | ``mod`` | ``recBOT``
-  | ``recOR`` | ``refl`` | ``second`` | ``sup``
-  | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ``
-  | ``unit`` | ``uses`` | ``with`` | ``Σ``
-  | ``π₁`` | ``π₂`` | ``ᵒᵖ`` | ``𝕀``
+  | ``flip_op`` | ``flipᵒᵖ`` | ``form`` | ``idJ``
+  | ``in`` | ``inf`` | ``into`` | ``inv_op``
+  | ``invᵒᵖ`` | ``let`` | ``match`` | ``mod``
+  | ``recBOT`` | ``recOR`` | ``refl`` | ``second``
+  | ``shape`` | ``sup`` | ``unflip_op`` | ``unflipᵒᵖ``
+  | ``unform`` | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit``
+  | ``uses`` | ``with`` | ``Σ`` | ``π₁``
+  | ``π₂`` | ``ᵒᵖ`` | ``𝕀`` |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -194,6 +195,8 @@ All other symbols are terminals.
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
   |  |  **|**  | ``mod`` //Modality// //Term7//
   |  |  **|**  | //Modality// //Term7//
+  |  |  **|**  | ``shape`` ``(`` //Pattern// ``:`` //Term// ``|`` //Term// ``)``
+  |  |  **|**  | ``shape`` ``(`` //Pattern// //ModalColon// //Term// ``|`` //Term// ``)``
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``
@@ -239,6 +242,8 @@ All other symbols are terminals.
   |  |  **|**  | //Term6// ``[`` //[Restriction]// ``]``
   |  |  **|**  | //Term6// //Term7//
   |  |  **|**  | ``$extract$`` //ModComp// //Term7//
+  |  |  **|**  | ``form`` //Term7//
+  |  |  **|**  | ``unform`` //Term7//
   |  |  **|**  | ``π₁`` //Term7//
   |  |  **|**  | ``π₂`` //Term7//
   |  |  **|**  | //Term7//

@@ -293,6 +293,13 @@ toTerm scope env = go
       Rzk.ModApp _loc md body -> ModApp (Free.toModality md) (go body)
       Rzk.ModType _loc md ty -> TypeModal (Free.toModality md) (go ty)
       Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
+      Rzk.ShapeType _loc pat cube tope ->
+        ShapeType Id (go cube) (toScopedPattern scope pat env tope)
+      Rzk.ShapeTypeModal _loc pat mc cube tope ->
+        ShapeType (Free.modalColonToTModality mc) (go cube)
+          (toScopedPattern scope pat env tope)
+      Rzk.ShapeIntro _loc t -> ShapeIntro (go t)
+      Rzk.ShapeElim _loc t -> ShapeElim (go t)
       Rzk.LetMod _loc comp (Rzk.BindPattern _ pat) val body ->
         let (app, inn) = Free.modCompToMods comp
          in LetMod (toBinder pat) app inn Nothing Nothing (go val)

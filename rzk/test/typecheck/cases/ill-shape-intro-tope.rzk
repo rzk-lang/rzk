@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#define bad : shape (i : 2 | i === 0_2)
+  := form 1_2

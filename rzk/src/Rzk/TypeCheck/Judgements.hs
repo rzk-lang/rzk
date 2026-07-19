@@ -1094,6 +1094,14 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           return $ modAppT ty' md body'
         _ -> issueTypeError $ TypeErrorNotModal term md ty'
 
+      ShapeIntro body -> case ty' of
+        ShapeTypeT _ty md cube tope -> do
+          body' <- enterModality md $ typecheck body cube
+          topeAt <- instantiate tope body'
+          contextEntails topeAt
+          return (shapeIntroT ty' body')
+        _ -> issueTypeError $ TypeErrorOther "form expects a shape type"
+
       -- In checking position the common type is already known, so we push it into
       -- every branch instead of inferring each one and unifying. This is what lets a
       -- bare hole branch (recOR(φ ↦ ?, …)) be checked against the expected type and
@@ -1521,7 +1529,21 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TopeUninv t -> do
     t' <- typecheck t (typeModalT universeT Op topeT)
     return (topeUninvT t')
+  ShapeType md cube tope -> do
+    cube' <- enterModality md $ typecheck cube cubeT
+    tope' <- checkUnder (BinderVar Nothing) md cube' tope $ \binder topeTerm -> do
+      topeTyped <- typecheck topeTerm topeT
+      pure (ScopedAST binder topeTyped)
+    return (shapeTypeT md cube' tope')
 
+  ShapeIntro{} -> issueTypeError $
+    TypeErrorOther "cannot infer the type of a bare form; check it against a shape type"
+
+  ShapeElim t -> do
+    t' <- infer t
+    typeOf t' >>= whnfT >>= \case
+      ShapeTypeT _ _md cube _tope -> return (shapeElimT cube t')
+      _ -> issueTypeError $ TypeErrorOther "unform expects a shape"
   RecBottom -> do
     contextEntails topeBottomT
     return recBottomT

@@ -217,6 +217,13 @@ fromTerm used supply names = go
        in case mmotive of
             Nothing     -> Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
             Just motive -> Rzk.LetModInto loc (modsToModComp app inn) bind (go val) (go motive) body'
+    go (ShapeType md cube tope) = withBinder1 (BinderVar Nothing) tope $ \(z', tope') ->
+      let pat = binderToPattern z'
+       in case md of
+            Id -> Rzk.ShapeType loc pat (go cube) tope'
+            _  -> Rzk.ShapeTypeModal loc pat (fromTModalityToModalColon md) (go cube) tope'
+    go (ShapeIntro t) = Rzk.ShapeIntro loc (go t)
+    go (ShapeElim t) = Rzk.ShapeElim loc (go t)
 
 -- | Peel a match branch's arm chain back into its binder patterns and body.
 --

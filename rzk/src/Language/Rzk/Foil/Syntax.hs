@@ -102,6 +102,9 @@ data TermSig scope term
     | TopeOrF term term
     | TopeInvF term
     | TopeUninvF term
+    | ShapeTypeF TModality term scope
+    | ShapeIntroF term
+    | ShapeElimF term
     | RecBottomF
     | RecOrF [(term, term)]
     | TypeFunF Binder TModality term (Maybe scope) scope
@@ -508,6 +511,9 @@ pattern TypeModalT info md ty = Node (AnnSig info (TypeModalF md ty))
 pattern ModAppT info md t = Node (AnnSig info (ModAppF md t))
 pattern ModExtractT info app inn t = Node (AnnSig info (ModExtractF app inn t))
 pattern LetModT info orig app inn mparam mmotive val body = Node (AnnSig info (LetModF orig app inn mparam mmotive val body))
+pattern ShapeTypeT info md cube tope = Node (AnnSig info (ShapeTypeF md cube tope))
+pattern ShapeIntroT info t = Node (AnnSig info (ShapeIntroF t))
+pattern ShapeElimT info t = Node (AnnSig info (ShapeElimF t))
 pattern HoleT info mname = Node (AnnSig info (HoleF mname))
 
 {-# COMPLETE Var, UniverseT, UniverseCubeT, UniverseTopeT, CubeUnitT,
@@ -516,7 +522,8 @@ pattern HoleT info mname = Node (AnnSig info (HoleF mname))
   TopeEQT, TopeLEQT, TopeAndT, TopeOrT, TopeInvT, TopeUninvT, RecBottomT, RecOrT,
   TypeFunT, TypeSigmaT, TypeIdT, AppT, LetT, LambdaT, PairT, FirstT, SecondT,
   ReflT, IdJT, MatchT, MatchArmT, UnitT, TypeUnitT, TypeAscT, TypeRestrictedT,
-  TypeModalT, ModAppT, ModExtractT, LetModT, HoleT #-}
+  TypeModalT, ModAppT, ModExtractT, LetModT, ShapeTypeT, ShapeIntroT, ShapeElimT,
+  HoleT #-}
 
 -- ** Untyped patterns
 --
@@ -570,6 +577,9 @@ pattern TypeModal md ty = Node (TypeModalF md ty)
 pattern ModApp md t = Node (ModAppF md t)
 pattern ModExtract app inn t = Node (ModExtractF app inn t)
 pattern LetMod orig app inn mparam mmotive val body = Node (LetModF orig app inn mparam mmotive val body)
+pattern ShapeType md cube tope = Node (ShapeTypeF md cube tope)
+pattern ShapeIntro t = Node (ShapeIntroF t)
+pattern ShapeElim t = Node (ShapeElimF t)
 pattern Hole mname = Node (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
@@ -577,7 +587,8 @@ pattern Hole mname = Node (HoleF mname)
   CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
   TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App,
   Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
-  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, ShapeType,
+  ShapeIntro, ShapeElim, Hole #-}
 
 -- * Closed constants
 --
@@ -782,6 +793,16 @@ modAppT ty md term = ModAppT (topeInfo ty) md term
 
 modExtractT :: TermT n -> TModality -> TModality -> TermT n -> TermT n
 modExtractT ty app inn term = ModExtractT (topeInfo ty) app inn term
+
+shapeTypeT :: TModality -> TermT n -> ScopedTermT n -> TermT n
+shapeTypeT md cube tope = t
+  where t = ShapeTypeT (valueInfo t universeT) md cube tope
+
+shapeIntroT :: TermT n -> TermT n -> TermT n
+shapeIntroT ty term = ShapeIntroT (topeInfo ty) term
+
+shapeElimT :: TermT n -> TermT n -> TermT n
+shapeElimT ty term = ShapeElimT (topeInfo ty) term
 
 holeT :: TermT n -> Maybe VarIdent -> TermT n
 holeT ty mname = HoleT (topeInfo ty) mname
