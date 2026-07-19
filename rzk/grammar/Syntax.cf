@@ -82,6 +82,12 @@ NoConstructorType.   ConstructorType ::= ;
 DataElim. DataElim ::= "eliminator" VarIdent ":" Term ;
 terminator DataElim "" ;
 
+-- A match branch: constructor name, one binder per method argument
+MatchBranch.         MatchBranch ::= VarIdent [Pattern] "⇒" Term ;
+matchBranchNoParams. MatchBranch ::= VarIdent "⇒" Term ;
+define matchBranchNoParams x t = MatchBranch x [] t ;
+separator nonempty MatchBranch "|" ;
+
 -- Patterns
 PatternUnit.      Pattern ::= "unit" ;
 PatternVar.       Pattern ::= VarIdent ;
@@ -205,6 +211,8 @@ Refl.           Term7 ::= "refl";
 ReflTerm.       Term7 ::= "refl_{" Term "}" ;
 ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;
 IdJ.            Term7 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
+Match.          Term7 ::= "match" Term7 "(" [MatchBranch] ")" ;
+MatchInto.      Term7 ::= "match" Term7 "into" Term7 "(" [MatchBranch] ")" ;
 -- Variables and holes
 Hole.           Term7 ::= HoleIdent;
 Var.            Term7 ::= VarIdent ;
@@ -248,6 +256,11 @@ ASCII_Restriction. Restriction ::= Term "|->" Term ;
 
 ASCII_First.          Term6 ::= "first" Term7 ;
 ASCII_Second.         Term6 ::= "second" Term7 ;
+
+ascii_MatchBranch.         MatchBranch ::= VarIdent [Pattern] "=>" Term ;
+define ascii_MatchBranch x ps t = MatchBranch x ps t ;
+ascii_matchBranchNoParams. MatchBranch ::= VarIdent "=>" Term ;
+define ascii_matchBranchNoParams x t = MatchBranch x [] t ;
 
 -- Alternative Unicode syntax rules
 
