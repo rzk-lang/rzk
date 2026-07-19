@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- the index term must have the index's type (nat is a type, not a nat)
+#data bad : nat → U := c : bad nat

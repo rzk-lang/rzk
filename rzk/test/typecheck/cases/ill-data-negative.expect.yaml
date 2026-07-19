@@ -1,7 +1,7 @@
 status: error
 error_tag: TypeErrorOther
 message_contains:
-  - "recursive"
-line: 5
+  - "not strictly positive"
+line: 4
 regression_for:
-  - data-stage1-reject-recursion
+  - data-stage2-strict-positivity

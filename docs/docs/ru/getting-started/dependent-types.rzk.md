@@ -636,48 +636,19 @@ undefined variable: a
 
 ## Natural numbers
 
-!!! warning "Постулированный тип"
-
-    В этом подразделе представлен только постулированный тип
-    без достаточных пояснений.
-    Натуральные числа — _рекурсивный_ индуктивный тип, который `#!rzk #data` пока не поддерживает;
-    как только поддержка появится, этот подраздел будет использовать
-    объявление `#!rzk #data`, как разделы выше.
+Натуральные числа — _рекурсивный_ индуктивный тип: конструктор `#!rzk succ` хранит натуральное число.
+Порождённый принцип индукции предоставляет _гипотезу индукции_ для рекурсивного поля:
 
 ```rzk
-#postulate ℕ
-  : U
-#postulate zero
-  : ℕ
-#postulate succ (n : ℕ)
-  : ℕ
+#data ℕ := zero | succ (n : ℕ)
 
-#postulate ind-ℕ
-  ( C : ℕ → U)
-  ( base : C zero)
-  ( step : (n : ℕ) → C n → C (succ n))
-  : ( n : ℕ) → C n
+#check ind-ℕ
+  : ( C : ℕ → U)
+  → C zero
+  → ( ( n : ℕ) → C n → C (succ n))
+  → ( n : ℕ) → C n
 
-#postulate ind-ℕ-zero
-  ( C : ℕ → U)
-  ( base : C zero)
-  ( step : (n : ℕ) → C n → C (succ n))
-  : ind-ℕ C base step zero = base
-#postulate ind-ℕ-succ
-  ( C : ℕ → U)
-  ( base : C zero)
-  ( step : (n : ℕ) → C n → C (succ n))
-  ( n : ℕ)
-  : ind-ℕ C base step (succ n) = step n (ind-ℕ C base step n)
-```
-
-```rzk
-#define rec-ℕ
-  ( C : U)
-  ( base : C)
-  ( step : (n : ℕ) → C → C)
-  : ℕ → C
-  := ind-ℕ (\ _ → C) base step
+#check rec-ℕ : (C : U) → C → ((n : ℕ) → C → C) → ℕ → C
 ```
 
 ```rzk
@@ -686,29 +657,13 @@ undefined variable: a
   := rec-ℕ ℕ zero (\ _ m → succ (succ m))
 ```
 
+Поскольку правила вычисления определительные, удвоение числа вычисляется,
+и результат можно проверить через `#!rzk refl`:
+
 ```rzk
-#define compute-ind-ℕ-zero
-  ( C : ℕ → U)
-  ( base : C zero)
-  ( step : (n : ℕ) → C n → C (succ n))
-  : C zero
-  := base
-
-#define compute-ind-ℕ-one
-  ( C : ℕ → U)
-  ( base : C zero)
-  ( step : (n : ℕ) → C n → C (succ n))
-  : C (succ zero)
-  := step zero (compute-ind-ℕ-zero C base step)
-
-#define compute-ind-ℕ-two
-  ( C : ℕ → U)
-  ( base : C zero)
-  ( step : (n : ℕ) → C n → C (succ n))
-  : C (succ (succ zero))
-  := step (succ zero) (compute-ind-ℕ-one C base step)
-
-#compute compute-ind-ℕ-two (\ _ → ℕ) zero (\ _ m → succ (succ m))
+#define double-two
+  : double-ℕ (succ (succ zero)) =_{ℕ} succ (succ (succ (succ zero)))
+  := refl
 ```
 
 [^1]:

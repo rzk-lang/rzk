@@ -1,0 +1,31 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#check ind-nat
+  : ( C : nat → U)
+  → C zero
+  → ( (n : nat) → C n → C (suc n))
+  → ( x : nat) → C x
+
+#define plus (m n : nat) : nat
+  := rec-nat nat n (\ _ ih → suc ih) m
+
+#define two : nat := suc (suc zero)
+
+#compute-whnf plus two two
+
+#define two-plus-two : plus two two =_{nat} suc (suc two)
+  := refl
+
+#define ap (A B : U) (f : A → B) (x y : A) (p : x =_{A} y)
+  : f x =_{B} f y
+  := idJ(A, x, (\ y' _ → f x =_{B} f y'), refl, y, p)
+
+-- a genuine proof by induction: the step uses the induction hypothesis
+#define plus-zero (n : nat) : plus n zero =_{nat} n
+  := ind-nat
+      ( \ k → plus k zero =_{nat} k)
+      refl
+      ( \ k ih → ap nat nat (\ m → suc m) (plus k zero) k ih)
+      n

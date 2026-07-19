@@ -1,4 +1,6 @@
 #lang rzk-1
 
--- Indexed families are stage 2; the sort of a stage-1 #data must be U.
-#data fin : U → U := stub
+#data nat := zero | suc (n : nat)
+
+-- the sort must be U or an index telescope ending in U
+#data bad : nat := stub

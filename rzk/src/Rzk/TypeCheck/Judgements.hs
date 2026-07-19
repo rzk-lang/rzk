@@ -20,7 +20,7 @@ import           Control.Monad            (forM, forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (ask, asks, local)
 import           Control.Monad.Writer.CPS (censor)
-import           Data.List                (intercalate, tails)
+import           Data.List                (intercalate, sortOn, tails)
 import           Data.Maybe               (fromMaybe, isNothing)
 import           Data.String              (fromString)
 
@@ -95,6 +95,59 @@ checkNameShadowing name =
 -- | A fresh hole of the given type.
 mkHole :: TermT n -> TermT n
 mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+
+-- | The constructors of a @#data@ type former, in declaration order; empty
+-- for anything else. Found by their roles: the type former itself carries
+-- none, so the scan is over the names in scope.
+dataConstructorsOf :: Foil.Name n -> TypeCheck n [Foil.Name n]
+dataConstructorsOf d = do
+  ctx <- ask
+  pure $ map snd $ sortOn fst
+    [ (idx, v)
+    | v <- ctxBound ctx
+    , Just (DataRole d' _ (DataConKind idx _ _)) <- [varDataRole (lookupVarInfo v ctx)]
+    , Foil.nameId d' == Foil.nameId d
+    ]
+
+-- | The generated eliminators of a @#data@ type former (@ind-D@ before
+-- @rec-D@), with their roles.
+dataEliminatorsOf :: Foil.Name n -> TypeCheck n [(Foil.Name n, DataRole n)]
+dataEliminatorsOf d = do
+  ctx <- ask
+  pure $ map snd $ sortOn fst
+    [ (order, (v, role))
+    | v <- ctxBound ctx
+    , Just role@(DataRole d' _ (DataElimKind _ _ elimKind)) <-
+        [varDataRole (lookupVarInfo v ctx)]
+    , Foil.nameId d' == Foil.nameId d
+    , let order = case elimKind of ElimInd -> 0 :: Int; ElimRec -> 1
+    ]
+
+-- | A term of the given type built as λ-binders over a single typed hole
+-- (structurally: the motive types the generator builds are literal
+-- Π-chains). The eliminators pass such a motive so that their result type
+-- β-reduces to the hole and fits any goal, exactly like @idJ@'s motive.
+lambdaHoleOf :: Distinct n => Foil.Scope n -> TermT n -> TermT n
+lambdaHoleOf scope ty = case ty of
+  TypeFunT _info orig _md _param _mtope ret ->
+    Foil.withFresh scope $ \b ->
+      let scope' = Foil.extendScope b scope
+          retAt = openWith scope' (Foil.nameOf b) ret
+       in lambdaT ty orig Nothing (ScopedAST b (lambdaHoleOf scope' retAt))
+  _ -> mkHole ty
+
+-- | Apply a term along its Π-type: a 'Just' is the argument to use, a
+-- 'Nothing' becomes a typed hole. Stops when the plan runs out.
+applyPlan :: Distinct n => TermT n -> [Maybe (TermT n)] -> TypeCheck n (TermT n)
+applyPlan t [] = pure t
+applyPlan t (planned : plan) = typeOf t >>= \case
+  TypeFunT _info _orig _md param _mtope ret -> do
+    let arg = case planned of
+          Just a  -> a
+          Nothing -> mkHole param
+    retAt <- instantiate ret arg
+    applyPlan (appT retAt t arg) plan
+  _ -> pure t
 
 -- | How many /branching/ eliminators 'allEliminationsInto' will chain.
 --
@@ -222,7 +275,29 @@ eliminatorsOf inScopeNames ty =
                     (closedScope scope universeT))
               c y) p
       pure [ (Branching, \p -> pure (idJT (motiveAt x p) tA a c d x p)) ]
-    _ -> pure []
+    -- A value of a #data type is eliminated by its generated eliminators:
+    -- the parameters and indices are read off the hypothesis's type, the
+    -- motive and methods are left as holes.
+    other -> case collectAppSpine other of
+      (Var d, dargs0) -> do
+        let dargs = map snd dargs0
+        elims <- dataEliminatorsOf d
+        scope <- asks ctxScope
+        pure
+          [ (Branching, \term -> do
+              let (paramArgs, indexArgs) = splitAt numParams dargs
+              atMotive <- applyPlan (Var e) (map Just paramArgs)
+              -- The motive is a λ over a hole (not a bare hole), so the
+              -- eliminator's result type β-reduces to the hole and fits
+              -- any goal; cf. the idJ case above.
+              motive <- typeOf atMotive >>= \case
+                TypeFunT _ _ _ motiveTy _ _ -> pure (lambdaHoleOf scope motiveTy)
+                _ -> pure (mkHole universeT)
+              applyPlan atMotive
+                (Just motive : replicate numMethods Nothing
+                  <> map Just indexArgs <> [Just term]))
+          | (e, DataRole _ numParams (DataElimKind numMethods _numIndices _)) <- elims ]
+      _ -> pure []
 
 -- | A scoped term that does not use its binder.
 closedScope :: Distinct n => Foil.Scope n -> (forall l. TermT l) -> ScopedTermT n
@@ -382,7 +457,23 @@ allIntroductionsOf target inScopeNames = do
             ]
       datatypes <- mapM (saturateWithHoles . Var) formers
       pure ([arrow, sigma, identity, typeUnitT] <> datatypes)
-    _ -> pure []
+    -- A goal headed by a #data type former is introduced by a constructor
+    -- applied to holes; a constructor whose return indices cannot meet the
+    -- goal's (nil against vec A (suc n), say) is filtered out.
+    _ -> case collectAppSpine target' of
+      (Var d, _) -> do
+        ctx <- ask
+        cons <- dataConstructorsOf d
+        fmap concat $ forM cons $ \c ->
+          case varDataRole (lookupVarInfo c ctx) of
+            Just (DataRole _ numParams (DataConKind _ numFields _)) -> do
+              saturated <- applyPlan (Var c)
+                (replicate (numParams + numFields) Nothing)
+              satTy <- typeOf saturated
+              ok <- fitsInto saturated satTy target'
+              pure [ saturated | ok ]
+            _ -> pure []
+      _ -> pure []
 
 -- | Apply a term to holes through its whole Π-telescope: a datatype former
 -- applied through its parameters, so a @U@-goal offers @coprod ? ?@.
