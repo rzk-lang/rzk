@@ -432,6 +432,27 @@ spec = do
       in flip oneHole (holesWithLemmas ["deep"] deepSrc) $ \h ->
            cands h `shouldContain` ["deep ? ? ? ? ? ? ? ?"]
 
+    -- A lemma is never offered below its meta prefix (here X and Y, so two
+    -- arguments): an unsaturated schema is not a suggestion, mirroring the
+    -- warn-meta-prefix discipline.
+    it "does not offer a lemma below its meta prefix" $
+      let metaSrc = "#lang rzk-1\n#postulate A : U\n"
+                 <> "#postulate pick : (X : U) -> (Y : U) -> X -> X\n"
+                 <> "#define goal : A -> A := ?\n"
+      in flip oneHole (holesWithLemmas ["pick"] metaSrc) $ \h -> do
+           cands h `shouldContain` ["pick ? ?"]
+           filter (`elem` ["pick", "pick ?"]) (cands h) `shouldBe` []
+
+    -- Also at the schema's own type: the bare alias is not offered (writing
+    -- the alias is the user's call), while the saturated spine still is.
+    it "does not offer a bare schema even at its own type" $
+      let aliasSrc = "#lang rzk-1\n"
+                  <> "#define my-id (X : U) (x : X) : X := x\n"
+                  <> "#define goal : (X : U) -> X -> X := ?\n"
+      in flip oneHole (holesWithLemmas ["my-id"] aliasSrc) $ \h -> do
+           cands h `shouldContain` ["my-id ?"]
+           filter (== "my-id") (cands h) `shouldBe` []
+
   describe "holeCandidates under shadowing" $ do
     let cands = map show . holeCandidates
         -- the motive λ rebinds b, so at the inner hole the telescope's b is

@@ -126,18 +126,28 @@ data ElimCost = SpineStep | Branching
 -- does not spend the budget. Only the genuinely branching eliminators count
 -- against 'maxEliminationDepth', so the bound limits real search depth, not
 -- argument count, and a lemma that must be applied to many holes is still reached.
+--
+-- A spine over a top-level hypothesis is emitted only once its meta prefix
+-- (see "Rzk.TypeCheck.MetaPrefix") is fully applied: an unsaturated schema
+-- is not a suggestion, mirroring the warn-meta-prefix discipline. The search
+-- still passes through the unsaturated stages, so the saturated spines
+-- behind them are found; only the emission is gated.
 allEliminationsInto
   :: Distinct n => TermT n -> [VarIdent] -> TermT n -> TypeCheck n [TermT n]
-allEliminationsInto target inScopeNames = go maxEliminationDepth
+allEliminationsInto target inScopeNames hyp = do
+  minApps <- case hyp of
+    Var v -> asks (varMetaPrefix . lookupVarInfo v)
+    _     -> pure 0
+  go minApps maxEliminationDepth hyp
   where
-    go depth term = do
+    go minApps depth term = do
       ty    <- typeOf term
-      fits  <- fitsInto term ty target
+      fits  <- if minApps <= 0 then fitsInto term ty target else pure False
       elims <- eliminatorsOf inScopeNames ty
-      let step (SpineStep, wrap) = go depth =<< wrap term
+      let step (SpineStep, wrap) = go (minApps - 1) depth =<< wrap term
           step (Branching, wrap)
             | depth <= 0 = pure []
-            | otherwise  = go (depth - 1) =<< wrap term
+            | otherwise  = go minApps (depth - 1) =<< wrap term
       deeper <- concat <$> mapM step elims
       pure ([term | fits] <> deeper)
 

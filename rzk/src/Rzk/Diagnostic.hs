@@ -187,6 +187,22 @@ diagnoseCheckWarning (LargeInductiveTypeWarning dataName conName loc) = Diagnost
         <> " lives above U"
   , diagnosticHole     = Nothing
   }
+diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = case rule of
+      MetaPrefixBoth       -> "MetaPrefixWarning"
+      MetaPrefixStrictOnly -> "MetaPrefixWarningStrictOnly"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "meta-parameter layer: " <> show usedName <> " is used with "
+        <> show supplied <> " of its " <> show required
+        <> " meta-prefix arguments"
+        <> (case rule of
+              MetaPrefixBoth       -> " at an object-level position"
+              MetaPrefixStrictOnly -> " outside another declaration's meta prefix")
+        <> " (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
 
 -- | A checker warning as a human-readable line (the CLI).
 ppCheckWarning :: CheckWarning -> String

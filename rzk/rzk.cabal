@@ -34,6 +34,8 @@ extra-source-files:
     test/typecheck/cases/happy-lattice-eq-gives-leq.rzk
     test/typecheck/cases/happy-lattice-mixed-cube.rzk
     test/typecheck/cases/happy-lattice.rzk
+    test/typecheck/cases/happy-meta-prefix-option-off.rzk
+    test/typecheck/cases/happy-meta-prefix-plumbing.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
     test/typecheck/cases/happy-modal-flat-under-op.rzk
@@ -157,6 +159,10 @@ extra-source-files:
     test/typecheck/cases/multimodule-two-ok/user.rzk
     test/typecheck/cases/uses-whnf-discarded.rzk
     test/typecheck/cases/uses-whnf-masked-transitive.rzk
+    test/typecheck/cases/warn-meta-prefix-object-position.rzk
+    test/typecheck/cases/warn-meta-prefix-option-structural.rzk
+    test/typecheck/cases/warn-meta-prefix-section.rzk
+    test/typecheck/cases/warn-meta-prefix-strict-only.rzk
     test/typecheck/cases/happy-check.expect.yaml
     test/typecheck/cases/happy-data-bool.expect.yaml
     test/typecheck/cases/happy-data-coprod.expect.yaml
@@ -171,6 +177,8 @@ extra-source-files:
     test/typecheck/cases/happy-lattice-eq-gives-leq.expect.yaml
     test/typecheck/cases/happy-lattice-mixed-cube.expect.yaml
     test/typecheck/cases/happy-lattice.expect.yaml
+    test/typecheck/cases/happy-meta-prefix-option-off.expect.yaml
+    test/typecheck/cases/happy-meta-prefix-plumbing.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml
     test/typecheck/cases/happy-modal-flat-under-op.expect.yaml
@@ -290,6 +298,10 @@ extra-source-files:
     test/typecheck/cases/ill-unused-assumption.expect.yaml
     test/typecheck/cases/uses-whnf-discarded.expect.yaml
     test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-object-position.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-option-structural.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-section.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-strict-only.expect.yaml
     test/typecheck/cases/literate-fence/expect.yaml
     test/typecheck/cases/multimodule-first-error/expect.yaml
     test/typecheck/cases/multimodule-two-ok/expect.yaml
@@ -333,6 +345,7 @@ library
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
       Rzk.TypeCheck.Judgements
+      Rzk.TypeCheck.MetaPrefix
       Rzk.TypeCheck.Monad
       Rzk.TypeCheck.NbE
       Rzk.TypeCheck.Render
