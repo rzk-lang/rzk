@@ -345,7 +345,46 @@ allIntroductionsOf target inScopeNames = do
        in pure [ topeTopT, topeBottomT
                , topeEQT  point point, topeLEQT point point
                , topeAndT tope  tope,  topeOrT  tope  tope ]
+    -- the universe: a type is built by a type former, so each is an
+    -- introduction of a U-goal — a function type, a Σ-type, an identity type,
+    -- the unit type, and every user-declared datatype in scope (applied to
+    -- holes through its parameter telescope). The Σ binder is named, so it is
+    -- freshened like a λ-introduction's binder; the identity type's endpoints
+    -- are terms of an as-yet-unknown type, like the tope universe's points.
+    UniverseT{} -> do
+      ctx <- ask
+      let arrow = typeFunT (BinderVar Nothing) Id (mkHole universeT) Nothing
+                    (closedScope scope (mkHole universeT))
+          sigma = typeSigmaT (BinderVar (Just (refreshVar inScopeNames "x"))) Id
+                    (mkHole universeT) (closedScope scope (mkHole universeT))
+          endpointTy = mkHole universeT
+          identity = typeIdT (mkHole endpointTy) (Just endpointTy) (mkHole endpointTy)
+          formerIds =
+            [ Foil.nameId (dataRoleDataType role)
+            | (_, info) <- varsInScope ctx
+            , Just role <- [varDataRole info]
+            ]
+          formers =
+            [ v
+            | (v, info) <- varsInScope ctx
+            , varIsTopLevel info
+            , Foil.nameId v `elem` formerIds
+            ]
+      datatypes <- mapM (saturateWithHoles . Var) formers
+      pure ([arrow, sigma, identity, typeUnitT] <> datatypes)
     _ -> pure []
+
+-- | Apply a term to holes through its whole Π-telescope: a datatype former
+-- applied through its parameters, so a @U@-goal offers @coprod ? ?@.
+saturateWithHoles :: Distinct n => TermT n -> TypeCheck n (TermT n)
+saturateWithHoles term = do
+  ty <- typeOf term
+  case stripTypeRestrictions ty of
+    TypeFunT _ _ _ param _ ret -> do
+      let h = mkHole param
+      retAt <- instantiate ret h
+      saturateWithHoles (appT retAt term h)
+    _ -> pure term
 
 -- | Whether the two endpoints of an identity type are definitionally equal, so that
 -- @refl@ inhabits it. Like 'fitsInto', any holes or constraints recorded while

@@ -527,6 +527,23 @@ spec = do
         [h] -> intros h `shouldBe` ["(?, ?)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A U-goal is introduced by the type formers: a function type, a Σ-type,
+    -- an identity type, the unit type, and every user-declared datatype in
+    -- scope, applied to holes through its parameter telescope.
+    it "introduces a U goal by the type formers, including datatypes" $ do
+      case holesOf ("#lang rzk-1\n#data bool := false | true\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def T : U := ?\n") of
+        [h] -> intros h `shouldBe`
+                 ["? → ?", "Σ (x : ?), ?", "? =_{ ? } ?", "Unit", "bool", "coprod ? ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The Σ introduction's binder is freshened like a λ's.
+    it "freshens the Σ introduction's binder against the context" $ do
+      case holesOf "#lang rzk-1\n#def T (x : Unit) : U := ?\n" of
+        [h] -> intros h `shouldContain` ["Σ (x₁ : ?), ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- An identity type whose endpoints already agree is introduced by refl.
     it "introduces an identity type with agreeing endpoints by refl" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> (a : A) -> (a =_{A} a)\n  := \\ A a -> ?\n" of
