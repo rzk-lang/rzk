@@ -374,7 +374,10 @@ classifySymbol s
   | otherwise            = Just SemanticTokenTypes_Operator
   where
     -- Plain brackets are left to the editor (e.g. bracket pair colorization).
-    ignored = ["(", ")", "[", "]", "{", "}", ";", "<", ">"]
+    -- @}@ is not among them: since the brace shape-parameters were removed,
+    -- it occurs only as the closer of @=_{@ and @refl_{@, which classify as
+    -- operators, so it takes the same colour as its opener.
+    ignored = ["(", ")", "[", "]", "{", ";", "<", ">"]
 
 -- | Combine tokens from the parsed module with tokens from the raw symbol
 -- stream. On overlap (same start position) the AST-based token wins, since

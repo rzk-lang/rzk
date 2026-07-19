@@ -13,6 +13,7 @@ module Language.Rzk.VSCode.ReferenceIndex (
   lookupAt,
   bindingSites,
   locationPath,
+  fileOccurrences,
 ) where
 
 import           Control.Applicative      ((<|>))
@@ -102,6 +103,18 @@ lookupAt index (Uri path) (Position l c) =
   case Map.lookup (path, l) (occurrences index) of
     Nothing    -> Nothing
     Just spans -> listToMaybe [ b | (s, e, b) <- spans, s <= c, c < e ]
+
+-- | Every occurrence recorded for a file, with the binding it resolves to:
+-- 0-based line and column span. Zero-width spans (the derived def entries of
+-- generated eliminators) are skipped; they occupy no characters.
+fileOccurrences :: ReferenceIndex -> FilePath -> [(Binding, Int, Int, Int)]
+fileOccurrences index path =
+  [ (b, l, s, e)
+  | ((p, l), spans) <- Map.toList (occurrences index)
+  , p == path
+  , (s, e, b) <- spans
+  , e > s
+  ]
 
 indexModules :: [(FilePath, Rzk.Module)] -> ReferenceIndex
 indexModules modules = group $
