@@ -154,6 +154,7 @@ binderInfo orig md ty mval loc = VarInfo
   , varDeclaredAssumptions = []
   , varLocation = loc
   , varDataRole = Nothing
+  , varMetaPrefix = 0
   }
 
 -- | Run an action under a binder that has already been chosen.

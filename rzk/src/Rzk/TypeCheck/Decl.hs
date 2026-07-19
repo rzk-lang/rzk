@@ -49,6 +49,7 @@ import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
 
@@ -122,6 +123,8 @@ withTopLevel
   -> TypeCheck n r
 withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
+  metaPrefix <- metaPrefixOf ty
+  recordMetaPrefixUses name ty mval
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -135,6 +138,7 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           , varDeclaredAssumptions = usedVars
           , varLocation = ctxLocation ctx
           , varDataRole = mrole
+          , varMetaPrefix = metaPrefix
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterBinder binder info [] ctx)
         decl = Decl
@@ -193,7 +197,14 @@ endSection errs = do
   let sectionHasHole = any (maybe False containsHole . varValue . snd) infos
       tolerateUnused = lenient && sectionHasHole
 
-  (kept, errs') <- collectSectionDecls tolerateUnused errs [] infos
+  (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
+
+  -- Abstracting over the section's assumptions rewrote the entries' types,
+  -- which can change their meta-parameter prefix (an assumption such as
+  -- funext becomes a leading meta parameter), so recompute it.
+  kept <- forM kept0 $ \(name, info) -> do
+    metaPrefix <- metaPrefixOf (varType info)
+    pure (name, info { varMetaPrefix = metaPrefix })
 
   loc <- asks ctxLocation
   let decls = map (toDecl loc) kept
@@ -427,6 +438,14 @@ setOption "warn-overhang" = \case
   "no"  -> localWarnOverhang False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-overhang\" (use \"yes\" or \"no\")"
+-- The sensitivity of the meta-parameter layer check (see
+-- "Rzk.TypeCheck.MetaPrefix"); strict by default.
+setOption "warn-meta-prefix" = \case
+  "off"        -> localMetaPrefixSensitivity MetaPrefixOff
+  "structural" -> localMetaPrefixSensitivity MetaPrefixStructural
+  "strict"     -> localMetaPrefixSensitivity MetaPrefixStrict
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-prefix\" (use \"off\", \"structural\", or \"strict\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -435,6 +454,8 @@ unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
+unsetOption "warn-meta-prefix" =
+  localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -678,10 +699,9 @@ withDataDecls path used name paramVars paramDecls consData k = do
       when (containsUniverse probeT) $ do
         loc <- asks ctxLocation
         recordCheckWarning $ LargeInductiveTypeWarning
-          { warningDataName = varIdentAt path name
-          , warningConName = varIdentAt path (dataConName con)
-          , warningLocation = loc
-          }
+          (varIdentAt path name)
+          (varIdentAt path (dataConName con))
+          loc
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
       conDeps <- assumptionDepsOf conTy
@@ -1036,8 +1056,10 @@ typecheckModulesWithHoles = typecheckModulesWithHolesAndLemmas []
 
 -- | Like 'typecheckModulesWithHoles', but additionally offers the given named
 -- top-level definitions as hole candidates (each applied to holes when its type
--- fits the goal). The game passes a level's allow-list of relevant lemmas so they
--- surface as moves; an empty list reproduces 'typecheckModulesWithHoles'.
+-- fits the goal, and never below its meta prefix — an unsaturated schema is not
+-- a suggestion, see "Rzk.TypeCheck.MetaPrefix"). The game passes a level's
+-- allow-list of relevant lemmas so they surface as moves; an empty list
+-- reproduces 'typecheckModulesWithHoles'.
 typecheckModulesWithHolesAndLemmas
   :: [VarIdent]
   -> [(FilePath, Rzk.Module)]

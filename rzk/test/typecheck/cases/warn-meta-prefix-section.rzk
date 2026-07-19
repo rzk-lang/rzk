@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Closing the section abstracts T out of use-T, whose type becomes
+-- (T : U) → U: the meta prefix must be recomputed at #end.
+#section sec
+#assume T : U
+#define use-T uses (T) : U := T
+#end sec
+
+-- An object-level use of the generalised definition without its (new)
+-- meta parameter.
+#define stash : Σ (h : U → U), Unit := (use-T, unit)

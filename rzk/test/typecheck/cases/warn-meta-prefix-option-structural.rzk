@@ -1,0 +1,12 @@
+#lang rzk-1
+
+#set-option "warn-meta-prefix" = "structural"
+
+#define my-id (X : U) (x : X) : X := x
+
+-- Flagged only by the strict rule, so silenced at this sensitivity.
+#define local-use (A : U) (a : A) : A
+  := (\ (h : (X : U) → X → X) → h A a) my-id
+
+-- An object-level position still warns under the structural rule.
+#define stash : Σ (h : (X : U) → X → X), Unit := (my-id, unit)

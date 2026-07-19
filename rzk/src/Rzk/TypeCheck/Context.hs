@@ -89,6 +89,11 @@ data VarInfo n = VarInfo
   , varLocation            :: Maybe LocationInfo
   , varDataRole            :: Maybe (DataRole n)
     -- ^ the role the entry plays for a @#data@ declaration, if any
+  , varMetaPrefix          :: Int
+    -- ^ the length of the entry's meta-parameter prefix (0 for locals and
+    -- for declarations with no meta parameters); see
+    -- "Rzk.TypeCheck.MetaPrefix". Recomputed when a section close rewrites
+    -- the entry's type.
   }
 
 -- | The role a top-level entry plays for a @#data@ declaration. The ι-rule
@@ -238,7 +243,22 @@ data Context n = Context
     -- is legitimate (see @happy-restrict-face-not-contained@). Enabled with
     -- @#set-option "warn-overhang" "yes"@. The /disjointness/ error next to
     -- it is unaffected: a vacuous face is always rejected.
+  , ctxMetaPrefixSensitivity :: MetaPrefixSensitivity
+    -- ^ How sensitively the meta-parameter layer check classifies use
+    -- positions (see "Rzk.TypeCheck.MetaPrefix"). Strict by default; set
+    -- with @#set-option "warn-meta-prefix" = "off" | "structural" | "strict"@.
   }
+
+-- | The sensitivity levels of the meta-parameter layer check.
+data MetaPrefixSensitivity
+  = MetaPrefixOff
+    -- ^ no meta-prefix warnings
+  | MetaPrefixStructural
+    -- ^ warn only at structurally object-level positions
+  | MetaPrefixStrict
+    -- ^ additionally require an unsaturated schema argument to sit within
+    -- a top-level receiver's meta prefix (the default)
+  deriving (Eq, Show)
 
 -- | An open section: the entries declared in it, newest first.
 data SectionInfo n = SectionInfo
@@ -272,6 +292,7 @@ emptyContext = Context
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
   , ctxWarnOverhang = False
+  , ctxMetaPrefixSensitivity = MetaPrefixStrict
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.

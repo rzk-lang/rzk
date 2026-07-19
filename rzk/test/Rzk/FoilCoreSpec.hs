@@ -64,6 +64,7 @@ hypothesis name ty = VarInfo
   , varDeclaredAssumptions = []
   , varLocation = Nothing
   , varDataRole = Nothing
+  , varMetaPrefix = 0
   }
 
 spec :: Spec
