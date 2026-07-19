@@ -137,4 +137,4 @@
 
 [^ptero]: Jon Sterling. _Is it time for a new proof assistant?_ Talk at the Homotopy Type Theory Electronic Seminar Talks (HoTTEST), 25 September 2025. <https://www.youtube.com/watch?v=7oBkEbKJvnE>
 
-[^cpdt]: Adam Chlipala. _Certified Programming with Dependent Types._ MIT Press, 2013. <http://adam.chlipala.net/cpdt/> — приём «конвой» назван в главе MoreDep, <http://adam.chlipala.net/cpdt/html/MoreDep.html>.
+[^cpdt]: Adam Chlipala. _Certified Programming with Dependent Types._ MIT Press, 2013. <http://adam.chlipala.net/cpdt/> — приём «конвой» назван в §8.4 (Dependently Typed Red-Black Trees) главы 8, More Dependent Types, <http://adam.chlipala.net/cpdt/html/MoreDep.html>.

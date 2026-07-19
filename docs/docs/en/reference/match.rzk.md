@@ -137,4 +137,4 @@ When the goal depends on the indices of a variable scrutinee, the built motive k
 
 [^ptero]: Jon Sterling. _Is it time for a new proof assistant?_ Talk at the Homotopy Type Theory Electronic Seminar Talks (HoTTEST), 25 September 2025. <https://www.youtube.com/watch?v=7oBkEbKJvnE>
 
-[^cpdt]: Adam Chlipala. _Certified Programming with Dependent Types._ MIT Press, 2013. <http://adam.chlipala.net/cpdt/> — the convoy pattern is named in the MoreDep chapter, <http://adam.chlipala.net/cpdt/html/MoreDep.html>.
+[^cpdt]: Adam Chlipala. _Certified Programming with Dependent Types._ MIT Press, 2013. <http://adam.chlipala.net/cpdt/> — the convoy pattern is named in §8.4 (Dependently Typed Red-Black Trees) of Chapter 8, More Dependent Types, <http://adam.chlipala.net/cpdt/html/MoreDep.html>.
