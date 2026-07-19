@@ -293,6 +293,30 @@
   = (let mod _op b := y in let mod _op a := x in mod _op (a))
   := refl
 
+-- ============ Eta ============
+
+-- Eta for a right-adjoint modal type: f = mod _op (extract f)
+#def op-modal-eta
+  (A : U)
+  (B :_op U)
+  (f : _op ((_op A) → B))
+  : ( mod _op (\ (x : _op A) →
+        let _id mod _op a := x in
+        let _op mod _op b :=
+          (let mod _op f0 := f in mod _op (f0 (mod _op a))) in
+          b))
+    = f
+  := refl
+
+-- A flat point bound by let mod is discrete about its value, not its name
+#def flat-letmod-discrete
+  (A :_b U)
+  (a :_b A)
+  (w :_b 2 × 2)
+  : A
+  := let mod _b i := mod _b (first w)
+     in recOR( i === 0_2 |-> a , i === 1_2 |-> a )
+
 -- Id letmod commutes (RA)
 #def id-letmod-commute
   (A : U) (B : U)
@@ -319,6 +343,12 @@
 #def id-eta
   (A : U) (x : _id A)
   : (let mod _id a := x in mod _id a) = x
+  := refl
+
+-- Eta holds through a non-_id external lock (`let ext mod inn`)
+#def sharp-op-eta
+  (A :_b U) (v :_b (_# A))
+  : (let _op mod _# a := v in mod _# a) = v
   := refl
 
 -- ============ Single-modality sugar: `let m x := t` ============
