@@ -788,3 +788,18 @@ spec = do
           <> "  := match n into C (zero ⇒ c zero | suc k ih ⇒ ?)\n") of
         [h] -> show (holeGoal h) `shouldBe` "C (suc k)"
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "offers a match with one hole per branch over a datatype hypothesis" $
+      -- branch binders reuse the declared field names, plus "ih" for an
+      -- induction hypothesis, freshened against the names taken at the hole
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> map show (holeCandidates h) `shouldContain`
+                 ["match m (zero ⇒ ? | suc n ih ⇒ ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "does not offer a match over an empty family" $
+      -- there is no branch syntax for zero constructors; the eliminators
+      -- (ind-void, rec-void) remain
+      case holesOf "#lang rzk-1\n#data void : U\n#define h (x : void) : void := ?\n" of
+        [h] -> filter (isInfixOf "match") (map show (holeCandidates h)) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

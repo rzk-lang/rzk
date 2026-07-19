@@ -152,6 +152,59 @@ lambdaHoleOf taken scope ty = case ty of
        in lambdaT ty named Nothing (ScopedAST b (lambdaHoleOf taken' scope' retAt))
   _ -> mkHole ty
 
+-- | A match over a hypothesis, one branch per constructor with a hole body:
+-- the notational candidate offered beside the @ind-@\/@rec-@ spines. The node
+-- is display-only (its annotations are dropped before rendering), so its type
+-- infos are holes. Branch binders reuse the constructor's declared field
+-- names, with an induction hypothesis named @ih@, freshened against the names
+-- taken at the hole exactly as 'lambdaHoleOf' freshens its motive binders.
+matchHoleOf
+  :: Distinct n
+  => Context n -> Set.Set VarIdent -> Foil.Scope n
+  -> Int -> [Foil.Name n] -> TermT n -> TermT n
+matchHoleOf ctx taken scope numParams cons term =
+  MatchT anyInfo term Nothing
+    [ (name, armChain scope (branchBinders c))
+    | c <- cons
+    , Just name <- [binderName (varOrig (lookupVarInfo c ctx))]
+    ]
+  where
+    anyInfo :: TypeInfo (TermT x)
+    anyInfo = TypeInfo { infoType = mkHole universeT, infoWHNF = Nothing, infoNF = Nothing }
+
+    -- one binder per method argument: the declared fields, each recursive
+    -- field followed by its induction hypothesis
+    branchBinders c =
+      let info = lookupVarInfo c ctx
+          (numFields, recIdxs) = case varDataRole info of
+            Just (DataRole _ _ (DataConKind _ nf ri)) -> (nf, ri)
+            _                                         -> (0, [])
+          fields = piBinders numParams numFields (varType info)
+       in named taken (concat
+            [ b : [ BinderVar (Just "ih") | j `elem` recIdxs ]
+            | (j, b) <- zip [(0 :: Int) ..] fields ])
+
+    -- the binders of a Π-chain: skip the parameters, take the fields
+    piBinders :: Int -> Int -> TermT x -> [Binder]
+    piBinders _ 0 _ = []
+    piBinders skip take_ (TypeFunT _ orig _ _ _ (ScopedAST _ body))
+      | skip > 0  = piBinders (skip - 1) take_ body
+      | otherwise = orig : piBinders 0 (take_ - 1) body
+    piBinders _ _ _ = []
+
+    named _ [] = []
+    named taken' (b : bs) =
+      let b' = case b of
+            BinderVar mx -> BinderVar (Just (refreshVarIn taken' (fromMaybe "x₁" mx)))
+            other        -> freshenBinderLeavesIn taken' other
+          taken'' = foldr Set.insert taken' (binderLeaves b')
+       in b' : named taken'' bs
+
+    armChain :: Distinct x => Foil.Scope x -> [Binder] -> TermT x
+    armChain _ [] = mkHole (mkHole universeT)
+    armChain sc (b : bs) = Foil.withFresh sc $ \nb ->
+      MatchArmT anyInfo b (ScopedAST nb (armChain (Foil.extendScope nb sc) bs))
+
 -- | Apply a term along its Π-type: a 'Just' is the argument to use, a
 -- 'Nothing' becomes a typed hole. Stops when the plan runs out.
 applyPlan :: Distinct n => TermT n -> [Maybe (TermT n)] -> TypeCheck n (TermT n)
@@ -294,26 +347,37 @@ eliminatorsOf takenNames ty =
       pure [ (Branching, \p -> pure (idJT (motiveAt x p) tA a c d x p)) ]
     -- A value of a #data type is eliminated by its generated eliminators:
     -- the parameters and indices are read off the hypothesis's type, the
-    -- motive and methods are left as holes.
+    -- motive and methods are left as holes. The match notation for the same
+    -- elimination is offered first, one hole per branch (an empty family has
+    -- no branch syntax, so it gets only the eliminators).
     other -> case collectAppSpine other of
       (Var d, dargs0) -> do
         let dargs = map snd dargs0
         elims <- dataEliminatorsOf d
+        cons <- dataConstructorsOf d
+        ctx <- ask
         scope <- asks ctxScope
-        pure
-          [ (Branching, \term -> do
-              let (paramArgs, indexArgs) = splitAt numParams dargs
-              atMotive <- applyPlan (Var e) (map Just paramArgs)
-              -- The motive is a λ over a hole (not a bare hole), so the
-              -- eliminator's result type β-reduces to the hole and fits
-              -- any goal; cf. the idJ case above.
-              motive <- typeOf atMotive >>= \case
-                TypeFunT _ _ _ motiveTy _ _ -> pure (lambdaHoleOf takenNames scope motiveTy)
-                _ -> pure (mkHole universeT)
-              applyPlan atMotive
-                (Just motive : replicate numMethods Nothing
-                  <> map Just indexArgs <> [Just term]))
-          | (e, DataRole _ numParams (DataElimKind numMethods _numIndices _)) <- elims ]
+        let matchMoves =
+              [ (Branching, \term ->
+                  pure (matchHoleOf ctx takenNames scope numParams cons term))
+              | not (null cons)
+              , (_, DataRole _ numParams _) : _ <- [elims]
+              ]
+            elimSpines =
+              [ (Branching, \term -> do
+                  let (paramArgs, indexArgs) = splitAt numParams dargs
+                  atMotive <- applyPlan (Var e) (map Just paramArgs)
+                  -- The motive is a λ over a hole (not a bare hole), so the
+                  -- eliminator's result type β-reduces to the hole and fits
+                  -- any goal; cf. the idJ case above.
+                  motive <- typeOf atMotive >>= \case
+                    TypeFunT _ _ _ motiveTy _ _ -> pure (lambdaHoleOf takenNames scope motiveTy)
+                    _ -> pure (mkHole universeT)
+                  applyPlan atMotive
+                    (Just motive : replicate numMethods Nothing
+                      <> map Just indexArgs <> [Just term]))
+              | (e, DataRole _ numParams (DataElimKind numMethods _numIndices _)) <- elims ]
+        pure (matchMoves <> elimSpines)
       _ -> pure []
 
 -- | A scoped term that does not use its binder.
