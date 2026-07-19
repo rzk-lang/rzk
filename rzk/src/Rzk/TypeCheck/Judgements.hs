@@ -21,20 +21,27 @@ import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (ask, asks, local)
 import           Control.Monad.Writer.CPS (censor)
 import           Data.List                (intercalate, sortOn, tails)
+import qualified Data.IntMap              as IntMap
+import qualified Data.Map                 as Map
 import           Data.Maybe               (fromMaybe, isNothing)
 import           Data.String              (fromString)
+import qualified Data.Text                as T
 
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
-import           Control.Monad.Free.Foil  (AST (Var), ScopedAST (..))
+import           Control.Monad.Foil.Internal (NameMap (..))
+import           Control.Monad.Free.Foil  (AST (Var), ScopedAST (..),
+                                           alphaEquiv)
 
+import qualified Language.Rzk.Foil.Convert as Convert
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), TModality (..),
                                            TypeInfo (..), VarIdent,
                                            binderDisplayName, binderIsCompound,
                                            binderLeaves, binderName,
+                                           binderToPattern,
                                            freshenBinderLeaves, getVarIdent,
-                                           refreshVar,
+                                           markUnresolved, refreshVar,
                                            ppVarIdentWithLocation,
                                            unmarkUnresolved)
 import qualified Language.Rzk.Syntax      as Rzk
@@ -563,6 +570,68 @@ lemmaHypotheses ctx =
   , name `elem` ctxHintLemmas ctx
   ]
 
+-- * Moves must parse back
+
+-- | The elaboration environment at the current position: every in-scope
+-- entry contributes its source name — a pattern its leaves, as projection
+-- chains over the variable it binds — and an inner binding wins, exactly
+-- as the elaborator resolves an identifier written here. Kept as a table
+-- so 'sourceResolvesTo' and 'parsesBackTo' share it.
+positionTable :: Context n -> Map.Map VarIdent (Term n)
+positionTable ctx = Map.fromList $ concat
+  -- 'varsInScope' lists entries oldest first, and 'Map.fromList' keeps the
+  -- last value per key, so an inner binding shadows an outer one.
+  [ entryBindings (varOrig info) v
+  | (v, info) <- varsInScope ctx
+  ]
+  where
+    entryBindings orig v = case orig of
+      BinderVar (Just x) -> [(x, Var v)]
+      BinderVar Nothing  -> []
+      BinderUnit         -> []
+      b                  -> Convert.bindings (binderToPattern b) (Var v)
+
+-- | Does this variable's own source name, written at the current position,
+-- resolve back to it?
+sourceResolvesTo :: Map.Map VarIdent (Term n) -> VarIdent -> Foil.Name n -> Bool
+sourceResolvesTo table src v = case Map.lookup src table of
+  Just (Var v') -> Foil.nameId v' == Foil.nameId v
+  _             -> False
+
+-- | Does a rendered move, inserted as source text at the current position,
+-- parse and resolve back to the very term it renders? The comparison is
+-- α-equivalence of the untyped skeletons: a move is well-typed by
+-- construction, and insertion is a question of naming. This is the exact
+-- form of the old referability guard, and it enforces the move contract
+-- for everything emitted — a shadowing or unresolvable name anywhere in
+-- the rendering shows up as a resolution difference and drops the move.
+parsesBackTo
+  :: Distinct n
+  => Map.Map VarIdent (Term n) -> TermT n -> Rendered -> TypeCheck n Bool
+parsesBackTo table move rendered = do
+  ctx <- ask
+  let scope = ctxScope ctx
+      env name = Map.findWithDefault (Hole (Just (markUnresolved name))) name table
+  pure $ case Rzk.parseTerm (T.pack (show rendered)) of
+    Left _        -> False
+    Right surface ->
+      alphaEquiv scope
+        (pairEtaCollapse scope (Convert.toTerm scope env surface))
+        (pairEtaCollapse scope (untyped move))
+
+-- | Collapse a literal pair of matching projections, recursively along the
+-- pair spine: @(π₁ p, π₂ p)@ reads back as @p@. This is exactly what the
+-- whole-point rendering of a pattern-bound variable parses to (the pattern
+-- @(x, y)@ resolves to the projections), so the comparison in
+-- 'parsesBackTo' absorbs the projection-folding convention.
+pairEtaCollapse :: Distinct n => Foil.Scope n -> Term n -> Term n
+pairEtaCollapse scope t = case t of
+  Pair l r ->
+    case (pairEtaCollapse scope l, pairEtaCollapse scope r) of
+      (First a, Second b) | alphaEquiv scope a b -> a
+      (l', r')                                   -> Pair l' r'
+  _ -> t
+
 -- | Record the goal and local context at a hole (lenient mode only).
 recordHole :: Distinct n => Maybe VarIdent -> TermT n -> TypeCheck n ()
 recordHole mname goalTy = recordHoleShape mname goalTy Nothing
@@ -616,27 +685,28 @@ recordHoleShape mname goalTy mshape = do
     recor  <- if termLayer then recOrCandidates goalTy else pure []
     pure (elims <> recbot <> recor)
 
-  -- A candidate is a move, inserted as source text, so every variable it
-  -- mentions must be referable by the name it is shown under. A binder
-  -- refreshed for display fails this (an inner @b@ shown as @b₁@ beside an
-  -- outer @b@: writing @b₁@ is undefined), and so does the outer @b@ itself
-  -- (writing @b@ resolves to the inner one). Until moves are rendered with
-  -- source names, a variable is referable only if its source name is
-  -- uniquely held in scope and its display name agrees with it; candidates
-  -- mentioning any other named variable are dropped. Pattern and anonymous
-  -- binders are left to the projection-folding rendering as before.
+  -- A move is inserted as source text, so it is rendered with source names
+  -- wherever they still resolve (an inner @b@ beside a shadowed outer @b@
+  -- renders as @b@, not as its display name @b₁@), and it is emitted only
+  -- if the rendered text parses back, at this position, to the very term
+  -- it renders ('parsesBackTo'). The display naming is unchanged: the
+  -- context panel keeps its refreshed names.
   ctx <- ask
-  let namedSources =
-        [ src
-        | (_, info) <- varsInScope ctx
-        , BinderVar (Just src) <- [varOrig info]
-        ]
-      referable v = case varOrig (lookupVarInfo v ctx) of
-        BinderVar (Just src) ->
-          fst (displayOf naming v) == src
-            && length (filter (== src) namedSources) == 1
-        _ -> True
-      insertable = all referable . freeVarsOfTermT
+  let table = positionTable ctx
+      moveNaming = naming
+        { namingOf = NameMap (IntMap.fromList
+            [ (Foil.nameId v, fixed)
+            | (v, info) <- varsInScope ctx
+            , let fixed = case binderName (varOrig info) of
+                    Just src | sourceResolvesTo table src v ->
+                      (src, BinderVar (Just src))
+                    _ -> displayOf naming v
+            ]) }
+      renderMove t = renderTerm moveNaming (untyped t)
+  candidateMoves <- fmap concat $ forM candidates $ \c -> do
+    let r = renderMove c
+    ok <- parsesBackTo table c r
+    pure [ r | ok ]
 
   let render t = renderTerm naming (untyped t)
       -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
@@ -658,8 +728,13 @@ recordHoleShape mname goalTy mshape = do
       pure (shapeBinder, renderTerm naming' (untyped topeAt))
 
   -- the introduction forms for the goal itself (constituents left as holes); the Π
-  -- binder is freshened against the names in scope so that it does not shadow.
+  -- binder is freshened against the names in scope so that it does not shadow,
+  -- and the parse-back check applies like it does to the candidates.
   introductions <- censor (const mempty) (allIntroductionsOf goalTy inScopeNames)
+  introductionMoves <- fmap concat $ forM introductions $ \i -> do
+    let r = renderMove i
+    ok <- parsesBackTo table i r
+    pure [ r | ok ]
   -- the goal cell: an SVG of the shape the hole must inhabit (an arrow, triangle or
   -- square), drawn from an abstract inhabitant with the proof term hidden. 'Nothing'
   -- when the goal is not a renderable shape.
@@ -672,8 +747,8 @@ recordHoleShape mname goalTy mshape = do
     , holeTermVars      = [ e | (False, e) <- flagged ]
     , holeCubeVars      = [ e | (True,  e) <- flagged ]
     , holeTopes         = map render topes
-    , holeCandidates    = map render (filter insertable candidates)
-    , holeIntroductions = map render introductions
+    , holeCandidates    = candidateMoves
+    , holeIntroductions = introductionMoves
     , holeDiagram       = diagram
     , holeLocation      = loc
     }

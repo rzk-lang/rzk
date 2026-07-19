@@ -462,17 +462,28 @@ spec = do
            <> "  : B y\n"
            <> "  := (idJ (A, x, \\ b → \\ q → x = ?, ?, y, p))\n"
 
-    -- A candidate is inserted as source text, so a hypothesis that cannot be
-    -- referred to by its displayed name is not offered: the inner b displays
-    -- as b₁ (undefined in the source), and writing b would resolve to the
-    -- inner binder, not the shadowed outer one.
-    it "does not offer a display-renamed (shadowed) hypothesis" $ do
+    -- A candidate is inserted as source text, so it is rendered with source
+    -- names where they resolve: the motive's λ-bound b (displayed as b₁
+    -- beside the shadowed telescope b) is offered as b, which is what the
+    -- written b resolves to at the hole. The undefined b₁ never appears.
+    it "renders a shadowed-context candidate by its source name" $ do
       case holesOf src of
         [h1, _h2] -> do
           filter (isInfixOf "b₁") (cands h1) `shouldBe` []
           cands h1 `shouldContain` ["x"]
           cands h1 `shouldContain` ["y"]
+          cands h1 `shouldContain` ["b"]
         hs -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
+
+    -- The converse: a hypothesis that fits the goal but is shadowed out of
+    -- the source namespace is not offered — writing its name would resolve
+    -- to the inner binder, a different term.
+    it "does not offer a hypothesis that is shadowed out" $ do
+      case holesOf ("#lang rzk-1\n"
+                 <> "#def t (A : U) (B : A → U) (x : A) (b : B x) : A → B x\n"
+                 <> "  := \\ b → ?\n") of
+        [h] -> cands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- The idJ move's own motive binders are freshened against the names in
     -- scope: at transport's initial hole (b : B x in the telescope), the
