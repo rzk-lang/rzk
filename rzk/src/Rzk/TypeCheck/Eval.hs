@@ -1208,6 +1208,11 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                 []   -> whnfT type_  -- get rid of restrictions at BOT
                 rs'' -> TypeRestrictedT ty <$> whnfT type_ <*> pure rs''
 
+            -- a match is elaborated into its eliminator spine during
+            -- typechecking; a typed match node never exists
+            MatchT{} -> panicImpossible "a typed match survives elaboration"
+            MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"
+
 -- | The branch of a @recOR@ (or the face of a restriction) whose guard holds.
 firstMatching :: Distinct n => [(TermT n, TermT n)] -> TypeCheck n (Maybe (TermT n))
 firstMatching [] = pure Nothing
@@ -1621,6 +1626,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   ReflT{} -> panicImpossible "refl in the tope layer"
   IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
   TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
+  MatchT{} -> panicImpossible "a typed match survives elaboration"
+  MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"
 
   -- A recOR/recBOT is a term-level eliminator, never a tope. It should have been
   -- rejected before reaching here (see the RecOr case of 'typecheck'); as a safety
@@ -1799,3 +1806,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
           case catMaybes rs' of
             []   -> nfT type_
             rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
+
+        -- a match is elaborated into its eliminator spine during typechecking;
+        -- a typed match node never exists
+        MatchT{} -> panicImpossible "a typed match survives elaboration"
+        MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"

@@ -57,19 +57,30 @@ toTermClosed = toTerm Foil.emptyScope unbound
   where
     unbound x = error ("undefined variable: " <> show x)
 
--- | Enter a pattern binder: bind one fresh name, map the pattern's leaves to
--- projections of it, and carry the rest of the environment in with 'Foil.sink'.
-toScopedPattern
+-- | Enter a pattern binder with an explicit continuation for the body: bind one
+-- fresh name, map the pattern's leaves to projections of it, and carry the rest
+-- of the environment in with 'Foil.sink'. 'toScopedPattern' is the plain-body
+-- special case; a match branch chains further arms through the continuation.
+toScopedPatternWith
   :: Distinct n
-  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
-toScopedPattern scope pat env body =
+  => Scope n -> Rzk.Pattern -> Env n
+  -> (forall l. Distinct l => Scope l -> Env l -> Term l)
+  -> ScopedAST NameBinder TermSig n
+toScopedPatternWith scope pat env k =
   Foil.withFresh scope $ \binder ->
     let scope' = Foil.extendScope binder scope
         bound = bindings pat (Var (Foil.nameOf binder))
         env' x = case lookup x bound of
           Just t  -> t
           Nothing -> Foil.sink (env x)   -- O(1): the old representation shifted every node
-     in ScopedAST binder (toTerm scope' env' body)
+     in ScopedAST binder (k scope' env')
+
+-- | Enter a pattern binder over a surface body.
+toScopedPattern
+  :: Distinct n
+  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
+toScopedPattern scope pat env body =
+  toScopedPatternWith scope pat env (\scope' env' -> toTerm scope' env' body)
 
 -- | Enter an anonymous binder (a non-dependent function type binds nothing).
 toScopedAnon
@@ -167,6 +178,10 @@ toTerm scope env = go
       Rzk.ReflTerm _loc term -> Refl (Just (go term, Nothing))
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
+      Rzk.Match _loc scrut branches ->
+        Match (go scrut) Nothing (map matchBranch branches)
+      Rzk.MatchInto _loc scrut motive branches ->
+        Match (go scrut) (Just (go motive)) (map matchBranch branches)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
 
       -- A binder may name several variables sharing a type, e.g. @(x y : A)@,
@@ -290,6 +305,17 @@ toTerm scope env = go
     restriction = \case
       Rzk.Restriction _loc tope term       -> (go tope, go term)
       Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
+
+    -- One branch of a match: each pattern becomes one 'MatchArm' binder, and
+    -- the last arm's scope holds the branch body.
+    matchBranch (Rzk.MatchBranch _loc con pats body) =
+      (varIdent con, arms scope env pats)
+      where
+        arms :: forall m. Distinct m => Scope m -> Env m -> [Rzk.Pattern] -> Term m
+        arms sc en []       = toTerm sc en body
+        arms sc en (p : ps) =
+          MatchArm (toBinder p)
+            (toScopedPatternWith sc p en (\sc' en' -> arms sc' en' ps))
 
 -- * Open terms
 
