@@ -215,6 +215,10 @@ data Term' a
     | ModApp a (Modality' a) (Term' a)
     | ModType a (Modality' a) (Term' a)
     | ModExtract a (ModComp' a) (Term' a)
+    | ShapeType a (Pattern' a) (Term' a) (Term' a)
+    | ShapeTypeModal a (Pattern' a) (ModalColon' a) (Term' a) (Term' a)
+    | ShapeIntro a (Term' a)
+    | ShapeElim a (Term' a)
     | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
     | LetModInto a (ModComp' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | First a (Term' a)
@@ -515,6 +519,10 @@ instance HasPosition Term where
     ModApp p _ _ -> p
     ModType p _ _ -> p
     ModExtract p _ _ -> p
+    ShapeType p _ _ _ -> p
+    ShapeTypeModal p _ _ _ _ -> p
+    ShapeIntro p _ -> p
+    ShapeElim p _ -> p
     LetMod p _ _ _ _ -> p
     LetModInto p _ _ _ _ _ -> p
     First p _ -> p

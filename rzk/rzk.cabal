@@ -68,6 +68,7 @@ extra-source-files:
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
     test/typecheck/cases/happy-set-option-warn-overhang.rzk
     test/typecheck/cases/happy-shadowing-across-groups.rzk
+    test/typecheck/cases/happy-shape-types.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/happy-subtype-variance-restriction-faces.rzk
@@ -165,6 +166,10 @@ extra-source-files:
     test/typecheck/cases/ill-set-option-render.rzk
     test/typecheck/cases/ill-set-option-unknown.rzk
     test/typecheck/cases/ill-set-option-verbosity.rzk
+    test/typecheck/cases/ill-shape-elim-tope.rzk
+    test/typecheck/cases/ill-shape-intro-tope.rzk
+    test/typecheck/cases/ill-shape-modality.rzk
+    test/typecheck/cases/ill-shape-subtyping.rzk
     test/typecheck/cases/ill-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/ill-subtype-variance-restriction-faces.rzk
     test/typecheck/cases/ill-subtype-variance-tope-family.rzk
@@ -252,6 +257,7 @@ extra-source-files:
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
     test/typecheck/cases/happy-set-option-warn-overhang.expect.yaml
     test/typecheck/cases/happy-shadowing-across-groups.expect.yaml
+    test/typecheck/cases/happy-shape-types.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/happy-subtype-variance-restriction-faces.expect.yaml
@@ -349,6 +355,10 @@ extra-source-files:
     test/typecheck/cases/ill-set-option-render.expect.yaml
     test/typecheck/cases/ill-set-option-unknown.expect.yaml
     test/typecheck/cases/ill-set-option-verbosity.expect.yaml
+    test/typecheck/cases/ill-shape-elim-tope.expect.yaml
+    test/typecheck/cases/ill-shape-intro-tope.expect.yaml
+    test/typecheck/cases/ill-shape-modality.expect.yaml
+    test/typecheck/cases/ill-shape-subtyping.expect.yaml
     test/typecheck/cases/ill-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/ill-subtype-variance-restriction-faces.expect.yaml
     test/typecheck/cases/ill-subtype-variance-tope-family.expect.yaml
