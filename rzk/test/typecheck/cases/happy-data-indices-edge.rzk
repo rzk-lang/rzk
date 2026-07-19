@@ -33,3 +33,15 @@
 #define lenA-one (A : U) (x : A)
   : lenA A (suc zero) (consA A zero x (nilA A)) =_{nat} suc zero
   := refl
+
+-- an indexed empty family: no constructors, so the index telescope is
+-- checked through the type former's own type, and the eliminator is
+-- ex falso through the index
+#data fin0 : nat → U
+
+#check ind-fin0
+  : ( C : (n : nat) → fin0 n → U)
+  → ( n : nat) → (x : fin0 n) → C n x
+
+#define absurd0 (A : U) (n : nat) (v : fin0 n) : A
+  := rec-fin0 (\ _ → A) n v
