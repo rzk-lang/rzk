@@ -1,0 +1,12 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#define plus (n m : nat) : nat
+  := match n (zero =>   m | suc k ih  =>  suc ih)
+
+#define plus' (n m : nat) : nat
+  := match n
+      ( zero ⇒ m
+      | suc k ih ⇒
+          suc ih)
