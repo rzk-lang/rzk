@@ -25,8 +25,14 @@ extra-source-files:
     test/typecheck/cases/happy-data-coprod.rzk
     test/typecheck/cases/happy-data-empty.rzk
     test/typecheck/cases/happy-data-eta-short.rzk
+    test/typecheck/cases/happy-data-hottbook-nat.rzk
+    test/typecheck/cases/happy-data-indices-edge.rzk
     test/typecheck/cases/happy-data-large-warning.rzk
+    test/typecheck/cases/happy-data-list.rzk
+    test/typecheck/cases/happy-data-nat.rzk
+    test/typecheck/cases/happy-data-rec-section.rzk
     test/typecheck/cases/happy-data-section.rzk
+    test/typecheck/cases/happy-data-vec.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-subtyping.rzk
@@ -65,8 +71,11 @@ extra-source-files:
     test/typecheck/cases/ill-data-clash-generated.rzk
     test/typecheck/cases/ill-data-duplicate-constructor.rzk
     test/typecheck/cases/ill-data-eliminator-clause.rzk
+    test/typecheck/cases/ill-data-fun-field.rzk
+    test/typecheck/cases/ill-data-index-mismatch.rzk
+    test/typecheck/cases/ill-data-missing-return.rzk
+    test/typecheck/cases/ill-data-negative.rzk
     test/typecheck/cases/ill-data-non-u-sort.rzk
-    test/typecheck/cases/ill-data-recursive.rzk
     test/typecheck/cases/ill-data-return-type.rzk
     test/typecheck/cases/ill-data-shape-field.rzk
     test/typecheck/cases/ill-duplicate.rzk
@@ -162,8 +171,14 @@ extra-source-files:
     test/typecheck/cases/happy-data-coprod.expect.yaml
     test/typecheck/cases/happy-data-empty.expect.yaml
     test/typecheck/cases/happy-data-eta-short.expect.yaml
+    test/typecheck/cases/happy-data-hottbook-nat.expect.yaml
+    test/typecheck/cases/happy-data-indices-edge.expect.yaml
     test/typecheck/cases/happy-data-large-warning.expect.yaml
+    test/typecheck/cases/happy-data-list.expect.yaml
+    test/typecheck/cases/happy-data-nat.expect.yaml
+    test/typecheck/cases/happy-data-rec-section.expect.yaml
     test/typecheck/cases/happy-data-section.expect.yaml
+    test/typecheck/cases/happy-data-vec.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
@@ -202,8 +217,11 @@ extra-source-files:
     test/typecheck/cases/ill-data-clash-generated.expect.yaml
     test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
     test/typecheck/cases/ill-data-eliminator-clause.expect.yaml
+    test/typecheck/cases/ill-data-fun-field.expect.yaml
+    test/typecheck/cases/ill-data-index-mismatch.expect.yaml
+    test/typecheck/cases/ill-data-missing-return.expect.yaml
+    test/typecheck/cases/ill-data-negative.expect.yaml
     test/typecheck/cases/ill-data-non-u-sort.expect.yaml
-    test/typecheck/cases/ill-data-recursive.expect.yaml
     test/typecheck/cases/ill-data-return-type.expect.yaml
     test/typecheck/cases/ill-data-shape-field.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
