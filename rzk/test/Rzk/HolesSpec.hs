@@ -466,6 +466,32 @@ spec = do
         [h] -> cands h `shouldBe` ["idJ (A, x, \\ b₁ → \\ q → ?, ?, y, p)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A destructuring pattern's hidden scrutinee must not claim a
+    -- user-facing name: it used to take x₁ from the default supply, so a
+    -- user-written x₁ bound later displayed as x₂ (a context/source
+    -- mismatch) and its moves were dropped as unreferable. The scrutinee's
+    -- placeholder is now the pattern itself, which cannot collide, so the
+    -- context shows x₁ and its candidate survives.
+    it "keeps a user x₁ intact beside a destructuring pattern" $ do
+      case holesOf ("#lang rzk-1\n#data Void\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def prod (A B : U) : U := Σ (a : A) , B\n"
+                 <> "#def neg (A : U) : U := A → Void\n"
+                 <> "#def t (A B : U) : prod (neg A) (neg B) → coprod A B → coprod A B\n"
+                 <> "  := \\ (na , nb) → \\ x₁ → ?\n") of
+        [h] -> do
+          names (holeTermVars h) `shouldContain` ["x₁"]
+          names (holeTermVars h) `shouldNotContain` ["x₂"]
+          cands h `shouldContain` ["x₁"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A whole-point use of a pattern-bound variable renders as the pattern
+    -- itself, which is also the pair expression a move may insert.
+    it "renders a whole-point pattern use as the pattern" $ do
+      case holesOf "#lang rzk-1\n#def t (A B : U) : (Σ (a : A) , B) → Σ (a : A) , B\n  := \\ (x , y) → ?\n" of
+        [h] -> cands h `shouldContain` ["(x, y)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
