@@ -118,4 +118,17 @@ Matching on a value of an indexed family works the same way; an `into` motive th
       | cons k x tail ih ⇒ suc ih)
 ```
 
+The motive may use the indices. For instance, the safe head on `vec A (suc n)` computes its motive by a nested match on the index, so the `nil` branch is asked for a `Unit` and the `cons` branch for an `A`:
+
+```rzk
+#define vhead
+  ( A : U)
+  ( n : nat)
+  ( xs : vec A (suc n))
+  : A
+  := match xs into (\ k v → match k (zero ⇒ Unit | suc j jh ⇒ A))
+      ( nil ⇒ unit
+      | cons k x tail ih ⇒ x)
+```
+
 When the goal depends on the indices of a variable scrutinee, the built motive keeps the indices fixed, which is usually not what the induction needs; write the dependent motive with `into` in that case.

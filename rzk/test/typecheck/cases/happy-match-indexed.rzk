@@ -22,3 +22,17 @@
 -- before the scrutinee
 #define vlen' (A : U) (n : nat) (xs : vec A n) : nat
   := match xs into (\ k v → nat) (nil ⇒ zero | cons k x tail ih ⇒ suc ih)
+
+-- a motive that genuinely uses the index: safe head, with the motive
+-- computed by a nested match on the index
+#define vhead (A : U) (n : nat) (xs : vec A (suc n)) : A
+  := match xs into (\ k v → match k (zero ⇒ Unit | suc j jh ⇒ A))
+      ( nil ⇒ unit
+      | cons k x tail ih ⇒ x)
+
+#define v2 (A : U) (x y : A) : vec A (suc (suc zero))
+  := cons A (suc zero) x (cons A zero y (nil A))
+
+#define vhead-computes (A : U) (x y : A)
+  : vhead A (suc zero) (v2 A x y) =_{A} x
+  := refl
