@@ -18,7 +18,7 @@ module Rzk.TypeCheck.Judgements where
 import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, unless, when)
 import           Control.Monad.Except     (catchError)
-import           Control.Monad.Reader     (asks, local)
+import           Control.Monad.Reader     (ask, asks, local)
 import           Control.Monad.Writer.CPS (censor)
 import           Data.List                (intercalate, tails)
 import           Data.Maybe               (fromMaybe, isNothing)
@@ -34,6 +34,7 @@ import           Language.Rzk.Foil.Names (Binder (..), TModality (..),
                                            binderDisplayName, binderIsCompound,
                                            binderLeaves, binderName,
                                            freshenBinderLeaves, getVarIdent,
+                                           refreshVar,
                                            ppVarIdentWithLocation,
                                            unmarkUnresolved)
 import qualified Language.Rzk.Syntax      as Rzk
@@ -126,13 +127,13 @@ data ElimCost = SpineStep | Branching
 -- against 'maxEliminationDepth', so the bound limits real search depth, not
 -- argument count, and a lemma that must be applied to many holes is still reached.
 allEliminationsInto
-  :: Distinct n => TermT n -> TermT n -> TypeCheck n [TermT n]
-allEliminationsInto target = go maxEliminationDepth
+  :: Distinct n => TermT n -> [VarIdent] -> TermT n -> TypeCheck n [TermT n]
+allEliminationsInto target inScopeNames = go maxEliminationDepth
   where
     go depth term = do
       ty    <- typeOf term
       fits  <- fitsInto term ty target
-      elims <- eliminatorsOf ty
+      elims <- eliminatorsOf inScopeNames ty
       let step (SpineStep, wrap) = go depth =<< wrap term
           step (Branching, wrap)
             | depth <= 0 = pure []
@@ -167,10 +168,13 @@ fitsInto term ty target = do
 -- either projection; an identity type by path induction (@idJ@), with the motive
 -- and base case left as holes. The projections and @idJ@ branch. Anything else
 -- admits no simple eliminator.
+--
+-- The names visible at the hole are passed in so that a binder an eliminator
+-- introduces (the @idJ@ motive's @\\ b q → ?@) can be freshened against them.
 eliminatorsOf
   :: Distinct n
-  => TermT n -> TypeCheck n [(ElimCost, TermT n -> TypeCheck n (TermT n))]
-eliminatorsOf ty =
+  => [VarIdent] -> TermT n -> TypeCheck n [(ElimCost, TermT n -> TypeCheck n (TermT n))]
+eliminatorsOf inScopeNames ty =
   case stripTypeRestrictions ty of
     TypeFunT _ty _orig _md param _mtope ret ->
       pure [ (SpineStep, \term -> do
@@ -196,7 +200,7 @@ eliminatorsOf ty =
     TypeIdT _ty a mtA x -> do
       tA <- maybe (typeOf a) pure mtA
       scope <- asks ctxScope
-      let c = motiveOf scope a tA
+      let c = motiveOf inScopeNames scope a tA
           dType = appT universeT
                     (appT (typeFunT (BinderVar Nothing) Id (typeIdT a (Just tA) a) Nothing
                             (closedScope scope universeT))
@@ -216,24 +220,28 @@ closedScope scope t = Foil.withFresh scope $ \binder -> ScopedAST binder t
 
 -- | The motive @\\ b q → ?@ of a path induction: a type in the two motive binders,
 -- left as a hole.
-motiveOf :: Distinct n => Foil.Scope n -> TermT n -> TermT n -> TermT n
-motiveOf scope a tA =
+motiveOf :: Distinct n => [VarIdent] -> Foil.Scope n -> TermT n -> TermT n -> TermT n
+motiveOf inScopeNames scope a tA =
   Foil.withFresh scope $ \bBinder ->
     let scopeB = Foil.extendScope bBinder scope
         b = Var (Foil.nameOf bBinder)
         idTypeAtB = typeIdT (Foil.sink a) (Just (Foil.sink tA)) b
+        -- the motive's own binders must not shadow anything visible at the
+        -- hole (the move is inserted as source text)
+        bName = refreshVar inScopeNames "b"
+        qName = refreshVar (bName : inScopeNames) "q"
      in Foil.withFresh scopeB $ \qBinder ->
           let cBody = mkHole universeT
               cInner = lambdaT
                 (typeFunT (BinderVar Nothing) Id idTypeAtB Nothing
                   (ScopedAST qBinder universeT))
-                (BinderVar (Just "q")) Nothing
+                (BinderVar (Just qName)) Nothing
                 (ScopedAST qBinder cBody)
               cType = typeFunT (BinderVar Nothing) Id tA Nothing
                 (ScopedAST bBinder
                   (typeFunT (BinderVar Nothing) Id idTypeAtB Nothing
                     (ScopedAST qBinder universeT)))
-           in lambdaT cType (BinderVar (Just "b")) Nothing (ScopedAST bBinder cInner)
+           in lambdaT cType (BinderVar (Just bName)) Nothing (ScopedAST bBinder cInner)
 
 -- | The binder for a λ introduced over a domain type.
 --
@@ -305,7 +313,16 @@ allIntroductionsOf target inScopeNames = do
   scope <- asks ctxScope
   case target' of
     TypeFunT _ty orig _md param _mtope ret -> do
-      let binder = freshenBinderLeaves inScopeNames (destructuringBinder orig param)
+      -- An anonymous Π binder (a domain written @B → …@) must still be
+      -- named in the offered move: the rendered λ shows its binder, and
+      -- leaving the naming to the renderer would bypass the freshening
+      -- below, shadowing an enclosing binder that already took the first
+      -- default name. Name it here — the first default name, which the
+      -- freshening bumps past everything visible at the hole.
+      let named = case destructuringBinder orig param of
+            BinderVar Nothing -> BinderVar (Just "x₁")
+            b                 -> b
+          binder = freshenBinderLeaves inScopeNames named
       pure $ Foil.withFresh scope $ \b ->
         let retAt = openWith (Foil.extendScope b scope) (Foil.nameOf b) ret
          in [ lambdaT target' binder Nothing (ScopedAST b (mkHole retAt)) ]
@@ -432,12 +449,24 @@ recordHoleShape mname goalTy mshape = do
   loc       <- asks ctxLocation
   naming    <- asks namingOfContext
 
+  -- names already visible at the hole, which a binder introduced by a move
+  -- (a λ-introduction, or the idJ motive's own binders) must not shadow:
+  -- each local hypothesis by its display name, or the leaves of a pattern
+  -- hypothesis.
+  let inScopeNames =
+        [ nm
+        | (v, _) <- locals
+        , nm <- case displayOf naming v of
+            (_, binder) | binderIsCompound binder -> binderLeaves binder
+            (x, _)                                -> [x]
+        ]
+
   -- for each local hypothesis (and allow-listed lemma), the elimination spines that
   -- land in the goal (arguments left as holes). Probing must not leak holes into the
   -- recorded output, hence the 'censor'.
   candidates <- censor (const mempty) $ do
     elims <- concat <$>
-      mapM (\(v, _) -> allEliminationsInto goalTy (Var v)) (locals ++ lemmaVars)
+      mapM (\(v, _) -> allEliminationsInto goalTy inScopeNames (Var v)) (locals ++ lemmaVars)
     -- context-driven moves (independent of the goal's head and the hypotheses): ex
     -- falso in a contradictory context, and tope case-splits. recOR and recBOT are
     -- term-level eliminators, so they are offered only for a term goal — not when
@@ -447,6 +476,28 @@ recordHoleShape mname goalTy mshape = do
     recor  <- if termLayer then recOrCandidates goalTy else pure []
     pure (elims <> recbot <> recor)
 
+  -- A candidate is a move, inserted as source text, so every variable it
+  -- mentions must be referable by the name it is shown under. A binder
+  -- refreshed for display fails this (an inner @b@ shown as @b₁@ beside an
+  -- outer @b@: writing @b₁@ is undefined), and so does the outer @b@ itself
+  -- (writing @b@ resolves to the inner one). Until moves are rendered with
+  -- source names, a variable is referable only if its source name is
+  -- uniquely held in scope and its display name agrees with it; candidates
+  -- mentioning any other named variable are dropped. Pattern and anonymous
+  -- binders are left to the projection-folding rendering as before.
+  ctx <- ask
+  let namedSources =
+        [ src
+        | (_, info) <- varsInScope ctx
+        , BinderVar (Just src) <- [varOrig info]
+        ]
+      referable v = case varOrig (lookupVarInfo v ctx) of
+        BinderVar (Just src) ->
+          fst (displayOf naming v) == src
+            && length (filter (== src) namedSources) == 1
+        _ -> True
+      insertable = all referable . freeVarsOfTermT
+
   let render t = renderTerm naming (untyped t)
       -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
       entryName v = case displayOf naming v of
@@ -454,16 +505,6 @@ recordHoleShape mname goalTy mshape = do
         (x, _)                                -> x
       entries = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]
       flagged = zip cubeFlags entries
-      -- names already visible at the hole, which an introduced binder must not
-      -- shadow: each local hypothesis by its display name, or the leaves of a
-      -- pattern hypothesis.
-      inScopeNames =
-        [ nm
-        | (v, _) <- locals
-        , nm <- case displayOf naming v of
-            (_, binder) | binderIsCompound binder -> binderLeaves binder
-            (x, _)                                -> [x]
-        ]
 
   -- The goal shape, rendered under the shape's own binder. The name is read back
   -- from the naming rather than assumed: if the declared name is taken (the goal
@@ -491,7 +532,7 @@ recordHoleShape mname goalTy mshape = do
     , holeTermVars      = [ e | (False, e) <- flagged ]
     , holeCubeVars      = [ e | (True,  e) <- flagged ]
     , holeTopes         = map render topes
-    , holeCandidates    = map render candidates
+    , holeCandidates    = map render (filter insertable candidates)
     , holeIntroductions = map render introductions
     , holeDiagram       = diagram
     , holeLocation      = loc
