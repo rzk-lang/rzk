@@ -232,6 +232,9 @@ endSection errs = do
   where
     sameName a b = Foil.nameId a == Foil.nameId b
 
+    -- The entry records where it was declared; the section-close location is
+    -- only the fallback (previously every declaration of a section carried
+    -- the #end-time location, i.e. the last command's line).
     toDecl loc (name, info) = Decl
       { declName = case varOrig info of
           BinderVar (Just x) -> x
@@ -241,7 +244,9 @@ endSection errs = do
       , declValue = varValue info
       , declIsAssumption = varIsAssumption info
       , declUsedVars = varDeclaredAssumptions info
-      , declLocation = loc
+      , declLocation = case varLocation info of
+          Just declaredAt -> Just declaredAt
+          Nothing         -> loc
       }
 
 -- | An error, captured in the current context (rather than thrown).
