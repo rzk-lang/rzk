@@ -88,12 +88,14 @@ This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any 
 ## Modal `#!rzk let mod`
 
 Modal `#!rzk let mod` is the elimination principle for modal types.
-A modal let-binding is written `#!rzk let mod ext/inn x := value in body`, where:
+A modal let-binding is written `#!rzk let ext mod inn x := value in body`, where:
 
 - `#!rzk value` is checked against `#!rzk inn T` under an **`ext`-lock**
 - `#!rzk body` is checked with `#!rzk x` \(:^{ext \cdot inn}\) `#!rzk T` in context
 
-If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let mod _id/m x := value in body`.
+If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!rzk let _id mod m x := value in body`.
+
+There is also a single-modality form `#!rzk let m x := t in body`, which is sugar for `#!rzk let mod m x := mod m t in body`. It does not eliminate a modal value; it merely checks that `#!rzk t` is available under modality `#!rzk m` and binds `#!rzk x` \(:^{m}\) to it.
 
 It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk double-op` uses `#!rzk let mod` to define the modal composition \(\langle \text{op} | \langle \text{op} | A \rangle \rangle \to A\), since \(\text{op} \cdot \text{op} = id\):
 
@@ -103,7 +105,7 @@ It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!
   : A
   :=
   let mod ᵒᵖ x_1 := x in
-  let mod ᵒᵖ / ᵒᵖ x_2 := x_1 in
+  let ᵒᵖ mod ᵒᵖ x_2 := x_1 in
   x_2
 
 ```
@@ -192,7 +194,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
   : ♯ A
   :=
   let mod ♯ x_1 := a in
-  let mod ♯ / ♯ x_2 := x_1 in
+  let ♯ mod ♯ x_2 := x_1 in
   mod ♯ x_2
 ```
 
@@ -201,7 +203,7 @@ Below is a small self-contained example of modal syntax. The combinators follow 
 Modalities not only introduce modal types but also impose constraints on how variables can be introduced and used.
 
 - Every `#!rzk mod m …` or `#!rzk m A` expression places an **m-lock** (a lock annotated with modality \(m\)) on the current context.
-- `#!rzk let mod ext/inn x := value in body` introduces `#!rzk x` as a **modality-parametrized binding** with modality \(ext \cdot inn\).
+- `#!rzk let ext mod inn x := value in body` introduces `#!rzk x` as a **modality-parametrized binding** with modality \(ext \cdot inn\).
 - A variable bound under modality \(\mu\) can only be used when the **accumulated lock** \(\hat{m}\) — the composition of all m-locks placed between the binding site and the use site — is \(\mu\)-coercible, i.e. there exists a coercion from \(\mu\) to \(\hat{m}\).
 
 If a variable's modality cannot be coerced into the current lock accumulator, the typechecker reports:

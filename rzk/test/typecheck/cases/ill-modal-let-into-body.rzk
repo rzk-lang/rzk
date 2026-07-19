@@ -1,6 +1,6 @@
 #lang rzk-1
 
--- The body of a `let mod ... into C ...` must inhabit the motive at the
+-- The body of a `let m mod n ... into C ...` must inhabit the motive at the
 -- introduction form, i.e. C (mod ♭ a). Here the motive is the constant
 -- family ♭ A, so the body `c a : C (mod ♭ a)` does not fit.
 #def into-body-misses-motive
