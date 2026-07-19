@@ -267,6 +267,7 @@ tokenizeTerm' varTokenType = go
         , go body ]
       Let _loc bind val expr -> concat [tokenizeBind bind, go val, go expr]
       LetMod _loc comp bind val expr -> concat [tokenizeModComp comp, tokenizeBind bind, go val, go expr]
+      LetModInto _loc comp bind val motive expr -> concat [tokenizeModComp comp, tokenizeBind bind, go val, go motive, go expr]
       ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]

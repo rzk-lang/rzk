@@ -207,6 +207,7 @@ ModApp.         Term7 ::= "mod" Modality Term7 ;
 ModType.        Term7 ::= Modality Term7 ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
 LetMod.         Term1 ::= "let" "mod" ModComp Bind ":=" Term "in" Term ;
+LetModInto.     Term1 ::= "let" "mod" ModComp Bind ":=" Term "into" Term "in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;

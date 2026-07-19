@@ -1,0 +1,25 @@
+#lang rzk-1
+
+#def sharp-join-into
+  (A : U)
+  (a : _# (_# A))
+  : _# A
+  :=
+  let mod _# x_1 := a into (\ _ -> _# A) in
+  let mod _# / _# x_2 := x_1 in
+  mod _# x_2
+
+#def double-op-into
+  (A : U)
+  (x : _op (_op A))
+  : A
+  :=
+  let mod _op x_1 := x into (\ _ -> A) in
+  let mod _op / _op x_2 := x_1 in
+  x_2
+
+#def into-agrees-with-plain
+  (A : U)
+  (x : _# A)
+  : (let mod _# a := x into (\ _ -> _# A) in mod _# a) = x
+  := refl

@@ -1030,7 +1030,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           typecheck bodyTerm (Foil.sink ty')
         return (letT ty' orig (Just bindTy) val' body')
 
-      LetMod orig app inn annot val body -> do
+      LetMod orig app inn annot Nothing val body -> do
         val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> enterModality app $ infer val
           Just bindType -> do
@@ -1049,7 +1049,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           _ -> pure Nothing
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
           typecheck bodyTerm (Foil.sink ty')
-        return (letModT ty' orig app inn (Just bindTy) val' body')
+        return (letModT ty' orig app inn (Just bindTy) Nothing val' body')
 
       Pair l r ->
         case ty' of
@@ -1697,29 +1697,38 @@ infer tt = performing (ActionInfer tt) $ case tt of
     retAt <- instantiate ret val'
     return (letT retAt orig (Just bindTy) val' body')
 
-  LetMod orig app inn annot val body -> do
+  LetMod orig app inn annot mmotive val body -> do
     val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> enterModality app $ infer val
       Just bindType -> do
         bindType' <- infer bindType
         bindUniv <- typeOf bindType'
         enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
-    bindTy <- typeOf val' >>= \case
-      o@(TypeModalT _ty md t) ->
-        if md == inn
-          then return t
-          else issueTypeError $ TypeErrorNotModal (untyped o) inn val'
+    valTy <- typeOf val'
+    bindTy <- case valTy of
+      TypeModalT _ty md t | md == inn -> return t
       o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
     bindVal <- whnfT val' >>= \case
       ModAppT _ty _m t -> pure (Just t)
       o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
       _ -> pure Nothing
-    (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
-      body' <- infer bodyTerm
-      ret <- typeOf body'
-      pure (ScopedAST binder body', ScopedAST binder ret)
-    retAt <- instantiate ret val'
-    return (letModT retAt orig app inn (Just bindTy) val' body')
+    univScope <- constScope universeT -- TODO unsupported CUBE universe here
+    mmotive' <- forM mmotive $ \motive ->
+      typecheck motive (typeFunT orig app valTy Nothing univScope)
+    case mmotive' of
+      Just motive' -> do
+        body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \binder bodyTerm ->
+          typecheck bodyTerm
+            (appT universeT (Foil.sink motive')
+              (modAppT (Foil.sink valTy) inn (Var (Foil.nameOf binder))))
+        return (letModT (appT universeT motive' val') orig app inn (Just bindTy) mmotive' val' body')
+      Nothing -> do
+        (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
+          body' <- infer bodyTerm
+          ret <- typeOf body'
+          pure (ScopedAST binder body', ScopedAST binder ret)
+        retAt <- instantiate ret val'
+        return (letModT retAt orig app inn (Just bindTy) Nothing val' body')
 
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do

@@ -222,8 +222,9 @@ recordMetaPrefixUses defName ty mval =
               Nothing        -> manno
         inScopeWith orig Id (fromMaybe universeT valueType) (Just value) body (go pos)
 
-      LetModT _ orig _nu mu manno value body -> do
+      LetModT _ orig _nu mu manno mmotive value body -> do
         mapM_ (go typePositions) manno
+        mapM_ (go typePositions) mmotive
         go objectPositions value
         unwrapped <- case typeInfoOf value of
           Nothing        -> pure Nothing

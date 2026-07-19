@@ -384,11 +384,14 @@ unifyInCurrentContext mterm expected actual = performing action $ do
             _ -> err
 
         LetT{} -> panicImpossible "let at the root of WHNF"
-        LetModT _ orig app inn _ val body ->
+        LetModT _ orig app inn _ mmotive val body ->
           case actual' of
-            LetModT _ _ app' inn' _ val' body'
+            LetModT _ _ app' inn' _ mmotive' val' body'
               | app == app', inn == inn' -> do
                 unify Nothing val val'
+                case (mmotive, mmotive') of
+                  (Just motive, Just motive') -> unify Nothing motive motive'
+                  _                           -> pure ()
                 bty <- typeOf val >>= \case
                   TypeModalT _ _ t -> pure t
                   _ -> panicImpossible "not modal in letmod"

@@ -210,11 +210,13 @@ fromTerm used supply names = go
     go (TypeModal m ty) = Rzk.ModType loc (goMod m) (go ty)
     go (ModApp m t) = Rzk.ModApp loc (goMod m) (go t)
     go (ModExtract app inn t) = Rzk.ModExtract loc (Rzk.Comp loc (goMod app) (goMod inn)) (go t)
-    go (LetMod z app inn mty val body) = withBinder1 z body $ \(z', body') ->
+    go (LetMod z app inn mty mmotive val body) = withBinder1 z body $ \(z', body') ->
       let bind = case mty of
             Nothing -> Rzk.BindPattern loc (binderToPattern z')
             Just ty -> Rzk.BindPatternType loc (binderToPattern z') (go ty)
-       in Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
+       in case mmotive of
+            Nothing     -> Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
+            Just motive -> Rzk.LetModInto loc (modsToModComp app inn) bind (go val) (go motive) body'
 
 -- | Peel a match branch's arm chain back into its binder patterns and body.
 --
