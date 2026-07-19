@@ -14,6 +14,8 @@ module Language.Rzk.VSCode.ReferenceIndex (
   bindingSites,
   locationPath,
   fileOccurrences,
+  AssumeScope (..),
+  assumeScopeAt,
 ) where
 
 import           Control.Applicative      ((<|>))
@@ -65,13 +67,34 @@ data Binding = Binding
   }
   deriving (Eq, Show)
 
-newtype ReferenceIndex = ReferenceIndex
+data ReferenceIndex = ReferenceIndex
   { occurrences :: Map.Map (FilePath, Int) [(Int, Int, Binding)]
     -- ^ Every occurrence (definition or reference), keyed by file and line,
     -- as column spans; identifiers never span lines. This is what makes
     -- 'lookupAt' a map lookup rather than a scan over all bindings.
+  , assumeSites :: Map.Map Location AssumeScope
+    -- ^ The definition sites of @#assume@d names, with their scope.
+    -- Assumptions do not survive to the typechecked declarations (the
+    -- section mechanism folds them into the definitions that use them), so
+    -- the semantic token overlay recognises them here, syntactically. The
+    -- scope is kept because the two kinds warrant different styling: a
+    -- top-level assumption is a file-wide axiom (such as function
+    -- extensionality), while one inside a section is a hypothesis the
+    -- section abstracts over at its @#end@.
   }
   deriving (Show)
+
+-- | Where a name was @#assume@d.
+data AssumeScope
+  = AssumeTopLevel   -- ^ outside any section: a file-wide axiom
+  | AssumeInSection  -- ^ inside a section: a hypothesis, discharged at @#end@
+  deriving (Eq, Show)
+
+-- | The assume-scope of a definition site, if it is one of an @#assume@d
+-- name. A local that shadows an assumption resolves to its own binder,
+-- not to a site recorded here.
+assumeScopeAt :: ReferenceIndex -> Location -> Maybe AssumeScope
+assumeScopeAt index loc = Map.lookup loc (assumeSites index)
 
 -- | One resolved occurrence: name, definition site, occurrence site, and
 -- (for the self-link of a binder) its printed type annotation.
@@ -129,6 +152,12 @@ indexModules modules = group $
           | b <- bs
           , Location (Uri path) (Range (Position l s) (Position _ e)) <- bindingSites b
           ]
+      , assumeSites = Map.fromList
+          [ (loc, scope)
+          | (file, m) <- modules
+          , (v, scope) <- assumesWithScope (moduleCommands m)
+          , Just loc <- [identLoc file v]
+          ]
       }
       where
         -- Binders produce a self-link (definition site linked to itself) so
@@ -147,6 +176,20 @@ indexModules modules = group $
 
 moduleCommands :: Rzk.Module -> [Rzk.Command]
 moduleCommands (Rzk.Module _ _ cmds) = cmds
+
+-- | The assumed names of a module with their scope, walking the flat
+-- command list with a section-depth counter.
+assumesWithScope :: [Rzk.Command] -> [(Rzk.VarIdent, AssumeScope)]
+assumesWithScope = go (0 :: Int)
+  where
+    go _ [] = []
+    go depth (c : cs) = case c of
+      Rzk.CommandSection _ _     -> go (depth + 1) cs
+      Rzk.CommandSectionEnd _ _  -> go (max 0 (depth - 1)) cs
+      Rzk.CommandAssume _ vars _ ->
+        let scope = if depth == 0 then AssumeTopLevel else AssumeInSection
+        in [ (v, scope) | v <- vars ] ++ go depth cs
+      _                          -> go depth cs
 
 -- | The top-level names a module contributes, with their definition sites.
 -- A @#data@ contributes its type name and constructors, plus the /derived/

@@ -1060,11 +1060,13 @@ data DeclView = DeclView
   , declViewKind         :: DeclKind
   } deriving (Eq, Show)
 
--- | What kind of declaration a 'DeclView' renders: a plain definition, or
--- one of the products of a @#data@ (the symbol providers group constructors
--- under their type and keep the generated eliminators out of the outline).
+-- | What kind of declaration a 'DeclView' renders: a plain definition, a
+-- postulate, or one of the products of a @#data@ (the symbol providers group
+-- constructors under their type and keep the generated eliminators out of
+-- the outline; the semantic tokens highlight postulates distinctly).
 data DeclKind
   = DeclKindDefine
+  | DeclKindPostulate          -- ^ a @#postulate@ or @#assume@: declared, but not proven
   | DeclKindData
   | DeclKindDataCon VarIdent   -- ^ a constructor of the named type
   | DeclKindDataElim VarIdent  -- ^ a generated eliminator of the named type
@@ -1090,6 +1092,10 @@ declViews (Checked ctx decls _errs _warnings) = map (fmap (map view)) decls
       Just (DataRole parent _ DataElimKind{}) -> DeclKindDataElim (parentNameOf parent)
       Nothing
         | Foil.nameId (declNameOf d) `elem` formerIds -> DeclKindData
+        -- A declaration with no value is an axiom, whether written as a
+        -- @#postulate@ or an @#assume@ (in practice both are used for
+        -- axioms such as function extensionality).
+        | Nothing <- declValue d -> DeclKindPostulate
         | otherwise -> DeclKindDefine
     view decl = DeclView
       { declViewName = declName decl

@@ -75,6 +75,19 @@ dataModule = T.unlines
   , "#define shadow (false : bool) : bool := false"  -- 4
   ]
 
+postulateModule :: T.Text
+postulateModule = T.unlines
+  [ "#lang rzk-1"                                     -- 0
+  , "#postulate ax (A : U) (a : A) : A"               -- 1
+  , "#define use-ax (A : U) (a : A) : A := ax A a"    -- 2
+  , "#assume hyp : U"                                 -- 3
+  , "#define use-hyp : U := hyp"                      -- 4
+  , "#section local"                                  -- 5
+  , "#assume sec : U"                                 -- 6
+  , "#define use-sec : U := sec"                      -- 7
+  , "#end local"                                      -- 8
+  ]
+
 spec :: Spec
 spec = do
   describe "use-site tokens" $ do
@@ -97,6 +110,22 @@ spec = do
 
     it "leave plain definitions to the other token sources" $
       useTokenAt toks (3, 30) `shouldBe` Nothing                -- b, a binder use
+
+    it "colour a postulate occurrence as an abstract static function" $ do
+      let ptoks = useSiteTokensOf postulateModule
+      useTokenAt ptoks (2, 38)                                  -- ax, in use-ax
+        `shouldBe` Just ( SemanticTokenTypes_Function
+                        , [SemanticTokenModifiers_Abstract, SemanticTokenModifiers_Static] )
+
+    it "colour a top-level-assumption occurrence as an abstract function" $ do
+      let ptoks = useSiteTokensOf postulateModule
+      useTokenAt ptoks (4, 23)                                  -- hyp, in use-hyp
+        `shouldBe` Just (SemanticTokenTypes_Function, [SemanticTokenModifiers_Abstract])
+
+    it "colour an in-section-assumption occurrence as an abstract parameter" $ do
+      let ptoks = useSiteTokensOf postulateModule
+      useTokenAt ptoks (7, 23)                                  -- sec, in use-sec
+        `shouldBe` Just (SemanticTokenTypes_Parameter, [SemanticTokenModifiers_Abstract])
 
   describe "semantic tokens" $ do
     let toks = tokensOf exampleModule
@@ -132,6 +161,20 @@ spec = do
             ]
       tokenAt toks' (1, 27) `shouldBe` Just SemanticTokenTypes_Regexp  -- ?
       tokenAt toks' (2, 29) `shouldBe` Just SemanticTokenTypes_Regexp  -- ?goal
+
+    it "mark postulate and assume declarations as abstract, by severity" $ do
+      let ptoks = tokensOf postulateModule
+      useTokenAt ptoks (1, 11)                                  -- ax, declared
+        `shouldBe` Just ( SemanticTokenTypes_Function
+                        , [ SemanticTokenModifiers_Declaration
+                          , SemanticTokenModifiers_Abstract
+                          , SemanticTokenModifiers_Static ] )
+      useTokenAt ptoks (3, 8)                                   -- hyp, assumed
+        `shouldBe` Just ( SemanticTokenTypes_Function
+                        , [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract] )
+      useTokenAt ptoks (6, 8)                                   -- sec, assumed in a section
+        `shouldBe` Just ( SemanticTokenTypes_Parameter
+                        , [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract] )
 
     it "mark holes even in files that do not parse" $
       tokenizeSyntaxSymbols "#lang rzk-1\n#define broken (x : A) := ?\n"
