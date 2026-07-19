@@ -1,4 +1,9 @@
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+-- The scope-extension evidence on 'sinkBound' (a coercion) is its soundness
+-- contract, not an argument it can consume, so GHC calls it redundant (and
+-- suggests "simplifying" foil's quantified-constraint Ext instance into the
+-- signature, which would be absurd). Both warnings stay off.
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-redundant-constraints
+                -fno-warn-simplifiable-class-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -33,6 +38,7 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
 import           Debug.Trace              (trace)   -- FIXME: use proper mechanisms for warnings
+import           Unsafe.Coerce            (unsafeCoerce)
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), Display, TModality (..),
@@ -311,7 +317,7 @@ withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
     go scope bound names (x : xs) =
       Foil.withFresh scope $ \binder ->
         let scope' = Foil.extendScope binder scope
-            bound' = (x, Foil.nameOf binder) : map (fmap Foil.sink) bound
+            bound' = (x, Foil.nameOf binder) : sinkBound bound
          in go scope' bound' (Map.insert x (x, BinderVar (Just x)) names) xs
 
     envOf bound x = case lookup x bound of
@@ -324,6 +330,14 @@ withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
       | (x, v) <- bound
       , Just display <- [Map.lookup x names]
       ]
+
+-- | Sink an association list of binders by coercion, with no per-entry
+-- rebuild ('withOpenTerm' calls this at every binder it opens).
+-- 'Foil.sinkContainer' cannot see through the pair (its element must be the
+-- sunk type itself), but the sinkability argument is the same: only the
+-- names mention the scope, and a name sinks by coercion.
+sinkBound :: Foil.DExt n l => [(VarIdent, Foil.Name n)] -> [(VarIdent, Foil.Name l)]
+sinkBound = unsafeCoerce
 
 -- | Every identifier occurring in a piece of surface syntax, bound or free.
 collectVarIdents :: Data a => a -> [Rzk.VarIdent]
