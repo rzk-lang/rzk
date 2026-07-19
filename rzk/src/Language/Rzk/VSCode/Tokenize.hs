@@ -18,8 +18,26 @@ import qualified Language.Rzk.Syntax.Lex     as Lex
 tokenizeModule :: Module -> [SemanticTokenAbsolute]
 tokenizeModule (Module _loc langDecl commands) = concat
   [ tokenizeLanguageDecl langDecl
-  , foldMap tokenizeCommand commands
+  , tokenizeCommands 0 commands
   ]
+
+-- | Walk the commands tracking the section depth: an assumption outside
+-- any section is a file-wide axiom and is marked as an abstract function
+-- (see 'tokenizeCommand'), while an assumption inside a section is a
+-- hypothesis the section abstracts over at its @#end@, so it keeps the
+-- parameter token type and only gains the abstract modifier.
+tokenizeCommands :: Int -> [Command] -> [SemanticTokenAbsolute]
+tokenizeCommands _ [] = []
+tokenizeCommands depth (command : commands) = case command of
+  CommandSection{} ->
+    tokenizeCommand command ++ tokenizeCommands (depth + 1) commands
+  CommandSectionEnd{} ->
+    tokenizeCommand command ++ tokenizeCommands (max 0 (depth - 1)) commands
+  CommandAssume _loc vars type_ | depth > 0 -> concat
+    [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract]) vars
+    , tokenizeTerm type_
+    ] ++ tokenizeCommands depth commands
+  _ -> tokenizeCommand command ++ tokenizeCommands depth commands
 
 tokenizeLanguageDecl :: LanguageDecl -> [SemanticTokenAbsolute]
 tokenizeLanguageDecl _ = []
@@ -33,8 +51,13 @@ tokenizeCommand command = case command of
   CommandComputeNF    _loc term -> tokenizeTerm term
   CommandComputeWHNF  _loc term -> tokenizeTerm term
 
+  -- A postulate is declared, but not proven: the abstract modifier lets
+  -- clients render its name (here and at every use site, see
+  -- 'Language.Rzk.VSCode.Handlers.useSiteTokens') distinctly. The static
+  -- modifier distinguishes it from a top-level assumption: a postulate is
+  -- a permanent axiom, so clients can style it louder.
   CommandPostulate _loc name declUsedVars params type_ -> concat
-    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract, SemanticTokenModifiers_Static]
     , tokenizeDeclUsedVars declUsedVars
     , foldMap tokenizeParam params
     , tokenizeTerm type_
@@ -46,8 +69,11 @@ tokenizeCommand command = case command of
     , foldMap tokenizeTerm [type_, term]
     ]
 
+  -- A name assumed at the top level is a file-wide axiom like a postulate
+  -- (see 'CommandPostulate' above), so it gets the same abstract marking;
+  -- 'tokenizeCommands' intercepts the in-section case.
   CommandAssume _loc vars type_ -> concat
-    [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
+    [ foldMap (\var -> mkToken var SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract]) vars
     , tokenizeTerm type_
     ]
   CommandSection    _loc name -> tokenizeSectionName name
