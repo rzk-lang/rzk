@@ -1134,7 +1134,10 @@ checkMatch term scrut mmotive branches mgoal = do
 -- binders as ordinary hypotheses, under the user's names.
 checkMatchArms :: Distinct n => Term n -> TermT n -> TypeCheck n (TermT n)
 checkMatchArms (MatchArm orig scoped) ty = whnfT ty >>= \case
-  ty'@(TypeFunT _ _orig' md' param' mtope' ret) -> do
+  ty'@(TypeFunT _ _orig' md' param0 mtope' ret) -> do
+    -- an induction hypothesis's type is the motive at a field, so it carries
+    -- an administrative redex too: reduce it before it enters the context
+    param' <- betaMotiveApps param0
     mapM_ checkNameShadowing (binderLeaves orig)
     body' <- elaborateUnder orig md' param' Nothing scoped $ \binder bodyTerm -> do
       mtopeIn <- traverse (openScoped binder) mtope'

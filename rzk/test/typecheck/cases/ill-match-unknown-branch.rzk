@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#define bad (n : nat) : nat
+  := match n (zero ⇒ n | succ k ih ⇒ n)

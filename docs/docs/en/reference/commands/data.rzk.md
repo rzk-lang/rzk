@@ -43,7 +43,7 @@ generates
   → coprod A B → C
 ```
 
-The eliminator arguments come in the order: parameters, motive, one method per constructor (in declaration order), scrutinee. Computation is definitional: an eliminator applied to a constructor reduces to the corresponding method applied to the constructor's fields.
+The eliminator arguments come in the order: parameters, motive, one method per constructor (in declaration order), scrutinee. Computation is definitional: an eliminator applied to a constructor reduces to the corresponding method applied to the constructor's fields. The [`match` expression](../match.rzk.md) is notation for the induction principle, with one branch per constructor.
 
 !!! warning "Large inductive types"
 

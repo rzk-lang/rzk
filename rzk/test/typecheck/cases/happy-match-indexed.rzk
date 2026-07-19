@@ -1,0 +1,24 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#data vec (A : U) : nat → U
+  := nil : vec A zero
+   | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)
+
+-- match on an indexed family: one binder per method argument
+-- (fields first, then the induction hypothesis for the recursive field)
+#define vlen (A : U) (n : nat) (xs : vec A n) : nat
+  := match xs (nil ⇒ zero | cons k x tail ih ⇒ suc ih)
+
+#define v1 (A : U) (x : A) : vec A (suc zero)
+  := cons A zero x (nil A)
+
+#define vlen-computes (A : U) (x : A)
+  : vlen A (suc zero) (v1 A x) =_{nat} suc zero
+  := refl
+
+-- an explicit "into" motive over an indexed family takes the indices
+-- before the scrutinee
+#define vlen' (A : U) (n : nat) (xs : vec A n) : nat
+  := match xs into (\ k v → nat) (nil ⇒ zero | cons k x tail ih ⇒ suc ih)

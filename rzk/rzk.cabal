@@ -40,6 +40,8 @@ extra-source-files:
     test/typecheck/cases/happy-lattice-eq-gives-leq.rzk
     test/typecheck/cases/happy-lattice-mixed-cube.rzk
     test/typecheck/cases/happy-lattice.rzk
+    test/typecheck/cases/happy-match-basics.rzk
+    test/typecheck/cases/happy-match-indexed.rzk
     test/typecheck/cases/happy-meta-prefix-option-off.rzk
     test/typecheck/cases/happy-meta-prefix-plumbing.rzk
     test/typecheck/cases/happy-modal-basics.rzk
@@ -100,6 +102,12 @@ extra-source-files:
     test/typecheck/cases/ill-lattice-ops-lub-not-entailed.rzk
     test/typecheck/cases/ill-lattice-ops-lub-unconditional.rzk
     test/typecheck/cases/ill-lattice-total-order-ii.rzk
+    test/typecheck/cases/ill-match-branch-arity.rzk
+    test/typecheck/cases/ill-match-cannot-infer.rzk
+    test/typecheck/cases/ill-match-duplicate-branch.rzk
+    test/typecheck/cases/ill-match-missing-branch.rzk
+    test/typecheck/cases/ill-match-not-data.rzk
+    test/typecheck/cases/ill-match-unknown-branch.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
     test/typecheck/cases/ill-modal-flat-no-commute.rzk
     test/typecheck/cases/ill-modal-not-modal.rzk
@@ -192,6 +200,8 @@ extra-source-files:
     test/typecheck/cases/happy-lattice-eq-gives-leq.expect.yaml
     test/typecheck/cases/happy-lattice-mixed-cube.expect.yaml
     test/typecheck/cases/happy-lattice.expect.yaml
+    test/typecheck/cases/happy-match-basics.expect.yaml
+    test/typecheck/cases/happy-match-indexed.expect.yaml
     test/typecheck/cases/happy-meta-prefix-option-off.expect.yaml
     test/typecheck/cases/happy-meta-prefix-plumbing.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
@@ -252,6 +262,12 @@ extra-source-files:
     test/typecheck/cases/ill-lattice-ops-lub-not-entailed.expect.yaml
     test/typecheck/cases/ill-lattice-ops-lub-unconditional.expect.yaml
     test/typecheck/cases/ill-lattice-total-order-ii.expect.yaml
+    test/typecheck/cases/ill-match-branch-arity.expect.yaml
+    test/typecheck/cases/ill-match-cannot-infer.expect.yaml
+    test/typecheck/cases/ill-match-duplicate-branch.expect.yaml
+    test/typecheck/cases/ill-match-missing-branch.expect.yaml
+    test/typecheck/cases/ill-match-not-data.expect.yaml
+    test/typecheck/cases/ill-match-unknown-branch.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
     test/typecheck/cases/ill-modal-flat-no-commute.expect.yaml
     test/typecheck/cases/ill-modal-not-modal.expect.yaml
