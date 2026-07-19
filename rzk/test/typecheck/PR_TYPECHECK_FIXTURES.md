@@ -17,10 +17,16 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `happy-data-list`), uniform section closure with and without recursion
   (`happy-data-section`, `happy-data-rec-section`), the largeness warning
   (`happy-data-large-warning`, asserted via the `warnings` field);
+  indexed families (`happy-data-vec` with the proposal's generated
+  eliminator types and index-aware computation, `happy-data-indices-edge`
+  with a two-index family and an indexed family in a section,
+  `happy-data-hottbook-nat` — the §2.13 encode–decode story with
+  successor injectivity and `zero ≠ suc`, round-tripping by `refl`);
   rejections (`ill-data-negative` for strict positivity,
   `ill-data-fun-field` for function-typed recursive fields,
-  `ill-data-non-u-sort`, `ill-data-return-type`, `ill-data-shape-field`,
-  `ill-data-eliminator-clause`) and name clashes
+  `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
+  and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
+  `ill-data-shape-field`, `ill-data-eliminator-clause`) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`).
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 

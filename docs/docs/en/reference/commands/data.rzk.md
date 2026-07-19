@@ -63,13 +63,32 @@ Recursion is supported for _directly_ recursive fields, i.e. fields whose type i
 
 Constructor fields must be strictly positive in the declared type.
 
+Indexed families spell their index telescope in the sort. A constructor of an indexed family must spell out its return type, which instantiates the indices; a directly recursive field does the same, and its indices instantiate the induction hypothesis:
+
+```rzk
+#data vec
+  ( A : U)
+  : nat → U
+  :=
+    nil : vec A zero
+  | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)
+
+#check ind-vec
+  : ( A : U)
+  → ( C : (n : nat) → vec A n → U)
+  → C zero (nil A)
+  → ( ( n : nat) → (x : A) → (xs : vec A n) → C n xs → C (suc n) (cons A n x xs))
+  → ( n : nat) → (xs : vec A n) → C n xs
+```
+
+The parameters (before the sort) are uniform: every constructor returns the declared type applied to exactly the parameter variables, followed by its index terms.
+
 ## Current restrictions
 
 At the moment:
 
 - recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
-- the sort must be `#!rzk U` and a constructor's return type, when spelled out, must be the declared type applied to its parameters (indexed families are planned);
-- constructors may not take cube or shape arguments (over the directed interval they would declare directed cells);
+- indices must be plain types (no cube or shape indices), and constructors may not take cube or shape arguments (over the directed interval they would declare directed cells);
 - the `eliminator` re-ascription clause is parsed but not yet supported.
 
 Note also that an inductive type comes with exactly its induction principle; how the type interacts with the simplicial structure is a separate matter. See the discreteness caveat in [Dependent types](../../getting-started/dependent-types.rzk.md#booleans).
