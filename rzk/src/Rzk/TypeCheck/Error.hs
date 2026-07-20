@@ -56,6 +56,7 @@ data TypeError n
   | TypeErrorUnusedUsedVariables [Foil.Name n] (Foil.Name n)
   | TypeErrorImplicitAssumption (Foil.Name n, TermT n) (Foil.Name n)
   | TypeErrorNotIntervalCube String (TermT n) (TermT n)
+  | TypeErrorRepeatedBinder VarIdent [VarIdent]
   | TypeErrorMatchScrutineeNotData (TermT n) (TermT n)
   | TypeErrorMatchCannotInfer (Term n)
   | TypeErrorMatchMissingBranch VarIdent
@@ -253,6 +254,14 @@ ppTypeError naming = \case
     , "  " <> ppU (untyped lType)
     , "and a point of type"
     , "  " <> ppU (untyped rType)
+    ]
+
+  TypeErrorRepeatedBinder name previous -> block TopDown
+    [ show name <> " is bound multiple times in one binder group"
+    , "  " <> ppVarIdentWithLocation name
+    , "already bound at"
+    , intercalate "\n"
+      [ "  " <> ppVarIdentWithLocation prev | prev <- previous ]
     ]
 
   TypeErrorMatchScrutineeNotData scrut ty -> block TopDown

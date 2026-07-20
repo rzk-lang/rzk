@@ -59,6 +59,7 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
     test/typecheck/cases/happy-set-option-warn-overhang.rzk
+    test/typecheck/cases/happy-shadowing-across-groups.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/happy-subtype-variance-restriction-faces.rzk
@@ -134,6 +135,9 @@ extra-source-files:
     test/typecheck/cases/ill-recor-coverage-required.rzk
     test/typecheck/cases/ill-recor-guard-disjoint.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
+    test/typecheck/cases/ill-repeated-binder-lambda.rzk
+    test/typecheck/cases/ill-repeated-binder-pair.rzk
+    test/typecheck/cases/ill-repeated-binder-params.rzk
     test/typecheck/cases/ill-restrict-face-disjoint.rzk
     test/typecheck/cases/ill-section-end-mismatch.rzk
     test/typecheck/cases/ill-section-not-closed.rzk
@@ -219,6 +223,7 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
     test/typecheck/cases/happy-set-option-warn-overhang.expect.yaml
+    test/typecheck/cases/happy-shadowing-across-groups.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/happy-subtype-variance-restriction-faces.expect.yaml
@@ -294,6 +299,9 @@ extra-source-files:
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
     test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
+    test/typecheck/cases/ill-repeated-binder-lambda.expect.yaml
+    test/typecheck/cases/ill-repeated-binder-pair.expect.yaml
+    test/typecheck/cases/ill-repeated-binder-params.expect.yaml
     test/typecheck/cases/ill-restrict-face-disjoint.expect.yaml
     test/typecheck/cases/ill-section-end-mismatch.expect.yaml
     test/typecheck/cases/ill-section-not-closed.expect.yaml

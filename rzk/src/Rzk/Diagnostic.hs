@@ -150,6 +150,7 @@ typeErrorTag = \case
   TypeErrorUnusedUsedVariables{}   -> "TypeErrorUnusedUsedVariables"
   TypeErrorImplicitAssumption{}    -> "TypeErrorImplicitAssumption"
   TypeErrorNotIntervalCube{}       -> "TypeErrorNotIntervalCube"
+  TypeErrorRepeatedBinder{}        -> "TypeErrorRepeatedBinder"
   TypeErrorMatchScrutineeNotData{} -> "TypeErrorMatchScrutineeNotData"
   TypeErrorMatchCannotInfer{}      -> "TypeErrorMatchCannotInfer"
   TypeErrorMatchMissingBranch{}    -> "TypeErrorMatchMissingBranch"

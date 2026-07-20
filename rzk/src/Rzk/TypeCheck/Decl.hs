@@ -26,6 +26,7 @@ module Rzk.TypeCheck.Decl where
 
 import           Control.Monad             (forM, when)
 import           Control.Monad.Except      (catchError, runExcept)
+import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local, runReaderT)
 import           Control.Monad.Trans.Writer.CPS (runWriterT)
 import           Data.List                 (intercalate)
@@ -42,7 +43,7 @@ import           Language.Rzk.Foil.Convert (Env, toTerm)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names   (Binder (..), TModality (..),
                                             VarIdent, binderName, markUnresolved,
-                                            patternToTerm, varIdentAt)
+                                            patternToTerm, varIdent, varIdentAt)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
@@ -920,18 +921,80 @@ prefixedIdent p (Rzk.VarIdent pos (Rzk.VarIdentToken t)) =
 -- before it stand, the error is reported, and the rest of the module is skipped.
 -- The strict entry points turn the first collected error back into a thrown one.
 withCommand
-  :: Rzk.Command
+  :: Distinct n
+  => Rzk.Command
   -> ([Decl n] -> [TypeErrorInScopedContext] -> TypeCheck n r)
   -> TypeCheck n r
   -> TypeCheck n r
 withCommand command k action =
-  local atCommand (action `catchError` \err -> k [] [err])
+  local atCommand (checked `catchError` \err -> k [] [err])
   where
+    checked = case duplicateBinders command of
+      (dup, previous) : _ -> issueTypeError (TypeErrorRepeatedBinder dup previous)
+      []                  -> action
     atCommand ctx = ctx
       { ctxCurrentCommand = Just command
       , ctxLocation = updatePosition (Rzk.hasPosition command) <$> ctxLocation ctx
       }
     updatePosition pos loc = loc { locationLine = fst <$> pos }
+
+-- | The binder leaves repeated within one binder /group/ of a surface
+-- command: the parameter list of a λ, of a declaration, or of a constructor
+-- (a single pattern's leaves are part of their group). Each hit pairs the
+-- repeated occurrence with the earlier ones it clashes with.
+--
+-- Shadowing an outer binder stays a warning ('checkNameShadowing'); a
+-- duplicate inside one group can only be a mistake, and the silent
+-- freshening it used to get showed names the user never wrote (issue #321).
+duplicateBinders :: Data a => a -> [(VarIdent, [VarIdent])]
+duplicateBinders x = concat
+  [ maybe [] termGroup (cast x)
+  , maybe [] commandGroup (cast x)
+  , maybe [] constructorGroup (cast x)
+  , concat (gmapQ duplicateBinders x)
+  ]
+  where
+    termGroup :: Rzk.Term -> [(VarIdent, [VarIdent])]
+    termGroup = \case
+      Rzk.Lambda _ params _       -> groupDuplicates (concatMap paramLeaves params)
+      Rzk.ASCII_Lambda _ params _ -> groupDuplicates (concatMap paramLeaves params)
+      _                           -> []
+
+    commandGroup :: Rzk.Command -> [(VarIdent, [VarIdent])]
+    commandGroup = \case
+      Rzk.CommandDefine _ _ _ params _ _  -> groupDuplicates (concatMap paramLeaves params)
+      Rzk.CommandPostulate _ _ _ params _ -> groupDuplicates (concatMap paramLeaves params)
+      Rzk.CommandData _ _ _ params _ _    -> groupDuplicates (concatMap paramLeaves params)
+      _                                   -> []
+
+    constructorGroup :: Rzk.Constructor -> [(VarIdent, [VarIdent])]
+    constructorGroup (Rzk.Constructor _ _ params _) =
+      groupDuplicates (concatMap paramLeaves params)
+
+    paramLeaves :: Rzk.Param -> [Rzk.VarIdent]
+    paramLeaves = \case
+      Rzk.ParamPattern _ pat                  -> patternLeaves pat
+      Rzk.ParamPatternType _ pats _           -> concatMap patternLeaves pats
+      Rzk.ParamPatternShape _ pats _ _        -> concatMap patternLeaves pats
+      Rzk.ParamPatternModalType _ pats _ _    -> concatMap patternLeaves pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap patternLeaves pats
+
+    patternLeaves :: Rzk.Pattern -> [Rzk.VarIdent]
+    patternLeaves = \case
+      Rzk.PatternUnit _ -> []
+      Rzk.PatternVar _ v@(Rzk.VarIdent _ (Rzk.VarIdentToken t)) -> [ v | t /= "_" ]
+      Rzk.PatternPair _ l r -> patternLeaves l <> patternLeaves r
+      Rzk.PatternTuple _ a b cs -> concatMap patternLeaves (a : b : cs)
+
+    -- positions differ between occurrences, so compare by spelling
+    groupDuplicates = go []
+      where
+        go _ [] = []
+        go seen (v : vs) =
+          case [ e | e <- seen, sameSpelling e v ] of
+            []      -> go (v : seen) vs
+            earlier -> (varIdent v, map varIdent (reverse earlier)) : go (v : seen) vs
+    sameSpelling (Rzk.VarIdent _ a) (Rzk.VarIdent _ b) = a == b
 
 -- | Elaborate a surface term in the current top-level scope: a free identifier
 -- resolves to the top-level entry it names.
