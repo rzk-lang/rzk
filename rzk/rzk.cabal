@@ -41,6 +41,7 @@ extra-source-files:
     test/typecheck/cases/happy-lattice-mixed-cube.rzk
     test/typecheck/cases/happy-lattice.rzk
     test/typecheck/cases/happy-match-basics.rzk
+    test/typecheck/cases/happy-match-case-vec.rzk
     test/typecheck/cases/happy-match-indexed.rzk
     test/typecheck/cases/happy-meta-prefix-option-off.rzk
     test/typecheck/cases/happy-meta-prefix-plumbing.rzk
@@ -201,6 +202,7 @@ extra-source-files:
     test/typecheck/cases/happy-lattice-mixed-cube.expect.yaml
     test/typecheck/cases/happy-lattice.expect.yaml
     test/typecheck/cases/happy-match-basics.expect.yaml
+    test/typecheck/cases/happy-match-case-vec.expect.yaml
     test/typecheck/cases/happy-match-indexed.expect.yaml
     test/typecheck/cases/happy-meta-prefix-option-off.expect.yaml
     test/typecheck/cases/happy-meta-prefix-plumbing.expect.yaml

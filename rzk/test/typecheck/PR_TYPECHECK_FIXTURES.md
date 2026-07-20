@@ -33,7 +33,11 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   matches, definitional computation, an `into` motive, a dependent
   motive built from the goal, a non-variable scrutinee, branch order,
   a nested match), indexed families (`happy-match-indexed`, with an
-  `into` motive over the index telescope); rejections for the branch
+  `into` motive over the index telescope), the equation convoy
+  (`happy-match-case-vec` — Coq's `case_vec`: the motive returns a
+  function out of the index equation, the match is applied to `refl`,
+  and the unused induction hypothesis is bound as `_`); rejections for
+  the branch
   bijection and arity (`ill-match-missing-branch`,
   `ill-match-duplicate-branch`, `ill-match-unknown-branch`,
   `ill-match-branch-arity`), a scrutinee that is not of a `#data` type
