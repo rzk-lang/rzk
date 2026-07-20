@@ -1,0 +1,33 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#data vec (A : U) : nat → U
+  := nil : vec A zero
+   | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)
+
+-- The equation convoy (Coq's case_vec): the motive generalises the index
+-- with a fresh m and returns a function out of the equation x = m, so each
+-- branch receives the index equation as an explicit hypothesis; the whole
+-- match is applied to refl. The unused induction hypothesis is bound as _
+-- (it still counts towards the branch arity).
+#define case-vec
+  ( A : U) (x : nat) (v : vec A x) (P : U)
+  ( hnil : (x =_{nat} zero) → P)
+  ( hcons : (n : nat) → (a : A) → (w : vec A n) → (x =_{nat} suc n) → P)
+  : P
+  := (match v into (\ m w → (x =_{nat} m) → P)
+       ( nil ⇒ \ H → hnil H
+       | cons n a w _ ⇒ \ H → hcons n a w H)) refl
+
+-- it computes: on a concrete vector the cons branch fires with H := refl
+#define use-case-vec
+  ( A : U) (a : A)
+  : nat
+  := case-vec A (suc zero) (cons A zero a (nil A)) nat
+      ( \ _ → zero)
+      ( \ n _ _ _ → suc n)
+
+#define case-vec-computes (A : U) (a : A)
+  : use-case-vec A a =_{nat} suc zero
+  := refl
