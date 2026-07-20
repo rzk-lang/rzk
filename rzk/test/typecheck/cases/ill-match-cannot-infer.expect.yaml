@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorMatchCannotInfer
+message_contains:
+  - "cannot infer the type of match"
+line: 6
+regression_for:
+  - match-motive-from-goal

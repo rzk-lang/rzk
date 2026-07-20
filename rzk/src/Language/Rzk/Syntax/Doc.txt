@@ -37,11 +37,12 @@ The reserved words used in Syntax are the following:
   | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
   | ``as`` | ``eliminator`` | ``first`` | ``flip_op``
   | ``flipᵒᵖ`` | ``idJ`` | ``in`` | ``inf``
-  | ``inv_op`` | ``invᵒᵖ`` | ``let`` | ``mod``
-  | ``recBOT`` | ``recOR`` | ``refl`` | ``second``
-  | ``sup`` | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op``
-  | ``uninvᵒᵖ`` | ``unit`` | ``uses`` | ``Σ``
-  | ``π₁`` | ``π₂`` | ``ᵒᵖ`` | ``𝕀``
+  | ``into`` | ``inv_op`` | ``invᵒᵖ`` | ``let``
+  | ``match`` | ``mod`` | ``recBOT`` | ``recOR``
+  | ``refl`` | ``second`` | ``sup`` | ``unflip_op``
+  | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit``
+  | ``uses`` | ``Σ`` | ``π₁`` | ``π₂``
+  | ``ᵒᵖ`` | ``𝕀`` |  |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -50,20 +51,20 @@ The symbols used in Syntax are the following:
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
   | #data | ( | ) | |
-  | , | ↦ | ♭ | _b
-  | ♯ | _# | _op | _id
-  | / | :♭ | :♯ | :ᵒᵖ
-  | :_id | :_b | :_# | :_op
-  | 1 | *₁ | 2 | 0₂
-  | 1₂ | 0ᵢ | 1ᵢ | ×
-  | ⊔ | ⊓ | ⊤ | ⊥
-  | ≡ | ≤ | ∧ | ∨
-  | → | =_{ | } | [
-  | ] | \ | $extract$ | refl_{
-  | * | *_1 | 0_2 | 1_2
-  | 0_I | 1_I | === | <=
-  | /\ | \/ | -> | |->
-  | ∑ |  |  |
+  | ⇒ | , | ↦ | ♭
+  | _b | ♯ | _# | _op
+  | _id | / | :♭ | :♯
+  | :ᵒᵖ | :_id | :_b | :_#
+  | :_op | 1 | *₁ | 2
+  | 0₂ | 1₂ | 0ᵢ | 1ᵢ
+  | × | ⊔ | ⊓ | ⊤
+  | ⊥ | ≡ | ≤ | ∧
+  | ∨ | → | =_{ | }
+  | [ | ] | \ | $extract$
+  | refl_{ | * | *_1 | 0_2
+  | 1_2 | 0_I | 1_I | ===
+  | <= | /\ | \/ | ->
+  | |-> | => | ∑ |
 
 ===Comments===
 Single-line comments begin with --. Multiple-line comments are enclosed with {- and -}.
@@ -119,6 +120,12 @@ All other symbols are terminals.
   | //DataElim// | -> | ``eliminator`` //VarIdent// ``:`` //Term//
   | //[DataElim]// | -> | **eps**
   |  |  **|**  | //DataElim// //[DataElim]//
+  | //MatchBranch// | -> | //VarIdent// //[Pattern]// ``⇒`` //Term//
+  |  |  **|**  | //VarIdent// ``⇒`` //Term//
+  |  |  **|**  | //VarIdent// //[Pattern]// ``=>`` //Term//
+  |  |  **|**  | //VarIdent// ``=>`` //Term//
+  | //[MatchBranch]// | -> | //MatchBranch//
+  |  |  **|**  | //MatchBranch// ``|`` //[MatchBranch]//
   | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
@@ -191,6 +198,8 @@ All other symbols are terminals.
   |  |  **|**  | ``refl_{`` //Term// ``}``
   |  |  **|**  | ``refl_{`` //Term// ``:`` //Term// ``}``
   |  |  **|**  | ``idJ`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``match`` //Term7// ``(`` //[MatchBranch]// ``)``
+  |  |  **|**  | ``match`` //Term7// ``into`` //Term7// ``(`` //[MatchBranch]// ``)``
   |  |  **|**  | //HoleIdent//
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Term// ``)``

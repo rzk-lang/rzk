@@ -156,6 +156,14 @@ tokenizePattern = \case
   pat@(PatternUnit _loc) -> mkToken pat SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
   PatternTuple _loc p1 p2 ps -> foldMap tokenizePattern (p1 : p2 : ps)
 
+-- | A match branch: the constructor name is an enum member (as constructor
+-- uses are), the binders are parameters, the body is an ordinary term.
+tokenizeMatchBranch :: MatchBranch -> [SemanticTokenAbsolute]
+tokenizeMatchBranch (MatchBranch _loc con pats body) = concat
+  [ mkToken con SemanticTokenTypes_EnumMember []
+  , foldMap tokenizePattern pats
+  , tokenizeTerm body ]
+
 tokenizeTope :: Term -> [SemanticTokenAbsolute]
 tokenizeTope = tokenizeTerm' (Just SemanticTokenTypes_String)
 
@@ -288,6 +296,14 @@ tokenizeTerm' varTokenType = go
         , foldMap go [a, b, c, d, e, f] ]
 
       TypeAsc _loc t type_ -> foldMap go [t, type_]
+
+      Match _loc scrut branches -> concat
+        [ go scrut
+        , foldMap tokenizeMatchBranch branches ]
+      MatchInto _loc scrut motive branches -> concat
+        [ go scrut
+        , go motive
+        , foldMap tokenizeMatchBranch branches ]
 
       ModType _loc md type_ -> concat [tokenizeModality md, go type_]
       ModApp _loc md te -> concat [tokenizeModality md, go te]

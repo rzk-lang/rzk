@@ -93,6 +93,11 @@ type DataElim = DataElim' BNFC'Position
 data DataElim' a = DataElim a (VarIdent' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
+type MatchBranch = MatchBranch' BNFC'Position
+data MatchBranch' a
+    = MatchBranch a (VarIdent' a) [Pattern' a] (Term' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
+
 type Pattern = Pattern' BNFC'Position
 data Pattern' a
     = PatternUnit a
@@ -216,6 +221,8 @@ data Term' a
     | ReflTerm a (Term' a)
     | ReflTermType a (Term' a) (Term' a)
     | IdJ a (Term' a) (Term' a) (Term' a) (Term' a) (Term' a) (Term' a)
+    | Match a (Term' a) [MatchBranch' a]
+    | MatchInto a (Term' a) (Term' a) [MatchBranch' a]
     | Hole a (HoleIdent' a)
     | Var a (VarIdent' a)
     | TypeAsc a (Term' a) (Term' a)
@@ -266,6 +273,9 @@ noDeclUsedVars = \ _a -> DeclUsedVars _a []
 constructorNoParams :: a -> VarIdent' a -> ConstructorType' a -> Constructor' a
 constructorNoParams = \ _a x ty -> Constructor _a x [] ty
 
+matchBranchNoParams :: a -> VarIdent' a -> Term' a -> MatchBranch' a
+matchBranchNoParams = \ _a x t -> MatchBranch _a x [] t
+
 ascii_TopeInv :: a -> Term' a -> Term' a
 ascii_TopeInv = \ _a t -> TopeInv _a t
 
@@ -289,6 +299,12 @@ ascii_CubeInf = \ _a l r -> CubeInf _a l r
 
 ascii_TypeSigmaModal :: a -> Pattern' a -> ModalColon' a -> Term' a -> Term' a -> Term' a
 ascii_TypeSigmaModal = \ _a p mc t r -> TypeSigmaModal _a p mc t r
+
+ascii_MatchBranch :: a -> VarIdent' a -> [Pattern' a] -> Term' a -> MatchBranch' a
+ascii_MatchBranch = \ _a x ps t -> MatchBranch _a x ps t
+
+ascii_matchBranchNoParams :: a -> VarIdent' a -> Term' a -> MatchBranch' a
+ascii_matchBranchNoParams = \ _a x t -> MatchBranch _a x [] t
 
 unicode_TypeSigmaAlt :: a -> Pattern' a -> Term' a -> Term' a -> Term' a
 unicode_TypeSigmaAlt = \ _a pat fst snd -> TypeSigma _a pat fst snd
@@ -383,6 +399,10 @@ instance HasPosition ConstructorType where
 instance HasPosition DataElim where
   hasPosition = \case
     DataElim p _ _ -> p
+
+instance HasPosition MatchBranch where
+  hasPosition = \case
+    MatchBranch p _ _ _ -> p
 
 instance HasPosition Pattern where
   hasPosition = \case
@@ -499,6 +519,8 @@ instance HasPosition Term where
     ReflTerm p _ -> p
     ReflTermType p _ _ -> p
     IdJ p _ _ _ _ _ _ -> p
+    Match p _ _ -> p
+    MatchInto p _ _ _ -> p
     Hole p _ -> p
     Var p _ -> p
     TypeAsc p _ _ -> p

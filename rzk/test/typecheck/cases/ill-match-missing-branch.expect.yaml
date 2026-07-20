@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorMatchMissingBranch
+message_contains:
+  - "no branch for constructor suc"
+line: 5
+regression_for:
+  - match-branch-bijection

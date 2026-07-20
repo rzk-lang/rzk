@@ -82,29 +82,6 @@ fromTerm used supply names = go
         printScope (ScopedAST binder body) =
           fromTerm used' supply'' (Foil.addNameBinder binder (x, z') names) body
 
-    -- The name standing for the variable itself. A single-variable binder uses
-    -- its own name; a pattern binder needs a placeholder, which is only shown if
-    -- the whole point is used (in a shape tope, say), and then it is printed as
-    -- the pattern anyway.
-    displayNameOf (BinderVar (Just x)) _ = x
-    displayNameOf _ (x : _)              = x
-    displayNameOf _ []                   = error "not enough fresh variables!"
-
-    -- Refresh a binder's named leaves against the names already in use; draw
-    -- fresh names for anonymous leaves from the remaining supply.
-    freshenBinder _ stream (BinderVar Nothing) =
-      case stream of
-        x : xs -> (BinderVar (Just x), xs)
-        _      -> error "not enough fresh variables!"
-    freshenBinder used' stream (BinderVar (Just z)) =
-      (BinderVar (Just z'), filter (/= z') stream)
-      where z' = refreshVar used' z
-    freshenBinder _ stream BinderUnit = (BinderUnit, stream)
-    freshenBinder used' stream (BinderPair l r) =
-      let (l', s1) = freshenBinder used' stream l
-          (r', s2) = freshenBinder (used' <> binderLeaves l') s1 r
-       in (BinderPair l' r', s2)
-
     -- A projection chain over a pattern binder's variable is shown as the
     -- component's name: @π₁ x@ is @t@.
     projChain :: Term n -> Maybe ([Proj], Foil.Name n)
@@ -216,6 +193,17 @@ fromTerm used supply names = go
     go (Refl (Just (t, Nothing))) = Rzk.ReflTerm loc (go t)
     go (Refl (Just (t, Just ty))) = Rzk.ReflTermType loc (go t) (go ty)
     go (IdJ a b c d e f) = Rzk.IdJ loc (go a) (go b) (go c) (go d) (go e) (go f)
+
+    go (Match scrut mmotive branches) =
+      case mmotive of
+        Nothing     -> Rzk.Match loc (go scrut) (map goBranch branches)
+        Just motive -> Rzk.MatchInto loc (go scrut) (go motive) (map goBranch branches)
+      where
+        goBranch (con, chain) = Rzk.MatchBranch loc (fromVarIdent con) pats body
+          where (pats, body) = matchArms used supply names chain
+    -- An arm never stands alone: the conversion only builds it inside a match
+    -- branch, and 'matchArms' peels it before 'go' can see it.
+    go MatchArm{} = error "fromTerm: MatchArm outside of a match branch"
     go (TypeAsc l r) = Rzk.TypeAsc loc (go l) (go r)
     go (TypeRestricted ty rs) =
       Rzk.TypeRestricted loc (go ty) [Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs]
@@ -227,6 +215,49 @@ fromTerm used supply names = go
             Nothing -> Rzk.BindPattern loc (binderToPattern z')
             Just ty -> Rzk.BindPatternType loc (binderToPattern z') (go ty)
        in Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
+
+-- | Peel a match branch's arm chain back into its binder patterns and body.
+--
+-- Each 'MatchArm' contributes one pattern; the bookkeeping per binder is the
+-- same as 'fromTerm' does for a λ (freshen the binder's leaves, record the
+-- display name, spend a supply name for a placeholder).
+matchArms :: [VarIdent] -> [VarIdent] -> NameMap n Display -> Term n -> ([Rzk.Pattern], Rzk.Term)
+matchArms used supply names = \case
+  MatchArm z (ScopedAST binder body) ->
+    let (z', supply') = freshenBinder used supply z
+        x = displayNameOf z' supply'
+        supply'' = case z' of
+          BinderVar (Just _) -> supply'
+          _                  -> drop 1 supply'
+        used' = x : used <> binderLeaves z'
+        (pats, t) = matchArms used' supply'' (Foil.addNameBinder binder (x, z') names) body
+     in (binderToPattern z' : pats, t)
+  body -> ([], fromTerm used supply names body)
+
+-- | The name standing for the variable itself. A single-variable binder uses
+-- its own name; a pattern binder needs a placeholder, which is only shown if
+-- the whole point is used (in a shape tope, say), and then it is printed as
+-- the pattern anyway.
+displayNameOf :: Binder -> [VarIdent] -> VarIdent
+displayNameOf (BinderVar (Just x)) _ = x
+displayNameOf _ (x : _)              = x
+displayNameOf _ []                   = error "not enough fresh variables!"
+
+-- | Refresh a binder's named leaves against the names already in use; draw
+-- fresh names for anonymous leaves from the remaining supply.
+freshenBinder :: [VarIdent] -> [VarIdent] -> Binder -> (Binder, [VarIdent])
+freshenBinder _ stream (BinderVar Nothing) =
+  case stream of
+    x : xs -> (BinderVar (Just x), xs)
+    _      -> error "not enough fresh variables!"
+freshenBinder used' stream (BinderVar (Just z)) =
+  (BinderVar (Just z'), filter (/= z') stream)
+  where z' = refreshVar used' z
+freshenBinder _ stream BinderUnit = (BinderUnit, stream)
+freshenBinder used' stream (BinderPair l r) =
+  let (l', s1) = freshenBinder used' stream l
+      (r', s2) = freshenBinder (used' <> binderLeaves l') s1 r
+   in (BinderPair l' r', s2)
 
 -- | Does a scope actually use the variable it binds?
 --

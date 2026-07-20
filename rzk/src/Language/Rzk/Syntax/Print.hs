@@ -224,6 +224,15 @@ instance Print [Language.Rzk.Syntax.Abs.DataElim' a] where
   prt _ [] = concatD []
   prt _ (x:xs) = concatD [prt 0 x, prt 0 xs]
 
+instance Print (Language.Rzk.Syntax.Abs.MatchBranch' a) where
+  prt i = \case
+    Language.Rzk.Syntax.Abs.MatchBranch _ varident patterns term -> prPrec i 0 (concatD [prt 0 varident, prt 0 patterns, doc (showString "\8658"), prt 0 term])
+
+instance Print [Language.Rzk.Syntax.Abs.MatchBranch' a] where
+  prt _ [] = concatD []
+  prt _ [x] = concatD [prt 0 x]
+  prt _ (x:xs) = concatD [prt 0 x, doc (showString "|"), prt 0 xs]
+
 instance Print (Language.Rzk.Syntax.Abs.Pattern' a) where
   prt i = \case
     Language.Rzk.Syntax.Abs.PatternUnit _ -> prPrec i 0 (concatD [doc (showString "unit")])
@@ -361,6 +370,8 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.ReflTerm _ term -> prPrec i 7 (concatD [doc (showString "refl_{"), prt 0 term, doc (showString "}")])
     Language.Rzk.Syntax.Abs.ReflTermType _ term1 term2 -> prPrec i 7 (concatD [doc (showString "refl_{"), prt 0 term1, doc (showString ":"), prt 0 term2, doc (showString "}")])
     Language.Rzk.Syntax.Abs.IdJ _ term1 term2 term3 term4 term5 term6 -> prPrec i 7 (concatD [doc (showString "idJ"), doc (showString "("), prt 0 term1, doc (showString ","), prt 0 term2, doc (showString ","), prt 0 term3, doc (showString ","), prt 0 term4, doc (showString ","), prt 0 term5, doc (showString ","), prt 0 term6, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.Match _ term matchbranchs -> prPrec i 7 (concatD [doc (showString "match"), prt 7 term, doc (showString "("), prt 0 matchbranchs, doc (showString ")")])
+    Language.Rzk.Syntax.Abs.MatchInto _ term1 term2 matchbranchs -> prPrec i 7 (concatD [doc (showString "match"), prt 7 term1, doc (showString "into"), prt 7 term2, doc (showString "("), prt 0 matchbranchs, doc (showString ")")])
     Language.Rzk.Syntax.Abs.Hole _ holeident -> prPrec i 7 (concatD [prt 0 holeident])
     Language.Rzk.Syntax.Abs.Var _ varident -> prPrec i 7 (concatD [prt 0 varident])
     Language.Rzk.Syntax.Abs.TypeAsc _ term1 term2 -> prPrec i 0 (concatD [prt 2 term1, doc (showString "as"), prt 1 term2])

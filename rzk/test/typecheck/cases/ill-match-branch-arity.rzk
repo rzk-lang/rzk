@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- the suc branch must also bind the induction hypothesis
+#define bad (n : nat) : nat
+  := match n (zero ⇒ n | suc k ⇒ k)

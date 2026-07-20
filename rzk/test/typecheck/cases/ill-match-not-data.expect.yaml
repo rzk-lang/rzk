@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorMatchScrutineeNotData
+message_contains:
+  - "match scrutinee"
+  - "is not of a #data type"
+line: 3
+regression_for:
+  - match-scrutinee-data-former

@@ -90,6 +90,10 @@ transDataElim :: Show a => Language.Rzk.Syntax.Abs.DataElim' a -> Result
 transDataElim x = case x of
   Language.Rzk.Syntax.Abs.DataElim _ varident term -> failure x
 
+transMatchBranch :: Show a => Language.Rzk.Syntax.Abs.MatchBranch' a -> Result
+transMatchBranch x = case x of
+  Language.Rzk.Syntax.Abs.MatchBranch _ varident patterns term -> failure x
+
 transPattern :: Show a => Language.Rzk.Syntax.Abs.Pattern' a -> Result
 transPattern x = case x of
   Language.Rzk.Syntax.Abs.PatternUnit _ -> failure x
@@ -205,6 +209,8 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ReflTerm _ term -> failure x
   Language.Rzk.Syntax.Abs.ReflTermType _ term1 term2 -> failure x
   Language.Rzk.Syntax.Abs.IdJ _ term1 term2 term3 term4 term5 term6 -> failure x
+  Language.Rzk.Syntax.Abs.Match _ term matchbranchs -> failure x
+  Language.Rzk.Syntax.Abs.MatchInto _ term1 term2 matchbranchs -> failure x
   Language.Rzk.Syntax.Abs.Hole _ holeident -> failure x
   Language.Rzk.Syntax.Abs.Var _ varident -> failure x
   Language.Rzk.Syntax.Abs.TypeAsc _ term1 term2 -> failure x

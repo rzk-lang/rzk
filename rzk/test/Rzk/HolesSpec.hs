@@ -751,3 +751,55 @@ spec = do
         [h] ->
           cands h `shouldContain` ["ind-vec A (\\ i → \\ x₁ → ?) ? ? (suc n) v"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "holes in match branches" $ do
+    let natPrelude = "#lang rzk-1\n#data nat := zero | suc (n : nat)\n"
+
+    it "shows the branch binders as hypotheses, with reduced types" $
+      -- the induction hypothesis's type is the motive at the field: the
+      -- administrative redex is reduced, so it reads "nat", not "(λ …) k"
+      case holesOf (natPrelude
+          <> "#define plus (n m : nat) : nat\n"
+          <> "  := match n (zero ⇒ m | suc k ih ⇒ ?)\n") of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "nat"
+          names (holeTermVars h) `shouldContain` ["k"]
+          names (holeTermVars h) `shouldContain` ["ih"]
+          map (show . holeEntryType) (holeTermVars h) `shouldBe`
+            ["nat", "nat", "nat", "nat"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "substitutes the constructor form into a dependent goal" $
+      -- the motive is built from the goal by abstracting the scrutinee, so a
+      -- branch hole's goal is the goal at that constructor (labelled form)
+      case holesOf ("#lang rzk-1\n#data bool := false | true\n"
+          <> "#define not (b : bool) : bool := match b (false ⇒ true | true ⇒ false)\n"
+          <> "#define not-not (b : bool) : not (not b) =_{bool} b\n"
+          <> "  := match b (false ⇒ refl | true ⇒ ?)\n") of
+        [h] -> show (holeGoal h) `shouldBe` "not (not true) =_{ bool } true"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "keeps a named into-motive as a named application" $
+      -- only the administrative redexes are reduced: a motive that is a named
+      -- family stays folded in the branch goal
+      case holesOf (natPrelude
+          <> "#assume C : nat → U\n"
+          <> "#define f (n : nat) (c : (m : nat) → C m) : C n\n"
+          <> "  := match n into C (zero ⇒ c zero | suc k ih ⇒ ?)\n") of
+        [h] -> show (holeGoal h) `shouldBe` "C (suc k)"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "offers a match with one hole per branch over a datatype hypothesis" $
+      -- branch binders reuse the declared field names, plus "ih" for an
+      -- induction hypothesis, freshened against the names taken at the hole
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> map show (holeCandidates h) `shouldContain`
+                 ["match m (zero ⇒ ? | suc n ih ⇒ ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "does not offer a match over an empty family" $
+      -- there is no branch syntax for zero constructors; the eliminators
+      -- (ind-void, rec-void) remain
+      case holesOf "#lang rzk-1\n#data void : U\n#define h (x : void) : void := ?\n" of
+        [h] -> filter (isInfixOf "match") (map show (holeCandidates h)) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

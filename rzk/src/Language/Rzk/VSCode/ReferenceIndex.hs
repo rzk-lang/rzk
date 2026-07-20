@@ -441,6 +441,9 @@ goTerm file env = \case
   Rzk.ReflTerm _ a              -> goTerm file env a
   Rzk.ReflTermType _ a b        -> goTerm file env a ++ goTerm file env b
   Rzk.IdJ _ a b c d e f         -> concatMap (goTerm file env) [a, b, c, d, e, f]
+  Rzk.Match _ scrut bs          -> goTerm file env scrut ++ concatMap (matchBranchScope file env) bs
+  Rzk.MatchInto _ scrut motive bs ->
+    goTerm file env scrut ++ goTerm file env motive ++ concatMap (matchBranchScope file env) bs
   Rzk.TypeAsc _ a b             -> goTerm file env a ++ goTerm file env b
 
   Rzk.Universe{}           -> []
@@ -495,6 +498,17 @@ restriction :: FilePath -> Env -> Rzk.Restriction -> [Link]
 restriction file env = \case
   Rzk.Restriction _ a b       -> goTerm file env a ++ goTerm file env b
   Rzk.ASCII_Restriction _ a b -> goTerm file env a ++ goTerm file env b
+
+-- | A match branch: the constructor name is a use (linked to the constructor's
+-- declaration), and the binder patterns scope over the branch body.
+matchBranchScope :: FilePath -> Env -> Rzk.MatchBranch -> [Link]
+matchBranchScope file env (Rzk.MatchBranch _ con pats body) =
+  use file env con ++ goPats env pats
+  where
+    goPats env' []       = goTerm file env' body
+    goPats env' (p : ps) =
+      let (env'', occs) = bindPat file env' Nothing p
+       in occs ++ goPats env'' ps
 
 goBind :: FilePath -> Env -> Rzk.Bind -> (Env, [Link])
 goBind file env = \case

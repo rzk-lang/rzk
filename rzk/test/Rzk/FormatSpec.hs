@@ -60,6 +60,9 @@ spec = do
     it "Let bindings formatting differs from defenitions" $ do
       formats "let"
 
+    it "Spaces the match-branch arrow and converts it to unicode, keeping it at line ends" $ do
+      formats "match"
+
     it "Fixes indentation" pending
 
     it "Wraps long lines" pending

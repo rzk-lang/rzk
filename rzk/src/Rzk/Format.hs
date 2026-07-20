@@ -83,6 +83,7 @@ formatTextEdits contents =
     unicodeTokens =
       [ ("->", "→")
       , ("|->", "↦")
+      , ("=>", "⇒")
       , ("===", "≡")
       , ("<=", "≤")
       , ("/\\", "∧")
@@ -307,6 +308,9 @@ formatTextEdits contents =
         s' | isArrow = s { lambdaArrow = False } -- reset flag after reaching the arrow
            | otherwise = s
         isArrow = tk `elem` ["->", "→"]
+        -- the match-branch arrow ends its line (like the λ-arrow), so it is
+        -- never moved to the next line
+        isMatchArrow = tk `elem` ["=>", "⇒"]
         lineContent = contentLines line
         spacesBefore = T.length $ T.takeWhile (== ' ') (T.reverse $ T.take (col - 1) lineContent)
         spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop (col + T.length tk - 1) lineContent)
@@ -321,7 +325,7 @@ formatTextEdits contents =
         spacesNextLine = T.length $ T.takeWhile (== ' ') nextLine
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
-          | tk `elem` ["->", "→", ",", "*", "×", "="] = concatMap snd $ filter fst
+          | tk `elem` ["->", "→", "=>", "⇒", ",", "*", "×", "="] = concatMap snd $ filter fst
               -- Ensure exactly one space before (unless first char in line, or about to move to next line)
               [ (not isFirstNonSpaceChar && spacesBefore /= 1 && not isLastNonSpaceChar,
                   [FormattingEdit line (col - spacesBefore) line col " "])
@@ -329,7 +333,7 @@ formatTextEdits contents =
               , (not isLastNonSpaceChar && spacesAfter /= 1,
                   [FormattingEdit line (col + T.length tk) line (col + T.length tk + spacesAfter) " "])
               -- If last char in line, move it to next line (except for lambda arrow)
-              , (isLastNonSpaceChar && not (lambdaArrow s),
+              , (isLastNonSpaceChar && not (lambdaArrow s) && not isMatchArrow,
                   -- This is split into 2 edits to avoid possible overlap with unicode replacement
                   -- 1. Add a new line (with relevant spaces) before the token
                   [ FormattingEdit line (col - spacesBefore) line col $
