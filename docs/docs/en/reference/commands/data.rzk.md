@@ -5,7 +5,7 @@ The `#data` command declares an inductive type: the type former, its constructor
 ## Syntax
 
 ```{.rzk}
-#data <name> [uses (<vars>)] (<param>)* := <constructor> [| <constructor>]*
+#data <name> [uses (<vars>)] (<param>)* := <constructor> [| <constructor>]* (<elim-clause>)*
 #data <name> [uses (<vars>)] (<param>)*
 ```
 
@@ -13,6 +13,12 @@ where a constructor is
 
 ```{.rzk}
 <name> (<field>)*
+```
+
+and an optional eliminator clause is
+
+```{.rzk}
+eliminator <name> : <type>
 ```
 
 ## Description
@@ -83,12 +89,30 @@ Indexed families spell their index telescope in the sort. A constructor of an in
 
 The parameters (before the sort) are uniform: every constructor returns the declared type applied to exactly the parameter variables, followed by its index terms.
 
+## The `eliminator` clause
+
+A declaration may end with `eliminator` clauses, at most one per generated eliminator. A clause re-ascribes the named eliminator's type with the user's own spelling. The checker verifies that the spelling is definitionally equal to the canonical generated type, with the type former and the constructors in scope. Since definitionally equal types are interchangeable, the values and the computation rules are untouched; only the stored spelling changes, and it propagates wherever the type is displayed, e.g. to hover and to goals.
+
+For example, with an unfolding synonym defined beforehand:
+
+```rzk
+#define branch (C : U)
+  : U
+  := C
+
+#data direction := down | up
+  eliminator rec-direction : (C : U) → branch C → branch C → direction → C
+
+#check rec-direction : (C : U) → C → C → direction → C
+```
+
+A clause must name one of the two generated eliminators of the declaration. If the given spelling is not definitionally equal to the canonical type, the error prints the canonical type.
+
 ## Current restrictions
 
 At the moment:
 
 - recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
-- indices must be plain types (no cube or shape indices), and constructors may not take cube or shape arguments (over the directed interval they would declare directed cells);
-- the `eliminator` re-ascription clause is parsed but not yet supported.
+- indices must be plain types (no cube or shape indices), and constructors may not take cube or shape arguments (over the directed interval they would declare directed cells).
 
 Note also that an inductive type comes with exactly its induction principle; how the type interacts with the simplicial structure is a separate matter. See the discreteness caveat in [Dependent types](../../getting-started/dependent-types.rzk.md#booleans).
