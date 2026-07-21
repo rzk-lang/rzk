@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- An eliminator clause must name one of the two generated eliminators.
+#data d := c
+  eliminator elim-d : (C : d → U) → C c → (x : d) → C x

@@ -1,7 +1,0 @@
-status: error
-error_tag: TypeErrorOther
-message_contains:
-  - "eliminator clauses are not supported yet"
-line: 5
-regression_for:
-  - data-stage1-reject-eliminator-clause

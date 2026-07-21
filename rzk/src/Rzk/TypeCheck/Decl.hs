@@ -53,6 +53,7 @@ import           Rzk.TypeCheck.Judgements
 import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
+import           Rzk.TypeCheck.Unify       (unifyTerms)
 
 -- * Declarations
 
@@ -491,10 +492,9 @@ addParams params = Rzk.Lambda Nothing params
 -- the ordinary 'elaborate' and 'typecheck', so nothing here constructs core
 -- terms by hand.
 --
--- Stage 1 (see @design/inductive-types.md@): no recursion, no indices, sort
--- @U@ only, no eliminator re-ascription clauses. The declaration grammar
--- already covers the later stages; this checker rejects what it does not
--- support.
+-- The declaration grammar already covers the later stages; this checker
+-- rejects what it does not support (cube/shape and modal constructor
+-- fields, function-typed recursive fields).
 
 -- | Stage 1: the sort must be @U@ (families are stage 2).
 -- | One index of a family, as declared in the sort: its binder (when the
@@ -755,9 +755,10 @@ withDataDecls
   -> [Rzk.ParamDecl]      -- ^ the parameter telescope
   -> [SortIndex]          -- ^ the index telescope of the sort
   -> [DataConSurface]     -- ^ the constructors, preprocessed
+  -> [Rzk.DataElim]       -- ^ the eliminator re-ascription clauses
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
   -> TypeCheck n r
-withDataDecls path used name paramVars paramDecls sortIndices consData k = do
+withDataDecls path used name paramVars paramDecls sortIndices consData elims k = do
   -- The type former's type spells the sort as written: params → indices → U.
   let sortTerm = foldr wrapIndex (Rzk.Universe Nothing) sortIndices
       wrapIndex (SortIndex mv ty) body = case mv of
@@ -896,19 +897,67 @@ withDataDecls path used name paramVars paramDecls sortIndices consData k = do
                 consData
           indName = prefixedIdent "ind-" name
           recName = prefixedIdent "rec-" name
+      (mindTy, mrecTy) <- splitElimClauses indName recName
       indTyT <- elaborate (elimTy True)
-      indTy' <- memoizeWHNF =<< typecheck indTyT universeT
+      indCanonical <- memoizeWHNF =<< typecheck indTyT universeT
+      indTy' <- reascribe indName indCanonical mindTy
       indDeps <- assumptionDepsOf indTy'
       withTopLevel (varIdentAt path indName) indTy' Nothing False
         (nubNames (usedHere <> indDeps))
         (Just (DataRole dName numParams (DataElimKind numMethods indexArity ElimInd))) $ \_ indDecl -> do
           recTyT <- elaborate (elimTy False)
-          recTy' <- memoizeWHNF =<< typecheck recTyT universeT
+          recCanonical <- memoizeWHNF =<< typecheck recTyT universeT
+          recTy' <- reascribe recName recCanonical mrecTy
           recDeps <- assumptionDepsOf recTy'
           withTopLevel (varIdentAt path recName) recTy' Nothing False
             (nubNames (Foil.sinkContainer usedHere <> recDeps))
             (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
               k (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
+
+    -- | Split the re-ascription clauses between the two generated
+    -- eliminators. A clause must name one of them, at most once each.
+    splitElimClauses
+      :: Distinct m
+      => Rzk.VarIdent -> Rzk.VarIdent
+      -> TypeCheck m (Maybe Rzk.Term, Maybe Rzk.Term)
+    splitElimClauses indName recName = go (Nothing, Nothing) elims
+      where
+        go acc [] = pure acc
+        go (mind, mrec) (Rzk.DataElim _loc elimName ty : rest)
+          | sameIdent elimName indName =
+              case mind of
+                Nothing -> go (Just ty, mrec) rest
+                Just _  -> duplicate elimName
+          | sameIdent elimName recName =
+              case mrec of
+                Nothing -> go (mind, Just ty) rest
+                Just _  -> duplicate elimName
+          | otherwise = issueTypeError $ TypeErrorOther $
+              "eliminator clause for " <> Rzk.printTree elimName
+                <> ", which is not an eliminator of " <> Rzk.printTree name
+                <> " (the eliminators are " <> Rzk.printTree indName
+                <> " and " <> Rzk.printTree recName <> ")"
+        duplicate elimName = issueTypeError $ TypeErrorOther $
+          "duplicate eliminator clause for " <> Rzk.printTree elimName
+        sameIdent a b = identTokenOf a == identTokenOf b
+
+    -- | Check a re-ascribed eliminator type against the canonical generated
+    -- one and pick the type to store. The user's spelling must be
+    -- definitionally equal to the canonical type (checked with the type
+    -- former and constructors in scope); definitionally equal types are
+    -- interchangeable, so storing the user's spelling only changes how the
+    -- eliminator's type is displayed, not what it accepts or computes.
+    reascribe
+      :: Distinct m
+      => Rzk.VarIdent -> TermT m -> Maybe Rzk.Term -> TypeCheck m (TermT m)
+    reascribe _elimName canonical Nothing = pure canonical
+    reascribe elimName canonical (Just ty) = do
+      tyT <- elaborate ty
+      ty' <- memoizeWHNF =<< typecheck tyT universeT
+      unifyTerms canonical ty' `catchError` \_ ->
+        issueTypeError $
+          TypeErrorEliminatorTypeMismatch (varIdentAt path elimName) canonical ty'
+      pure ty'
 
 prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent
 prefixedIdent p (Rzk.VarIdent pos (Rzk.VarIdentToken t)) =
@@ -1089,16 +1138,11 @@ checkCommands path i total commands k = case commands of
         used <- mapM (checkDefined . varIdentAt path) vars
         sortIndices <- dataSortIndices sort
         let (cons, elims) = dataBodyParts body
-        case elims of
-          [] -> return ()
-          Rzk.DataElim _ elimName _ : _ -> issueTypeError $ TypeErrorOther $
-            "eliminator clauses are not supported yet (eliminator "
-              <> Rzk.printTree elimName <> ")"
         paramVars <- dataParamVars params
         paramDecls <- concat <$> mapM paramToParamDecl params
         consData <- mapM
           (dataConSurface name paramVars paramDecls (length sortIndices)) cons
-        withDataDecls path used name paramVars paramDecls sortIndices consData $ \decls ->
+        withDataDecls path used name paramVars paramDecls sortIndices consData elims $ \decls ->
           checkCommands path (i + 1) total more $ \moreDecls errs ->
             k (sinkDecls decls <> moreDecls) errs
 
