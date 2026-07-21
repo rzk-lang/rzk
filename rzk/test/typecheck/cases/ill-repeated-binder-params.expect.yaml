@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorRepeatedBinder
+message_contains:
+  - "A is bound multiple times in one binder group"
+line: 3
+regression_for:
+  - https://github.com/rzk-lang/rzk/issues/321
