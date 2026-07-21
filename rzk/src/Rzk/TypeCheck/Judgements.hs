@@ -18,22 +18,33 @@ module Rzk.TypeCheck.Judgements where
 import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, unless, when)
 import           Control.Monad.Except     (catchError)
-import           Control.Monad.Reader     (asks, local)
+import           Control.Monad.Reader     (ask, asks, local)
 import           Control.Monad.Writer.CPS (censor)
-import           Data.List                (intercalate, tails)
+import           Data.List                (intercalate, sortOn, tails)
+import qualified Data.IntMap              as IntMap
+import qualified Data.IntSet              as IntSet
+import           Data.Bifunctor           (bimap)
+import qualified Data.Map                 as Map
+import qualified Data.Set                 as Set
 import           Data.Maybe               (fromMaybe, isNothing)
 import           Data.String              (fromString)
+import qualified Data.Text                as T
 
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
-import           Control.Monad.Free.Foil  (AST (Var), ScopedAST (..))
+import           Control.Monad.Foil.Internal (NameMap (..))
+import           Control.Monad.Free.Foil  (AST (Node, Var), ScopedAST (..),
+                                           alphaEquiv)
 
+import qualified Language.Rzk.Foil.Convert as Convert
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), TModality (..),
                                            TypeInfo (..), VarIdent,
                                            binderDisplayName, binderIsCompound,
                                            binderLeaves, binderName,
-                                           freshenBinderLeaves, getVarIdent,
+                                           binderToPattern,
+                                           freshenBinderLeavesIn, getVarIdent,
+                                           markUnresolved, refreshVarIn,
                                            ppVarIdentWithLocation,
                                            unmarkUnresolved)
 import qualified Language.Rzk.Syntax      as Rzk
@@ -95,6 +106,120 @@ checkNameShadowing name =
 mkHole :: TermT n -> TermT n
 mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
 
+-- | The constructors of a @#data@ type former, in declaration order; empty
+-- for anything else. Found by their roles: the type former itself carries
+-- none, so the scan is over the names in scope.
+dataConstructorsOf :: Foil.Name n -> TypeCheck n [Foil.Name n]
+dataConstructorsOf d = do
+  ctx <- ask
+  pure $ map snd $ sortOn fst
+    [ (idx, v)
+    | v <- ctxBound ctx
+    , Just (DataRole d' _ (DataConKind idx _ _)) <- [varDataRole (lookupVarInfo v ctx)]
+    , Foil.nameId d' == Foil.nameId d
+    ]
+
+-- | The generated eliminators of a @#data@ type former (@ind-D@ before
+-- @rec-D@), with their roles.
+dataEliminatorsOf :: Foil.Name n -> TypeCheck n [(Foil.Name n, DataRole n)]
+dataEliminatorsOf d = do
+  ctx <- ask
+  pure $ map snd $ sortOn fst
+    [ (order, (v, role))
+    | v <- ctxBound ctx
+    , Just role@(DataRole d' _ (DataElimKind _ _ elimKind)) <-
+        [varDataRole (lookupVarInfo v ctx)]
+    , Foil.nameId d' == Foil.nameId d
+    , let order = case elimKind of ElimInd -> 0 :: Int; ElimRec -> 1
+    ]
+
+-- | A term of the given type built as λ-binders over a single typed hole
+-- (structurally: the motive types the generator builds are literal
+-- Π-chains). The eliminators pass such a motive so that their result type
+-- β-reduces to the hole and fits any goal, exactly like @idJ@'s motive.
+lambdaHoleOf :: Distinct n => Set.Set VarIdent -> Foil.Scope n -> TermT n -> TermT n
+lambdaHoleOf taken scope ty = case ty of
+  TypeFunT _info orig _md _param _mtope ret ->
+    Foil.withFresh scope $ \b ->
+      let scope' = Foil.extendScope b scope
+          retAt = openWith scope' (Foil.nameOf b) ret
+          -- The binders are named here, in the move, freshened against the
+          -- names taken at the hole: an anonymous binder would otherwise be
+          -- named at render time (bypassing the freshening), and an
+          -- accepted move must not shadow anything visible.
+          named = case orig of
+            BinderVar mx -> BinderVar (Just (refreshVarIn taken (fromMaybe "x₁" mx)))
+            other        -> freshenBinderLeavesIn taken other
+          taken' = foldr Set.insert taken (binderLeaves named)
+       in lambdaT ty named Nothing (ScopedAST b (lambdaHoleOf taken' scope' retAt))
+  _ -> mkHole ty
+
+-- | A match over a hypothesis, one branch per constructor with a hole body:
+-- the notational candidate offered beside the @ind-@\/@rec-@ spines. The node
+-- is display-only (its annotations are dropped before rendering), so its type
+-- infos are holes. Branch binders reuse the constructor's declared field
+-- names, with an induction hypothesis named @ih@, freshened against the names
+-- taken at the hole exactly as 'lambdaHoleOf' freshens its motive binders.
+matchHoleOf
+  :: Distinct n
+  => Context n -> Set.Set VarIdent -> Foil.Scope n
+  -> Int -> [Foil.Name n] -> TermT n -> TermT n
+matchHoleOf ctx taken scope numParams cons term =
+  MatchT anyInfo term Nothing
+    [ (name, armChain scope (branchBinders c))
+    | c <- cons
+    , Just name <- [binderName (varOrig (lookupVarInfo c ctx))]
+    ]
+  where
+    anyInfo :: TypeInfo (TermT x)
+    anyInfo = TypeInfo { infoType = mkHole universeT, infoWHNF = Nothing, infoNF = Nothing }
+
+    -- one binder per method argument: the declared fields, each recursive
+    -- field followed by its induction hypothesis
+    branchBinders c =
+      let info = lookupVarInfo c ctx
+          (numFields, recIdxs) = case varDataRole info of
+            Just (DataRole _ _ (DataConKind _ nf ri)) -> (nf, ri)
+            _                                         -> (0, [])
+          fields = piBinders numParams numFields (varType info)
+       in named taken (concat
+            [ b : [ BinderVar (Just "ih") | j `elem` recIdxs ]
+            | (j, b) <- zip [(0 :: Int) ..] fields ])
+
+    -- the binders of a Π-chain: skip the parameters, take the fields
+    piBinders :: Int -> Int -> TermT x -> [Binder]
+    piBinders _ 0 _ = []
+    piBinders skip take_ (TypeFunT _ orig _ _ _ (ScopedAST _ body))
+      | skip > 0  = piBinders (skip - 1) take_ body
+      | otherwise = orig : piBinders 0 (take_ - 1) body
+    piBinders _ _ _ = []
+
+    named _ [] = []
+    named taken' (b : bs) =
+      let b' = case b of
+            BinderVar mx -> BinderVar (Just (refreshVarIn taken' (fromMaybe "x₁" mx)))
+            other        -> freshenBinderLeavesIn taken' other
+          taken'' = foldr Set.insert taken' (binderLeaves b')
+       in b' : named taken'' bs
+
+    armChain :: Distinct x => Foil.Scope x -> [Binder] -> TermT x
+    armChain _ [] = mkHole (mkHole universeT)
+    armChain sc (b : bs) = Foil.withFresh sc $ \nb ->
+      MatchArmT anyInfo b (ScopedAST nb (armChain (Foil.extendScope nb sc) bs))
+
+-- | Apply a term along its Π-type: a 'Just' is the argument to use, a
+-- 'Nothing' becomes a typed hole. Stops when the plan runs out.
+applyPlan :: Distinct n => TermT n -> [Maybe (TermT n)] -> TypeCheck n (TermT n)
+applyPlan t [] = pure t
+applyPlan t (planned : plan) = typeOf t >>= \case
+  TypeFunT _info _orig _md param _mtope ret -> do
+    let arg = case planned of
+          Just a  -> a
+          Nothing -> mkHole param
+    retAt <- instantiate ret arg
+    applyPlan (appT retAt t arg) plan
+  _ -> pure t
+
 -- | How many /branching/ eliminators 'allEliminationsInto' will chain.
 --
 -- A forced Π-application is free (see 'allEliminationsInto'), so this bounds only
@@ -125,18 +250,28 @@ data ElimCost = SpineStep | Branching
 -- does not spend the budget. Only the genuinely branching eliminators count
 -- against 'maxEliminationDepth', so the bound limits real search depth, not
 -- argument count, and a lemma that must be applied to many holes is still reached.
+--
+-- A spine over a top-level hypothesis is emitted only once its meta prefix
+-- (see "Rzk.TypeCheck.MetaPrefix") is fully applied: an unsaturated schema
+-- is not a suggestion, mirroring the warn-meta-prefix discipline. The search
+-- still passes through the unsaturated stages, so the saturated spines
+-- behind them are found; only the emission is gated.
 allEliminationsInto
-  :: Distinct n => TermT n -> TermT n -> TypeCheck n [TermT n]
-allEliminationsInto target = go maxEliminationDepth
+  :: Distinct n => TermT n -> Set.Set VarIdent -> TermT n -> TypeCheck n [TermT n]
+allEliminationsInto target takenNames hyp = do
+  minApps <- case hyp of
+    Var v -> asks (varMetaPrefix . lookupVarInfo v)
+    _     -> pure 0
+  go minApps maxEliminationDepth hyp
   where
-    go depth term = do
+    go minApps depth term = do
       ty    <- typeOf term
-      fits  <- fitsInto term ty target
-      elims <- eliminatorsOf ty
-      let step (SpineStep, wrap) = go depth =<< wrap term
+      fits  <- if minApps <= 0 then fitsInto term ty target else pure False
+      elims <- eliminatorsOf takenNames ty
+      let step (SpineStep, wrap) = go (minApps - 1) depth =<< wrap term
           step (Branching, wrap)
             | depth <= 0 = pure []
-            | otherwise  = go (depth - 1) =<< wrap term
+            | otherwise  = go minApps (depth - 1) =<< wrap term
       deeper <- concat <$> mapM step elims
       pure ([term | fits] <> deeper)
 
@@ -157,7 +292,7 @@ fitsInto :: Distinct n => TermT n -> TermT n -> TermT n -> TypeCheck n Bool
 fitsInto term ty target = do
   ty'     <- stripTypeRestrictions <$> whnfT ty
   target' <- stripTypeRestrictions <$> whnfT target
-  censor (const []) $ local structuralHoleUnify
+  censor (const mempty) $ local structuralHoleUnify
     ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
 
 -- | The eliminators a value of the given (weak head normal) type admits, each as a
@@ -167,10 +302,14 @@ fitsInto term ty target = do
 -- either projection; an identity type by path induction (@idJ@), with the motive
 -- and base case left as holes. The projections and @idJ@ branch. Anything else
 -- admits no simple eliminator.
+--
+-- The names taken at the hole (the source namespace) are passed in so that
+-- every binder an eliminator introduces (the @idJ@ motive's @\\ b q → ?@, a
+-- data eliminator's motive λs) is named in the move, freshened against them.
 eliminatorsOf
   :: Distinct n
-  => TermT n -> TypeCheck n [(ElimCost, TermT n -> TypeCheck n (TermT n))]
-eliminatorsOf ty =
+  => Set.Set VarIdent -> TermT n -> TypeCheck n [(ElimCost, TermT n -> TypeCheck n (TermT n))]
+eliminatorsOf takenNames ty =
   case stripTypeRestrictions ty of
     TypeFunT _ty _orig _md param _mtope ret ->
       pure [ (SpineStep, \term -> do
@@ -196,7 +335,7 @@ eliminatorsOf ty =
     TypeIdT _ty a mtA x -> do
       tA <- maybe (typeOf a) pure mtA
       scope <- asks ctxScope
-      let c = motiveOf scope a tA
+      let c = motiveOf takenNames scope a tA
           dType = appT universeT
                     (appT (typeFunT (BinderVar Nothing) Id (typeIdT a (Just tA) a) Nothing
                             (closedScope scope universeT))
@@ -208,7 +347,40 @@ eliminatorsOf ty =
                     (closedScope scope universeT))
               c y) p
       pure [ (Branching, \p -> pure (idJT (motiveAt x p) tA a c d x p)) ]
-    _ -> pure []
+    -- A value of a #data type is eliminated by its generated eliminators:
+    -- the parameters and indices are read off the hypothesis's type, the
+    -- motive and methods are left as holes. The match notation for the same
+    -- elimination is offered first, one hole per branch (an empty family has
+    -- no branch syntax, so it gets only the eliminators).
+    other -> case collectAppSpine other of
+      (Var d, dargs0) -> do
+        let dargs = map snd dargs0
+        elims <- dataEliminatorsOf d
+        cons <- dataConstructorsOf d
+        ctx <- ask
+        scope <- asks ctxScope
+        let matchMoves =
+              [ (Branching, \term ->
+                  pure (matchHoleOf ctx takenNames scope numParams cons term))
+              | not (null cons)
+              , (_, DataRole _ numParams _) : _ <- [elims]
+              ]
+            elimSpines =
+              [ (Branching, \term -> do
+                  let (paramArgs, indexArgs) = splitAt numParams dargs
+                  atMotive <- applyPlan (Var e) (map Just paramArgs)
+                  -- The motive is a λ over a hole (not a bare hole), so the
+                  -- eliminator's result type β-reduces to the hole and fits
+                  -- any goal; cf. the idJ case above.
+                  motive <- typeOf atMotive >>= \case
+                    TypeFunT _ _ _ motiveTy _ _ -> pure (lambdaHoleOf takenNames scope motiveTy)
+                    _ -> pure (mkHole universeT)
+                  applyPlan atMotive
+                    (Just motive : replicate numMethods Nothing
+                      <> map Just indexArgs <> [Just term]))
+              | (e, DataRole _ numParams (DataElimKind numMethods _numIndices _)) <- elims ]
+        pure (matchMoves <> elimSpines)
+      _ -> pure []
 
 -- | A scoped term that does not use its binder.
 closedScope :: Distinct n => Foil.Scope n -> (forall l. TermT l) -> ScopedTermT n
@@ -216,24 +388,28 @@ closedScope scope t = Foil.withFresh scope $ \binder -> ScopedAST binder t
 
 -- | The motive @\\ b q → ?@ of a path induction: a type in the two motive binders,
 -- left as a hole.
-motiveOf :: Distinct n => Foil.Scope n -> TermT n -> TermT n -> TermT n
-motiveOf scope a tA =
+motiveOf :: Distinct n => Set.Set VarIdent -> Foil.Scope n -> TermT n -> TermT n -> TermT n
+motiveOf takenNames scope a tA =
   Foil.withFresh scope $ \bBinder ->
     let scopeB = Foil.extendScope bBinder scope
         b = Var (Foil.nameOf bBinder)
         idTypeAtB = typeIdT (Foil.sink a) (Just (Foil.sink tA)) b
+        -- the motive's own binders must not shadow anything visible at the
+        -- hole (the move is inserted as source text)
+        bName = refreshVarIn takenNames "b"
+        qName = refreshVarIn (Set.insert bName takenNames) "q"
      in Foil.withFresh scopeB $ \qBinder ->
           let cBody = mkHole universeT
               cInner = lambdaT
                 (typeFunT (BinderVar Nothing) Id idTypeAtB Nothing
                   (ScopedAST qBinder universeT))
-                (BinderVar (Just "q")) Nothing
+                (BinderVar (Just qName)) Nothing
                 (ScopedAST qBinder cBody)
               cType = typeFunT (BinderVar Nothing) Id tA Nothing
                 (ScopedAST bBinder
                   (typeFunT (BinderVar Nothing) Id idTypeAtB Nothing
                     (ScopedAST qBinder universeT)))
-           in lambdaT cType (BinderVar (Just "b")) Nothing (ScopedAST bBinder cInner)
+           in lambdaT cType (BinderVar (Just bName)) Nothing (ScopedAST bBinder cInner)
 
 -- | The binder for a λ introduced over a domain type.
 --
@@ -299,13 +475,22 @@ destructuringBinder orig param = case orig of
 -- name (@hom@, whose internal binder is @t@) yields @\\ t₁ -> ?@ rather than a @t@
 -- that shadows the existing one.
 allIntroductionsOf
-  :: Distinct n => TermT n -> [VarIdent] -> TypeCheck n [TermT n]
-allIntroductionsOf target inScopeNames = do
+  :: Distinct n => TermT n -> Set.Set VarIdent -> TypeCheck n [TermT n]
+allIntroductionsOf target takenNames = do
   target' <- stripTypeRestrictions <$> whnfT target
   scope <- asks ctxScope
   case target' of
     TypeFunT _ty orig _md param _mtope ret -> do
-      let binder = freshenBinderLeaves inScopeNames (destructuringBinder orig param)
+      -- An anonymous Π binder (a domain written @B → …@) must still be
+      -- named in the offered move: the rendered λ shows its binder, and
+      -- leaving the naming to the renderer would bypass the freshening
+      -- below, shadowing an enclosing binder that already took the first
+      -- default name. Name it here — the first default name, which the
+      -- freshening bumps past everything visible at the hole.
+      let named = case destructuringBinder orig param of
+            BinderVar Nothing -> BinderVar (Just "x₁")
+            b                 -> b
+          binder = freshenBinderLeavesIn takenNames named
       pure $ Foil.withFresh scope $ \b ->
         let retAt = openWith (Foil.extendScope b scope) (Foil.nameOf b) ret
          in [ lambdaT target' binder Nothing (ScopedAST b (mkHole retAt)) ]
@@ -328,14 +513,69 @@ allIntroductionsOf target inScopeNames = do
        in pure [ topeTopT, topeBottomT
                , topeEQT  point point, topeLEQT point point
                , topeAndT tope  tope,  topeOrT  tope  tope ]
-    _ -> pure []
+    -- the universe: a type is built by a type former, so each is an
+    -- introduction of a U-goal — a function type, a Σ-type, an identity type,
+    -- the unit type, and every user-declared datatype in scope (applied to
+    -- holes through its parameter telescope). The Σ binder is named, so it is
+    -- freshened like a λ-introduction's binder; the identity type's endpoints
+    -- are terms of an as-yet-unknown type, like the tope universe's points.
+    UniverseT{} -> do
+      ctx <- ask
+      let arrow = typeFunT (BinderVar Nothing) Id (mkHole universeT) Nothing
+                    (closedScope scope (mkHole universeT))
+          sigma = typeSigmaT (BinderVar (Just (refreshVarIn takenNames "x"))) Id
+                    (mkHole universeT) (closedScope scope (mkHole universeT))
+          endpointTy = mkHole universeT
+          identity = typeIdT (mkHole endpointTy) (Just endpointTy) (mkHole endpointTy)
+          formerIds =
+            [ Foil.nameId (dataRoleDataType role)
+            | (_, info) <- varsInScope ctx
+            , Just role <- [varDataRole info]
+            ]
+          formers =
+            [ v
+            | (v, info) <- varsInScope ctx
+            , varIsTopLevel info
+            , Foil.nameId v `elem` formerIds
+            ]
+      datatypes <- mapM (saturateWithHoles . Var) formers
+      pure ([arrow, sigma, identity, typeUnitT] <> datatypes)
+    -- A goal headed by a #data type former is introduced by a constructor
+    -- applied to holes; a constructor whose return indices cannot meet the
+    -- goal's (nil against vec A (suc n), say) is filtered out.
+    _ -> case collectAppSpine target' of
+      (Var d, _) -> do
+        ctx <- ask
+        cons <- dataConstructorsOf d
+        fmap concat $ forM cons $ \c ->
+          case varDataRole (lookupVarInfo c ctx) of
+            Just (DataRole _ numParams (DataConKind _ numFields _)) -> do
+              saturated <- applyPlan (Var c)
+                (replicate (numParams + numFields) Nothing)
+              satTy <- typeOf saturated
+              ok <- fitsInto saturated satTy target'
+              pure [ saturated | ok ]
+            _ -> pure []
+      _ -> pure []
+
+-- | Apply a term to holes through its whole Π-telescope: a datatype former
+-- applied through its parameters, so a @U@-goal offers @coprod ? ?@.
+saturateWithHoles :: Distinct n => TermT n -> TypeCheck n (TermT n)
+saturateWithHoles term = do
+  ty <- typeOf term
+  case stripTypeRestrictions ty of
+    TypeFunT _ _ _ param _ ret -> do
+      let h = mkHole param
+      retAt <- instantiate ret h
+      saturateWithHoles (appT retAt term h)
+    _ -> pure term
 
 -- | Whether the two endpoints of an identity type are definitionally equal, so that
 -- @refl@ inhabits it. Like 'fitsInto', any holes or constraints recorded while
 -- probing are discarded, leaving a pure yes\/no query.
 endpointsAgree :: Distinct n => TermT n -> TermT n -> TypeCheck n Bool
 endpointsAgree a b =
-  censor (const [])
+  censor (const mempty)
     ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
 
 -- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it is a
@@ -406,6 +646,92 @@ lemmaHypotheses ctx =
   , name `elem` ctxHintLemmas ctx
   ]
 
+-- * Moves must parse back
+
+-- | The elaboration environment at the current position: every in-scope
+-- entry contributes its source name — a pattern its leaves, as projection
+-- chains over the variable it binds — and an inner binding wins, exactly
+-- as the elaborator resolves an identifier written here. Kept as a table
+-- so 'sourceResolvesTo' and 'parsesBackTo' share it.
+positionTable :: Context n -> Map.Map VarIdent (Term n)
+positionTable ctx = Map.fromList $ concat
+  -- 'varsInScope' lists entries oldest first, and 'Map.fromList' keeps the
+  -- last value per key, so an inner binding shadows an outer one.
+  [ entryBindings (varOrig info) v
+  | (v, info) <- varsInScope ctx
+  ]
+  where
+    entryBindings orig v = case orig of
+      BinderVar (Just x) -> [(x, Var v)]
+      BinderVar Nothing  -> []
+      BinderUnit         -> []
+      b                  -> Convert.bindings (binderToPattern b) (Var v)
+
+-- | Does this variable's own source name, written at the current position,
+-- resolve back to it?
+sourceResolvesTo :: Map.Map VarIdent (Term n) -> VarIdent -> Foil.Name n -> Bool
+sourceResolvesTo table src v = case Map.lookup src table of
+  Just (Var v') -> Foil.nameId v' == Foil.nameId v
+  _             -> False
+
+-- | Does a rendered move, inserted as source text at the current position,
+-- parse and resolve back to the very term it renders? The comparison is
+-- α-equivalence of the untyped skeletons: a move is well-typed by
+-- construction, and insertion is a question of naming. This is the exact
+-- form of the old referability guard, and it enforces the move contract
+-- for everything emitted — a shadowing or unresolvable name anywhere in
+-- the rendering shows up as a resolution difference and drops the move.
+parsesBackTo
+  :: Distinct n
+  => Map.Map VarIdent (Term n) -> TermT n -> Rendered -> TypeCheck n Bool
+parsesBackTo table move rendered = do
+  ctx <- ask
+  let scope = ctxScope ctx
+      units = IntSet.fromList
+        [ Foil.nameId v
+        | (v, info) <- varsInScope ctx
+        , BinderUnit <- [varOrig info]
+        ]
+      collapse = unitPointCollapse units . pairEtaCollapse scope
+      env name = Map.findWithDefault (Hole (Just (markUnresolved name))) name table
+  pure $ case Rzk.parseTerm (T.pack (show rendered)) of
+    Left _        -> False
+    Right surface ->
+      alphaEquiv scope
+        (collapse (Convert.toTerm scope env surface))
+        (collapse (untyped move))
+
+-- | Collapse a literal pair of matching projections, recursively along the
+-- pair spine: @(π₁ p, π₂ p)@ reads back as @p@. This is exactly what the
+-- whole-point rendering of a pattern-bound variable parses to (the pattern
+-- @(x, y)@ resolves to the projections), so the comparison in
+-- 'parsesBackTo' absorbs the projection-folding convention.
+pairEtaCollapse :: Distinct n => Foil.Scope n -> Term n -> Term n
+pairEtaCollapse scope t = case t of
+  Pair l r ->
+    case (pairEtaCollapse scope l, pairEtaCollapse scope r) of
+      (First a, Second b) | alphaEquiv scope a b -> a
+      (l', r')                                   -> Pair l' r'
+  _ -> t
+
+-- | Collapse a variable bound by the unit pattern to the constructor. A
+-- @\\ unit → …@ binds a point of @Unit@ whose whole-point rendering (and the
+-- only way to write it) is @unit@, which parses back as the constructor. The
+-- two are the same point of the singleton, so the comparison in
+-- 'parsesBackTo' treats them as one, exactly as 'pairEtaCollapse' absorbs
+-- the projection-folding convention.
+unitPointCollapse :: IntSet.IntSet -> Term l -> Term l
+unitPointCollapse units = go
+  where
+    go :: Term x -> Term x
+    go t@(Var x)
+      | Foil.nameId x `IntSet.member` units = Unit
+      | otherwise                           = t
+    go (Node sig) = Node (bimap goScoped go sig)
+
+    goScoped :: ScopedTerm x -> ScopedTerm x
+    goScoped (ScopedAST b body) = ScopedAST b (go body)
+
 -- | Record the goal and local context at a hole (lenient mode only).
 recordHole :: Distinct n => Maybe VarIdent -> TermT n -> TypeCheck n ()
 recordHole mname goalTy = recordHoleShape mname goalTy Nothing
@@ -427,17 +753,44 @@ recordHoleShape mname goalTy mshape = do
   -- candidate-elimination loop only — not the local context shown to the user,
   -- since they are global definitions, not local hypotheses.
   lemmaVars <- asks lemmaHypotheses
-  cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
+  -- a variable bound by the unit pattern is not a hypothesis the user named
+  -- (the pattern binds nothing referable, and the point is spelled @unit@),
+  -- so it is not shown in the context panel
+  let shownLocals = [ l | l@(_, info) <- locals, not (isUnitBinder (varOrig info)) ]
+      isUnitBinder BinderUnit = True
+      isUnitBinder _          = False
+  cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) shownLocals
   topes     <- asks (filter (not . eqT topeTopT) . availableTopes)
   loc       <- asks ctxLocation
   naming    <- asks namingOfContext
 
+  -- The one environment every move is built and judged against. The source
+  -- namespace at the hole ('positionTable') is what 'parsesBackTo' checks
+  -- the emitted text against. A binder a move introduces (a λ-introduction,
+  -- an idJ motive's binders, a data eliminator's motive λs) is freshened
+  -- against the union of that namespace with the display names of the
+  -- local context: the former so an accepted move never shadows anything
+  -- writable here, the latter so a move's binder never reads like a
+  -- variable the context panel already shows under a refreshed name.
+  ctx <- ask
+  let table = positionTable ctx
+      displayNames = Set.fromList
+        [ nm
+        | (v, _) <- locals
+        , nm <- case displayOf naming v of
+            (_, binder) | binderIsCompound binder -> binderLeaves binder
+            (x, _)                                -> [x]
+        ]
+      takenNames = Map.keysSet table <> displayNames
+
   -- for each local hypothesis (and allow-listed lemma), the elimination spines that
   -- land in the goal (arguments left as holes). Probing must not leak holes into the
   -- recorded output, hence the 'censor'.
-  candidates <- censor (const []) $ do
+  candidates <- censor (const mempty) $ do
+    -- over the shown hypotheses: a unit-bound point admits no elimination,
+    -- and offering it bare would duplicate the @unit@ introduction
     elims <- concat <$>
-      mapM (\(v, _) -> allEliminationsInto goalTy (Var v)) (locals ++ lemmaVars)
+      mapM (\(v, _) -> allEliminationsInto goalTy takenNames (Var v)) (shownLocals ++ lemmaVars)
     -- context-driven moves (independent of the goal's head and the hypotheses): ex
     -- falso in a contradictory context, and tope case-splits. recOR and recBOT are
     -- term-level eliminators, so they are offered only for a term goal — not when
@@ -447,23 +800,34 @@ recordHoleShape mname goalTy mshape = do
     recor  <- if termLayer then recOrCandidates goalTy else pure []
     pure (elims <> recbot <> recor)
 
+  -- A move is inserted as source text, so it is rendered with source names
+  -- wherever they still resolve (an inner @b@ beside a shadowed outer @b@
+  -- renders as @b@, not as its display name @b₁@), and it is emitted only
+  -- if the rendered text parses back, at this position, to the very term
+  -- it renders ('parsesBackTo'). The display naming is unchanged: the
+  -- context panel keeps its refreshed names.
+  let moveNaming = naming
+        { namingOf = NameMap (IntMap.fromList
+            [ (Foil.nameId v, fixed)
+            | (v, info) <- varsInScope ctx
+            , let fixed = case binderName (varOrig info) of
+                    Just src | sourceResolvesTo table src v ->
+                      (src, BinderVar (Just src))
+                    _ -> displayOf naming v
+            ]) }
+      renderMove t = renderTerm moveNaming (untyped t)
+  candidateMoves <- fmap concat $ forM candidates $ \c -> do
+    let r = renderMove c
+    ok <- parsesBackTo table c r
+    pure [ r | ok ]
+
   let render t = renderTerm naming (untyped t)
       -- a pattern binder is shown as its pattern, e.g. (t , s); others by name
       entryName v = case displayOf naming v of
         (_, binder) | binderIsCompound binder -> binderDisplayName binder
         (x, _)                                -> x
-      entries = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]
+      entries = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- shownLocals ]
       flagged = zip cubeFlags entries
-      -- names already visible at the hole, which an introduced binder must not
-      -- shadow: each local hypothesis by its display name, or the leaves of a
-      -- pattern hypothesis.
-      inScopeNames =
-        [ nm
-        | (v, _) <- locals
-        , nm <- case displayOf naming v of
-            (_, binder) | binderIsCompound binder -> binderLeaves binder
-            (x, _)                                -> [x]
-        ]
 
   -- The goal shape, rendered under the shape's own binder. The name is read back
   -- from the naming rather than assumed: if the declared name is taken (the goal
@@ -477,12 +841,17 @@ recordHoleShape mname goalTy mshape = do
       pure (shapeBinder, renderTerm naming' (untyped topeAt))
 
   -- the introduction forms for the goal itself (constituents left as holes); the Π
-  -- binder is freshened against the names in scope so that it does not shadow.
-  introductions <- censor (const []) (allIntroductionsOf goalTy inScopeNames)
+  -- binder is freshened against the names in scope so that it does not shadow,
+  -- and the parse-back check applies like it does to the candidates.
+  introductions <- censor (const mempty) (allIntroductionsOf goalTy takenNames)
+  introductionMoves <- fmap concat $ forM introductions $ \i -> do
+    let r = renderMove i
+    ok <- parsesBackTo table i r
+    pure [ r | ok ]
   -- the goal cell: an SVG of the shape the hole must inhabit (an arrow, triangle or
   -- square), drawn from an abstract inhabitant with the proof term hidden. 'Nothing'
   -- when the goal is not a renderable shape.
-  diagram <- censor (const []) (renderGoalCellSVG goal')
+  diagram <- censor (const mempty) (renderGoalCellSVG goal')
 
   recordHoleInfo HoleInfo
     { holeName          = mname
@@ -491,8 +860,8 @@ recordHoleShape mname goalTy mshape = do
     , holeTermVars      = [ e | (False, e) <- flagged ]
     , holeCubeVars      = [ e | (True,  e) <- flagged ]
     , holeTopes         = map render topes
-    , holeCandidates    = map render candidates
-    , holeIntroductions = map render introductions
+    , holeCandidates    = candidateMoves
+    , holeIntroductions = introductionMoves
     , holeDiagram       = diagram
     , holeLocation      = loc
     }
@@ -733,6 +1102,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           TypeErrorOther "a recOR cannot be used as a tope"
         _ -> checkRecOrAgainst ty' rs
 
+      Match scrut mmotive branches -> checkMatch term scrut mmotive branches (Just ty')
+
       -- A neutral term is inferred, then its type unified with the expected one. In
       -- lenient (hole-checking) mode a term that still carries an unfilled hole is a
       -- work in progress, so a failure of that final unification is tolerated: the
@@ -750,6 +1121,180 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           then unifyTypes term' ty' inferredType `catchError` \_ -> return ()
           else unifyTypes term' ty' inferredType
         return term'
+
+-- | Elaborate a match into an application of its datatype's induction
+-- eliminator: @ind-D params motive method₁ … methodₖ indices scrutinee@. The
+-- spine is the result — a match node never survives elaboration (see the
+-- ι-rule in "Rzk.TypeCheck.Eval" for how the spine then computes).
+--
+-- The motive is the elaborated @into@ term when one was written; otherwise it
+-- is built from the goal, abstracting a variable scrutinee out of it (a
+-- non-variable scrutinee gives a constant family). Without @into@ and without
+-- a goal (inference position) the match is rejected.
+checkMatch
+  :: Distinct n
+  => Term n                 -- ^ the whole match, for error messages
+  -> Term n                 -- ^ the scrutinee
+  -> Maybe (Term n)         -- ^ the @into@ motive, if written
+  -> [(VarIdent, Term n)]   -- ^ branches: constructor name, arm chain
+  -> Maybe (TermT n)        -- ^ the goal, in checking position
+  -> TypeCheck n (TermT n)
+checkMatch term scrut mmotive branches mgoal = do
+  scrut' <- infer scrut
+  scrutTy <- stripTypeRestrictions <$> (typeOf scrut' >>= whnfT)
+  d <- case collectAppSpine scrutTy of
+    (Var d, _) -> pure d
+    _          -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
+  elims <- dataEliminatorsOf d
+  (e, numParams) <- case elims of
+    (e, DataRole _ numParams _) : _ -> pure (e, numParams)   -- ind-D comes before rec-D
+    [] -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
+  let dargs = case collectAppSpine scrutTy of
+        (_, args) -> map snd args
+      (paramArgs, indexArgs) = splitAt numParams dargs
+
+  -- The bijection between branches and constructors, with per-branch arity.
+  ctx <- ask
+  cons <- dataConstructorsOf d
+  let conIdent c = case binderName (varOrig (lookupVarInfo c ctx)) of
+        Just x  -> x
+        Nothing -> panicImpossible "a constructor entry with no name"
+      conArity c = case varDataRole (lookupVarInfo c ctx) of
+        Just (DataRole _ _ (DataConKind _ numFields recIdxs)) ->
+          numFields + length recIdxs
+        _ -> panicImpossible "a constructor entry with no constructor role"
+      conNames = map conIdent cons
+      branchNames = map fst branches
+  case firstDuplicate branchNames of
+    Just c  -> issueTypeError (TypeErrorMatchDuplicateBranch c)
+    Nothing -> pure ()
+  case filter (`notElem` conNames) branchNames of
+    c : _ -> issueTypeError (TypeErrorMatchUnknownBranch c conNames)
+    []    -> pure ()
+  case filter (`notElem` branchNames) conNames of
+    c : _ -> issueTypeError (TypeErrorMatchMissingBranch c)
+    []    -> pure ()
+  let branchFor c = case lookup (conIdent c) branches of
+        Just chain -> chain
+        Nothing    -> panicImpossible "a constructor without a branch after the bijection check"
+  forM_ cons $ \c ->
+    when (armCount (branchFor c) /= conArity c) $
+      issueTypeError
+        (TypeErrorMatchBranchArity (conIdent c) (conArity c) (armCount (branchFor c)))
+
+  -- The spine: parameters, motive, methods (each branch checked against its
+  -- method's Π-type), indices, scrutinee.
+  atParams <- applyPlan (Var e) (map Just paramArgs)
+  motive' <- case mmotive of
+    Just motive -> do
+      motiveTy <- typeOf atParams >>= whnfT >>= \case
+        TypeFunT _ _ _ mty _ _ -> pure mty
+        _ -> panicImpossible "an eliminator's type has no motive parameter"
+      typecheck motive motiveTy
+    Nothing -> case mgoal of
+      Nothing -> issueTypeError (TypeErrorMatchCannotInfer term)
+      Just goal -> do
+        motiveTy <- typeOf atParams >>= whnfT >>= \case
+          TypeFunT _ _ _ mty _ _ -> pure mty
+          _ -> panicImpossible "an eliminator's type has no motive parameter"
+        scope <- asks ctxScope
+        let mv = case scrut' of
+              Var v -> Just v
+              _     -> Nothing
+        pure (motiveFromGoal scope motiveTy mv goal)
+  atMotive <- applyPlan atParams [Just motive']
+  let applyMethods t [] = pure t
+      applyMethods t (c : rest) = typeOf t >>= whnfT >>= \case
+        TypeFunT _ _ _ methodTy _ ret -> do
+          method <- checkMatchArms (branchFor c) methodTy
+          retAt <- instantiate ret method
+          applyMethods (appT retAt t method) rest
+        _ -> panicImpossible "an eliminator's type runs out of method parameters"
+  withMethods <- applyMethods atMotive cons
+  result <- applyPlan withMethods (map Just indexArgs <> [Just scrut'])
+
+  case mgoal of
+    Nothing -> pure ()
+    Just goal -> do
+      resultTy <- typeOf result
+      -- The same tolerance as the neutral case of 'typecheck': a sketch whose
+      -- branches still carry holes is accepted, the recorded holes stand.
+      lenient <- not <$> asks ctxHolesAreErrors
+      if lenient && containsHole result
+        then unifyTypes result goal resultTy `catchError` \_ -> return ()
+        else unifyTypes result goal resultTy
+  pure result
+
+-- | Check a branch's arm chain against its method type, one arm at a time,
+-- mirroring the λ rule: each arm's binder enters the context with the domain
+-- of the method's Π-type, and the elaborated arm becomes the method's λ under
+-- the same binder. Holes inside the branch body therefore see the branch
+-- binders as ordinary hypotheses, under the user's names.
+checkMatchArms :: Distinct n => Term n -> TermT n -> TypeCheck n (TermT n)
+checkMatchArms (MatchArm orig scoped) ty = whnfT ty >>= \case
+  ty'@(TypeFunT _ _orig' md' param0 mtope' ret) -> do
+    -- an induction hypothesis's type is the motive at a field, so it carries
+    -- an administrative redex too: reduce it before it enters the context
+    param' <- betaMotiveApps param0
+    mapM_ checkNameShadowing (binderLeaves orig)
+    body' <- elaborateUnder orig md' param' Nothing scoped $ \binder bodyTerm -> do
+      mtopeIn <- traverse (openScoped binder) mtope'
+      maybe id localTope mtopeIn $ do
+        retIn <- openScoped binder ret
+        checkMatchArms bodyTerm retIn
+    return (lambdaT ty' orig (Just (LambdaParam md' param' mtope')) body')
+  -- unreachable: the arity check matches the arm count to the method's arity
+  _ -> panicImpossible "a match arm beyond its method's arity"
+checkMatchArms body ty = typecheck body =<< betaMotiveApps ty
+
+-- | β-reduce the administrative redexes elaboration introduces: a motive built
+-- as a λ-chain and applied to a constructor form is substituted through, so a
+-- branch hole's goal reads as the goal at that constructor (@nat@, or the
+-- substituted dependent goal) rather than as @(λ x → …) (suc k)@. This is the
+-- labelled-goal restoration of the design: nothing else is unfolded — a
+-- motive that is a named family stays a named application.
+betaMotiveApps :: Distinct n => TermT n -> TypeCheck n (TermT n)
+betaMotiveApps t = case t of
+  AppT _ f x -> betaMotiveApps f >>= \case
+    LambdaT _ _ _ body -> instantiate body x
+    _                  -> pure t
+  _ -> pure t
+
+-- | The number of arms in a branch's chain (the binders the branch introduces).
+armCount :: Term x -> Int
+armCount (MatchArm _ (ScopedAST _ body)) = 1 + armCount body
+armCount _                               = 0
+
+-- | The first name occurring twice, if any.
+firstDuplicate :: [VarIdent] -> Maybe VarIdent
+firstDuplicate []       = Nothing
+firstDuplicate (x : xs)
+  | x `elem` xs = Just x
+  | otherwise   = firstDuplicate xs
+
+-- | A motive built from the goal: λ-binders along the motive's Π-type (the
+-- family's indices, then the scrutinee), whose body is the goal — with the
+-- scrutinee variable replaced by the motive's own scrutinee binder, when the
+-- scrutinee is a variable. A non-variable scrutinee gives a constant family.
+-- (The motive types the eliminator generator builds are literal Π-chains, so
+-- matching them structurally is enough; cf. 'lambdaHoleOf'.)
+motiveFromGoal
+  :: Distinct n
+  => Foil.Scope n -> TermT n -> Maybe (Foil.Name n) -> TermT n -> TermT n
+motiveFromGoal scope ty mv goal = case ty of
+  TypeFunT _info _orig _md _param _mtope ret ->
+    Foil.withFresh scope $ \b ->
+      let scope' = Foil.extendScope b scope
+          retAt = openWith scope' (Foil.nameOf b) ret
+          body = case retAt of
+            -- an index binder: the goal does not depend on it
+            TypeFunT{} -> motiveFromGoal scope' retAt (Foil.sink <$> mv) (Foil.sink goal)
+            -- the scrutinee binder
+            _ -> case mv of
+              Just v  -> substituteName scope' (Foil.sink v) (Var (Foil.nameOf b)) (Foil.sink goal)
+              Nothing -> Foil.sink goal
+       in lambdaT ty (BinderVar Nothing) Nothing (ScopedAST b body)
+  _ -> goal
 
 -- * Inference
 
@@ -812,6 +1357,42 @@ infer tt = performing (ActionInfer tt) $ case tt of
         tyStr <- ppInContext ty
         issueTypeError $ TypeErrorOther $
           "unflip expects an interval cube (2 or 𝕀) under _op; got " <> tyStr
+
+  CubeSup l r -> do
+    l' <- inferAs cubeT l
+    r' <- inferAs cubeT r
+    lTy <- typeOf l'
+    rTy <- typeOf r'
+    case (lTy, rTy) of
+      (Cube2T{}, Cube2T{}) -> return (cubeSupT cube2T l' r')
+      (CubeIT{}, CubeIT{}) -> return (cubeSupT cubeIT l' r')
+      -- Mixed 2/𝕀 lands in 𝕀 (the join of a 2-point and an 𝕀-point), coercing
+      -- the 2 side up via 2 <: 𝕀, as the adjacent TopeLEQ does.
+      (CubeIT{}, Cube2T{}) -> do
+        r'' <- typecheck r cubeIT
+        return (cubeSupT cubeIT l' r'')
+      (Cube2T{}, CubeIT{}) -> do
+        l'' <- typecheck l cubeIT
+        return (cubeSupT cubeIT l'' r')
+      _ -> issueTypeError $ TypeErrorNotIntervalCube "sup" lTy rTy
+
+  CubeInf l r -> do
+    l' <- inferAs cubeT l
+    r' <- inferAs cubeT r
+    lTy <- typeOf l'
+    rTy <- typeOf r'
+    case (lTy, rTy) of
+      (Cube2T{}, Cube2T{}) -> return (cubeInfT cube2T l' r')
+      (CubeIT{}, CubeIT{}) -> return (cubeInfT cubeIT l' r')
+      -- Mixed 2/𝕀 lands in 𝕀 (the meet of a 2-point and an 𝕀-point), coercing
+      -- the 2 side up via 2 <: 𝕀, as the adjacent TopeLEQ does.
+      (CubeIT{}, Cube2T{}) -> do
+        r'' <- typecheck r cubeIT
+        return (cubeInfT cubeIT l' r'')
+      (Cube2T{}, CubeIT{}) -> do
+        l'' <- typecheck l cubeIT
+        return (cubeInfT cubeIT l'' r')
+      _ -> issueTypeError $ TypeErrorNotIntervalCube "inf" lTy rTy
 
   Pair l r -> do
     l' <- infer l
@@ -1170,6 +1751,11 @@ infer tt = performing (ActionInfer tt) $ case tt of
     return $ modAppT (typeModalT tyUniv md ty) md term'
 
   ModExtract{} -> panicImpossible "extract is an internal term and cannot be inferred"
+
+  -- A match infers only through its "into" motive; 'checkMatch' rejects it
+  -- otherwise, since there is no goal to build the motive from.
+  Match scrut mmotive branches -> checkMatch tt scrut mmotive branches Nothing
+  MatchArm{} -> panicImpossible "a match arm outside of a match branch"
 
 -- | The type of the motive of a path induction: @(z : A) → (a =_A z) → U@.
 motiveType :: Distinct n => TermT n -> TermT n -> TypeCheck n (TermT n)

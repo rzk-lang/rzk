@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "must spell out its return type"
+line: 6
+regression_for:
+  - data-stage2-index-return-required

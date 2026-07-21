@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- the sort must be U or an index telescope ending in U
+#data bad : nat := stub

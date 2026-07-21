@@ -1,0 +1,53 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+#data vec
+  ( A : U)
+  : nat → U
+  :=
+    nil : vec A zero
+  | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)
+
+#check ind-vec
+  : ( A : U)
+  → ( C : (n : nat) → vec A n → U)
+  → C zero (nil A)
+  → ( (n : nat) → (x : A) → (xs : vec A n) → C n xs → C (suc n) (cons A n x xs))
+  → ( n : nat) → (xs : vec A n) → C n xs
+
+#check rec-vec
+  : ( A : U)
+  → ( C : (n : nat) → U)
+  → C zero
+  → ( (n : nat) → (x : A) → (xs : vec A n) → C n → C (suc n))
+  → ( n : nat) → vec A n → C n
+
+-- append, with the length index doing its job
+#define plus (m n : nat) : nat
+  := rec-nat nat n (\ _ ih → suc ih) m
+
+#define snoc-zero (A : U) (x : A) : vec A (suc zero)
+  := cons A zero x (nil A)
+
+#define v2 (A : U) (x y : A) : vec A (suc (suc zero))
+  := cons A (suc zero) x (snoc-zero A y)
+
+-- the recursive eliminator computes through the indices
+#define vhead (A : U) (n : nat) (xs : vec A (suc n)) : A
+  := ind-vec A
+      ( \ k _ → rec-nat U Unit (\ _ _ → A) k)
+      unit
+      ( \ _ x _ _ → x)
+      ( suc n) xs
+
+#define vhead-v2 (A : U) (x y : A) : vhead A (suc zero) (v2 A x y) =_{A} x
+  := refl
+
+-- length recovery: fold the vector, ignoring elements
+#define vlen (A : U) (n : nat) (xs : vec A n) : nat
+  := rec-vec A (\ _ → nat) zero (\ _ _ _ ih → suc ih) n xs
+
+#define vlen-v2 (A : U) (x y : A)
+  : vlen A (suc (suc zero)) (v2 A x y) =_{nat} suc (suc zero)
+  := refl

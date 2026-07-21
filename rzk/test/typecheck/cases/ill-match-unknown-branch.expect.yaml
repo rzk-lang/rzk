@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorMatchUnknownBranch
+message_contains:
+  - "match branch for succ"
+  - "not a constructor"
+line: 5
+regression_for:
+  - match-branch-bijection

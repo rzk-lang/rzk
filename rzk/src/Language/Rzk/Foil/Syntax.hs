@@ -66,8 +66,8 @@ import           Language.Rzk.Foil.Names        (Binder (..), TModality (..),
 -- * The signature
 --
 -- A transliteration of @TermF@: same constructors, same fields, same order. The
--- @scope@ positions are the ones that bind, and there are seven of them across
--- five constructors ('TypeFunF' and 'LambdaF' each carry a tope scope as well as
+-- @scope@ positions are the ones that bind, and there are eight of them across
+-- six constructors ('TypeFunF' and 'LambdaF' each carry a tope scope as well as
 -- a body scope, under the same binder).
 
 -- | The optional domain annotation of a λ: its modality, its parameter type,
@@ -92,6 +92,8 @@ data TermSig scope term
     | CubeProductF term term
     | CubeFlipF term
     | CubeUnflipF term
+    | CubeSupF term term
+    | CubeInfF term term
     | TopeTopF
     | TopeBottomF
     | TopeEQF term term
@@ -113,6 +115,15 @@ data TermSig scope term
     | SecondF term
     | ReflF (Maybe (term, Maybe term))
     | IdJF term term term term term term
+    -- | A match over a @#data@ scrutinee: scrutinee, optional motive, and one
+    -- branch per constructor (constructor name, arm chain). The node is
+    -- elaborated into the generated eliminator during typechecking, so a
+    -- /typed/ match never exists.
+    | MatchF term (Maybe term) [(VarIdent, term)]
+    -- | One branch binder of a match; the body is the next arm, or the branch
+    -- body once the binders run out. Valid only inside a 'MatchF' branch; the
+    -- parser cannot produce it anywhere else.
+    | MatchArmF Binder scope
     | UnitF
     | TypeUnitF
     | TypeAscF term term
@@ -278,6 +289,18 @@ freeVarsOfTerm (Node sig) = bifoldMap freeVarsOfScoped freeVarsOfTerm sig
 -- types of its nodes ('Bifoldable' skips the annotation, as it did before).
 freeVarsOfTermT :: TermT n -> [Foil.Name n]
 freeVarsOfTermT = freeVarsOfTerm . untyped
+
+-- | Does the term mention the universe @U@ anywhere? A constructor field
+-- whose type does is what makes an inductive type /large/ (see the
+-- largeness warning in "Rzk.TypeCheck.Decl").
+containsUniverse :: Term n -> Bool
+containsUniverse Universe   = True
+containsUniverse (Var _)    = False
+containsUniverse (Node sig) =
+  bifoldr (\scoped acc -> containsUniverseScoped scoped || acc)
+          (\t acc -> containsUniverse t || acc) False sig
+  where
+    containsUniverseScoped (ScopedAST _ body) = containsUniverse body
 
 -- * Holes
 
@@ -452,6 +475,8 @@ pattern CubeI_1T info = Node (AnnSig info CubeI_1F)
 pattern CubeProductT info l r = Node (AnnSig info (CubeProductF l r))
 pattern CubeFlipT info t = Node (AnnSig info (CubeFlipF t))
 pattern CubeUnflipT info t = Node (AnnSig info (CubeUnflipF t))
+pattern CubeSupT info l r = Node (AnnSig info (CubeSupF l r))
+pattern CubeInfT info l r = Node (AnnSig info (CubeInfF l r))
 pattern TopeTopT info = Node (AnnSig info TopeTopF)
 pattern TopeBottomT info = Node (AnnSig info TopeBottomF)
 pattern TopeEQT info l r = Node (AnnSig info (TopeEQF l r))
@@ -473,6 +498,8 @@ pattern FirstT info t = Node (AnnSig info (FirstF t))
 pattern SecondT info t = Node (AnnSig info (SecondF t))
 pattern ReflT info mx = Node (AnnSig info (ReflF mx))
 pattern IdJT info a b c d e f = Node (AnnSig info (IdJF a b c d e f))
+pattern MatchT info scrut mmotive branches = Node (AnnSig info (MatchF scrut mmotive branches))
+pattern MatchArmT info orig arm = Node (AnnSig info (MatchArmF orig arm))
 pattern UnitT info = Node (AnnSig info UnitF)
 pattern TypeUnitT info = Node (AnnSig info TypeUnitF)
 pattern TypeAscT info term ty = Node (AnnSig info (TypeAscF term ty))
@@ -485,11 +512,11 @@ pattern HoleT info mname = Node (AnnSig info (HoleF mname))
 
 {-# COMPLETE Var, UniverseT, UniverseCubeT, UniverseTopeT, CubeUnitT,
   CubeUnitStarT, Cube2T, Cube2_0T, Cube2_1T, CubeIT, CubeI_0T, CubeI_1T,
-  CubeProductT, CubeFlipT, CubeUnflipT, TopeTopT, TopeBottomT, TopeEQT, TopeLEQT,
-  TopeAndT, TopeOrT, TopeInvT, TopeUninvT, RecBottomT, RecOrT, TypeFunT,
-  TypeSigmaT, TypeIdT, AppT, LetT, LambdaT, PairT, FirstT, SecondT, ReflT, IdJT,
-  UnitT, TypeUnitT, TypeAscT, TypeRestrictedT, TypeModalT, ModAppT, ModExtractT,
-  LetModT, HoleT #-}
+  CubeProductT, CubeFlipT, CubeUnflipT, CubeSupT, CubeInfT, TopeTopT, TopeBottomT,
+  TopeEQT, TopeLEQT, TopeAndT, TopeOrT, TopeInvT, TopeUninvT, RecBottomT, RecOrT,
+  TypeFunT, TypeSigmaT, TypeIdT, AppT, LetT, LambdaT, PairT, FirstT, SecondT,
+  ReflT, IdJT, MatchT, MatchArmT, UnitT, TypeUnitT, TypeAscT, TypeRestrictedT,
+  TypeModalT, ModAppT, ModExtractT, LetModT, HoleT #-}
 
 -- ** Untyped patterns
 --
@@ -510,6 +537,8 @@ pattern CubeI_1 = Node CubeI_1F
 pattern CubeProduct l r = Node (CubeProductF l r)
 pattern CubeFlip t = Node (CubeFlipF t)
 pattern CubeUnflip t = Node (CubeUnflipF t)
+pattern CubeSup l r = Node (CubeSupF l r)
+pattern CubeInf l r = Node (CubeInfF l r)
 pattern TopeTop = Node TopeTopF
 pattern TopeBottom = Node TopeBottomF
 pattern TopeEQ l r = Node (TopeEQF l r)
@@ -531,6 +560,8 @@ pattern First t = Node (FirstF t)
 pattern Second t = Node (SecondF t)
 pattern Refl mx = Node (ReflF mx)
 pattern IdJ a b c d e f = Node (IdJF a b c d e f)
+pattern Match scrut mmotive branches = Node (MatchF scrut mmotive branches)
+pattern MatchArm orig arm = Node (MatchArmF orig arm)
 pattern Unit = Node UnitF
 pattern TypeUnit = Node TypeUnitF
 pattern TypeAsc term ty = Node (TypeAscF term ty)
@@ -543,10 +574,10 @@ pattern Hole mname = Node (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
   Cube2, Cube2_0, Cube2_1, CubeI, CubeI_0, CubeI_1, CubeProduct, CubeFlip,
-  CubeUnflip, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd, TopeOr, TopeInv,
-  TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App, Let, Lambda,
-  Pair, First, Second, Refl, IdJ, Unit, TypeUnit, TypeAsc, TypeRestricted,
-  TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+  CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
+  TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App,
+  Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
+  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 
 -- * Closed constants
 --
@@ -661,6 +692,12 @@ cubeFlipT cubeTy t = CubeFlipT (topeInfo (typeModalT cubeT Op cubeTy)) t
 
 cubeUnflipT :: TermT n -> TermT n -> TermT n
 cubeUnflipT cubeTy t = CubeUnflipT (topeInfo cubeTy) t
+
+cubeSupT :: TermT n -> TermT n -> TermT n -> TermT n
+cubeSupT cubeTy l r = CubeSupT (topeInfo cubeTy) l r
+
+cubeInfT :: TermT n -> TermT n -> TermT n -> TermT n
+cubeInfT cubeTy l r = CubeInfT (topeInfo cubeTy) l r
 
 -- ** Types
 

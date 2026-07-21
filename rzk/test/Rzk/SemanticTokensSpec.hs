@@ -9,11 +9,16 @@ import           Test.Hspec
 #ifdef LSP_ENABLED
 import qualified Data.Text                    as T
 import           Language.LSP.Protocol.Types  (SemanticTokenAbsolute (..),
+                                               SemanticTokenModifiers (..),
                                                SemanticTokenTypes (..))
 import           Language.Rzk.Syntax          (parseModule, parseTerm)
-import           Language.Rzk.VSCode.Handlers (formatSignature)
+import           Language.Rzk.VSCode.Handlers (formatSignature, useSiteTokens)
+import qualified Language.Rzk.VSCode.ReferenceIndex as RI
 import           Language.Rzk.VSCode.Tokenize (mergeTokens, tokenizeModule,
                                                tokenizeSyntaxSymbols)
+import           Rzk.TypeCheck                (Context (..), Verbosity (..),
+                                               checkedModules, declViews,
+                                               emptyContext)
 
 -- | Merged tokens of a module, as 'provideSemanticTokens' produces them.
 tokensOf :: T.Text -> [SemanticTokenAbsolute]
@@ -38,8 +43,90 @@ exampleModule = T.unlines
   , "#check TOP : TOPE"                           -- 2
   ]
 
+-- | The use-site overlay of a one-file project: typechecked declarations
+-- plus the reference index, as 'provideSemanticTokens' combines them.
+useSiteTokensOf :: T.Text -> [SemanticTokenAbsolute]
+useSiteTokensOf src = case parseModule src of
+  Left err -> error ("parse error: " <> T.unpack err)
+  Right m  -> case checkedModules [(path, m)] silentContext of
+    Left _err -> error "unexpected type error in use-site fixture"
+    Right (checked, _holes) ->
+      useSiteTokens (declViews checked) (RI.indexModules [(path, m)]) path
+  where
+    path = "use-site.rzk"
+    silentContext = emptyContext { ctxVerbosity = Silent }
+
+-- | The token type and modifiers starting at a (0-based) position, if any.
+useTokenAt :: [SemanticTokenAbsolute] -> (Int, Int) -> Maybe (SemanticTokenTypes, [SemanticTokenModifiers])
+useTokenAt toks (l, c) = case
+  [ (_tokenType t, _tokenModifiers t)
+  | t <- toks
+  , _line t == fromIntegral l, _startChar t == fromIntegral c
+  ] of
+    (tt : _) -> Just tt
+    []       -> Nothing
+
+dataModule :: T.Text
+dataModule = T.unlines
+  [ "#lang rzk-1"                                    -- 0
+  , "#data bool := false | true"                     -- 1
+  , "#define not (b : bool) : bool"                  -- 2
+  , "  := rec-bool bool true false b"                -- 3
+  , "#define shadow (false : bool) : bool := false"  -- 4
+  ]
+
+postulateModule :: T.Text
+postulateModule = T.unlines
+  [ "#lang rzk-1"                                     -- 0
+  , "#postulate ax (A : U) (a : A) : A"               -- 1
+  , "#define use-ax (A : U) (a : A) : A := ax A a"    -- 2
+  , "#assume hyp : U"                                 -- 3
+  , "#define use-hyp : U := hyp"                      -- 4
+  , "#section local"                                  -- 5
+  , "#assume sec : U"                                 -- 6
+  , "#define use-sec : U := sec"                      -- 7
+  , "#end local"                                      -- 8
+  ]
+
 spec :: Spec
 spec = do
+  describe "use-site tokens" $ do
+    let toks = useSiteTokensOf dataModule
+
+    it "colour a constructor occurrence as an enum member" $
+      useTokenAt toks (3, 19) `shouldBe` Just (SemanticTokenTypes_EnumMember, [])
+
+    it "colour a data type occurrence as a class" $ do
+      useTokenAt toks (3, 14) `shouldBe` Just (SemanticTokenTypes_Class, [])
+      useTokenAt toks (2, 17) `shouldBe` Just (SemanticTokenTypes_Class, [])
+
+    it "colour a generated eliminator occurrence as a library function" $
+      useTokenAt toks (3, 5)
+        `shouldBe` Just (SemanticTokenTypes_Function, [SemanticTokenModifiers_DefaultLibrary])
+
+    it "leave a local that shadows a constructor plain" $
+      -- the body of shadow uses its parameter, not the constructor
+      useTokenAt toks (4, 40) `shouldBe` Nothing
+
+    it "leave plain definitions to the other token sources" $
+      useTokenAt toks (3, 30) `shouldBe` Nothing                -- b, a binder use
+
+    it "colour a postulate occurrence as an abstract static function" $ do
+      let ptoks = useSiteTokensOf postulateModule
+      useTokenAt ptoks (2, 38)                                  -- ax, in use-ax
+        `shouldBe` Just ( SemanticTokenTypes_Function
+                        , [SemanticTokenModifiers_Abstract, SemanticTokenModifiers_Static] )
+
+    it "colour a top-level-assumption occurrence as an abstract function" $ do
+      let ptoks = useSiteTokensOf postulateModule
+      useTokenAt ptoks (4, 23)                                  -- hyp, in use-hyp
+        `shouldBe` Just (SemanticTokenTypes_Function, [SemanticTokenModifiers_Abstract])
+
+    it "colour an in-section-assumption occurrence as an abstract parameter" $ do
+      let ptoks = useSiteTokensOf postulateModule
+      useTokenAt ptoks (7, 23)                                  -- sec, in use-sec
+        `shouldBe` Just (SemanticTokenTypes_Parameter, [SemanticTokenModifiers_Abstract])
+
   describe "semantic tokens" $ do
     let toks = tokensOf exampleModule
         positions = [ (_line t, _startChar t) | t <- toks ]
@@ -74,6 +161,20 @@ spec = do
             ]
       tokenAt toks' (1, 27) `shouldBe` Just SemanticTokenTypes_Regexp  -- ?
       tokenAt toks' (2, 29) `shouldBe` Just SemanticTokenTypes_Regexp  -- ?goal
+
+    it "mark postulate and assume declarations as abstract, by severity" $ do
+      let ptoks = tokensOf postulateModule
+      useTokenAt ptoks (1, 11)                                  -- ax, declared
+        `shouldBe` Just ( SemanticTokenTypes_Function
+                        , [ SemanticTokenModifiers_Declaration
+                          , SemanticTokenModifiers_Abstract
+                          , SemanticTokenModifiers_Static ] )
+      useTokenAt ptoks (3, 8)                                   -- hyp, assumed
+        `shouldBe` Just ( SemanticTokenTypes_Function
+                        , [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract] )
+      useTokenAt ptoks (6, 8)                                   -- sec, assumed in a section
+        `shouldBe` Just ( SemanticTokenTypes_Parameter
+                        , [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract] )
 
     it "mark holes even in files that do not parse" $
       tokenizeSyntaxSymbols "#lang rzk-1\n#define broken (x : A) := ?\n"

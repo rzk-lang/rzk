@@ -1,5 +1,5 @@
 name: rzk
-version: 0.10.0
+version: 0.11.0
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -108,6 +108,7 @@ library:
         - Language.Rzk.VSCode.Handlers
         - Language.Rzk.VSCode.Logging
         - Language.Rzk.VSCode.Lsp
+        - Language.Rzk.VSCode.PositionEncoding
         - Language.Rzk.VSCode.Tokenize
         - Language.Rzk.VSCode.ReferenceIndex
       dependencies:

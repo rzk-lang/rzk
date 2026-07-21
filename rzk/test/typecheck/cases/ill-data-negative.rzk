@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- The declared type occurs in a domain: not strictly positive.
+#data bad := c (f : bad → bad)

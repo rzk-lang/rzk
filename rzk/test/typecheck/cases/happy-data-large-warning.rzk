@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- A constructor field storing a universe makes the type large: under
+-- type-in-type this is a paradox amplifier, so the declaration is accepted
+-- with a warning (and will be rejected under safe mode).
+#data large := box (X : U)
+
+-- a small declaration alongside stays warning-free
+#data unit-like := point

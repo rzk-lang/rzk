@@ -13,6 +13,9 @@ module Language.Rzk.VSCode.ReferenceIndex (
   lookupAt,
   bindingSites,
   locationPath,
+  fileOccurrences,
+  AssumeScope (..),
+  assumeScopeAt,
 ) where
 
 import           Control.Applicative      ((<|>))
@@ -64,13 +67,34 @@ data Binding = Binding
   }
   deriving (Eq, Show)
 
-newtype ReferenceIndex = ReferenceIndex
+data ReferenceIndex = ReferenceIndex
   { occurrences :: Map.Map (FilePath, Int) [(Int, Int, Binding)]
     -- ^ Every occurrence (definition or reference), keyed by file and line,
     -- as column spans; identifiers never span lines. This is what makes
     -- 'lookupAt' a map lookup rather than a scan over all bindings.
+  , assumeSites :: Map.Map Location AssumeScope
+    -- ^ The definition sites of @#assume@d names, with their scope.
+    -- Assumptions do not survive to the typechecked declarations (the
+    -- section mechanism folds them into the definitions that use them), so
+    -- the semantic token overlay recognises them here, syntactically. The
+    -- scope is kept because the two kinds warrant different styling: a
+    -- top-level assumption is a file-wide axiom (such as function
+    -- extensionality), while one inside a section is a hypothesis the
+    -- section abstracts over at its @#end@.
   }
   deriving (Show)
+
+-- | Where a name was @#assume@d.
+data AssumeScope
+  = AssumeTopLevel   -- ^ outside any section: a file-wide axiom
+  | AssumeInSection  -- ^ inside a section: a hypothesis, discharged at @#end@
+  deriving (Eq, Show)
+
+-- | The assume-scope of a definition site, if it is one of an @#assume@d
+-- name. A local that shadows an assumption resolves to its own binder,
+-- not to a site recorded here.
+assumeScopeAt :: ReferenceIndex -> Location -> Maybe AssumeScope
+assumeScopeAt index loc = Map.lookup loc (assumeSites index)
 
 -- | One resolved occurrence: name, definition site, occurrence site, and
 -- (for the self-link of a binder) its printed type annotation.
@@ -103,19 +127,36 @@ lookupAt index (Uri path) (Position l c) =
     Nothing    -> Nothing
     Just spans -> listToMaybe [ b | (s, e, b) <- spans, s <= c, c < e ]
 
+-- | Every occurrence recorded for a file, with the binding it resolves to:
+-- 0-based line and column span. Zero-width spans (the derived def entries of
+-- generated eliminators) are skipped; they occupy no characters.
+fileOccurrences :: ReferenceIndex -> FilePath -> [(Binding, Int, Int, Int)]
+fileOccurrences index path =
+  [ (b, l, s, e)
+  | ((p, l), spans) <- Map.toList (occurrences index)
+  , p == path
+  , (s, e, b) <- spans
+  , e > s
+  ]
+
 indexModules :: [(FilePath, Rzk.Module)] -> ReferenceIndex
 indexModules modules = group $
   concat [ goCommand file env0 c | (file, m) <- modules, c <- moduleCommands m ]
   where
     -- On duplicate names, the first definition wins (as scope lookup would).
     env0 = Map.fromListWith (\_new old -> old)
-      [ (varText v, loc)
-      | (file, m) <- modules, v <- globalNames m, Just loc <- [identLoc file v] ]
+      (concat [ globalEntries file m | (file, m) <- modules ])
     group links = ReferenceIndex
       { occurrences = Map.fromListWith (++)
           [ ((path, l), [(s, e, b)])
           | b <- bs
           , Location (Uri path) (Range (Position l s) (Position _ e)) <- bindingSites b
+          ]
+      , assumeSites = Map.fromList
+          [ (loc, scope)
+          | (file, m) <- modules
+          , (v, scope) <- assumesWithScope (moduleCommands m)
+          , Just loc <- [identLoc file v]
           ]
       }
       where
@@ -136,14 +177,49 @@ indexModules modules = group $
 moduleCommands :: Rzk.Module -> [Rzk.Command]
 moduleCommands (Rzk.Module _ _ cmds) = cmds
 
-globalNames :: Rzk.Module -> [Rzk.VarIdent]
-globalNames = concatMap cmd . moduleCommands
+-- | The assumed names of a module with their scope, walking the flat
+-- command list with a section-depth counter.
+assumesWithScope :: [Rzk.Command] -> [(Rzk.VarIdent, AssumeScope)]
+assumesWithScope = go (0 :: Int)
   where
+    go _ [] = []
+    go depth (c : cs) = case c of
+      Rzk.CommandSection _ _     -> go (depth + 1) cs
+      Rzk.CommandSectionEnd _ _  -> go (max 0 (depth - 1)) cs
+      Rzk.CommandAssume _ vars _ ->
+        let scope = if depth == 0 then AssumeTopLevel else AssumeInSection
+        in [ (v, scope) | v <- vars ] ++ go depth cs
+      _                          -> go depth cs
+
+-- | The top-level names a module contributes, with their definition sites.
+-- A @#data@ contributes its type name and constructors, plus the /derived/
+-- eliminator names @ind-D@ and @rec-D@: they have no source declaration, so
+-- they point at the @#data@ name with a zero-width range — resolvable (and
+-- jumped to) from their uses, but never occluding the name they sit on.
+globalEntries :: FilePath -> Rzk.Module -> [(T.Text, Location)]
+globalEntries file = concatMap cmd . moduleCommands
+  where
+    plain v = [ (varText v, loc) | Just loc <- [identLoc file v] ]
+    derived prefix v =
+      [ (prefix <> varText v, zeroWidth loc) | Just loc <- [identLoc file v] ]
+    zeroWidth (Location u (Range s _)) = Location u (Range s s)
     cmd = \case
-      Rzk.CommandDefine _ name _ _ _ _  -> [name]
-      Rzk.CommandPostulate _ name _ _ _ -> [name]
-      Rzk.CommandAssume _ vars _        -> vars
+      Rzk.CommandDefine _ name _ _ _ _  -> plain name
+      Rzk.CommandPostulate _ name _ _ _ -> plain name
+      Rzk.CommandAssume _ vars _        -> concatMap plain vars
+      Rzk.CommandData _ name _ _ _ body -> concat
+        [ plain name
+        , derived "ind-" name
+        , derived "rec-" name
+        , concatMap plain (constructorNames body)
+        ]
       _                                 -> []
+
+constructorNames :: Rzk.DataBody -> [Rzk.VarIdent]
+constructorNames = \case
+  Rzk.NoDataBody _ -> []
+  Rzk.SomeDataBody _ cons _elims ->
+    [ cname | Rzk.Constructor _ cname _ _ <- cons ]
 
 use :: FilePath -> Env -> Rzk.VarIdent -> [Link]
 use file env v = case (Map.lookup (varText v) env, identLoc file v) of
@@ -282,6 +358,29 @@ goCommand file env = \case
     [ Link (varText v) loc loc (Just (printAnn (AnnType ty)))
     | v <- vars, Just loc <- [identLoc file v] ]
       ++ goTerm file env ty
+  -- A #data declares the type, its constructors, and (implicitly) the
+  -- generated eliminators; the type name is in scope in the sort and in
+  -- the constructor types (for return types, and for recursion later).
+  Rzk.CommandData _ name _ ps sort body ->
+    let (env', occs) = goParams file env ps
+        envD = case identLoc file name of
+          Just loc -> Map.insert (varText name) loc env'
+          Nothing  -> env'
+        goSort = case sort of
+          Rzk.SomeDataSort _ ty -> goTerm file envD ty
+          Rzk.NoDataSort _      -> []
+        goBody = case body of
+          Rzk.SomeDataBody _ cons elims -> concat
+            [ concatMap goCon cons
+            , concatMap (\(Rzk.DataElim _ _elim ty) -> goTerm file envD ty) elims
+            ]
+          Rzk.NoDataBody _ -> []
+        goCon (Rzk.Constructor _ cname cps cty) =
+          let (env'', coccs) = goParams file envD cps
+          in def cname ++ coccs ++ case cty of
+               Rzk.SomeConstructorType _ ty -> goTerm file env'' ty
+               Rzk.NoConstructorType _      -> []
+    in def name ++ occs ++ goSort ++ goBody
   Rzk.CommandCheck _ a b       -> goTerm file env a ++ goTerm file env b
   Rzk.CommandCompute _ a       -> goTerm file env a
   Rzk.CommandComputeWHNF _ a   -> goTerm file env a
@@ -309,10 +408,10 @@ goTerm file env = \case
   Rzk.ASCII_TypeSigmaTuple _ sp sps ret     -> sigmaTupleScope file env (sp : sps) ret
   Rzk.TypeFun _ pd ret                      -> paramDeclScope file env pd ret
   Rzk.ASCII_TypeFun _ pd ret                -> paramDeclScope file env pd ret
-  Rzk.TypeExtensionDeprecated _ pd ty       -> paramDeclScope file env pd ty
-  Rzk.ASCII_TypeExtensionDeprecated _ pd ty -> paramDeclScope file env pd ty
 
   Rzk.CubeProduct _ a b         -> goTerm file env a ++ goTerm file env b
+  Rzk.CubeSup _ a b             -> goTerm file env a ++ goTerm file env b
+  Rzk.CubeInf _ a b             -> goTerm file env a ++ goTerm file env b
   Rzk.TopeEQ _ a b              -> goTerm file env a ++ goTerm file env b
   Rzk.TopeLEQ _ a b             -> goTerm file env a ++ goTerm file env b
   Rzk.TopeAnd _ a b             -> goTerm file env a ++ goTerm file env b
@@ -326,7 +425,6 @@ goTerm file env = \case
   Rzk.CubeFlip _ a              -> goTerm file env a
   Rzk.CubeUnflip _ a            -> goTerm file env a
   Rzk.RecOr _ rs                -> concatMap (restriction file env) rs
-  Rzk.RecOrDeprecated _ a b c d -> concatMap (goTerm file env) [a, b, c, d]
   Rzk.TypeId _ a b c            -> concatMap (goTerm file env) [a, b, c]
   Rzk.TypeIdSimple _ a b        -> goTerm file env a ++ goTerm file env b
   Rzk.TypeRestricted _ a rs     -> goTerm file env a ++ concatMap (restriction file env) rs
@@ -343,6 +441,9 @@ goTerm file env = \case
   Rzk.ReflTerm _ a              -> goTerm file env a
   Rzk.ReflTermType _ a b        -> goTerm file env a ++ goTerm file env b
   Rzk.IdJ _ a b c d e f         -> concatMap (goTerm file env) [a, b, c, d, e, f]
+  Rzk.Match _ scrut bs          -> goTerm file env scrut ++ concatMap (matchBranchScope file env) bs
+  Rzk.MatchInto _ scrut motive bs ->
+    goTerm file env scrut ++ goTerm file env motive ++ concatMap (matchBranchScope file env) bs
   Rzk.TypeAsc _ a b             -> goTerm file env a ++ goTerm file env b
 
   Rzk.Universe{}           -> []
@@ -398,6 +499,17 @@ restriction file env = \case
   Rzk.Restriction _ a b       -> goTerm file env a ++ goTerm file env b
   Rzk.ASCII_Restriction _ a b -> goTerm file env a ++ goTerm file env b
 
+-- | A match branch: the constructor name is a use (linked to the constructor's
+-- declaration), and the binder patterns scope over the branch body.
+matchBranchScope :: FilePath -> Env -> Rzk.MatchBranch -> [Link]
+matchBranchScope file env (Rzk.MatchBranch _ con pats body) =
+  use file env con ++ goPats env pats
+  where
+    goPats env' []       = goTerm file env' body
+    goPats env' (p : ps) =
+      let (env'', occs) = bindPat file env' Nothing p
+       in occs ++ goPats env'' ps
+
 goBind :: FilePath -> Env -> Rzk.Bind -> (Env, [Link])
 goBind file env = \case
   Rzk.BindPattern _ pat -> bindPat file env Nothing pat
@@ -420,9 +532,6 @@ goParam file env = \case
   Rzk.ParamPatternShape _ pats cube tope ->
     let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (shapeAnn cube tope)) pats)
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamPatternShapeDeprecated _ pat cube tope ->
-    let (env', occs) = bindPat file env (shapeAnn cube tope) pat
-    in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamPatternModalType _ pats _ ty ->
     let (env', occs) = bindVars file env (concatMap (annotatedPatternVars (typeAnn ty)) pats)
     in (env', goTerm file env ty ++ occs)
@@ -438,12 +547,6 @@ goParamDecl file env = \case
     in (env', goTerm file env ty ++ occs)
   Rzk.ParamTermShape _ patTerm cube tope ->
     let (env', occs) = bindVars file env (annotatedTermPatVars (shapeAnn cube tope) patTerm)
-    in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
-  Rzk.ParamTermTypeDeprecated _ pat ty ->
-    let (env', occs) = bindPat file env (typeAnn ty) pat
-    in (env', goTerm file env ty ++ occs)
-  Rzk.ParamVarShapeDeprecated _ pat cube tope ->
-    let (env', occs) = bindPat file env (shapeAnn cube tope) pat
     in (env', goTerm file env cube ++ occs ++ goTerm file env' tope)
   Rzk.ParamTermModalType _ patTerm _ ty ->
     let (env', occs) = bindVars file env (annotatedTermPatVars (typeAnn ty) patTerm)

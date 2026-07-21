@@ -26,6 +26,7 @@ nav:
       - Слой кубов: reference/cube-layer.rzk.md
       - Слой форм: reference/tope-layer.rzk.md
       - Зависимые типы: reference/type-layer.rzk.md
+      - Сопоставление с образцом: reference/match.rzk.md
       - Модальности (экспериментально): reference/modalities.rzk.md
       - Устранение объединений форм: reference/tope-disjunction-elimination.rzk.md
       - Типы-расширения: reference/extension-types.rzk.md
@@ -37,6 +38,7 @@ nav:
           - Единичный тип: reference/builtins/unit.rzk.md
       - Команды:
           - Определения и постулаты: reference/commands/define-postulate.rzk.md
+          - Индуктивные типы (data): reference/commands/data.rzk.md
           - Вычисления: reference/commands/compute.rzk.md
           - Проверка типов: reference/commands/check.rzk.md
           - Опции решателя: reference/commands/options.rzk.md

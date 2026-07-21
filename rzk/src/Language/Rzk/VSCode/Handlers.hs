@@ -19,6 +19,7 @@ module Language.Rzk.VSCode.Handlers (
   formatSignature,
   formatDocument,
   provideSemanticTokens,
+  useSiteTokens,
   handleFilesChanged,
 ) where
 
@@ -44,6 +45,7 @@ import           Language.LSP.Diagnostics      (partitionBySource)
 import           Language.LSP.Protocol.Lens    (HasContext (context),
                                                 HasDetail (detail),
                                                 HasDocumentation (documentation),
+                                                HasKind (kind),
                                                 HasLabel (label),
                                                 HasParams (params),
                                                 HasPosition (position),
@@ -68,6 +70,7 @@ import           Language.Rzk.Syntax           (Module, Term,
                                                 parseModuleSafe, printTree)
 import qualified Language.Rzk.VSCode.Config    as RzkConfig
 import           Language.Rzk.VSCode.Env
+import qualified Language.Rzk.VSCode.PositionEncoding as Enc
 import qualified Language.Rzk.VSCode.ReferenceIndex as RefInd
 import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
@@ -127,20 +130,50 @@ fromLspUri u = RefInd.Uri { uriPath = fromMaybe "" (uriToFilePath u) }
 toLspUri :: RefInd.Uri -> LSP.Uri
 toLspUri (RefInd.Uri { uriPath = p }) = filePathToUri p
 
-fromLspPosition :: LSP.Position -> RefInd.Position
-fromLspPosition (LSP.Position l c) =
-  RefInd.Position (fromIntegral l) (fromIntegral c)
+-- | The astral-line map of a file, for position conversion at the LSP
+-- boundary (see "Language.Rzk.VSCode.PositionEncoding"): from the editor
+-- buffer when the file is open, from disk otherwise. A file that cannot be
+-- read converts as all-BMP, i.e. the conversion is the identity.
+astralLinesOfFile :: FilePath -> LSP Enc.AstralLines
+astralLinesOfFile path = do
+  mdoc <- getVirtualFile (filePathToNormalizedUri path)
+  case virtualFileText <$> mdoc of
+    Just text -> return (Enc.astralLines (T.filter (/= '\r') text))
+    Nothing -> liftIO $ do
+      result <- try @SomeException (readFile path)
+      return $ case result of
+        Left _    -> Enc.astralLines ""
+        Right src -> Enc.astralLines (T.filter (/= '\r') (T.pack src))
 
-toLspPosition :: RefInd.Position -> LSP.Position
-toLspPosition (RefInd.Position l c) =
-  LSP.Position (fromIntegral l) (fromIntegral c)
+fromLspPosition :: Enc.AstralLines -> LSP.Position -> RefInd.Position
+fromLspPosition als (LSP.Position l c) =
+  RefInd.Position (fromIntegral l)
+    (Enc.colFromUtf16 als (fromIntegral l) (fromIntegral c))
 
-toLspRange :: RefInd.Range -> Range
-toLspRange (RefInd.Range s e) = Range (toLspPosition s) (toLspPosition e)
+toLspPosition :: Enc.AstralLines -> RefInd.Position -> LSP.Position
+toLspPosition als (RefInd.Position l c) =
+  LSP.Position (fromIntegral l)
+    (fromIntegral (Enc.colToUtf16 als l c))
 
-toLspLocation :: RefInd.Location -> LSP.Location
-toLspLocation (RefInd.Location u r) =
-  LSP.Location (toLspUri u) (toLspRange r)
+toLspRange :: Enc.AstralLines -> RefInd.Range -> Range
+toLspRange als (RefInd.Range s e) =
+  Range (toLspPosition als s) (toLspPosition als e)
+
+-- | Convert locations to LSP, fetching the astral-line map once per file.
+toLspLocations :: [RefInd.Location] -> LSP [LSP.Location]
+toLspLocations locations = do
+  let files = nub (map RefInd.locationPath locations)
+  alss <- Map.fromList <$> forM files (\f -> (,) f <$> astralLinesOfFile f)
+  return
+    [ LSP.Location (toLspUri u) (toLspRange als r)
+    | RefInd.Location u r <- locations
+    , Just als <- [Map.lookup (RefInd.uriPath u) alss]
+    ]
+
+toLspLocation :: RefInd.Location -> LSP LSP.Location
+toLspLocation (RefInd.Location u r) = do
+  als <- astralLinesOfFile (RefInd.uriPath u)
+  return (LSP.Location (toLspUri u) (toLspRange als r))
 
 typecheckFromConfigFile :: LSP ()
 typecheckFromConfigFile = do
@@ -173,7 +206,8 @@ typecheckFromConfigFile = do
 
           -- Report parse errors to the client
           forM_ parseErrors $ \(path, err) -> do
-            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError err])
+            als <- astralLinesOfFile path
+            publishDiagnostics maxDiagnosticCount (filePathToNormalizedUri path) Nothing (partitionBySource [diagnosticOfParseError als err])
 
           -- Files after the first parse error are not typechecked at all
           -- ('collectErrors' stops collecting modules there); mark the ones
@@ -226,7 +260,7 @@ typecheckFromConfigFile = do
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Left err) -> do
               logError ("An impossible error happened! Please report a bug:\n" <> T.pack (ppTypeErrorInScopedContext BottomUp err))
-              publishModuleDiagnostics path [err] []    -- sort of impossible
+              publishModuleDiagnostics path [err] [] []    -- sort of impossible
               publishBlockedDiagnostics rootPath path (map fst rest)
             Right (Right (checkedNow, holeInfos)) -> do
               let errors = checkedErrors checkedNow
@@ -237,7 +271,7 @@ typecheckFromConfigFile = do
                     [(path, RzkCachedModule checkedNow decls
                         (filter ((== path) . filepathOfTypeError) errors))]
               cacheTypecheckedModules checked'
-              publishModuleDiagnostics path errors holeInfos
+              publishModuleDiagnostics path errors (checkedWarnings checkedNow) holeInfos
               -- Stop at the first module with errors, like the batch checker
               -- ('typecheckModulesWithLocation'') does: later modules depend
               -- on this one and would report cascading errors. Mark the
@@ -257,15 +291,19 @@ typecheckFromConfigFile = do
     -- per-source map over the old one, and @partitionBySource []@ has no
     -- "rzk" key, so the old diagnostics would survive and be re-sent. A
     -- max count of 0 forces an empty publish to the client, clearing it.
-    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [HoleInfo] -> LSP ()
-    publishModuleDiagnostics path typeErrors holeInfos = do
+    publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [CheckWarning] -> [HoleInfo] -> LSP ()
+    publishModuleDiagnostics path typeErrors warnings holeInfos = do
       let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
                             | err <- typeErrors ]
+          warnDiagnostics = [ (path', [diagnosticOfWarning warning])
+                            | warning <- warnings
+                            , let path' = fromMaybe path
+                                    (warningLocation warning >>= locationFilePath) ]
           holeDiagnostics = [ (path', [diagnosticOfHole hole])
                             | hole <- holeInfos
                             , Just path' <- [holeLocation hole >>= locationFilePath] ]
           diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
-            Map.fromListWith (flip (<>)) (errDiagnostics <> holeDiagnostics)
+            Map.fromListWith (flip (<>)) (errDiagnostics <> warnDiagnostics <> holeDiagnostics)
       forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
         publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
           (filePathToNormalizedUri path') Nothing (partitionBySource diags)
@@ -333,8 +371,11 @@ typecheckFromConfigFile = do
     diagnosticOfHole :: HoleInfo -> Diagnostic
     diagnosticOfHole = lspDiagnosticOf . Diag.diagnoseHole
 
-    diagnosticOfParseError :: T.Text -> Diagnostic
-    diagnosticOfParseError err = Diagnostic (Range (Position errLine errColumnStart) (Position errLine errColumnEnd))
+    diagnosticOfWarning :: CheckWarning -> Diagnostic
+    diagnosticOfWarning = lspDiagnosticOf . Diag.diagnoseCheckWarning
+
+    diagnosticOfParseError :: Enc.AstralLines -> T.Text -> Diagnostic
+    diagnosticOfParseError als err = Diagnostic (Enc.rangeToUtf16 als (Range (Position errLine errColumnStart) (Position errLine errColumnEnd)))
                       (Just DiagnosticSeverity_Error)
                       (Just $ InR "parse-error")
                       Nothing
@@ -395,9 +436,10 @@ provideCompletions req res = do
     declsToItems :: FilePath -> (FilePath, [DeclView]) -> [CompletionItem]
     declsToItems root (path, decls) = map (declToItem root path) decls
     declToItem :: FilePath -> FilePath -> DeclView -> CompletionItem
-    declToItem rootDir path (DeclView name type' _ _loc) = def
+    declToItem rootDir path (DeclView name type' _ _loc declKind) = def
 
       & label .~ T.pack (printTree $ getVarIdent name)
+      & kind ?~ completionKindOfDecl declKind
       & detail ?~ T.pack (show type')
       & documentation ?~ InR (MarkupContent MarkupKind_Markdown $ T.pack $
           "---\nDefined" ++
@@ -419,11 +461,11 @@ fullDocumentRange source
   | otherwise =
       let newlineCount = T.count (T.singleton '\n') source
           endLine = newlineCount
-          -- Length of last line (after last newline); if no newline, whole text is one line
+          -- Length of the last line (after the last newline; if no newline,
+          -- the whole text is one line), in UTF-16 units as LSP counts them.
           endCharacter
             | T.last source == '\n' = 0
-            | Just i <- T.findIndex (== '\n') (T.reverse source) = fromIntegral i
-            | otherwise = fromIntegral (T.length source)
+            | otherwise = fromIntegral (Enc.utf16Length (T.takeWhileEnd (/= '\n') source))
       in Range (Position 0 0) (Position (fromIntegral endLine) endCharacter)
 
 formatDocument :: Handler LSP 'Method_TextDocumentFormatting
@@ -470,7 +512,16 @@ formatDocument req res = do
 provideSemanticTokens :: Handler LSP 'Method_TextDocumentSemanticTokensFull
 provideSemanticTokens req responder = do
   let doc = req ^. params . textDocument . uri . to toNormalizedUri
+      currentFile = fromMaybe "" (uriToFilePath (req ^. params . textDocument . uri))
   mdoc <- getVirtualFile doc
+  -- Use-site classification needs name resolution (an occurrence of a
+  -- constructor is a plain variable to the AST walk): the reference index
+  -- resolves the occurrences, and the typecheck cache knows each
+  -- declaration's kind.
+  referenceIndex <- indexProject currentFile
+  cachedModules <- getCachedTypecheckedModules
+  let declsByFile = [ (path, cachedModuleDecls m) | (path, m) <- cachedModules ]
+      overlay = useSiteTokens declsByFile referenceIndex currentFile
   possibleTokens <- case virtualFileText <$> mdoc of
     Nothing         -> return (Left "Failed to get file content")
     Just sourceCode -> do
@@ -483,7 +534,10 @@ provideSemanticTokens req responder = do
           logWarning ("Failed to parse file for semantic tokens: " <> err)
           return []
         Right rzkModule -> return (tokenizeModule rzkModule)
-      return (Right (mergeTokens astTokens (tokenizeSyntaxSymbols src)))
+      -- On overlapping positions: the AST walk wins (it has the declaration
+      -- modifiers), then the use-site overlay, then the lexer baseline.
+      return (Right (Enc.tokensToUtf16 (Enc.astralLines src)
+        (mergeTokens (mergeTokens astTokens overlay) (tokenizeSyntaxSymbols src))))
   case possibleTokens of
     Left err -> do
       -- Exception occurred when parsing the module
@@ -502,8 +556,11 @@ findDefinition req res = do
   let uri' = req ^. params . textDocument . uri
       currentFile = fromMaybe "" (uriToFilePath uri')
   referenceIndex <- indexProject currentFile
-  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
-    Just binding -> res $ Right $ InL $ Definition $ InL (toLspLocation (RefInd.bindingDef binding))
+  als <- astralLinesOfFile currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition als (req ^. params . position)) of
+    Just binding -> do
+      location <- toLspLocation (RefInd.bindingDef binding)
+      res $ Right $ InL $ Definition $ InL location
     Nothing      -> res $ Right $ InR $ InR Null
 
 findReferences :: Handler LSP 'Method_TextDocumentReferences
@@ -512,12 +569,14 @@ findReferences req res = do
       currentFile = fromMaybe "" (uriToFilePath uri')
       includeDeclaration = req ^. params . context . to (\(ReferenceContext incl) -> incl)
   referenceIndex <- indexProject currentFile
-  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition (req ^. params . position)) of
-    Just binding ->
+  als <- astralLinesOfFile currentFile
+  case RefInd.lookupAt referenceIndex (fromLspUri uri') (fromLspPosition als (req ^. params . position)) of
+    Just binding -> do
       let sites
             | includeDeclaration = RefInd.bindingSites binding
             | otherwise          = RefInd.bindingRefs binding
-      in res $ Right $ InL (map toLspLocation sites)
+      locations <- toLspLocations sites
+      res $ Right $ InL locations
     Nothing -> res $ Right $ InL []
 
 indexProject :: FilePath -> LSP RefInd.ReferenceIndex
@@ -591,17 +650,19 @@ formatSignature name ty
 provideHover :: Handler LSP 'Method_TextDocumentHover
 provideHover req res = do
   let uri' = req ^. params . textDocument . uri
-      pos  = fromLspPosition (req ^. params . position)
       currentFile = fromMaybe "" $ uriToFilePath uri'
   referenceIndex <- indexProject currentFile
+  als <- astralLinesOfFile currentFile
+  let pos = fromLspPosition als (req ^. params . position)
   case RefInd.lookupAt referenceIndex (fromLspUri uri') pos of
     Nothing -> res $ Right $ InR Null
     Just binding -> do
       cached <- getCachedTypecheckedModules
       let body = hoverContent binding cached
+      LSP.Location _ defRange <- toLspLocation (RefInd.bindingDef binding)
       res $ Right $ InL $ Hover
         (InL (MarkupContent MarkupKind_Markdown body))
-        (Just (toLspRange (RefInd.locationRange (RefInd.bindingDef binding))))
+        (Just defRange)
   where
     hoverContent binding cached =
       T.pack (file ++ "\n\n```rzk\n" ++ signature ++ "\n```")
@@ -638,45 +699,166 @@ provideHover req res = do
               Nothing  -> case find declWithName decls of
                 Just d  -> formatSignature (T.unpack name) (getRendered (declViewType d))
                 Nothing -> T.unpack name ++ " : ?"
-        declWithName (DeclView v _ _ _) =
+        declWithName (DeclView v _ _ _ _) =
           T.pack (printTree (getVarIdent v)) == name
-        declOnSameLine d@(DeclView _ _ _ mloc) =
+        declOnSameLine d@(DeclView _ _ _ mloc _) =
           declWithName d && (locationLine =<< mloc) == Just (defLine + 1)
 
 -- | The printed name of a declaration and the range of its defining
 -- occurrence, shared by the document and workspace symbol providers.
-declNameRange :: DeclView -> (T.Text, Range)
-declNameRange (DeclView name _ _ _) = (T.pack (printTree ident), range)
+declNameRange :: Enc.AstralLines -> DeclView -> (T.Text, Range)
+declNameRange als (DeclView name _ _ _ _) = (T.pack (printTree ident), range)
   where
     ident = getVarIdent name
     VarIdent pos _ = ident
     RzkPosition _path pos' = pos
     (line, col) = fromMaybe (0, 0) pos'
     len = length (printTree ident)
-    pos0 = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1)))
-    end  = Position (fromIntegral (max 0 (line - 1))) (fromIntegral (max 0 (col - 1) + len))
+    line0 = max 0 (line - 1)
+    col0 = max 0 (col - 1)
+    pos0 = Position (fromIntegral line0) (fromIntegral (Enc.colToUtf16 als line0 col0))
+    end  = Position (fromIntegral line0) (fromIntegral (Enc.colToUtf16 als line0 (col0 + len)))
     range = Range pos0 end
 
 provideSymbols :: Handler LSP 'Method_TextDocumentDocumentSymbol
 provideSymbols req res = do
   let currentFile = fromMaybe "" $ uriToFilePath $ req ^. params . textDocument . uri
   cachedModules <- getCachedTypecheckedModules
+  als <- astralLinesOfFile currentFile
   let decls = maybe [] cachedModuleDecls (lookup currentFile cachedModules)
-  res $ Right $ InR $ InL $ map declToSymbol decls
+  res $ Right $ InR $ InL $ outline als decls
   where
-    declToSymbol :: DeclView -> DocumentSymbol
-    declToSymbol decl@(DeclView _ type' _ _loc) = DocumentSymbol
+    -- A #data contributes one symbol with its constructors as children; the
+    -- generated eliminators stay out of the outline (they are not in the
+    -- source; workspace symbol search still finds them).
+    outline :: Enc.AstralLines -> [DeclView] -> [DocumentSymbol]
+    outline _ [] = []
+    outline als (d : ds) = case declViewKind d of
+      DeclKindData ->
+        let isChildOf c = case declViewKind c of
+              DeclKindDataCon parent -> parent == declViewName d
+              _                      -> False
+            (childDecls, rest) = span isChildOf ds
+        in declToSymbol als (Just (map (declToSymbol als Nothing) childDecls)) d
+             : outline als rest
+      DeclKindDataElim _ -> outline als ds
+      _ -> declToSymbol als Nothing d : outline als ds
+
+    declToSymbol :: Enc.AstralLines -> Maybe [DocumentSymbol] -> DeclView -> DocumentSymbol
+    declToSymbol als mchildren decl@(DeclView _ type' _ _loc declKind) = DocumentSymbol
       { _name           = symbolName
       , _detail         = Just (T.pack (show type'))
-      , _kind           = SymbolKind_Function
+      , _kind           = symbolKindOfDecl declKind
       , _tags           = Nothing
       , _deprecated     = Nothing
       , _range          = range
       , _selectionRange = range
-      , _children       = Nothing
+      , _children       = mchildren
       }
       where
-        (symbolName, range) = declNameRange decl
+        (symbolName, range) = declNameRange als decl
+
+-- | The LSP symbol kind of a declaration, mirroring the semantic token
+-- choices at the declaration site (class for a data type, enum member for a
+-- constructor, function otherwise).
+symbolKindOfDecl :: DeclKind -> SymbolKind
+symbolKindOfDecl = \case
+  DeclKindData       -> SymbolKind_Class
+  DeclKindDataCon _  -> SymbolKind_EnumMember
+  DeclKindDataElim _ -> SymbolKind_Function
+  DeclKindPostulate  -> SymbolKind_Function
+  DeclKindDefine     -> SymbolKind_Function
+
+-- | The completion kind of a declaration, mirroring 'symbolKindOfDecl'.
+completionKindOfDecl :: DeclKind -> CompletionItemKind
+completionKindOfDecl = \case
+  DeclKindData       -> CompletionItemKind_Class
+  DeclKindDataCon _  -> CompletionItemKind_EnumMember
+  DeclKindDataElim _ -> CompletionItemKind_Function
+  DeclKindPostulate  -> CompletionItemKind_Function
+  DeclKindDefine     -> CompletionItemKind_Function
+
+-- | The checker-derived token overlay for identifier /uses/: an occurrence
+-- that resolves to a product of a @#data@ declaration is coloured by its
+-- kind wherever it appears — a constructor as an enum member, the type as a
+-- class, a generated eliminator as a library function — and an occurrence
+-- of a postulate or an assumption is marked abstract (declared, but not
+-- proven), so a proof that leans on an axiom is visible at a glance.
+-- Postulates, top-level assumptions, and in-section assumptions get
+-- distinct type/modifier combinations, in decreasing order of severity.
+-- Occurrences are
+-- matched to declarations by definition site (file and line) /and/ name, so
+-- a local that shadows a constructor stays plain, and plain definitions are
+-- left to the lexer baseline. Positions are code points, like every other
+-- token source; the UTF-16 conversion happens after merging.
+useSiteTokens
+  :: [(FilePath, [DeclView])]  -- ^ the typechecked declarations, per file
+  -> RefInd.ReferenceIndex
+  -> FilePath                  -- ^ the file to produce tokens for
+  -> [SemanticTokenAbsolute]
+useSiteTokens declsByFile refIndex path =
+  [ SemanticTokenAbsolute
+      { _line = fromIntegral l
+      , _startChar = fromIntegral s
+      , _length = fromIntegral (e - s)
+      , _tokenType = tokenType
+      , _tokenModifiers = modifiers
+      }
+  | (binding, l, s, e) <- RefInd.fileOccurrences refIndex path
+  , Just (tokenType, modifiers) <- [classify binding]
+  ]
+  where
+    classify binding
+      -- Assumptions do not survive to the typechecked declarations (the
+      -- section mechanism folds them into their users), so they are
+      -- recognised by their syntactic definition site instead. A
+      -- top-level assumption is a file-wide axiom; one inside a section
+      -- is a hypothesis discharged at its #end, so it keeps the
+      -- parameter token type and only gains the abstract modifier.
+      | Just scope <- RefInd.assumeScopeAt refIndex (RefInd.bindingDef binding) =
+          Just $ case scope of
+            RefInd.AssumeTopLevel ->
+              (SemanticTokenTypes_Function, [SemanticTokenModifiers_Abstract])
+            RefInd.AssumeInSection ->
+              (SemanticTokenTypes_Parameter, [SemanticTokenModifiers_Abstract])
+      | otherwise = do
+      let RefInd.Location (RefInd.Uri defPath) range = RefInd.bindingDef binding
+          defStart = RefInd.rangeStart range
+          key = ( defPath
+                , RefInd.positionLine defStart
+                , RefInd.positionCharacter defStart
+                , RefInd.bindingName binding )
+      declKind <- Map.lookup key kindTable
+      case declKind of
+        DeclKindData       -> Just (SemanticTokenTypes_Class, [])
+        DeclKindDataCon _  -> Just (SemanticTokenTypes_EnumMember, [])
+        DeclKindDataElim _ ->
+          Just (SemanticTokenTypes_Function, [SemanticTokenModifiers_DefaultLibrary])
+        -- The abstract and static modifiers are in the default legend, so
+        -- no custom legend is needed; clients style function.abstract
+        -- distinctly (the VS Code extension maps it to a bright scope).
+        -- The static modifier only distinguishes a postulate (a permanent
+        -- axiom) from a top-level assumption (discharged at module end),
+        -- so a postulate can be styled louder.
+        DeclKindPostulate  ->
+          Just ( SemanticTokenTypes_Function
+               , [SemanticTokenModifiers_Abstract, SemanticTokenModifiers_Static] )
+        DeclKindDefine     -> Nothing
+    -- Keyed by the declared name's own position, which is what the index
+    -- records as the definition site (a constructor's key is where it is
+    -- written, also in a multi-line declaration). The generated eliminators
+    -- share the type name's position — its derived zero-width entries — so
+    -- the name is part of the key.
+    kindTable = Map.fromList
+      [ ((file, line - 1, col - 1, name), declViewKind d)
+      | (_, decls) <- declsByFile
+      , d <- decls
+      , let ident = getVarIdent (declViewName d)
+      , let name = T.pack (printTree ident)
+      , VarIdent (RzkPosition mpath mpos) _ <- [ident]
+      , Just file <- [mpath]
+      , Just (line, col) <- [mpos]
+      ]
 
 -- | Workspace-wide symbol search over every typechecked module in the cache.
 -- The query is matched case-insensitively as an infix of the definition name;
@@ -686,20 +868,21 @@ provideWorkspaceSymbols :: Handler LSP 'Method_WorkspaceSymbol
 provideWorkspaceSymbols req res = do
   let symbolQuery = T.toLower (req ^. params . query)
   cachedModules <- getCachedTypecheckedModules
-  let symbols =
-        [ WorkspaceSymbol
-            { _name          = symbolName
-            , _kind          = SymbolKind_Function
-            , _tags          = Nothing
-            , _containerName = Nothing
-            , _location      = InL (Location (filePathToUri path) range)
-            , _data_         = Nothing
-            }
-        | (path, cachedModule) <- cachedModules
-        , decl <- cachedModuleDecls cachedModule
-        , let (symbolName, range) = declNameRange decl
-        , symbolQuery `T.isInfixOf` T.toLower symbolName
-        ]
+  symbols <- fmap concat $ forM cachedModules $ \(path, cachedModule) -> do
+    als <- astralLinesOfFile path
+    return
+      [ WorkspaceSymbol
+          { _name          = symbolName
+          , _kind          = symbolKindOfDecl (declViewKind decl)
+          , _tags          = Nothing
+          , _containerName = Nothing
+          , _location      = InL (Location (filePathToUri path) range)
+          , _data_         = Nothing
+          }
+      | decl <- cachedModuleDecls cachedModule
+      , let (symbolName, range) = declNameRange als decl
+      , symbolQuery `T.isInfixOf` T.toLower symbolName
+      ]
   res $ Right $ InR $ InL symbols
 
 

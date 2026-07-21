@@ -5,7 +5,7 @@ cabal-version: 2.0
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.10.0
+version:        0.11.0
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -21,10 +21,30 @@ extra-source-files:
     grammar/Syntax.cf
     test/typecheck/SCHEMA.md
     test/typecheck/cases/happy-check.rzk
+    test/typecheck/cases/happy-data-bool.rzk
+    test/typecheck/cases/happy-data-coprod.rzk
+    test/typecheck/cases/happy-data-empty.rzk
+    test/typecheck/cases/happy-data-eta-short.rzk
+    test/typecheck/cases/happy-data-hottbook-nat.rzk
+    test/typecheck/cases/happy-data-indices-edge.rzk
+    test/typecheck/cases/happy-data-large-warning.rzk
+    test/typecheck/cases/happy-data-list.rzk
+    test/typecheck/cases/happy-data-nat.rzk
+    test/typecheck/cases/happy-data-rec-section.rzk
+    test/typecheck/cases/happy-data-section.rzk
+    test/typecheck/cases/happy-data-vec.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-subtyping.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
+    test/typecheck/cases/happy-lattice-eq-gives-leq.rzk
+    test/typecheck/cases/happy-lattice-mixed-cube.rzk
+    test/typecheck/cases/happy-lattice.rzk
+    test/typecheck/cases/happy-match-basics.rzk
+    test/typecheck/cases/happy-match-case-vec.rzk
+    test/typecheck/cases/happy-match-indexed.rzk
+    test/typecheck/cases/happy-meta-prefix-option-off.rzk
+    test/typecheck/cases/happy-meta-prefix-plumbing.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
     test/typecheck/cases/happy-modal-flat-under-op.rzk
@@ -40,6 +60,7 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
     test/typecheck/cases/happy-set-option-warn-overhang.rzk
+    test/typecheck/cases/happy-shadowing-across-groups.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/happy-subtype-variance-restriction-faces.rzk
@@ -53,6 +74,16 @@ extra-source-files:
     test/typecheck/cases/happy-tope-shapes.rzk
     test/typecheck/cases/ill-bare-lambda-compute.rzk
     test/typecheck/cases/ill-bare-refl-compute.rzk
+    test/typecheck/cases/ill-data-clash-generated.rzk
+    test/typecheck/cases/ill-data-duplicate-constructor.rzk
+    test/typecheck/cases/ill-data-eliminator-clause.rzk
+    test/typecheck/cases/ill-data-fun-field.rzk
+    test/typecheck/cases/ill-data-index-mismatch.rzk
+    test/typecheck/cases/ill-data-missing-return.rzk
+    test/typecheck/cases/ill-data-negative.rzk
+    test/typecheck/cases/ill-data-non-u-sort.rzk
+    test/typecheck/cases/ill-data-return-type.rzk
+    test/typecheck/cases/ill-data-shape-field.rzk
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-hole-infer.rzk
     test/typecheck/cases/ill-hole-pattern-binder-names.rzk
@@ -65,6 +96,20 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.rzk
     test/typecheck/cases/ill-issue-206-families-of-extension.rzk
     test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
+    test/typecheck/cases/ill-lattice-endpoints-distinct.rzk
+    test/typecheck/cases/ill-lattice-eq-no-leak.rzk
+    test/typecheck/cases/ill-lattice-non-law.rzk
+    test/typecheck/cases/ill-lattice-not-interval-cube.rzk
+    test/typecheck/cases/ill-lattice-ops-glb-not-entailed.rzk
+    test/typecheck/cases/ill-lattice-ops-lub-not-entailed.rzk
+    test/typecheck/cases/ill-lattice-ops-lub-unconditional.rzk
+    test/typecheck/cases/ill-lattice-total-order-ii.rzk
+    test/typecheck/cases/ill-match-branch-arity.rzk
+    test/typecheck/cases/ill-match-cannot-infer.rzk
+    test/typecheck/cases/ill-match-duplicate-branch.rzk
+    test/typecheck/cases/ill-match-missing-branch.rzk
+    test/typecheck/cases/ill-match-not-data.rzk
+    test/typecheck/cases/ill-match-unknown-branch.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
     test/typecheck/cases/ill-modal-flat-no-commute.rzk
     test/typecheck/cases/ill-modal-not-modal.rzk
@@ -91,6 +136,9 @@ extra-source-files:
     test/typecheck/cases/ill-recor-coverage-required.rzk
     test/typecheck/cases/ill-recor-guard-disjoint.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
+    test/typecheck/cases/ill-repeated-binder-lambda.rzk
+    test/typecheck/cases/ill-repeated-binder-pair.rzk
+    test/typecheck/cases/ill-repeated-binder-params.rzk
     test/typecheck/cases/ill-restrict-face-disjoint.rzk
     test/typecheck/cases/ill-section-end-mismatch.rzk
     test/typecheck/cases/ill-section-not-closed.rzk
@@ -133,11 +181,35 @@ extra-source-files:
     test/typecheck/cases/multimodule-two-ok/user.rzk
     test/typecheck/cases/uses-whnf-discarded.rzk
     test/typecheck/cases/uses-whnf-masked-transitive.rzk
+    test/typecheck/cases/warn-meta-prefix-object-position.rzk
+    test/typecheck/cases/warn-meta-prefix-option-structural.rzk
+    test/typecheck/cases/warn-meta-prefix-section.rzk
+    test/typecheck/cases/warn-meta-prefix-strict-only.rzk
     test/typecheck/cases/happy-check.expect.yaml
+    test/typecheck/cases/happy-data-bool.expect.yaml
+    test/typecheck/cases/happy-data-coprod.expect.yaml
+    test/typecheck/cases/happy-data-empty.expect.yaml
+    test/typecheck/cases/happy-data-eta-short.expect.yaml
+    test/typecheck/cases/happy-data-hottbook-nat.expect.yaml
+    test/typecheck/cases/happy-data-indices-edge.expect.yaml
+    test/typecheck/cases/happy-data-large-warning.expect.yaml
+    test/typecheck/cases/happy-data-list.expect.yaml
+    test/typecheck/cases/happy-data-nat.expect.yaml
+    test/typecheck/cases/happy-data-rec-section.expect.yaml
+    test/typecheck/cases/happy-data-section.expect.yaml
+    test/typecheck/cases/happy-data-vec.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
+    test/typecheck/cases/happy-lattice-eq-gives-leq.expect.yaml
+    test/typecheck/cases/happy-lattice-mixed-cube.expect.yaml
+    test/typecheck/cases/happy-lattice.expect.yaml
+    test/typecheck/cases/happy-match-basics.expect.yaml
+    test/typecheck/cases/happy-match-case-vec.expect.yaml
+    test/typecheck/cases/happy-match-indexed.expect.yaml
+    test/typecheck/cases/happy-meta-prefix-option-off.expect.yaml
+    test/typecheck/cases/happy-meta-prefix-plumbing.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml
     test/typecheck/cases/happy-modal-flat-under-op.expect.yaml
@@ -153,6 +225,7 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
     test/typecheck/cases/happy-set-option-warn-overhang.expect.yaml
+    test/typecheck/cases/happy-shadowing-across-groups.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/happy-subtype-variance-restriction-faces.expect.yaml
@@ -166,6 +239,16 @@ extra-source-files:
     test/typecheck/cases/happy-tope-shapes.expect.yaml
     test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
     test/typecheck/cases/ill-bare-refl-compute.expect.yaml
+    test/typecheck/cases/ill-data-clash-generated.expect.yaml
+    test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
+    test/typecheck/cases/ill-data-eliminator-clause.expect.yaml
+    test/typecheck/cases/ill-data-fun-field.expect.yaml
+    test/typecheck/cases/ill-data-index-mismatch.expect.yaml
+    test/typecheck/cases/ill-data-missing-return.expect.yaml
+    test/typecheck/cases/ill-data-negative.expect.yaml
+    test/typecheck/cases/ill-data-non-u-sort.expect.yaml
+    test/typecheck/cases/ill-data-return-type.expect.yaml
+    test/typecheck/cases/ill-data-shape-field.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-hole-infer.expect.yaml
     test/typecheck/cases/ill-hole-pattern-binder-names.expect.yaml
@@ -178,6 +261,20 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.expect.yaml
     test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
     test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
+    test/typecheck/cases/ill-lattice-endpoints-distinct.expect.yaml
+    test/typecheck/cases/ill-lattice-eq-no-leak.expect.yaml
+    test/typecheck/cases/ill-lattice-non-law.expect.yaml
+    test/typecheck/cases/ill-lattice-not-interval-cube.expect.yaml
+    test/typecheck/cases/ill-lattice-ops-glb-not-entailed.expect.yaml
+    test/typecheck/cases/ill-lattice-ops-lub-not-entailed.expect.yaml
+    test/typecheck/cases/ill-lattice-ops-lub-unconditional.expect.yaml
+    test/typecheck/cases/ill-lattice-total-order-ii.expect.yaml
+    test/typecheck/cases/ill-match-branch-arity.expect.yaml
+    test/typecheck/cases/ill-match-cannot-infer.expect.yaml
+    test/typecheck/cases/ill-match-duplicate-branch.expect.yaml
+    test/typecheck/cases/ill-match-missing-branch.expect.yaml
+    test/typecheck/cases/ill-match-not-data.expect.yaml
+    test/typecheck/cases/ill-match-unknown-branch.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
     test/typecheck/cases/ill-modal-flat-no-commute.expect.yaml
     test/typecheck/cases/ill-modal-not-modal.expect.yaml
@@ -204,6 +301,9 @@ extra-source-files:
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
     test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
+    test/typecheck/cases/ill-repeated-binder-lambda.expect.yaml
+    test/typecheck/cases/ill-repeated-binder-pair.expect.yaml
+    test/typecheck/cases/ill-repeated-binder-params.expect.yaml
     test/typecheck/cases/ill-restrict-face-disjoint.expect.yaml
     test/typecheck/cases/ill-section-end-mismatch.expect.yaml
     test/typecheck/cases/ill-section-not-closed.expect.yaml
@@ -242,6 +342,10 @@ extra-source-files:
     test/typecheck/cases/ill-unused-assumption.expect.yaml
     test/typecheck/cases/uses-whnf-discarded.expect.yaml
     test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-object-position.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-option-structural.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-section.expect.yaml
+    test/typecheck/cases/warn-meta-prefix-strict-only.expect.yaml
     test/typecheck/cases/literate-fence/expect.yaml
     test/typecheck/cases/multimodule-first-error/expect.yaml
     test/typecheck/cases/multimodule-two-ok/expect.yaml
@@ -285,6 +389,7 @@ library
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
       Rzk.TypeCheck.Judgements
+      Rzk.TypeCheck.MetaPrefix
       Rzk.TypeCheck.Monad
       Rzk.TypeCheck.NbE
       Rzk.TypeCheck.Render
@@ -325,6 +430,7 @@ library
         Language.Rzk.VSCode.Handlers
         Language.Rzk.VSCode.Logging
         Language.Rzk.VSCode.Lsp
+        Language.Rzk.VSCode.PositionEncoding
         Language.Rzk.VSCode.Tokenize
         Language.Rzk.VSCode.ReferenceIndex
     build-depends:
@@ -417,6 +523,8 @@ test-suite rzk-test
       Rzk.FoilCoreSpec
       Rzk.FormatSpec
       Rzk.HolesSpec
+      Rzk.ParserSpec
+      Rzk.PositionEncodingSpec
       Rzk.RefIndexSpec
       Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec

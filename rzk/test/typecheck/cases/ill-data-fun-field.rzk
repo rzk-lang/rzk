@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- Positive, but the recursive field is function-typed (a W-type shape);
+-- its induction hypothesis needs a lambda built in the core, deferred.
+#data w := node (f : nat → w)

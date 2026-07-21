@@ -55,6 +55,14 @@ data TypeError n
   | TypeErrorUnusedVariable (Foil.Name n) (TermT n)
   | TypeErrorUnusedUsedVariables [Foil.Name n] (Foil.Name n)
   | TypeErrorImplicitAssumption (Foil.Name n, TermT n) (Foil.Name n)
+  | TypeErrorNotIntervalCube String (TermT n) (TermT n)
+  | TypeErrorRepeatedBinder VarIdent [VarIdent]
+  | TypeErrorMatchScrutineeNotData (TermT n) (TermT n)
+  | TypeErrorMatchCannotInfer (Term n)
+  | TypeErrorMatchMissingBranch VarIdent
+  | TypeErrorMatchDuplicateBranch VarIdent
+  | TypeErrorMatchUnknownBranch VarIdent [VarIdent]
+  | TypeErrorMatchBranchArity VarIdent Int Int
 
 -- | An error, together with the context it was raised in.
 --
@@ -239,6 +247,49 @@ ppTypeError naming = \case
     , "used in definition of"
     , "  " <> ppVar name
     ]
+
+  TypeErrorNotIntervalCube op lType rType -> block TopDown
+    [ op <> " expects both points in the same interval cube (2 or 𝕀)"
+    , "but got a point of type"
+    , "  " <> ppU (untyped lType)
+    , "and a point of type"
+    , "  " <> ppU (untyped rType)
+    ]
+
+  TypeErrorRepeatedBinder name previous -> block TopDown
+    [ show name <> " is bound multiple times in one binder group"
+    , "  " <> ppVarIdentWithLocation name
+    , "already bound at"
+    , intercalate "\n"
+      [ "  " <> ppVarIdentWithLocation prev | prev <- previous ]
+    ]
+
+  TypeErrorMatchScrutineeNotData scrut ty -> block TopDown
+    [ "match scrutinee"
+    , "  " <> ppU (untyped scrut)
+    , "is not of a #data type; its type is"
+    , "  " <> ppU (untyped ty)
+    ]
+  TypeErrorMatchCannotInfer term -> block TopDown
+    [ "cannot infer the type of match"
+    , "  " <> ppU term
+    , "a match without \"into\" is only allowed where its type is already known (checking position)"
+    ]
+  TypeErrorMatchMissingBranch con -> block TopDown
+    [ "match has no branch for constructor " <> show con ]
+  TypeErrorMatchDuplicateBranch con -> block TopDown
+    [ "duplicate match branch for constructor " <> show con ]
+  TypeErrorMatchUnknownBranch con cons -> block TopDown
+    [ "match branch for " <> show con <> ", which is not a constructor of the scrutinee's type"
+    , case cons of
+        [] -> "the type has no constructors"
+        _  -> "the constructors are: " <> unwords (map show cons)
+    ]
+  TypeErrorMatchBranchArity con expected actual -> block TopDown
+    [ "match branch for constructor " <> show con
+    , "binds " <> show actual <> " argument" <> (if actual == 1 then "" else "s")
+        <> ", but its method takes " <> show expected
+    ]
   where
     ppU = ppTerm naming
     ppTyped = ppTermT naming
@@ -335,6 +386,8 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
           "  Error occurred when checking\n    #define " <> Rzk.printTree name
         Just (Rzk.CommandPostulate _loc name _vars _params _ty ) ->
           "  Error occurred when checking\n    #postulate " <> Rzk.printTree name
+        Just (Rzk.CommandData _loc name _vars _params _sort _body) ->
+          "  Error occurred when checking\n    #data " <> Rzk.printTree name
         Just (Rzk.CommandCheck _loc term ty) ->
           "  Error occurred when checking\n    " <> Rzk.printTree term <> " : " <> Rzk.printTree ty
         Just (Rzk.CommandCompute _loc term) ->

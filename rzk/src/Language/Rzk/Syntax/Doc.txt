@@ -35,13 +35,14 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``II`` | ``Sigma``
   | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
-  | ``as`` | ``first`` | ``flip_op`` | ``flipᵒᵖ``
-  | ``idJ`` | ``in`` | ``inv_op`` | ``invᵒᵖ``
-  | ``let`` | ``mod`` | ``recBOT`` | ``recOR``
-  | ``refl`` | ``second`` | ``unflip_op`` | ``unflipᵒᵖ``
-  | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit`` | ``uses``
-  | ``Σ`` | ``π₁`` | ``π₂`` | ``ᵒᵖ``
-  | ``𝕀`` |  |  |
+  | ``as`` | ``eliminator`` | ``first`` | ``flip_op``
+  | ``flipᵒᵖ`` | ``idJ`` | ``in`` | ``inf``
+  | ``into`` | ``inv_op`` | ``invᵒᵖ`` | ``let``
+  | ``match`` | ``mod`` | ``recBOT`` | ``recOR``
+  | ``refl`` | ``second`` | ``sup`` | ``unflip_op``
+  | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit``
+  | ``uses`` | ``Σ`` | ``π₁`` | ``π₂``
+  | ``ᵒᵖ`` | ``𝕀`` |  |
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -49,21 +50,21 @@ The symbols used in Syntax are the following:
   | #compute | #compute-whnf | #compute-nf | #postulate
   | #assume | #variable | #variables | #section
   | #end | #define | := | #def
-  | ( | ) | , | |
-  | { | } | ↦ | ♭
+  | #data | ( | ) | |
+  | ⇒ | , | ↦ | ♭
   | _b | ♯ | _# | _op
   | _id | / | :♭ | :♯
   | :ᵒᵖ | :_id | :_b | :_#
   | :_op | 1 | *₁ | 2
   | 0₂ | 1₂ | 0ᵢ | 1ᵢ
-  | × | ⊤ | ⊥ | ≡
-  | ≤ | ∧ | ∨ | →
-  | =_{ | [ | ] | <
-  | > | \ | $extract$ | refl_{
-  | * | *_1 | 0_2 | 1_2
-  | 0_I | 1_I | === | <=
-  | /\ | \/ | -> | |->
-  | ∑ |  |  |
+  | × | ⊔ | ⊓ | ⊤
+  | ⊥ | ≡ | ≤ | ∧
+  | ∨ | → | =_{ | }
+  | [ | ] | \ | $extract$
+  | refl_{ | * | *_1 | 0_2
+  | 1_2 | 0_I | 1_I | ===
+  | <= | /\ | \/ | ->
+  | |-> | => | ∑ |
 
 ===Comments===
 Single-line comments begin with --. Multiple-line comments are enclosed with {- and -}.
@@ -98,12 +99,33 @@ All other symbols are terminals.
   |  |  **|**  | ``#define`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// //[Param]// ``:`` //Term// ``:=`` //Term//
   |  |  **|**  | ``#def`` //VarIdent// //DeclUsedVars// ``:`` //Term// ``:=`` //Term//
+  |  |  **|**  | ``#data`` //VarIdent// //DeclUsedVars// //[Param]// //DataSort// //DataBody//
+  |  |  **|**  | ``#data`` //VarIdent// //DeclUsedVars// //DataSort// //DataBody//
   | //[Command]// | -> | **eps**
   |  |  **|**  | //Command// ``;`` //[Command]//
   | //DeclUsedVars// | -> | ``uses`` ``(`` //[VarIdent]// ``)``
   |  |  **|**  | **eps**
   | //SectionName// | -> | **eps**
   |  |  **|**  | //VarIdent//
+  | //DataSort// | -> | ``:`` //Term//
+  |  |  **|**  | **eps**
+  | //DataBody// | -> | ``:=`` //[Constructor]// //[DataElim]//
+  |  |  **|**  | **eps**
+  | //Constructor// | -> | //VarIdent// //[Param]// //ConstructorType//
+  |  |  **|**  | //VarIdent// //ConstructorType//
+  | //[Constructor]// | -> | //Constructor//
+  |  |  **|**  | //Constructor// ``|`` //[Constructor]//
+  | //ConstructorType// | -> | ``:`` //Term//
+  |  |  **|**  | **eps**
+  | //DataElim// | -> | ``eliminator`` //VarIdent// ``:`` //Term//
+  | //[DataElim]// | -> | **eps**
+  |  |  **|**  | //DataElim// //[DataElim]//
+  | //MatchBranch// | -> | //VarIdent// //[Pattern]// ``⇒`` //Term//
+  |  |  **|**  | //VarIdent// ``⇒`` //Term//
+  |  |  **|**  | //VarIdent// //[Pattern]// ``=>`` //Term//
+  |  |  **|**  | //VarIdent// ``=>`` //Term//
+  | //[MatchBranch]// | -> | //MatchBranch//
+  |  |  **|**  | //MatchBranch// ``|`` //[MatchBranch]//
   | //Pattern// | -> | ``unit``
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Pattern// ``,`` //Pattern// ``)``
@@ -116,7 +138,6 @@ All other symbols are terminals.
   | //Param// | -> | //Pattern//
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``)``
   |  |  **|**  | ``(`` //[Pattern]// ``:`` //Term// ``|`` //Term// ``)``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// ``)``
   |  |  **|**  | ``(`` //[Pattern]// //ModalColon// //Term// ``|`` //Term// ``)``
   | //[Param]// | -> | //Param//
@@ -126,9 +147,6 @@ All other symbols are terminals.
   | //ParamDecl// | -> | //Term6//
   |  |  **|**  | ``(`` //Term// ``:`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``:`` //Term// ``|`` //Term// ``)``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``}``
-  |  |  **|**  | ``{`` ``(`` //Pattern// ``:`` //Term// ``)`` ``|`` //Term// ``}``
-  |  |  **|**  | ``{`` //Pattern// ``:`` //Term// ``|`` //Term// ``}``
   |  |  **|**  | ``(`` //Term// //ModalColon// //Term// ``)``
   |  |  **|**  | ``(`` //Term// //ModalColon// //Term// ``|`` //Term// ``)``
   | //SigmaParam// | -> | //Pattern// ``:`` //Term//
@@ -170,9 +188,7 @@ All other symbols are terminals.
   |  |  **|**  | ``⊥``
   |  |  **|**  | ``recBOT``
   |  |  **|**  | ``recOR`` ``(`` //[Restriction]// ``)``
-  |  |  **|**  | ``recOR`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``Unit``
-  |  |  **|**  | ``<`` //ParamDecl// ``→`` //Term// ``>``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
   |  |  **|**  | ``mod`` //Modality// //Term7//
@@ -182,6 +198,8 @@ All other symbols are terminals.
   |  |  **|**  | ``refl_{`` //Term// ``}``
   |  |  **|**  | ``refl_{`` //Term// ``:`` //Term// ``}``
   |  |  **|**  | ``idJ`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
+  |  |  **|**  | ``match`` //Term7// ``(`` //[MatchBranch]// ``)``
+  |  |  **|**  | ``match`` //Term7// ``into`` //Term7// ``(`` //[MatchBranch]// ``)``
   |  |  **|**  | //HoleIdent//
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Term// ``)``
@@ -193,8 +211,9 @@ All other symbols are terminals.
   |  |  **|**  | ``1_I``
   |  |  **|**  | ``TOP``
   |  |  **|**  | ``BOT``
-  |  |  **|**  | ``<`` //ParamDecl// ``->`` //Term// ``>``
   | //Term5// | -> | //Term5// ``×`` //Term6//
+  |  |  **|**  | //Term5// ``⊔`` //Term6//
+  |  |  **|**  | //Term5// ``⊓`` //Term6//
   |  |  **|**  | //Term6//
   |  |  **|**  | //Term5// ``*`` //Term6//
   | //Term4// | -> | //Term5// ``≡`` //Term5//
@@ -222,6 +241,8 @@ All other symbols are terminals.
   |  |  **|**  | ``π₁`` //Term7//
   |  |  **|**  | ``π₂`` //Term7//
   |  |  **|**  | //Term7//
+  |  |  **|**  | ``sup`` //Term7// //Term7//
+  |  |  **|**  | ``inf`` //Term7// //Term7//
   |  |  **|**  | ``first`` //Term7//
   |  |  **|**  | ``second`` //Term7//
   | //Term1// | -> | //ParamDecl// ``→`` //Term1//

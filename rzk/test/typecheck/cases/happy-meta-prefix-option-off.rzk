@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#set-option "warn-meta-prefix" = "off"
+
+#define my-id (X : U) (x : X) : X := x
+
+-- Would warn at the default (strict) sensitivity; the option disables
+-- the check for the rest of the module.
+#define stash : Σ (h : (X : U) → X → X), Unit := (my-id, unit)

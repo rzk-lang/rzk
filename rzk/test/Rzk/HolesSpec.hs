@@ -432,6 +432,116 @@ spec = do
       in flip oneHole (holesWithLemmas ["deep"] deepSrc) $ \h ->
            cands h `shouldContain` ["deep ? ? ? ? ? ? ? ?"]
 
+    -- A lemma is never offered below its meta prefix (here X and Y, so two
+    -- arguments): an unsaturated schema is not a suggestion, mirroring the
+    -- warn-meta-prefix discipline.
+    it "does not offer a lemma below its meta prefix" $
+      let metaSrc = "#lang rzk-1\n#postulate A : U\n"
+                 <> "#postulate pick : (X : U) -> (Y : U) -> X -> X\n"
+                 <> "#define goal : A -> A := ?\n"
+      in flip oneHole (holesWithLemmas ["pick"] metaSrc) $ \h -> do
+           cands h `shouldContain` ["pick ? ?"]
+           filter (`elem` ["pick", "pick ?"]) (cands h) `shouldBe` []
+
+    -- Also at the schema's own type: the bare alias is not offered (writing
+    -- the alias is the user's call), while the saturated spine still is.
+    it "does not offer a bare schema even at its own type" $
+      let aliasSrc = "#lang rzk-1\n"
+                  <> "#define my-id (X : U) (x : X) : X := x\n"
+                  <> "#define goal : (X : U) -> X -> X := ?\n"
+      in flip oneHole (holesWithLemmas ["my-id"] aliasSrc) $ \h -> do
+           cands h `shouldContain` ["my-id ?"]
+           filter (== "my-id") (cands h) `shouldBe` []
+
+  describe "holeCandidates under shadowing" $ do
+    let cands = map show . holeCandidates
+        -- the motive λ rebinds b, so at the inner hole the telescope's b is
+        -- shadowed and the λ's b displays as b₁.
+        src = "#lang rzk-1\n"
+           <> "#def transport (A : U) (B : A → U) (x y : A) (p : x = y) (b : B x)\n"
+           <> "  : B y\n"
+           <> "  := (idJ (A, x, \\ b → \\ q → x = ?, ?, y, p))\n"
+
+    -- A candidate is inserted as source text, so it is rendered with source
+    -- names where they resolve: the motive's λ-bound b (displayed as b₁
+    -- beside the shadowed telescope b) is offered as b, which is what the
+    -- written b resolves to at the hole. The undefined b₁ never appears.
+    it "renders a shadowed-context candidate by its source name" $ do
+      case holesOf src of
+        [h1, _h2] -> do
+          filter (isInfixOf "b₁") (cands h1) `shouldBe` []
+          cands h1 `shouldContain` ["x"]
+          cands h1 `shouldContain` ["y"]
+          cands h1 `shouldContain` ["b"]
+        hs -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
+
+    -- The converse: a hypothesis that fits the goal but is shadowed out of
+    -- the source namespace is not offered — writing its name would resolve
+    -- to the inner binder, a different term.
+    it "does not offer a hypothesis that is shadowed out" $ do
+      case holesOf ("#lang rzk-1\n"
+                 <> "#def t (A : U) (B : A → U) (x : A) (b : B x) : A → B x\n"
+                 <> "  := \\ b → ?\n") of
+        [h] -> cands h `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The idJ move's own motive binders are freshened against the names in
+    -- scope: at transport's initial hole (b : B x in the telescope), the
+    -- offered motive binds b₁, not a shadowing b. Accepting the move then
+    -- never sets up the shadowing of the previous test in the first place.
+    it "freshens the idJ motive binders against the telescope" $ do
+      let src0 = "#lang rzk-1\n"
+              <> "#def transport (A : U) (B : A → U) (x y : A) (p : x = y) (b : B x)\n"
+              <> "  : B y\n"
+              <> "  := ?\n"
+      case holesOf src0 of
+        [h] -> cands h `shouldBe` ["idJ (A, x, \\ b₁ → \\ q → ?, ?, y, p)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A destructuring pattern's hidden scrutinee must not claim a
+    -- user-facing name: it used to take x₁ from the default supply, so a
+    -- user-written x₁ bound later displayed as x₂ (a context/source
+    -- mismatch) and its moves were dropped as unreferable. The scrutinee's
+    -- placeholder is now the pattern itself, which cannot collide, so the
+    -- context shows x₁ and its candidate survives.
+    it "keeps a user x₁ intact beside a destructuring pattern" $ do
+      case holesOf ("#lang rzk-1\n#data Void\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def prod (A B : U) : U := Σ (a : A) , B\n"
+                 <> "#def neg (A : U) : U := A → Void\n"
+                 <> "#def t (A B : U) : prod (neg A) (neg B) → coprod A B → coprod A B\n"
+                 <> "  := \\ (na , nb) → \\ x₁ → ?\n") of
+        [h] -> do
+          names (holeTermVars h) `shouldContain` ["x₁"]
+          names (holeTermVars h) `shouldNotContain` ["x₂"]
+          cands h `shouldContain` ["x₁"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The same shape at a Void goal, with the coproduct eliminators: the
+    -- moves survive the parse-back check, and every motive binder is named
+    -- in the move, freshened past the in-scope x₁ (an accepted eliminator
+    -- must not shadow the variable it just eliminated).
+    it "offers the coproduct eliminators with freshened motive binders" $ do
+      case holesOf ("#lang rzk-1\n#data Void\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def prod (A B : U) : U := Σ (a : A) , B\n"
+                 <> "#def neg (A : U) : U := A → Void\n"
+                 <> "#def t (A B : U) : prod (neg A) (neg B) → coprod A B → Void\n"
+                 <> "  := \\ (na , nb) → \\ x₁ → ?\n") of
+        [h] -> do
+          cands h `shouldContain` ["rec-coprod A B ? ? ? x₁"]
+          cands h `shouldContain` ["ind-coprod A B (\\ x₂ → ?) ? ? x₁"]
+          cands h `shouldContain` ["ind-Void (\\ x₂ → ?) (na ?)"]
+          filter (isInfixOf "\\ x₁") (cands h) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A whole-point use of a pattern-bound variable renders as the pattern
+    -- itself, which is also the pair expression a move may insert.
+    it "renders a whole-point pattern use as the pattern" $ do
+      case holesOf "#lang rzk-1\n#def t (A B : U) : (Σ (a : A) , B) → Σ (a : A) , B\n  := \\ (x , y) → ?\n" of
+        [h] -> cands h `shouldContain` ["(x, y)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
   describe "holeIntroductions (type-directed introduction forms)" $ do
     let intros = map show . holeIntroductions
 
@@ -449,6 +559,22 @@ spec = do
     it "freshens the λ binder so it does not shadow an in-scope name" $ do
       case holesOf "#lang rzk-1\n#define endo : U -> U\n  := \\ A -> (t : 2) -> A\n#define f : (A : U) -> (t : 2) -> endo A\n  := \\ A t -> ?\n" of
         [h] -> intros h `shouldBe` ["\\ t₁ → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- An anonymous Π domain is named inside the move, not by the renderer, so
+    -- the freshening sees the choice: a λ binder `x₁` already introduced by
+    -- the user (or by a previous introduction tap) is not shadowed — the next
+    -- introduction binds `x₂`. (Regression: the anonymous binder used to be
+    -- named at render time, so two successive taps on `B → A → C` both bound
+    -- `x₁`, making the outer binder inaccessible.)
+    it "freshens an anonymous λ binder against an enclosing λ binder" $ do
+      case holesOf "#lang rzk-1\n#def f (A B C : U) : B → A → C := \\ x₁ → ?\n" of
+        [h] -> intros h `shouldBe` ["\\ x₂ → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "freshens an anonymous λ binder against a telescope binder" $ do
+      case holesOf "#lang rzk-1\n#def g (A B : U) (x₁ : B) : A → B := ?\n" of
+        [h] -> intros h `shouldBe` ["\\ x₂ → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- A named pattern domain (e.g. a cube point) keeps its pattern, so the λ
@@ -475,6 +601,23 @@ spec = do
     it "introduces a Σ goal as a pair of holes" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> (B : A -> U) -> (a : A) -> (b : B a) -> Σ (w : A) , B w\n  := \\ A B a b -> ?\n" of
         [h] -> intros h `shouldBe` ["(?, ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A U-goal is introduced by the type formers: a function type, a Σ-type,
+    -- an identity type, the unit type, and every user-declared datatype in
+    -- scope, applied to holes through its parameter telescope.
+    it "introduces a U goal by the type formers, including datatypes" $ do
+      case holesOf ("#lang rzk-1\n#data bool := false | true\n"
+                 <> "#data coprod (A B : U) := inl (a : A) | inr (b : B)\n"
+                 <> "#def T : U := ?\n") of
+        [h] -> intros h `shouldBe`
+                 ["? → ?", "Σ (x : ?), ?", "? =_{ ? } ?", "Unit", "bool", "coprod ? ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- The Σ introduction's binder is freshened like a λ's.
+    it "freshens the Σ introduction's binder against the context" $ do
+      case holesOf "#lang rzk-1\n#def T (x : Unit) : U := ?\n" of
+        [h] -> intros h `shouldContain` ["Σ (x₁ : ?), ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- An identity type whose endpoints already agree is introduced by refl.
@@ -571,4 +714,113 @@ spec = do
     it "has no diagram for a non-shape goal" $
       case holesOf "#lang rzk-1\n#define f : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
         [h] -> holeDiagram h `shouldBe` Nothing
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "inductive types in the inventory (#data)" $ do
+    let intros = map show . holeIntroductions
+        cands  = map show . holeCandidates
+        natPrelude = "#lang rzk-1\n#data nat := zero | suc (n : nat)\n"
+        vecPrelude = natPrelude
+          <> "#data vec (A : U) : nat → U :=\n"
+          <> "    nil : vec A zero\n"
+          <> "  | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)\n"
+
+    it "introduces a datatype goal by its constructors, applied to holes" $
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> intros h `shouldBe` ["zero", "suc ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "filters constructors whose indices cannot meet the goal's" $
+      -- nil : vec A zero cannot fit a goal at index (suc n)
+      case holesOf (vecPrelude
+          <> "#define g (A : U) (n : nat) (v : vec A (suc n)) : vec A (suc n) := ?\n") of
+        [h] -> intros h `shouldBe` ["cons ? ? ? ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "offers the generated eliminators over a datatype hypothesis" $
+      -- the motive is a λ over a hole, like idJ's, so the spine fits any goal
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> do
+          cands h `shouldContain` ["rec-nat ? ? ? m"]
+          cands h `shouldContain` ["ind-nat (\\ x₁ → ?) ? ? m"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "instantiates the eliminator at the hypothesis's indices" $
+      case holesOf (vecPrelude
+          <> "#define g (A : U) (n : nat) (v : vec A (suc n)) : vec A (suc n) := ?\n") of
+        [h] ->
+          cands h `shouldContain` ["ind-vec A (\\ i → \\ x₁ → ?) ? ? (suc n) v"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "holes in match branches" $ do
+    let natPrelude = "#lang rzk-1\n#data nat := zero | suc (n : nat)\n"
+
+    it "shows the branch binders as hypotheses, with reduced types" $
+      -- the induction hypothesis's type is the motive at the field: the
+      -- administrative redex is reduced, so it reads "nat", not "(λ …) k"
+      case holesOf (natPrelude
+          <> "#define plus (n m : nat) : nat\n"
+          <> "  := match n (zero ⇒ m | suc k ih ⇒ ?)\n") of
+        [h] -> do
+          show (holeGoal h) `shouldBe` "nat"
+          names (holeTermVars h) `shouldContain` ["k"]
+          names (holeTermVars h) `shouldContain` ["ih"]
+          map (show . holeEntryType) (holeTermVars h) `shouldBe`
+            ["nat", "nat", "nat", "nat"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "substitutes the constructor form into a dependent goal" $
+      -- the motive is built from the goal by abstracting the scrutinee, so a
+      -- branch hole's goal is the goal at that constructor (labelled form)
+      case holesOf ("#lang rzk-1\n#data bool := false | true\n"
+          <> "#define not (b : bool) : bool := match b (false ⇒ true | true ⇒ false)\n"
+          <> "#define not-not (b : bool) : not (not b) =_{bool} b\n"
+          <> "  := match b (false ⇒ refl | true ⇒ ?)\n") of
+        [h] -> show (holeGoal h) `shouldBe` "not (not true) =_{ bool } true"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "keeps a named into-motive as a named application" $
+      -- only the administrative redexes are reduced: a motive that is a named
+      -- family stays folded in the branch goal
+      case holesOf (natPrelude
+          <> "#assume C : nat → U\n"
+          <> "#define f (n : nat) (c : (m : nat) → C m) : C n\n"
+          <> "  := match n into C (zero ⇒ c zero | suc k ih ⇒ ?)\n") of
+        [h] -> show (holeGoal h) `shouldBe` "C (suc k)"
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "offers a match with one hole per branch over a datatype hypothesis" $
+      -- branch binders reuse the declared field names, plus "ih" for an
+      -- induction hypothesis, freshened against the names taken at the hole
+      case holesOf (natPrelude <> "#define f (m : nat) : nat := ?\n") of
+        [h] -> map show (holeCandidates h) `shouldContain`
+                 ["match m (zero ⇒ ? | suc n ih ⇒ ?)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "does not offer a match over an empty family" $
+      -- there is no branch syntax for zero constructors; the eliminators
+      -- (ind-void, rec-void) remain
+      case holesOf "#lang rzk-1\n#data void : U\n#define h (x : void) : void := ?\n" of
+        [h] -> filter (isInfixOf "match") (map show (holeCandidates h)) `shouldBe` []
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "unit-pattern binders (issue #320)" $ do
+    it "binds nothing user-visible: empty context, no spurious hypotheses" $
+      case holesOf "#lang rzk-1\n#define f : (x y : Unit) → Unit\n  := \\ unit unit → ?\n" of
+        [h] -> do
+          holeTermVars h `shouldBe` []
+          map show (holeCandidates h) `shouldBe` []
+          map show (holeIntroductions h) `shouldBe` ["unit"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "keeps moves that mention the unit-bound point (rendered as unit)" $
+      -- the parse-back guard collapses the point to the constructor, so the
+      -- idJ moves of is-set-Unit survive, with unit as the endpoints
+      case holesOf ("#lang rzk-1\n"
+          <> "#define g : (x y : Unit) → (p : x =_{Unit} y) → (q : x =_{Unit} y) → p =_{x =_{Unit} y} q\n"
+          <> "  := \\ unit unit p q → ?\n") of
+        [h] -> do
+          names (holeTermVars h) `shouldBe` ["p", "q"]
+          map show (holeCandidates h) `shouldContain`
+            ["idJ (Unit, unit, \\ b → \\ q₁ → ?, ?, unit, p)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))

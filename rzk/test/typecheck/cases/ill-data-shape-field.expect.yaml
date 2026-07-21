@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "directed cell"
+line: 5
+regression_for:
+  - data-stage1-reject-shape-fields

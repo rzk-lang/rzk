@@ -6,6 +6,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.11.0 — 2026-07-21
+
+This release adds inductive types: the `#!rzk #data` command declares a datatype with generated induction and recursion principles, and `#!rzk match` expressions provide pattern-matching notation for them. It also removes the syntax forms deprecated since v0.5.0 (a breaking change for old code), adds lattice operations on the interval cubes, makes the hole inventory's suggestions reliable as insertable source text, and brings the browser playground back on the GHC WebAssembly backend.
+
+Added:
+
+- **Inductive types: the `#!rzk #data` command** (see [#306](https://github.com/rzk-lang/rzk/pull/306), [#310](https://github.com/rzk-lang/rzk/pull/310)). A declaration introduces the type former, its constructors, and the generated induction and recursion principles (`#!rzk ind-D` and `#!rzk rec-D`, in the argument order of the HoTT book), all as ordinary top-level names. The computation rules hold definitionally (the ι-rule), so proofs by induction compute. Parameterised types use the same telescope syntax as `#!rzk #define`; a constructor field whose type is the declared type contributes an induction hypothesis, and indexed families are declared with a sort and per-constructor return types:
+
+    ```rzk
+    #data nat := zero | suc (n : nat)
+
+    #data vec
+      ( A : U)
+      : nat → U
+      :=
+        nil : vec A zero
+      | cons (n : nat) (x : A) (xs : vec A n) : vec A (suc n)
+    ```
+
+    The declared type may occur in a field only as a directly recursive occurrence (a strict-positivity probe covers the rest), and a positive but function-typed recursive field (the W-type shape) is not supported yet.
+
+- **`#!rzk match` expressions** (see [#319](https://github.com/rzk-lang/rzk/pull/319), and [#322](https://github.com/rzk-lang/rzk/pull/322) for an extra test case). A `#!rzk match` is pure notation for the generated induction principle: typechecking elaborates it into an application of `#!rzk ind-D`, so the computation rules still hold definitionally (the ι-rule) and termination is inherited (recursion happens only through the induction hypotheses). Branches are in bijection with the constructors, each binding the fields and one induction hypothesis per recursive field (`#!rzk _` binds nothing):
+
+    ```rzk
+    #define plus (n m : nat) : nat
+      := match n
+          ( zero ⇒ m
+          | suc k ih ⇒ suc ih)
+    ```
+
+    The motive comes from the checking context (a variable scrutinee is abstracted out of the goal), or is written explicitly after `#!rzk into`; over an indexed family the motive abstracts the indices before the scrutinee, which also covers the convoy pattern known from Coq folklore (see the docs for worked examples, including the safe head on `#!rzk vec A (suc n)`).
+
+- **Lattice operations on the interval cubes** (see [#299](https://github.com/rzk-lang/rzk/pull/299)). Join `#!rzk a ⊔ b` (ASCII `#!rzk sup a b`) and meet `#!rzk a ⊓ b` (ASCII `#!rzk inf a b`) on the cubes `#!rzk 2` and `#!rzk 𝕀`, making cube points a bounded lattice under `#!rzk ≤`. On `#!rzk 2` the operators are a definitional extension (expressible via `#!rzk recOR`, so nothing new becomes provable); on `#!rzk 𝕀` they are the bounded-distributive-lattice structure of Gratzer–Weinberger–Buchholtz, and no reversal is added, so `#!rzk 𝕀` stays directed.
+
+- **A warning about unsaturated meta-prefix uses** (see [#312](https://github.com/rzk-lang/rzk/pull/312)). The checker now warns when a definition is used at an object-level position without fully supplying its meta-theoretic parameter prefix (universe, `#!rzk CUBE`, and `#!rzk TOPE` parameters, and functions over those). The `#!rzk warn-meta-prefix` option controls the sensitivity (`"strict"` by default, `"structural"`, or `"off"`); see the options documentation for the discipline this enforces.
+
+- **Holes: a `#!rzk U` goal offers the type formers** (see [#314](https://github.com/rzk-lang/rzk/pull/314)). A hole of type `#!rzk U` now suggests `#!rzk ? → ?`, `#!rzk Σ (x : ?), ?`, `#!rzk ? =_{ ? } ?`, `#!rzk Unit`, and every user-declared datatype in scope applied to holes through its parameter telescope.
+
+- **Language server: postulates and assumptions are highlighted distinctly** (see [#311](https://github.com/rzk-lang/rzk/pull/311)). Depending on an axiom is now visible in the editor, in three tiers of decreasing severity: `#!rzk #postulate` (a permanent axiom), a top-level `#!rzk #assume` (a file-wide axiom), and an `#!rzk #assume` inside a `#!rzk #section` (a hypothesis discharged at `#!rzk #end`), each with its own semantic-token modifiers, at the declaration and at every use site. All modifiers are standard, but full colouring needs a matching `vscode-rzk` release.
+
+- **Language server: use-site highlighting for `#!rzk #data` products** (see [#309](https://github.com/rzk-lang/rzk/pull/309)). A constructor colours as an enum member wherever it appears, the datatype as a class, and the generated induction and recursion principles as library functions; completion items carry the same kinds. In passing, declarations inside a section no longer all report the `#!rzk #end` line as their location.
+
+Changed:
+
+- **The deprecated syntax forms are removed** (see [#304](https://github.com/rzk-lang/rzk/pull/304)). **Breaking**: the seven productions deprecated since v0.5.0 no longer parse — braces around parameters (`{p : A}`, `{p : I | φ}`, `{(p : I) | φ}`), angle brackets around extension types (`<Φ → A>`, Unicode and ASCII), and the 4-argument `recOR(ψ, φ, a, b)`. The modern replacements (`(p : A)`, `(p : I | φ)`, plain shaped function types, `recOR(ψ ↦ a, φ ↦ b)`) have been available since v0.5.0; the corpus code (sHoTT, hottbook, the rzk docs) uses none of the removed forms. The removal frees the `{…}` braces for implicit binders later.
+
+- **A binder repeated within one binder group is an error** (see [#323](https://github.com/rzk-lang/rzk/pull/323), closing [#321](https://github.com/rzk-lang/rzk/issues/321)). Mildly breaking: `#!rzk \ x x → e` was silently accepted (the later `#!rzk x` shadowing the earlier one) and is now a structured error carrying both positions. A group is the parameter list of a λ, a declaration, or a `#!rzk #data` constructor, and the leaves of a single pattern. Shadowing across separate groups is untouched and keeps its warning.
+
+- **The browser playground is back, built on the GHC WebAssembly backend** (see [#302](https://github.com/rzk-lang/rzk/pull/302), [#301](https://github.com/rzk-lang/rzk/pull/301), [#307](https://github.com/rzk-lang/rzk/pull/307)). The playground's logic core, unbuildable with GHCJS since the free-foil migration in v0.10.0, is now compiled to `wasm32-wasi` and instantiated in the browser; the playground deploy lane is restored accordingly. The initial example is modernised for the removed syntax and typechecked in CI, so it cannot rot again.
+
+Fixed:
+
+- **Editor positions on lines with astral-plane characters** (see [#305](https://github.com/rzk-lang/rzk/pull/305), fixing [#303](https://github.com/rzk-lang/rzk/issues/303)). Typing `#!rzk 𝕀` used to break highlighting, hover, and go-to-definition to its right on the same line: LSP positions count UTF-16 code units, while rzk counted Unicode code points. Positions are now converted at the wire boundary, in both directions, with an identity fast path for all-BMP lines.
+
+- **Hole suggestions are now guaranteed to mean what they show** (see [#317](https://github.com/rzk-lang/rzk/pull/317), [#318](https://github.com/rzk-lang/rzk/pull/318)). A suggested move is inserted as source text, so it must resolve, at the hole, to the very term it renders. Moves are now rendered with source names and every emitted move is checked to parse back to an α-equivalent term; every binder a move introduces is named from one taken-name environment per hole, so a move never shadows anything writable at the hole and never collides with the names the context panel shows.
+
+- **Holes: shadowing and hidden-binder fixes** (see [#313](https://github.com/rzk-lang/rzk/pull/313), [#315](https://github.com/rzk-lang/rzk/pull/315), [#324](https://github.com/rzk-lang/rzk/pull/324), closing [#320](https://github.com/rzk-lang/rzk/issues/320)). Offered introductions and `#!rzk idJ` motives no longer shadow enclosing binders; the hidden scrutinee of a destructuring λ no longer claims a user-visible name from the context panel; and a unit pattern `#!rzk \ unit → e` no longer shows a spurious `#!rzk unit : Unit` hypothesis or suppress the moves that mention its point.
+
+Performance:
+
+- The tope solver skips its modal inversion pass on an all-identity tope context, where it provably contributes nothing; this was about 7.5% of the checker's allocation on the (modality-free) sHoTT corpus (see [#300](https://github.com/rzk-lang/rzk/pull/300)).
+
+- Declarations and name lists are sunk into extended scopes by coercion instead of per-element rebuilds (see [#308](https://github.com/rzk-lang/rzk/pull/308)).
+
+CI / infrastructure:
+
+- The WebAssembly toolchain is pinned to a fixed ghc-wasm-meta revision and cached, with a read-only mirror as a secondary source, so toolchain-host outages no longer fail the lane (see [#316](https://github.com/rzk-lang/rzk/pull/316)).
+
 ## v0.10.0 — 2026-07-15
 
 This release replaces the typechecker's internal term representation and makes checking roughly nine times faster. There are no surface-language changes; for users the release is a performance release, plus one new option. For packagers and library users it is a major version: the library API is reorganised, **GHC 9.8 or newer is now required** to build rzk, and the GHCJS-built browser playground is not rebuilt for this release (see below).

@@ -153,6 +153,8 @@ binderInfo orig md ty mval loc = VarInfo
   , varIsTopLevel = False
   , varDeclaredAssumptions = []
   , varLocation = loc
+  , varDataRole = Nothing
+  , varMetaPrefix = 0
   }
 
 -- | Run an action under a binder that has already been chosen.
@@ -452,7 +454,19 @@ saturateTopes topes = saturated <> inaccessible
       accessible
 
 saturateInv :: Distinct n => [ModalTope n] -> TypeCheck n [ModalTope n]
-saturateInv modalTopes = do
+saturateInv modalTopes
+  -- When every tope sits at the identity modality, saturateInv adds nothing
+  -- consultable: the op-inversions it would produce are tagged at 'Op' with an
+  -- 'Id' lock, so 'coe Op Id = False' makes them inaccessible, and the
+  -- un-inversion set 'accessibleUnderOp' is empty ('coe Id Op = False'). The
+  -- op-inverted topes only become live once a modality shift puts 'Op' (or
+  -- 'Sharp') into the lock, and a modal goal re-runs saturateInv on the shifted
+  -- context (see the 'TypeModalT' case of 'solveRHSM'), which is where op
+  -- reasoning needs them. Skipping here keeps the whole modality-free fragment
+  -- (all of ordinary sHoTT) off the op-inversion machinery, which otherwise
+  -- 'nfTope'-inverts every context tope on every entailment.
+  | all isIdentityTope modalTopes = return modalTopes
+  | otherwise = do
     -- FIXME: this is a workaround; ideally we should regenerate all topes on
     -- EVERY modality change in any layer, but that would produce too many; for
     -- now we also invert topes that were accessible before the modality shift.
@@ -469,6 +483,8 @@ saturateInv modalTopes = do
     let newTopes = nubModalTopes (invResults <> uninvResults)
         fresh = filter (\t -> not (elemModalTope t modalTopes)) newTopes
     return (modalTopes <> fresh)
+  where
+    isIdentityTope mt = tModVar mt == Id && tModAccum mt == Id
 
 -- | Ex falso for BOT, lifted across modalities.
 --
@@ -590,7 +606,33 @@ generateTopes newTopes oldTopes
       , [ topeLEQT cubeI_0T x | TopeLEQT _ty Cube2_0T{} x <- newTopes ]
       , [ topeLEQT x cubeI_1T | TopeLEQT _ty x Cube2_1T{} <- newTopes ]
       , [ topeLEQT cubeI_1T x | TopeLEQT _ty Cube2_1T{} x <- newTopes ]
+
+      , [ topeLEQT a c | TopeLEQT _ty (CubeSupT _ a _) c <- newTopes ]
+      , [ topeLEQT b c | TopeLEQT _ty (CubeSupT _ _ b) c <- newTopes ]
+      , [ topeLEQT c a | TopeLEQT _ty c (CubeInfT _ a _) <- newTopes ]
+      , [ topeLEQT c b | TopeLEQT _ty c (CubeInfT _ _ b) <- newTopes ]
+
+      -- Turn an equality into the two inequalities, but only when a side is a
+      -- lattice term, so it can feed the sup/inf extraction rules above (e.g.
+      -- @sup s u ≡ t@ ⊢ @sup s u ≤ t@ ⊢ @s ≤ t@). Gating on a lattice operand
+      -- keeps this off the equality-heavy non-lattice fragment (extension-type
+      -- faces), where the direct @solveRHS (topeEQT l r)@ guard already proves
+      -- @l ≤ r@ from @l ≡ r@ and the extra topes would only bloat saturation.
+      , [ leq
+        | TopeEQT _ty x y <- newTopes
+        , isLatticePoint x || isLatticePoint y
+        , leq <- [topeLEQT x y, topeLEQT y x] ]
       ]
+
+-- | Is this cube point a lattice term (a @sup@ or @inf@)? Used to keep the
+-- lattice-specific solver work (equality-to-order generation, the
+-- antisymmetry fallback for equality goals) off the equality-heavy
+-- non-lattice fragment, where it would only cost time without proving
+-- anything new.
+isLatticePoint :: TermT n -> Bool
+isLatticePoint CubeSupT{} = True
+isLatticePoint CubeInfT{} = True
+isLatticePoint _          = False
 
 generateTopesForPointsM :: Distinct n => [TermT n] -> TypeCheck n [TermT n]
 generateTopesForPointsM points = do
@@ -687,23 +729,45 @@ solveRHSM modalTopes goal =
       solveRHSM modalTopes $ topeAndT
         (topeEQT (firstT cubeI l) x)
         (topeEQT (secondT cubeJ l) y)
-    TopeEQT  _ty l r
-      | or
-          [ eqT l r
-          , goal `elemT` topes
-          , topeEQT r l `elemT` topes
-          ] -> return True
+    TopeEQT  _ty Cube2_0T{} CubeI_0T{} -> return True
+    TopeEQT  _ty CubeI_0T{} Cube2_0T{} -> return True
+    TopeEQT  _ty Cube2_1T{} CubeI_1T{} -> return True
+    TopeEQT  _ty CubeI_1T{} Cube2_1T{} -> return True
     TopeEQT  _ty l r -> do
-      lType <- typeOf l
-      rType <- typeOf r
-      return $ case (lType, rType) of
-        (CubeUnitT{}, CubeUnitT{}) -> True
-        _                          -> False
+      let old = or
+            [ eqT l r
+            , goal `elemT` topes
+            , topeEQT r l `elemT` topes
+            ]
+      if old
+        then return True
+        else do
+          lType <- typeOf l
+          rType <- typeOf r
+          case (lType, rType) of
+            (CubeUnitT{}, CubeUnitT{}) -> return True
+            -- Antisymmetry: prove @l ≡ r@ from @l ≤ r ∧ r ≤ l@. Only worth
+            -- trying when a side is a lattice term (the law goals like
+            -- @sup a b ≡ sup b a@); on the non-lattice fragment this cannot
+            -- prove anything the @old@ check above did not, so we skip it to
+            -- leave ordinary sHoTT solving unchanged from before the lattice.
+            _ | isLatticePoint l || isLatticePoint r ->
+                  solveRHSM modalTopes (topeAndT (topeLEQT l r) (topeLEQT r l))
+            _ -> return False
     TopeLEQT _ty l r
       | eqT l r -> return True
+      | goal `elemT` topes -> return True
       | solveRHS topes (topeEQT l r) -> return True
       | solveRHS topes (topeEQT l cube2_0T) -> return True
       | solveRHS topes (topeEQT r cube2_1T) -> return True
+    TopeLEQT _ty (CubeSupT _ a b) r ->
+      solveRHSM modalTopes (topeAndT (topeLEQT a r) (topeLEQT b r))
+    TopeLEQT _ty l (CubeInfT _ a b) ->
+      solveRHSM modalTopes (topeAndT (topeLEQT l a) (topeLEQT l b))
+    TopeLEQT _ty l (CubeSupT _ a b) ->
+      solveRHSM modalTopes (topeOrT (topeLEQT l a) (topeLEQT l b))
+    TopeLEQT _ty (CubeInfT _ a b) r ->
+      solveRHSM modalTopes (topeOrT (topeLEQT a r) (topeLEQT b r))
     TopeAndT _ l r -> solveRHSM modalTopes l >>= \case
       False -> return False
       True  -> solveRHSM modalTopes r
@@ -751,6 +815,10 @@ solveRHS topes tope =
     TopeEQT  _ty l (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y)
       | solveRHS topes (topeEQT (firstT cubeI l) x)
       , solveRHS topes (topeEQT (secondT cubeJ l) y) -> True
+    TopeEQT  _ty Cube2_0T{} CubeI_0T{} -> True
+    TopeEQT  _ty CubeI_0T{} Cube2_0T{} -> True
+    TopeEQT  _ty Cube2_1T{} CubeI_1T{} -> True
+    TopeEQT  _ty CubeI_1T{} Cube2_1T{} -> True
     TopeEQT  _ty l r -> or
       [ eqT l r
       , tope `elemT` topes
@@ -1035,6 +1103,8 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   CubeI_1T{} -> pure tt
   CubeFlipT{} -> nfTope tt
   CubeUnflipT{} -> nfTope tt
+  CubeSupT{} -> nfTope tt
+  CubeInfT{} -> nfTope tt
 
   -- tope layer (except vars, pairs of points, and applications)
   TopeTopT{} -> pure tt
@@ -1138,6 +1208,11 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                 []   -> whnfT type_  -- get rid of restrictions at BOT
                 rs'' -> TypeRestrictedT ty <$> whnfT type_ <*> pure rs''
 
+            -- a match is elaborated into its eliminator spine during
+            -- typechecking; a typed match node never exists
+            MatchT{} -> panicImpossible "a typed match survives elaboration"
+            MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"
+
 -- | The branch of a @recOR@ (or the face of a restriction) whose guard holds.
 firstMatching :: Distinct n => [(TermT n, TermT n)] -> TypeCheck n (Maybe (TermT n))
 firstMatching [] = pure Nothing
@@ -1182,7 +1257,78 @@ applySpine _ h [] = whnfT h
 applySpine scope h pairs = whnfT h >>= \h' -> case h' of
   LambdaT _ _ _ (ScopedAST binder body) | (_, x) : rest <- pairs ->
     peelLambdas scope (Foil.addSubst Foil.identitySubst binder x) body rest
-  _ -> applyNeutral scope h' pairs
+  _ -> do
+    -- The head may itself be a (neutral) application: a definition whose
+    -- value is an under-applied eliminator, say. The ι-rule needs the full
+    -- spine, so the head's own arguments are collected back in.
+    let (h'', headPairs) = collectAppSpine h'
+    tryDataElimStep h'' (headPairs <> pairs) >>= \case
+      Just stepped -> whnfT stepped
+      Nothing      -> applyNeutral scope h' pairs
+
+-- | Try to fire a @#data@ ι-rule on an application spine: the head is a
+-- generated eliminator, the scrutinee argument is headed by a fully applied
+-- constructor of the same datatype. Returns the method applied to the
+-- constructor's fields (and any leftover spine arguments), unreduced.
+--
+-- A non-'Var' head answers 'Nothing' immediately, so the common neutral
+-- spine pays one pattern match; a 'Var' head pays one 'lookupVarInfo'.
+tryDataElimStep
+  :: Distinct n
+  => TermT n                          -- ^ the head, in WHNF
+  -> [(TypeInfo (TermT n), TermT n)]  -- ^ the collected spine arguments
+  -> TypeCheck n (Maybe (TermT n))
+tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
+  Just (DataRole dataType numParams (DataElimKind numMethods numIndices _elimKind))
+    -- The spine is parameters, motive, methods, indices, scrutinee. The
+    -- index arguments are dropped on a step: the scrutinee determines them.
+    | (beforeIndices, rest) <- splitAt (numParams + 1 + numMethods) pairs
+    , (_indices, (_, scrut) : after) <- splitAt numIndices rest ->
+        whnfT scrut >>= \scrut' -> case collectAppSpine scrut' of
+          (Var c, cargs) -> asks (varDataRole . lookupVarInfo c) >>= \case
+            Just (DataRole dataType' conNumParams (DataConKind conIndex conNumFields recIdxs))
+              | Foil.nameId dataType' == Foil.nameId dataType
+              , length cargs == conNumParams + conNumFields -> do
+                  let method = snd (pairs !! (numParams + 1 + conIndex))
+                      fields = map snd (drop conNumParams cargs)
+                      prefixArgs = map snd beforeIndices
+                  -- The method takes an induction hypothesis right after each
+                  -- recursive field: the eliminator itself, applied to the
+                  -- field's own indices (read off the field's type) and the
+                  -- field. The spine is built here; evaluation stays lazy.
+                  args <- fmap concat $ forM (zip [0 ..] fields) $ \(j, fieldArg) ->
+                    if j `elem` recIdxs
+                      then do
+                        fieldIxs <-
+                          if numIndices == 0
+                            then pure []
+                            else do
+                              fieldTy <- typeOf fieldArg
+                              case collectAppSpine fieldTy of
+                                (Var d, targs)
+                                  | Foil.nameId d == Foil.nameId dataType ->
+                                      pure (map snd (drop conNumParams targs))
+                                _ -> panicImpossible
+                                  "a recursive field's type is not the datatype"
+                        ih <- applyTyped (Var v) (prefixArgs <> fieldIxs <> [fieldArg])
+                        pure [fieldArg, ih]
+                      else pure [fieldArg]
+                  Just <$> applyTyped method (args <> map snd after)
+            _ -> pure Nothing
+          _ -> pure Nothing
+  _ -> pure Nothing
+tryDataElimStep _ _ = pure Nothing
+
+-- | Apply a term to arguments left to right, annotating each application
+-- node with its actual type. The spine machinery reuses the annotations of
+-- existing nodes, which a freshly built ι-redex does not have.
+applyTyped :: Distinct n => TermT n -> [TermT n] -> TypeCheck n (TermT n)
+applyTyped f [] = pure f
+applyTyped f (x : xs) = typeOf f >>= \case
+  TypeFunT _info _orig _md _param _mtope ret -> do
+    retTy <- instantiate ret x
+    applyTyped (appT retTy f x) xs
+  _ -> panicImpossible "ι-rule applies a method beyond its arity"
 
 -- | Peel the head's syntactic lambda chain into one substitution, then reduce.
 -- @subst@ maps the binders consumed so far to their arguments; @body@ is the
@@ -1231,6 +1377,32 @@ applyWhnfFun ty f' x = typeOf f' >>= \case
   _ -> pure (AppT ty f' x)
 
 -- * Normal form of the tope layer
+
+nfSupT :: TermT n -> TermT n -> TermT n -> TermT n
+nfSupT ty l r = case (l, r) of
+  (Cube2_0T{}, _) -> r
+  (_, Cube2_0T{}) -> l
+  (Cube2_1T{}, _) -> l
+  (_, Cube2_1T{}) -> r
+  (CubeI_0T{}, _) -> r
+  (_, CubeI_0T{}) -> l
+  (CubeI_1T{}, _) -> l
+  (_, CubeI_1T{}) -> r
+  _               -> cubeSupT ty l r
+
+nfInfT :: TermT n -> TermT n -> TermT n -> TermT n
+nfInfT ty l r = case (l, r) of
+  (Cube2_0T{}, _) -> l
+  (_, Cube2_0T{}) -> r
+  (Cube2_1T{}, _) -> r
+  (_, Cube2_1T{}) -> l
+  (CubeI_0T{}, _) -> l
+  (_, CubeI_0T{}) -> r
+  (CubeI_1T{}, _) -> r
+  (_, CubeI_1T{}) -> l
+  (CubeSupT _ a b, _) -> nfSupT ty (nfInfT ty a r) (nfInfT ty b r)
+  (_, CubeSupT _ a b) -> nfSupT ty (nfInfT ty l a) (nfInfT ty l b)
+  _                   -> cubeInfT ty l r
 
 nfTope :: Distinct n => TermT n -> TypeCheck n (TermT n)
 nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
@@ -1282,6 +1454,16 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
       ModAppT _ Op CubeI_0T{} -> pure cubeI_1T
       ModAppT _ Op CubeI_1T{} -> pure cubeI_0T
       t'                      -> pure (CubeUnflipT ty t')
+
+  CubeSupT ty l r -> do
+    l' <- nfTope l
+    r' <- nfTope r
+    pure (nfSupT (infoType ty) l' r')
+
+  CubeInfT ty l r -> do
+    l' <- nfTope l
+    r' <- nfTope r
+    pure (nfInfT (infoType ty) l' r')
 
   -- tope layer constants
   TopeTopT{} -> pure tt
@@ -1444,6 +1626,8 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   ReflT{} -> panicImpossible "refl in the tope layer"
   IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
   TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
+  MatchT{} -> panicImpossible "a typed match survives elaboration"
+  MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"
 
   -- A recOR/recBOT is a term-level eliminator, never a tope. It should have been
   -- rejected before reaching here (see the RecOr case of 'typecheck'); as a safety
@@ -1474,6 +1658,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
   CubeProductT{} -> nfTope tt
   CubeFlipT{} -> nfTope tt
   CubeUnflipT{} -> nfTope tt
+  CubeSupT{} -> nfTope tt
+  CubeInfT{} -> nfTope tt
 
   -- tope layer constants
   TopeTopT{} -> pure tt
@@ -1530,7 +1716,14 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 x' <- enterModality md $ nfT x
                 sideCondition <- instantiate tope x' >>= nfT
                 pure (topeAndT (AppT ty f' x') sideCondition)
-              _ -> AppT ty <$> nfT f' <*> nfT x
+              _ -> do
+                -- The ι-redex of a generated eliminator only exists at the
+                -- node holding the full spine, which the recursion above
+                -- never hands to 'whnfT' as a whole.
+                let (h, pairs) = collectAppSpine (AppT ty f' x)
+                tryDataElimStep h pairs >>= \case
+                  Just stepped -> nfT stepped
+                  Nothing      -> AppT ty <$> nfT f' <*> nfT x
         LetT _ty _orig _mparam val body ->
           instantiate body val >>= nfT
         LetModT ty orig app inn mparam val body ->
@@ -1613,3 +1806,8 @@ nfT tt = performing (ActionNF tt) $ case tt of
           case catMaybes rs' of
             []   -> nfT type_
             rs'' -> TypeRestrictedT ty <$> nfT type_ <*> pure rs''
+
+        -- a match is elaborated into its eliminator spine during typechecking;
+        -- a typed match node never exists
+        MatchT{} -> panicImpossible "a typed match survives elaboration"
+        MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"

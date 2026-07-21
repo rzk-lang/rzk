@@ -33,29 +33,70 @@ jobs:
   build-with-wasm:
     name: "Build rzk library with the GHC WASM backend"
     runs-on: ubuntu-latest
-    # Advisory: this lane depends on an external ghc-wasm-meta tarball download
-    # and is a signal that the wasm/frontend use case still builds, not a gate
-    # on unrelated work. Same stance as the cabal.yml Hackage-drift lane.
+    # A stalled external download must not hold a runner for the 6-hour
+    # default; a cold install plus build fits well within this.
+    timeout-minutes: 60
+    # Advisory: this lane depends on external toolchain downloads and is a
+    # signal that the wasm/frontend use case still builds, not a gate on
+    # unrelated work. Same stance as the cabal.yml Hackage-drift lane.
     continue-on-error: true
     env:
       # GHC WASM flavour to install. wasm32-wasi-ghc 9.12 is the version
       # haskell-miso currently targets; bump together with miso.
       FLAVOUR: "9.12"
+      # The ghc-wasm-meta revision to install: pinned, so the run is
+      # reproducible and the toolchain cache key below is stable. Bump it
+      # together with FLAVOUR (any master commit of
+      # https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta will do).
+      GHC_WASM_META_REV: "ec050b490a8499a1d1d1a3c093b8e760a20d4ebf"
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
+      # The whole installed toolchain is cached, so the external downloads
+      # (the ghc-wasm-meta scripts and the bindists its setup.sh fetches)
+      # happen only on the first run after a pin or flavour bump; the cache
+      # itself is the fallback for their outages. The cabal store is cached
+      # separately below, with a finer key, so it is excluded here.
+      - name: 💾 Restore cached wasm toolchain
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ghc-wasm
+            !~/.ghc-wasm/.cabal/store
+          # No restore-keys: running setup.sh over a stale toolchain is
+          # untested, so a changed pin starts from a clean install.
+          key: wasm-toolchain-${{ runner.os }}-ghc${{ env.FLAVOUR }}-${{ env.GHC_WASM_META_REV }}
+
       - name: 🧰 Install the GHC WASM toolchain (ghc-wasm-meta)
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 30
         run: |
           cd "$(mktemp -d)"
-          curl -f -L --retry 5 \
-            https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/archive/master/ghc-wasm-meta-master.tar.gz \
-            | tar xz --strip-components=1
+          # gitlab.haskell.org first; on failure, the read-only GitHub
+          # mirror (github.com/haskell-wasm/ghc-wasm-meta) of the same
+          # pinned revision. gitlab.haskell.org sits behind an anti-bot
+          # layer that can tarpit a connection rather than refuse it, and a
+          # stalled transfer never triggers --retry or the fallback, so the
+          # transfer is failed explicitly when it makes no progress
+          # (under 1 kB/s for 30 s) or takes over two minutes in total.
+          fetch() {
+            curl -f -L --retry 5 --connect-timeout 15 \
+              --speed-limit 1024 --speed-time 30 --max-time 120 \
+              -o ghc-wasm-meta.tar.gz "$1"
+          }
+          fetch "https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/archive/${GHC_WASM_META_REV}/ghc-wasm-meta-${GHC_WASM_META_REV}.tar.gz" \
+            || fetch "https://github.com/haskell-wasm/ghc-wasm-meta/archive/${GHC_WASM_META_REV}.tar.gz"
+          tar xzf ghc-wasm-meta.tar.gz --strip-components=1
           ./setup.sh
-          # Export wasm32-wasi-{ghc,cabal,...} and the env vars they need to
-          # every later step in this job.
-          ~/.ghc-wasm/add_to_github_path.sh
+
+      - name: 🧰 Add the toolchain to PATH
+        # Export wasm32-wasi-{ghc,cabal,...} and the env vars they need to
+        # every later step in this job (the script lives inside the cached
+        # toolchain, so this works on both the hit and the miss path).
+        run: ~/.ghc-wasm/add_to_github_path.sh
 
       - name: 💾 Restore cached wasm cabal store
         uses: actions/cache@v4

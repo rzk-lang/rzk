@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- a match without "into" needs a checking position; #compute infers
+#compute match zero (zero ⇒ zero | suc k ih ⇒ k)

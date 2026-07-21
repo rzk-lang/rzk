@@ -69,9 +69,41 @@ data HoleInfo = HoleInfo
   , holeLocation      :: Maybe LocationInfo
   } deriving (Eq, Show)
 
+-- | A non-fatal finding of the checker, recorded on the writer channel
+-- beside the holes and carried out of a run in @Checked@. Structured, so
+-- the CLI, the LSP, and (later) safe mode each decide how to present or
+-- escalate it.
+data CheckWarning
+  = LargeInductiveTypeWarning
+      VarIdent              -- ^ the data type
+      VarIdent              -- ^ the constructor whose field stores a universe
+      (Maybe LocationInfo)
+  | MetaPrefixWarning
+      VarIdent              -- ^ the declaration whose type or body contains the use
+      VarIdent              -- ^ the declaration used with too few meta-prefix arguments
+      Int                   -- ^ the arguments supplied
+      Int                   -- ^ the length of the meta prefix
+      MetaPrefixRule
+      (Maybe LocationInfo)
+  deriving (Eq, Show)
+
+-- | Where a warning points, for per-file attribution.
+warningLocation :: CheckWarning -> Maybe LocationInfo
+warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
+warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
+
+-- | Which candidate rule of the meta-parameter layer check flags a
+-- 'MetaPrefixWarning' (see "Rzk.TypeCheck.MetaPrefix"): the structural
+-- rule, or only its stricter variant. Both are emitted so the two
+-- candidate defaults can be measured on a corpus side by side.
+data MetaPrefixRule
+  = MetaPrefixBoth
+  | MetaPrefixStrictOnly
+  deriving (Eq, Show)
+
 type TypeCheck n =
   ReaderT (Context n)
-    (WriterT [HoleInfo] (Except TypeErrorInScopedContext))
+    (WriterT ([HoleInfo], [CheckWarning]) (Except TypeErrorInScopedContext))
 
 -- | Run a judgement in the empty context, discarding the holes it records.
 runTypeCheck :: TypeCheck Foil.VoidS a -> Either TypeErrorInScopedContext a
@@ -125,6 +157,10 @@ localHideTerm hide = local $ \ctx -> ctx { ctxRenderHideTerm = hide }
 localWarnOverhang :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnOverhang warn = local $ \ctx -> ctx { ctxWarnOverhang = warn }
 
+localMetaPrefixSensitivity :: MetaPrefixSensitivity -> TypeCheck n a -> TypeCheck n a
+localMetaPrefixSensitivity sensitivity =
+  local $ \ctx -> ctx { ctxMetaPrefixSensitivity = sensitivity }
+
 -- | Render the enclosed action with the proof term hidden.
 hidingTerm :: TypeCheck n a -> TypeCheck n a
 hidingTerm = localHideTerm True
@@ -169,7 +205,12 @@ performing action tc = do
 -- * Holes
 
 recordHoleInfo :: HoleInfo -> TypeCheck n ()
-recordHoleInfo info = lift (tell [info])
+recordHoleInfo info = lift (tell ([info], []))
+
+-- * Warnings
+
+recordCheckWarning :: CheckWarning -> TypeCheck n ()
+recordCheckWarning warning = lift (tell ([], [warning]))
 
 -- * Locations
 

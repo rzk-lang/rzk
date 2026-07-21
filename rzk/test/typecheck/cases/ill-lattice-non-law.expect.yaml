@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - does not entail
+regression_for:
+  - lattice-non-law-not-overproved

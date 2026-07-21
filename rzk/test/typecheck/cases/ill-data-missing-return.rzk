@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- an indexed family's constructor must spell out its return type
+#data fin : nat → U := fz

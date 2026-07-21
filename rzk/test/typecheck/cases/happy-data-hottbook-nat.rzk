@@ -1,0 +1,57 @@
+#lang rzk-1
+
+-- HoTT book §2.13 (natural numbers), drafted against #data stage 2.
+
+#data empty
+
+#data nat := zero | suc (n : nat)
+
+#define transport
+  ( A : U) (C : A → U) (x y : A) (p : x =_{A} y)
+  : C x → C y
+  := \ cx → idJ(A, x, (\ z _ → C z), cx, y, p)
+
+#define ap
+  ( A B : U) (f : A → B) (x y : A) (p : x =_{A} y)
+  : f x =_{B} f y
+  := idJ(A, x, (\ y' _ → f x =_{B} f y'), refl, y, p)
+
+-- the observational equality family, by double recursion (into U)
+#define code (m : nat) : nat → U
+  := rec-nat (nat → U)
+      ( rec-nat U Unit (\ _ _ → empty))
+      ( \ _ ih → rec-nat U empty (\ n' _ → ih n'))
+      m
+
+#define r (n : nat) : code n n
+  := ind-nat (\ k → code k k) unit (\ _ ih → ih) n
+
+#define encode (m n : nat) (p : m =_{nat} n) : code m n
+  := transport nat (\ k → code m k) m n p (r m)
+
+#define decode (m : nat) : (n : nat) → code m n → m =_{nat} n
+  := ind-nat
+      ( \ m' → (n : nat) → code m' n → m' =_{nat} n)
+      ( ind-nat
+          ( \ n → code zero n → zero =_{nat} n)
+          ( \ _ → refl)
+          ( \ n' _ c → rec-empty (zero =_{nat} suc n') c))
+      ( \ m' ihm → ind-nat
+          ( \ n → code (suc m') n → suc m' =_{nat} n)
+          ( \ c → rec-empty (suc m' =_{nat} zero) c)
+          ( \ n' _ c → ap nat nat (\ k → suc k) m' n' (ihm n' c)))
+      m
+
+-- Peano: the successor is injective (Theorem 2.13.1's consequence)
+#define suc-injective (m n : nat) (p : suc m =_{nat} suc n) : m =_{nat} n
+  := decode m n (encode (suc m) (suc n) p)
+
+-- Peano: zero is not a successor
+#define zero-neq-suc (n : nat) (p : zero =_{nat} suc n) : empty
+  := encode zero (suc n) p
+
+-- sanity: encode-decode round-trips on a numeral
+#define two : nat := suc (suc zero)
+
+#define decode-encode-two : decode two two (encode two two refl) =_{two =_{nat} two} refl
+  := refl

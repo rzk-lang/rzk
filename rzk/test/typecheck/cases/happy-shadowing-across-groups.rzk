@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- shadowing across separate binder groups stays legal (a warning at most):
+-- only a duplicate within one group is an error
+#define ok : (A : U) → A → A → A
+  := \ A a → \ a → a

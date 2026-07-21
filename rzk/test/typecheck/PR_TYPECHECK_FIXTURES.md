@@ -10,6 +10,48 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
 - **recBOT body well-formedness:** `ill-recbot-term-not-function`, `ill-recbot-term-undefined` (ill-typed bodies must not be admitted under an absurd hypothesis).
 - **Holes (strict mode):** `ill-hole-unsolved` (a hole is an error by default), `ill-hole-infer` (a hole in inference position cannot be guessed). The lenient mode and the structured goal/context query are covered by `Rzk.HolesSpec`, not by YAML fixtures.
 - **NbE conversion fast path:** `happy-nbe-church-conversion` (βδ-equal but structurally different Church-numeral applications, including inline endpoints that must not decompose into false subgoals), `ill-nbe-church-unequal` (a wrong equation still fails through the ordinary unification — the fast path never refutes).
+- **Inductive types (`#data`, stages 1–2):** well-typed declarations and
+  computation through the generated eliminators (`happy-data-bool`,
+  `happy-data-coprod`, `happy-data-empty`), recursion with induction
+  hypotheses (`happy-data-nat` with a genuine induction proof,
+  `happy-data-list`), uniform section closure with and without recursion
+  (`happy-data-section`, `happy-data-rec-section`), the largeness warning
+  (`happy-data-large-warning`, asserted via the `warnings` field);
+  indexed families (`happy-data-vec` with the proposal's generated
+  eliminator types and index-aware computation, `happy-data-indices-edge`
+  with a two-index family and an indexed family in a section,
+  `happy-data-hottbook-nat` — the §2.13 encode–decode story with
+  successor injectivity and `zero ≠ suc`, round-tripping by `refl`);
+  rejections (`ill-data-negative` for strict positivity,
+  `ill-data-fun-field` for function-typed recursive fields,
+  `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
+  and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
+  `ill-data-shape-field`, `ill-data-eliminator-clause`) and name clashes
+  (`ill-data-duplicate-constructor`, `ill-data-clash-generated`).
+- **`match` expressions (M3, PR 3):** elaboration into the generated
+  induction eliminator (`happy-match-basics`: plain and recursive
+  matches, definitional computation, an `into` motive, a dependent
+  motive built from the goal, a non-variable scrutinee, branch order,
+  a nested match), indexed families (`happy-match-indexed`, with an
+  `into` motive over the index telescope), the equation convoy
+  (`happy-match-case-vec` — Coq's `case_vec`: the motive returns a
+  function out of the index equation, the match is applied to `refl`,
+  and the unused induction hypothesis is bound as `_`); rejections for
+  the branch
+  bijection and arity (`ill-match-missing-branch`,
+  `ill-match-duplicate-branch`, `ill-match-unknown-branch`,
+  `ill-match-branch-arity`), a scrutinee that is not of a `#data` type
+  (`ill-match-not-data`), and a motive-less match in inference position
+  (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
+  labelled goals) are covered by `Rzk.HolesSpec`.
+- **Meta-parameter layer check:** the object-position
+  warning (`warn-meta-prefix-object-position`), the strict-only marking
+  (`warn-meta-prefix-strict-only`), warning-free plumbing — aliasing,
+  saturation, passing a schema to a meta-prefix parameter
+  (`happy-meta-prefix-plumbing`), the recomputation of the prefix at
+  section close (`warn-meta-prefix-section`), and the sensitivity option
+  (`happy-meta-prefix-option-off`, `warn-meta-prefix-option-structural`);
+  all asserted via the `warnings` field.
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 
 # Regression tests
@@ -35,6 +77,9 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
 | Pattern-binder name restoration | `ill-hole-pattern-binder-names` | A pair-pattern lambda `\ (a , b) -> ?` renders its components by name in the strict-mode error: the goal `B (first p)` folds to `B a` and the binder shows as `(a , b)`, not `π₁ x` of a fresh variable. Lenient-mode goals/context covered by `Rzk.HolesSpec`. |
 | Bare pattern point in tope | `ill-tope-pattern-binder-bare` | A pattern-bound point used bare (not projected) in a shape's membership tope renders as the pattern: a type error's local tope context shows `Δ² (t , s)`, not `Δ² x₁`. Complements the projection-folding restoration above. |
+| `#data` stage 1 (M3, design/inductive-types.md) | `happy-data-*`, `ill-data-*` | The declaration registers the type former before checking constructors (the prototype's ordering bug); the ι-rule fires in WHNF and NF (refl on computed equalities); section closure abstracts the whole family uniformly (`makeAssumptionExplicit` forces the type former). Stage-1 rejections are `TypeErrorOther` with distinguishing `message_contains`. |
+| `match` elaboration (M3 PR 3) | `happy-match-*`, `ill-match-*` | A match elaborates into `ind-D params motive methods indices scrutinee` (`checkMatch`); branches are checked against the method Π-types one arm at a time (`checkMatchArms`, the λ rule's mirror); the motive comes from `into` or from goal abstraction (`motiveFromGoal`); administrative motive redexes are β-reduced before branch goals and hypothesis types are shown (`betaMotiveApps`). |
+| Meta-parameter layer check | `warn-meta-prefix-*`, `happy-meta-prefix-plumbing` | An unsaturated use of a declaration below its meta prefix warns at object-level positions (`Rzk.TypeCheck.MetaPrefix`); aliasing at a definition root and meta-shaped argument domains stay silent (the sHoTT `weakextext-extext` composition pattern); `endSection` recomputes `varMetaPrefix` after abstracting assumptions. |
 
 # Test schema
 

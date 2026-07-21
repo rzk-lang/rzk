@@ -47,7 +47,12 @@ jobs:
         uses: haskell-actions/setup@v2
         id: setup
         with:
-          ghc-version: "9.6"
+          # 9.8 matches the library's floor: cabal reads the repository's
+          # cabal.project, whose `base >= 4.19` (the free-foil bound) an older
+          # GHC cannot satisfy, so installing the generators here needs base
+          # 4.19+. The GHC version does not affect the generators' output —
+          # only their pinned versions do — so any >= 9.8 would work.
+          ghc-version: "9.8"
           cabal-version: "latest"
           cabal-update: true
 

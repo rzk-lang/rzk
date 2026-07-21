@@ -1,0 +1,5 @@
+status: ok
+warnings:
+  - LargeInductiveTypeWarning
+regression_for:
+  - data-stage1-largeness-warning

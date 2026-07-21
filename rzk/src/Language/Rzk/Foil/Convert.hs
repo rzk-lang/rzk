@@ -1,4 +1,9 @@
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+-- The scope-extension evidence on 'sinkBound' (a coercion) is its soundness
+-- contract, not an argument it can consume, so GHC calls it redundant (and
+-- suggests "simplifying" foil's quantified-constraint Ext instance into the
+-- signature, which would be absurd). Both warnings stay off.
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-redundant-constraints
+                -fno-warn-simplifiable-class-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -33,6 +38,7 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
 import           Debug.Trace              (trace)   -- FIXME: use proper mechanisms for warnings
+import           Unsafe.Coerce            (unsafeCoerce)
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), Display, TModality (..),
@@ -51,19 +57,30 @@ toTermClosed = toTerm Foil.emptyScope unbound
   where
     unbound x = error ("undefined variable: " <> show x)
 
--- | Enter a pattern binder: bind one fresh name, map the pattern's leaves to
--- projections of it, and carry the rest of the environment in with 'Foil.sink'.
-toScopedPattern
+-- | Enter a pattern binder with an explicit continuation for the body: bind one
+-- fresh name, map the pattern's leaves to projections of it, and carry the rest
+-- of the environment in with 'Foil.sink'. 'toScopedPattern' is the plain-body
+-- special case; a match branch chains further arms through the continuation.
+toScopedPatternWith
   :: Distinct n
-  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
-toScopedPattern scope pat env body =
+  => Scope n -> Rzk.Pattern -> Env n
+  -> (forall l. Distinct l => Scope l -> Env l -> Term l)
+  -> ScopedAST NameBinder TermSig n
+toScopedPatternWith scope pat env k =
   Foil.withFresh scope $ \binder ->
     let scope' = Foil.extendScope binder scope
         bound = bindings pat (Var (Foil.nameOf binder))
         env' x = case lookup x bound of
           Just t  -> t
           Nothing -> Foil.sink (env x)   -- O(1): the old representation shifted every node
-     in ScopedAST binder (toTerm scope' env' body)
+     in ScopedAST binder (k scope' env')
+
+-- | Enter a pattern binder over a surface body.
+toScopedPattern
+  :: Distinct n
+  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
+toScopedPattern scope pat env body =
+  toScopedPatternWith scope pat env (\scope' env' -> toTerm scope' env' body)
 
 -- | Enter an anonymous binder (a non-dependent function type binds nothing).
 toScopedAnon
@@ -87,17 +104,6 @@ bindings (Rzk.PatternTuple loc p1 p2 ps) t =
 toTerm :: forall n. Distinct n => Scope n -> Env n -> Rzk.Term -> Term n
 toTerm scope env = go
   where
-    -- Desugar a deprecated notation, telling the user what to write instead.
-    deprecated t t' = trace msg (go t')
-      where
-        msg = unlines
-          [ "[DEPRECATED]:" <> ppBNFC'Position (Rzk.hasPosition t)
-          , "the following notation is deprecated and will be removed from future version of rzk:"
-          , "  " <> Rzk.printTree t
-          , "instead consider using the following notation:"
-          , "  " <> Rzk.printTree t'
-          ]
-
     ppBNFC'Position Nothing = ""
     ppBNFC'Position (Just (line_, col)) = " at line " <> show line_ <> " column " <> show col
 
@@ -111,18 +117,7 @@ toTerm scope env = go
 
     go :: Rzk.Term -> Term n
     go = \case
-      -- ASCII aliases and deprecations are desugared exactly as before.
-      t@(Rzk.RecOrDeprecated loc psi phi a_psi a_phi) -> deprecated t
-        (Rzk.RecOr loc [Rzk.Restriction loc psi a_psi, Rzk.Restriction loc phi a_phi])
-      t@(Rzk.TypeExtensionDeprecated loc shape type_) -> deprecated t
-        (Rzk.TypeFun loc shape type_)
-      t@(Rzk.TypeFun loc (Rzk.ParamTermTypeDeprecated loc' pat type_) ret) -> deprecated t
-        (Rzk.TypeFun loc (Rzk.ParamTermType loc' (Free.patternToTerm pat) type_) ret)
-      t@(Rzk.TypeFun loc (Rzk.ParamVarShapeDeprecated loc' pat cube tope) ret) -> deprecated t
-        (Rzk.TypeFun loc (Rzk.ParamTermShape loc' (Free.patternToTerm pat) cube tope) ret)
-      t@(Rzk.Lambda loc (Rzk.ParamPatternShapeDeprecated loc' pat cube tope : params) body) -> deprecated t
-        (Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] cube tope : params) body)
-
+      -- ASCII aliases are desugared exactly as before.
       Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
       Rzk.ASCII_Cube2_0 loc -> go (Rzk.Cube2_0 loc)
       Rzk.ASCII_Cube2_1 loc -> go (Rzk.Cube2_1 loc)
@@ -136,8 +131,6 @@ toTerm scope env = go
       Rzk.ASCII_TypeSigma loc pat ty ret -> go (Rzk.TypeSigma loc pat ty ret)
       Rzk.ASCII_TypeSigmaTuple loc p ps tN -> go (Rzk.TypeSigmaTuple loc p ps tN)
       Rzk.ASCII_Lambda loc pat ret -> go (Rzk.Lambda loc pat ret)
-      Rzk.ASCII_TypeExtensionDeprecated loc shape type_ ->
-        go (Rzk.TypeExtensionDeprecated loc shape type_)
       Rzk.ASCII_First loc term -> go (Rzk.First loc term)
       Rzk.ASCII_Second loc term -> go (Rzk.Second loc term)
       Rzk.ASCII_CubeI loc -> go (Rzk.CubeI loc)
@@ -167,6 +160,8 @@ toTerm scope env = go
       Rzk.TopeUninv _loc t -> TopeUninv (go t)
       Rzk.CubeFlip _loc t -> CubeFlip (go t)
       Rzk.CubeUnflip _loc t -> CubeUnflip (go t)
+      Rzk.CubeSup _loc l r -> CubeSup (go l) (go r)
+      Rzk.CubeInf _loc l r -> CubeInf (go l) (go r)
       Rzk.RecBottom _loc -> RecBottom
       Rzk.RecOr _loc rs -> RecOr (map restriction rs)
       Rzk.TypeId _loc x tA y -> TypeId (go x) (Just (go tA)) (go y)
@@ -183,6 +178,10 @@ toTerm scope env = go
       Rzk.ReflTerm _loc term -> Refl (Just (go term, Nothing))
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
+      Rzk.Match _loc scrut branches ->
+        Match (go scrut) Nothing (map matchBranch branches)
+      Rzk.MatchInto _loc scrut motive branches ->
+        Match (go scrut) (Just (go motive)) (map matchBranch branches)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
 
       -- A binder may name several variables sharing a type, e.g. @(x y : A)@,
@@ -307,6 +306,17 @@ toTerm scope env = go
       Rzk.Restriction _loc tope term       -> (go tope, go term)
       Rzk.ASCII_Restriction _loc tope term -> (go tope, go term)
 
+    -- One branch of a match: each pattern becomes one 'MatchArm' binder, and
+    -- the last arm's scope holds the branch body.
+    matchBranch (Rzk.MatchBranch _loc con pats body) =
+      (varIdent con, arms scope env pats)
+      where
+        arms :: forall m. Distinct m => Scope m -> Env m -> [Rzk.Pattern] -> Term m
+        arms sc en []       = toTerm sc en body
+        arms sc en (p : ps) =
+          MatchArm (toBinder p)
+            (toScopedPatternWith sc p en (\sc' en' -> arms sc' en' ps))
+
 -- * Open terms
 
 -- | Elaborate a surface term whose free identifiers are not known in advance.
@@ -333,7 +343,7 @@ withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
     go scope bound names (x : xs) =
       Foil.withFresh scope $ \binder ->
         let scope' = Foil.extendScope binder scope
-            bound' = (x, Foil.nameOf binder) : map (fmap Foil.sink) bound
+            bound' = (x, Foil.nameOf binder) : sinkBound bound
          in go scope' bound' (Map.insert x (x, BinderVar (Just x)) names) xs
 
     envOf bound x = case lookup x bound of
@@ -346,6 +356,14 @@ withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
       | (x, v) <- bound
       , Just display <- [Map.lookup x names]
       ]
+
+-- | Sink an association list of binders by coercion, with no per-entry
+-- rebuild ('withOpenTerm' calls this at every binder it opens).
+-- 'Foil.sinkContainer' cannot see through the pair (its element must be the
+-- sunk type itself), but the sinkability argument is the same: only the
+-- names mention the scope, and a name sinks by coercion.
+sinkBound :: Foil.DExt n l => [(VarIdent, Foil.Name n)] -> [(VarIdent, Foil.Name l)]
+sinkBound = unsafeCoerce
 
 -- | Every identifier occurring in a piece of surface syntax, bound or free.
 collectVarIdents :: Data a => a -> [Rzk.VarIdent]

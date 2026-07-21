@@ -17,15 +17,19 @@ import           System.FilePath          (dropExtension, (</>), takeDirectory,
                                            takeFileName)
 import           System.FilePath.Glob     (compile, globDir1)
 
+import           Data.List                (sort)
+
 import qualified Language.Rzk.Syntax        as Rzk
-import           Rzk.Diagnostic           (locationOfTypeError,
+import           Rzk.Diagnostic           (checkWarningTag,
+                                           locationOfTypeError,
                                            typeErrorTagInScopedContext)
 import           Rzk.TypeCheck            (Checked, Context (..),
                                            LocationInfo (..),
                                            OutputDirection (..),
                                            TypeErrorInScopedContext,
                                            Verbosity (..), checkedErrors,
-                                           checkedModules, emptyContext,
+                                           checkedModules, checkedWarnings,
+                                           emptyContext,
                                            ppTypeErrorInScopedContext)
 
 import           Test.Hspec
@@ -38,6 +42,7 @@ data Expect = Expect
   , expectRegressionFor   :: Maybe [String]
   , expectModules         :: Maybe [FilePath]
   , expectApi             :: Maybe String
+  , expectWarnings        :: Maybe [String]
   } deriving (Show, Eq)
 
 instance FromJSON Expect where
@@ -49,6 +54,7 @@ instance FromJSON Expect where
     <*> o .:? "regression_for"
     <*> o .:? "modules"
     <*> o .:? "api"
+    <*> o .:? "warnings"
 
 -- | The line an error was raised on.
 --
@@ -144,9 +150,20 @@ assertExpect label Expect{..} (Left err) | expectStatus == "error" = do
         expectationFailure $ "in " <> label <> ", expected line " <> show ln
           <> " got " <> show got
       Just _ -> pure ()
-assertExpect _label Expect{expectStatus = "ok"} (Right _) = pure ()
+assertExpect label Expect{expectStatus = "ok", expectWarnings = want} (Right checked) =
+  assertWarnings label want checked
 assertExpect label Expect{expectStatus = st} _ =
   expectationFailure $ "in " <> label <> ", unknown status " <> show st
+
+-- | When the fixture spells a @warnings@ list, the run's warning tags must
+-- match it exactly (order-insensitively); an absent field asserts nothing.
+assertWarnings :: String -> Maybe [String] -> Checked -> IO ()
+assertWarnings _label Nothing _ = pure ()
+assertWarnings label (Just want) checked = do
+  let got = map checkWarningTag (checkedWarnings checked)
+  unless (sort want == sort got) $
+    expectationFailure $ "in " <> label <> ", expected warnings "
+      <> show want <> " but got " <> show got
 
 assertExpectCollect :: String -> Expect -> Either TypeErrorInScopedContext Checked -> IO ()
 assertExpectCollect _label _ (Left err) =
@@ -155,7 +172,7 @@ assertExpectCollect label Expect{..} (Right checked) = case checkedErrors checke
  errs -> case expectStatus of
   "ok" | not (null errs) ->
     expectationFailure $ "in " <> label <> ", expected ok but got errors: " <> show (length errs)
-  "ok" -> pure ()
+  "ok" -> assertWarnings label expectWarnings checked
   "error" -> case errs of
     [] ->
       expectationFailure $ "in " <> label <> ", expected type errors but got none"

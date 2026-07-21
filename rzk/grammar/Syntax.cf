@@ -47,6 +47,10 @@ commandDef.               Command ::= "#def" VarIdent DeclUsedVars [Param] ":" T
 define commandDef x vars params ty term = CommandDefine x vars params ty term ;
 commandDefNoParams.       Command ::= "#def" VarIdent DeclUsedVars ":" Term ":=" Term ;
 define commandDefNoParams x vars ty term = CommandDefine x vars [] ty term ;
+
+CommandData.              Command ::= "#data" VarIdent DeclUsedVars [Param] DataSort DataBody ;
+commandDataNoParams.      Command ::= "#data" VarIdent DeclUsedVars DataSort DataBody ;
+define commandDataNoParams x vars sort body = CommandData x vars [] sort body ;
 terminator Command ";" ;
 
 DeclUsedVars. DeclUsedVars ::= "uses" "(" [VarIdent] ")" ;
@@ -55,6 +59,34 @@ define noDeclUsedVars = DeclUsedVars [] ;
 
 NoSectionName.    SectionName ::= ;
 SomeSectionName.  SectionName ::= VarIdent ;
+
+-- The sort of a #data declaration (defaults to U when omitted)
+SomeDataSort. DataSort ::= ":" Term ;
+NoDataSort.   DataSort ::= ;
+
+-- The constructor list of a #data declaration (omitted for an empty family)
+SomeDataBody. DataBody ::= ":=" [Constructor] [DataElim] ;
+NoDataBody.   DataBody ::= ;
+
+-- A constructor: name, fields, and an optional return type (defaults to
+-- the declared type applied to its parameters)
+Constructor.           Constructor ::= VarIdent [Param] ConstructorType ;
+constructorNoParams.   Constructor ::= VarIdent ConstructorType ;
+define constructorNoParams x ty = Constructor x [] ty ;
+separator nonempty Constructor "|" ;
+
+SomeConstructorType. ConstructorType ::= ":" Term ;
+NoConstructorType.   ConstructorType ::= ;
+
+-- An optional re-ascription of a generated eliminator's type
+DataElim. DataElim ::= "eliminator" VarIdent ":" Term ;
+terminator DataElim "" ;
+
+-- A match branch: constructor name, one binder per method argument
+MatchBranch.         MatchBranch ::= VarIdent [Pattern] "⇒" Term ;
+matchBranchNoParams. MatchBranch ::= VarIdent "⇒" Term ;
+define matchBranchNoParams x t = MatchBranch x [] t ;
+separator nonempty MatchBranch "|" ;
 
 -- Patterns
 PatternUnit.      Pattern ::= "unit" ;
@@ -69,7 +101,6 @@ separator nonempty Pattern1 "," ;
 ParamPattern.          Param ::= Pattern ;
 ParamPatternType.      Param ::= "(" [Pattern] ":" Term ")" ;
 ParamPatternShape.     Param ::= "(" [Pattern] ":" Term "|" Term ")" ;
-ParamPatternShapeDeprecated. Param ::= "{" Pattern ":" Term "|" Term "}" ;
 ParamPatternModalType. Param ::= "(" [Pattern] ModalColon Term ")" ;
 ParamPatternModalShape. Param ::= "(" [Pattern] ModalColon Term "|" Term ")" ;
 separator nonempty Param "" ;
@@ -82,10 +113,6 @@ BindPatternType.  Bind ::= Pattern ":" Term  ;
 ParamType.             ParamDecl ::= Term6 ;
 ParamTermType.         ParamDecl ::= "(" Term ":" Term ")" ;
 ParamTermShape.        ParamDecl ::= "(" Term ":" Term "|" Term ")" ;
-ParamTermTypeDeprecated. ParamDecl ::= "{" Pattern ":" Term "}" ;
-ParamVarShapeDeprecated. ParamDecl ::= "{" "(" Pattern ":" Term ")" "|" Term "}" ;
-paramVarShapeDeprecated. ParamDecl ::= "{" Pattern ":" Term "|" Term "}" ;
-define paramVarShapeDeprecated pat cube tope = ParamVarShapeDeprecated pat cube tope ;
 ParamTermModalType.    ParamDecl ::= "(" Term ModalColon Term ")" ;
 ParamTermModalShape.   ParamDecl ::= "(" Term ModalColon Term "|" Term ")" ;
 
@@ -133,6 +160,9 @@ CubeI.          Term7 ::= "𝕀" ;
 CubeI_0.        Term7 ::= "0ᵢ" ;
 CubeI_1.        Term7 ::= "1ᵢ" ;
 CubeProduct.    Term5 ::= Term5 "×" Term6 ;
+-- Lattice operations on cube points (join/meet)
+CubeSup.        Term5 ::= Term5 "⊔" Term6 ;
+CubeInf.        Term5 ::= Term5 "⊓" Term6 ;
 -- Topes
 TopeTop.        Term7 ::= "⊤" ;
 TopeBottom.     Term7 ::= "⊥" ;
@@ -155,7 +185,6 @@ define ascii_CubeUnflip t = CubeUnflip t ;
 -- Tope disjunction elimination
 RecBottom.        Term7 ::= "recBOT" ;
 RecOr.            Term7 ::= "recOR" "(" [Restriction] ")" ;
-RecOrDeprecated.  Term7 ::= "recOR" "(" Term "," Term "," Term "," Term ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
@@ -165,7 +194,6 @@ TypeUnit.       Term7 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
-TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "→" Term ">" ;
 -- Terms
 Let.            Term1 ::= "let" Bind ":=" Term "in" Term ;
 App.            Term6 ::= Term6 Term7 ;
@@ -183,6 +211,8 @@ Refl.           Term7 ::= "refl";
 ReflTerm.       Term7 ::= "refl_{" Term "}" ;
 ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;
 IdJ.            Term7 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
+Match.          Term7 ::= "match" Term7 "(" [MatchBranch] ")" ;
+MatchInto.      Term7 ::= "match" Term7 "into" Term7 "(" [MatchBranch] ")" ;
 -- Variables and holes
 Hole.           Term7 ::= HoleIdent;
 Var.            Term7 ::= VarIdent ;
@@ -196,6 +226,10 @@ coercions Term 7 ;
 
 ascii_CubeProduct.    Term5 ::= Term5 "*" Term6 ;
 define ascii_CubeProduct l r = CubeProduct l r ;
+ascii_CubeSup.        Term6 ::= "sup" Term7 Term7 ;
+define ascii_CubeSup l r = CubeSup l r ;
+ascii_CubeInf.        Term6 ::= "inf" Term7 Term7 ;
+define ascii_CubeInf l r = CubeInf l r ;
 
 ASCII_CubeUnitStar.   Term7 ::= "*_1" ;
 ASCII_Cube2_0.        Term7 ::= "0_2" ;
@@ -220,10 +254,13 @@ ASCII_TypeSigmaTuple. Term1 ::= "Sigma" "(" SigmaParam "," [SigmaParam] ")" "," 
 ASCII_Lambda.         Term1 ::= "\\" [Param] "->" Term1 ;
 ASCII_Restriction. Restriction ::= Term "|->" Term ;
 
-ASCII_TypeExtensionDeprecated.  Term7 ::= "<" ParamDecl "->" Term ">" ;
-
 ASCII_First.          Term6 ::= "first" Term7 ;
 ASCII_Second.         Term6 ::= "second" Term7 ;
+
+ascii_MatchBranch.         MatchBranch ::= VarIdent [Pattern] "=>" Term ;
+define ascii_MatchBranch x ps t = MatchBranch x ps t ;
+ascii_matchBranchNoParams. MatchBranch ::= VarIdent "=>" Term ;
+define ascii_matchBranchNoParams x t = MatchBranch x [] t ;
 
 -- Alternative Unicode syntax rules
 

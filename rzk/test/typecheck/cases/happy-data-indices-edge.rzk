@@ -1,0 +1,47 @@
+#lang rzk-1
+
+#data nat := zero | suc (n : nat)
+
+-- two indices, a constructor pinning them equal
+#data rel : nat → nat → U := diag (n : nat) : rel n n
+
+#check ind-rel
+  : ( C : (i : nat) → (i' : nat) → rel i i' → U)
+  → ( (n : nat) → C n n (diag n))
+  → ( i : nat) → (i' : nat) → (x : rel i i') → C i i' x
+
+#section vecs
+
+#assume A : U
+
+#data vecA uses (A)
+  : nat → U
+  :=
+    nilA : vecA zero
+  | consA (n : nat) (x : A) (xs : vecA n) : vecA (suc n)
+
+#define lenA uses (A)
+  ( n : nat) (xs : vecA n)
+  : nat
+  := rec-vecA (\ _ → nat) zero (\ _ _ _ ih → suc ih) n xs
+
+#end vecs
+
+#check vecA : U → nat → U
+#check consA : (A : U) → (n : nat) → A → vecA A n → vecA A (suc n)
+
+#define lenA-one (A : U) (x : A)
+  : lenA A (suc zero) (consA A zero x (nilA A)) =_{nat} suc zero
+  := refl
+
+-- an indexed empty family: no constructors, so the index telescope is
+-- checked through the type former's own type, and the eliminator is
+-- ex falso through the index
+#data fin0 : nat → U
+
+#check ind-fin0
+  : ( C : (n : nat) → fin0 n → U)
+  → ( n : nat) → (x : fin0 n) → C n x
+
+#define absurd0 (A : U) (n : nat) (v : fin0 n) : A
+  := rec-fin0 (\ _ → A) n v

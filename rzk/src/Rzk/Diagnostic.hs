@@ -149,6 +149,14 @@ typeErrorTag = \case
   TypeErrorUnusedVariable{}        -> "TypeErrorUnusedVariable"
   TypeErrorUnusedUsedVariables{}   -> "TypeErrorUnusedUsedVariables"
   TypeErrorImplicitAssumption{}    -> "TypeErrorImplicitAssumption"
+  TypeErrorNotIntervalCube{}       -> "TypeErrorNotIntervalCube"
+  TypeErrorRepeatedBinder{}        -> "TypeErrorRepeatedBinder"
+  TypeErrorMatchScrutineeNotData{} -> "TypeErrorMatchScrutineeNotData"
+  TypeErrorMatchCannotInfer{}      -> "TypeErrorMatchCannotInfer"
+  TypeErrorMatchMissingBranch{}    -> "TypeErrorMatchMissingBranch"
+  TypeErrorMatchDuplicateBranch{}  -> "TypeErrorMatchDuplicateBranch"
+  TypeErrorMatchUnknownBranch{}    -> "TypeErrorMatchUnknownBranch"
+  TypeErrorMatchBranchArity{}      -> "TypeErrorMatchBranchArity"
 
 -- | The tag of a type error.
 --
@@ -171,6 +179,47 @@ diagnoseTypeError dir err = Diagnostic
   , diagnosticMessage  = ppTypeErrorInScopedContext dir err
   , diagnosticHole     = Nothing
   }
+
+-- | A checker warning as a diagnostic: warning severity, with the warning's
+-- constructor name as the stable code (like 'diagnoseTypeError' does for
+-- errors).
+diagnoseCheckWarning :: CheckWarning -> Diagnostic
+diagnoseCheckWarning (LargeInductiveTypeWarning dataName conName loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "LargeInductiveTypeWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "large inductive type: a field of constructor " <> show conName
+        <> " stores a universe; predicatively " <> show dataName
+        <> " lives above U"
+  , diagnosticHole     = Nothing
+  }
+diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = case rule of
+      MetaPrefixBoth       -> "MetaPrefixWarning"
+      MetaPrefixStrictOnly -> "MetaPrefixWarningStrictOnly"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "meta-parameter layer: " <> show usedName <> " is used with "
+        <> show supplied <> " of its " <> show required
+        <> " meta-prefix arguments"
+        <> (case rule of
+              MetaPrefixBoth       -> " at an object-level position"
+              MetaPrefixStrictOnly -> " outside another declaration's meta prefix")
+        <> " (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
+
+-- | A checker warning as a human-readable line (the CLI).
+ppCheckWarning :: CheckWarning -> String
+ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
+
+-- | The stable tag of a warning (its diagnostic code), used to match
+-- @warnings@ in fixtures; sharing the definition keeps the two from
+-- drifting apart.
+checkWarningTag :: CheckWarning -> String
+checkWarningTag = diagnosticCode . diagnoseCheckWarning
 
 -- | A structured diagnostic for a hole, carrying the hole's goal and local
 -- context. A hole is an unfilled obligation, so it is a 'SeverityWarning' —

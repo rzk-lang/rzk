@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorMatchDuplicateBranch
+message_contains:
+  - "duplicate match branch for constructor zero"
+line: 5
+regression_for:
+  - match-branch-bijection

@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#define bad (A : U) (x : A) : A
+  := match x (whatever ⇒ x)

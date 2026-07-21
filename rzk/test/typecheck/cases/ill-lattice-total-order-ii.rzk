@@ -1,0 +1,16 @@
+#lang rzk-1
+
+-- II is NOT totally ordered (unlike 2), stated purely via the lattice join.
+--
+-- On a chain the arguments of a join are comparable, so the join equals one of
+-- them: (sup a b === a) \/ (sup a b === b). On II this disjunction does not
+-- hold, so this recOR is not exhaustive. The very same definition on 2
+-- typechecks (see happy-lattice: joinEqualsOneArg2). This is the key lattice
+-- difference between 2 and II.
+
+#define dummy : U := Unit -> Unit
+
+#define joinEqualsOneArgI
+  (a b : II)
+  : U
+  := recOR( sup a b === a |-> dummy , sup a b === b |-> dummy )

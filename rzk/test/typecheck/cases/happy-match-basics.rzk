@@ -1,0 +1,41 @@
+#lang rzk-1
+
+#data bool := false | true
+
+#data nat := zero | suc (n : nat)
+
+-- a non-recursive match
+#define not (b : bool) : bool
+  := match b (false ⇒ true | true ⇒ false)
+
+-- recursion through the induction hypothesis
+#define plus (n m : nat) : nat
+  := match n (zero ⇒ m | suc k ih ⇒ suc ih)
+
+#define two : nat := suc (suc zero)
+
+-- the elaborated eliminator computes definitionally
+#define plus-computes : plus two two =_{nat} suc (suc two)
+  := refl
+
+-- an explicit motive after "into" (a family, applied per branch);
+-- ASCII branch arrow
+#define not' (b : bool) : bool
+  := match b into (\ _ → bool) (false => true | true => false)
+
+-- a dependent motive built from the goal: the scrutinee variable is
+-- abstracted out of it
+#define not-not (b : bool) : not (not b) =_{bool} b
+  := match b (false ⇒ refl | true ⇒ refl)
+
+-- a non-variable scrutinee gives a constant family
+#define pred-of-plus (n : nat) : nat
+  := match (plus n two) (zero ⇒ zero | suc k ih ⇒ k)
+
+-- branches may come in any order
+#define not'' (b : bool) : bool
+  := match b (true ⇒ false | false ⇒ true)
+
+-- a nested match in a branch body (the parentheses close each level)
+#define is-even (n : nat) : bool
+  := match n (zero ⇒ true | suc k ih ⇒ match ih (false ⇒ true | true ⇒ false))

@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- An equality in the tope context entails both inequalities: from a === b the
+-- solver derives a <= b (and b <= a). This exercises the equality-to-order
+-- clauses added to generateTopes, on lattice-free syntax -- so it also guards
+-- that the lattice work does not regress ordinary sHoTT reasoning on 2.
+
+#define eqGivesLeq
+  (a b : 2)
+  (t : 2 | a === b)
+  (f : (x : 2 | a <= x) -> U)
+  : U
+  := f b

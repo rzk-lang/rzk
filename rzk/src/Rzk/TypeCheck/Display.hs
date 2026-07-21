@@ -25,7 +25,7 @@ import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names    (Binder (..), Display,
                                               TypeInfo (..), VarIdent,
                                               binderIsCompound, binderLeaves,
-                                              binderToPattern, defaultVarIdents,
+                                              binderDisplayName, binderToPattern, defaultVarIdents,
                                               freshenBinderLeaves, fromVarIdent,
                                               refreshVarIn)
 import qualified Language.Rzk.Syntax         as Rzk
@@ -74,14 +74,15 @@ namingOfContext ctx = Naming
             x : supply' -> name (x, BinderVar (Just x)) [x] supply'
             []          -> panicImpossible "not enough fresh variables"
         binder ->
-          -- A pattern binder: the variable itself needs a placeholder name (it is
-          -- only shown when the whole point is used, and then it prints as the
-          -- pattern), and its leaves are freshened together.
-          case supply of
-            x : supply' ->
-              let binder' = freshenBinderLeaves (Set.toList taken) binder
-               in name (x, binder') (x : binderLeaves binder') supply'
-            [] -> panicImpossible "not enough fresh variables"
+          -- A pattern binder: the variable itself needs a placeholder name only
+          -- when the whole point is used, and then it prints as the pattern —
+          -- so the placeholder is the pattern's own display name ("(na, nb)"),
+          -- which the identifier lexer can never produce. It must not draw
+          -- from the default supply: claiming x₁ here would displace a later
+          -- user-written x₁ in the display (and its hole moves) while the
+          -- source keeps the name. Only the leaves are freshened and claimed.
+          let binder' = freshenBinderLeaves (Set.toList taken) binder
+           in name (binderDisplayName binder', binder') (binderLeaves binder') supply
       where
         name display claimed supply' =
           let (acc, taken') = go (foldr Set.insert taken claimed) supply' rest

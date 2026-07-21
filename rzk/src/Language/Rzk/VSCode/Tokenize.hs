@@ -18,8 +18,26 @@ import qualified Language.Rzk.Syntax.Lex     as Lex
 tokenizeModule :: Module -> [SemanticTokenAbsolute]
 tokenizeModule (Module _loc langDecl commands) = concat
   [ tokenizeLanguageDecl langDecl
-  , foldMap tokenizeCommand commands
+  , tokenizeCommands 0 commands
   ]
+
+-- | Walk the commands tracking the section depth: an assumption outside
+-- any section is a file-wide axiom and is marked as an abstract function
+-- (see 'tokenizeCommand'), while an assumption inside a section is a
+-- hypothesis the section abstracts over at its @#end@, so it keeps the
+-- parameter token type and only gains the abstract modifier.
+tokenizeCommands :: Int -> [Command] -> [SemanticTokenAbsolute]
+tokenizeCommands _ [] = []
+tokenizeCommands depth (command : commands) = case command of
+  CommandSection{} ->
+    tokenizeCommand command ++ tokenizeCommands (depth + 1) commands
+  CommandSectionEnd{} ->
+    tokenizeCommand command ++ tokenizeCommands (max 0 (depth - 1)) commands
+  CommandAssume _loc vars type_ | depth > 0 -> concat
+    [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract]) vars
+    , tokenizeTerm type_
+    ] ++ tokenizeCommands depth commands
+  _ -> tokenizeCommand command ++ tokenizeCommands depth commands
 
 tokenizeLanguageDecl :: LanguageDecl -> [SemanticTokenAbsolute]
 tokenizeLanguageDecl _ = []
@@ -33,8 +51,13 @@ tokenizeCommand command = case command of
   CommandComputeNF    _loc term -> tokenizeTerm term
   CommandComputeWHNF  _loc term -> tokenizeTerm term
 
+  -- A postulate is declared, but not proven: the abstract modifier lets
+  -- clients render its name (here and at every use site, see
+  -- 'Language.Rzk.VSCode.Handlers.useSiteTokens') distinctly. The static
+  -- modifier distinguishes it from a top-level assumption: a postulate is
+  -- a permanent axiom, so clients can style it louder.
   CommandPostulate _loc name declUsedVars params type_ -> concat
-    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+    [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract, SemanticTokenModifiers_Static]
     , tokenizeDeclUsedVars declUsedVars
     , foldMap tokenizeParam params
     , tokenizeTerm type_
@@ -46,12 +69,51 @@ tokenizeCommand command = case command of
     , foldMap tokenizeTerm [type_, term]
     ]
 
+  -- A name assumed at the top level is a file-wide axiom like a postulate
+  -- (see 'CommandPostulate' above), so it gets the same abstract marking;
+  -- 'tokenizeCommands' intercepts the in-section case.
   CommandAssume _loc vars type_ -> concat
-    [ foldMap (\var -> mkToken var SemanticTokenTypes_Parameter [SemanticTokenModifiers_Declaration]) vars
+    [ foldMap (\var -> mkToken var SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration, SemanticTokenModifiers_Abstract]) vars
     , tokenizeTerm type_
     ]
   CommandSection    _loc name -> tokenizeSectionName name
   CommandSectionEnd _loc name -> tokenizeSectionName name
+
+  CommandData _loc name declUsedVars params sort body -> concat
+    [ mkToken name SemanticTokenTypes_Class [SemanticTokenModifiers_Declaration]
+    , tokenizeDeclUsedVars declUsedVars
+    , foldMap tokenizeParam params
+    , tokenizeDataSort sort
+    , tokenizeDataBody body
+    ]
+
+tokenizeDataSort :: DataSort -> [SemanticTokenAbsolute]
+tokenizeDataSort = \case
+  SomeDataSort _loc ty -> tokenizeTerm ty
+  NoDataSort _loc      -> []
+
+tokenizeDataBody :: DataBody -> [SemanticTokenAbsolute]
+tokenizeDataBody = \case
+  NoDataBody _loc -> []
+  SomeDataBody _loc cons elims -> concat
+    [ foldMap tokenizeConstructor cons
+    , foldMap tokenizeDataElim elims
+    ]
+
+tokenizeConstructor :: Constructor -> [SemanticTokenAbsolute]
+tokenizeConstructor (Constructor _loc name params ctype) = concat
+  [ mkToken name SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
+  , foldMap tokenizeParam params
+  , case ctype of
+      SomeConstructorType _loc' ty -> tokenizeTerm ty
+      NoConstructorType _loc'      -> []
+  ]
+
+tokenizeDataElim :: DataElim -> [SemanticTokenAbsolute]
+tokenizeDataElim (DataElim _loc name ty) = concat
+  [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+  , tokenizeTerm ty
+  ]
 
 tokenizeDeclUsedVars :: DeclUsedVars -> [SemanticTokenAbsolute]
 tokenizeDeclUsedVars (DeclUsedVars _loc vars) =
@@ -77,10 +139,6 @@ tokenizeParam = \case
     [ foldMap tokenizePattern pats
     , tokenizeTerm cube
     , tokenizeTope tope ]
-  ParamPatternShapeDeprecated _loc pat cube tope -> concat
-    [ tokenizePattern pat
-    , tokenizeTerm cube
-    , tokenizeTope tope ]
   ParamPatternModalType _loc pats mc ty -> concat
     [ foldMap tokenizePattern pats
     , tokenizeModalColon mc
@@ -97,6 +155,14 @@ tokenizePattern = \case
   PatternPair _loc l r   -> foldMap tokenizePattern [l, r]
   pat@(PatternUnit _loc) -> mkToken pat SemanticTokenTypes_EnumMember [SemanticTokenModifiers_Declaration]
   PatternTuple _loc p1 p2 ps -> foldMap tokenizePattern (p1 : p2 : ps)
+
+-- | A match branch: the constructor name is an enum member (as constructor
+-- uses are), the binders are parameters, the body is an ordinary term.
+tokenizeMatchBranch :: MatchBranch -> [SemanticTokenAbsolute]
+tokenizeMatchBranch (MatchBranch _loc con pats body) = concat
+  [ mkToken con SemanticTokenTypes_EnumMember []
+  , foldMap tokenizePattern pats
+  , tokenizeTerm body ]
 
 tokenizeTope :: Term -> [SemanticTokenAbsolute]
 tokenizeTope = tokenizeTerm' (Just SemanticTokenTypes_String)
@@ -135,6 +201,8 @@ tokenizeTerm' varTokenType = go
       ASCII_CubeI{}        -> mkToken term SemanticTokenTypes_Enum [SemanticTokenModifiers_DefaultLibrary]
 
       CubeProduct _loc l r -> foldMap go [l, r]
+      CubeSup _loc l r -> foldMap go [l, r]
+      CubeInf _loc l r -> foldMap go [l, r]
 
       TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
       ASCII_TopeTop{}            -> mkToken term SemanticTokenTypes_String [SemanticTokenModifiers_DefaultLibrary]
@@ -229,13 +297,17 @@ tokenizeTerm' varTokenType = go
 
       TypeAsc _loc t type_ -> foldMap go [t, type_]
 
+      Match _loc scrut branches -> concat
+        [ go scrut
+        , foldMap tokenizeMatchBranch branches ]
+      MatchInto _loc scrut motive branches -> concat
+        [ go scrut
+        , go motive
+        , foldMap tokenizeMatchBranch branches ]
+
       ModType _loc md type_ -> concat [tokenizeModality md, go type_]
       ModApp _loc md te -> concat [tokenizeModality md, go te]
       ModExtract _loc comp te -> concat [tokenizeModComp comp, go te]
-
-      RecOrDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
-      TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
-      ASCII_TypeExtensionDeprecated{} -> mkToken term SemanticTokenTypes_Regexp [SemanticTokenModifiers_Deprecated]
 
 
 tokenizeRestriction :: Restriction -> [SemanticTokenAbsolute]
@@ -254,14 +326,6 @@ tokenizeParamDecl = \case
     , tokenizeTerm type_ ]
   ParamTermShape _loc pat cube tope -> concat
     [ tokenizeTerm pat
-    , tokenizeTerm cube
-    , tokenizeTope tope
-    ]
-  ParamTermTypeDeprecated _loc pat type_ -> concat
-    [ tokenizePattern pat
-    , tokenizeTerm type_ ]
-  ParamVarShapeDeprecated _loc pat cube tope -> concat
-    [ tokenizePattern pat
     , tokenizeTerm cube
     , tokenizeTope tope
     ]
@@ -352,7 +416,10 @@ classifySymbol s
   | otherwise            = Just SemanticTokenTypes_Operator
   where
     -- Plain brackets are left to the editor (e.g. bracket pair colorization).
-    ignored = ["(", ")", "[", "]", "{", "}", ";", "<", ">"]
+    -- @}@ is not among them: since the brace shape-parameters were removed,
+    -- it occurs only as the closer of @=_{@ and @refl_{@, which classify as
+    -- operators, so it takes the same colour as its opener.
+    ignored = ["(", ")", "[", "]", "{", ";", "<", ">"]
 
 -- | Combine tokens from the parsed module with tokens from the raw symbol
 -- stream. On overlap (same start position) the AST-based token wins, since

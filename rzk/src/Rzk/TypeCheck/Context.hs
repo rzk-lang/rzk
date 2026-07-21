@@ -87,7 +87,51 @@ data VarInfo n = VarInfo
   , varIsTopLevel          :: Bool
   , varDeclaredAssumptions :: [Foil.Name n]
   , varLocation            :: Maybe LocationInfo
+  , varDataRole            :: Maybe (DataRole n)
+    -- ^ the role the entry plays for a @#data@ declaration, if any
+  , varMetaPrefix          :: Int
+    -- ^ the length of the entry's meta-parameter prefix (0 for locals and
+    -- for declarations with no meta parameters); see
+    -- "Rzk.TypeCheck.MetaPrefix". Recomputed when a section close rewrites
+    -- the entry's type.
   }
+
+-- | The role a top-level entry plays for a @#data@ declaration. The ι-rule
+-- (in 'Rzk.TypeCheck.Eval') recognises an eliminator head and a
+-- constructor-headed scrutinee by these; both entries are otherwise opaque
+-- (they carry no value).
+--
+-- The argument counts speak of the entry's elaborated type: a constructor
+-- takes the datatype's parameters and then its own fields; an eliminator
+-- takes the parameters, the motive, one method per constructor (in
+-- declaration order), and the scrutinee. Closing a section prepends the
+-- section's assumptions uniformly to all entries of a declaration, so
+-- 'abstractOver' bumps the parameter counts.
+data DataRole n = DataRole
+  { dataRoleDataType  :: Foil.Name n
+    -- ^ the type former this entry belongs to
+  , dataRoleNumParams :: Int
+    -- ^ the datatype parameters the entry takes before anything else
+  , dataRoleKind      :: DataRoleKind
+  }
+
+data DataRoleKind
+  = DataConKind Int Int [Int]
+    -- ^ a constructor: its 0-based position among the constructors (= the
+    -- method index), the number of its own fields after the parameters,
+    -- and the 0-based positions of its recursive fields (each contributes
+    -- an induction hypothesis right after the field in the method)
+  | DataElimKind Int Int ElimKind
+    -- ^ an eliminator: the number of methods (one per constructor, in
+    -- declaration order) and the number of indices of the family; the
+    -- spine is parameters, motive, methods, indices, scrutinee
+
+-- | Which eliminator; the ι-rule is the same for both.
+data ElimKind = ElimInd | ElimRec
+
+-- | Add one leading parameter (a section assumption made explicit).
+bumpDataRoleParams :: DataRole n -> DataRole n
+bumpDataRoleParams role = role { dataRoleNumParams = dataRoleNumParams role + 1 }
 
 -- | A tope, together with the modalities under which it is available.
 data ModalTope n = ModalTope
@@ -202,7 +246,22 @@ data Context n = Context
     -- is legitimate (see @happy-restrict-face-not-contained@). Enabled with
     -- @#set-option "warn-overhang" "yes"@. The /disjointness/ error next to
     -- it is unaffected: a vacuous face is always rejected.
+  , ctxMetaPrefixSensitivity :: MetaPrefixSensitivity
+    -- ^ How sensitively the meta-parameter layer check classifies use
+    -- positions (see "Rzk.TypeCheck.MetaPrefix"). Strict by default; set
+    -- with @#set-option "warn-meta-prefix" = "off" | "structural" | "strict"@.
   }
+
+-- | The sensitivity levels of the meta-parameter layer check.
+data MetaPrefixSensitivity
+  = MetaPrefixOff
+    -- ^ no meta-prefix warnings
+  | MetaPrefixStructural
+    -- ^ warn only at structurally object-level positions
+  | MetaPrefixStrict
+    -- ^ additionally require an unsaturated schema argument to sit within
+    -- a top-level receiver's meta prefix (the default)
+  deriving (Eq, Show)
 
 -- | An open section: the entries declared in it, newest first.
 data SectionInfo n = SectionInfo
@@ -236,6 +295,7 @@ emptyContext = Context
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
   , ctxWarnOverhang = False
+  , ctxMetaPrefixSensitivity = MetaPrefixStrict
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.
@@ -324,7 +384,10 @@ instance Foil.Sinkable VarInfo where
     { varType = Foil.sinkabilityProof rename (varType info)
     , varValue = Foil.sinkabilityProof rename <$> varValue info
     , varDeclaredAssumptions = rename <$> varDeclaredAssumptions info
+    , varDataRole = renameRole <$> varDataRole info
     }
+    where
+      renameRole role = role { dataRoleDataType = rename (dataRoleDataType role) }
 
 instance Foil.Sinkable ModalTope where
   sinkabilityProof rename tope =

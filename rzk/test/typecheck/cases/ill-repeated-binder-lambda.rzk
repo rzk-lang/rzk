@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#define bad : (x y : Unit) → Unit
+  := \ x x → unit

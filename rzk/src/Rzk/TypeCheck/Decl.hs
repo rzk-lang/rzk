@@ -1,4 +1,7 @@
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+-- The scope-extension evidence on 'sinkDeclGroups' (a coercion) is its
+-- soundness contract, not an argument it can consume, so GHC calls it
+-- redundant. It stays.
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-redundant-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
@@ -23,11 +26,14 @@ module Rzk.TypeCheck.Decl where
 
 import           Control.Monad             (forM, when)
 import           Control.Monad.Except      (catchError, runExcept)
+import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local, runReaderT)
 import           Control.Monad.Trans.Writer.CPS (runWriterT)
 import           Data.List                 (intercalate)
 import qualified Data.Map                  as Map
+import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
+import           Unsafe.Coerce             (unsafeCoerce)
 
 import           Control.Monad.Foil        (DExt, Distinct, NameBinder)
 import qualified Control.Monad.Foil        as Foil
@@ -37,13 +43,14 @@ import           Language.Rzk.Foil.Convert (Env, toTerm)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names   (Binder (..), TModality (..),
                                             VarIdent, binderName, markUnresolved,
-                                            patternToTerm, varIdentAt)
+                                            patternToTerm, varIdent, varIdentAt)
 import qualified Language.Rzk.Syntax       as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
 
@@ -62,15 +69,29 @@ data Decl n = Decl
   , declLocation     :: Maybe LocationInfo
   }
 
--- | A declaration sinks along a scope extension, by coercion (see the note in
--- "Rzk.TypeCheck.Context").
+-- | A declaration sinks along a scope extension by coercion, like the
+-- context does (see the note in "Rzk.TypeCheck.Context"); the proof
+-- obligation is discharged field by field.
+instance Foil.Sinkable Decl where
+  sinkabilityProof rename decl = decl
+    { declNameOf = rename (declNameOf decl)
+    , declType = Foil.sinkabilityProof rename (declType decl)
+    , declValue = Foil.sinkabilityProof rename <$> declValue decl
+    , declUsedVars = rename <$> declUsedVars decl
+    }
+
 sinkDecl :: DExt n l => Decl n -> Decl l
-sinkDecl decl = decl
-  { declNameOf = Foil.sink (declNameOf decl)
-  , declType = Foil.sink (declType decl)
-  , declValue = Foil.sink <$> declValue decl
-  , declUsedVars = Foil.sink <$> declUsedVars decl
-  }
+sinkDecl = Foil.sink
+
+-- | Sinking a whole list is a coercion too, with no per-element rebuild.
+sinkDecls :: DExt n l => [Decl n] -> [Decl l]
+sinkDecls = Foil.sinkContainer
+
+-- | The per-file groups also sink by coercion. 'Foil.sinkContainer' cannot
+-- see through the pair (its element must be the sunk type itself), but the
+-- sinkability argument is the same: only the declarations mention the scope.
+sinkDeclGroups :: DExt n l => [(FilePath, [Decl n])] -> [(FilePath, [Decl l])]
+sinkDeclGroups = unsafeCoerce
 
 -- | What a run of the checker produced: the top-level scope, the declarations in
 -- it, and the errors found.
@@ -85,6 +106,7 @@ data Checked where
     => Context n
     -> [(FilePath, [Decl n])]
     -> [TypeErrorInScopedContext]
+    -> [CheckWarning]
     -> Checked
 
 -- * Entering a top-level entry
@@ -97,10 +119,13 @@ withTopLevel
   -> Maybe (TermT n)     -- ^ its value, for a definition
   -> Bool                -- ^ is it an assumption (a @#assume@)?
   -> [Foil.Name n]       -- ^ the variables it declared it uses
+  -> Maybe (DataRole n)  -- ^ its role for a @#data@ declaration, if any
   -> (forall l. (DExt n l, Distinct l) => NameBinder n l -> Decl l -> TypeCheck l r)
   -> TypeCheck n r
-withTopLevel name ty mval isAssumption usedVars k = do
+withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
+  metaPrefix <- metaPrefixOf ty
+  recordMetaPrefixUses name ty mval
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -113,15 +138,17 @@ withTopLevel name ty mval isAssumption usedVars k = do
           , varIsTopLevel = True
           , varDeclaredAssumptions = usedVars
           , varLocation = ctxLocation ctx
+          , varDataRole = mrole
+          , varMetaPrefix = metaPrefix
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterBinder binder info [] ctx)
         decl = Decl
           { declName = name
           , declNameOf = Foil.nameOf binder
           , declType = Foil.sink ty
-          , declValue = Foil.sink <$> mval
+          , declValue = Foil.sinkContainer mval
           , declIsAssumption = isAssumption
-          , declUsedVars = Foil.sink <$> usedVars
+          , declUsedVars = Foil.sinkContainer usedVars
           , declLocation = ctxLocation ctx
           }
     inContext ctx' (k binder decl)
@@ -171,7 +198,14 @@ endSection errs = do
   let sectionHasHole = any (maybe False containsHole . varValue . snd) infos
       tolerateUnused = lenient && sectionHasHole
 
-  (kept, errs') <- collectSectionDecls tolerateUnused errs [] infos
+  (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
+
+  -- Abstracting over the section's assumptions rewrote the entries' types,
+  -- which can change their meta-parameter prefix (an assumption such as
+  -- funext becomes a leading meta parameter), so recompute it.
+  kept <- forM kept0 $ \(name, info) -> do
+    metaPrefix <- metaPrefixOf (varType info)
+    pure (name, info { varMetaPrefix = metaPrefix })
 
   loc <- asks ctxLocation
   let decls = map (toDecl loc) kept
@@ -210,6 +244,9 @@ endSection errs = do
   where
     sameName a b = Foil.nameId a == Foil.nameId b
 
+    -- The entry records where it was declared; the section-close location is
+    -- only the fallback (previously every declaration of a section carried
+    -- the #end-time location, i.e. the last command's line).
     toDecl loc (name, info) = Decl
       { declName = case varOrig info of
           BinderVar (Just x) -> x
@@ -219,7 +256,9 @@ endSection errs = do
       , declValue = varValue info
       , declIsAssumption = varIsAssumption info
       , declUsedVars = varDeclaredAssumptions info
-      , declLocation = loc
+      , declLocation = case varLocation info of
+          Just declaredAt -> Just declaredAt
+          Nothing         -> loc
       }
 
 -- | An error, captured in the current context (rather than thrown).
@@ -243,12 +282,14 @@ collectSectionDecls
 collectSectionDecls _tolerate errs recent [] = pure (recent, errs)
 collectSectionDecls tolerate errs recent (entry@(name, info) : rest)
   | varIsAssumption info = do
-      (used, recent') <- makeAssumptionExplicit entry recent
-      unusedErr <-
-        if null errs && not used && not tolerate
-          then local (\c -> c { ctxLocation = varLocation info }) $
-            pure <$> typeErrorHere (TypeErrorUnusedVariable name (varType info))
-          else return []
+      (use, recent') <- makeAssumptionExplicit entry recent
+      unusedErr <- case use of
+        AssumptionUsed -> return []
+        AssumptionUnused
+          | null errs && not tolerate ->
+              local (\c -> c { ctxLocation = varLocation info }) $
+                pure <$> typeErrorHere (TypeErrorUnusedVariable name (varType info))
+          | otherwise -> return []
       collectSectionDecls tolerate (errs <> unusedErr) recent' rest
   | otherwise =
       collectSectionDecls tolerate errs (entry : recent) rest
@@ -259,47 +300,71 @@ collectSectionDecls tolerate errs recent (entry@(name, info) : rest)
 -- every later definition that mentions /that/ definition is rewritten to apply it
 -- to the assumption. A definition that mentions it without declaring it in its
 -- @uses@ clause is an implicit assumption, and an error.
+-- | Whether an assumption was taken up by (abstracted into) any definition
+-- that followed it in its section.
+data AssumptionUse = AssumptionUsed | AssumptionUnused
+
 makeAssumptionExplicit
-  :: Distinct n
+  :: forall n. Distinct n
   => (Foil.Name n, VarInfo n)
   -> [(Foil.Name n, VarInfo n)]
-  -> TypeCheck n (Bool, [(Foil.Name n, VarInfo n)])
-makeAssumptionExplicit _ [] = pure (False {- UNUSED -}, [])
-makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
-  scope <- asks ctxScope
-  -- Two notions of use, and the difference between them is what 'implicit' means.
-  -- The deep one follows the types of the variables the entry mentions, so it sees
-  -- a dependency the entry never names; the shallow one is a syntactic occurrence.
-  deepVars <- do
-    inTy <- freeVarsDeep (varType xInfo)
-    inVal <- concat <$> traverse freeVarsDeep (varValue xInfo)
-    pure (inTy <> inVal)
-  -- The syntactic check reads the declaration as the user wrote it, from the
-  -- context — not the entry, which the assumptions abstracted before this one have
-  -- already rewritten (and which therefore mentions them).
-  written <- asks (lookupVarInfo x)
-  let hasAssumption = a `elemName` deepVars
-      inTypeSyntactically = a `elemName` freeVarsOfTermT (varType written)
-      inBodySyntactically = any (elemName a . freeVarsOfTermT) (varValue written)
-      declared = a `elemName` varDeclaredAssumptions xInfo
-      -- used, but never written down: neither in the type, nor in the body, nor in
-      -- the 'uses' clause
-      implicit = and
-        [ hasAssumption
-        , not (inTypeSyntactically || inBodySyntactically)
-        , not declared
-        ]
-  if hasAssumption
-    then do
-      when implicit $
-        issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
-      let xInfo' = abstractOver scope a aInfo xInfo
-          xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
-      (_used, xs'') <- makeAssumptionExplicit assumption xs'
-      return (True {- USED -}, (x, xInfo') : xs'')
-    else do
-      (used, xs'') <- makeAssumptionExplicit assumption xs
-      return (used, (x, xInfo) : xs'')
+  -> TypeCheck n (AssumptionUse, [(Foil.Name n, VarInfo n)])
+makeAssumptionExplicit (a, aInfo) entries = do
+    -- A #data family closes over a section assumption uniformly: its type
+    -- former is abstracted whenever any entry of the family uses the
+    -- assumption, even though the former's own type (params → U) cannot
+    -- mention it. Abstracting the former rewrites every later use of it to
+    -- an application, so the constructors and eliminators (which all
+    -- mention the former) follow through the ordinary deep-use path; not
+    -- forcing the former would leave one unparameterised type inhabited by
+    -- constructors of every instantiation.
+    forced <- fmap concat $ forM entries $ \(_x, xInfo) ->
+      case varDataRole xInfo of
+        Nothing   -> pure []
+        Just role -> do
+          inTy <- freeVarsDeep (varType xInfo)
+          pure [ Foil.nameId (dataRoleDataType role) | a `elemName` inTy ]
+    go forced entries
+  where
+    go _ [] = pure (AssumptionUnused, [])
+    go forced ((x, xInfo) : xs) = do
+      scope <- asks ctxScope
+      -- Two notions of use, and the difference between them is what 'implicit' means.
+      -- The deep one follows the types of the variables the entry mentions, so it sees
+      -- a dependency the entry never names; the shallow one is a syntactic occurrence.
+      deepVars <- do
+        inTy <- freeVarsDeep (varType xInfo)
+        inVal <- concat <$> traverse freeVarsDeep (varValue xInfo)
+        pure (inTy <> inVal)
+      -- The syntactic check reads the declaration as the user wrote it, from the
+      -- context — not the entry, which the assumptions abstracted before this one have
+      -- already rewritten (and which therefore mentions them).
+      written <- asks (lookupVarInfo x)
+      let forcedFormer = Foil.nameId x `elem` forced
+          hasAssumption = forcedFormer || a `elemName` deepVars
+          inTypeSyntactically = a `elemName` freeVarsOfTermT (varType written)
+          inBodySyntactically = any (elemName a . freeVarsOfTermT) (varValue written)
+          declared = a `elemName` varDeclaredAssumptions xInfo
+          -- used, but never written down: neither in the type, nor in the body, nor in
+          -- the 'uses' clause. A forced type former is exempt: the use lives in its
+          -- constructors, which have their own declarations.
+          implicit = and
+            [ hasAssumption
+            , not (inTypeSyntactically || inBodySyntactically)
+            , not declared
+            , not forcedFormer
+            ]
+      if hasAssumption
+        then do
+          when implicit $
+            issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
+          let xInfo' = abstractOver scope a aInfo xInfo
+              xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
+          (_use, xs'') <- go forced xs'
+          return (AssumptionUsed, (x, xInfo') : xs'')
+        else do
+          (use, xs'') <- go forced xs
+          return (use, (x, xInfo) : xs'')
 
 -- | Give an entry the assumption as an explicit parameter.
 abstractOver
@@ -312,6 +377,10 @@ abstractOver scope a aInfo info = info
   , varModAccum = Id
   , varDeclaredAssumptions =
       filter (\v -> Foil.nameId v /= Foil.nameId a) (varDeclaredAssumptions info)
+  -- All products of a #data depend on the datatype (deeply, through their
+  -- types), so a section assumption is abstracted over all of them
+  -- uniformly, and the spine layouts the ι-rule relies on shift together.
+  , varDataRole = bumpDataRoleParams <$> varDataRole info
   }
   where
     orig = varOrig aInfo
@@ -370,6 +439,14 @@ setOption "warn-overhang" = \case
   "no"  -> localWarnOverhang False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-overhang\" (use \"yes\" or \"no\")"
+-- The sensitivity of the meta-parameter layer check (see
+-- "Rzk.TypeCheck.MetaPrefix"); strict by default.
+setOption "warn-meta-prefix" = \case
+  "off"        -> localMetaPrefixSensitivity MetaPrefixOff
+  "structural" -> localMetaPrefixSensitivity MetaPrefixStructural
+  "strict"     -> localMetaPrefixSensitivity MetaPrefixStrict
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-prefix\" (use \"off\", \"structural\", or \"strict\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -378,12 +455,12 @@ unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
+unsetOption "warn-meta-prefix" =
+  localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 paramToParamDecl :: Distinct n => Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
-paramToParamDecl (Rzk.ParamPatternShapeDeprecated loc pat cube tope) = pure
-  [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope ]
 paramToParamDecl (Rzk.ParamPatternShape loc pats cube tope) = pure
   [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope | pat <- pats]
 paramToParamDecl (Rzk.ParamPatternType loc pats ty) = pure
@@ -404,6 +481,439 @@ addParams :: [Rzk.Param] -> Rzk.Term -> Rzk.Term
 addParams []     = id
 addParams params = Rzk.Lambda Nothing params
 
+-- * @#data@ declarations
+--
+-- A @#data@ elaborates to ordinary top-level entries: the type former, one
+-- entry per constructor, and the generated eliminators @ind-D@ and @rec-D@.
+-- All of them are opaque (no value); computation is the ι-rule in
+-- "Rzk.TypeCheck.Eval", driven by the 'DataRole's recorded here. The types
+-- of the generated entries are built as /surface/ terms and pushed through
+-- the ordinary 'elaborate' and 'typecheck', so nothing here constructs core
+-- terms by hand.
+--
+-- Stage 1 (see @design/inductive-types.md@): no recursion, no indices, sort
+-- @U@ only, no eliminator re-ascription clauses. The declaration grammar
+-- already covers the later stages; this checker rejects what it does not
+-- support.
+
+-- | Stage 1: the sort must be @U@ (families are stage 2).
+-- | One index of a family, as declared in the sort: its binder (when the
+-- sort names it, as in @(n : nat) → U@) and its type.
+data SortIndex = SortIndex
+  { sortIndexVar  :: Maybe Rzk.VarIdent
+  , sortIndexType :: Rzk.Term
+  }
+
+-- | The index telescope of the sort. The sort must be @U@ (no indices) or a
+-- Π-telescope of plain types ending in @U@.
+dataSortIndices :: Distinct n => Rzk.DataSort -> TypeCheck n [SortIndex]
+dataSortIndices = \case
+  Rzk.NoDataSort _        -> pure []
+  Rzk.SomeDataSort _ sort -> go sort
+  where
+    go = \case
+      Rzk.Universe{} -> pure []
+      Rzk.TypeFun _ param ret       -> (:) <$> indexOf param <*> go ret
+      Rzk.ASCII_TypeFun _ param ret -> (:) <$> indexOf param <*> go ret
+      sort -> issueTypeError $ TypeErrorOther $
+        "the sort of a #data must be U, or an index telescope ending in U, got "
+          <> Rzk.printTree sort
+    indexOf = \case
+      Rzk.ParamType _ ty -> pure (SortIndex Nothing ty)
+      Rzk.ParamTermType _ (Rzk.Var _ v) ty -> pure (SortIndex (Just v) ty)
+      Rzk.ParamTermType _ pat _ -> issueTypeError $ TypeErrorOther $
+        "an index binder of a #data sort must be a plain variable, got "
+          <> Rzk.printTree pat
+      p -> issueTypeError $ TypeErrorOther $
+        "an index of a #data sort must be a plain type, got " <> Rzk.printTree p
+
+dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
+dataBodyParts = \case
+  Rzk.NoDataBody _              -> ([], [])
+  Rzk.SomeDataBody _ cons elims -> (cons, elims)
+
+-- | The parameters of a @#data@ must be plain typed variables @(x : A)@:
+-- the constructors and eliminators apply the type former to them.
+dataParamVars :: Distinct n => [Rzk.Param] -> TypeCheck n [Rzk.VarIdent]
+dataParamVars = fmap concat . mapM paramVarsOf
+  where
+    paramVarsOf = \case
+      Rzk.ParamPatternType _ pats _ty -> forM pats $ \case
+        Rzk.PatternVar _ v -> pure v
+        pat -> issueTypeError $ TypeErrorOther $
+          "a parameter of a #data must be a plain variable, got "
+            <> Rzk.printTree pat
+      p -> issueTypeError $ TypeErrorOther $
+        "a parameter of a #data must be a typed variable (x : A), got "
+          <> Rzk.printTree p
+
+-- | A constructor field: a typed parameter, with cube/shape fields rejected
+-- (over a directed interval they would declare directed cells, out of scope
+-- for M3) and modal fields deferred (crisp induction).
+dataFieldToParamDecl :: Distinct n => Rzk.VarIdent -> Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
+dataFieldToParamDecl cname = \case
+  p@Rzk.ParamPatternType{} -> paramToParamDecl p
+  Rzk.ParamPattern _ pat -> issueTypeError $ TypeErrorOther $
+    "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
+  Rzk.ParamPatternShape{} -> issueTypeError $ TypeErrorOther $
+    "constructor " <> Rzk.printTree cname
+      <> " takes a cube or shape argument; over the directed interval this would declare a directed cell, which is not supported"
+  Rzk.ParamPatternModalType{} -> modalFieldError cname
+  Rzk.ParamPatternModalShape{} -> modalFieldError cname
+
+modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
+modalFieldError cname = issueTypeError $ TypeErrorOther $
+  "modal fields are not supported yet in constructor " <> Rzk.printTree cname
+
+-- | A constructor, preprocessed at the surface level.
+data DataConSurface = DataConSurface
+  { dataConName       :: Rzk.VarIdent
+  , dataConFields     :: [Rzk.ParamDecl]
+    -- ^ the field telescope, one entry per bound variable
+  , dataConFieldPats  :: [Rzk.Term]
+    -- ^ the field patterns as terms, in the same order
+  , dataConRecursive  :: [(Int, [Rzk.Term])]
+    -- ^ the directly recursive fields (their type is the declared type
+    -- applied to its parameters and some index terms): 0-based position
+    -- and the index terms; each contributes an induction hypothesis to
+    -- the eliminator's method
+  , dataConRetIndices :: [Rzk.Term]
+    -- ^ the index terms of the constructor's return type
+  , dataConType       :: Rzk.Term
+    -- ^ the constructor's full surface type: params → fields → D params
+  , dataConProbe      :: Rzk.Term
+    -- ^ the non-recursive fields → Unit, for the positivity and largeness
+    -- checks (a directly recursive field mentions the type legitimately)
+  , dataConNonRec     :: [Rzk.Term]
+    -- ^ the non-recursive field types, for the per-field error message
+  , dataConLocalNames :: [Rzk.VarIdentToken]
+    -- ^ every binder token of the constructor, for freshening
+  }
+
+surfacePatternVars :: Rzk.Pattern -> [Rzk.VarIdent]
+surfacePatternVars = \case
+  Rzk.PatternVar _ v        -> [v]
+  Rzk.PatternPair _ a b     -> surfacePatternVars a <> surfacePatternVars b
+  Rzk.PatternTuple _ a b cs -> concatMap surfacePatternVars (a : b : cs)
+  Rzk.PatternUnit _         -> []
+
+identTokenOf :: Rzk.VarIdent -> Rzk.VarIdentToken
+identTokenOf (Rzk.VarIdent _ tok) = tok
+
+surfaceVar :: Rzk.VarIdent -> Rzk.Term
+surfaceVar = Rzk.Var Nothing
+
+surfaceApps :: Rzk.Term -> [Rzk.Term] -> Rzk.Term
+surfaceApps f []       = f
+surfaceApps f (x : xs) = surfaceApps (Rzk.App Nothing f x) xs
+
+surfaceAppSpine :: Rzk.Term -> (Rzk.Term, [Rzk.Term])
+surfaceAppSpine = go []
+  where
+    go acc (Rzk.App _ f x) = go (x : acc) f
+    go acc t               = (t, acc)
+
+surfaceArrow :: Rzk.Term -> Rzk.Term -> Rzk.Term
+surfaceArrow a = Rzk.TypeFun Nothing (Rzk.ParamType Nothing a)
+
+-- | The domains and codomain of a surface Π-chain (domain types only; for
+-- the shaped and modal parameter forms the carrier is what matters here).
+surfacePiSpine :: Rzk.Term -> ([Rzk.Term], Rzk.Term)
+surfacePiSpine = go []
+  where
+    go acc (Rzk.TypeFun _ param ret)       = go (domainsOf param <> acc) ret
+    go acc (Rzk.ASCII_TypeFun _ param ret) = go (domainsOf param <> acc) ret
+    go acc t                               = (reverse acc, t)
+    domainsOf = \case
+      Rzk.ParamType _ t                 -> [t]
+      Rzk.ParamTermType _ _ t           -> [t]
+      Rzk.ParamTermShape _ _ cube _     -> [cube]
+      Rzk.ParamTermModalType _ _ _ t    -> [t]
+      Rzk.ParamTermModalShape _ _ _ c _ -> [c]
+
+-- | Is the term the given name applied to exactly the given parameter
+-- variables (in order, the uniformity requirement) and then exactly
+-- @arity@ index terms? Returns those index terms. A syntactic check: this
+-- is how constructor return types and directly recursive fields are
+-- recognised.
+dataAppliedIndices :: Rzk.VarIdent -> [Rzk.VarIdent] -> Int -> Rzk.Term -> Maybe [Rzk.Term]
+dataAppliedIndices dataName paramVars arity t = case surfaceAppSpine t of
+  (Rzk.Var _ h, args)
+    | identTokenOf h == identTokenOf dataName
+    , (paramArgs, indexArgs) <- splitAt (length paramVars) args
+    , map (Just . identTokenOf) paramVars == map varTokenOf paramArgs
+    , length indexArgs == arity
+    -> Just indexArgs
+  _ -> Nothing
+  where
+    varTokenOf (Rzk.Var _ v) = Just (identTokenOf v)
+    varTokenOf _             = Nothing
+
+matchesDataApplied :: Rzk.VarIdent -> [Rzk.VarIdent] -> Int -> Rzk.Term -> Bool
+matchesDataApplied dataName paramVars arity =
+  maybe False (const True) . dataAppliedIndices dataName paramVars arity
+
+surfacePi :: Rzk.VarIdent -> Rzk.Term -> Rzk.Term -> Rzk.Term
+surfacePi v ty = Rzk.TypeFun Nothing (Rzk.ParamTermType Nothing (surfaceVar v) ty)
+
+dataConSurface
+  :: Distinct n
+  => Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.ParamDecl] -> Int -> Rzk.Constructor
+  -> TypeCheck n DataConSurface
+dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cname cparams ctype) = do
+  fieldDecls <- concat <$> mapM (dataFieldToParamDecl cname) cparams
+  let defaultRet = surfaceApps (surfaceVar dataName) (map surfaceVar paramVars)
+      recIndicesOf = dataAppliedIndices dataName paramVars indexArity
+  (ret, retIndices) <- case ctype of
+    Rzk.NoConstructorType _
+      | indexArity == 0 -> pure (defaultRet, [])
+      | otherwise -> issueTypeError $ TypeErrorOther $
+          "constructor " <> Rzk.printTree cname
+            <> " must spell out its return type: the family has "
+            <> show indexArity <> " index(es)"
+    Rzk.SomeConstructorType _ ret
+      | Just ixs <- recIndicesOf ret -> pure (ret, ixs)
+      | otherwise -> issueTypeError $ TypeErrorOther $
+          "the return type of constructor " <> Rzk.printTree cname
+            <> " must be the declared type applied to its parameters and "
+            <> show indexArity <> " index(es), like "
+            <> Rzk.printTree defaultRet <> " …"
+  let fieldTypes = [ ty | Rzk.ParamTermType _ _ ty <- fieldDecls ]
+      recursive =
+        [ (j, ixs) | (j, ty) <- zip [0 ..] fieldTypes, Just ixs <- [recIndicesOf ty] ]
+      isRec ty = maybe False (const True) (recIndicesOf ty)
+      nonRecTypes = [ ty | ty <- fieldTypes, not (isRec ty) ]
+      nonRecDecls = [ d | d@(Rzk.ParamTermType _ _ ty) <- fieldDecls, not (isRec ty) ]
+  pure DataConSurface
+    { dataConName = cname
+    , dataConFields = fieldDecls
+    , dataConFieldPats = concatMap fieldPats cparams
+    , dataConRecursive = recursive
+    , dataConRetIndices = retIndices
+    , dataConType = addParamDecls (paramDecls <> fieldDecls) ret
+    , dataConProbe = addParamDecls nonRecDecls (Rzk.TypeUnit Nothing)
+    , dataConNonRec = nonRecTypes
+    , dataConLocalNames = identTokenOf cname
+        : map identTokenOf (concatMap fieldVars cparams)
+    }
+  where
+    fieldVars = \case
+      Rzk.ParamPatternType _ pats _ -> concatMap surfacePatternVars pats
+      _                             -> []
+    fieldPats = \case
+      Rzk.ParamPatternType _ pats _ -> map patternToTerm pats
+      _                             -> []
+
+-- | The assumptions an entry depends on, possibly only through the types of
+-- what it mentions. The generated entries of a @#data@ declare these
+-- dependencies, so that closing a section abstracts the assumption over all
+-- of them uniformly instead of reporting an implicit assumption.
+assumptionDepsOf :: TermT n -> TypeCheck n [Foil.Name n]
+assumptionDepsOf ty = do
+  ctx <- ask
+  deep <- freeVarsDeep ty
+  pure [ v | v <- deep, varIsAssumption (lookupVarInfo v ctx) ]
+
+-- | Several distinct fresh identifiers with a shared base.
+freshIdents
+  :: Int -> [Rzk.VarIdentToken] -> T.Text -> TypeCheck n [Rzk.VarIdent]
+freshIdents n avoid base = go n avoid []
+  where
+    go 0 _ acc = pure (reverse acc)
+    go k avoidNow acc = do
+      ident <- freshIdent Nothing avoidNow base
+      go (k - 1) (identTokenOf ident : avoidNow) (ident : acc)
+
+-- | An identifier that is neither bound at the top level nor among the given
+-- local binder tokens; primes are appended until one is free. Used for the
+-- motive and scrutinee binders of the generated eliminator types, which
+-- close over the user's field types.
+freshIdent
+  :: Maybe FilePath -> [Rzk.VarIdentToken] -> T.Text -> TypeCheck n Rzk.VarIdent
+freshIdent path avoid base = do
+  ctx <- ask
+  let candidates =
+        [ Rzk.VarIdent Nothing (Rzk.VarIdentToken (base <> T.replicate p "'"))
+        | p <- [0 ..] ]
+      isFree cand = identTokenOf cand `notElem` avoid
+        && case lookupNamed (varIdentAt path cand) ctx of
+             Nothing -> True
+             Just _  -> False
+  case filter isFree candidates of
+    cand : _ -> pure cand
+    []       -> panicImpossible "no fresh identifier candidate"
+
+-- | Bind the products of one @#data@ declaration: the type former, the
+-- constructors (checked in a scope where the type former exists), and the
+-- generated eliminators @ind-D@ and @rec-D@.
+withDataDecls
+  :: forall n r. Distinct n
+  => Maybe FilePath
+  -> [Foil.Name n]        -- ^ the declared used variables
+  -> Rzk.VarIdent         -- ^ the datatype name (surface)
+  -> [Rzk.VarIdent]       -- ^ the parameter variables
+  -> [Rzk.ParamDecl]      -- ^ the parameter telescope
+  -> [SortIndex]          -- ^ the index telescope of the sort
+  -> [DataConSurface]     -- ^ the constructors, preprocessed
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
+  -> TypeCheck n r
+withDataDecls path used name paramVars paramDecls sortIndices consData k = do
+  -- The type former's type spells the sort as written: params → indices → U.
+  let sortTerm = foldr wrapIndex (Rzk.Universe Nothing) sortIndices
+      wrapIndex (SortIndex mv ty) body = case mv of
+        Just v  -> surfacePi v ty body
+        Nothing -> surfaceArrow ty body
+  dTyTerm <- elaborate (addParamDecls paramDecls sortTerm)
+  dTy <- memoizeWHNF =<< typecheck dTyTerm universeT
+  dDeps <- assumptionDepsOf dTy
+  withTopLevel (varIdentAt path name) dTy Nothing False
+    (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
+      bindCons (Foil.nameOf dBinder) (Foil.sinkContainer used) 0 consData [sinkDecl dDecl] $
+        \dName usedL declsAcc -> bindElims dName usedL declsAcc
+  where
+    numParams  = length paramDecls
+    numMethods = length consData
+    indexArity = length sortIndices
+
+    bindCons
+      :: forall m. DExt n m
+      => Foil.Name m -> [Foil.Name m] -> Int -> [DataConSurface] -> [Decl m]
+      -> (forall l. (DExt n l, Distinct l)
+            => Foil.Name l -> [Foil.Name l] -> [Decl l] -> TypeCheck l r)
+      -> TypeCheck m r
+    bindCons dName usedHere _index [] acc kk = kk dName usedHere acc
+    bindCons dName usedHere index (con : rest) acc kk = do
+      -- Directly recursive fields (type = the declared type applied to its
+      -- parameters) are recognised syntactically and excluded from the
+      -- probe; any other occurrence of the type in a field is an error.
+      let dOccursIn t = any ((== Foil.nameId dName) . Foil.nameId) (freeVarsOfTerm t)
+      probeT <- elaborate (dataConProbe con)
+      when (dOccursIn probeT) $ do
+        -- Locate the offending field for a precise message: a positive but
+        -- function-typed recursive field is meaningful and merely
+        -- unsupported; anything else violates strict positivity.
+        offending <- forM (dataConNonRec con) $ \ty -> do
+          t <- elaborate ty
+          pure (ty, dOccursIn t)
+        funRec <- case [ ty | (ty, True) <- offending ] of
+          ty : _ -> do
+            let (domains, codomain) = surfacePiSpine ty
+            domainsClean <- mapM (fmap (not . dOccursIn) . elaborate) domains
+            pure (matchesDataApplied name paramVars indexArity codomain && and domainsClean)
+          [] -> pure False
+        issueTypeError $ TypeErrorOther $ if funRec
+          then "constructor " <> Rzk.printTree (dataConName con)
+            <> " has a function-typed recursive field; only directly recursive fields are supported for now"
+          else "constructor " <> Rzk.printTree (dataConName con)
+            <> " is not strictly positive: the declared type may occur in a field only as the type of the whole field"
+      when (containsUniverse probeT) $ do
+        loc <- asks ctxLocation
+        recordCheckWarning $ LargeInductiveTypeWarning
+          (varIdentAt path name)
+          (varIdentAt path (dataConName con))
+          loc
+      conTyTerm <- elaborate (dataConType con)
+      conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
+      conDeps <- assumptionDepsOf conTy
+      let role = DataRole dName numParams
+            (DataConKind index (length (dataConFields con))
+              (map fst (dataConRecursive con)))
+      withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
+        (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
+          bindCons (Foil.sink dName) (Foil.sinkContainer usedHere) (index + 1) rest
+            (sinkDecls acc <> [conDecl]) kk
+
+    bindElims
+      :: forall m. DExt n m
+      => Foil.Name m -> [Foil.Name m] -> [Decl m] -> TypeCheck m r
+    bindElims dName usedHere declsAcc = do
+      let avoid = identTokenOf name
+            : map identTokenOf paramVars
+            <> [ identTokenOf v | SortIndex (Just v) _ <- sortIndices ]
+            <> concatMap dataConLocalNames consData
+      -- Anonymous indices of the sort get fresh names; named ones keep the
+      -- user's spelling (later index types may depend on them).
+      freshIx <- freshIdents (length [ () | SortIndex Nothing _ <- sortIndices ]) avoid "i"
+      let indexVars = go sortIndices freshIx
+            where
+              go [] _ = []
+              go (SortIndex (Just v) _ : rest) fresh = v : go rest fresh
+              go (SortIndex Nothing _ : rest) (f : fresh) = f : go rest fresh
+              go (SortIndex Nothing _ : _) [] =
+                error "impossible: not enough fresh index names"
+          indexDecls =
+            [ Rzk.ParamTermType Nothing (surfaceVar v) (sortIndexType si)
+            | (v, si) <- zip indexVars sortIndices ]
+          avoid' = map identTokenOf indexVars <> avoid
+      motiveV <- freshIdent path avoid' "C"
+      scrutV <- freshIdent path (identTokenOf motiveV : avoid') "x"
+      -- Distinct induction-hypothesis binders, one per recursive field of
+      -- the widest constructor; separate methods reuse the same names.
+      let maxRec = maximum (0 : map (length . dataConRecursive) consData)
+      ihNames <- freshIdents maxRec
+        (identTokenOf motiveV : identTokenOf scrutV : avoid') "ih"
+      let dApplied = surfaceApps (surfaceVar name) (map surfaceVar paramVars)
+          dAppliedIx = surfaceApps dApplied (map surfaceVar indexVars)
+          motive = surfaceVar motiveV
+          -- The motive abstracts over the indices (and, dependently, the
+          -- scrutinee); a method's hypotheses and codomain instantiate it
+          -- at the relevant index terms.
+          motiveSort dependent = addParamDecls indexDecls $
+            if dependent
+              then surfaceArrow dAppliedIx (Rzk.Universe Nothing)
+              else Rzk.Universe Nothing
+          -- One method per constructor: its fields with an induction
+          -- hypothesis interleaved after each recursive field (HoTT-book
+          -- style), then the motive at the constructor's return indices
+          -- (and, for @ind-D@, at the constructor applied to parameters
+          -- and fields).
+          methodTy dependent con = wrapFields (0 :: Int)
+            (zip [0 :: Int ..] (zip (dataConFields con) (dataConFieldPats con)))
+            where
+              wrapFields _ [] = surfaceApps motive $
+                dataConRetIndices con
+                  <> [ surfaceApps (surfaceVar (dataConName con))
+                        (map surfaceVar paramVars <> dataConFieldPats con)
+                     | dependent ]
+              wrapFields nRec ((j, (fieldDecl, fpat)) : more)
+                | Just fieldIxs <- lookup j (dataConRecursive con) =
+                    Rzk.TypeFun Nothing fieldDecl $
+                      surfacePi (ihNames !! nRec)
+                        (surfaceApps motive (fieldIxs <> [ fpat | dependent ]))
+                        (wrapFields (nRec + 1) more)
+                | otherwise =
+                    Rzk.TypeFun Nothing fieldDecl (wrapFields nRec more)
+          elimTail dependent = addParamDecls indexDecls $
+            if dependent
+              then surfacePi scrutV dAppliedIx $
+                surfaceApps motive (map surfaceVar indexVars <> [surfaceVar scrutV])
+              else surfaceArrow dAppliedIx $
+                surfaceApps motive (map surfaceVar indexVars)
+          elimTy dependent = addParamDecls paramDecls $
+            surfacePi motiveV (motiveSort dependent) $
+              foldr (surfaceArrow . methodTy dependent)
+                (elimTail dependent)
+                consData
+          indName = prefixedIdent "ind-" name
+          recName = prefixedIdent "rec-" name
+      indTyT <- elaborate (elimTy True)
+      indTy' <- memoizeWHNF =<< typecheck indTyT universeT
+      indDeps <- assumptionDepsOf indTy'
+      withTopLevel (varIdentAt path indName) indTy' Nothing False
+        (nubNames (usedHere <> indDeps))
+        (Just (DataRole dName numParams (DataElimKind numMethods indexArity ElimInd))) $ \_ indDecl -> do
+          recTyT <- elaborate (elimTy False)
+          recTy' <- memoizeWHNF =<< typecheck recTyT universeT
+          recDeps <- assumptionDepsOf recTy'
+          withTopLevel (varIdentAt path recName) recTy' Nothing False
+            (nubNames (Foil.sinkContainer usedHere <> recDeps))
+            (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
+              k (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
+
+prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent
+prefixedIdent p (Rzk.VarIdent pos (Rzk.VarIdentToken t)) =
+  Rzk.VarIdent pos (Rzk.VarIdentToken (p <> t))
+
 -- | Run a command, recording which one it is and where.
 --
 -- An error raised anywhere in the command (or in the rest of the module, which is
@@ -411,18 +921,80 @@ addParams params = Rzk.Lambda Nothing params
 -- before it stand, the error is reported, and the rest of the module is skipped.
 -- The strict entry points turn the first collected error back into a thrown one.
 withCommand
-  :: Rzk.Command
+  :: Distinct n
+  => Rzk.Command
   -> ([Decl n] -> [TypeErrorInScopedContext] -> TypeCheck n r)
   -> TypeCheck n r
   -> TypeCheck n r
 withCommand command k action =
-  local atCommand (action `catchError` \err -> k [] [err])
+  local atCommand (checked `catchError` \err -> k [] [err])
   where
+    checked = case duplicateBinders command of
+      (dup, previous) : _ -> issueTypeError (TypeErrorRepeatedBinder dup previous)
+      []                  -> action
     atCommand ctx = ctx
       { ctxCurrentCommand = Just command
       , ctxLocation = updatePosition (Rzk.hasPosition command) <$> ctxLocation ctx
       }
     updatePosition pos loc = loc { locationLine = fst <$> pos }
+
+-- | The binder leaves repeated within one binder /group/ of a surface
+-- command: the parameter list of a λ, of a declaration, or of a constructor
+-- (a single pattern's leaves are part of their group). Each hit pairs the
+-- repeated occurrence with the earlier ones it clashes with.
+--
+-- Shadowing an outer binder stays a warning ('checkNameShadowing'); a
+-- duplicate inside one group can only be a mistake, and the silent
+-- freshening it used to get showed names the user never wrote (issue #321).
+duplicateBinders :: Data a => a -> [(VarIdent, [VarIdent])]
+duplicateBinders x = concat
+  [ maybe [] termGroup (cast x)
+  , maybe [] commandGroup (cast x)
+  , maybe [] constructorGroup (cast x)
+  , concat (gmapQ duplicateBinders x)
+  ]
+  where
+    termGroup :: Rzk.Term -> [(VarIdent, [VarIdent])]
+    termGroup = \case
+      Rzk.Lambda _ params _       -> groupDuplicates (concatMap paramLeaves params)
+      Rzk.ASCII_Lambda _ params _ -> groupDuplicates (concatMap paramLeaves params)
+      _                           -> []
+
+    commandGroup :: Rzk.Command -> [(VarIdent, [VarIdent])]
+    commandGroup = \case
+      Rzk.CommandDefine _ _ _ params _ _  -> groupDuplicates (concatMap paramLeaves params)
+      Rzk.CommandPostulate _ _ _ params _ -> groupDuplicates (concatMap paramLeaves params)
+      Rzk.CommandData _ _ _ params _ _    -> groupDuplicates (concatMap paramLeaves params)
+      _                                   -> []
+
+    constructorGroup :: Rzk.Constructor -> [(VarIdent, [VarIdent])]
+    constructorGroup (Rzk.Constructor _ _ params _) =
+      groupDuplicates (concatMap paramLeaves params)
+
+    paramLeaves :: Rzk.Param -> [Rzk.VarIdent]
+    paramLeaves = \case
+      Rzk.ParamPattern _ pat                  -> patternLeaves pat
+      Rzk.ParamPatternType _ pats _           -> concatMap patternLeaves pats
+      Rzk.ParamPatternShape _ pats _ _        -> concatMap patternLeaves pats
+      Rzk.ParamPatternModalType _ pats _ _    -> concatMap patternLeaves pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap patternLeaves pats
+
+    patternLeaves :: Rzk.Pattern -> [Rzk.VarIdent]
+    patternLeaves = \case
+      Rzk.PatternUnit _ -> []
+      Rzk.PatternVar _ v@(Rzk.VarIdent _ (Rzk.VarIdentToken t)) -> [ v | t /= "_" ]
+      Rzk.PatternPair _ l r -> patternLeaves l <> patternLeaves r
+      Rzk.PatternTuple _ a b cs -> concatMap patternLeaves (a : b : cs)
+
+    -- positions differ between occurrences, so compare by spelling
+    groupDuplicates = go []
+      where
+        go _ [] = []
+        go seen (v : vs) =
+          case [ e | e <- seen, sameSpelling e v ] of
+            []      -> go (v : seen) vs
+            earlier -> (varIdent v, map varIdent (reverse earlier)) : go (v : seen) vs
+    sameSpelling (Rzk.VarIdent _ a) (Rzk.VarIdent _ b) = a == b
 
 -- | Elaborate a surface term in the current top-level scope: a free identifier
 -- resolves to the top-level entry it names.
@@ -500,7 +1072,7 @@ checkCommands path i total commands k = case commands of
         ty' <- memoizeWHNF =<< typecheck tyTerm universeT
         valTerm <- elaborate (addParams params term)
         term' <- memoizeWHNF =<< typecheck valTerm ty'
-        withTopLevel (varIdentAt path name) ty' (Just term') False used $ \binder decl -> do
+        withTopLevel (varIdentAt path name) ty' (Just term') False used Nothing $ \binder decl -> do
           backend <- asks ctxRenderBackend
           termSVG <- case backend of
             Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
@@ -511,6 +1083,25 @@ checkCommands path i total commands k = case commands of
             checkCommands path (i + 1) total more $ \decls errs ->
               k (sinkDecl decl : decls) errs
 
+  command@(Rzk.CommandData _loc name (Rzk.DeclUsedVars _ vars) params sort body) : more ->
+    announce (" Checking #data " <> Rzk.printTree name) $
+      withCommand command k $ do
+        used <- mapM (checkDefined . varIdentAt path) vars
+        sortIndices <- dataSortIndices sort
+        let (cons, elims) = dataBodyParts body
+        case elims of
+          [] -> return ()
+          Rzk.DataElim _ elimName _ : _ -> issueTypeError $ TypeErrorOther $
+            "eliminator clauses are not supported yet (eliminator "
+              <> Rzk.printTree elimName <> ")"
+        paramVars <- dataParamVars params
+        paramDecls <- concat <$> mapM paramToParamDecl params
+        consData <- mapM
+          (dataConSurface name paramVars paramDecls (length sortIndices)) cons
+        withDataDecls path used name paramVars paramDecls sortIndices consData $ \decls ->
+          checkCommands path (i + 1) total more $ \moreDecls errs ->
+            k (sinkDecls decls <> moreDecls) errs
+
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
       withCommand command k $ do
@@ -518,7 +1109,7 @@ checkCommands path i total commands k = case commands of
         paramDecls <- concat <$> mapM paramToParamDecl params
         tyTerm <- elaborate (addParamDecls paramDecls ty)
         ty' <- memoizeWHNF =<< typecheck tyTerm universeT
-        withTopLevel (varIdentAt path name) ty' Nothing False used $ \_binder decl ->
+        withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
           checkCommands path (i + 1) total more $ \decls errs ->
             k (sinkDecl decl : decls) errs
 
@@ -530,7 +1121,7 @@ checkCommands path i total commands k = case commands of
         ty' <- typecheck tyTerm universeT
         assume (map (varIdentAt path) names) ty' $ \assumed ->
           checkCommands path (i + 1) total more $ \decls errs ->
-            k (map sinkDecl assumed <> decls) errs
+            k (sinkDecls assumed <> decls) errs
 
   command@(Rzk.CommandCheck _loc term ty) : more ->
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $
@@ -566,7 +1157,7 @@ checkCommands path i total commands k = case commands of
       withSection (Just name) i sectionCommands path total $ \sectionDecls sectionErrs ->
         if null sectionErrs
           then checkCommands path (i + countCommands sectionCommands) total more' $
-            \decls errs -> k (map sinkDecl sectionDecls <> decls) errs
+            \decls errs -> k (sinkDecls sectionDecls <> decls) errs
           else k sectionDecls sectionErrs
 
   command@(Rzk.CommandSectionEnd _loc endName) : _more ->
@@ -587,7 +1178,7 @@ assume
   -> TypeCheck n r
 assume [] _ty k = k []
 assume (name : names) ty k =
-  withTopLevel name ty Nothing True [] $ \_binder decl ->
+  withTopLevel name ty Nothing True [] Nothing $ \_binder decl ->
     assume names (Foil.sink ty) $ \decls ->
       k (sinkDecl decl : decls)
 
@@ -644,24 +1235,29 @@ checkModules (m@(path, _) : ms) k =
     case errs of
       _:_ -> k [(path, decls)] errs
       _ -> checkModules ms $ \rest errors ->
-        k ((path, map sinkDecl decls) : rest) errors
+        k ((path, sinkDecls decls) : rest) errors
 
 -- * The public entry points
 
 -- | Check the modules, and package the result with the scope it was checked in.
+-- The warnings live on the writer channel during the run and are folded into
+-- the 'Checked' package here.
 checkedModules :: [(FilePath, Rzk.Module)] -> Context Foil.VoidS -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 checkedModules modules ctx =
-  runExcept $ runWriterT $ flip runReaderT ctx $
+  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
     checkModules modules $ \decls errs -> do
       ctx' <- ask
-      pure (Checked ctx' decls errs)
+      pure (Checked ctx' decls errs [])
+  where
+    package (Checked ctx' decls errs _, (holes, warnings)) =
+      (Checked ctx' decls errs warnings, holes)
 
 -- | Check the modules strictly: an unfilled hole is an error, and the first error
 -- stops the run.
 typecheckModules
   :: [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
 typecheckModules modules = do
-  (checked@(Checked _ _ errs), _holes) <- checkedModules modules emptyContext
+  (checked@(Checked _ _ errs _), _holes) <- checkedModules modules emptyContext
   case errs of
     err : _ -> Left err
     []      -> Right checked
@@ -676,8 +1272,10 @@ typecheckModulesWithHoles = typecheckModulesWithHolesAndLemmas []
 
 -- | Like 'typecheckModulesWithHoles', but additionally offers the given named
 -- top-level definitions as hole candidates (each applied to holes when its type
--- fits the goal). The game passes a level's allow-list of relevant lemmas so they
--- surface as moves; an empty list reproduces 'typecheckModulesWithHoles'.
+-- fits the goal, and never below its meta prefix — an unsaturated schema is not
+-- a suggestion, see "Rzk.TypeCheck.MetaPrefix"). The game passes a level's
+-- allow-list of relevant lemmas so they surface as moves; an empty list
+-- reproduces 'typecheckModulesWithHoles'.
 typecheckModulesWithHolesAndLemmas
   :: [VarIdent]
   -> [(FilePath, Rzk.Module)]
@@ -697,19 +1295,52 @@ data DeclView = DeclView
   , declViewType         :: Rendered
   , declViewIsAssumption :: Bool
   , declViewLocation     :: Maybe LocationInfo
+  , declViewKind         :: DeclKind
   } deriving (Eq, Show)
+
+-- | What kind of declaration a 'DeclView' renders: a plain definition, a
+-- postulate, or one of the products of a @#data@ (the symbol providers group
+-- constructors under their type and keep the generated eliminators out of
+-- the outline; the semantic tokens highlight postulates distinctly).
+data DeclKind
+  = DeclKindDefine
+  | DeclKindPostulate          -- ^ a @#postulate@ or @#assume@: declared, but not proven
+  | DeclKindData
+  | DeclKindDataCon VarIdent   -- ^ a constructor of the named type
+  | DeclKindDataElim VarIdent  -- ^ a generated eliminator of the named type
+  deriving (Eq, Show)
 
 -- | The declarations of a checked run, rendered, grouped by the file they came
 -- from.
 declViews :: Checked -> [(FilePath, [DeclView])]
-declViews (Checked ctx decls _errs) = map (fmap (map view)) decls
+declViews (Checked ctx decls _errs _warnings) = map (fmap (map view)) decls
   where
     naming = namingOfContext ctx
+    -- The type formers carry no role themselves; they are the names the
+    -- constructor and eliminator roles point at.
+    formerIds =
+      [ Foil.nameId (dataRoleDataType role)
+      | d <- concatMap snd decls
+      , Just role <- [varDataRole (lookupVarInfo (declNameOf d) ctx)] ]
+    parentNameOf p = case binderName (varOrig (lookupVarInfo p ctx)) of
+      Just x  -> x
+      Nothing -> "_"
+    kindOf d = case varDataRole (lookupVarInfo (declNameOf d) ctx) of
+      Just (DataRole parent _ DataConKind{})  -> DeclKindDataCon (parentNameOf parent)
+      Just (DataRole parent _ DataElimKind{}) -> DeclKindDataElim (parentNameOf parent)
+      Nothing
+        | Foil.nameId (declNameOf d) `elem` formerIds -> DeclKindData
+        -- A declaration with no value is an axiom, whether written as a
+        -- @#postulate@ or an @#assume@ (in practice both are used for
+        -- axioms such as function extensionality).
+        | Nothing <- declValue d -> DeclKindPostulate
+        | otherwise -> DeclKindDefine
     view decl = DeclView
       { declViewName = declName decl
       , declViewType = renderTerm naming (untyped (declType decl))
       , declViewIsAssumption = declIsAssumption decl
       , declViewLocation = declLocation decl
+      , declViewKind = kindOf decl
       }
 
 -- | Continue checking from a prefix that has already been checked.
@@ -720,16 +1351,25 @@ recheckFrom
   :: Checked
   -> [(FilePath, Rzk.Module)]
   -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
-recheckFrom (Checked ctx decls _errs) modules =
-  runExcept $ runWriterT $ flip runReaderT ctx $
+recheckFrom (Checked ctx decls _errs _warnings) modules =
+  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
     checkModules modules $ \newDecls errs -> do
       ctx' <- ask
-      pure (Checked ctx' (map (fmap (map sinkDecl)) decls <> newDecls) errs)
+      pure (Checked ctx' (sinkDeclGroups decls <> newDecls) errs [])
+  where
+    -- Only this run's warnings: like the errors, the prefix's warnings were
+    -- already reported when the prefix was checked.
+    package (Checked ctx' decls' errs _, (holes, warnings)) =
+      (Checked ctx' decls' errs warnings, holes)
 
 -- | The errors of a checked run.
 checkedErrors :: Checked -> [TypeErrorInScopedContext]
-checkedErrors (Checked _ _ errs) = errs
+checkedErrors (Checked _ _ errs _) = errs
+
+-- | The warnings of a checked run.
+checkedWarnings :: Checked -> [CheckWarning]
+checkedWarnings (Checked _ _ _ warnings) = warnings
 
 -- | Nothing checked yet: the empty context, and no declarations.
 emptyChecked :: Checked
-emptyChecked = Checked emptyContext [] []
+emptyChecked = Checked emptyContext [] [] []
