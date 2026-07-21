@@ -46,7 +46,10 @@ nav:
           - Rendering Diagrams: reference/render.rzk.md
       - Examples:
           - Weak tope disjunction elimination: examples/recId.rzk.md
-  - Playground: playground/index.html
+  # An absolute URL: the site is deployed under en/<version>/, where a
+  # relative playground/ link would point into the mike version directory,
+  # which carries no playground.
+  - Playground: https://rzk-lang.github.io/rzk/playground/
   - Blog: blog/index.html
 
 theme:
