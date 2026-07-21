@@ -22,6 +22,8 @@ import           Control.Monad.Reader     (ask, asks, local)
 import           Control.Monad.Writer.CPS (censor)
 import           Data.List                (intercalate, sortOn, tails)
 import qualified Data.IntMap              as IntMap
+import qualified Data.IntSet              as IntSet
+import           Data.Bifunctor           (bimap)
 import qualified Data.Map                 as Map
 import qualified Data.Set                 as Set
 import           Data.Maybe               (fromMaybe, isNothing)
@@ -31,7 +33,7 @@ import qualified Data.Text                as T
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
-import           Control.Monad.Free.Foil  (AST (Var), ScopedAST (..),
+import           Control.Monad.Free.Foil  (AST (Node, Var), ScopedAST (..),
                                            alphaEquiv)
 
 import qualified Language.Rzk.Foil.Convert as Convert
@@ -685,13 +687,19 @@ parsesBackTo
 parsesBackTo table move rendered = do
   ctx <- ask
   let scope = ctxScope ctx
+      units = IntSet.fromList
+        [ Foil.nameId v
+        | (v, info) <- varsInScope ctx
+        , BinderUnit <- [varOrig info]
+        ]
+      collapse = unitPointCollapse units . pairEtaCollapse scope
       env name = Map.findWithDefault (Hole (Just (markUnresolved name))) name table
   pure $ case Rzk.parseTerm (T.pack (show rendered)) of
     Left _        -> False
     Right surface ->
       alphaEquiv scope
-        (pairEtaCollapse scope (Convert.toTerm scope env surface))
-        (pairEtaCollapse scope (untyped move))
+        (collapse (Convert.toTerm scope env surface))
+        (collapse (untyped move))
 
 -- | Collapse a literal pair of matching projections, recursively along the
 -- pair spine: @(π₁ p, π₂ p)@ reads back as @p@. This is exactly what the
@@ -705,6 +713,24 @@ pairEtaCollapse scope t = case t of
       (First a, Second b) | alphaEquiv scope a b -> a
       (l', r')                                   -> Pair l' r'
   _ -> t
+
+-- | Collapse a variable bound by the unit pattern to the constructor. A
+-- @\\ unit → …@ binds a point of @Unit@ whose whole-point rendering (and the
+-- only way to write it) is @unit@, which parses back as the constructor. The
+-- two are the same point of the singleton, so the comparison in
+-- 'parsesBackTo' treats them as one, exactly as 'pairEtaCollapse' absorbs
+-- the projection-folding convention.
+unitPointCollapse :: IntSet.IntSet -> Term l -> Term l
+unitPointCollapse units = go
+  where
+    go :: Term x -> Term x
+    go t@(Var x)
+      | Foil.nameId x `IntSet.member` units = Unit
+      | otherwise                           = t
+    go (Node sig) = Node (bimap goScoped go sig)
+
+    goScoped :: ScopedTerm x -> ScopedTerm x
+    goScoped (ScopedAST b body) = ScopedAST b (go body)
 
 -- | Record the goal and local context at a hole (lenient mode only).
 recordHole :: Distinct n => Maybe VarIdent -> TermT n -> TypeCheck n ()
@@ -727,7 +753,13 @@ recordHoleShape mname goalTy mshape = do
   -- candidate-elimination loop only — not the local context shown to the user,
   -- since they are global definitions, not local hypotheses.
   lemmaVars <- asks lemmaHypotheses
-  cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) locals
+  -- a variable bound by the unit pattern is not a hypothesis the user named
+  -- (the pattern binds nothing referable, and the point is spelled @unit@),
+  -- so it is not shown in the context panel
+  let shownLocals = [ l | l@(_, info) <- locals, not (isUnitBinder (varOrig info)) ]
+      isUnitBinder BinderUnit = True
+      isUnitBinder _          = False
+  cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) shownLocals
   topes     <- asks (filter (not . eqT topeTopT) . availableTopes)
   loc       <- asks ctxLocation
   naming    <- asks namingOfContext
@@ -755,8 +787,10 @@ recordHoleShape mname goalTy mshape = do
   -- land in the goal (arguments left as holes). Probing must not leak holes into the
   -- recorded output, hence the 'censor'.
   candidates <- censor (const mempty) $ do
+    -- over the shown hypotheses: a unit-bound point admits no elimination,
+    -- and offering it bare would duplicate the @unit@ introduction
     elims <- concat <$>
-      mapM (\(v, _) -> allEliminationsInto goalTy takenNames (Var v)) (locals ++ lemmaVars)
+      mapM (\(v, _) -> allEliminationsInto goalTy takenNames (Var v)) (shownLocals ++ lemmaVars)
     -- context-driven moves (independent of the goal's head and the hypotheses): ex
     -- falso in a contradictory context, and tope case-splits. recOR and recBOT are
     -- term-level eliminators, so they are offered only for a term goal — not when
@@ -792,7 +826,7 @@ recordHoleShape mname goalTy mshape = do
       entryName v = case displayOf naming v of
         (_, binder) | binderIsCompound binder -> binderDisplayName binder
         (x, _)                                -> x
-      entries = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- locals ]
+      entries = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- shownLocals ]
       flagged = zip cubeFlags entries
 
   -- The goal shape, rendered under the shape's own binder. The name is read back

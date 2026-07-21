@@ -803,3 +803,24 @@ spec = do
       case holesOf "#lang rzk-1\n#data void : U\n#define h (x : void) : void := ?\n" of
         [h] -> filter (isInfixOf "match") (map show (holeCandidates h)) `shouldBe` []
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+  describe "unit-pattern binders (issue #320)" $ do
+    it "binds nothing user-visible: empty context, no spurious hypotheses" $
+      case holesOf "#lang rzk-1\n#define f : (x y : Unit) → Unit\n  := \\ unit unit → ?\n" of
+        [h] -> do
+          holeTermVars h `shouldBe` []
+          map show (holeCandidates h) `shouldBe` []
+          map show (holeIntroductions h) `shouldBe` ["unit"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "keeps moves that mention the unit-bound point (rendered as unit)" $
+      -- the parse-back guard collapses the point to the constructor, so the
+      -- idJ moves of is-set-Unit survive, with unit as the endpoints
+      case holesOf ("#lang rzk-1\n"
+          <> "#define g : (x y : Unit) → (p : x =_{Unit} y) → (q : x =_{Unit} y) → p =_{x =_{Unit} y} q\n"
+          <> "  := \\ unit unit p q → ?\n") of
+        [h] -> do
+          names (holeTermVars h) `shouldBe` ["p", "q"]
+          map show (holeCandidates h) `shouldContain`
+            ["idJ (Unit, unit, \\ b → \\ q₁ → ?, ?, unit, p)"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
