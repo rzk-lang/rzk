@@ -77,40 +77,52 @@ jobs:
       - name: 🔨 Build the playground frontend
         # base must match the deploy target below: main is published to the root
         # `playground/`, every other ref to `<ref>/playground/`. Vite reads
-        # ASSET_URL as its base, and the loader fetches the wasm relative to it.
+        # A relative base: the same build works at every target folder
+        # (playground/, playground/<ref>/, playground/latest/), and the
+        # loader fetches the wasm relative to the page.
         env:
-          ASSET_URL: ${{ github.ref_name == 'main' && format('/{0}/playground/', github.event.repository.name) || format('/{0}/{1}/playground/', github.event.repository.name, github.ref_name) }}
+          ASSET_URL: './'
         run: |
           cd rzk-playground
           npm ci
           npm run build
 
+      # Deploy notes, learned the hard way at v0.11.0:
+      #
+      # - Target folders live under playground/, NEVER at <ref>/playground or
+      #   latest/playground: mike owns the root directories named after doc
+      #   versions and aliases (v0.11.0/, latest/, develop/) and deletes them
+      #   on every docs deploy, taking the playground with them.
+      # - No single-commit: it force-pushes a squash of the whole branch built
+      #   from a possibly stale base, so a concurrent deploy (another ref's
+      #   playground, or mike) gets silently discarded. With force: false the
+      #   action rebases and retries instead.
       - name: '🚀 Publish playground (${{ github.ref_name }})'
-        if: ${{ github.ref_name != 'main' && github.event_name == 'push' }}
+        if: ${{ github.ref_name != 'main' && github.event_name != 'pull_request' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: rzk-playground/dist
-          target-folder: ${{ github.ref_name }}/playground
+          target-folder: playground/${{ github.ref_name }}
           clean: false
-          single-commit: true
+          force: false
 
       - name: '🚀 Publish playground (latest)'
-        if: ${{ startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'v') && github.event_name == 'push' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') && startsWith(github.ref_name, 'v') && github.event_name != 'pull_request' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: rzk-playground/dist
-          target-folder: latest/playground
+          target-folder: playground/latest
           clean: false
-          single-commit: true
+          force: false
 
       - name: '🚀 Publish playground'
-        if: ${{ github.ref_name == 'main' && github.event_name == 'push' }}
+        if: ${{ github.ref_name == 'main' && github.event_name != 'pull_request' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           folder: rzk-playground/dist
           target-folder: playground
           clean: false
-          single-commit: true
+          force: false
