@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "eliminate with clause for compute-ind-S1-loop"
+  - "which is not an eliminator of S1"
+line: 4
+regression_for:
+  - data-reascription-clauses

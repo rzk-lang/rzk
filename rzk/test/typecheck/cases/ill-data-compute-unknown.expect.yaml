@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "compute with clause for compute-ind-d-c"
+  - "no path constructors, so no computation rules are generated"
+line: 5
+regression_for:
+  - data-reascription-clauses

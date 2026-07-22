@@ -110,10 +110,14 @@ tokenizeConstructor (Constructor _loc name params ctype) = concat
   ]
 
 tokenizeDataElim :: DataElim -> [SemanticTokenAbsolute]
-tokenizeDataElim (DataElim _loc name ty) = concat
-  [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
-  , tokenizeTerm ty
-  ]
+tokenizeDataElim = \case
+  DataElim _loc name ty    -> clause name ty
+  DataCompute _loc name ty -> clause name ty
+  where
+    clause name ty = concat
+      [ mkToken name SemanticTokenTypes_Function [SemanticTokenModifiers_Declaration]
+      , tokenizeTerm ty
+      ]
 
 tokenizeDeclUsedVars :: DeclUsedVars -> [SemanticTokenAbsolute]
 tokenizeDeclUsedVars (DeclUsedVars _loc vars) =

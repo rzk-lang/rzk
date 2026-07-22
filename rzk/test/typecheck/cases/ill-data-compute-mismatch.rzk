@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- A re-ascribed computation rule must be definitionally equal to the
+-- canonical generated type; dropping the ap makes it a plain equation.
+#data S1 := base | loop : base =_{S1} base
+  compute with compute-rec-S1-loop
+    : (C : U) → (b : C) → (ℓ : b = b) → b = b

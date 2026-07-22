@@ -1,0 +1,61 @@
+#lang rzk-1
+
+-- The circle: one point constructor and one path constructor. The path
+-- methods refer to the point methods, so the generated eliminator types
+-- bind their methods by name (m-base, m-loop); transport is spelled
+-- through idJ, since rzk has no primitive transport.
+#data S1
+  :=
+    base
+  | loop : base =_{S1} base
+
+#check ind-S1
+  : ( C : S1 → U)
+  → ( b : C base)
+  → ( ℓ : idJ (S1, base, \ y _ → C base → C y, \ u → u, base, loop) b = b)
+  → ( x : S1)
+  → C x
+
+#check rec-S1
+  : ( C : U)
+  → ( b : C)
+  → ( ℓ : b = b)
+  → S1 → C
+
+-- ι on the point constructor is definitional
+#define rec-S1-at-base
+  ( C : U)
+  ( b : C)
+  ( ℓ : b = b)
+  : rec-S1 C b ℓ base = b
+  := refl
+
+-- the identity map, through rec and through match; the loop branch is
+-- checked against the equation the base branch determines (base = base)
+#define id-S1 (x : S1) : S1
+  := rec-S1 S1 base loop x
+
+#define id-S1' (x : S1) : S1
+  :=
+  match x
+    ( base ⇒ base
+    | loop ⇒ loop)
+
+-- β on the path constructor is propositional: one generated compute-
+-- lemma per eliminator, stating that ap/apd of the eliminator on the
+-- path equals the method
+#check compute-rec-S1-loop
+  : ( C : U)
+  → ( b : C)
+  → ( ℓ : b = b)
+  → idJ (S1, base, \ y _ → rec-S1 C b ℓ base = rec-S1 C b ℓ y, refl, base, loop) = ℓ
+
+#check compute-ind-S1-loop
+  : ( C : S1 → U)
+  → ( b : C base)
+  → ( ℓ : idJ (S1, base, \ y _ → C base → C y, \ u → u, base, loop) b = b)
+  → idJ
+      ( S1, base
+      , \ y q → idJ (S1, base, \ y' _ → C base → C y', \ u → u, y, q) (ind-S1 C b ℓ base) = ind-S1 C b ℓ y
+      , refl, base, loop)
+    = ℓ

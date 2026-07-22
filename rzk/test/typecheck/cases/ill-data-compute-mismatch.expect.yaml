@@ -1,9 +1,8 @@
 status: error
 error_tag: TypeErrorReascribedTypeMismatch
 message_contains:
-  - "the re-ascribed type of ind-d"
+  - "the re-ascribed type of compute-rec-S1-loop"
   - "is not definitionally equal to its canonical type"
-  - "(C : d → U) → C c → (x : d) → C x"
 line: 5
 regression_for:
-  - data-eliminator-reascription-clause
+  - data-reascription-clauses

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- Path constructors in indexed families are not supported yet.
+#data bad (A : U) : A → U
+  := mk (a : A) : bad A a
+   | pth (a : A) : mk A a =_{bad A a} mk A a

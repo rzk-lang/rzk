@@ -1286,7 +1286,7 @@ tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
     , (_indices, (_, scrut) : after) <- splitAt numIndices rest ->
         whnfT scrut >>= \scrut' -> case collectAppSpine scrut' of
           (Var c, cargs) -> asks (varDataRole . lookupVarInfo c) >>= \case
-            Just (DataRole dataType' conNumParams (DataConKind conIndex conNumFields recIdxs))
+            Just (DataRole dataType' conNumParams (DataConKind PointCon conIndex conNumFields recIdxs))
               | Foil.nameId dataType' == Foil.nameId dataType
               , length cargs == conNumParams + conNumFields -> do
                   let method = snd (pairs !! (numParams + 1 + conIndex))

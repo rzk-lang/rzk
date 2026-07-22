@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "must spell out the carrier of the identification"
+line: 4
+regression_for:
+  - data-stage3-path-constructors

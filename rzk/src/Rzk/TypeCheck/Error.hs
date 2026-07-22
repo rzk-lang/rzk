@@ -63,7 +63,7 @@ data TypeError n
   | TypeErrorMatchDuplicateBranch VarIdent
   | TypeErrorMatchUnknownBranch VarIdent [VarIdent]
   | TypeErrorMatchBranchArity VarIdent Int Int
-  | TypeErrorEliminatorTypeMismatch VarIdent (TermT n) (TermT n)
+  | TypeErrorReascribedTypeMismatch VarIdent (TermT n) (TermT n)
 
 -- | An error, together with the context it was raised in.
 --
@@ -291,8 +291,8 @@ ppTypeError naming = \case
     , "binds " <> show actual <> " argument" <> (if actual == 1 then "" else "s")
         <> ", but its method takes " <> show expected
     ]
-  TypeErrorEliminatorTypeMismatch elimName canonical given -> block TopDown
-    [ "the re-ascribed type of eliminator " <> show elimName
+  TypeErrorReascribedTypeMismatch entryName canonical given -> block TopDown
+    [ "the re-ascribed type of " <> show entryName
     , "  " <> ppU (untyped given)
     , "is not definitionally equal to its canonical type"
     , "  " <> ppU (untyped canonical)

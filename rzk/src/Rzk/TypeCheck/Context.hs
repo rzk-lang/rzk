@@ -116,18 +116,28 @@ data DataRole n = DataRole
   }
 
 data DataRoleKind
-  = DataConKind Int Int [Int]
-    -- ^ a constructor: its 0-based position among the constructors (= the
-    -- method index), the number of its own fields after the parameters,
-    -- and the 0-based positions of its recursive fields (each contributes
-    -- an induction hypothesis right after the field in the method)
+  = DataConKind ConSort Int Int [Int]
+    -- ^ a constructor: its sort, its 0-based position among the
+    -- constructors (= the method index), the number of its own fields
+    -- after the parameters, and the 0-based positions of its recursive
+    -- fields (each contributes an induction hypothesis right after the
+    -- field in the method)
   | DataElimKind Int Int ElimKind
     -- ^ an eliminator: the number of methods (one per constructor, in
     -- declaration order) and the number of indices of the family; the
     -- spine is parameters, motive, methods, indices, scrutinee
 
+-- | A point constructor inhabits the datatype and the ι-rule dispatches on
+-- it as a scrutinee head. A path constructor inhabits an identity type over
+-- the datatype, so it can never head a well-typed scrutinee, and the ι-rule
+-- must not fire on it: its computation rule is the propositional
+-- @compute-@ lemma generated alongside the eliminators.
+data ConSort = PointCon | PathCon
+  deriving (Eq)
+
 -- | Which eliminator; the ι-rule is the same for both.
 data ElimKind = ElimInd | ElimRec
+  deriving (Eq)
 
 -- | Add one leading parameter (a section assumption made explicit).
 bumpDataRoleParams :: DataRole n -> DataRole n
