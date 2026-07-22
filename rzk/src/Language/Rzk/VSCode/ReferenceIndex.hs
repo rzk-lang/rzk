@@ -372,7 +372,11 @@ goCommand file env = \case
         goBody = case body of
           Rzk.SomeDataBody _ cons elims -> concat
             [ concatMap goCon cons
-            , concatMap (\(Rzk.DataElim _ _elim ty) -> goTerm file envD ty) elims
+            , concatMap
+                (\case
+                  Rzk.DataElim _ _elim ty    -> goTerm file envD ty
+                  Rzk.DataCompute _ _rule ty -> goTerm file envD ty)
+                elims
             ]
           Rzk.NoDataBody _ -> []
         goCon (Rzk.Constructor _ cname cps cty) =

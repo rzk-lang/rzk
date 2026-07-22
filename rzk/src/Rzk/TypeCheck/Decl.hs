@@ -820,7 +820,7 @@ withDataDecls
   -> [Rzk.ParamDecl]      -- ^ the parameter telescope
   -> [SortIndex]          -- ^ the index telescope of the sort
   -> [DataConSurface]     -- ^ the constructors, preprocessed
-  -> [Rzk.DataElim]       -- ^ the eliminator re-ascription clauses
+  -> [Rzk.DataElim]       -- ^ the re-ascription clauses
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
   -> TypeCheck n r
 withDataDecls path used name paramVars paramDecls sortIndices consData elims k = do
@@ -1116,7 +1116,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
                     , computeTy True indName m con l r )
                   , ( computeNameFor "compute-rec-" con
                     , computeTy False recName m con l r ) ] ]
-      (mindTy, mrecTy) <- splitElimClauses indName recName
+      (mindTy, mrecTy, computeReasc) <- splitClauses indName recName (map fst computes)
       indTyT <- elaborate (elimTy True)
       indCanonical <- memoizeWHNF =<< typecheck indTyT universeT
       indTy' <- reascribe indName indCanonical mindTy
@@ -1134,69 +1134,90 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
             (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
               bindComputes
                 (Foil.sinkContainer usedAtInd)
+                computeReasc
                 computes
                 (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
 
     -- | Bind the generated @compute-@ lemmas (one @ind@/@rec@ pair per
-    -- path constructor), then hand the accumulated declarations to the
-    -- continuation of 'withDataDecls'.
+    -- path constructor), re-ascribing the ones a @compute with@ clause
+    -- names, then hand the accumulated declarations to the continuation of
+    -- 'withDataDecls'.
     bindComputes
       :: forall m. DExt n m
-      => [Foil.Name m] -> [(Rzk.VarIdent, Rzk.Term)] -> [Decl m]
+      => [Foil.Name m] -> [(Rzk.VarIdentToken, Rzk.Term)]
+      -> [(Rzk.VarIdent, Rzk.Term)] -> [Decl m]
       -> TypeCheck m r
-    bindComputes _used [] acc = k acc
-    bindComputes usedHere ((cname, cty) : rest) acc = do
+    bindComputes _used _reasc [] acc = k acc
+    bindComputes usedHere reasc ((cname, cty) : rest) acc = do
       tyT <- elaborate cty
-      ty' <- memoizeWHNF =<< typecheck tyT universeT
+      canonical <- memoizeWHNF =<< typecheck tyT universeT
+      ty' <- reascribe cname canonical (lookup (identTokenOf cname) reasc)
       deps <- assumptionDepsOf ty'
       withTopLevel (varIdentAt path cname) ty' Nothing False
         (nubNames (usedHere <> deps)) Nothing $ \_ decl ->
-          bindComputes (Foil.sinkContainer usedHere) rest
+          bindComputes (Foil.sinkContainer usedHere) reasc rest
             (sinkDecls acc <> [decl])
 
-    -- | Split the re-ascription clauses between the two generated
-    -- eliminators. A clause must name one of them, at most once each.
-    splitElimClauses
+    -- | Split the re-ascription clauses among the generated entries: the
+    -- two eliminators (@eliminate with@) and the computation rules of the
+    -- path constructors (@compute with@). A clause must name an entry of
+    -- the matching kind, at most once each.
+    splitClauses
       :: Distinct m
-      => Rzk.VarIdent -> Rzk.VarIdent
-      -> TypeCheck m (Maybe Rzk.Term, Maybe Rzk.Term)
-    splitElimClauses indName recName = go (Nothing, Nothing) elims
+      => Rzk.VarIdent -> Rzk.VarIdent -> [Rzk.VarIdent]
+      -> TypeCheck m
+           (Maybe Rzk.Term, Maybe Rzk.Term, [(Rzk.VarIdentToken, Rzk.Term)])
+    splitClauses indName recName computeNames = go (Nothing, Nothing, []) elims
       where
         go acc [] = pure acc
-        go (mind, mrec) (Rzk.DataElim _loc elimName ty : rest)
+        go (mind, mrec, mcomp) (Rzk.DataElim _loc elimName ty : rest)
           | sameIdent elimName indName =
               case mind of
-                Nothing -> go (Just ty, mrec) rest
+                Nothing -> go (Just ty, mrec, mcomp) rest
                 Just _  -> duplicate elimName
           | sameIdent elimName recName =
               case mrec of
-                Nothing -> go (mind, Just ty) rest
+                Nothing -> go (mind, Just ty, mcomp) rest
                 Just _  -> duplicate elimName
           | otherwise = issueTypeError $ TypeErrorOther $
-              "eliminator clause for " <> Rzk.printTree elimName
+              "eliminate with clause for " <> Rzk.printTree elimName
                 <> ", which is not an eliminator of " <> Rzk.printTree name
                 <> " (the eliminators are " <> Rzk.printTree indName
                 <> " and " <> Rzk.printTree recName <> ")"
-        duplicate elimName = issueTypeError $ TypeErrorOther $
-          "duplicate eliminator clause for " <> Rzk.printTree elimName
+        go (mind, mrec, mcomp) (Rzk.DataCompute _loc ruleName ty : rest)
+          | any (sameIdent ruleName) computeNames =
+              if identTokenOf ruleName `elem` map fst mcomp
+                then duplicate ruleName
+                else go (mind, mrec, mcomp <> [(identTokenOf ruleName, ty)]) rest
+          | otherwise = issueTypeError $ TypeErrorOther $
+              "compute with clause for " <> Rzk.printTree ruleName
+                <> ", which is not a computation rule of " <> Rzk.printTree name
+                <> case computeNames of
+                     [] -> " (the declaration has no path constructors, so no computation rules are generated)"
+                     _  -> " (the computation rules are "
+                             <> intercalate ", " (map Rzk.printTree computeNames)
+                             <> ")"
+        duplicate n = issueTypeError $ TypeErrorOther $
+          "duplicate re-ascription clause for " <> Rzk.printTree n
         sameIdent a b = identTokenOf a == identTokenOf b
 
-    -- | Check a re-ascribed eliminator type against the canonical generated
-    -- one and pick the type to store. The user's spelling must be
-    -- definitionally equal to the canonical type (checked with the type
-    -- former and constructors in scope); definitionally equal types are
-    -- interchangeable, so storing the user's spelling only changes how the
-    -- eliminator's type is displayed, not what it accepts or computes.
+    -- | Check a re-ascribed generated type (an eliminator's or a
+    -- computation rule's) against the canonical one and pick the type to
+    -- store. The user's spelling must be definitionally equal to the
+    -- canonical type (checked with the type former and constructors in
+    -- scope); definitionally equal types are interchangeable, so storing
+    -- the user's spelling only changes how the entry's type is displayed,
+    -- not what it accepts or computes.
     reascribe
       :: Distinct m
       => Rzk.VarIdent -> TermT m -> Maybe Rzk.Term -> TypeCheck m (TermT m)
-    reascribe _elimName canonical Nothing = pure canonical
-    reascribe elimName canonical (Just ty) = do
+    reascribe _entryName canonical Nothing = pure canonical
+    reascribe entryName canonical (Just ty) = do
       tyT <- elaborate ty
       ty' <- memoizeWHNF =<< typecheck tyT universeT
       unifyTerms canonical ty' `catchError` \_ ->
         issueTypeError $
-          TypeErrorEliminatorTypeMismatch (varIdentAt path elimName) canonical ty'
+          TypeErrorReascribedTypeMismatch (varIdentAt path entryName) canonical ty'
       pure ty'
 
 prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent

@@ -1,7 +1,7 @@
 status: error
-error_tag: TypeErrorEliminatorTypeMismatch
+error_tag: TypeErrorReascribedTypeMismatch
 message_contains:
-  - "the re-ascribed type of eliminator ind-d"
+  - "the re-ascribed type of ind-d"
   - "is not definitionally equal to its canonical type"
   - "(C : d → U) → C c → (x : d) → C x"
 line: 5

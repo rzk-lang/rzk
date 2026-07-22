@@ -1,7 +1,7 @@
 status: error
 error_tag: TypeErrorOther
 message_contains:
-  - "eliminator clause for elim-d"
+  - "eliminate with clause for elim-d"
   - "the eliminators are ind-d and rec-d"
 line: 4
 regression_for:

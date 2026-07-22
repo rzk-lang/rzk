@@ -89,6 +89,7 @@ transConstructorType x = case x of
 transDataElim :: Show a => Language.Rzk.Syntax.Abs.DataElim' a -> Result
 transDataElim x = case x of
   Language.Rzk.Syntax.Abs.DataElim _ varident term -> failure x
+  Language.Rzk.Syntax.Abs.DataCompute _ varident term -> failure x
 
 transMatchBranch :: Show a => Language.Rzk.Syntax.Abs.MatchBranch' a -> Result
 transMatchBranch x = case x of
