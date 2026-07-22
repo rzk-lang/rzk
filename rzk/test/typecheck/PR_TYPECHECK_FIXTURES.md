@@ -28,12 +28,28 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
   `ill-data-shape-field`) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
-  eliminator re-ascription clauses
-  (`happy-data-eliminator-reascription` — a definitionally equal
+  re-ascription clauses (`eliminate with`:
+  `happy-data-eliminator-reascription` — a definitionally equal
   spelling is stored and stays interchangeable with the canonical type,
   ι untouched; `ill-data-eliminator-mismatch` for the dedicated
   convertibility error printing the canonical type,
   `ill-data-eliminator-unknown`, `ill-data-eliminator-duplicate`).
+- **Path constructors (`#data`, stage 3):** the circle
+  (`happy-data-circle` — named method binders, idJ-spelled transport in
+  the dependent path method, definitional ι on the point constructor,
+  the identity map through `rec` and through `match`, both generated
+  `compute-` rules), the propositional truncation
+  (`happy-data-prop-trunc` — recursive fields as endpoints, collapse to
+  `Unit`), the pushout (`happy-data-pushout` — endpoints applying
+  constructors to datatype-free terms); re-ascription of eliminators
+  and computation rules through a library transport/ap/apd
+  (`happy-data-hit-reascription`, `compute with` clauses); rejections
+  (`ill-data-path-indexed`, `ill-data-path-unannotated` for a bare
+  `l = r` return, `ill-data-path-endpoint` for a non-constructor-built
+  endpoint, `ill-data-path-higher` and `ill-data-path-higher-field` for
+  higher paths, `ill-data-compute-unknown`, `ill-data-compute-kind`,
+  `ill-data-compute-mismatch`) and HIT match coverage
+  (`ill-match-missing-path-branch`).
 - **`match` expressions (M3, PR 3):** elaboration into the generated
   induction eliminator (`happy-match-basics`: plain and recursive
   matches, definitional computation, an `into` motive, a dependent

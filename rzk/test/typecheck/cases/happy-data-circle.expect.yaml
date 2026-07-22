@@ -1,0 +1,4 @@
+status: ok
+warnings: []
+regression_for:
+  - data-stage3-path-constructors

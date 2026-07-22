@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- An endpoint must be built from constructors and fields, so that its
+-- image under the section being defined is syntactically computable.
+#data bad := c | p : ((\ (z : bad) → z) c) =_{bad} c

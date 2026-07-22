@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorMatchMissingBranch
+message_contains:
+  - "match has no branch for constructor loop"
+line: 6
+regression_for:
+  - data-stage3-path-constructors

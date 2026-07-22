@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "an endpoint must be built from the declaration's constructors and the constructor's fields"
+line: 5
+regression_for:
+  - data-stage3-path-constructors

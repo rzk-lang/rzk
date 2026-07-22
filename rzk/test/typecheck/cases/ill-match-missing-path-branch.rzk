@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- A match over a HIT must cover the path constructors too.
+#data S1 := base | loop : base =_{S1} base
+
+#define to-S1 (x : S1) : S1
+  := match x (base ⇒ base)

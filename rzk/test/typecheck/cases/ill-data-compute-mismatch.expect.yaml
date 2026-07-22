@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorReascribedTypeMismatch
+message_contains:
+  - "the re-ascribed type of compute-rec-S1-loop"
+  - "is not definitionally equal to its canonical type"
+line: 5
+regression_for:
+  - data-reascription-clauses

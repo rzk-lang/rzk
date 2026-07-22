@@ -22,15 +22,19 @@ extra-source-files:
     test/typecheck/SCHEMA.md
     test/typecheck/cases/happy-check.rzk
     test/typecheck/cases/happy-data-bool.rzk
+    test/typecheck/cases/happy-data-circle.rzk
     test/typecheck/cases/happy-data-coprod.rzk
     test/typecheck/cases/happy-data-eliminator-reascription.rzk
     test/typecheck/cases/happy-data-empty.rzk
     test/typecheck/cases/happy-data-eta-short.rzk
+    test/typecheck/cases/happy-data-hit-reascription.rzk
     test/typecheck/cases/happy-data-hottbook-nat.rzk
     test/typecheck/cases/happy-data-indices-edge.rzk
     test/typecheck/cases/happy-data-large-warning.rzk
     test/typecheck/cases/happy-data-list.rzk
     test/typecheck/cases/happy-data-nat.rzk
+    test/typecheck/cases/happy-data-prop-trunc.rzk
+    test/typecheck/cases/happy-data-pushout.rzk
     test/typecheck/cases/happy-data-rec-section.rzk
     test/typecheck/cases/happy-data-section.rzk
     test/typecheck/cases/happy-data-vec.rzk
@@ -76,6 +80,9 @@ extra-source-files:
     test/typecheck/cases/ill-bare-lambda-compute.rzk
     test/typecheck/cases/ill-bare-refl-compute.rzk
     test/typecheck/cases/ill-data-clash-generated.rzk
+    test/typecheck/cases/ill-data-compute-kind.rzk
+    test/typecheck/cases/ill-data-compute-mismatch.rzk
+    test/typecheck/cases/ill-data-compute-unknown.rzk
     test/typecheck/cases/ill-data-duplicate-constructor.rzk
     test/typecheck/cases/ill-data-eliminator-duplicate.rzk
     test/typecheck/cases/ill-data-eliminator-mismatch.rzk
@@ -85,6 +92,11 @@ extra-source-files:
     test/typecheck/cases/ill-data-missing-return.rzk
     test/typecheck/cases/ill-data-negative.rzk
     test/typecheck/cases/ill-data-non-u-sort.rzk
+    test/typecheck/cases/ill-data-path-endpoint.rzk
+    test/typecheck/cases/ill-data-path-higher-field.rzk
+    test/typecheck/cases/ill-data-path-higher.rzk
+    test/typecheck/cases/ill-data-path-indexed.rzk
+    test/typecheck/cases/ill-data-path-unannotated.rzk
     test/typecheck/cases/ill-data-return-type.rzk
     test/typecheck/cases/ill-data-shape-field.rzk
     test/typecheck/cases/ill-duplicate.rzk
@@ -111,6 +123,7 @@ extra-source-files:
     test/typecheck/cases/ill-match-cannot-infer.rzk
     test/typecheck/cases/ill-match-duplicate-branch.rzk
     test/typecheck/cases/ill-match-missing-branch.rzk
+    test/typecheck/cases/ill-match-missing-path-branch.rzk
     test/typecheck/cases/ill-match-not-data.rzk
     test/typecheck/cases/ill-match-unknown-branch.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
@@ -190,15 +203,19 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-strict-only.rzk
     test/typecheck/cases/happy-check.expect.yaml
     test/typecheck/cases/happy-data-bool.expect.yaml
+    test/typecheck/cases/happy-data-circle.expect.yaml
     test/typecheck/cases/happy-data-coprod.expect.yaml
     test/typecheck/cases/happy-data-eliminator-reascription.expect.yaml
     test/typecheck/cases/happy-data-empty.expect.yaml
     test/typecheck/cases/happy-data-eta-short.expect.yaml
+    test/typecheck/cases/happy-data-hit-reascription.expect.yaml
     test/typecheck/cases/happy-data-hottbook-nat.expect.yaml
     test/typecheck/cases/happy-data-indices-edge.expect.yaml
     test/typecheck/cases/happy-data-large-warning.expect.yaml
     test/typecheck/cases/happy-data-list.expect.yaml
     test/typecheck/cases/happy-data-nat.expect.yaml
+    test/typecheck/cases/happy-data-prop-trunc.expect.yaml
+    test/typecheck/cases/happy-data-pushout.expect.yaml
     test/typecheck/cases/happy-data-rec-section.expect.yaml
     test/typecheck/cases/happy-data-section.expect.yaml
     test/typecheck/cases/happy-data-vec.expect.yaml
@@ -244,6 +261,9 @@ extra-source-files:
     test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
     test/typecheck/cases/ill-bare-refl-compute.expect.yaml
     test/typecheck/cases/ill-data-clash-generated.expect.yaml
+    test/typecheck/cases/ill-data-compute-kind.expect.yaml
+    test/typecheck/cases/ill-data-compute-mismatch.expect.yaml
+    test/typecheck/cases/ill-data-compute-unknown.expect.yaml
     test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
     test/typecheck/cases/ill-data-eliminator-duplicate.expect.yaml
     test/typecheck/cases/ill-data-eliminator-mismatch.expect.yaml
@@ -253,6 +273,11 @@ extra-source-files:
     test/typecheck/cases/ill-data-missing-return.expect.yaml
     test/typecheck/cases/ill-data-negative.expect.yaml
     test/typecheck/cases/ill-data-non-u-sort.expect.yaml
+    test/typecheck/cases/ill-data-path-endpoint.expect.yaml
+    test/typecheck/cases/ill-data-path-higher-field.expect.yaml
+    test/typecheck/cases/ill-data-path-higher.expect.yaml
+    test/typecheck/cases/ill-data-path-indexed.expect.yaml
+    test/typecheck/cases/ill-data-path-unannotated.expect.yaml
     test/typecheck/cases/ill-data-return-type.expect.yaml
     test/typecheck/cases/ill-data-shape-field.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
@@ -279,6 +304,7 @@ extra-source-files:
     test/typecheck/cases/ill-match-cannot-infer.expect.yaml
     test/typecheck/cases/ill-match-duplicate-branch.expect.yaml
     test/typecheck/cases/ill-match-missing-branch.expect.yaml
+    test/typecheck/cases/ill-match-missing-path-branch.expect.yaml
     test/typecheck/cases/ill-match-not-data.expect.yaml
     test/typecheck/cases/ill-match-unknown-branch.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml
