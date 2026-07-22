@@ -26,8 +26,14 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-fun-field` for function-typed recursive fields,
   `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
-  `ill-data-shape-field`, `ill-data-eliminator-clause`) and name clashes
-  (`ill-data-duplicate-constructor`, `ill-data-clash-generated`).
+  `ill-data-shape-field`) and name clashes
+  (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
+  eliminator re-ascription clauses
+  (`happy-data-eliminator-reascription` — a definitionally equal
+  spelling is stored and stays interchangeable with the canonical type,
+  ι untouched; `ill-data-eliminator-mismatch` for the dedicated
+  convertibility error printing the canonical type,
+  `ill-data-eliminator-unknown`, `ill-data-eliminator-duplicate`).
 - **`match` expressions (M3, PR 3):** elaboration into the generated
   induction eliminator (`happy-match-basics`: plain and recursive
   matches, definitional computation, an `into` motive, a dependent

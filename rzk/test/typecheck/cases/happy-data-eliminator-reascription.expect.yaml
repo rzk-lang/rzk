@@ -1,0 +1,4 @@
+status: ok
+warnings: []
+regression_for:
+  - data-eliminator-reascription-clause

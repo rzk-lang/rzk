@@ -63,6 +63,7 @@ data TypeError n
   | TypeErrorMatchDuplicateBranch VarIdent
   | TypeErrorMatchUnknownBranch VarIdent [VarIdent]
   | TypeErrorMatchBranchArity VarIdent Int Int
+  | TypeErrorEliminatorTypeMismatch VarIdent (TermT n) (TermT n)
 
 -- | An error, together with the context it was raised in.
 --
@@ -289,6 +290,12 @@ ppTypeError naming = \case
     [ "match branch for constructor " <> show con
     , "binds " <> show actual <> " argument" <> (if actual == 1 then "" else "s")
         <> ", but its method takes " <> show expected
+    ]
+  TypeErrorEliminatorTypeMismatch elimName canonical given -> block TopDown
+    [ "the re-ascribed type of eliminator " <> show elimName
+    , "  " <> ppU (untyped given)
+    , "is not definitionally equal to its canonical type"
+    , "  " <> ppU (untyped canonical)
     ]
   where
     ppU = ppTerm naming

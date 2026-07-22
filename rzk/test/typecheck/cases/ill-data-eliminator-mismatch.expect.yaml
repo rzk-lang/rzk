@@ -1,0 +1,9 @@
+status: error
+error_tag: TypeErrorEliminatorTypeMismatch
+message_contains:
+  - "the re-ascribed type of eliminator ind-d"
+  - "is not definitionally equal to its canonical type"
+  - "(C : d → U) → C c → (x : d) → C x"
+line: 5
+regression_for:
+  - data-eliminator-reascription-clause

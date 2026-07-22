@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "duplicate eliminator clause for ind-d"
+line: 4
+regression_for:
+  - data-eliminator-reascription-clause

@@ -1,0 +1,24 @@
+#lang rzk-1
+
+-- An eliminator re-ascription clause stores the user's spelling of a
+-- generated eliminator's type, after checking that it is definitionally
+-- equal to the canonical one (with the type former and constructors in
+-- scope). An unfolding synonym, defined before the declaration, makes the
+-- spelling differ from the canonical type syntactically:
+#define self (C : U) : U
+  := C
+
+#data bool' := false' | true'
+  eliminator ind-bool' : (C : bool' → U) → C false' → C true' → (b : bool') → C b
+  eliminator rec-bool' : (C : U) → self C → self C → bool' → self C
+
+-- the stored types are interchangeable with the canonical ones
+#check ind-bool' : (C : bool' → U) → C false' → C true' → (b : bool') → C b
+#check rec-bool' : (C : U) → C → C → bool' → C
+
+#define not' (b : bool') : bool'
+  := rec-bool' bool' true' false' b
+
+-- the ι-rule is untouched by re-ascription
+#define not-not-true' : not' (not' true') =_{bool'} true'
+  := refl

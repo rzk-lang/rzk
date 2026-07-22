@@ -157,6 +157,7 @@ typeErrorTag = \case
   TypeErrorMatchDuplicateBranch{}  -> "TypeErrorMatchDuplicateBranch"
   TypeErrorMatchUnknownBranch{}    -> "TypeErrorMatchUnknownBranch"
   TypeErrorMatchBranchArity{}      -> "TypeErrorMatchBranchArity"
+  TypeErrorEliminatorTypeMismatch{} -> "TypeErrorEliminatorTypeMismatch"
 
 -- | The tag of a type error.
 --
