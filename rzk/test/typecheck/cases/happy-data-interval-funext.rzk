@@ -35,3 +35,26 @@
   let q : interval → A → B
     := \ (i : interval) (x : A) → p x i in
   ap interval (A → B) q left right seg
+
+-- The same argument proves relative function extensionality for functions
+-- out of a shape, which RS17 postulate as an axiom (Axiom 4.6, weak
+-- extension extensionality; sHoTT assumes it as extext). The proof is
+-- essentially the same as for ordinary function extensionality above
+-- (Lemma 6.3.2 of the HoTT book); here in the boundary-free form.
+#def relfunext-via-interval
+  ( I : CUBE)
+  ( φ : I → TOPE)
+  ( A : (t : φ) → U)
+  ( f g : (t : φ) → A t)
+  ( α : (t : φ) → f t =_{A t} g t)
+  : f =_{(t : φ) → A t} g
+  :=
+  let p : (t : φ) → interval → A t
+    := \ (t : φ) (i : interval) →
+      match i
+        ( left ⇒ f t
+        | right ⇒ g t
+        | seg ⇒ α t) in
+  let q : interval → (t : φ) → A t
+    := \ (i : interval) (t : φ) → p t i in
+  ap interval ((t : φ) → A t) q left right seg

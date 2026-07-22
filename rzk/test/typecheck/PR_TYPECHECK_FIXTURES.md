@@ -42,7 +42,9 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`happy-data-prop-trunc` — recursive fields as endpoints, collapse to
   `Unit`), the pushout (`happy-data-pushout` — endpoints applying
   constructors to datatype-free terms), function extensionality proved
-  from the interval per HoTT book Lemma 6.3.2
+  from the interval per HoTT book Lemma 6.3.2, plus its relative form
+  for functions out of a shape (RS17 Axiom 4.6, assumed as `extext` in
+  sHoTT) by the same argument
   (`happy-data-interval-funext` — a `#data` that changes the ambient
   theory); re-ascription of eliminators
   and computation rules through a library transport/ap/apd
