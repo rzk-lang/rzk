@@ -1122,6 +1122,18 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           else unifyTypes term' ty' inferredType
         return term'
 
+-- | How a match elaborates: which eliminator it targets, and — for @ind-D@ —
+-- which variable scrutinee (if any) to abstract out of the goal when building
+-- the motive. Computed once from the @into@ motive, the goal, and the
+-- scrutinee, so that the eliminator choice and the later motive construction
+-- read from the same decision instead of re-deriving it in two places.
+data MatchPlan n
+  = MatchRec
+    -- ^ @rec-D@: a non-dependent family, so the motive has no scrutinee binder.
+  | MatchInd (Maybe (Foil.Name n))
+    -- ^ @ind-D@; the name, when present, is the variable scrutinee to abstract
+    -- out of the goal.
+
 -- | Elaborate a match into an application of its datatype's induction
 -- eliminator: @ind-D params motive method₁ … methodₖ indices scrutinee@. The
 -- spine is the result — a match node never survives elaboration (see the
@@ -1152,13 +1164,15 @@ checkMatch term scrut mmotive branches mgoal = do
   -- constructors: under @rec-D@ a path branch is checked against the plain
   -- equation between the point branches, where @ind-D@ with a constant
   -- family would demand a transport that does not reduce.
-  let pickRec = case (mmotive, mgoal) of
-        (Just _, _)    -> False
-        (_, Nothing)   -> False
+  let plan = case (mmotive, mgoal) of
+        (Just _, _)    -> MatchInd Nothing
+        (_, Nothing)   -> MatchInd Nothing
         (_, Just goal) -> case scrut' of
-          Var v -> not (v `elemName` freeVarsOfTermT goal)
-          _     -> True
-      wantedKind = if pickRec then ElimRec else ElimInd
+          Var v | v `elemName` freeVarsOfTermT goal -> MatchInd (Just v)
+          _                                         -> MatchRec
+      wantedKind = case plan of
+        MatchRec   -> ElimRec
+        MatchInd{} -> ElimInd
   (e, numParams) <- case
       [ er | er@(_, DataRole _ _ (DataElimKind _ _ ek)) <- elims, ek == wantedKind ] of
     (e, DataRole _ numParams _) : _ -> pure (e, numParams)
@@ -1214,10 +1228,11 @@ checkMatch term scrut mmotive branches mgoal = do
         scope <- asks ctxScope
         -- Under @rec-D@ the motive type has no scrutinee binder, so there
         -- is nothing to substitute (and the goal does not mention the
-        -- scrutinee variable anyway — that is what chose @rec-D@).
-        let mv = case scrut' of
-              Var v | not pickRec -> Just v
-              _                   -> Nothing
+        -- scrutinee variable anyway — that is what chose @rec-D@). The
+        -- variable to abstract is the one the plan already settled on.
+        let mv = case plan of
+              MatchInd v -> v
+              MatchRec   -> Nothing
         pure (motiveFromGoal scope motiveTy mv goal)
   atMotive <- applyPlan atParams [Just motive']
   let applyMethods t [] = pure t
