@@ -30,6 +30,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-hit-reascription.rzk
     test/typecheck/cases/happy-data-hottbook-nat.rzk
     test/typecheck/cases/happy-data-indices-edge.rzk
+    test/typecheck/cases/happy-data-interval-funext.rzk
     test/typecheck/cases/happy-data-large-warning.rzk
     test/typecheck/cases/happy-data-list.rzk
     test/typecheck/cases/happy-data-nat.rzk
@@ -211,6 +212,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-hit-reascription.expect.yaml
     test/typecheck/cases/happy-data-hottbook-nat.expect.yaml
     test/typecheck/cases/happy-data-indices-edge.expect.yaml
+    test/typecheck/cases/happy-data-interval-funext.expect.yaml
     test/typecheck/cases/happy-data-large-warning.expect.yaml
     test/typecheck/cases/happy-data-list.expect.yaml
     test/typecheck/cases/happy-data-nat.expect.yaml

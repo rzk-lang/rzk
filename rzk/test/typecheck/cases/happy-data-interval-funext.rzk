@@ -1,0 +1,37 @@
+#lang rzk-1
+
+-- Function extensionality is provable from the interval higher inductive
+-- type, following Lemma 6.3.2 of the HoTT book: a pointwise identification
+-- α makes a map A → interval → B whose two ends are f and g, and ap of its
+-- flip on seg is the identification of f with g. Note that declaring
+-- interval therefore changes the ambient theory: funext no longer needs to
+-- be assumed.
+#define ap
+  ( A B : U)
+  ( f : A → B)
+  ( x y : A)
+  ( p : x =_{A} y)
+  : f x =_{B} f y
+  := idJ (A , x , \ y' _ → f x =_{B} f y' , refl , y , p)
+
+#data interval
+  :=
+    left
+  | right
+  | seg : left =_{interval} right
+
+#def funext-via-interval
+  ( A B : U)
+  ( f g : A → B)
+  ( α : (x : A) → f x =_{B} g x)
+  : f =_{A → B} g
+  :=
+  let p : A → interval → B
+    := \ (x : A) (i : interval) →
+      match i
+        ( left ⇒ f x
+        | right ⇒ g x
+        | seg ⇒ α x) in
+  let q : interval → A → B
+    := \ (i : interval) (x : A) → p x i in
+  ap interval (A → B) q left right seg
