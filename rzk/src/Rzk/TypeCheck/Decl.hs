@@ -808,6 +808,15 @@ freshIdent path avoid base = do
     cand : _ -> pure cand
     []       -> panicImpossible "no fresh identifier candidate"
 
+-- | Index into a list that is long enough by construction, panicking with a
+-- label instead of the opaque @Prelude.!!@ message if that invariant is ever
+-- broken. Used where an index is derived from the same data as the list (the
+-- induction-hypothesis binders, a constructor's field patterns).
+nthByConstruction :: String -> [a] -> Int -> a
+nthByConstruction what xs i = case drop i xs of
+  x : _ -> x
+  []    -> panicImpossible (what <> ": index " <> show i <> " out of range")
+
 -- | Bind the products of one @#data@ declaration: the type former, the
 -- constructors (checked in a scope where the type former exists), and the
 -- generated eliminators @ind-D@ and @rec-D@.
@@ -959,9 +968,10 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           -- constructor, by the field's token (a recursive field is a plain
           -- variable: no pattern form inhabits the datatype)
           ihByFieldTok c =
-            [ (identTokenOf v, ihNames !! kk)
-            | (kk, j) <- zip [0 :: Int ..] (recPositionsOf c)
-            , Rzk.Var _ v <- [dataConFieldPats c !! j] ]
+            [ (identTokenOf v, ih)
+            | (ih, j) <- zip ihNames (recPositionsOf c)
+            , Rzk.Var _ v <-
+                [nthByConstruction "constructor field patterns" (dataConFieldPats c) j] ]
           endpointErr c t = issueTypeError $ TypeErrorOther $
             "in path constructor " <> Rzk.printTree (dataConName c)
               <> ": an endpoint must be built from the declaration's"
@@ -1048,7 +1058,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
               wrapFields nRec ((j, (fieldDecl, fpat)) : more)
                 | Just fieldIxs <- lookup j (dataConRecursive con) =
                     Rzk.TypeFun Nothing fieldDecl $
-                      surfacePi (ihNames !! nRec)
+                      surfacePi (nthByConstruction "induction hypotheses" ihNames nRec)
                         (surfaceApps motive (fieldIxs <> [ fpat | dependent ]))
                         (wrapFields (nRec + 1) more)
                 | otherwise =
