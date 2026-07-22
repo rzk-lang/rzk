@@ -1146,8 +1146,22 @@ checkMatch term scrut mmotive branches mgoal = do
     (Var d, _) -> pure d
     _          -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   elims <- dataEliminatorsOf d
-  (e, numParams) <- case elims of
-    (e, DataRole _ numParams _) : _ -> pure (e, numParams)   -- ind-D comes before rec-D
+  -- The eliminator to elaborate into: @ind-D@ when the motive genuinely
+  -- depends on the scrutinee (an @into@ motive, or a variable scrutinee
+  -- occurring in the goal); @rec-D@ otherwise. The choice matters for path
+  -- constructors: under @rec-D@ a path branch is checked against the plain
+  -- equation between the point branches, where @ind-D@ with a constant
+  -- family would demand a transport that does not reduce.
+  let pickRec = case (mmotive, mgoal) of
+        (Just _, _)    -> False
+        (_, Nothing)   -> False
+        (_, Just goal) -> case scrut' of
+          Var v -> not (v `elemName` freeVarsOfTermT goal)
+          _     -> True
+      wantedKind = if pickRec then ElimRec else ElimInd
+  (e, numParams) <- case
+      [ er | er@(_, DataRole _ _ (DataElimKind _ _ ek)) <- elims, ek == wantedKind ] of
+    (e, DataRole _ numParams _) : _ -> pure (e, numParams)
     [] -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   let dargs = case collectAppSpine scrutTy of
         (_, args) -> map snd args
@@ -1198,9 +1212,12 @@ checkMatch term scrut mmotive branches mgoal = do
           TypeFunT _ _ _ mty _ _ -> pure mty
           _ -> panicImpossible "an eliminator's type has no motive parameter"
         scope <- asks ctxScope
+        -- Under @rec-D@ the motive type has no scrutinee binder, so there
+        -- is nothing to substitute (and the goal does not mention the
+        -- scrutinee variable anyway — that is what chose @rec-D@).
         let mv = case scrut' of
-              Var v -> Just v
-              _     -> Nothing
+              Var v | not pickRec -> Just v
+              _                   -> Nothing
         pure (motiveFromGoal scope motiveTy mv goal)
   atMotive <- applyPlan atParams [Just motive']
   let applyMethods t [] = pure t
