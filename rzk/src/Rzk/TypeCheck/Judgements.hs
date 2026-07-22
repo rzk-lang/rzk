@@ -115,7 +115,7 @@ dataConstructorsOf d = do
   pure $ map snd $ sortOn fst
     [ (idx, v)
     | v <- ctxBound ctx
-    , Just (DataRole d' _ (DataConKind idx _ _)) <- [varDataRole (lookupVarInfo v ctx)]
+    , Just (DataRole d' _ (DataConKind _ idx _ _)) <- [varDataRole (lookupVarInfo v ctx)]
     , Foil.nameId d' == Foil.nameId d
     ]
 
@@ -179,7 +179,7 @@ matchHoleOf ctx taken scope numParams cons term =
     branchBinders c =
       let info = lookupVarInfo c ctx
           (numFields, recIdxs) = case varDataRole info of
-            Just (DataRole _ _ (DataConKind _ nf ri)) -> (nf, ri)
+            Just (DataRole _ _ (DataConKind _ _ nf ri)) -> (nf, ri)
             _                                         -> (0, [])
           fields = piBinders numParams numFields (varType info)
        in named taken (concat
@@ -549,7 +549,7 @@ allIntroductionsOf target takenNames = do
         cons <- dataConstructorsOf d
         fmap concat $ forM cons $ \c ->
           case varDataRole (lookupVarInfo c ctx) of
-            Just (DataRole _ numParams (DataConKind _ numFields _)) -> do
+            Just (DataRole _ numParams (DataConKind _ _ numFields _)) -> do
               saturated <- applyPlan (Var c)
                 (replicate (numParams + numFields) Nothing)
               satTy <- typeOf saturated
@@ -1160,7 +1160,7 @@ checkMatch term scrut mmotive branches mgoal = do
         Just x  -> x
         Nothing -> panicImpossible "a constructor entry with no name"
       conArity c = case varDataRole (lookupVarInfo c ctx) of
-        Just (DataRole _ _ (DataConKind _ numFields recIdxs)) ->
+        Just (DataRole _ _ (DataConKind _ _ numFields recIdxs)) ->
           numFields + length recIdxs
         _ -> panicImpossible "a constructor entry with no constructor role"
       conNames = map conIdent cons

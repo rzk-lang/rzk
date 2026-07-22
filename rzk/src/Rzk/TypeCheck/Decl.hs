@@ -24,7 +24,7 @@
 -- (@makeAssumptionExplicit@), rewriting the later definitions to apply them to it.
 module Rzk.TypeCheck.Decl where
 
-import           Control.Monad             (forM, when)
+import           Control.Monad             (forM, forM_, unless, when)
 import           Control.Monad.Except      (catchError, runExcept)
 import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local, runReaderT)
@@ -565,6 +565,16 @@ modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
 modalFieldError cname = issueTypeError $ TypeErrorOther $
   "modal fields are not supported yet in constructor " <> Rzk.printTree cname
 
+-- | The sort of a constructor: a point constructor returns the declared
+-- type; a path constructor returns an identity type over it (spelled
+-- @l =_{D …} r@), declaring an identification between the two endpoint
+-- terms. Path β-rules are propositional (the generated @compute-@ lemmas),
+-- following the HoTT-book treatment of higher inductive types.
+data DataConSort
+  = DataConPoint
+  | DataConPath Rzk.Term Rzk.Term
+    -- ^ the endpoints of the declared identification, as written
+
 -- | A constructor, preprocessed at the surface level.
 data DataConSurface = DataConSurface
   { dataConName       :: Rzk.VarIdent
@@ -588,6 +598,7 @@ data DataConSurface = DataConSurface
     -- ^ the non-recursive field types, for the per-field error message
   , dataConLocalNames :: [Rzk.VarIdentToken]
     -- ^ every binder token of the constructor, for freshening
+  , dataConSort       :: DataConSort
   }
 
 surfacePatternVars :: Rzk.Pattern -> [Rzk.VarIdent]
@@ -602,6 +613,30 @@ identTokenOf (Rzk.VarIdent _ tok) = tok
 
 surfaceVar :: Rzk.VarIdent -> Rzk.Term
 surfaceVar = Rzk.Var Nothing
+
+-- | A λ over plain (untyped) variable patterns; only ever used in checking
+-- position, where the domains come from the expected type.
+surfaceLambda :: [Rzk.VarIdent] -> Rzk.Term -> Rzk.Term
+surfaceLambda vs = Rzk.Lambda Nothing
+  [ Rzk.ParamPattern Nothing (Rzk.PatternVar Nothing v) | v <- vs ]
+
+-- | The wildcard binder, for a generated λ that ignores an argument.
+underscoreIdent :: Rzk.VarIdent
+underscoreIdent = Rzk.VarIdent Nothing (Rzk.VarIdentToken "_")
+
+-- | Every variable-occurrence token in a surface term, collected
+-- generically. Used for the endpoint well-formedness check of path
+-- constructors, which is deliberately syntactic (see 'withDataDecls').
+surfaceVarTokens :: Data a => a -> [Rzk.VarIdentToken]
+surfaceVarTokens x = concat
+  [ maybe [] varTok (cast x)
+  , concat (gmapQ surfaceVarTokens x)
+  ]
+  where
+    varTok :: Rzk.Term -> [Rzk.VarIdentToken]
+    varTok = \case
+      Rzk.Var _ v -> [identTokenOf v]
+      _           -> []
 
 surfaceApps :: Rzk.Term -> [Rzk.Term] -> Rzk.Term
 surfaceApps f []       = f
@@ -664,26 +699,48 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
   fieldDecls <- concat <$> mapM (dataFieldToParamDecl cname) cparams
   let defaultRet = surfaceApps (surfaceVar dataName) (map surfaceVar paramVars)
       recIndicesOf = dataAppliedIndices dataName paramVars indexArity
-  (ret, retIndices) <- case ctype of
+  (ret, retIndices, sort) <- case ctype of
     Rzk.NoConstructorType _
-      | indexArity == 0 -> pure (defaultRet, [])
+      | indexArity == 0 -> pure (defaultRet, [], DataConPoint)
       | otherwise -> issueTypeError $ TypeErrorOther $
           "constructor " <> Rzk.printTree cname
             <> " must spell out its return type: the family has "
             <> show indexArity <> " index(es)"
     Rzk.SomeConstructorType _ ret
-      | Just ixs <- recIndicesOf ret -> pure (ret, ixs)
-      | otherwise -> issueTypeError $ TypeErrorOther $
-          "the return type of constructor " <> Rzk.printTree cname
-            <> " must be the declared type applied to its parameters and "
-            <> show indexArity <> " index(es), like "
-            <> Rzk.printTree defaultRet <> " …"
+      | Just ixs <- recIndicesOf ret -> pure (ret, ixs, DataConPoint)
+    Rzk.SomeConstructorType _ ret@(Rzk.TypeId _ l carrier r)
+      | Just _ <- recIndicesOf carrier ->
+          if indexArity == 0
+            then pure (ret, [], DataConPath l r)
+            else issueTypeError $ TypeErrorOther $
+              "path constructor " <> Rzk.printTree cname
+                <> " in an indexed family is not supported"
+      | isIdentity carrier -> higherPathError
+    Rzk.SomeConstructorType _ (Rzk.TypeIdSimple _ _ _) ->
+      issueTypeError $ TypeErrorOther $
+        "the return type of path constructor " <> Rzk.printTree cname
+          <> " must spell out the carrier of the identification, like l =_{"
+          <> Rzk.printTree defaultRet <> "} r"
+    Rzk.SomeConstructorType _ _ -> issueTypeError $ TypeErrorOther $
+      "the return type of constructor " <> Rzk.printTree cname
+        <> " must be the declared type applied to its parameters and "
+        <> show indexArity <> " index(es), like "
+        <> Rzk.printTree defaultRet <> " …"
   let fieldTypes = [ ty | Rzk.ParamTermType _ _ ty <- fieldDecls ]
       recursive =
         [ (j, ixs) | (j, ty) <- zip [0 ..] fieldTypes, Just ixs <- [recIndicesOf ty] ]
       isRec ty = maybe False (const True) (recIndicesOf ty)
       nonRecTypes = [ ty | ty <- fieldTypes, not (isRec ty) ]
       nonRecDecls = [ d | d@(Rzk.ParamTermType _ _ ty) <- fieldDecls, not (isRec ty) ]
+  forM_ fieldTypes $ \case
+    fieldTy@(Rzk.TypeId _ _ carrier _)
+      | matchesDataApplied dataName paramVars indexArity carrier ->
+          issueTypeError $ TypeErrorOther $
+            "constructor " <> Rzk.printTree cname
+              <> " has a field of an identity type over the declared type ("
+              <> Rzk.printTree fieldTy
+              <> "); higher paths are not supported yet"
+    _ -> pure ()
   pure DataConSurface
     { dataConName = cname
     , dataConFields = fieldDecls
@@ -695,6 +752,7 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
     , dataConNonRec = nonRecTypes
     , dataConLocalNames = identTokenOf cname
         : map identTokenOf (concatMap fieldVars cparams)
+    , dataConSort = sort
     }
   where
     fieldVars = \case
@@ -703,6 +761,13 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
     fieldPats = \case
       Rzk.ParamPatternType _ pats _ -> map patternToTerm pats
       _                             -> []
+    isIdentity = \case
+      Rzk.TypeId{}       -> True
+      Rzk.TypeIdSimple{} -> True
+      _                  -> False
+    higherPathError = issueTypeError $ TypeErrorOther $
+      "constructor " <> Rzk.printTree cname
+        <> " declares a path between paths; higher path constructors are not supported yet"
 
 -- | The assumptions an entry depends on, possibly only through the types of
 -- what it mentions. The generated entries of a @#data@ declare these
@@ -816,8 +881,11 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
       conDeps <- assumptionDepsOf conTy
-      let role = DataRole dName numParams
-            (DataConKind index (length (dataConFields con))
+      let conSort = case dataConSort con of
+            DataConPoint  -> PointCon
+            DataConPath{} -> PathCon
+          role = DataRole dName numParams
+            (DataConKind conSort index (length (dataConFields con))
               (map fst (dataConRecursive con)))
       withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
         (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
@@ -853,6 +921,85 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
       let maxRec = maximum (0 : map (length . dataConRecursive) consData)
       ihNames <- freshIdents maxRec
         (identTokenOf motiveV : identTokenOf scrutV : avoid') "ih"
+      -- A path-method type refers to the point methods by name, so a
+      -- declaration with path constructors binds its methods (@m-<con>@);
+      -- a point-only declaration keeps the anonymous arrows it always had.
+      let hasPaths = or [ True | DataConPath{} <- map dataConSort consData ]
+          avoidM = map identTokenOf (motiveV : scrutV : ihNames) <> avoid'
+      methodVars <-
+        if not hasPaths then pure Nothing else Just <$>
+          let go _ [] = pure []
+              go av (con : rest) = do
+                let Rzk.VarIdentToken t = identTokenOf (dataConName con)
+                m <- freshIdent path av ("m-" <> t)
+                (m :) <$> go (identTokenOf m : av) rest
+           in go avoidM consData
+      -- Binders of the inlined transport/apd spellings (rzk has no
+      -- primitive transport, so the generated types spell it through idJ).
+      let avoidM' = maybe [] (map identTokenOf) methodVars <> avoidM
+      endpointV <- freshIdent path avoidM' "y"
+      pathV <- freshIdent path (identTokenOf endpointV : avoidM') "q"
+      -- the inlined transport gets its own binder: it ends up nested inside
+      -- a λ that binds 'endpointV' (the apd motive), and reusing the name
+      -- there would shadow it
+      transportV <- freshIdent path
+        (identTokenOf endpointV : identTokenOf pathV : avoidM') "y"
+      -- The images of a path constructor's endpoints under the section
+      -- being defined; also the endpoint well-formedness check (an endpoint
+      -- must be built from constructors and fields, so that its image is
+      -- syntactically computable — the standard HIT schema restriction).
+      let conMethods = case methodVars of
+            Just ms -> zip (map (identTokenOf . dataConName) consData)
+                           (zip ms consData)
+            Nothing -> []
+          dataTok = identTokenOf name
+          conToks = map (identTokenOf . dataConName) consData
+          recPositionsOf c = map fst (dataConRecursive c)
+          -- the induction-hypothesis binder for each recursive field of a
+          -- constructor, by the field's token (a recursive field is a plain
+          -- variable: no pattern form inhabits the datatype)
+          ihByFieldTok c =
+            [ (identTokenOf v, ihNames !! kk)
+            | (kk, j) <- zip [0 :: Int ..] (recPositionsOf c)
+            , Rzk.Var _ v <- [dataConFieldPats c !! j] ]
+          endpointErr c t = issueTypeError $ TypeErrorOther $
+            "in path constructor " <> Rzk.printTree (dataConName c)
+              <> ": an endpoint must be built from the declaration's"
+              <> " constructors and the constructor's fields, but "
+              <> Rzk.printTree t <> " is not"
+          -- a subterm at a non-recursive argument position must not touch
+          -- the datatype at all: the section being defined does not act on it
+          ensureDFree c t =
+            let bad = dataTok : conToks <> map fst (ihByFieldTok c)
+             in unless (null [ () | tk <- surfaceVarTokens t, tk `elem` bad ])
+                  (endpointErr c t)
+          imageOf c t = case surfaceAppSpine t of
+            (Rzk.Var _ v, args)
+              | Just (m, target) <- lookup (identTokenOf v) conMethods -> do
+                  let nP = length paramVars
+                      arity = length (dataConFields target)
+                      (pArgs, fArgs) = splitAt nP args
+                      varTokOf = \case
+                        Rzk.Var _ u -> Just (identTokenOf u)
+                        _           -> Nothing
+                  unless (length args == nP + arity
+                      && map varTokOf pArgs == map (Just . identTokenOf) paramVars) $
+                    endpointErr c t
+                  imgArgs <- forM (zip [0 :: Int ..] fArgs) $ \(j, a) ->
+                    if j `elem` recPositionsOf target
+                      then do { ia <- imageOf c a; pure [a, ia] }
+                      else do { ensureDFree c a; pure [a] }
+                  pure (surfaceApps (surfaceVar m) (concat imgArgs))
+              | null args
+              , Just ih <- lookup (identTokenOf v) (ihByFieldTok c) ->
+                  pure (surfaceVar ih)
+            _ -> endpointErr c t
+      pathData <- forM consData $ \con -> case dataConSort con of
+        DataConPoint    -> pure Nothing
+        DataConPath l r -> do
+          iL <- imageOf con l
+          iR <- imageOf con r
+          pure (Just ((l, r), (iL, iR)))
       let dApplied = surfaceApps (surfaceVar name) (map surfaceVar paramVars)
           dAppliedIx = surfaceApps dApplied (map surfaceVar indexVars)
           motive = surfaceVar motiveV
@@ -863,19 +1010,41 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
             if dependent
               then surfaceArrow dAppliedIx (Rzk.Universe Nothing)
               else Rzk.Universe Nothing
+          -- The constructor applied to the parameters and its own fields
+          -- (for a path constructor, this is the declared identification).
+          conApplied con = surfaceApps (surfaceVar (dataConName con))
+            (map surfaceVar paramVars <> dataConFieldPats con)
+          -- @transport@ in the motive along a path @p : l ↝ rEnd@, spelled
+          -- through idJ (rzk has no primitive transport):
+          -- @idJ (D …, l, \y' _ → C l → C y', \y' → y', rEnd, p) u@.
+          transportAlong l rEnd p u =
+            Rzk.App Nothing
+              (Rzk.IdJ Nothing dApplied l
+                (surfaceLambda [transportV, underscoreIdent]
+                  (surfaceArrow (Rzk.App Nothing motive l)
+                    (Rzk.App Nothing motive (surfaceVar transportV))))
+                (surfaceLambda [transportV] (surfaceVar transportV))
+                rEnd p)
+              u
           -- One method per constructor: its fields with an induction
           -- hypothesis interleaved after each recursive field (HoTT-book
-          -- style), then the motive at the constructor's return indices
-          -- (and, for @ind-D@, at the constructor applied to parameters
-          -- and fields).
-          methodTy dependent con = wrapFields (0 :: Int)
+          -- style). A point method then ends in the motive at the
+          -- constructor's return indices (and, for @ind-D@, at the
+          -- constructor applied to parameters and fields); a path method
+          -- ends in an equation between the images of the endpoints, over
+          -- the path for @ind-D@ (β on a path constructor stays
+          -- propositional: the equation is the type of the generated
+          -- @compute-@ lemma, not a rule the checker computes with).
+          methodTy dependent (con, mpath) = wrapFields (0 :: Int)
             (zip [0 :: Int ..] (zip (dataConFields con) (dataConFieldPats con)))
             where
-              wrapFields _ [] = surfaceApps motive $
-                dataConRetIndices con
-                  <> [ surfaceApps (surfaceVar (dataConName con))
-                        (map surfaceVar paramVars <> dataConFieldPats con)
-                     | dependent ]
+              wrapFields _ [] = case mpath of
+                Nothing -> surfaceApps motive $
+                  dataConRetIndices con <> [ conApplied con | dependent ]
+                Just ((l, r), (iL, iR))
+                  | dependent -> Rzk.TypeIdSimple Nothing
+                      (transportAlong l r (conApplied con) iL) iR
+                  | otherwise -> Rzk.TypeIdSimple Nothing iL iR
               wrapFields nRec ((j, (fieldDecl, fpat)) : more)
                 | Just fieldIxs <- lookup j (dataConRecursive con) =
                     Rzk.TypeFun Nothing fieldDecl $
@@ -890,13 +1059,63 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
                 surfaceApps motive (map surfaceVar indexVars <> [surfaceVar scrutV])
               else surfaceArrow dAppliedIx $
                 surfaceApps motive (map surfaceVar indexVars)
+          conWithPath = zip consData pathData
+          methodsPis dependent inner = case methodVars of
+            Nothing -> foldr (surfaceArrow . methodTy dependent) inner conWithPath
+            Just ms -> foldr
+              (\(m, cp) rest -> surfacePi m (methodTy dependent cp) rest)
+              inner (zip ms conWithPath)
           elimTy dependent = addParamDecls paramDecls $
             surfacePi motiveV (motiveSort dependent) $
-              foldr (surfaceArrow . methodTy dependent)
-                (elimTail dependent)
-                consData
+              methodsPis dependent (elimTail dependent)
           indName = prefixedIdent "ind-" name
           recName = prefixedIdent "rec-" name
+          -- The propositional β-lemma per path constructor and eliminator:
+          -- the section's action on the constructor's path (ap/apd, spelled
+          -- through idJ) equals the path method at the fields, with the
+          -- section applied to each recursive field as its hypothesis.
+          -- Generated as opaque entries, like the eliminators themselves.
+          sectionOf elimIdent = surfaceApps (surfaceVar elimIdent)
+            (map surfaceVar paramVars <> [motive]
+              <> maybe [] (map surfaceVar) methodVars)
+          methodArgs f con = concat
+            [ fpat : [ Rzk.App Nothing f fpat | j `elem` recPositionsOf con ]
+            | (j, fpat) <- zip [0 :: Int ..] (dataConFieldPats con) ]
+          computeTy dependent elimIdent m con l r =
+            addParamDecls paramDecls $
+              surfacePi motiveV (motiveSort dependent) $
+                methodsPis dependent $
+                  addParamDecls (dataConFields con) $
+                    let f = sectionOf elimIdent
+                        fAt = Rzk.App Nothing f
+                        -- apd (dependent) or ap: the motive of the outer
+                        -- idJ states what the section does to a path
+                        motiveBody
+                          | dependent = Rzk.TypeIdSimple Nothing
+                              (transportAlong l (surfaceVar endpointV)
+                                (surfaceVar pathV) (fAt l))
+                              (fAt (surfaceVar endpointV))
+                          | otherwise = Rzk.TypeIdSimple Nothing
+                              (fAt l) (fAt (surfaceVar endpointV))
+                        lhs = Rzk.IdJ Nothing dApplied l
+                          (surfaceLambda [endpointV, pathV] motiveBody)
+                          (Rzk.Refl Nothing) r (conApplied con)
+                        rhs = surfaceApps (surfaceVar m) (methodArgs f con)
+                     in Rzk.TypeIdSimple Nothing lhs rhs
+          computeNameFor pfx con =
+            let Rzk.VarIdent pos (Rzk.VarIdentToken d) = name
+                Rzk.VarIdentToken c = identTokenOf (dataConName con)
+             in Rzk.VarIdent pos (Rzk.VarIdentToken (pfx <> d <> "-" <> c))
+          computes = case methodVars of
+            Nothing -> []
+            Just ms ->
+              [ entry
+              | (m, (con, Just ((l, r), _))) <- zip ms conWithPath
+              , entry <-
+                  [ ( computeNameFor "compute-ind-" con
+                    , computeTy True indName m con l r )
+                  , ( computeNameFor "compute-rec-" con
+                    , computeTy False recName m con l r ) ] ]
       (mindTy, mrecTy) <- splitElimClauses indName recName
       indTyT <- elaborate (elimTy True)
       indCanonical <- memoizeWHNF =<< typecheck indTyT universeT
@@ -909,10 +1128,31 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           recCanonical <- memoizeWHNF =<< typecheck recTyT universeT
           recTy' <- reascribe recName recCanonical mrecTy
           recDeps <- assumptionDepsOf recTy'
+          let usedAtInd = Foil.sinkContainer usedHere
           withTopLevel (varIdentAt path recName) recTy' Nothing False
-            (nubNames (Foil.sinkContainer usedHere <> recDeps))
+            (nubNames (usedAtInd <> recDeps))
             (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
-              k (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
+              bindComputes
+                (Foil.sinkContainer usedAtInd)
+                computes
+                (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
+
+    -- | Bind the generated @compute-@ lemmas (one @ind@/@rec@ pair per
+    -- path constructor), then hand the accumulated declarations to the
+    -- continuation of 'withDataDecls'.
+    bindComputes
+      :: forall m. DExt n m
+      => [Foil.Name m] -> [(Rzk.VarIdent, Rzk.Term)] -> [Decl m]
+      -> TypeCheck m r
+    bindComputes _used [] acc = k acc
+    bindComputes usedHere ((cname, cty) : rest) acc = do
+      tyT <- elaborate cty
+      ty' <- memoizeWHNF =<< typecheck tyT universeT
+      deps <- assumptionDepsOf ty'
+      withTopLevel (varIdentAt path cname) ty' Nothing False
+        (nubNames (usedHere <> deps)) Nothing $ \_ decl ->
+          bindComputes (Foil.sinkContainer usedHere) rest
+            (sinkDecls acc <> [decl])
 
     -- | Split the re-ascription clauses between the two generated
     -- eliminators. A clause must name one of them, at most once each.
