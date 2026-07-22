@@ -419,6 +419,7 @@ library
       Rzk.TypeCheck.BinderTypes
       Rzk.TypeCheck.Context
       Rzk.TypeCheck.Decl
+      Rzk.TypeCheck.Decl.Data
       Rzk.TypeCheck.Display
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
