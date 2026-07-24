@@ -1,0 +1,65 @@
+#lang rzk-1
+
+-- The re-ascription clauses give the generated eliminators and
+-- computation rules readable spellings through a library transport/ap/apd
+-- (each definable from idJ before any declaration).
+#define transport
+  ( A : U)
+  ( C : A → U)
+  ( x y : A)
+  ( p : x =_{A} y)
+  ( u : C x)
+  : C y
+  := idJ (A, x, \ y' _ → C x → C y', \ v → v, y, p) u
+
+#define ap
+  ( A B : U)
+  ( f : A → B)
+  ( x y : A)
+  ( p : x =_{A} y)
+  : f x =_{B} f y
+  := idJ (A, x, \ y' _ → f x =_{B} f y', refl, y, p)
+
+#define apd
+  ( A : U)
+  ( C : A → U)
+  ( f : (a : A) → C a)
+  ( x y : A)
+  ( p : x =_{A} y)
+  : transport A C x y p (f x) =_{C y} f y
+  := idJ (A, x, \ y' q → transport A C x y' q (f x) =_{C y'} f y', refl, y, p)
+
+#data S1
+  :=
+    base
+  | loop : base =_{S1} base
+  eliminate with ind-S1
+    : ( C : S1 → U)
+    → ( b : C base)
+    → ( ℓ : transport S1 C base base loop b = b)
+    → ( x : S1)
+    → C x
+  compute with compute-rec-S1-loop
+    : ( C : U)
+    → ( b : C)
+    → ( ℓ : b = b)
+    → ap S1 C (rec-S1 C b ℓ) base base loop = ℓ
+  compute with compute-ind-S1-loop
+    : ( C : S1 → U)
+    → ( b : C base)
+    → ( ℓ : transport S1 C base base loop b = b)
+    → apd S1 C (ind-S1 C b ℓ) base base loop = ℓ
+
+-- the stored spellings stay interchangeable with the canonical types
+#check ind-S1
+  : ( C : S1 → U)
+  → ( b : C base)
+  → ( ℓ : idJ (S1, base, \ y _ → C base → C y, \ u → u, base, loop) b = b)
+  → ( x : S1)
+  → C x
+
+#check compute-rec-S1-loop
+  : ( C : U)
+  → ( b : C)
+  → ( ℓ : b = b)
+  → ap S1 C (rec-S1 C b ℓ) base base loop = ℓ

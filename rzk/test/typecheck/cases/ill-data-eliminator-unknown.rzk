@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- An eliminate with clause must name one of the two generated eliminators.
+#data d := c
+  eliminate with elim-d : (C : d → U) → C c → (x : d) → C x

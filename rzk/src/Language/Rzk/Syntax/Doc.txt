@@ -35,14 +35,14 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 The reserved words used in Syntax are the following:
   | ``BOT`` | ``CUBE`` | ``II`` | ``Sigma``
   | ``TOP`` | ``TOPE`` | ``U`` | ``Unit``
-  | ``as`` | ``eliminator`` | ``first`` | ``flip_op``
-  | ``flipᵒᵖ`` | ``idJ`` | ``in`` | ``inf``
-  | ``into`` | ``inv_op`` | ``invᵒᵖ`` | ``let``
-  | ``match`` | ``mod`` | ``recBOT`` | ``recOR``
-  | ``refl`` | ``second`` | ``sup`` | ``unflip_op``
-  | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ`` | ``unit``
-  | ``uses`` | ``Σ`` | ``π₁`` | ``π₂``
-  | ``ᵒᵖ`` | ``𝕀`` |  |
+  | ``as`` | ``compute`` | ``eliminate`` | ``first``
+  | ``flip_op`` | ``flipᵒᵖ`` | ``idJ`` | ``in``
+  | ``inf`` | ``into`` | ``inv_op`` | ``invᵒᵖ``
+  | ``let`` | ``match`` | ``mod`` | ``recBOT``
+  | ``recOR`` | ``refl`` | ``second`` | ``sup``
+  | ``unflip_op`` | ``unflipᵒᵖ`` | ``uninv_op`` | ``uninvᵒᵖ``
+  | ``unit`` | ``uses`` | ``with`` | ``Σ``
+  | ``π₁`` | ``π₂`` | ``ᵒᵖ`` | ``𝕀``
 
 The symbols used in Syntax are the following:
   | #lang | ; | rzk-1 | #set-option
@@ -117,7 +117,8 @@ All other symbols are terminals.
   |  |  **|**  | //Constructor// ``|`` //[Constructor]//
   | //ConstructorType// | -> | ``:`` //Term//
   |  |  **|**  | **eps**
-  | //DataElim// | -> | ``eliminator`` //VarIdent// ``:`` //Term//
+  | //DataElim// | -> | ``eliminate`` ``with`` //VarIdent// ``:`` //Term//
+  |  |  **|**  | ``compute`` ``with`` //VarIdent// ``:`` //Term//
   | //[DataElim]// | -> | **eps**
   |  |  **|**  | //DataElim// //[DataElim]//
   | //MatchBranch// | -> | //VarIdent// //[Pattern]// ``⇒`` //Term//
@@ -254,6 +255,7 @@ All other symbols are terminals.
   |  |  **|**  | ``let`` //Bind// ``:=`` //Term// ``in`` //Term//
   |  |  **|**  | ``\`` //[Param]// ``→`` //Term1//
   |  |  **|**  | ``let`` ``mod`` //ModComp// //Bind// ``:=`` //Term// ``in`` //Term//
+  |  |  **|**  | ``let`` ``mod`` //ModComp// //Bind// ``:=`` //Term// ``into`` //Term// ``in`` //Term//
   |  |  **|**  | //Term2//
   |  |  **|**  | //ParamDecl// ``->`` //Term1//
   |  |  **|**  | ``Sigma`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//

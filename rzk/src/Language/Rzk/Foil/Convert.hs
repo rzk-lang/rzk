@@ -295,11 +295,19 @@ toTerm scope env = go
       Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
       Rzk.LetMod _loc comp (Rzk.BindPattern _ pat) val body ->
         let (app, inn) = Free.modCompToMods comp
-         in LetMod (toBinder pat) app inn Nothing (go val)
+         in LetMod (toBinder pat) app inn Nothing Nothing (go val)
               (toScopedPattern scope pat env body)
       Rzk.LetMod _loc comp (Rzk.BindPatternType _ pat ty) val body ->
         let (app, inn) = Free.modCompToMods comp
-         in LetMod (toBinder pat) app inn (Just (go ty)) (go val)
+         in LetMod (toBinder pat) app inn (Just (go ty)) Nothing (go val)
+              (toScopedPattern scope pat env body)
+      Rzk.LetModInto _loc comp (Rzk.BindPattern _ pat) val motive body ->
+        let (app, inn) = Free.modCompToMods comp
+         in LetMod (toBinder pat) app inn Nothing (Just (go motive)) (go val)
+              (toScopedPattern scope pat env body)
+      Rzk.LetModInto _loc comp (Rzk.BindPatternType _ pat ty) val motive body ->
+        let (app, inn) = Free.modCompToMods comp
+         in LetMod (toBinder pat) app inn (Just (go ty)) (Just (go motive)) (go val)
               (toScopedPattern scope pat env body)
 
     restriction = \case

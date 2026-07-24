@@ -149,7 +149,7 @@ binderTypesOfTerm = go
         bodyEntries  <- inScopeWith binder Id (fromMaybe universeT valueType) (Just value) body go
         pure (entries ++ annEntries ++ valueEntries ++ bodyEntries)
 
-      LetModT _ binder _nu mu manno value body -> do
+      LetModT _ binder _nu mu manno mmotive value body -> do
         unwrapped <- case typeInfoOf value of
           Nothing -> pure Nothing
           Just valueInfo -> do
@@ -159,9 +159,10 @@ binderTypesOfTerm = go
               Nothing -> (modalView <$> whnfT vt) `catchError` \_ -> pure Nothing
         entries      <- maybe (pure []) (binderTypeEntries binder) unwrapped
         annEntries   <- maybe (pure []) go manno
+        motiveEntries <- maybe (pure []) go mmotive
         valueEntries <- go value
         bodyEntries  <- inScope binder mu (fromMaybe universeT unwrapped) body go
-        pure (entries ++ annEntries ++ valueEntries ++ bodyEntries)
+        pure (entries ++ annEntries ++ motiveEntries ++ valueEntries ++ bodyEntries)
 
       Node (AnnSig _ f) ->
         concat <$> mapM go (bifoldr (\_ acc -> acc) (:) [] f)

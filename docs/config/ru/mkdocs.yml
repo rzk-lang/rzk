@@ -46,7 +46,10 @@ nav:
           - Отрисовка диаграм: reference/render.rzk.md
       - Примеры:
           - Слабое устранение объединений форм: examples/recId.rzk.md
-  - Песочница: playground/index.html
+  # Абсолютная ссылка: сайт разворачивается под ru/<версия>/, где
+  # относительная ссылка playground/ вела бы внутрь каталога версии mike,
+  # в котором песочницы нет.
+  - Песочница: https://rzk-lang.github.io/rzk/playground/
   - Блог (англ.): blog/index.html
 
 theme:

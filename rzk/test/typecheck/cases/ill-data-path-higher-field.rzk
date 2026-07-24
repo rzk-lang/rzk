@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- A field of an identity type over the declared type would smuggle in a
+-- higher path (the 0-truncation's squash₀ shape); not supported yet.
+#data bad
+  := c
+   | sq (x : bad) (y : bad) (u : x =_{bad} y) (v : x =_{bad} y) : x =_{bad} y

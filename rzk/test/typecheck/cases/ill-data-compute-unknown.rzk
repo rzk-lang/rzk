@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A compute with clause must name a generated computation rule; a
+-- declaration without path constructors generates none.
+#data d := c
+  compute with compute-ind-d-c : U

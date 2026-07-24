@@ -115,7 +115,7 @@ dataConstructorsOf d = do
   pure $ map snd $ sortOn fst
     [ (idx, v)
     | v <- ctxBound ctx
-    , Just (DataRole d' _ (DataConKind idx _ _)) <- [varDataRole (lookupVarInfo v ctx)]
+    , Just (DataRole d' _ (DataConKind _ idx _ _)) <- [varDataRole (lookupVarInfo v ctx)]
     , Foil.nameId d' == Foil.nameId d
     ]
 
@@ -179,7 +179,7 @@ matchHoleOf ctx taken scope numParams cons term =
     branchBinders c =
       let info = lookupVarInfo c ctx
           (numFields, recIdxs) = case varDataRole info of
-            Just (DataRole _ _ (DataConKind _ nf ri)) -> (nf, ri)
+            Just (DataRole _ _ (DataConKind _ _ nf ri)) -> (nf, ri)
             _                                         -> (0, [])
           fields = piBinders numParams numFields (varType info)
        in named taken (concat
@@ -549,7 +549,7 @@ allIntroductionsOf target takenNames = do
         cons <- dataConstructorsOf d
         fmap concat $ forM cons $ \c ->
           case varDataRole (lookupVarInfo c ctx) of
-            Just (DataRole _ numParams (DataConKind _ numFields _)) -> do
+            Just (DataRole _ numParams (DataConKind _ _ numFields _)) -> do
               saturated <- applyPlan (Var c)
                 (replicate (numParams + numFields) Nothing)
               satTy <- typeOf saturated
@@ -1030,7 +1030,11 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           typecheck bodyTerm (Foil.sink ty')
         return (letT ty' orig (Just bindTy) val' body')
 
-      LetMod orig app inn annot val body -> do
+      -- Only a motive-free @let mod@ is checked here: with no motive the body may
+      -- be checked directly against the (sunk) goal. An explicit motive instead
+      -- fixes the type of the whole let, so that form falls through to the generic
+      -- branch below, which infers it and unifies the result against the goal.
+      LetMod orig app inn annot Nothing val body -> do
         val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> enterModality app $ infer val
           Just bindType -> do
@@ -1049,7 +1053,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           _ -> pure Nothing
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
           typecheck bodyTerm (Foil.sink ty')
-        return (letModT ty' orig app inn (Just bindTy) val' body')
+        return (letModT ty' orig app inn (Just bindTy) Nothing val' body')
 
       Pair l r ->
         case ty' of
@@ -1122,6 +1126,18 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           else unifyTypes term' ty' inferredType
         return term'
 
+-- | How a match elaborates: which eliminator it targets, and — for @ind-D@ —
+-- which variable scrutinee (if any) to abstract out of the goal when building
+-- the motive. Computed once from the @into@ motive, the goal, and the
+-- scrutinee, so that the eliminator choice and the later motive construction
+-- read from the same decision instead of re-deriving it in two places.
+data MatchPlan n
+  = MatchRec
+    -- ^ @rec-D@: a non-dependent family, so the motive has no scrutinee binder.
+  | MatchInd (Maybe (Foil.Name n))
+    -- ^ @ind-D@; the name, when present, is the variable scrutinee to abstract
+    -- out of the goal.
+
 -- | Elaborate a match into an application of its datatype's induction
 -- eliminator: @ind-D params motive method₁ … methodₖ indices scrutinee@. The
 -- spine is the result — a match node never survives elaboration (see the
@@ -1146,8 +1162,24 @@ checkMatch term scrut mmotive branches mgoal = do
     (Var d, _) -> pure d
     _          -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   elims <- dataEliminatorsOf d
-  (e, numParams) <- case elims of
-    (e, DataRole _ numParams _) : _ -> pure (e, numParams)   -- ind-D comes before rec-D
+  -- The eliminator to elaborate into: @ind-D@ when the motive genuinely
+  -- depends on the scrutinee (an @into@ motive, or a variable scrutinee
+  -- occurring in the goal); @rec-D@ otherwise. The choice matters for path
+  -- constructors: under @rec-D@ a path branch is checked against the plain
+  -- equation between the point branches, where @ind-D@ with a constant
+  -- family would demand a transport that does not reduce.
+  let plan = case (mmotive, mgoal) of
+        (Just _, _)    -> MatchInd Nothing
+        (_, Nothing)   -> MatchInd Nothing
+        (_, Just goal) -> case scrut' of
+          Var v | v `elemName` freeVarsOfTermT goal -> MatchInd (Just v)
+          _                                         -> MatchRec
+      wantedKind = case plan of
+        MatchRec   -> ElimRec
+        MatchInd{} -> ElimInd
+  (e, numParams) <- case
+      [ er | er@(_, DataRole _ _ (DataElimKind _ _ ek)) <- elims, ek == wantedKind ] of
+    (e, DataRole _ numParams _) : _ -> pure (e, numParams)
     [] -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   let dargs = case collectAppSpine scrutTy of
         (_, args) -> map snd args
@@ -1160,7 +1192,7 @@ checkMatch term scrut mmotive branches mgoal = do
         Just x  -> x
         Nothing -> panicImpossible "a constructor entry with no name"
       conArity c = case varDataRole (lookupVarInfo c ctx) of
-        Just (DataRole _ _ (DataConKind _ numFields recIdxs)) ->
+        Just (DataRole _ _ (DataConKind _ _ numFields recIdxs)) ->
           numFields + length recIdxs
         _ -> panicImpossible "a constructor entry with no constructor role"
       conNames = map conIdent cons
@@ -1198,9 +1230,13 @@ checkMatch term scrut mmotive branches mgoal = do
           TypeFunT _ _ _ mty _ _ -> pure mty
           _ -> panicImpossible "an eliminator's type has no motive parameter"
         scope <- asks ctxScope
-        let mv = case scrut' of
-              Var v -> Just v
-              _     -> Nothing
+        -- Under @rec-D@ the motive type has no scrutinee binder, so there
+        -- is nothing to substitute (and the goal does not mention the
+        -- scrutinee variable anyway — that is what chose @rec-D@). The
+        -- variable to abstract is the one the plan already settled on.
+        let mv = case plan of
+              MatchInd v -> v
+              MatchRec   -> Nothing
         pure (motiveFromGoal scope motiveTy mv goal)
   atMotive <- applyPlan atParams [Just motive']
   let applyMethods t [] = pure t
@@ -1665,29 +1701,43 @@ infer tt = performing (ActionInfer tt) $ case tt of
     retAt <- instantiate ret val'
     return (letT retAt orig (Just bindTy) val' body')
 
-  LetMod orig app inn annot val body -> do
+  LetMod orig app inn annot mmotive val body -> do
     val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
       Nothing -> enterModality app $ infer val
       Just bindType -> do
         bindType' <- infer bindType
         bindUniv <- typeOf bindType'
         enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
-    bindTy <- typeOf val' >>= \case
-      o@(TypeModalT _ty md t) ->
-        if md == inn
-          then return t
-          else issueTypeError $ TypeErrorNotModal (untyped o) inn val'
+    valTy <- typeOf val'
+    bindTy <- case valTy of
+      TypeModalT _ty md t | md == inn -> return t
       o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
     bindVal <- whnfT val' >>= \case
       ModAppT _ty _m t -> pure (Just t)
       o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
       _ -> pure Nothing
-    (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
-      body' <- infer bodyTerm
-      ret <- typeOf body'
-      pure (ScopedAST binder body', ScopedAST binder ret)
-    retAt <- instantiate ret val'
-    return (letModT retAt orig app inn (Just bindTy) val' body')
+    -- The motive is a family over the modal value, @(z :^app ⟨inn|A⟩) → U@, so its
+    -- binder stands for the whole @val@ and not for the let-bound @orig : A@; it is
+    -- left anonymous rather than reusing @orig@, which would show the wrong role in
+    -- goals and hovers. Only @U@ is supported as the codomain for now: a motive
+    -- landing in @CUBE@ or @TOPE@ cannot be written.
+    univScope <- constScope universeT
+    mmotive' <- forM mmotive $ \motive ->
+      typecheck motive (typeFunT (BinderVar Nothing) app valTy Nothing univScope)
+    case mmotive' of
+      Just motive' -> do
+        body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \binder bodyTerm ->
+          typecheck bodyTerm
+            (appT universeT (Foil.sink motive')
+              (modAppT (Foil.sink valTy) inn (Var (Foil.nameOf binder))))
+        return (letModT (appT universeT motive' val') orig app inn (Just bindTy) mmotive' val' body')
+      Nothing -> do
+        (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
+          body' <- infer bodyTerm
+          ret <- typeOf body'
+          pure (ScopedAST binder body', ScopedAST binder ret)
+        retAt <- instantiate ret val'
+        return (letModT retAt orig app inn (Just bindTy) Nothing val' body')
 
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt
   Refl (Just (x, Nothing)) -> do

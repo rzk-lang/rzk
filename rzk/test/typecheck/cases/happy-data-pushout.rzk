@@ -1,0 +1,24 @@
+#lang rzk-1
+
+-- The pushout: the path constructor's endpoints apply point constructors
+-- to datatype-free terms (f c and g c), which the endpoint images leave
+-- untouched.
+#data pushout
+  ( A B C : U)
+  ( f : C → A)
+  ( g : C → B)
+  :=
+    inl (a : A)
+  | inr (b : B)
+  | glue (c : C)
+    : inl A B C f g (f c) =_{pushout A B C f g} inr A B C f g (g c)
+
+#check rec-pushout
+  : ( A B C : U)
+  → ( f : C → A)
+  → ( g : C → B)
+  → ( X : U)
+  → ( l : A → X)
+  → ( r : B → X)
+  → ( gl : (c : C) → l (f c) = r (g c))
+  → pushout A B C f g → X

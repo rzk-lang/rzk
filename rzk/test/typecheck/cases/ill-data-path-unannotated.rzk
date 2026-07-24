@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- A path constructor must spell out the carrier of its identification.
+#data S1 := base | loop : base = base

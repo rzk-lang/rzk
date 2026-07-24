@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- A path between paths (an identity carrier) is a higher path
+-- constructor, which is not supported yet.
+#data bad := c | p : c =_{bad} c | q : p =_{c =_{bad} c} p

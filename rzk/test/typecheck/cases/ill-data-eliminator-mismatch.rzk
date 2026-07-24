@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A re-ascribed eliminator type must be definitionally equal to the
+-- canonical generated type; here the method for the constructor is missing.
+#data d := c
+  eliminate with ind-d : (C : d → U) → (x : d) → C x

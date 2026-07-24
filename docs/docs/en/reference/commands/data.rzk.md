@@ -5,7 +5,7 @@ The `#data` command declares an inductive type: the type former, its constructor
 ## Syntax
 
 ```{.rzk}
-#data <name> [uses (<vars>)] (<param>)* := <constructor> [| <constructor>]*
+#data <name> [uses (<vars>)] (<param>)* := <constructor> [| <constructor>]* (<elim-clause>)*
 #data <name> [uses (<vars>)] (<param>)*
 ```
 
@@ -13,6 +13,13 @@ where a constructor is
 
 ```{.rzk}
 <name> (<field>)*
+```
+
+and an optional re-ascription clause is
+
+```{.rzk}
+eliminate with <name> : <type>
+compute with <name> : <type>
 ```
 
 ## Description
@@ -43,7 +50,7 @@ generates
   → coprod A B → C
 ```
 
-The eliminator arguments come in the order: parameters, motive, one method per constructor (in declaration order), scrutinee. Computation is definitional: an eliminator applied to a constructor reduces to the corresponding method applied to the constructor's fields. The [`match` expression](../match.rzk.md) is notation for the induction principle, with one branch per constructor.
+The eliminator arguments come in the order: parameters, motive, one method per constructor (in declaration order), scrutinee. Computation is definitional: an eliminator applied to a point constructor reduces to the corresponding method applied to the constructor's fields. The [`match` expression](../match.rzk.md) is notation for the eliminators, with one branch per constructor.
 
 !!! warning "Large inductive types"
 
@@ -83,12 +90,94 @@ Indexed families spell their index telescope in the sort. A constructor of an in
 
 The parameters (before the sort) are uniform: every constructor returns the declared type applied to exactly the parameter variables, followed by its index terms.
 
+## Path constructors
+
+A constructor whose return type is an identity type over the declared type, spelled `#!rzk l =_{D} r`, declares a _path_: an identification between the two endpoint terms. This makes the declaration a higher inductive type in the style of the HoTT book. For example, the circle:
+
+```rzk
+#data S¹
+  :=
+    base
+  | loop : base =_{S¹} base
+```
+
+Each path constructor contributes a method to the generated eliminators: the equation between the images of its endpoints under the section being defined, over the path for `ind-S¹` (spelled with transport through `#!rzk idJ`, since Rzk has no primitive transport). Since a path method refers to the point methods, a declaration with path constructors binds its method arguments by name (`m-base`, `m-loop`):
+
+```rzk
+#check ind-S¹
+  : ( C : S¹ → U)
+  → ( b : C base)
+  → ( ℓ : idJ (S¹ , base , \ y _ → C base → C y , \ u → u , base , loop) b = b)
+  → ( x : S¹)
+  → C x
+
+#check rec-S¹ : (C : U) → (b : C) → (ℓ : b = b) → S¹ → C
+```
+
+Computation follows the HoTT book: β stays definitional on point constructors and is _propositional_ on path constructors. Nothing reduces when an eliminator meets a path; instead the declaration generates one computation rule per path constructor and eliminator, named `compute-ind-<name>-<con>` and `compute-rec-<name>-<con>`, stating that `ap`/`apd` of the eliminator on the path equals the method.
+
+An endpoint must be built from the declaration's constructors and the constructor's own fields (a directly recursive field is fine, and its image is the induction hypothesis). For example, the propositional truncation:
+
+```rzk
+#data trunc
+  ( A : U)
+  :=
+    in-trunc (a : A)
+  | squash (x : trunc A) (y : trunc A) : x =_{trunc A} y
+```
+
+## The re-ascription clauses
+
+A declaration may end with re-ascription clauses: `eliminate with` names one of the two generated eliminators, `compute with` names a generated computation rule, and either gives the entry's type in the user's own spelling. The checker verifies that the spelling is definitionally equal to the canonical generated type, with the type former and the constructors in scope. Since definitionally equal types are interchangeable, the values and the computation rules are untouched; only the stored spelling changes, and it propagates wherever the type is displayed, e.g. to hover and to goals. If the given spelling is not definitionally equal to the canonical type, the error prints the canonical type.
+
+This matters most for path constructors, whose canonical types inline transport and `ap`/`apd` through `#!rzk idJ`. With a library `transport`, `ap` and `apd` (each definable from `#!rzk idJ` before any declaration), the circle reads:
+
+```rzk
+#define transport
+  ( A : U) (C : A → U) (x y : A) (p : x =_{A} y) (u : C x)
+  : C y
+  := idJ (A , x , \ y' _ → C x → C y' , \ v → v , y , p) u
+
+#define ap
+  ( A B : U) (f : A → B) (x y : A) (p : x =_{A} y)
+  : f x =_{B} f y
+  := idJ (A , x , \ y' _ → f x =_{B} f y' , refl , y , p)
+
+#define apd
+  ( A : U) (C : A → U) (f : (a : A) → C a) (x y : A) (p : x =_{A} y)
+  : transport A C x y p (f x) =_{C y} f y
+  := idJ (A , x , \ y' q → transport A C x y' q (f x) =_{C y'} f y' , refl , y , p)
+
+#data circle
+  :=
+    pt
+  | turn : pt =_{circle} pt
+  eliminate with ind-circle
+    : ( C : circle → U)
+    → ( b : C pt)
+    → ( ℓ : transport circle C pt pt turn b = b)
+    → ( x : circle)
+    → C x
+  compute with compute-rec-circle-turn
+    : ( C : U)
+    → ( b : C)
+    → ( ℓ : b = b)
+    → ap circle C (rec-circle C b ℓ) pt pt turn = ℓ
+  compute with compute-ind-circle-turn
+    : ( C : circle → U)
+    → ( b : C pt)
+    → ( ℓ : transport circle C pt pt turn b = b)
+    → apd circle C (ind-circle C b ℓ) pt pt turn = ℓ
+```
+
+The clauses are equally available on declarations without path constructors, e.g. to spell an eliminator's type through an unfolding synonym.
+
 ## Current restrictions
 
 At the moment:
 
 - recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
 - indices must be plain types (no cube or shape indices), and constructors may not take cube or shape arguments (over the directed interval they would declare directed cells);
-- the `eliminator` re-ascription clause is parsed but not yet supported.
+- path constructors are not supported in indexed families, and only paths between points are supported: an identity carrier or an identity-typed field (a higher path, as in the 0-truncation) is rejected.
 
 Note also that an inductive type comes with exactly its induction principle; how the type interacts with the simplicial structure is a separate matter. See the discreteness caveat in [Dependent types](../../getting-started/dependent-types.rzk.md#booleans).

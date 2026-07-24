@@ -78,8 +78,11 @@ separator nonempty Constructor "|" ;
 SomeConstructorType. ConstructorType ::= ":" Term ;
 NoConstructorType.   ConstructorType ::= ;
 
--- An optional re-ascription of a generated eliminator's type
-DataElim. DataElim ::= "eliminator" VarIdent ":" Term ;
+-- An optional re-ascription of a generated entry's type: the named
+-- eliminator ("eliminate with") or computation rule ("compute with")
+-- gets the user's definitionally equal spelling
+DataElim.    DataElim ::= "eliminate" "with" VarIdent ":" Term ;
+DataCompute. DataElim ::= "compute" "with" VarIdent ":" Term ;
 terminator DataElim "" ;
 
 -- A match branch: constructor name, one binder per method argument
@@ -204,6 +207,7 @@ ModApp.         Term7 ::= "mod" Modality Term7 ;
 ModType.        Term7 ::= Modality Term7 ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
 LetMod.         Term1 ::= "let" "mod" ModComp Bind ":=" Term "in" Term ;
+LetModInto.     Term1 ::= "let" "mod" ModComp Bind ":=" Term "into" Term "in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
 Unit.           Term7 ::= "unit" ;

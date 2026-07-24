@@ -1,6 +1,6 @@
 # Pattern matching
 
-The `match` expression eliminates a value of an inductive type declared with [`#data`](commands/data.rzk.md), with one branch per constructor. It is notation for the generated induction principle, in the Epigram discipline[^epigram] recently revived by Project Pterodactyl[^ptero]: typechecking elaborates every `match` into an application of `ind-<name>`, so computation and termination behave exactly as they do for the eliminator.
+The `match` expression eliminates a value of an inductive type declared with [`#data`](commands/data.rzk.md), with one branch per constructor. It is notation for the generated eliminators, in the Epigram discipline[^epigram] recently revived by Project Pterodactyl[^ptero]: typechecking elaborates every `match` into an application of `ind-<name>` (or `rec-<name>`, when the goal does not depend on the scrutinee), so computation and termination behave exactly as they do for the eliminators.
 
 ```rzk
 #lang rzk-1
@@ -132,6 +132,24 @@ The motive may use the indices. For instance, the safe head on `vec A (suc n)` c
 ```
 
 When the goal depends on the indices of a variable scrutinee, the built motive keeps the indices fixed, which is usually not what the induction needs. Write the dependent motive with `into` in that case.
+
+## Higher inductive types
+
+`match` extends to path constructors unchanged, as notation for the eliminators. A branch for a path constructor is checked against the corresponding method type, which depends on the point branches. With a goal that does not mention the scrutinee the match elaborates through `rec`, so the `loop` branch below is checked against `base = base`, the equation the `base` branch determines:
+
+```rzk
+#data S¹
+  :=
+    base
+  | loop : base =_{S¹} base
+
+#define S¹-id
+  ( x : S¹)
+  : S¹
+  := match x (base ⇒ base | loop ⇒ loop)
+```
+
+Nothing computes definitionally on a path constructor; the generated `compute-` rules are the propositional substitute (see [`#data`](commands/data.rzk.md)).
 
 [^epigram]: Conor McBride and James McKinna. _The view from the left._ Journal of Functional Programming 14(1), pp. 69–111, 2004. <https://doi.org/10.1017/S0956796803004829>
 

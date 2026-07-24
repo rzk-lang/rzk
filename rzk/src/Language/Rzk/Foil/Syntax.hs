@@ -131,7 +131,7 @@ data TermSig scope term
     | TypeModalF TModality term
     | ModAppF TModality term
     | ModExtractF TModality TModality term
-    | LetModF Binder TModality TModality (Maybe term) term scope
+    | LetModF Binder TModality TModality (Maybe term) (Maybe term) term scope
     | HoleF (Maybe VarIdent)
     deriving (Eq, Functor, Foldable, Traversable, GHC.Generic)
 
@@ -507,7 +507,7 @@ pattern TypeRestrictedT info ty rs = Node (AnnSig info (TypeRestrictedF ty rs))
 pattern TypeModalT info md ty = Node (AnnSig info (TypeModalF md ty))
 pattern ModAppT info md t = Node (AnnSig info (ModAppF md t))
 pattern ModExtractT info app inn t = Node (AnnSig info (ModExtractF app inn t))
-pattern LetModT info orig app inn mparam val body = Node (AnnSig info (LetModF orig app inn mparam val body))
+pattern LetModT info orig app inn mparam mmotive val body = Node (AnnSig info (LetModF orig app inn mparam mmotive val body))
 pattern HoleT info mname = Node (AnnSig info (HoleF mname))
 
 {-# COMPLETE Var, UniverseT, UniverseCubeT, UniverseTopeT, CubeUnitT,
@@ -569,7 +569,7 @@ pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
 pattern TypeModal md ty = Node (TypeModalF md ty)
 pattern ModApp md t = Node (ModAppF md t)
 pattern ModExtract app inn t = Node (ModExtractF app inn t)
-pattern LetMod orig app inn mparam val body = Node (LetModF orig app inn mparam val body)
+pattern LetMod orig app inn mparam mmotive val body = Node (LetModF orig app inn mparam mmotive val body)
 pattern Hole mname = Node (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
@@ -753,10 +753,10 @@ letT :: TermT n -> Binder -> Maybe (TermT n) -> TermT n -> ScopedTermT n -> Term
 letT ty orig mparam val body = LetT (topeInfo ty) orig mparam val body
 
 letModT
-  :: TermT n -> Binder -> TModality -> TModality -> Maybe (TermT n) -> TermT n
-  -> ScopedTermT n -> TermT n
-letModT ty orig app inn mparam val body =
-  LetModT (topeInfo ty) orig app inn mparam val body
+  :: TermT n -> Binder -> TModality -> TModality -> Maybe (TermT n)
+  -> Maybe (TermT n) -> TermT n -> ScopedTermT n -> TermT n
+letModT ty orig app inn mparam mmotive val body =
+  LetModT (topeInfo ty) orig app inn mparam mmotive val body
 
 -- | @refl@ normalises to a bare @refl@: its endpoints are recoverable from the
 -- type, so they are dropped from the normal form.

@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "declares a path between paths; higher path constructors are not supported yet"
+line: 5
+regression_for:
+  - data-stage3-path-constructors

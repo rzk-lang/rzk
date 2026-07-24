@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- At most one clause per generated eliminator.
+#data d := c
+  eliminate with ind-d : (C : d → U) → C c → (x : d) → C x
+  eliminate with ind-d : (C : d → U) → C c → (x : d) → C x

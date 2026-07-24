@@ -1,0 +1,26 @@
+#lang rzk-1
+
+-- The propositional truncation: the path constructor's endpoints are its
+-- own recursive fields, so their images in the method types are the
+-- induction hypotheses.
+#data trunc
+  ( A : U)
+  :=
+    in-trunc (a : A)
+  | squash (x : trunc A) (y : trunc A) : x =_{trunc A} y
+
+#check ind-trunc
+  : ( A : U)
+  → ( C : trunc A → U)
+  → ( m : (a : A) → C (in-trunc A a))
+  → ( s : ( x : trunc A) → (ih : C x) → (y : trunc A) → (ih' : C y)
+        → idJ (trunc A, x, \ y' _ → C x → C y', \ u → u, y, squash A x y) ih = ih')
+  → ( z : trunc A)
+  → C z
+
+-- collapse to Unit through rec: Unit's η makes the squash method refl
+#define trunc-to-unit
+  ( A : U)
+  ( z : trunc A)
+  : Unit
+  := rec-trunc A Unit (\ _ → unit) (\ _ ihx _ ihy → refl) z

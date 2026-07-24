@@ -26,8 +26,35 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-fun-field` for function-typed recursive fields,
   `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
-  `ill-data-shape-field`, `ill-data-eliminator-clause`) and name clashes
-  (`ill-data-duplicate-constructor`, `ill-data-clash-generated`).
+  `ill-data-shape-field`) and name clashes
+  (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
+  re-ascription clauses (`eliminate with`:
+  `happy-data-eliminator-reascription` — a definitionally equal
+  spelling is stored and stays interchangeable with the canonical type,
+  ι untouched; `ill-data-eliminator-mismatch` for the dedicated
+  convertibility error printing the canonical type,
+  `ill-data-eliminator-unknown`, `ill-data-eliminator-duplicate`).
+- **Path constructors (`#data`, stage 3):** the circle
+  (`happy-data-circle` — named method binders, idJ-spelled transport in
+  the dependent path method, definitional ι on the point constructor,
+  the identity map through `rec` and through `match`, both generated
+  `compute-` rules), the propositional truncation
+  (`happy-data-prop-trunc` — recursive fields as endpoints, collapse to
+  `Unit`), the pushout (`happy-data-pushout` — endpoints applying
+  constructors to datatype-free terms), function extensionality proved
+  from the interval per HoTT book Lemma 6.3.2, plus its relative form
+  for functions out of a shape (RS17 Axiom 4.6, assumed as `extext` in
+  sHoTT) by the same argument
+  (`happy-data-interval-funext` — a `#data` that changes the ambient
+  theory); re-ascription of eliminators
+  and computation rules through a library transport/ap/apd
+  (`happy-data-hit-reascription`, `compute with` clauses); rejections
+  (`ill-data-path-indexed`, `ill-data-path-unannotated` for a bare
+  `l = r` return, `ill-data-path-endpoint` for a non-constructor-built
+  endpoint, `ill-data-path-higher` and `ill-data-path-higher-field` for
+  higher paths, `ill-data-compute-unknown`, `ill-data-compute-kind`,
+  `ill-data-compute-mismatch`) and HIT match coverage
+  (`ill-match-missing-path-branch`).
 - **`match` expressions (M3, PR 3):** elaboration into the generated
   induction eliminator (`happy-match-basics`: plain and recursive
   matches, definitional computation, an `into` motive, a dependent
@@ -44,6 +71,12 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`ill-match-not-data`), and a motive-less match in inference position
   (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
   labelled goals) are covered by `Rzk.HolesSpec`.
+- **Modal `let mod` with an explicit motive:** `happy-modal-let-into`
+  (constant motives agreeing with the motive-free form, and the
+  dependent elimination the motive exists for: the goal is `C x` while
+  the body only proves `C (mod ♭ a)`, which flat admits only through
+  the motive since it has no η-rule), `ill-modal-let-into-body` (a body
+  that misses the motive at the introduction form).
 - **Meta-parameter layer check:** the object-position
   warning (`warn-meta-prefix-object-position`), the strict-only marking
   (`warn-meta-prefix-strict-only`), warning-free plumbing — aliasing,
@@ -79,6 +112,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Bare pattern point in tope | `ill-tope-pattern-binder-bare` | A pattern-bound point used bare (not projected) in a shape's membership tope renders as the pattern: a type error's local tope context shows `Δ² (t , s)`, not `Δ² x₁`. Complements the projection-folding restoration above. |
 | `#data` stage 1 (M3, design/inductive-types.md) | `happy-data-*`, `ill-data-*` | The declaration registers the type former before checking constructors (the prototype's ordering bug); the ι-rule fires in WHNF and NF (refl on computed equalities); section closure abstracts the whole family uniformly (`makeAssumptionExplicit` forces the type former). Stage-1 rejections are `TypeErrorOther` with distinguishing `message_contains`. |
 | `match` elaboration (M3 PR 3) | `happy-match-*`, `ill-match-*` | A match elaborates into `ind-D params motive methods indices scrutinee` (`checkMatch`); branches are checked against the method Π-types one arm at a time (`checkMatchArms`, the λ rule's mirror); the motive comes from `into` or from goal abstraction (`motiveFromGoal`); administrative motive redexes are β-reduced before branch goals and hypothesis types are shown (`betaMotiveApps`). |
+| PR [#327](https://github.com/rzk-lang/rzk/pull/327) `let mod` motive | `happy-modal-let-into`, `ill-modal-let-into-body` | MTT's dependent modal elimination: the `into` motive is checked at `(z :^ν ⟨μ\|A⟩) → U`, the body against `C (mod_μ x)`, and the let itself gets `C M`. Without a motive the body is checked against the goal as written, which suffices only when the goal need not vary with the scrutinee. |
 | Meta-parameter layer check | `warn-meta-prefix-*`, `happy-meta-prefix-plumbing` | An unsaturated use of a declaration below its meta prefix warns at object-level positions (`Rzk.TypeCheck.MetaPrefix`); aliasing at a definition root and meta-shaped argument domains stay silent (the sHoTT `weakextext-extext` composition pattern); `endSection` recomputes `varMetaPrefix` after abstracting assumptions. |
 
 # Test schema

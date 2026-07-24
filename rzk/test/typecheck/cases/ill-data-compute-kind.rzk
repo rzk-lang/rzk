@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- The clause kinds must match: a computation rule is not an eliminator.
+#data S1 := base | loop : base =_{S1} base
+  eliminate with compute-ind-S1-loop : U

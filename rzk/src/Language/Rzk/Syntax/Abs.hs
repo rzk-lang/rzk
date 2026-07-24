@@ -90,7 +90,9 @@ data ConstructorType' a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type DataElim = DataElim' BNFC'Position
-data DataElim' a = DataElim a (VarIdent' a) (Term' a)
+data DataElim' a
+    = DataElim a (VarIdent' a) (Term' a)
+    | DataCompute a (VarIdent' a) (Term' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Generic)
 
 type MatchBranch = MatchBranch' BNFC'Position
@@ -214,6 +216,7 @@ data Term' a
     | ModType a (Modality' a) (Term' a)
     | ModExtract a (ModComp' a) (Term' a)
     | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
+    | LetModInto a (ModComp' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -399,6 +402,7 @@ instance HasPosition ConstructorType where
 instance HasPosition DataElim where
   hasPosition = \case
     DataElim p _ _ -> p
+    DataCompute p _ _ -> p
 
 instance HasPosition MatchBranch where
   hasPosition = \case
@@ -512,6 +516,7 @@ instance HasPosition Term where
     ModType p _ _ -> p
     ModExtract p _ _ -> p
     LetMod p _ _ _ _ -> p
+    LetModInto p _ _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p
