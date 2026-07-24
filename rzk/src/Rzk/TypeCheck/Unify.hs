@@ -384,14 +384,16 @@ unifyInCurrentContext mterm expected actual = performing action $ do
             _ -> err
 
         LetT{} -> panicImpossible "let at the root of WHNF"
-        LetModT _ orig app inn _ mmotive val body ->
+        -- The bind annotation and the motive are both elaboration annotations: they
+        -- fix how the let is typed, but they do not contribute to its value. Two
+        -- stuck @let mod@s with the same modalities, value, and body are therefore
+        -- the same term whichever motive each was written with, so neither
+        -- annotation is compared here.
+        LetModT _ orig app inn _ _mmotive val body ->
           case actual' of
-            LetModT _ _ app' inn' _ mmotive' val' body'
+            LetModT _ _ app' inn' _ _mmotive' val' body'
               | app == app', inn == inn' -> do
                 unify Nothing val val'
-                case (mmotive, mmotive') of
-                  (Just motive, Just motive') -> unify Nothing motive motive'
-                  _                           -> pure ()
                 bty <- typeOf val >>= \case
                   TypeModalT _ _ t -> pure t
                   _ -> panicImpossible "not modal in letmod"

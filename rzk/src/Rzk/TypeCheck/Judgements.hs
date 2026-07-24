@@ -1030,6 +1030,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           typecheck bodyTerm (Foil.sink ty')
         return (letT ty' orig (Just bindTy) val' body')
 
+      -- Only a motive-free @let mod@ is checked here: with no motive the body may
+      -- be checked directly against the (sunk) goal. An explicit motive instead
+      -- fixes the type of the whole let, so that form falls through to the generic
+      -- branch below, which infers it and unifies the result against the goal.
       LetMod orig app inn annot Nothing val body -> do
         val' <- performing (ActionCheckLetValue (binderName orig)) $ case annot of
           Nothing -> enterModality app $ infer val
@@ -1712,9 +1716,14 @@ infer tt = performing (ActionInfer tt) $ case tt of
       ModAppT _ty _m t -> pure (Just t)
       o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
       _ -> pure Nothing
-    univScope <- constScope universeT -- TODO unsupported CUBE universe here
+    -- The motive is a family over the modal value, @(z :^app ⟨inn|A⟩) → U@, so its
+    -- binder stands for the whole @val@ and not for the let-bound @orig : A@; it is
+    -- left anonymous rather than reusing @orig@, which would show the wrong role in
+    -- goals and hovers. Only @U@ is supported as the codomain for now: a motive
+    -- landing in @CUBE@ or @TOPE@ cannot be written.
+    univScope <- constScope universeT
     mmotive' <- forM mmotive $ \motive ->
-      typecheck motive (typeFunT orig app valTy Nothing univScope)
+      typecheck motive (typeFunT (BinderVar Nothing) app valTy Nothing univScope)
     case mmotive' of
       Just motive' -> do
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \binder bodyTerm ->
