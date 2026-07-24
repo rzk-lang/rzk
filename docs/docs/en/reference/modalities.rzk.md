@@ -88,7 +88,7 @@ This works for `#!rzk _#` because there is a coercion `#!rzk id → _#`, so any 
 ## Modal `#!rzk let mod`
 
 Modal `#!rzk let mod` is the elimination principle for modal types.
-Modal bindings use `#!rzk let mod ext/inn x := value in body`, where:
+A modal let-binding is written `#!rzk let mod ext/inn x := value in body`, where:
 
 - `#!rzk value` is checked against `#!rzk inn T` under an **`ext`-lock**
 - `#!rzk body` is checked with `#!rzk x` \(:^{ext \cdot inn}\) `#!rzk T` in context
@@ -107,6 +107,40 @@ It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!
   x_2
 
 ```
+
+### An explicit motive
+
+Written this way, `#!rzk body` is checked against the type the whole
+let-binding is expected to have, so the goal cannot vary with the value being
+eliminated. An explicit motive, written after `#!rzk into`, lifts that
+restriction. It is the *family* the let-binding eliminates into, as a function
+of the modal value:
+
+- `#!rzk motive` is checked against `#!rzk (z` \(:^{ext}\) `#!rzk inn T) → U`
+- `#!rzk body` is checked against `#!rzk motive (mod inn x)`
+- the let-binding itself has type `#!rzk motive value`
+
+This is the dependent elimination rule of multimodal type theory, and it is what
+lets a modal `#!rzk let mod` prove a statement about the value it eliminates. It
+matters whenever the goal mentions that value. For `#!rzk ♭`, which has no η-rule, there
+is otherwise nothing identifying `#!rzk x` with `#!rzk mod ♭ a`, so the induction
+principle below goes through only with the motive:
+
+```rzk
+#def flat-induction
+  ( A :♭ U)
+  ( C : ♭ A → U)
+  ( c : (a :♭ A) → C (mod ♭ a))
+  ( x : ♭ A)
+  : C x
+  := let mod ♭ a := x into C in c a
+```
+
+The motive may equally be written out as a λ-abstraction, as in
+`#!rzk into (\ z → C z)`. Note that only `#!rzk U` is supported as its codomain
+at the moment: a motive landing in `#!rzk CUBE` or `#!rzk TOPE` cannot be
+written.
+
 ## Modal bindings
 
 Modal parameter annotations `#!rzk (x :µ A)` bind the variable `#!rzk x` directly under modality `#!rzk µ` with type `#!rzk A`. This is a first-class modal binding — the variable `#!rzk x` is accessible according to the coercion rules of `#!rzk µ`. Modal bindings are available in `#!rzk λ`-abstractions, `#!rzk Π`- and `#!rzk Σ`-types, and definition argument lists.

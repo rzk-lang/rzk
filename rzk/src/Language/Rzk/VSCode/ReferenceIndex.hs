@@ -405,6 +405,7 @@ goTerm file env = \case
   Rzk.ASCII_Lambda _ ps body                -> paramScope file env ps body
   Rzk.Let _ bind val body                   -> letScope file env bind val body
   Rzk.LetMod _ _ bind val body              -> letScope file env bind val body
+  Rzk.LetModInto _ _ bind val motive body   -> goTerm file env motive ++ letScope file env bind val body
   Rzk.TypeSigma _ pat ty ret                -> sigmaScope file env pat ty ret
   Rzk.ASCII_TypeSigma _ pat ty ret          -> sigmaScope file env pat ty ret
   Rzk.TypeSigmaModal _ pat _ ty ret         -> sigmaScope file env pat ty ret

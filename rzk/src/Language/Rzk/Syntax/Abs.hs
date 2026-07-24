@@ -216,6 +216,7 @@ data Term' a
     | ModType a (Modality' a) (Term' a)
     | ModExtract a (ModComp' a) (Term' a)
     | LetMod a (ModComp' a) (Bind' a) (Term' a) (Term' a)
+    | LetModInto a (ModComp' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -515,6 +516,7 @@ instance HasPosition Term where
     ModType p _ _ -> p
     ModExtract p _ _ -> p
     LetMod p _ _ _ _ -> p
+    LetModInto p _ _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p

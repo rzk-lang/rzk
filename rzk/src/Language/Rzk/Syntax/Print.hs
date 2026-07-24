@@ -364,6 +364,7 @@ instance Print (Language.Rzk.Syntax.Abs.Term' a) where
     Language.Rzk.Syntax.Abs.ModType _ modality term -> prPrec i 7 (concatD [prt 0 modality, prt 7 term])
     Language.Rzk.Syntax.Abs.ModExtract _ modcomp term -> prPrec i 6 (concatD [doc (showString "$extract$"), prt 0 modcomp, prt 7 term])
     Language.Rzk.Syntax.Abs.LetMod _ modcomp bind term1 term2 -> prPrec i 1 (concatD [doc (showString "let"), doc (showString "mod"), prt 0 modcomp, prt 0 bind, doc (showString ":="), prt 0 term1, doc (showString "in"), prt 0 term2])
+    Language.Rzk.Syntax.Abs.LetModInto _ modcomp bind term1 term2 term3 -> prPrec i 1 (concatD [doc (showString "let"), doc (showString "mod"), prt 0 modcomp, prt 0 bind, doc (showString ":="), prt 0 term1, doc (showString "into"), prt 0 term2, doc (showString "in"), prt 0 term3])
     Language.Rzk.Syntax.Abs.First _ term -> prPrec i 6 (concatD [doc (showString "\960\8321"), prt 7 term])
     Language.Rzk.Syntax.Abs.Second _ term -> prPrec i 6 (concatD [doc (showString "\960\8322"), prt 7 term])
     Language.Rzk.Syntax.Abs.Unit _ -> prPrec i 7 (concatD [doc (showString "unit")])

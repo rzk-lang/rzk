@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- The body of a `let mod ... into C ...` must inhabit the motive at the
+-- introduction form, i.e. C (mod ♭ a). Here the motive is the constant
+-- family ♭ A, so the body `c a : C (mod ♭ a)` does not fit.
+#def into-body-misses-motive
+  (A :_b U)
+  (C : (_b A) -> U)
+  (c : (a :_b A) -> C (mod _b a))
+  (x : _b A)
+  : _b A
+  := let mod _b a := x into (\ _ -> _b A) in c a

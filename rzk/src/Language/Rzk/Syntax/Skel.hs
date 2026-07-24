@@ -203,6 +203,7 @@ transTerm x = case x of
   Language.Rzk.Syntax.Abs.ModType _ modality term -> failure x
   Language.Rzk.Syntax.Abs.ModExtract _ modcomp term -> failure x
   Language.Rzk.Syntax.Abs.LetMod _ modcomp bind term1 term2 -> failure x
+  Language.Rzk.Syntax.Abs.LetModInto _ modcomp bind term1 term2 term3 -> failure x
   Language.Rzk.Syntax.Abs.First _ term -> failure x
   Language.Rzk.Syntax.Abs.Second _ term -> failure x
   Language.Rzk.Syntax.Abs.Unit _ -> failure x

@@ -1162,7 +1162,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
             LetT _ty _orig _mparam val body ->
               instantiate body val >>= whnfT
-            LetModT ty orig app inn mparam val body ->
+            LetModT ty orig app inn mparam mmotive val body ->
               (enterModality app $ whnfT val) >>= \case
                 ModAppT _ md t | md == inn -> do
                   val' <- enterModality md $ whnfT t
@@ -1172,7 +1172,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
                     TypeModalT _ _ t -> pure t
                     _ -> panicImpossible "not modal in letmod"
                   instantiate body (modExtractT bty app inn b') >>= whnfT
-                _ -> pure (LetModT ty orig app inn mparam val body)
+                _ -> pure (LetModT ty orig app inn mparam mmotive val body)
             FirstT ty t ->
               whnfT t >>= \case
                 PairT _ l _r -> whnfT l
@@ -1601,7 +1601,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     (enterModality app $ nfTope b) >>= \case
       ModAppT _ md t | inn == md -> pure t
       b' -> pure $ ModExtractT ty app inn b'
-  LetModT ty orig app inn mparam val body ->
+  LetModT ty orig app inn mparam mmotive val body ->
     (enterModality app $ nfTope val) >>= \case
       ModAppT _ md t | md == inn ->
         instantiate body t >>= nfTope
@@ -1616,7 +1616,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
           _ -> panicImpossible "not modal in letmod"
         val' <- enterModality app $ nfTope b'
         body' <- underScope orig (comp app inn) bty Nothing body nfTope
-        pure (LetModT ty orig app inn mparam val' body')
+        pure (LetModT ty orig app inn mparam mmotive val' body')
 
   TypeModalT ty md inner -> TypeModalT ty md <$> (enterModality md $ nfTope inner)
   LetT _ty _orig _mparam val body -> instantiate body val >>= nfTope
@@ -1726,7 +1726,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
                   Nothing      -> AppT ty <$> nfT f' <*> nfT x
         LetT _ty _orig _mparam val body ->
           instantiate body val >>= nfT
-        LetModT ty orig app inn mparam val body ->
+        LetModT ty orig app inn mparam mmotive val body ->
           (enterModality app $ whnfT val) >>= \case
             ModAppT _ md t | md == inn -> do
               val' <- enterModality md $ nfT t
@@ -1742,7 +1742,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
                 _ -> panicImpossible "not modal in letmod"
               val' <- enterModality app $ nfT b'
               body' <- underScope orig (comp app inn) bty Nothing body nfT
-              pure (LetModT ty orig app inn mparam val' body')
+              pure (LetModT ty orig app inn mparam mmotive val' body')
         LambdaT ty orig _mparam body ->
           case stripTypeRestrictions (infoType ty) of
             TypeFunT _ty _orig md param mtope _ret -> do

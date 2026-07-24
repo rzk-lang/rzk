@@ -1,0 +1,4 @@
+status: ok
+regression_for:
+  - "let-mod-into-dependent-motive"
+  - "https://github.com/rzk-lang/rzk/pull/327"
