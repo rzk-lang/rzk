@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.11.1 — 2026-07-25
+
+This release adds higher inductive types: a `#!rzk #data` constructor may now return an identity type, declaring a path, and the generated eliminators gain one method and one propositional computation rule per path constructor. Declarations may re-ascribe the type of a generated eliminator or computation rule with a definitionally equal spelling of their own, which is what makes the generated types readable through a library `#!rzk transport`/`#!rzk ap`/`#!rzk apd`. Modal `#!rzk let mod` gains an explicit motive, and the playground deploys are fixed.
+
+Added:
+
+- **Path constructors in `#!rzk #data`** (see [#329](https://github.com/rzk-lang/rzk/pull/329)). A constructor whose return type is an identity `#!rzk l =_{D} r` declares a path between two points of the declared type, so higher inductive types in the style of the HoTT book are expressible. Each path constructor contributes a method to `#!rzk ind-D` and `#!rzk rec-D` (the equation between the images of its endpoints, over the path for `#!rzk ind-D`, spelled with transport through `#!rzk idJ`), and one computation rule per eliminator, named `#!rzk compute-ind-<D>-<con>` and `#!rzk compute-rec-<D>-<con>`. Computation follows the HoTT book: β stays definitional on point constructors and is propositional on path constructors, so nothing reduces when an eliminator meets a path. The circle, the propositional truncation, the pushout, and the interval are all declarable; the interval proves function extensionality (HoTT book, Lemma 6.3.2) and its relative form for functions out of a shape (RS17, Axiom 4.6), which is a `#!rzk #data` that changes the ambient theory.
+
+    ```rzk
+    #data S¹
+      :=
+        base
+      | loop : base =_{S¹} base
+    ```
+
+    Endpoints must be built from the declaration's own constructors and the constructor's fields. Path constructors are not supported in indexed families, and only paths between points are supported: an identity carrier or an identity-typed field (a higher path, as in the 0-truncation) is rejected.
+
+- **Re-ascription clauses `#!rzk eliminate with` and `#!rzk compute with`** (see [#328](https://github.com/rzk-lang/rzk/pull/328) for the eliminator clause and [#329](https://github.com/rzk-lang/rzk/pull/329) for the split and the computation-rule clause). A `#!rzk #data` declaration may give its own spelling of a generated eliminator's or computation rule's type. The checker verifies that the spelling is definitionally equal to the canonical generated one, with the type former and the constructors in scope, and stores the user's version; since definitionally equal types are interchangeable, the values and the computation rules are untouched. This matters most for path constructors, whose canonical types inline transport and `#!rzk ap`/`#!rzk apd` through `#!rzk idJ`, and which become readable when re-ascribed through library definitions. A mismatch is reported as a dedicated error printing the canonical type.
+
+- **Modal `#!rzk let mod` with an explicit motive**, contributed by [Islam Talipov](https://github.com/LIshy2) (see [#327](https://github.com/rzk-lang/rzk/pull/327)). Like `#!rzk match`, a modal binding now takes an optional motive after `#!rzk into`, which turns it into a dependent elimination of the modal value: the motive is checked at `#!rzk (z :ᵉˣᵗ inn T) → U`, the body against the motive at `#!rzk mod inn x`, and the binding itself has the motive at the value. This is the elimination rule of multimodal type theory, and it is what lets a modal binding prove a statement about the value it eliminates. It is needed whenever the goal mentions that value: `#!rzk ♭` has no η-rule, so without a motive nothing identifies the scrutinee with `#!rzk mod ♭ x`. The motive's codomain is restricted to `#!rzk U` for now, so a motive landing in `#!rzk CUBE` or `#!rzk TOPE` cannot be written.
+
+Changed:
+
+- **A `#!rzk match` whose goal ignores the scrutinee elaborates through `#!rzk rec-D`** (see [#329](https://github.com/rzk-lang/rzk/pull/329)). A path branch is then checked against the plain equation between the point branches, rather than against the dependent form over the path.
+
+Fixed:
+
+- **The playground deploys** (see [#326](https://github.com/rzk-lang/rzk/pull/326)). After v0.11.0 the playground served the pre-wasm v0.9.2 build and the versioned copies disappeared within the hour, from three deploy bugs that hid one another. The per-ref targets sat in root directories that `mike` owns and deletes on every docs deploy, so they now live under `playground/`; the deploy action's `single-commit` mode force-pushed a squashed branch from a stale base and silently discarded concurrent deploys, so it is off; and an absolute Vite base made one build valid at only one target, so the base is relative.
+
+CI / infrastructure:
+
+- The nix dev shell provides the parser generators, pinned to the versions the `parser-drift` lane uses (BNFC 2.9.6.3, alex 3.5.4.0, happy 2.2), contributed by [Islam Talipov](https://github.com/LIshy2) (see [#330](https://github.com/rzk-lang/rzk/pull/330)). Regenerating the parser previously needed tools from outside nix, and a version mismatch reads as spurious drift, since BNFC and happy stamp their version into the generated files.
+
+- The `#!rzk #data` eliminator construction moves into a new pure module `Rzk.TypeCheck.Decl.Data`, and the eliminator choice behind `#!rzk match` is parsed into an explicit plan (see [#331](https://github.com/rzk-lang/rzk/pull/331)). Behaviour-preserving.
+
+- The Russian modalities reference is typechecked and format-checked in CI, as the English one already was (see [#327](https://github.com/rzk-lang/rzk/pull/327)).
+
 ## v0.11.0 — 2026-07-21
 
 This release adds inductive types: the `#!rzk #data` command declares a datatype with generated induction and recursion principles, and `#!rzk match` expressions provide pattern-matching notation for them. It also removes the syntax forms deprecated since v0.5.0 (a breaking change for old code), adds lattice operations on the interval cubes, makes the hole inventory's suggestions reliable as insertable source text, and brings the browser playground back on the GHC WebAssembly backend.
