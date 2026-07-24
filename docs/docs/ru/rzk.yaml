@@ -1,3 +1,4 @@
 include:
   - getting-started/dependent-types.rzk.md
+  - reference/modalities.rzk.md
   - examples/recId.rzk.md

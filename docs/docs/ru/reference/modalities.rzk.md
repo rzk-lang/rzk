@@ -172,7 +172,7 @@ let-связывания, поэтому цель не может зависет
   := \ (x : ♭ A) → let mod ♭ bx := x in mod ♭ (f bx)
 
 #def b-dup (A :♭ U) (x :♭ A)
-  : ♭ (♭ A)
+  : ♭ ( ♭ A)
   := mod ♭ (mod ♭ x)
 
 #def op-map (A B :ᵒᵖ U) (f :ᵒᵖ A → B)
