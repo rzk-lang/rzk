@@ -23,3 +23,23 @@
   (x : _# A)
   : (let mod _# a := x into (\ _ -> _# A) in mod _# a) = x
   := refl
+
+-- The dependent elimination the motive exists for: the goal is C x, while the
+-- body only proves C (mod ♭ a). Flat has no eta rule, so without the motive
+-- there is nothing identifying x with mod ♭ a and the body does not check.
+#def flat-dependent-into
+  (A :_b U)
+  (C : (_b A) -> U)
+  (c : (a :_b A) -> C (mod _b a))
+  (x : _b A)
+  : C x
+  := let mod _b a := x into C in c a
+
+-- The same, with the motive written out as a lambda rather than named.
+#def sharp-dependent-into
+  (A : U)
+  (C : (_# A) -> U)
+  (c : (a :_# A) -> C (mod _# a))
+  (x : _# A)
+  : C x
+  := let mod _# a := x into (\ z -> C z) in c a

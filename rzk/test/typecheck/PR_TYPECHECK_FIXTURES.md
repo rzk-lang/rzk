@@ -71,6 +71,12 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`ill-match-not-data`), and a motive-less match in inference position
   (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
   labelled goals) are covered by `Rzk.HolesSpec`.
+- **Modal `let mod` with an explicit motive:** `happy-modal-let-into`
+  (constant motives agreeing with the motive-free form, and the
+  dependent elimination the motive exists for: the goal is `C x` while
+  the body only proves `C (mod ♭ a)`, which flat admits only through
+  the motive since it has no η-rule), `ill-modal-let-into-body` (a body
+  that misses the motive at the introduction form).
 - **Meta-parameter layer check:** the object-position
   warning (`warn-meta-prefix-object-position`), the strict-only marking
   (`warn-meta-prefix-strict-only`), warning-free plumbing — aliasing,
@@ -106,6 +112,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Bare pattern point in tope | `ill-tope-pattern-binder-bare` | A pattern-bound point used bare (not projected) in a shape's membership tope renders as the pattern: a type error's local tope context shows `Δ² (t , s)`, not `Δ² x₁`. Complements the projection-folding restoration above. |
 | `#data` stage 1 (M3, design/inductive-types.md) | `happy-data-*`, `ill-data-*` | The declaration registers the type former before checking constructors (the prototype's ordering bug); the ι-rule fires in WHNF and NF (refl on computed equalities); section closure abstracts the whole family uniformly (`makeAssumptionExplicit` forces the type former). Stage-1 rejections are `TypeErrorOther` with distinguishing `message_contains`. |
 | `match` elaboration (M3 PR 3) | `happy-match-*`, `ill-match-*` | A match elaborates into `ind-D params motive methods indices scrutinee` (`checkMatch`); branches are checked against the method Π-types one arm at a time (`checkMatchArms`, the λ rule's mirror); the motive comes from `into` or from goal abstraction (`motiveFromGoal`); administrative motive redexes are β-reduced before branch goals and hypothesis types are shown (`betaMotiveApps`). |
+| PR [#327](https://github.com/rzk-lang/rzk/pull/327) `let mod` motive | `happy-modal-let-into`, `ill-modal-let-into-body` | MTT's dependent modal elimination: the `into` motive is checked at `(z :^ν ⟨μ\|A⟩) → U`, the body against `C (mod_μ x)`, and the let itself gets `C M`. Without a motive the body is checked against the goal as written, which suffices only when the goal need not vary with the scrutinee. |
 | Meta-parameter layer check | `warn-meta-prefix-*`, `happy-meta-prefix-plumbing` | An unsaturated use of a declaration below its meta prefix warns at object-level positions (`Rzk.TypeCheck.MetaPrefix`); aliasing at a definition root and meta-shaped argument domains stay silent (the sHoTT `weakextext-extext` composition pattern); `endSection` recomputes `varMetaPrefix` after abstracting assumptions. |
 
 # Test schema
