@@ -17,12 +17,28 @@ let
     };
   };
 
+  parserToolsPkgs = pkgs.haskell.packages.${ghcVersion}.override {
+    overrides = final: prev:
+      let dc = pkgs.haskell.lib.dontCheck;
+      in {
+        happy-lib = dc (final.callHackageDirect
+          { pkg = "happy-lib"; ver = "2.2"; sha256 = "sha256-1T+8tSxHg12FPy0u56Xqw61Z6SBlHbR8uiHwEB17A8k="; } { });
+        happy = dc (final.callHackageDirect
+          { pkg = "happy"; ver = "2.2"; sha256 = "sha256-qqDntaRj3T6HOyUED4dM2GuQ8XMM9zKMOWb1Bvyproc="; } { });
+        alex = dc (final.callHackageDirect
+          { pkg = "alex"; ver = "3.5.4.0"; sha256 = "sha256-VFzDkwaZM7Yt+FG4hQzQLCQLsWYb9RUOB9UJQ21mSpE="; } { });
+        BNFC = dc (final.callHackageDirect
+          { pkg = "BNFC"; ver = "2.9.6.3"; sha256 = "sha256-USVGBE5kp2OPFEF6Y1/NkFma+GE5d6no33itEoN3UdY="; } { });
+      };
+  };
+  parserTools = [ parserToolsPkgs.BNFC parserToolsPkgs.alex parserToolsPkgs.happy ];
+
   devShells = {
     default =
       hpkgs.shellFor {
         shellHook = "export LANG=C.utf8";
         packages = ps: [ ps.rzk ];
-        nativeBuildInputs = tools ++ [ hpkgs.haskell-language-server ];
+        nativeBuildInputs = tools ++ parserTools ++ [ hpkgs.haskell-language-server ];
       };
   };
 
