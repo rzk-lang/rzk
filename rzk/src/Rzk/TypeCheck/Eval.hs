@@ -171,7 +171,13 @@ underBinder binder orig md ty mval action = do
   -- carries the cached value in with the rest of the context (saturation
   -- commutes with renaming).
   inContext ctx' $
-    if null discrete then action else withRefreshedTopes id action
+    whnfT (Foil.sink ty) >>= \case
+      ShapeTypeT _ _md cube tope -> do
+        member <- instantiate tope (shapeElimT cube (Var (Foil.nameOf binder)))
+        localTopeAt md member action
+      _
+        | null discrete -> action
+        | otherwise     -> withRefreshedTopes id action
 
 -- | Enter a fresh binder (one the checker invents) and run an action whose result
 -- says nothing about the new scope.
@@ -316,10 +322,13 @@ enterModality md action = do
 
 -- | Assume a tope for the enclosed action.
 localTope :: Distinct n => TermT n -> TypeCheck n a -> TypeCheck n a
-localTope tope tc = do
+localTope = localTopeAt Id
+
+localTopeAt :: Distinct n => TModality -> TermT n -> TypeCheck n a -> TypeCheck n a
+localTopeAt modVar tope tc = do
   ctx <- ask'
   tope' <- nfTope tope
-  let modalTope' = plainTope tope'
+  let modalTope' = ModalTope Id modVar tope'
   -- A small optimisation to help unify terms faster.
   let noNewInformation = case tope' of
         TopeEQT _ x y | eqT x y -> True
@@ -332,7 +341,7 @@ localTope tope tc = do
   where
     ask' = asks id
     extend tope' entailsBottom ctx = ctx
-      { ctxTopes = plainTope tope : ctxTopes ctx
+      { ctxTopes = ModalTope Id modVar tope : ctxTopes ctx
       , ctxTopesNF = tope' : ctxTopesNF ctx
       , ctxTopesNFUnion = map nubModalTopes
           [ new <> old
@@ -991,6 +1000,13 @@ etaMatch _mterm expected@PairT{} actual = do
 etaMatch _mterm expected actual@PairT{} = do
   expected' <- etaExpand expected
   pure (expected', actual)
+etaMatch _mterm expected@ShapeIntroT{} actual@ShapeIntroT{} = pure (expected, actual)
+etaMatch _mterm expected@ShapeIntroT{} actual = do
+  actual' <- etaExpand actual
+  pure (expected, actual')
+etaMatch _mterm expected actual@ShapeIntroT{} = do
+  expected' <- etaExpand expected
+  pure (expected', actual)
 etaMatch _mterm expected actual = pure (expected, actual)
 
 etaExpand :: Distinct n => TermT n -> TypeCheck n (TermT n)
@@ -1017,6 +1033,9 @@ etaExpand term = do
 
     CubeProductT _ty a b -> pure $
       pairT ty (firstT a term) (secondT b term)
+
+    ShapeTypeT _ty _md cube _tope -> pure $
+      shapeIntroT ty (shapeElimT cube term)
 
     _ -> pure term
 
@@ -1127,6 +1146,7 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
   RecBottomT{} -> pure tt
   TypeUnitT{} -> pure tt
   UnitT{} -> pure tt
+  ShapeTypeT{} -> pure tt
 
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> whnfT term
@@ -1190,6 +1210,14 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
               (enterModality app $ whnfT b) >>= \case
                 ModAppT _ md t | inn == md -> enterModality inn $ whnfT t
                 b' -> pure (ModExtractT ty app inn b')
+            ShapeIntroT ty b ->
+              whnfT b >>= \case
+                ShapeElimT _ x -> whnfT x
+                b'             -> pure (ShapeIntroT ty b')
+            ShapeElimT ty b ->
+              whnfT b >>= \case
+                ShapeIntroT _ x -> whnfT x
+                b'              -> pure (ShapeElimT ty b')
             IdJT ty tA a tC d x p ->
               whnfT p >>= \case
                 ReflT{} -> whnfT d
@@ -1626,6 +1654,13 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   ReflT{} -> panicImpossible "refl in the tope layer"
   IdJT{} -> panicImpossible "idJ eliminator in the tope layer"
   TypeRestrictedT{} -> panicImpossible "extension types in the tope layer"
+  ShapeTypeT{} -> panicImpossible "shape type in the tope layer"
+  ShapeIntroT{} -> panicImpossible "shape intro in the tope layer"
+  ShapeElimT ty b -> do
+    b' <- nfT b
+    case b' of
+      ShapeIntroT _ x -> nfTope x
+      _               -> pure (ShapeElimT ty b')
   MatchT{} -> panicImpossible "a typed match survives elaboration"
   MatchArmT{} -> panicImpossible "a typed match arm survives elaboration"
 
@@ -1678,6 +1713,7 @@ nfT tt = performing (ActionNF tt) $ case tt of
   RecBottomT{} -> pure tt
   TypeUnitT{} -> pure tt
   UnitT{} -> pure tt
+  ShapeTypeT{} -> pure tt
 
   -- type ascriptions are ignored, since we already have a typechecked term
   TypeAscT _ty term _ty' -> nfT term
@@ -1796,6 +1832,14 @@ nfT tt = performing (ActionNF tt) $ case tt of
           (enterModality app $ whnfT b) >>= \case
             ModAppT _ md t | inn == md -> enterModality (comp app inn) $ nfT t
             b' -> ModExtractT ty app inn <$> (enterModality app $ nfT b')
+        ShapeIntroT ty b ->
+          whnfT b >>= \case
+            ShapeElimT _ x -> nfT x
+            b'             -> ShapeIntroT ty <$> nfT b'
+        ShapeElimT ty b ->
+          whnfT b >>= \case
+            ShapeIntroT _ x -> nfT x
+            b'              -> ShapeElimT ty <$> nfT b'
         TypeRestrictedT ty type_ rs -> do
           rs' <- forM rs $ \(tope, term) ->
             nfTope tope >>= \case

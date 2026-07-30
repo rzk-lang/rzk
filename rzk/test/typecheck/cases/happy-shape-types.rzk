@@ -1,0 +1,61 @@
+#lang rzk-1
+
+#define Zero : U
+  := shape (i : 2 | i === 0_2)
+
+#define zero-pt : shape (i : 2 | i === 0_2)
+  := form 0_2
+
+#define one-pt : shape (i : 2 | (i === 0_2) \/ (i === 1_2))
+  := form 1_2
+
+#define at-zero
+  (A : U) (a : A)
+  : (j : 2 | j === 0_2) -> A
+  := \ j -> a
+
+#define elim-carries-tope
+  (A : U) (a : A)
+  (x : shape (i : 2 | i === 0_2))
+  : A
+  := at-zero A a (unform x)
+
+#define elim-tope-transitivity
+  (A : U) (a : A) (k : 2)
+  (x : shape (i : 2 | (i === k) /\ (k === 0_2)))
+  : A
+  := at-zero A a (unform x)
+
+#define modal-pt : shape (i :_b 2 | i === 0_2)
+  := form 0_2
+
+#define modal-elim
+  (A : U) (a : A)
+  (x : shape (i :_b 2 | i === 0_2))
+  : A
+  := at-zero A a (unform x)
+
+#define widen
+  (x : shape (i : 2 | i === 0_2))
+  : shape (i : 2 | (i === 0_2) \/ (i === 1_2))
+  := x
+
+#define elim-congruence
+  (B : U)
+  (f : (t : 2) -> B)
+  (c : (t : 2) -> shape (i : 2 | i === 0_2))
+  : (t : 2 | t === 0_2) -> (f (unform (c t)) = f (unform (c 0_2)))
+  := \ t -> refl
+
+#define shape-eta-point
+  (I : CUBE)
+  (p : shape (x : I | ⊤))
+  : form (unform p) =_{shape (x : I | ⊤)} p
+  := refl
+
+#define shape-eta-pair
+  (I J : CUBE)
+  (p : shape (x : I × J | ⊤))
+  : form (first (unform p), second (unform p))
+      =_{shape (x : I × J | ⊤)} form (unform p)
+  := refl

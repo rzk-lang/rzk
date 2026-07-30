@@ -22,7 +22,7 @@ import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (Var))
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Foil.Names (Binder, TModality (..),
+import           Language.Rzk.Foil.Names (Binder (..), TModality (..),
                                            TypeInfo (..))
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display (panicImpossible)
@@ -159,7 +159,9 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                 localTope tope $
                   unifyTerms expected' term
         _ -> typeOf expected' >>= typeOf >>= \case
-          UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
+          UniverseCubeT{} ->
+            contextEntails (topeEQT expected' actual') `catchError` \e ->
+              unifyStructurally expected' actual' `catchError` \_ -> throwError e
           _ -> unifyStructurally expected' actual'
 
     unifyStructurally :: TermT n -> TermT n -> TypeCheck n ()
@@ -225,6 +227,27 @@ unifyInCurrentContext mterm expected actual = performing action $ do
         CubeProductT _ l r ->
           case actual' of
             CubeProductT _ l' r' -> do
+              unifyTerms l l'
+              unifyTerms r r'
+            _ -> err
+
+        CubeFlipT _ t ->
+          case actual' of
+            CubeFlipT _ t' -> unifyTerms t t'
+            _ -> err
+        CubeUnflipT _ t ->
+          case actual' of
+            CubeUnflipT _ t' -> unifyTerms t t'
+            _ -> err
+        CubeSupT _ l r ->
+          case actual' of
+            CubeSupT _ l' r' -> do
+              unifyTerms l l'
+              unifyTerms r r'
+            _ -> err
+        CubeInfT _ l r ->
+          case actual' of
+            CubeInfT _ l' r' -> do
               unifyTerms l l'
               unifyTerms r r'
             _ -> err
@@ -466,6 +489,31 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               when (app' /= app) err
               when (inn' /= inn) err
               enterModality app $ unify Nothing te te'
+            _ -> err
+
+        ShapeTypeT _ty md cube tope ->
+          case actual' of
+            ShapeTypeT _ty' md' cube' tope'
+              | md == md' -> do
+                unify mterm cube cube'
+                variance <- asks ctxCovariance
+                let subEntailsSuper sub super =
+                      inScope2 (BinderVar Nothing) md cube sub super $ \_binder subT superT ->
+                        localTope subT $ contextEntails superT
+                case variance of
+                  Covariant     -> subEntailsSuper tope' tope
+                  Contravariant -> subEntailsSuper tope tope'
+                  Invariant     -> do
+                    subEntailsSuper tope' tope
+                    subEntailsSuper tope tope'
+            _ -> err
+        ShapeIntroT _ty t ->
+          case actual' of
+            ShapeIntroT _ty' t' -> unify Nothing t t'
+            _ -> err
+        ShapeElimT _ty t ->
+          case actual' of
+            ShapeElimT _ty' t' -> unify Nothing t t'
             _ -> err
 
         -- defensive: a hole nested anywhere also defers here rather than panicking

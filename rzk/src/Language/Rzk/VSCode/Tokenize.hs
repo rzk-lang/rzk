@@ -314,6 +314,11 @@ tokenizeTerm' varTokenType = go
       ModApp _loc md te -> concat [tokenizeModality md, go te]
       ModExtract _loc comp te -> concat [tokenizeModComp comp, go te]
 
+      ShapeType _loc pat cube tope -> concat [tokenizePattern pat, go cube, tokenizeTope tope]
+      ShapeTypeModal _loc pat mc cube tope -> concat [tokenizePattern pat, tokenizeModalColon mc, go cube, tokenizeTope tope]
+      ShapeIntro _loc t -> go t
+      ShapeElim _loc t -> go t
+
 
 tokenizeRestriction :: Restriction -> [SemanticTokenAbsolute]
 tokenizeRestriction (Restriction _loc tope term) = concat

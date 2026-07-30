@@ -1,0 +1,12 @@
+#lang rzk-1
+
+#define at-zero
+  (A : U) (a : A)
+  : (j : 2 | j === 0_2) -> A
+  := \ j -> a
+
+#define bad
+  (A : U) (a : A)
+  (x : shape (i : 2 | i === 1_2))
+  : A
+  := at-zero A a (unform x)

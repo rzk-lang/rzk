@@ -413,6 +413,8 @@ goTerm file env = \case
   Rzk.ASCII_TypeSigmaTuple _ sp sps ret     -> sigmaTupleScope file env (sp : sps) ret
   Rzk.TypeFun _ pd ret                      -> paramDeclScope file env pd ret
   Rzk.ASCII_TypeFun _ pd ret                -> paramDeclScope file env pd ret
+  Rzk.ShapeType _ pat cube tope             -> sigmaScope file env pat cube tope
+  Rzk.ShapeTypeModal _ pat _ cube tope      -> sigmaScope file env pat cube tope
 
   Rzk.CubeProduct _ a b         -> goTerm file env a ++ goTerm file env b
   Rzk.CubeSup _ a b             -> goTerm file env a ++ goTerm file env b
@@ -439,6 +441,8 @@ goTerm file env = \case
   Rzk.ModApp _ _ a              -> goTerm file env a
   Rzk.ModType _ _ a             -> goTerm file env a
   Rzk.ModExtract _ _ a          -> goTerm file env a
+  Rzk.ShapeIntro _ a            -> goTerm file env a
+  Rzk.ShapeElim _ a             -> goTerm file env a
   Rzk.First _ a                 -> goTerm file env a
   Rzk.Second _ a                -> goTerm file env a
   Rzk.ASCII_First _ a           -> goTerm file env a
