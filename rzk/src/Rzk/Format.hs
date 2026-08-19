@@ -409,11 +409,24 @@ format contents =
   let normalized = normalizeTabs contents
   in applyTextEdits (formatTextEdits normalized) normalized
 
--- | Same as 'format'. Use this when replacing the entire document (e.g. from
---   the language server), so that tab normalization and all formatting rules
---   are applied correctly instead of applying incremental edits to tabbed source.
+-- | Format a whole document, for a consumer that replaces it wholesale (the
+--   language server does, so that tab normalization and all formatting rules
+--   are applied instead of incremental edits to tabbed source).
+--
+--   The document ends in as many newlines as it began with. Formatting is a
+--   rewriting of the code, and whether a file ends in a newline is not
+--   something it has an opinion on: that is the editor's @insert_final_newline@
+--   and whatever else formats the surrounding Markdown. The language server
+--   used to send the document with every trailing newline stripped, which
+--   silently deleted the final one on each save and left the file failing a
+--   @.editorconfig@ or Prettier check that no further formatting could satisfy.
 formatDocument :: T.Text -> T.Text
-formatDocument = format
+formatDocument contents = matchTrailingNewlines contents (format contents)
+
+-- | Give the second text as many trailing newlines as the first one has.
+matchTrailingNewlines :: T.Text -> T.Text -> T.Text
+matchTrailingNewlines source formatted =
+  T.dropWhileEnd (== '\n') formatted <> T.takeWhileEnd (== '\n') source
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO T.Text

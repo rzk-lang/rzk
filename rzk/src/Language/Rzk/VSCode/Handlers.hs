@@ -75,7 +75,7 @@ import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
                                                 tokenizeSyntaxSymbols)
 import qualified Rzk.Diagnostic                as Diag
-import           Rzk.Format                    (format)
+import qualified Rzk.Format                    as Fmt
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 import           Text.Read                     (readMaybe)
@@ -477,25 +477,13 @@ formatDocument req res = do
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
       Just sourceCode -> do
+        -- 'fullDocumentRange' spans the trailing newlines too, so the
+        -- replacement carries them: 'formatDocument' keeps as many as the
+        -- source had, and the document is returned with its final newline
+        -- intact.
         let source = T.filter (/= '\r') sourceCode
-            formatted = format source
-            -- Preserve trailing newlines of the source so formatting is idempotent.
-            formatted'
-              | T.null source = formatted
-              | otherwise =
-                  let inputTrailing = T.length (T.takeWhileEnd (== '\n') source)
-                      outTrailing = T.length (T.takeWhileEnd (== '\n') formatted)
-                  in if outTrailing > inputTrailing
-                     then T.dropEnd (outTrailing - inputTrailing) formatted
-                     else if outTrailing < inputTrailing
-                          then formatted <> T.replicate (inputTrailing - outTrailing) (T.singleton '\n')
-                          else formatted
-            -- Never send trailing newlines: some clients add one when applying a
-            -- full-document edit, so we send content ending with no newline to avoid
-            -- an extra blank line on each format.
-            formatted'' = T.dropWhileEnd (== '\n') formatted'
             range = fullDocumentRange source
-        return (Right [TextEdit range formatted''])
+        return (Right [TextEdit range (Fmt.formatDocument source)])
     case possibleEdits of
 #if MIN_VERSION_lsp(2,7,0)
       Left err    -> res $ Left $ TResponseError (InR ErrorCodes_InternalError) err Nothing
