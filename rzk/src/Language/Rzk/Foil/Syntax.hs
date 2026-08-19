@@ -60,8 +60,9 @@ import           Generics.Kind.TH                (deriveGenericK)
 import qualified GHC.Generics                   as GHC
 import           Unsafe.Coerce                  (unsafeCoerce)
 
-import           Language.Rzk.Foil.Names        (Binder (..), TModality (..),
-                                                 TypeInfo (..), VarIdent)
+import           Language.Rzk.Foil.Names        (Binder (..), RzkPosition (..),
+                                                 TModality (..), TypeInfo (..),
+                                                 VarIdent)
 
 -- * The signature
 --
@@ -199,10 +200,30 @@ instance ZipMatchK TypeInfo where
   zipMatchWithK (f :^: M0) (TypeInfo t1 _ _) (TypeInfo t2 _ _) =
     Just (TypeInfo (maybe (error "ZipMatchK TypeInfo: annotation forced") id (f t1 t2)) Nothing Nothing)
 
+-- | Where a term was written.
+--
+-- This is the annotation of an /untyped/ term, so that a diagnostic can point
+-- at the sub-term it is about rather than at the declaration around it (issue
+-- #81). It is a phantom in the node's term parameter: the annotation machinery
+-- wants a functor of the term, and a position holds no terms.
+newtype SrcPos term = SrcPos RzkPosition
+  deriving (Functor, Foldable, Traversable)
+
+-- | Two terms written in different places are the same term, so a position is
+-- ignored in matching, as a node's type is.
+instance ZipMatchK SrcPos where
+  zipMatchWithK _ (SrcPos pos) _ = Just (SrcPos pos)
+
+-- | No position: what a node the checker builds itself carries, and what a node
+-- gets until the conversion from the surface syntax puts the real one on it.
+noSrcPos :: SrcPos term
+noSrcPos = SrcPos (RzkPosition Nothing Nothing)
+
 -- * Terms
 
--- | An untyped term: the surface syntax, elaborated but without annotations.
-type Term = AST NameBinder TermSig
+-- | An untyped term: the surface syntax, elaborated, every node carrying where
+-- it was written.
+type Term = AST NameBinder (AnnSig SrcPos TermSig)
 
 -- | A typed term: every node carries its type. The successor of @TermT@.
 type TermT = AST NameBinder (AnnSig TypeInfo TermSig)
@@ -211,7 +232,23 @@ type TermT = AST NameBinder (AnnSig TypeInfo TermSig)
 type ScopedTermT = ScopedAST NameBinder (AnnSig TypeInfo TermSig)
 
 -- | A scope of an untyped term.
-type ScopedTerm = ScopedAST NameBinder TermSig
+type ScopedTerm = ScopedAST NameBinder (AnnSig SrcPos TermSig)
+
+-- | Record where a term was written.
+--
+-- A variable carries no node of its own, so it is returned unchanged; where a
+-- variable occurrence was written is on its 'VarIdent' instead.
+atSrcPos :: RzkPosition -> Term n -> Term n
+atSrcPos pos (Node (AnnSig _ sig)) = Node (AnnSig (SrcPos pos) sig)
+atSrcPos _ t@(Var _)               = t
+
+-- | Where the term was written, when it came from a file.
+positionOfTerm :: Term n -> Maybe RzkPosition
+positionOfTerm (Var _)                        = Nothing
+positionOfTerm (Node (AnnSig (SrcPos pos) _)) =
+  case rzkLineCol pos of
+    Nothing -> Nothing
+    Just _  -> Just pos
 
 -- | The annotation of a node: its type, and its memoised normal forms. A
 -- variable carries none — its type lives in the context.
@@ -222,7 +259,7 @@ typeInfoOf (Node (AnnSig info _)) = Just info
 -- | Drop every annotation, for printing and for the surface-facing API.
 untyped :: TermT n -> Term n
 untyped (Var name)              = Var name
-untyped (Node (AnnSig _ann sig)) = Node (bimap untypedScoped untyped sig)
+untyped (Node (AnnSig _ann sig)) = UntypedNode (bimap untypedScoped untyped sig)
   where
     untypedScoped (ScopedAST binder body) = ScopedAST binder (untyped body)
 
@@ -275,7 +312,7 @@ nubT (t : ts) = t : nubT (filter (not . eqT t) ts)
 -- makes the coercion back to the outer scope right.
 freeVarsOfTerm :: Term n -> [Foil.Name n]
 freeVarsOfTerm (Var x)    = [x]
-freeVarsOfTerm (Node sig) = bifoldMap freeVarsOfScoped freeVarsOfTerm sig
+freeVarsOfTerm (UntypedNode sig) = bifoldMap freeVarsOfScoped freeVarsOfTerm sig
   where
     freeVarsOfScoped :: ScopedTerm n' -> [Foil.Name n']
     freeVarsOfScoped (ScopedAST binder body) =
@@ -296,7 +333,7 @@ freeVarsOfTermT = freeVarsOfTerm . untyped
 containsUniverse :: Term n -> Bool
 containsUniverse Universe   = True
 containsUniverse (Var _)    = False
-containsUniverse (Node sig) =
+containsUniverse (UntypedNode sig) =
   bifoldr (\scoped acc -> containsUniverseScoped scoped || acc)
           (\t acc -> containsUniverse t || acc) False sig
   where
@@ -312,7 +349,7 @@ isHoleT _       = False
 holeNamesOf :: Term n -> [Maybe VarIdent]
 holeNamesOf (Hole mname) = [mname]
 holeNamesOf (Var _)      = []
-holeNamesOf (Node sig)   = bifoldr (\scoped acc -> holeNamesOfScoped scoped <> acc)
+holeNamesOf (UntypedNode sig) = bifoldr (\scoped acc -> holeNamesOfScoped scoped <> acc)
                                    (\t acc -> holeNamesOf t <> acc) [] sig
   where
     holeNamesOfScoped (ScopedAST _ body) = holeNamesOf body
@@ -520,57 +557,68 @@ pattern HoleT info mname = Node (AnnSig info (HoleF mname))
 
 -- ** Untyped patterns
 --
--- The same constructors on 'Term' (no annotation), for the surface conversions
--- and the printer.
+-- The same constructors on 'Term', for the surface conversions and the printer.
+--
+-- Each goes through 'UntypedNode', which ignores a node's position on the way in
+-- and leaves it unset on the way out. So the checker builds and matches untyped
+-- terms exactly as it did before terms carried a position, and the conversion
+-- from the surface syntax ('atSrcPos') is the only place that puts a real one on.
 
-pattern Universe = Node UniverseF
-pattern UniverseCube = Node UniverseCubeF
-pattern UniverseTope = Node UniverseTopeF
-pattern CubeUnit = Node CubeUnitF
-pattern CubeUnitStar = Node CubeUnitStarF
-pattern Cube2 = Node Cube2F
-pattern Cube2_0 = Node Cube2_0F
-pattern Cube2_1 = Node Cube2_1F
-pattern CubeI = Node CubeIF
-pattern CubeI_0 = Node CubeI_0F
-pattern CubeI_1 = Node CubeI_1F
-pattern CubeProduct l r = Node (CubeProductF l r)
-pattern CubeFlip t = Node (CubeFlipF t)
-pattern CubeUnflip t = Node (CubeUnflipF t)
-pattern CubeSup l r = Node (CubeSupF l r)
-pattern CubeInf l r = Node (CubeInfF l r)
-pattern TopeTop = Node TopeTopF
-pattern TopeBottom = Node TopeBottomF
-pattern TopeEQ l r = Node (TopeEQF l r)
-pattern TopeLEQ l r = Node (TopeLEQF l r)
-pattern TopeAnd l r = Node (TopeAndF l r)
-pattern TopeOr l r = Node (TopeOrF l r)
-pattern TopeInv t = Node (TopeInvF t)
-pattern TopeUninv t = Node (TopeUninvF t)
-pattern RecBottom = Node RecBottomF
-pattern RecOr rs = Node (RecOrF rs)
-pattern TypeFun orig md param mtope ret = Node (TypeFunF orig md param mtope ret)
-pattern TypeSigma orig md a b = Node (TypeSigmaF orig md a b)
-pattern TypeId a mtA b = Node (TypeIdF a mtA b)
-pattern App f x = Node (AppF f x)
-pattern Let orig mparam val body = Node (LetF orig mparam val body)
-pattern Lambda orig mparam body = Node (LambdaF orig mparam body)
-pattern Pair l r = Node (PairF l r)
-pattern First t = Node (FirstF t)
-pattern Second t = Node (SecondF t)
-pattern Refl mx = Node (ReflF mx)
-pattern IdJ a b c d e f = Node (IdJF a b c d e f)
-pattern Match scrut mmotive branches = Node (MatchF scrut mmotive branches)
-pattern MatchArm orig arm = Node (MatchArmF orig arm)
-pattern Unit = Node UnitF
-pattern TypeUnit = Node TypeUnitF
-pattern TypeAsc term ty = Node (TypeAscF term ty)
-pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
-pattern TypeModal md ty = Node (TypeModalF md ty)
-pattern ModApp md t = Node (ModAppF md t)
-pattern ModExtract app inn t = Node (ModExtractF app inn t)
-pattern LetMod orig app inn mparam mmotive val body = Node (LetModF orig app inn mparam mmotive val body)
-pattern Hole mname = Node (HoleF mname)
+-- | An untyped node, taken and made without regard for where it was written.
+pattern UntypedNode :: TermSig (ScopedTerm n) (Term n) -> Term n
+pattern UntypedNode sig <- Node (AnnSig _ sig) where
+  UntypedNode sig = Node (AnnSig noSrcPos sig)
+
+{-# COMPLETE Var, UntypedNode #-}
+
+pattern Universe = UntypedNode UniverseF
+pattern UniverseCube = UntypedNode UniverseCubeF
+pattern UniverseTope = UntypedNode UniverseTopeF
+pattern CubeUnit = UntypedNode CubeUnitF
+pattern CubeUnitStar = UntypedNode CubeUnitStarF
+pattern Cube2 = UntypedNode Cube2F
+pattern Cube2_0 = UntypedNode Cube2_0F
+pattern Cube2_1 = UntypedNode Cube2_1F
+pattern CubeI = UntypedNode CubeIF
+pattern CubeI_0 = UntypedNode CubeI_0F
+pattern CubeI_1 = UntypedNode CubeI_1F
+pattern CubeProduct l r = UntypedNode (CubeProductF l r)
+pattern CubeFlip t = UntypedNode (CubeFlipF t)
+pattern CubeUnflip t = UntypedNode (CubeUnflipF t)
+pattern CubeSup l r = UntypedNode (CubeSupF l r)
+pattern CubeInf l r = UntypedNode (CubeInfF l r)
+pattern TopeTop = UntypedNode TopeTopF
+pattern TopeBottom = UntypedNode TopeBottomF
+pattern TopeEQ l r = UntypedNode (TopeEQF l r)
+pattern TopeLEQ l r = UntypedNode (TopeLEQF l r)
+pattern TopeAnd l r = UntypedNode (TopeAndF l r)
+pattern TopeOr l r = UntypedNode (TopeOrF l r)
+pattern TopeInv t = UntypedNode (TopeInvF t)
+pattern TopeUninv t = UntypedNode (TopeUninvF t)
+pattern RecBottom = UntypedNode RecBottomF
+pattern RecOr rs = UntypedNode (RecOrF rs)
+pattern TypeFun orig md param mtope ret = UntypedNode (TypeFunF orig md param mtope ret)
+pattern TypeSigma orig md a b = UntypedNode (TypeSigmaF orig md a b)
+pattern TypeId a mtA b = UntypedNode (TypeIdF a mtA b)
+pattern App f x = UntypedNode (AppF f x)
+pattern Let orig mparam val body = UntypedNode (LetF orig mparam val body)
+pattern Lambda orig mparam body = UntypedNode (LambdaF orig mparam body)
+pattern Pair l r = UntypedNode (PairF l r)
+pattern First t = UntypedNode (FirstF t)
+pattern Second t = UntypedNode (SecondF t)
+pattern Refl mx = UntypedNode (ReflF mx)
+pattern IdJ a b c d e f = UntypedNode (IdJF a b c d e f)
+pattern Match scrut mmotive branches = UntypedNode (MatchF scrut mmotive branches)
+pattern MatchArm orig arm = UntypedNode (MatchArmF orig arm)
+pattern Unit = UntypedNode UnitF
+pattern TypeUnit = UntypedNode TypeUnitF
+pattern TypeAsc term ty = UntypedNode (TypeAscF term ty)
+pattern TypeRestricted ty rs = UntypedNode (TypeRestrictedF ty rs)
+pattern TypeModal md ty = UntypedNode (TypeModalF md ty)
+pattern ModApp md t = UntypedNode (ModAppF md t)
+pattern ModExtract app inn t = UntypedNode (ModExtractF app inn t)
+pattern LetMod orig app inn mparam mmotive val body = UntypedNode (LetModF orig app inn mparam mmotive val body)
+pattern Hole mname = UntypedNode (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
   Cube2, Cube2_0, Cube2_1, CubeI, CubeI_0, CubeI_1, CubeProduct, CubeFlip,

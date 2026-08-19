@@ -27,7 +27,7 @@
 -- they can be shown back to the user.
 module Language.Rzk.Foil.Convert where
 
-import           Control.Monad.Foil       (Distinct, NameBinder, NameMap, Scope)
+import           Control.Monad.Foil       (Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
@@ -65,7 +65,7 @@ toScopedPatternWith
   :: Distinct n
   => Scope n -> Rzk.Pattern -> Env n
   -> (forall l. Distinct l => Scope l -> Env l -> Term l)
-  -> ScopedAST NameBinder TermSig n
+  -> ScopedTerm n
 toScopedPatternWith scope pat env k =
   Foil.withFresh scope $ \binder ->
     let scope' = Foil.extendScope binder scope
@@ -78,14 +78,14 @@ toScopedPatternWith scope pat env k =
 -- | Enter a pattern binder over a surface body.
 toScopedPattern
   :: Distinct n
-  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
+  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedTerm n
 toScopedPattern scope pat env body =
   toScopedPatternWith scope pat env (\scope' env' -> toTerm scope' env' body)
 
 -- | Enter an anonymous binder (a non-dependent function type binds nothing).
 toScopedAnon
   :: Distinct n
-  => Scope n -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
+  => Scope n -> Env n -> Rzk.Term -> ScopedTerm n
 toScopedAnon scope env body =
   Foil.withFresh scope $ \binder ->
     let scope' = Foil.extendScope binder scope

@@ -269,7 +269,7 @@ freshenBinder used' stream (BinderPair l r) =
 --
 -- (free-foil's own @freeVarsOf@ would do, but it is not in the 0.2.0 release --
 -- it is one of the unreleased helpers on free-foil's @main@.)
-scopeUsesItsBinder :: ScopedAST Foil.NameBinder TermSig n -> Bool
+scopeUsesItsBinder :: ScopedTerm n -> Bool
 scopeUsesItsBinder (ScopedAST binder body) =
   Foil.nameId (Foil.nameOf binder) `elem` nameIdsOf body
 
