@@ -265,7 +265,7 @@ typecheckFromConfigFile = do
           -- /is/ the elaborated prefix, so nothing is replayed or re-elaborated.
           let prefix = case reverse checked of
                 (_, entry) : _ -> cachedModuleChecked entry
-                []             -> emptyChecked
+                []             -> emptyCheckedWithHoles
           tcResult <- liftIO $ tryTypecheck $ evaluate $
             recheckFrom prefix [(path, module_)]
           case tcResult of
@@ -947,7 +947,7 @@ isChanged cache path = toIsChanged $ do
   -- Re-check this file from the context of the prefix before it.
   let prefix = case reverse (takeWhile ((/= path) . fst) cache) of
         (_, entry) : _ -> cachedModuleChecked entry
-        []             -> emptyChecked
+        []             -> emptyCheckedWithHoles
   e <- toExceptTLifted $ try @SomeException $ evaluate $
     recheckFrom prefix [(path, module')]
   (checkedNow, _holes) <- toExceptT $ return e

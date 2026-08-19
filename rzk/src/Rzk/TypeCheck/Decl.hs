@@ -1457,3 +1457,13 @@ checkedWarnings (Checked _ _ _ warnings) = warnings
 -- | Nothing checked yet: the empty context, and no declarations.
 emptyChecked :: Checked
 emptyChecked = Checked emptyContext [] [] []
+
+-- | Nothing checked yet, in lenient hole mode: what an editor resumes from.
+--
+-- A hole is work in progress there, to be reported with its goal and context
+-- rather than as an error (see 'allowHoles'). 'recheckFrom' continues in the
+-- context it is given, so the mode has to be set on the empty one it starts
+-- with: resuming from 'emptyChecked' made every hole a @TypeErrorUnsolvedHole@
+-- and stopped the file at the first one.
+emptyCheckedWithHoles :: Checked
+emptyCheckedWithHoles = Checked (allowHoles emptyContext) [] [] []
