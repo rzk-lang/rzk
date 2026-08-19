@@ -1,0 +1,11 @@
+status: error
+api: collect
+error_tag: TypeErrorUnify
+message_contains:
+  - "cannot unify expected type"
+line: 7
+column: 6
+error_count: 2
+regression_for:
+  - "continue-checking-after-a-failed-definition-body"
+  - "https://github.com/rzk-lang/rzk/issues/81"

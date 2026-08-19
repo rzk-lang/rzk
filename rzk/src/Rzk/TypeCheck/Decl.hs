@@ -1063,8 +1063,14 @@ duplicateBinders x = concat
             earlier -> (varIdent v, map varIdent (reverse earlier)) : go (v : seen) vs
     sameSpelling (Rzk.VarIdent _ a) (Rzk.VarIdent _ b) = a == b
 
--- | Elaborate a surface term in the current top-level scope: a free identifier
--- resolves to the top-level entry it names.
+-- | Run a check, handing back its error instead of propagating it.
+--
+-- What it recorded on the way is kept: the record lives in the state beneath
+-- the error channel, so the holes the user wrote in a definition that fails are
+-- still reported (see "Rzk.TypeCheck.Monad").
+tryCheck :: TypeCheck n a -> TypeCheck n (Either TypeErrorInScopedContext a)
+tryCheck action = (Right <$> action) `catchError` (pure . Left)
+
 -- | Run a check with the location narrowed to where a surface term was written.
 --
 -- Descending through a judgement already narrows to the sub-term it is about
@@ -1082,6 +1088,8 @@ atSurface x = local $ \ctx ->
       Just (line, col) ->
         loc { locationLine = Just line, locationColumn = Just col }
 
+-- | Elaborate a surface term in the current top-level scope: a free identifier
+-- resolves to the top-level entry it names.
 elaborate :: forall n. Distinct n => Rzk.Term -> TypeCheck n (Term n)
 elaborate term = do
   ctx <- ask
@@ -1154,18 +1162,30 @@ checkCommands path i total commands k = case commands of
         -- keeping the WHNF cached preserves the original one-shot reduction.
         tyTerm <- elaborate (addParamDecls paramDecls ty)
         ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
-        valTerm <- elaborate (addParams params term)
-        term' <- atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
-        withTopLevel (varIdentAt path name) ty' (Just term') False used Nothing $ \binder decl -> do
-          backend <- asks ctxRenderBackend
-          termSVG <- case backend of
-            Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
-            Just RenderLaTeX -> issueTypeError $
-              TypeErrorOther "\"latex\" rendering is not yet supported"
-            Nothing          -> pure Nothing
+        -- The body is checked on its own, so that a definition whose type is
+        -- fine but whose proof is not still enters the scope, as a postulate of
+        -- that type. The rest of the file is then checked against it and its
+        -- own errors and holes reported, instead of the run stopping at this
+        -- one. Nothing is admitted by this: the error is still reported, and
+        -- the strict entry points still fail the run.
+        result <- tryCheck $ do
+          valTerm <- elaborate (addParams params term)
+          atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+        let (mvalue, bodyErrors) = case result of
+              Right term'  -> (Just term', [])
+              Left bodyErr -> (Nothing, [bodyErr])
+        withTopLevel (varIdentAt path name) ty' mvalue False used Nothing $ \binder decl -> do
+          -- A definition with no proof term has no diagram to draw.
+          termSVG <- case mvalue of
+            Nothing -> pure Nothing
+            Just _  -> asks ctxRenderBackend >>= \case
+              Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
+              Just RenderLaTeX -> issueTypeError $
+                TypeErrorOther "\"latex\" rendering is not yet supported"
+              Nothing          -> pure Nothing
           maybe id trace termSVG $
             checkCommands path (i + 1) total more $ \decls errs ->
-              k (sinkDecl decl : decls) errs
+              k (sinkDecl decl : decls) (bodyErrors <> errs)
 
   command@(Rzk.CommandData _loc name (Rzk.DeclUsedVars _ vars) params sort body) : more ->
     announce (" Checking #data " <> Rzk.printTree name) $

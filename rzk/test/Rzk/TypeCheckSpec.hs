@@ -40,6 +40,7 @@ data Expect = Expect
   , expectMessageContains :: Maybe [String]
   , expectLine            :: Maybe Int
   , expectColumn          :: Maybe Int
+  , expectErrorCount      :: Maybe Int
   , expectRegressionFor   :: Maybe [String]
   , expectModules         :: Maybe [FilePath]
   , expectApi             :: Maybe String
@@ -53,6 +54,7 @@ instance FromJSON Expect where
     <*> o .:? "message_contains"
     <*> o .:? "line"
     <*> o .:? "column"
+    <*> o .:? "error_count"
     <*> o .:? "regression_for"
     <*> o .:? "modules"
     <*> o .:? "api"
@@ -192,6 +194,13 @@ assertExpectCollect label Expect{..} (Right checked) = case checkedErrors checke
     [] ->
       expectationFailure $ "in " <> label <> ", expected type errors but got none"
     err : _ -> do
+      case expectErrorCount of
+        Nothing -> pure ()
+        Just n | length errs /= n ->
+          expectationFailure $ "in " <> label <> ", expected " <> show n
+            <> " errors, got " <> show (length errs) <> ":\n"
+            <> unlines (map (ppTypeErrorInScopedContext BottomUp) errs)
+        Just _ -> pure ()
       let tag = typeErrorConstructorName err
       case expectErrorTag of
         Nothing -> expectationFailure "expect.yaml missing error_tag for status: error"
