@@ -25,10 +25,9 @@
 module Rzk.TypeCheck.Decl where
 
 import           Control.Monad             (forM, forM_, unless, when)
-import           Control.Monad.Except      (catchError, runExcept)
+import           Control.Monad.Except      (catchError)
 import           Data.Data                 (Data, cast, gmapQ)
-import           Control.Monad.Reader      (ask, asks, local, runReaderT)
-import           Control.Monad.Trans.Writer.CPS (runWriterT)
+import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
@@ -1299,17 +1298,18 @@ checkModules (m@(path, _) : ms) k =
 -- * The public entry points
 
 -- | Check the modules, and package the result with the scope it was checked in.
--- The warnings live on the writer channel during the run and are folded into
--- the 'Checked' package here.
+-- The warnings are recorded during the run and are folded into the 'Checked'
+-- package here.
 checkedModules :: [(FilePath, Rzk.Module)] -> Context Foil.VoidS -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 checkedModules modules ctx =
-  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
+  package $ runTypeCheckWith ctx $
     checkModules modules $ \decls errs -> do
       ctx' <- ask
       pure (Checked ctx' decls errs [])
   where
-    package (Checked ctx' decls errs _, (holes, warnings)) =
-      (Checked ctx' decls errs warnings, holes)
+    package (Left err, _) = Left err
+    package (Right (Checked ctx' decls errs _), (holes, warnings)) =
+      Right (Checked ctx' decls errs warnings, holes)
 
 -- | Check the modules strictly: an unfilled hole is an error, and the first error
 -- stops the run.
@@ -1411,15 +1411,16 @@ recheckFrom
   -> [(FilePath, Rzk.Module)]
   -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 recheckFrom (Checked ctx decls _errs _warnings) modules =
-  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
+  package $ runTypeCheckWith ctx $
     checkModules modules $ \newDecls errs -> do
       ctx' <- ask
       pure (Checked ctx' (sinkDeclGroups decls <> newDecls) errs [])
   where
     -- Only this run's warnings: like the errors, the prefix's warnings were
     -- already reported when the prefix was checked.
-    package (Checked ctx' decls' errs _, (holes, warnings)) =
-      (Checked ctx' decls' errs warnings, holes)
+    package (Left err, _) = Left err
+    package (Right (Checked ctx' decls' errs _), (holes, warnings)) =
+      Right (Checked ctx' decls' errs warnings, holes)
 
 -- | The errors of a checked run.
 checkedErrors :: Checked -> [TypeErrorInScopedContext]

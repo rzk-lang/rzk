@@ -21,10 +21,7 @@
 module Rzk.TypeCheck.Eval where
 
 import           Control.Monad               (forM, forM_, unless, when)
-import           Control.Monad.Except        (runExcept)
-import           Control.Monad.Reader        (ask, asks, local,
-                                              runReaderT)
-import           Control.Monad.Trans.Writer.CPS (runWriterT)
+import           Control.Monad.Reader        (ask, asks, local)
 import           Data.List                   (intercalate, nub, nubBy,
                                               tails)
 import           Data.Maybe                  (catMaybes)
@@ -354,9 +351,9 @@ withRefreshedTopes
   => (Context n -> Context n) -> TypeCheck n a -> TypeCheck n a
 withRefreshedTopes f action = do
   ctx' <- asks f
-  let sat = case runExcept (runWriterT (runReaderT (saturateForEntailment (ctxTopesNF ctx')) ctx')) of
-        Left _       -> Nothing
-        Right (s, _) -> Just s
+  let sat = case runTypeCheckIn ctx' (saturateForEntailment (ctxTopesNF ctx')) of
+        Left _  -> Nothing
+        Right s -> Just s
   local (const ctx' { ctxTopesSaturated = SaturationCached sat }) action
 
 -- | Run a check in every alternative of a disjunctive tope context.

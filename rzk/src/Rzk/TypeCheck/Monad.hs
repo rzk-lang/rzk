@@ -16,12 +16,13 @@
 module Rzk.TypeCheck.Monad where
 
 import           Control.Monad            (unless)
-import           Control.Monad.Except     (Except, MonadError (throwError),
-                                           runExcept)
+import           Control.Monad.Except     (ExceptT,
+                                           MonadError (catchError, throwError),
+                                           runExceptT)
 import           Control.Monad.Reader     (ReaderT (..), ask, asks, local)
 import           Control.Monad.Trans      (lift)
-import           Control.Monad.Trans.Writer.CPS (WriterT, runWriterT)
-import           Control.Monad.Writer.CPS (tell)
+import           Control.Monad.Trans.State.Strict (State, get, modify', put,
+                                           runState)
 import           Debug.Trace              (trace)
 
 import           Control.Monad.Foil       (Distinct)
@@ -101,24 +102,56 @@ data MetaPrefixRule
   | MetaPrefixStrictOnly
   deriving (Eq, Show)
 
+-- | What a run records besides its result: the holes it found and the non-fatal
+-- findings it made. Both accumulate in reverse and are turned around by
+-- 'checkLog' when the run ends.
+data CheckLog = CheckLog
+  { logHolesRev    :: [HoleInfo]
+  , logWarningsRev :: [CheckWarning]
+  }
+
+emptyCheckLog :: CheckLog
+emptyCheckLog = CheckLog [] []
+
+-- | What a run recorded, in the order it was recorded.
+checkLog :: CheckLog -> ([HoleInfo], [CheckWarning])
+checkLog (CheckLog holes warnings) = (reverse holes, reverse warnings)
+
+-- | The record of a run is kept in the /state/, beneath the error channel,
+-- rather than on a writer channel above it.
+--
+-- The two differ exactly where a caught error is concerned: a writer discards
+-- what the failing action wrote, and the state keeps it. That is what the
+-- checker wants. A command that fails still reports the holes the user wrote in
+-- it, and checking goes on to the next command with those holes in hand (see
+-- @withCommand@ in "Rzk.TypeCheck.Decl"). A probe that wants the older
+-- behaviour asks for it, with 'suppressing'.
 type TypeCheck n =
   ReaderT (Context n)
-    (WriterT ([HoleInfo], [CheckWarning]) (Except TypeErrorInScopedContext))
+    (ExceptT TypeErrorInScopedContext (State CheckLog))
+
+-- | Run a judgement in a given context, keeping what it recorded.
+runTypeCheckWith
+  :: Context n -> TypeCheck n a
+  -> (Either TypeErrorInScopedContext a, ([HoleInfo], [CheckWarning]))
+runTypeCheckWith ctx tc =
+  case runState (runExceptT (runReaderT tc ctx)) emptyCheckLog of
+    (result, logged) -> (result, checkLog logged)
 
 -- | Run a judgement in the empty context, discarding the holes it records.
 runTypeCheck :: TypeCheck Foil.VoidS a -> Either TypeErrorInScopedContext a
-runTypeCheck tc = fst <$> runExcept (runWriterT (runReaderT tc emptyContext))
+runTypeCheck = runTypeCheckIn emptyContext
 
 -- | Run a judgement in a given context, discarding the holes it records.
 runTypeCheckIn :: Context n -> TypeCheck n a -> Either TypeErrorInScopedContext a
-runTypeCheckIn ctx tc = fst <$> runExcept (runWriterT (runReaderT tc ctx))
+runTypeCheckIn ctx tc = fst (runTypeCheckWith ctx tc)
 
 -- | Run a judgement in another scope's context.
 --
 -- The error channel and the hole channel are shared and carry no scope index, so
 -- there is nothing to translate: this is 'runReaderT' with the inner scope's
--- context, lifted back. Holes recorded inside are told into the same writer, and
--- an error thrown inside already carries its own context.
+-- context, lifted back. Holes recorded inside land in the same state, and an
+-- error thrown inside already carries its own context.
 inContext :: Context l -> TypeCheck l a -> TypeCheck n a
 inContext ctx = lift . flip runReaderT ctx
 
@@ -202,15 +235,37 @@ performing action tc = do
            local (const ctx') tc
     else local (const ctx') tc
 
+-- * What a run records
+
+modifyLog :: (CheckLog -> CheckLog) -> TypeCheck n ()
+modifyLog f = lift (lift (modify' f))
+
+-- | Run a probe for its answer alone, discarding whatever it records.
+--
+-- A hole's inventory is built by trying candidate moves and seeing which fit,
+-- and each trial checks terms of its own; their holes and warnings are not the
+-- user's and must not reach the report. This is what the writer channel's
+-- @censor@ did before the record moved into the state: the state survives an
+-- error, so it is put back on that path too.
+suppressing :: TypeCheck n a -> TypeCheck n a
+suppressing action = do
+  saved <- lift (lift get)
+  let restore = lift (lift (put saved))
+  result <- action `catchError` \err -> restore >> throwError err
+  restore
+  return result
+
 -- * Holes
 
 recordHoleInfo :: HoleInfo -> TypeCheck n ()
-recordHoleInfo info = lift (tell ([info], []))
+recordHoleInfo info =
+  modifyLog $ \l -> l { logHolesRev = info : logHolesRev l }
 
 -- * Warnings
 
 recordCheckWarning :: CheckWarning -> TypeCheck n ()
-recordCheckWarning warning = lift (tell ([], [warning]))
+recordCheckWarning warning =
+  modifyLog $ \l -> l { logWarningsRev = warning : logWarningsRev l }
 
 -- * Locations
 
