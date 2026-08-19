@@ -383,9 +383,11 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
   [ block TopDown
     [ case ctxLocation of
         _ | dir == TopDown -> "" -- FIXME
-        Just (LocationInfo (Just path) (Just lineNo)) ->
+        Just (LocationInfo (Just path) (Just lineNo) (Just col)) ->
+          path <> " (line " <> show lineNo <> ", column " <> show col <> "):"
+        Just (LocationInfo (Just path) (Just lineNo) Nothing) ->
           path <> " (line " <> show lineNo <> "):"
-        Just (LocationInfo (Just path) _) ->
+        Just (LocationInfo (Just path) _ _) ->
           path <> ":"
         _  -> ""
     , case ctxCurrentCommand of

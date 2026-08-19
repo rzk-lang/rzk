@@ -2,7 +2,8 @@ status: error
 error_tag: TypeErrorUnify
 message_contains:
   - "cannot unify expected type"
-line: 6
+line: 12
+column: 46
 regression_for:
   - "let-mod-into-motive-checks-body"
   - "https://github.com/rzk-lang/rzk/pull/327"

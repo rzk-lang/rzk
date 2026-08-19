@@ -3,6 +3,7 @@ error_tag: TypeErrorMatchBranchArity
 message_contains:
   - "match branch for constructor suc"
   - "binds 1 argument, but its method takes 2"
-line: 6
+line: 7
+column: 6
 regression_for:
   - match-branch-arity

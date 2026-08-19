@@ -29,6 +29,7 @@ import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 
 import           Language.Rzk.Foil.Names (VarIdent)
+import           Language.Rzk.Foil.Syntax (positionOfTerm)
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
@@ -226,6 +227,7 @@ performing action tc = do
   let ctx' = ctx
         { ctxActionStack = action : ctxActionStack
         , ctxActionStackDepth = ctxActionStackDepth + 1
+        , ctxLocation = narrowLocation action ctxLocation
         }
   -- The trace message is built only when it is actually printed: at normal
   -- verbosity rendering the action's terms on every judgement would cost a
@@ -234,6 +236,22 @@ performing action tc = do
     then trace (ppAction (namingOfContext ctx) ctxActionStackDepth action) $
            local (const ctx') tc
     else local (const ctx') tc
+
+-- | Point the location at the sub-term an action is about.
+--
+-- The checker descends through 'performing', so the location narrows as it
+-- goes and an error is reported where the sub-term that caused it was written,
+-- rather than at the declaration it is in (issue #81). A judgement about a term
+-- the checker built itself carries no position, and leaves the location as it
+-- found it: that is the innermost enclosing term the user did write.
+narrowLocation :: Action n -> Maybe LocationInfo -> Maybe LocationInfo
+narrowLocation action loc = case termOf action of
+  Just term | Just pos <- positionOfTerm term -> atPosition pos <$> loc
+  _                                           -> loc
+  where
+    termOf (ActionTypeCheck term _) = Just term
+    termOf (ActionInfer term)       = Just term
+    termOf _                        = Nothing
 
 -- * What a run records
 

@@ -234,13 +234,22 @@ type ScopedTermT = ScopedAST NameBinder (AnnSig TypeInfo TermSig)
 -- | A scope of an untyped term.
 type ScopedTerm = ScopedAST NameBinder (AnnSig SrcPos TermSig)
 
--- | Record where a term was written.
+-- | Record where a term was written, unless it is already recorded.
+--
+-- The conversion tags a node after converting what is under it, and desugaring
+-- hands surface nodes back to the conversion carrying the position of the node
+-- they came from. A node that already knows where it was written therefore
+-- learnt it from something more specific, and keeps it: the λ that a
+-- definition's parameters are wrapped in reuses the λ's own position as it
+-- peels them off, and would otherwise claim every diagnostic in the body.
 --
 -- A variable carries no node of its own, so it is returned unchanged; where a
 -- variable occurrence was written is on its 'VarIdent' instead.
 atSrcPos :: RzkPosition -> Term n -> Term n
-atSrcPos pos (Node (AnnSig _ sig)) = Node (AnnSig (SrcPos pos) sig)
-atSrcPos _ t@(Var _)               = t
+atSrcPos pos t@(Node (AnnSig (SrcPos old) sig))
+  | Nothing <- rzkLineCol old = Node (AnnSig (SrcPos pos) sig)
+  | otherwise                 = t
+atSrcPos _ t@(Var _)          = t
 
 -- | Where the term was written, when it came from a file.
 positionOfTerm :: Term n -> Maybe RzkPosition

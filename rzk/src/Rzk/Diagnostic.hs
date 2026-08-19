@@ -93,9 +93,10 @@ instance ToJSON Severity where
 -- | Encode a location as JSON. A plain helper rather than a @ToJSON@ instance,
 -- to avoid an orphan instance ('LocationInfo' is defined in "Rzk.TypeCheck").
 locationToJSON :: LocationInfo -> Value
-locationToJSON (LocationInfo path line) = object
+locationToJSON (LocationInfo path line column) = object
   [ "file" .= path
   , "line" .= line
+  , "column" .= column
   ]
 
 instance ToJSON Diagnostic where
@@ -278,5 +279,7 @@ ppHoleInfo HoleInfo{..} = unlines $
             | e <- entries ]
 
 ppLocationInfo :: LocationInfo -> String
-ppLocationInfo (LocationInfo mpath mline) =
-  maybe "<input>" id mpath <> maybe "" ((":" <>) . show) mline
+ppLocationInfo (LocationInfo mpath mline mcol) =
+  maybe "<input>" id mpath
+    <> maybe "" ((":" <>) . show) mline
+    <> maybe "" ((":" <>) . show) mcol

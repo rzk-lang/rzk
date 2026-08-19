@@ -49,8 +49,9 @@ import qualified Data.Map                    as Map
 import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Foil.Names    (Binder (..), TModality (..),
-                                              VarIdent, binderName)
+import           Language.Rzk.Foil.Names    (Binder (..), RzkPosition (..),
+                                              TModality (..), VarIdent,
+                                              binderName)
 import qualified Language.Rzk.Syntax         as Rzk
 
 -- * The pieces of a context
@@ -70,10 +71,24 @@ data Verbosity
   | Silent
   deriving (Eq, Ord)
 
+-- | Where a diagnostic points.
+--
+-- The line and column are the start of whatever the diagnostic is about: the
+-- declaration being checked, narrowed to the sub-term as the checker descends
+-- into it (see @narrowLocation@ in "Rzk.TypeCheck.Monad"). The surface syntax
+-- records the start of a node and not its extent, so there is no end position
+-- to carry.
 data LocationInfo = LocationInfo
   { locationFilePath :: Maybe FilePath
   , locationLine     :: Maybe Int
+  , locationColumn   :: Maybe Int
   } deriving (Eq, Show)
+
+-- | Point a location at a position in the same file.
+atPosition :: RzkPosition -> LocationInfo -> LocationInfo
+atPosition pos loc = case rzkLineCol pos of
+  Nothing          -> loc
+  Just (line, col) -> loc { locationLine = Just line, locationColumn = Just col }
 
 -- | What is known about a hypothesis, local or top-level.
 data VarInfo n = VarInfo

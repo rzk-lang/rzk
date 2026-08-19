@@ -39,6 +39,7 @@ data Expect = Expect
   , expectErrorTag        :: Maybe String
   , expectMessageContains :: Maybe [String]
   , expectLine            :: Maybe Int
+  , expectColumn          :: Maybe Int
   , expectRegressionFor   :: Maybe [String]
   , expectModules         :: Maybe [FilePath]
   , expectApi             :: Maybe String
@@ -51,6 +52,7 @@ instance FromJSON Expect where
     <*> o .:? "error_tag"
     <*> o .:? "message_contains"
     <*> o .:? "line"
+    <*> o .:? "column"
     <*> o .:? "regression_for"
     <*> o .:? "modules"
     <*> o .:? "api"
@@ -63,6 +65,10 @@ instance FromJSON Expect where
 -- this had to unsafeCoerce its way back out.
 errorLine :: TypeErrorInScopedContext -> Maybe Int
 errorLine err = locationOfTypeError err >>= locationLine
+
+-- | The column an error was raised at: the start of the sub-term it is about.
+errorColumn :: TypeErrorInScopedContext -> Maybe Int
+errorColumn err = locationOfTypeError err >>= locationColumn
 
 -- | The constructor name of a type error, used to match @error_tag@ in fixtures.
 -- This is the library's own tag (also used for diagnostic codes), so the two cannot
@@ -150,6 +156,15 @@ assertExpect label Expect{..} (Left err) | expectStatus == "error" = do
         expectationFailure $ "in " <> label <> ", expected line " <> show ln
           <> " got " <> show got
       Just _ -> pure ()
+  case expectColumn of
+    Nothing -> pure ()
+    Just c -> case errorColumn err of
+      Nothing -> expectationFailure $ "in " <> label <> ", expected column "
+        <> show c <> " but error has no column"
+      Just got | got /= c ->
+        expectationFailure $ "in " <> label <> ", expected column " <> show c
+          <> " got " <> show got
+      Just _ -> pure ()
 assertExpect label Expect{expectStatus = "ok", expectWarnings = want} (Right checked) =
   assertWarnings label want checked
 assertExpect label Expect{expectStatus = st} _ =
@@ -197,6 +212,13 @@ assertExpectCollect label Expect{..} (Right checked) = case checkedErrors checke
           Nothing -> expectationFailure "expected line number on error"
           Just got | got /= ln ->
             expectationFailure $ "line mismatch: wanted " <> show ln <> " got " <> show got
+          Just _ -> pure ()
+      case expectColumn of
+        Nothing -> pure ()
+        Just c -> case errorColumn err of
+          Nothing -> expectationFailure "expected column on error"
+          Just got | got /= c ->
+            expectationFailure $ "column mismatch: wanted " <> show c <> " got " <> show got
           Just _ -> pure ()
   st ->
     expectationFailure $ "in " <> label <> ", unknown status " <> show st

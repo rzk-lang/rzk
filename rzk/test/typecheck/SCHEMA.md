@@ -19,7 +19,8 @@ Test cases live under `test/typecheck/cases/`.
 | `status` | yes | `ok` if typechecking must succeed; `error` if it must fail with a type error. |
 | `error_tag` | if `status: error` | Name of the `TypeError` constructor after stripping `ScopedTypeError` wrappers, e.g. `TypeErrorUnify`, `TypeErrorUndefined`. |
 | `message_contains` | no | Substrings that must all appear in the rendered error (`ppTypeErrorInScopedContext'`). |
-| `line` | no | 1-based line number (approximate) in the Rzk file where the error is reported. |
+| `line` | no | 1-based line number in the Rzk file where the error is reported: the start of the sub-term the error is about, not of the declaration around it. |
+| `column` | no | 1-based column on that line, likewise the start of the sub-term. A variable is a leaf of the core syntax and carries no position of its own, so an error blamed on one is reported at the innermost term around it that does. |
 | `regression_for` | no | Traceability: GitHub issue/PR URLs, commit themes, or short **semantic** rule names (e.g. `contextEntailsUnion-recOR-boundary`). Avoid `TypeCheck.hs` line numbers and `issueTypeError-<line>` tags — they go stale. |
 | `modules` | no | If set (directory case), ordered list of module files for one `typecheckModulesWithLocation` run. |
 | `api` | no | Omit or `strict` (default): `typecheckModulesWithLocation` (throws on first error). `collect`: `typecheckModulesWithLocation'` — returns a list of errors without using `throwError`; note that the typechecker still stops per-module chaining when a module reports errors (see implementation in `Rzk.TypeCheck`). |

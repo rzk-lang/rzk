@@ -999,7 +999,11 @@ withCommand command k action =
       { ctxCurrentCommand = Just command
       , ctxLocation = updatePosition (Rzk.hasPosition command) <$> ctxLocation ctx
       }
-    updatePosition pos loc = loc { locationLine = fst <$> pos }
+    -- Where the command starts. A judgement made inside it narrows this to the
+    -- sub-term it is about (see @narrowLocation@); this is what an error with
+    -- no sub-term of its own falls back to.
+    updatePosition pos loc =
+      loc { locationLine = fst <$> pos, locationColumn = snd <$> pos }
 
 -- | The binder leaves repeated within one binder /group/ of a surface
 -- command: the parameter list of a λ, of a declaration, or of a constructor
@@ -1061,6 +1065,23 @@ duplicateBinders x = concat
 
 -- | Elaborate a surface term in the current top-level scope: a free identifier
 -- resolves to the top-level entry it names.
+-- | Run a check with the location narrowed to where a surface term was written.
+--
+-- Descending through a judgement already narrows to the sub-term it is about
+-- (@narrowLocation@ in "Rzk.TypeCheck.Monad"), but only a /node/ carries a
+-- position: a variable is a leaf of the core syntax, with nowhere to put one.
+-- So a check that starts from a surface term says where that term starts, and a
+-- definition whose body is a bare variable is reported at the body rather than
+-- at the declaration above it.
+atSurface :: Rzk.HasPosition a => a -> TypeCheck n b -> TypeCheck n b
+atSurface x = local $ \ctx ->
+  ctx { ctxLocation = narrow <$> ctxLocation ctx }
+  where
+    narrow loc = case Rzk.hasPosition x of
+      Nothing          -> loc
+      Just (line, col) ->
+        loc { locationLine = Just line, locationColumn = Just col }
+
 elaborate :: forall n. Distinct n => Rzk.Term -> TypeCheck n (Term n)
 elaborate term = do
   ctx <- ask
@@ -1132,9 +1153,9 @@ checkCommands path i total commands k = case commands of
         -- stored type and value) would disagree with the term the user wrote;
         -- keeping the WHNF cached preserves the original one-shot reduction.
         tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- memoizeWHNF =<< typecheck tyTerm universeT
+        ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
         valTerm <- elaborate (addParams params term)
-        term' <- memoizeWHNF =<< typecheck valTerm ty'
+        term' <- atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
         withTopLevel (varIdentAt path name) ty' (Just term') False used Nothing $ \binder decl -> do
           backend <- asks ctxRenderBackend
           termSVG <- case backend of
@@ -1166,7 +1187,7 @@ checkCommands path i total commands k = case commands of
         used <- mapM (checkDefined . varIdentAt path) vars
         paramDecls <- concat <$> mapM paramToParamDecl params
         tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- memoizeWHNF =<< typecheck tyTerm universeT
+        ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
         withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
           checkCommands path (i + 1) total more $ \decls errs ->
             k (sinkDecl decl : decls) errs
@@ -1176,7 +1197,7 @@ checkCommands path i total commands k = case commands of
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
       withCommand command k $ do
         tyTerm <- elaborate ty
-        ty' <- typecheck tyTerm universeT
+        ty' <- atSurface ty $ typecheck tyTerm universeT
         assume (map (varIdentAt path) names) ty' $ \assumed ->
           checkCommands path (i + 1) total more $ \decls errs ->
             k (sinkDecls assumed <> decls) errs
@@ -1185,9 +1206,9 @@ checkCommands path i total commands k = case commands of
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $
       withCommand command k $ do
         tyTerm <- elaborate ty
-        ty' <- typecheck tyTerm universeT >>= whnfT
+        ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
         termTerm <- elaborate term
-        _term' <- typecheck termTerm ty'
+        _term' <- atSurface term $ typecheck termTerm ty'
         checkCommands path (i + 1) total more k
 
   Rzk.CommandCompute loc term : more ->
@@ -1275,7 +1296,10 @@ checkModuleWithLocation
   -> TypeCheck n r
 checkModuleWithLocation (path, module_) k =
   traceTypeCheck Normal ("Checking module from " <> path) $
-    withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
+    withLocation (LocationInfo
+      { locationFilePath = Just path
+      , locationLine = Nothing
+      , locationColumn = Nothing }) $
       checkModule (Just path) module_ k
 
 -- | Check a list of modules, one after another, in a scope that grows as it goes.
