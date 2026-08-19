@@ -155,6 +155,7 @@ extra-source-files:
     test/typecheck/cases/ill-recor-coverage-required.rzk
     test/typecheck/cases/ill-recor-guard-disjoint.rzk
     test/typecheck/cases/ill-recover-after-body-error.rzk
+    test/typecheck/cases/ill-recover-after-type-error.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
     test/typecheck/cases/ill-repeated-binder-lambda.rzk
     test/typecheck/cases/ill-repeated-binder-pair.rzk
@@ -340,6 +341,7 @@ extra-source-files:
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
     test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
     test/typecheck/cases/ill-recover-after-body-error.expect.yaml
+    test/typecheck/cases/ill-recover-after-type-error.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
     test/typecheck/cases/ill-repeated-binder-lambda.expect.yaml
     test/typecheck/cases/ill-repeated-binder-pair.expect.yaml
