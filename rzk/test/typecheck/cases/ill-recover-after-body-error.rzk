@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- The proof of `broken` does not check, but its type does, so it is entered
+-- as a postulate and the rest of the file is checked against it: `uses-broken`
+-- uses it and checks, and the separate error in `also-broken` is reported too.
+#define broken (A : U) (a : A) : A
+  := A
+
+#define uses-broken (A : U) (a : A) : A
+  := broken A a
+
+#define also-broken (A : U) (a : A) : A
+  := U

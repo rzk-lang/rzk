@@ -19,7 +19,6 @@ import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (ask, asks, local)
-import           Control.Monad.Writer.CPS (censor)
 import           Data.List                (intercalate, sortOn, tails)
 import qualified Data.IntMap              as IntMap
 import qualified Data.IntSet              as IntSet
@@ -292,7 +291,7 @@ fitsInto :: Distinct n => TermT n -> TermT n -> TermT n -> TypeCheck n Bool
 fitsInto term ty target = do
   ty'     <- stripTypeRestrictions <$> whnfT ty
   target' <- stripTypeRestrictions <$> whnfT target
-  censor (const mempty) $ local structuralHoleUnify
+  suppressing $ local structuralHoleUnify
     ((unify (Just term) target' ty' >> pure True) `catchError` \_ -> pure False)
 
 -- | The eliminators a value of the given (weak head normal) type admits, each as a
@@ -575,7 +574,7 @@ saturateWithHoles term = do
 -- probing are discarded, leaving a pure yes\/no query.
 endpointsAgree :: Distinct n => TermT n -> TermT n -> TypeCheck n Bool
 endpointsAgree a b =
-  censor (const mempty)
+  suppressing
     ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
 
 -- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it is a
@@ -785,8 +784,8 @@ recordHoleShape mname goalTy mshape = do
 
   -- for each local hypothesis (and allow-listed lemma), the elimination spines that
   -- land in the goal (arguments left as holes). Probing must not leak holes into the
-  -- recorded output, hence the 'censor'.
-  candidates <- censor (const mempty) $ do
+  -- recorded output, hence the 'suppressing'.
+  candidates <- suppressing $ do
     -- over the shown hypotheses: a unit-bound point admits no elimination,
     -- and offering it bare would duplicate the @unit@ introduction
     elims <- concat <$>
@@ -843,7 +842,7 @@ recordHoleShape mname goalTy mshape = do
   -- the introduction forms for the goal itself (constituents left as holes); the Π
   -- binder is freshened against the names in scope so that it does not shadow,
   -- and the parse-back check applies like it does to the candidates.
-  introductions <- censor (const mempty) (allIntroductionsOf goalTy takenNames)
+  introductions <- suppressing (allIntroductionsOf goalTy takenNames)
   introductionMoves <- fmap concat $ forM introductions $ \i -> do
     let r = renderMove i
     ok <- parsesBackTo table i r
@@ -851,7 +850,7 @@ recordHoleShape mname goalTy mshape = do
   -- the goal cell: an SVG of the shape the hole must inhabit (an arrow, triangle or
   -- square), drawn from an abstract inhabitant with the proof term hidden. 'Nothing'
   -- when the goal is not a renderable shape.
-  diagram <- censor (const mempty) (renderGoalCellSVG goal')
+  diagram <- suppressing (renderGoalCellSVG goal')
 
   recordHoleInfo HoleInfo
     { holeName          = mname
