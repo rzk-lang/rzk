@@ -174,10 +174,21 @@ unifyInCurrentContext mterm expected actual = performing action $ do
       -- mentions it. Such a branch is only entered because the hole is unfilled, so
       -- a mismatch under it is deferred too. 'structuralHoleUnify' turns this off,
       -- keeping a structural mismatch around a hole an error.
+      --
+      -- A /flexible/ side is the exception 'structuralHoleUnify' does not cover:
+      -- a term headed by a hole ('isHoleHeadedT') has no shape to mismatch with
+      -- yet, since filling the head decides what it is. It therefore unifies with
+      -- anything even under 'structuralHoleUnify'. This is what lets an
+      -- eliminator whose result is a motive application be offered as a hole
+      -- candidate: @ind-path ? ? ? ? ? ?@ has type @?C ?x ?p@, which fits any
+      -- goal. A move is a suggestion, not a solution -- the motive and the base
+      -- case are left as holes for the caller, and the result is type-checked
+      -- like any other term once written.
       defer <- asks ctxDeferHoleMismatches
       topeContextHasHole <- asks (any (containsHole . tTope) . ctxTopes)
-      let holePresent = defer &&
-            (containsHole expected' || containsHole actual' || topeContextHasHole)
+      let holePresent =
+            (defer && (containsHole expected' || containsHole actual' || topeContextHasHole))
+              || isHoleHeadedT expected' || isHoleHeadedT actual'
 
           err :: TypeCheck n ()
           err

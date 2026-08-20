@@ -354,6 +354,20 @@ isHoleT :: TermT n -> Bool
 isHoleT HoleT{} = True
 isHoleT _       = False
 
+-- | Is the term a /flexible/ spine: a hole, or an application headed by one
+-- (@? a b@)?
+--
+-- Such a term is not yet committed to any shape: filling the head hole can turn
+-- it into anything. A type of this form therefore stands for an arbitrary type,
+-- which is what lets an eliminator whose result type is a motive application
+-- (@ind-path A a C d x p : C x p@) be judged against a concrete goal. Contrast
+-- 'containsHole', which is also true of a term whose /shape/ is already fixed
+-- and only has holes among its parts (@? = ?@ is an identity type either way).
+isHoleHeadedT :: TermT n -> Bool
+isHoleHeadedT HoleT{}     = True
+isHoleHeadedT (AppT _ f _) = isHoleHeadedT f
+isHoleHeadedT _           = False
+
 -- | The name of every hole in a term.
 holeNamesOf :: Term n -> [Maybe VarIdent]
 holeNamesOf (Hole mname) = [mname]

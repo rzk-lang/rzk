@@ -453,6 +453,33 @@ spec = do
            cands h `shouldContain` ["my-id ?"]
            filter (== "my-id") (cands h) `shouldBe` []
 
+    -- A lemma whose result type is a motive application (@ind-path ... : C x p@)
+    -- is offered like any other: the spine's type is headed by a hole, which has
+    -- no shape to mismatch with, so it fits any goal. Without this, every
+    -- eliminator written in the sHoTT style is invisible as a move while the
+    -- built-in @idJ@ is offered, and a level cannot teach the library spelling.
+    it "offers a lemma whose result type is headed by a hole" $
+      let indSrc = "#lang rzk-1\n"
+                <> "#define ind-path (A : U) (a : A)\n"
+                <> "  (C : (x : A) -> (a = x) -> U) (d : C a refl)\n"
+                <> "  (x : A) (p : a = x) : C x p\n"
+                <> "  := idJ (A , a , C , d , x , p)\n"
+                <> "#define goal (A : U) (x y : A) (p : x = y) : y = x := ?\n"
+      in flip oneHole (holesWithLemmas ["ind-path"] indSrc) $ \h ->
+           cands h `shouldContain` ["ind-path ? ? ? ? ? ?"]
+
+    -- Fitting anything does not mean escaping the allow-list: a hole-headed
+    -- lemma is still only offered when the level grants it.
+    it "does not offer a hole-headed lemma that was not allow-listed" $
+      let indSrc = "#lang rzk-1\n"
+                <> "#define ind-path (A : U) (a : A)\n"
+                <> "  (C : (x : A) -> (a = x) -> U) (d : C a refl)\n"
+                <> "  (x : A) (p : a = x) : C x p\n"
+                <> "  := idJ (A , a , C , d , x , p)\n"
+                <> "#define goal (A : U) (x y : A) (p : x = y) : y = x := ?\n"
+      in flip oneHole (holesWithLemmas [] indSrc) $ \h ->
+           filter (isInfixOf "ind-path") (cands h) `shouldBe` []
+
   describe "holeCandidates under shadowing" $ do
     let cands = map show . holeCandidates
         -- the motive λ rebinds b, so at the inner hole the telescope's b is

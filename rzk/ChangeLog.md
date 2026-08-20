@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## Unreleased
+
+Fixed:
+
+- **A lemma whose result type is a motive application is offered as a hole candidate.** A spine such as `#!rzk ind-path ? ? ? ? ? ?` has the type `#!rzk ?C ?x ?p`, an application headed by a hole. Such a type has no shape to mismatch with — filling the head decides what it is — so it now unifies with any goal while probing candidates, and the lemma is offered like any other. Previously only the built-in `#!rzk idJ` was suggested at an identity goal, and every eliminator written in the sHoTT style (`#!rzk ind-path`, a library `#!rzk ind-Void`, an `#!rzk ind-hom2`) was invisible as a move even when explicitly allow-listed. The allow-list still gates the suggestion, and a hole-headed spine is a suggestion rather than a solution: the motive and the base case are left as holes and the written term is type-checked as usual.
+
 ## v0.11.1 — 2026-07-25
 
 This release adds higher inductive types: a `#!rzk #data` constructor may now return an identity type, declaring a path, and the generated eliminators gain one method and one propositional computation rule per path constructor. Declarations may re-ascribe the type of a generated eliminator or computation rule with a definitionally equal spelling of their own, which is what makes the generated types readable through a library `#!rzk transport`/`#!rzk ap`/`#!rzk apd`. Modal `#!rzk let mod` gains an explicit motive, and the playground deploys are fixed.
