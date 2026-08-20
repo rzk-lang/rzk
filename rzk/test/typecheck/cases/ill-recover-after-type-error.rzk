@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- The type of `bad-type` does not check, so nothing is entered for it and
+-- `uses-it` reports an undefined variable. The unrelated error below is
+-- reported too, instead of the file stopping at the first one.
+#define bad-type (A : U) : A A
+  := A
+
+#define uses-it (A : U) : A -> A
+  := \ x -> bad-type A
+
+#define also-wrong (A : U) (a : A) : A
+  := U

@@ -1063,6 +1063,24 @@ duplicateBinders x = concat
             earlier -> (varIdent v, map varIdent (reverse earlier)) : go (v : seen) vs
     sameSpelling (Rzk.VarIdent _ a) (Rzk.VarIdent _ b) = a == b
 
+-- | Report a command's error and go on to the next one, with the command
+-- itself contributing nothing to the scope.
+--
+-- This is the recovery for a command that cannot be stood in for: a
+-- declaration whose /type/ does not check has no type to enter it at. The uses
+-- of it below then report an undefined variable, which is noisier than the one
+-- error but keeps the rest of the file's own errors and holes visible, which is
+-- what a file being edited is wanted for.
+skippingCommand
+  :: Distinct n
+  => TypeErrorInScopedContext
+  -> Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
+  -> (forall l. (DExt n l, Distinct l)
+        => [Decl l] -> [TypeErrorInScopedContext] -> TypeCheck l r)
+  -> TypeCheck n r
+skippingCommand err path i total more k =
+  checkCommands path (i + 1) total more $ \decls errs -> k decls (err : errs)
+
 -- | Run a check, handing back its error instead of propagating it.
 --
 -- What it recorded on the way is kept: the record lives in the state beneath
@@ -1153,39 +1171,43 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : more ->
     announce (" Checking #define " <> Rzk.printTree name) $
       withCommand command k $ do
-        used <- mapM (checkDefined . varIdentAt path) vars
-        paramDecls <- concat <$> mapM paramToParamDecl params
         -- Store the elaborated type and term unreduced, but memoise their WHNF on
         -- the top node. Reducing in place would discard or expose a variable
         -- occurrence, so the section unused/implicit-assumption checks (run over the
         -- stored type and value) would disagree with the term the user wrote;
         -- keeping the WHNF cached preserves the original one-shot reduction.
-        tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
-        -- The body is checked on its own, so that a definition whose type is
-        -- fine but whose proof is not still enters the scope, as a postulate of
-        -- that type. The rest of the file is then checked against it and its
-        -- own errors and holes reported, instead of the run stopping at this
-        -- one. Nothing is admitted by this: the error is still reported, and
-        -- the strict entry points still fail the run.
-        result <- tryCheck $ do
-          valTerm <- elaborate (addParams params term)
-          atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
-        let (mvalue, bodyErrors) = case result of
-              Right term'  -> (Just term', [])
-              Left bodyErr -> (Nothing, [bodyErr])
-        withTopLevel (varIdentAt path name) ty' mvalue False used Nothing $ \binder decl -> do
-          -- A definition with no proof term has no diagram to draw.
-          termSVG <- case mvalue of
-            Nothing -> pure Nothing
-            Just _  -> asks ctxRenderBackend >>= \case
-              Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
-              Just RenderLaTeX -> issueTypeError $
-                TypeErrorOther "\"latex\" rendering is not yet supported"
-              Nothing          -> pure Nothing
-          maybe id trace termSVG $
-            checkCommands path (i + 1) total more $ \decls errs ->
-              k (sinkDecl decl : decls) (bodyErrors <> errs)
+        typeResult <- tryCheck $ do
+          used <- mapM (checkDefined . varIdentAt path) vars
+          paramDecls <- concat <$> mapM paramToParamDecl params
+          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
+          pure (used, ty')
+        case typeResult of
+          Left typeError -> skippingCommand typeError path i total more k
+          Right (used, ty') -> do
+            -- The body is checked on its own, so that a definition whose type
+            -- is fine but whose proof is not still enters the scope, as a
+            -- postulate of that type. The rest of the file is then checked
+            -- against it and its own errors and holes reported, instead of the
+            -- run stopping at this one.
+            result <- tryCheck $ do
+              valTerm <- elaborate (addParams params term)
+              atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+            let (mvalue, bodyErrors) = case result of
+                  Right term'  -> (Just term', [])
+                  Left bodyErr -> (Nothing, [bodyErr])
+            withTopLevel (varIdentAt path name) ty' mvalue False used Nothing $ \binder decl -> do
+              -- A definition with no proof term has no diagram to draw.
+              termSVG <- case mvalue of
+                Nothing -> pure Nothing
+                Just _  -> asks ctxRenderBackend >>= \case
+                  Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
+                  Just RenderLaTeX -> issueTypeError $
+                    TypeErrorOther "\"latex\" rendering is not yet supported"
+                  Nothing          -> pure Nothing
+              maybe id trace termSVG $
+                checkCommands path (i + 1) total more $ \decls errs ->
+                  k (sinkDecl decl : decls) (bodyErrors <> errs)
 
   command@(Rzk.CommandData _loc name (Rzk.DeclUsedVars _ vars) params sort body) : more ->
     announce (" Checking #data " <> Rzk.printTree name) $
@@ -1204,32 +1226,47 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
       withCommand command k $ do
-        used <- mapM (checkDefined . varIdentAt path) vars
-        paramDecls <- concat <$> mapM paramToParamDecl params
-        tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
-        withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
-          checkCommands path (i + 1) total more $ \decls errs ->
-            k (sinkDecl decl : decls) errs
+        typeResult <- tryCheck $ do
+          used <- mapM (checkDefined . varIdentAt path) vars
+          paramDecls <- concat <$> mapM paramToParamDecl params
+          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
+          pure (used, ty')
+        case typeResult of
+          Left typeError -> skippingCommand typeError path i total more k
+          Right (used, ty') ->
+            withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
+              checkCommands path (i + 1) total more $ \decls errs ->
+                k (sinkDecl decl : decls) errs
 
   command@(Rzk.CommandAssume _loc names ty) : more ->
     announce (" Checking #assume "
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
       withCommand command k $ do
-        tyTerm <- elaborate ty
-        ty' <- atSurface ty $ typecheck tyTerm universeT
-        assume (map (varIdentAt path) names) ty' $ \assumed ->
-          checkCommands path (i + 1) total more $ \decls errs ->
-            k (sinkDecls assumed <> decls) errs
+        typeResult <- tryCheck $ do
+          tyTerm <- elaborate ty
+          atSurface ty $ typecheck tyTerm universeT
+        case typeResult of
+          Left typeError -> skippingCommand typeError path i total more k
+          Right ty' ->
+            assume (map (varIdentAt path) names) ty' $ \assumed ->
+              checkCommands path (i + 1) total more $ \decls errs ->
+                k (sinkDecls assumed <> decls) errs
 
   command@(Rzk.CommandCheck _loc term ty) : more ->
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $
       withCommand command k $ do
-        tyTerm <- elaborate ty
-        ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
-        termTerm <- elaborate term
-        _term' <- atSurface term $ typecheck termTerm ty'
-        checkCommands path (i + 1) total more k
+        -- A #check declares nothing, so its failure costs the rest of the file
+        -- nothing either.
+        result <- tryCheck $ do
+          tyTerm <- elaborate ty
+          ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
+          termTerm <- elaborate term
+          _term' <- atSurface term $ typecheck termTerm ty'
+          pure ()
+        case result of
+          Left err -> skippingCommand err path i total more k
+          Right () -> checkCommands path (i + 1) total more k
 
   Rzk.CommandCompute loc term : more ->
     checkCommands path i total (Rzk.CommandComputeWHNF loc term : more) k
@@ -1237,18 +1274,24 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandComputeNF _loc term) : more ->
     announce (" Computing NF for " <> Rzk.printTree term) $
       withCommand command k $ do
-        term' <- elaborate term >>= infer >>= nfT
-        shown <- ppInContext term'
-        traceTypeCheck Normal ("  " <> shown) $
-          checkCommands path (i + 1) total more k
+        result <- tryCheck $ do
+          term' <- atSurface term $ elaborate term >>= infer >>= nfT
+          ppInContext term'
+        case result of
+          Left err -> skippingCommand err path i total more k
+          Right shown -> traceTypeCheck Normal ("  " <> shown) $
+            checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandComputeWHNF _loc term) : more ->
     announce (" Computing WHNF for " <> Rzk.printTree term) $
       withCommand command k $ do
-        term' <- elaborate term >>= infer >>= whnfT
-        shown <- ppInContext term'
-        traceTypeCheck Normal ("  " <> shown) $
-          checkCommands path (i + 1) total more k
+        result <- tryCheck $ do
+          term' <- atSurface term $ elaborate term >>= infer >>= whnfT
+          ppInContext term'
+        case result of
+          Left err -> skippingCommand err path i total more k
+          Right shown -> traceTypeCheck Normal ("  " <> shown) $
+            checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandSection _loc name) : more ->
     withCommand command k $ do
