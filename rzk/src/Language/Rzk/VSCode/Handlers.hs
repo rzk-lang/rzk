@@ -76,7 +76,7 @@ import           Language.Rzk.VSCode.Logging
 import           Language.Rzk.VSCode.Tokenize  (mergeTokens, tokenizeModule,
                                                 tokenizeSyntaxSymbols)
 import qualified Rzk.Diagnostic                as Diag
-import           Rzk.Format                    (format)
+import qualified Rzk.Format                    as Fmt
 import           Rzk.Project.Config            (ProjectConfig (include))
 import           Rzk.TypeCheck
 import           Text.Read                     (readMaybe)
@@ -135,15 +135,32 @@ toLspUri (RefInd.Uri { uriPath = p }) = filePathToUri p
 -- buffer when the file is open, from disk otherwise. A file that cannot be
 -- read converts as all-BMP, i.e. the conversion is the identity.
 astralLinesOfFile :: FilePath -> LSP Enc.AstralLines
-astralLinesOfFile path = do
+astralLinesOfFile = fmap Enc.astralLines . sourceOfFile
+
+-- | The text of a file as the client sees it: from the editor buffer when the
+-- file is open, from disk otherwise. A file that cannot be read is empty.
+sourceOfFile :: FilePath -> LSP T.Text
+sourceOfFile path = do
   mdoc <- getVirtualFile (filePathToNormalizedUri path)
   case virtualFileText <$> mdoc of
-    Just text -> return (Enc.astralLines (T.filter (/= '\r') text))
+    Just text -> return (T.filter (/= '\r') text)
     Nothing -> liftIO $ do
       result <- try @SomeException (readFile path)
       return $ case result of
-        Left _    -> Enc.astralLines ""
-        Right src -> Enc.astralLines (T.filter (/= '\r') (T.pack src))
+        Left _    -> ""
+        Right src -> T.filter (/= '\r') (T.pack src)
+
+-- | The lines of a document, by 0-based line number, for reading the token a
+-- diagnostic marks.
+newtype SourceLines = SourceLines (Map.Map Int T.Text)
+
+sourceLinesOf :: T.Text -> SourceLines
+sourceLinesOf src = SourceLines (Map.fromDistinctAscList (zip [0 ..] (T.lines src)))
+
+-- | A line outside the document is empty, as is one in a file that could not be
+-- read; a marking there falls back to a single character.
+lineOf :: SourceLines -> Int -> T.Text
+lineOf (SourceLines ls) line = Map.findWithDefault "" line ls
 
 fromLspPosition :: Enc.AstralLines -> LSP.Position -> RefInd.Position
 fromLspPosition als (LSP.Position l c) =
@@ -249,7 +266,7 @@ typecheckFromConfigFile = do
           -- /is/ the elaborated prefix, so nothing is replayed or re-elaborated.
           let prefix = case reverse checked of
                 (_, entry) : _ -> cachedModuleChecked entry
-                []             -> emptyChecked
+                []             -> emptyCheckedWithHoles
           tcResult <- liftIO $ tryTypecheck $ evaluate $
             recheckFrom prefix [(path, module_)]
           case tcResult of
@@ -293,20 +310,30 @@ typecheckFromConfigFile = do
     -- max count of 0 forces an empty publish to the client, clearing it.
     publishModuleDiagnostics :: FilePath -> [TypeErrorInScopedContext] -> [CheckWarning] -> [HoleInfo] -> LSP ()
     publishModuleDiagnostics path typeErrors warnings holeInfos = do
-      let errDiagnostics  = [ (filepathOfTypeError err, [diagnosticOfTypeError err])
+      let errDiagnostics  = [ (filepathOfTypeError err, [Diag.diagnoseTypeError TopDown err])
                             | err <- typeErrors ]
-          warnDiagnostics = [ (path', [diagnosticOfWarning warning])
+          warnDiagnostics = [ (path', [Diag.diagnoseCheckWarning warning])
                             | warning <- warnings
                             , let path' = fromMaybe path
                                     (warningLocation warning >>= locationFilePath) ]
-          holeDiagnostics = [ (path', [diagnosticOfHole hole])
+          holeDiagnostics = [ (path', [Diag.diagnoseHole hole])
                             | hole <- holeInfos
                             , Just path' <- [holeLocation hole >>= locationFilePath] ]
           diagnosticsByFile = Map.insertWith (flip (<>)) path [] $
             Map.fromListWith (flip (<>)) (errDiagnostics <> warnDiagnostics <> holeDiagnostics)
-      forM_ (Map.toList diagnosticsByFile) $ \(path', diags) ->
-        publishDiagnostics (if null diags then 0 else maxDiagnosticCount)
-          (filePathToNormalizedUri path') Nothing (partitionBySource diags)
+      -- The source of each file with something to report, read once: a
+      -- diagnostic marks the token it points at, and its column is converted
+      -- to the UTF-16 the client counts in.
+      forM_ (Map.toList diagnosticsByFile) $ \(path', diags) -> do
+        lspDiags <- case diags of
+          [] -> return []
+          _  -> do
+            src <- sourceOfFile path'
+            let als = Enc.astralLines src
+                sourceLines = sourceLinesOf src
+            return (map (lspDiagnosticOf als sourceLines) diags)
+        publishDiagnostics (if null lspDiags then 0 else maxDiagnosticCount)
+          (filePathToNormalizedUri path') Nothing (partitionBySource lspDiags)
 
     -- Modules that a run never reaches (they come after a module with an
     -- error, and every rzk module depends on all earlier ones) get a single
@@ -339,11 +366,11 @@ typecheckFromConfigFile = do
         Just path -> path
         _         -> error "the impossible happened! Please contact Abdelrahman immediately!!!"
 
-    -- Map a structured library diagnostic to an LSP diagnostic. The range is
-    -- line-level (whole line), reflecting the granularity rzk currently retains.
-    lspDiagnosticOf :: Diag.Diagnostic -> Diagnostic
-    lspDiagnosticOf d = Diagnostic
-                      (Range (Position line 0) (Position line 99)) -- 99 to reach end of line and be visible until we actually have column information
+    -- Map a structured library diagnostic to an LSP diagnostic, marking the
+    -- term it is about in the given source.
+    lspDiagnosticOf :: Enc.AstralLines -> SourceLines -> Diag.Diagnostic -> Diagnostic
+    lspDiagnosticOf als sourceLines d = Diagnostic
+                      (Enc.rangeToUtf16 als (diagnosticRange sourceLines d))
                       (Just (lspSeverity (Diag.diagnosticSeverity d)))
                       (Just (InR (T.pack (Diag.diagnosticCode d))))
                       Nothing                   -- diagnostic description
@@ -352,11 +379,42 @@ typecheckFromConfigFile = do
                       Nothing                   -- tags
                       (Just [])                 -- related information
                       Nothing                   -- data that is preserved between different calls
+
+    -- What the diagnostic marks: the token the term it is about starts with.
+    --
+    -- The checker knows where a term begins and not where it ends (the surface
+    -- syntax records only the start of a node), so the marked span is the head
+    -- token. That puts the squiggle on the right thing without claiming an
+    -- extent that was never measured, and a hole is marked exactly, since @?@
+    -- and @?name@ are the whole term. A diagnostic that has no column is about
+    -- a whole declaration and still marks the line.
+    diagnosticRange :: SourceLines -> Diag.Diagnostic -> Range
+    diagnosticRange sourceLines d = case Diag.diagnosticLocation d of
+      Just loc
+        | Just lineNo <- locationLine loc
+        , Just col <- locationColumn loc
+        , let line = fromIntegral (lineNo - 1)  -- LSP counts lines from 0
+        , let start = fromIntegral (col - 1)    -- and columns too
+        -> Range (Position line start)
+                 (Position line (start + tokenWidth sourceLines line start))
+      Just loc
+        | Just lineNo <- locationLine loc
+        , let line = fromIntegral (lineNo - 1)
+        -> Range (Position line 0) (Position line 99) -- to the end of the line
+      _ -> Range (Position 0 0) (Position 0 99)
+
+    -- The width of the token starting at a position, in code points, and never
+    -- zero: an empty marking shows nothing at all. A token that opens with a
+    -- bracket or a separator is one character wide, since those delimit rather
+    -- than name; anything else runs to the next space or delimiter.
+    tokenWidth :: SourceLines -> UInt -> UInt -> UInt
+    tokenWidth sourceLines line start =
+      case T.drop (fromIntegral start) (lineOf sourceLines (fromIntegral line)) of
+        rest | Just (c, _) <- T.uncons rest, not (isDelimiter c)
+             -> max 1 (fromIntegral (T.length (T.takeWhile (not . isDelimiter) rest)))
+        _    -> 1
       where
-        line = fromIntegral $ fromMaybe 0 $ do
-          loc <- Diag.diagnosticLocation d
-          lineNo <- locationLine loc
-          return (lineNo - 1) -- VS Code indexes lines from 0, but locationLine starts with 1
+        isDelimiter c = c `elem` (" \t()[]{},;" :: String)
 
     lspSeverity :: Diag.Severity -> DiagnosticSeverity
     lspSeverity = \case
@@ -364,15 +422,6 @@ typecheckFromConfigFile = do
       Diag.SeverityWarning     -> DiagnosticSeverity_Warning
       Diag.SeverityInformation -> DiagnosticSeverity_Information
       Diag.SeverityHint        -> DiagnosticSeverity_Hint
-
-    diagnosticOfTypeError :: TypeErrorInScopedContext -> Diagnostic
-    diagnosticOfTypeError = lspDiagnosticOf . Diag.diagnoseTypeError TopDown
-
-    diagnosticOfHole :: HoleInfo -> Diagnostic
-    diagnosticOfHole = lspDiagnosticOf . Diag.diagnoseHole
-
-    diagnosticOfWarning :: CheckWarning -> Diagnostic
-    diagnosticOfWarning = lspDiagnosticOf . Diag.diagnoseCheckWarning
 
     diagnosticOfParseError :: Enc.AstralLines -> T.Text -> Diagnostic
     diagnosticOfParseError als err = Diagnostic (Enc.rangeToUtf16 als (Range (Position errLine errColumnStart) (Position errLine errColumnEnd)))
@@ -478,25 +527,13 @@ formatDocument req res = do
     possibleEdits <- case virtualFileText <$> mdoc of
       Nothing         -> return (Left "Failed to get file contents")
       Just sourceCode -> do
+        -- 'fullDocumentRange' spans the trailing newlines too, so the
+        -- replacement carries them: 'formatDocument' keeps as many as the
+        -- source had, and the document is returned with its final newline
+        -- intact.
         let source = T.filter (/= '\r') sourceCode
-            formatted = format source
-            -- Preserve trailing newlines of the source so formatting is idempotent.
-            formatted'
-              | T.null source = formatted
-              | otherwise =
-                  let inputTrailing = T.length (T.takeWhileEnd (== '\n') source)
-                      outTrailing = T.length (T.takeWhileEnd (== '\n') formatted)
-                  in if outTrailing > inputTrailing
-                     then T.dropEnd (outTrailing - inputTrailing) formatted
-                     else if outTrailing < inputTrailing
-                          then formatted <> T.replicate (inputTrailing - outTrailing) (T.singleton '\n')
-                          else formatted
-            -- Never send trailing newlines: some clients add one when applying a
-            -- full-document edit, so we send content ending with no newline to avoid
-            -- an extra blank line on each format.
-            formatted'' = T.dropWhileEnd (== '\n') formatted'
             range = fullDocumentRange source
-        return (Right [TextEdit range formatted''])
+        return (Right [TextEdit range (Fmt.formatDocument source)])
     case possibleEdits of
 #if MIN_VERSION_lsp(2,7,0)
       Left err    -> res $ Left $ TResponseError (InR ErrorCodes_InternalError) err Nothing
@@ -899,7 +936,7 @@ isChanged cache path = toIsChanged $ do
   -- Re-check this file from the context of the prefix before it.
   let prefix = case reverse (takeWhile ((/= path) . fst) cache) of
         (_, entry) : _ -> cachedModuleChecked entry
-        []             -> emptyChecked
+        []             -> emptyCheckedWithHoles
   e <- toExceptTLifted $ try @SomeException $ evaluate $
     recheckFrom prefix [(path, module')]
   (checkedNow, _holes) <- toExceptT $ return e

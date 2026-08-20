@@ -27,7 +27,7 @@
 -- they can be shown back to the user.
 module Language.Rzk.Foil.Convert where
 
-import           Control.Monad.Foil       (Distinct, NameBinder, NameMap, Scope)
+import           Control.Monad.Foil       (Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
@@ -41,8 +41,10 @@ import           Debug.Trace              (trace)   -- FIXME: use proper mechani
 import           Unsafe.Coerce            (unsafeCoerce)
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Foil.Names (Binder (..), Display, TModality (..),
-                                           VarIdent, holeName, toBinder, varIdent)
+import           Language.Rzk.Foil.Names (Binder (..), Display,
+                                           RzkPosition (RzkPosition),
+                                           TModality (..), VarIdent, holeName,
+                                           toBinder, varIdent)
 import qualified Language.Rzk.Foil.Names as Free
 import qualified Language.Rzk.Syntax      as Rzk
 
@@ -65,7 +67,7 @@ toScopedPatternWith
   :: Distinct n
   => Scope n -> Rzk.Pattern -> Env n
   -> (forall l. Distinct l => Scope l -> Env l -> Term l)
-  -> ScopedAST NameBinder TermSig n
+  -> ScopedTerm n
 toScopedPatternWith scope pat env k =
   Foil.withFresh scope $ \binder ->
     let scope' = Foil.extendScope binder scope
@@ -78,14 +80,14 @@ toScopedPatternWith scope pat env k =
 -- | Enter a pattern binder over a surface body.
 toScopedPattern
   :: Distinct n
-  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
+  => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedTerm n
 toScopedPattern scope pat env body =
   toScopedPatternWith scope pat env (\scope' env' -> toTerm scope' env' body)
 
 -- | Enter an anonymous binder (a non-dependent function type binds nothing).
 toScopedAnon
   :: Distinct n
-  => Scope n -> Env n -> Rzk.Term -> ScopedAST NameBinder TermSig n
+  => Scope n -> Env n -> Rzk.Term -> ScopedTerm n
 toScopedAnon scope env body =
   Foil.withFresh scope $ \binder ->
     let scope' = Foil.extendScope binder scope
@@ -115,8 +117,26 @@ toTerm scope env = go
       , "  " <> Rzk.printTree suggestion
       ]
 
+    -- Every node is tagged with where it was written, so that a diagnostic
+    -- points at the sub-term it is about rather than at the declaration around
+    -- it.
+    --
+    -- A node with no position of its own is left with whatever the conversion
+    -- of its body found. Desugaring builds surface nodes and hands them back to
+    -- 'go', and not all of them carry a position: the λ that @addParams@ wraps
+    -- a definition's body in is spelled nowhere, and overwriting the body's
+    -- position with its absence would put every such error back on the
+    -- declaration line.
+    --
+    -- The file is not recorded here: a term is converted while checking a known
+    -- module, and the diagnostic takes the path from the context around it.
     go :: Rzk.Term -> Term n
-    go = \case
+    go term = case Rzk.hasPosition term of
+      Nothing  -> go' term
+      Just pos -> atSrcPos (RzkPosition Nothing (Just pos)) (go' term)
+
+    go' :: Rzk.Term -> Term n
+    go' = \case
       -- ASCII aliases are desugared exactly as before.
       Rzk.ASCII_CubeUnitStar loc -> go (Rzk.CubeUnitStar loc)
       Rzk.ASCII_Cube2_0 loc -> go (Rzk.Cube2_0 loc)

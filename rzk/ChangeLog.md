@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.11.2 — 2026-08-20
+
+A maintenance release. Checking no longer stops at the first declaration that fails, errors are reported at the sub-term rather than at the enclosing declaration, and a lemma stated over a motive is offered as a hole candidate, so an eliminator written in the sHoTT style is visible as a move.
+
+Changed:
+
+- **Checking continues past a declaration that fails** (see [#336](https://github.com/rzk-lang/rzk/pull/336), [#337](https://github.com/rzk-lang/rzk/pull/337)). A file used to stop at its first bad definition, so one mistake hid every later one; each declaration is now checked on its own and every error is reported. What a failing command recorded is kept rather than discarded, which is what makes the later declarations checkable at all.
+- **A type error is reported where the offending sub-term is** (see [#336](https://github.com/rzk-lang/rzk/pull/336)), not at the enclosing `#!rzk #define`. An untyped term now carries its source position for this, so a tool that draws a squiggle can mark the term at fault instead of the whole declaration.
+
+Fixed:
+
+- **A lemma whose result type is a motive application is offered as a hole candidate** (see [#338](https://github.com/rzk-lang/rzk/pull/338)). A spine such as `#!rzk ind-path ? ? ? ? ? ?` has the type `#!rzk ?C ?x ?p`, an application headed by a hole. Such a type has no shape to mismatch with — filling the head decides what it is — so it now unifies with any goal while probing candidates, and the lemma is offered like any other. Previously only the built-in `#!rzk idJ` was suggested at an identity goal, and every eliminator written in the sHoTT style (`#!rzk ind-path`, a library `#!rzk ind-Void`, an `#!rzk ind-hom2`) was invisible as a move even when explicitly allow-listed. The allow-list still gates the suggestion, and a hole-headed spine is a suggestion rather than a solution: the motive and the base case are left as holes and the written term is type-checked as usual.
+- **Holes are not errors again in the LSP** (see [#336](https://github.com/rzk-lang/rzk/pull/336)), so an in-progress proof with a `#!rzk ?` in it reports its goal rather than a failure.
+- **The formatter no longer deletes a file's final newline** (see [#335](https://github.com/rzk-lang/rzk/pull/335)). Formatting now indexes the lines and tokens it works over instead of rescanning them, which is what let the last newline go missing.
+
 ## v0.11.1 — 2026-07-25
 
 This release adds higher inductive types: a `#!rzk #data` constructor may now return an identity type, declaring a path, and the generated eliminators gain one method and one propositional computation rule per path constructor. Declarations may re-ascribe the type of a generated eliminator or computation rule with a definitionally equal spelling of their own, which is what makes the generated types readable through a library `#!rzk transport`/`#!rzk ap`/`#!rzk apd`. Modal `#!rzk let mod` gains an explicit motive, and the playground deploys are fixed.

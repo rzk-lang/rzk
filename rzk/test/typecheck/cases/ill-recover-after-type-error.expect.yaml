@@ -1,0 +1,9 @@
+status: error
+api: collect
+error_tag: TypeErrorNotFunction
+line: 6
+column: 28
+error_count: 3
+regression_for:
+  - "continue-checking-after-a-failed-declaration-type"
+  - "https://github.com/rzk-lang/rzk/issues/81"

@@ -18,6 +18,9 @@ module Rzk.Format (
   normalizeTabs,
 ) where
 
+import           Data.Array              (Array, listArray, (!))
+import           Data.IntMap.Strict      (IntMap)
+import qualified Data.IntMap.Strict      as IntMap
 import           Data.List               (sort)
 
 import qualified Data.Text               as T
@@ -55,7 +58,10 @@ data FormatState = FormatState
   , lambdaArrow      :: Bool -- ^ After a lambda '\', in the parameters (to leave its -> on the same line)
   , eqBraceDepth     :: Int  -- ^ Depth inside =_{ ... }; 0 = not inside, 1 = at top level after =_{
   , eqBraceOnOwnLine :: Bool -- ^ True if the current =_{ started at the beginning of its line (after spaces)
-  , allTokens        :: [Token] -- ^ The full array of tokens after resolving the layout
+  , tokensOnLine     :: IntMap [Token]
+    -- ^ All the tokens after resolving the layout, grouped by the line they
+    -- start on. Only one rule needs them, and only those on a single line, so
+    -- they are indexed rather than scanned (see 'lineTokensBefore').
   }
 
 -- | Replace every tab character with a single space.
@@ -68,16 +74,41 @@ formatTextEdits :: T.Text -> [FormattingEdit]
 formatTextEdits contents =
   case resolveLayout True (tokens rzkBlocks) of
     Left _err     -> [] -- TODO: log error (in a CLI and LSP friendly way)
-    Right allToks -> go (initialState {allTokens = allToks}) allToks
+    Right allToks -> go (initialState {tokensOnLine = groupByLine allToks}) allToks
   where
-    initialState = FormatState { parensDepth = 0, letDepth  = 0, inDataCommand = False, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, allTokens = [] }
+    initialState = FormatState { parensDepth = 0, letDepth  = 0, inDataCommand = False, definingName = False, lambdaArrow = False, eqBraceDepth = 0, eqBraceOnOwnLine = False, tokensOnLine = IntMap.empty }
     incParensDepth s = s { parensDepth = parensDepth s + 1 }
     decParensDepth s = s { parensDepth = 0 `max` (parensDepth s - 1) }
     rzkBlocks = tryExtractMarkdownCodeBlocks "rzk" contents
-    contentLines line = T.lines rzkBlocks !! (line - 1) -- Sorry
-    lineTokensBefore toks line col = filter isBefore toks
+
+    -- Almost every rule reads the line its token sits on, and some read the
+    -- neighbouring ones, so the lines are split once and indexed. Splitting the
+    -- whole document afresh on each lookup made formatting quadratic in the
+    -- file size: sHoTT's largest module took 0.8 s, past the editor's
+    -- format-on-save budget, so saving it looked like it had been refused.
+    sourceLines :: [T.Text]
+    sourceLines = T.lines rzkBlocks
+    lineCount = length sourceLines
+    lineArray :: Array Int T.Text
+    lineArray = listArray (1, lineCount) sourceLines
+
+    -- | The content of a line, by its 1-based number. A line outside the
+    -- document is empty, which is what the rules looking at a neighbour want at
+    -- the first and last line.
+    contentLines line
+      | line >= 1 && line <= lineCount = lineArray ! line
+      | otherwise                      = ""
+
+    groupByLine :: [Token] -> IntMap [Token]
+    groupByLine toks =
+      IntMap.fromListWith (<>) [ (l, [t]) | t@(PT (Pn _ l _) _) <- toks ]
+
+    -- | The tokens preceding a position on its own line. The order within a
+    -- line is not preserved: the one rule that asks only tests them all.
+    lineTokensBefore s line col =
+      filter isBefore (IntMap.findWithDefault [] line (tokensOnLine s))
       where
-        isBefore (PT (Pn _ l c) _) = l == line && c < col
+        isBefore (PT (Pn _ _ c) _) = c < col
         isBefore _                 = False
     unicodeTokens :: [(T.Text, T.Text)]
     unicodeTokens =
@@ -162,7 +193,7 @@ formatTextEdits contents =
       where
         spaceCol = col + 1
         lineContent = contentLines line
-        precededBySingleCharOnly = all isPunctuation (lineTokensBefore (allTokens s) line col)
+        precededBySingleCharOnly = all isPunctuation (lineTokensBefore s line col)
         singleCharUnicodeTokens = filter (\(_, unicode) -> T.length unicode == 1) unicodeTokens
         punctuations :: [T.Text]
         punctuations = concat
@@ -216,7 +247,7 @@ formatTextEdits contents =
           | closingEqBrace && onOwnLine && not isLastOnLine
           = [ FormattingEdit line braceEndCol line (braceEndCol + spacesAfter) "\n  " ]
           | closingEqBrace && onOwnLine && isLastOnLine
-          = let nextLine = if line < length (T.lines rzkBlocks) then contentLines (line + 1) else ""
+          = let nextLine = contentLines (line + 1)
                 spacesNextLine = T.length $ T.takeWhile (== ' ') nextLine
             in if spacesNextLine /= 2 then [ FormattingEdit (line + 1) 1 (line + 1) (1 + spacesNextLine) "  " ] else []
           | otherwise
@@ -316,12 +347,8 @@ formatTextEdits contents =
         spacesAfter = T.length $ T.takeWhile (== ' ') (T.drop (col + T.length tk - 1) lineContent)
         isFirstNonSpaceChar = T.all (== ' ') (T.take (col - 1) lineContent)
         isLastNonSpaceChar = T.all (== ' ') (T.drop (col + T.length tk - 1) lineContent)
-        prevLine
-          | line > 0 = contentLines (line - 1)
-          | otherwise = ""
-        nextLine
-          | line + 1 < length (T.lines rzkBlocks) = contentLines (line + 1)
-          | otherwise = ""
+        prevLine = contentLines (line - 1)
+        nextLine = contentLines (line + 1)
         spacesNextLine = T.length $ T.takeWhile (== ' ') nextLine
         edits = spaceEdits ++ unicodeEdits
         spaceEdits
@@ -382,11 +409,24 @@ format contents =
   let normalized = normalizeTabs contents
   in applyTextEdits (formatTextEdits normalized) normalized
 
--- | Same as 'format'. Use this when replacing the entire document (e.g. from
---   the language server), so that tab normalization and all formatting rules
---   are applied correctly instead of applying incremental edits to tabbed source.
+-- | Format a whole document, for a consumer that replaces it wholesale (the
+--   language server does, so that tab normalization and all formatting rules
+--   are applied instead of incremental edits to tabbed source).
+--
+--   The document ends in as many newlines as it began with. Formatting is a
+--   rewriting of the code, and whether a file ends in a newline is not
+--   something it has an opinion on: that is the editor's @insert_final_newline@
+--   and whatever else formats the surrounding Markdown. The language server
+--   used to send the document with every trailing newline stripped, which
+--   silently deleted the final one on each save and left the file failing a
+--   @.editorconfig@ or Prettier check that no further formatting could satisfy.
 formatDocument :: T.Text -> T.Text
-formatDocument = format
+formatDocument contents = matchTrailingNewlines contents (format contents)
+
+-- | Give the second text as many trailing newlines as the first one has.
+matchTrailingNewlines :: T.Text -> T.Text -> T.Text
+matchTrailingNewlines source formatted =
+  T.dropWhileEnd (== '\n') formatted <> T.takeWhileEnd (== '\n') source
 
 -- | Format Rzk code from a file
 formatFile :: FilePath -> IO T.Text

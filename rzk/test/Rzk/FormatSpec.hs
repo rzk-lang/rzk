@@ -2,12 +2,13 @@
 Module      : FormatterSpec
 Description : Tests related to the formatter module
 -}
+{-# LANGUAGE OverloadedStrings #-}
 module Rzk.FormatSpec where
 
 import qualified Data.Text.IO as T
 import           Test.Hspec
 
-import           Rzk.Format   (format, isWellFormatted)
+import           Rzk.Format   (format, formatDocument, isWellFormatted)
 
 formatsTo :: FilePath -> FilePath -> Expectation
 formatsTo beforePath afterPath = do
@@ -66,3 +67,21 @@ spec = do
     it "Fixes indentation" pending
 
     it "Wraps long lines" pending
+
+  -- The language server replaces the whole document, and used to send it with
+  -- every trailing newline stripped: saving deleted the file's final newline,
+  -- which then failed the .editorconfig and Prettier checks that sHoTT's CI
+  -- runs, with no formatting able to satisfy both.
+  describe "formatDocument" $ do
+    it "Keeps the final newline" $ do
+      formatDocument "#lang rzk-1\n" `shouldBe` "#lang rzk-1\n"
+
+    it "Keeps a document that ends without a newline as it was" $ do
+      formatDocument "#lang rzk-1" `shouldBe` "#lang rzk-1"
+
+    it "Keeps the trailing blank lines the source had" $ do
+      formatDocument "#lang rzk-1\n\n\n" `shouldBe` "#lang rzk-1\n\n\n"
+
+    it "Is idempotent on the final newline" $ do
+      let src = "#lang rzk-1\n\n#define id (A : U)\n  : A → A\n  := \\ x → x\n"
+      formatDocument src `shouldBe` src

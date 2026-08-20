@@ -5,7 +5,7 @@ cabal-version: 2.0
 -- see: https://github.com/sol/hpack
 
 name:           rzk
-version:        0.11.1
+version:        0.11.2
 synopsis:       An experimental proof assistant for synthetic ∞-categories
 description:    Please see the README on GitHub at <https://github.com/rzk-lang/rzk#readme>
 category:       Dependent Types
@@ -154,6 +154,8 @@ extra-source-files:
     test/typecheck/cases/ill-recor-as-tope.rzk
     test/typecheck/cases/ill-recor-coverage-required.rzk
     test/typecheck/cases/ill-recor-guard-disjoint.rzk
+    test/typecheck/cases/ill-recover-after-body-error.rzk
+    test/typecheck/cases/ill-recover-after-type-error.rzk
     test/typecheck/cases/ill-render-latex-define.rzk
     test/typecheck/cases/ill-repeated-binder-lambda.rzk
     test/typecheck/cases/ill-repeated-binder-pair.rzk
@@ -338,6 +340,8 @@ extra-source-files:
     test/typecheck/cases/ill-recor-as-tope.expect.yaml
     test/typecheck/cases/ill-recor-coverage-required.expect.yaml
     test/typecheck/cases/ill-recor-guard-disjoint.expect.yaml
+    test/typecheck/cases/ill-recover-after-body-error.expect.yaml
+    test/typecheck/cases/ill-recover-after-type-error.expect.yaml
     test/typecheck/cases/ill-render-latex-define.expect.yaml
     test/typecheck/cases/ill-repeated-binder-lambda.expect.yaml
     test/typecheck/cases/ill-repeated-binder-pair.expect.yaml

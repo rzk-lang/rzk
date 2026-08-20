@@ -25,10 +25,9 @@
 module Rzk.TypeCheck.Decl where
 
 import           Control.Monad             (forM, forM_, unless, when)
-import           Control.Monad.Except      (catchError, runExcept)
+import           Control.Monad.Except      (catchError)
 import           Data.Data                 (Data, cast, gmapQ)
-import           Control.Monad.Reader      (ask, asks, local, runReaderT)
-import           Control.Monad.Trans.Writer.CPS (runWriterT)
+import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
@@ -1000,7 +999,11 @@ withCommand command k action =
       { ctxCurrentCommand = Just command
       , ctxLocation = updatePosition (Rzk.hasPosition command) <$> ctxLocation ctx
       }
-    updatePosition pos loc = loc { locationLine = fst <$> pos }
+    -- Where the command starts. A judgement made inside it narrows this to the
+    -- sub-term it is about (see @narrowLocation@); this is what an error with
+    -- no sub-term of its own falls back to.
+    updatePosition pos loc =
+      loc { locationLine = fst <$> pos, locationColumn = snd <$> pos }
 
 -- | The binder leaves repeated within one binder /group/ of a surface
 -- command: the parameter list of a λ, of a declaration, or of a constructor
@@ -1059,6 +1062,49 @@ duplicateBinders x = concat
             []      -> go (v : seen) vs
             earlier -> (varIdent v, map varIdent (reverse earlier)) : go (v : seen) vs
     sameSpelling (Rzk.VarIdent _ a) (Rzk.VarIdent _ b) = a == b
+
+-- | Report a command's error and go on to the next one, with the command
+-- itself contributing nothing to the scope.
+--
+-- This is the recovery for a command that cannot be stood in for: a
+-- declaration whose /type/ does not check has no type to enter it at. The uses
+-- of it below then report an undefined variable, which is noisier than the one
+-- error but keeps the rest of the file's own errors and holes visible, which is
+-- what a file being edited is wanted for.
+skippingCommand
+  :: Distinct n
+  => TypeErrorInScopedContext
+  -> Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
+  -> (forall l. (DExt n l, Distinct l)
+        => [Decl l] -> [TypeErrorInScopedContext] -> TypeCheck l r)
+  -> TypeCheck n r
+skippingCommand err path i total more k =
+  checkCommands path (i + 1) total more $ \decls errs -> k decls (err : errs)
+
+-- | Run a check, handing back its error instead of propagating it.
+--
+-- What it recorded on the way is kept: the record lives in the state beneath
+-- the error channel, so the holes the user wrote in a definition that fails are
+-- still reported (see "Rzk.TypeCheck.Monad").
+tryCheck :: TypeCheck n a -> TypeCheck n (Either TypeErrorInScopedContext a)
+tryCheck action = (Right <$> action) `catchError` (pure . Left)
+
+-- | Run a check with the location narrowed to where a surface term was written.
+--
+-- Descending through a judgement already narrows to the sub-term it is about
+-- (@narrowLocation@ in "Rzk.TypeCheck.Monad"), but only a /node/ carries a
+-- position: a variable is a leaf of the core syntax, with nowhere to put one.
+-- So a check that starts from a surface term says where that term starts, and a
+-- definition whose body is a bare variable is reported at the body rather than
+-- at the declaration above it.
+atSurface :: Rzk.HasPosition a => a -> TypeCheck n b -> TypeCheck n b
+atSurface x = local $ \ctx ->
+  ctx { ctxLocation = narrow <$> ctxLocation ctx }
+  where
+    narrow loc = case Rzk.hasPosition x of
+      Nothing          -> loc
+      Just (line, col) ->
+        loc { locationLine = Just line, locationColumn = Just col }
 
 -- | Elaborate a surface term in the current top-level scope: a free identifier
 -- resolves to the top-level entry it names.
@@ -1125,27 +1171,43 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : more ->
     announce (" Checking #define " <> Rzk.printTree name) $
       withCommand command k $ do
-        used <- mapM (checkDefined . varIdentAt path) vars
-        paramDecls <- concat <$> mapM paramToParamDecl params
         -- Store the elaborated type and term unreduced, but memoise their WHNF on
         -- the top node. Reducing in place would discard or expose a variable
         -- occurrence, so the section unused/implicit-assumption checks (run over the
         -- stored type and value) would disagree with the term the user wrote;
         -- keeping the WHNF cached preserves the original one-shot reduction.
-        tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- memoizeWHNF =<< typecheck tyTerm universeT
-        valTerm <- elaborate (addParams params term)
-        term' <- memoizeWHNF =<< typecheck valTerm ty'
-        withTopLevel (varIdentAt path name) ty' (Just term') False used Nothing $ \binder decl -> do
-          backend <- asks ctxRenderBackend
-          termSVG <- case backend of
-            Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
-            Just RenderLaTeX -> issueTypeError $
-              TypeErrorOther "\"latex\" rendering is not yet supported"
-            Nothing          -> pure Nothing
-          maybe id trace termSVG $
-            checkCommands path (i + 1) total more $ \decls errs ->
-              k (sinkDecl decl : decls) errs
+        typeResult <- tryCheck $ do
+          used <- mapM (checkDefined . varIdentAt path) vars
+          paramDecls <- concat <$> mapM paramToParamDecl params
+          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
+          pure (used, ty')
+        case typeResult of
+          Left typeError -> skippingCommand typeError path i total more k
+          Right (used, ty') -> do
+            -- The body is checked on its own, so that a definition whose type
+            -- is fine but whose proof is not still enters the scope, as a
+            -- postulate of that type. The rest of the file is then checked
+            -- against it and its own errors and holes reported, instead of the
+            -- run stopping at this one.
+            result <- tryCheck $ do
+              valTerm <- elaborate (addParams params term)
+              atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+            let (mvalue, bodyErrors) = case result of
+                  Right term'  -> (Just term', [])
+                  Left bodyErr -> (Nothing, [bodyErr])
+            withTopLevel (varIdentAt path name) ty' mvalue False used Nothing $ \binder decl -> do
+              -- A definition with no proof term has no diagram to draw.
+              termSVG <- case mvalue of
+                Nothing -> pure Nothing
+                Just _  -> asks ctxRenderBackend >>= \case
+                  Just RenderSVG   -> renderTermSVG (Var (Foil.nameOf binder))
+                  Just RenderLaTeX -> issueTypeError $
+                    TypeErrorOther "\"latex\" rendering is not yet supported"
+                  Nothing          -> pure Nothing
+              maybe id trace termSVG $
+                checkCommands path (i + 1) total more $ \decls errs ->
+                  k (sinkDecl decl : decls) (bodyErrors <> errs)
 
   command@(Rzk.CommandData _loc name (Rzk.DeclUsedVars _ vars) params sort body) : more ->
     announce (" Checking #data " <> Rzk.printTree name) $
@@ -1164,32 +1226,47 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $
       withCommand command k $ do
-        used <- mapM (checkDefined . varIdentAt path) vars
-        paramDecls <- concat <$> mapM paramToParamDecl params
-        tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- memoizeWHNF =<< typecheck tyTerm universeT
-        withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
-          checkCommands path (i + 1) total more $ \decls errs ->
-            k (sinkDecl decl : decls) errs
+        typeResult <- tryCheck $ do
+          used <- mapM (checkDefined . varIdentAt path) vars
+          paramDecls <- concat <$> mapM paramToParamDecl params
+          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
+          pure (used, ty')
+        case typeResult of
+          Left typeError -> skippingCommand typeError path i total more k
+          Right (used, ty') ->
+            withTopLevel (varIdentAt path name) ty' Nothing False used Nothing $ \_binder decl ->
+              checkCommands path (i + 1) total more $ \decls errs ->
+                k (sinkDecl decl : decls) errs
 
   command@(Rzk.CommandAssume _loc names ty) : more ->
     announce (" Checking #assume "
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
       withCommand command k $ do
-        tyTerm <- elaborate ty
-        ty' <- typecheck tyTerm universeT
-        assume (map (varIdentAt path) names) ty' $ \assumed ->
-          checkCommands path (i + 1) total more $ \decls errs ->
-            k (sinkDecls assumed <> decls) errs
+        typeResult <- tryCheck $ do
+          tyTerm <- elaborate ty
+          atSurface ty $ typecheck tyTerm universeT
+        case typeResult of
+          Left typeError -> skippingCommand typeError path i total more k
+          Right ty' ->
+            assume (map (varIdentAt path) names) ty' $ \assumed ->
+              checkCommands path (i + 1) total more $ \decls errs ->
+                k (sinkDecls assumed <> decls) errs
 
   command@(Rzk.CommandCheck _loc term ty) : more ->
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $
       withCommand command k $ do
-        tyTerm <- elaborate ty
-        ty' <- typecheck tyTerm universeT >>= whnfT
-        termTerm <- elaborate term
-        _term' <- typecheck termTerm ty'
-        checkCommands path (i + 1) total more k
+        -- A #check declares nothing, so its failure costs the rest of the file
+        -- nothing either.
+        result <- tryCheck $ do
+          tyTerm <- elaborate ty
+          ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
+          termTerm <- elaborate term
+          _term' <- atSurface term $ typecheck termTerm ty'
+          pure ()
+        case result of
+          Left err -> skippingCommand err path i total more k
+          Right () -> checkCommands path (i + 1) total more k
 
   Rzk.CommandCompute loc term : more ->
     checkCommands path i total (Rzk.CommandComputeWHNF loc term : more) k
@@ -1197,18 +1274,24 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandComputeNF _loc term) : more ->
     announce (" Computing NF for " <> Rzk.printTree term) $
       withCommand command k $ do
-        term' <- elaborate term >>= infer >>= nfT
-        shown <- ppInContext term'
-        traceTypeCheck Normal ("  " <> shown) $
-          checkCommands path (i + 1) total more k
+        result <- tryCheck $ do
+          term' <- atSurface term $ elaborate term >>= infer >>= nfT
+          ppInContext term'
+        case result of
+          Left err -> skippingCommand err path i total more k
+          Right shown -> traceTypeCheck Normal ("  " <> shown) $
+            checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandComputeWHNF _loc term) : more ->
     announce (" Computing WHNF for " <> Rzk.printTree term) $
       withCommand command k $ do
-        term' <- elaborate term >>= infer >>= whnfT
-        shown <- ppInContext term'
-        traceTypeCheck Normal ("  " <> shown) $
-          checkCommands path (i + 1) total more k
+        result <- tryCheck $ do
+          term' <- atSurface term $ elaborate term >>= infer >>= whnfT
+          ppInContext term'
+        case result of
+          Left err -> skippingCommand err path i total more k
+          Right shown -> traceTypeCheck Normal ("  " <> shown) $
+            checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandSection _loc name) : more ->
     withCommand command k $ do
@@ -1276,7 +1359,10 @@ checkModuleWithLocation
   -> TypeCheck n r
 checkModuleWithLocation (path, module_) k =
   traceTypeCheck Normal ("Checking module from " <> path) $
-    withLocation (LocationInfo { locationFilePath = Just path, locationLine = Nothing }) $
+    withLocation (LocationInfo
+      { locationFilePath = Just path
+      , locationLine = Nothing
+      , locationColumn = Nothing }) $
       checkModule (Just path) module_ k
 
 -- | Check a list of modules, one after another, in a scope that grows as it goes.
@@ -1299,17 +1385,18 @@ checkModules (m@(path, _) : ms) k =
 -- * The public entry points
 
 -- | Check the modules, and package the result with the scope it was checked in.
--- The warnings live on the writer channel during the run and are folded into
--- the 'Checked' package here.
+-- The warnings are recorded during the run and are folded into the 'Checked'
+-- package here.
 checkedModules :: [(FilePath, Rzk.Module)] -> Context Foil.VoidS -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 checkedModules modules ctx =
-  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
+  package $ runTypeCheckWith ctx $
     checkModules modules $ \decls errs -> do
       ctx' <- ask
       pure (Checked ctx' decls errs [])
   where
-    package (Checked ctx' decls errs _, (holes, warnings)) =
-      (Checked ctx' decls errs warnings, holes)
+    package (Left err, _) = Left err
+    package (Right (Checked ctx' decls errs _), (holes, warnings)) =
+      Right (Checked ctx' decls errs warnings, holes)
 
 -- | Check the modules strictly: an unfilled hole is an error, and the first error
 -- stops the run.
@@ -1411,15 +1498,16 @@ recheckFrom
   -> [(FilePath, Rzk.Module)]
   -> Either TypeErrorInScopedContext (Checked, [HoleInfo])
 recheckFrom (Checked ctx decls _errs _warnings) modules =
-  fmap package $ runExcept $ runWriterT $ flip runReaderT ctx $
+  package $ runTypeCheckWith ctx $
     checkModules modules $ \newDecls errs -> do
       ctx' <- ask
       pure (Checked ctx' (sinkDeclGroups decls <> newDecls) errs [])
   where
     -- Only this run's warnings: like the errors, the prefix's warnings were
     -- already reported when the prefix was checked.
-    package (Checked ctx' decls' errs _, (holes, warnings)) =
-      (Checked ctx' decls' errs warnings, holes)
+    package (Left err, _) = Left err
+    package (Right (Checked ctx' decls' errs _), (holes, warnings)) =
+      Right (Checked ctx' decls' errs warnings, holes)
 
 -- | The errors of a checked run.
 checkedErrors :: Checked -> [TypeErrorInScopedContext]
@@ -1432,3 +1520,13 @@ checkedWarnings (Checked _ _ _ warnings) = warnings
 -- | Nothing checked yet: the empty context, and no declarations.
 emptyChecked :: Checked
 emptyChecked = Checked emptyContext [] [] []
+
+-- | Nothing checked yet, in lenient hole mode: what an editor resumes from.
+--
+-- A hole is work in progress there, to be reported with its goal and context
+-- rather than as an error (see 'allowHoles'). 'recheckFrom' continues in the
+-- context it is given, so the mode has to be set on the empty one it starts
+-- with: resuming from 'emptyChecked' made every hole a @TypeErrorUnsolvedHole@
+-- and stopped the file at the first one.
+emptyCheckedWithHoles :: Checked
+emptyCheckedWithHoles = Checked (allowHoles emptyContext) [] [] []
