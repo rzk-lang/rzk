@@ -280,6 +280,12 @@ allEliminationsInto target takenNames hyp = do
 -- mismatch (an under-applied function does not match an extension-type goal, but a
 -- partial application that genuinely fits an ordinary-function goal does).
 --
+-- The exception is a /flexible/ type, one headed by a hole: it has no shape to
+-- mismatch with, so it fits any target. This is what makes an eliminator stated
+-- over a motive usable as a candidate --- @ind-path ? ? ? ? ? ?@ has type
+-- @?C ?x ?p@ and so is offered at every goal, exactly as @idJ@ already is, with
+-- the motive and the base case left as holes.
+--
 -- Outer type restrictions are stripped from both sides first: an extension-type
 -- boundary is satisfied by later refinement, not by the choice of spine, and
 -- matching against the restricted goal would reject the very spine that introduces
