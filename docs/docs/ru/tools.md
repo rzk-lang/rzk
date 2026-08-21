@@ -23,8 +23,8 @@
 - [Rzk Warm-up Game](https://rzk-lang.github.io/warmup-game/) не предполагает
   знакомства с Rzk и ведёт от функций и пар до первого знакомства с
   направленными типами;
-- [игра «∞-Yoneda»](https://rzk-lang.github.io/yoneda-game/) следует геодезической
-  Эмили Рил к ∞-категорной версии леммы Йонеды.
+- [игра «∞-Yoneda»](https://rzk-lang.github.io/yoneda-game/) следует
+  [геодезической Эмили Рил](https://emilyriehl.github.io/yoneda/master/simplicial-hott/13-yoneda-geodesic.rzk/) к ∞-категорной версии леммы Йонеды.
 
 Чтобы написать свою игру, Haskell не нужен: игра — это оглавление и по файлу на
 уровень. Начать проще всего с

@@ -24,7 +24,7 @@ Two games are playable in the browser, with no installation:
 - the [Rzk Warm-up Game](https://rzk-lang.github.io/warmup-game/) assumes no
   prior Rzk and builds up from functions and pairs to a taste of directed types;
 - the [∞-Yoneda Game](https://rzk-lang.github.io/yoneda-game/) follows Riehl's
-  geodesic to the ∞-categorical Yoneda lemma.
+  [geodesic to the ∞-categorical Yoneda lemma](https://emilyriehl.github.io/yoneda/master/simplicial-hott/13-yoneda-geodesic.rzk/).
 
 Authoring a game needs no Haskell: a game is a table of contents and one file
 per level. Start from the
