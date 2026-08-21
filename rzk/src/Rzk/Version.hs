@@ -1,3 +1,8 @@
+-- The commit is spliced in at compile time, so the splices below are literals
+-- by the time the pattern checker sees them and one branch of each choice is
+-- statically dead. (Agda's Agda.VersionCommit silences the same warning.)
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -26,6 +31,7 @@ module Rzk.Version (
 
 import           Data.Aeson                 (ToJSON (..), object, (.=))
 import           Data.Version               (Version, showVersion)
+import           Development.GitRev         (gitDirtyTracked, gitHash)
 import           Language.Haskell.TH.Syntax (lift, runIO)
 import           System.Environment         (lookupEnv)
 import qualified System.Info
@@ -59,8 +65,8 @@ data VersionInfo = VersionInfo
   { versionInfoVersion   :: Version
     -- ^ The package version.
   , versionInfoCommit    :: Maybe String
-    -- ^ The commit rzk was built from, when the build supplied one (see
-    -- 'versionInfo'); 'Nothing' otherwise.
+    -- ^ The commit rzk was built from, when the build knew one (see
+    -- 'buildCommit'); 'Nothing' otherwise.
   , versionInfoCompiler  :: String
     -- ^ The Haskell implementation, e.g. @"ghc-9.10.3"@.
   , versionInfoPlatform  :: String
@@ -69,23 +75,36 @@ data VersionInfo = VersionInfo
     -- ^ Whether @rzk lsp@ works in this build.
   } deriving (Eq, Show)
 
+-- | The commit this build was made from, determined when the module is
+-- compiled.
+--
+-- The @RZK_GIT_COMMIT@ environment variable wins when it is set; it is the only
+-- route for a build with no repository to read, such as one from a Hackage
+-- tarball, and the release workflow sets it. Otherwise the commit comes from
+-- the checkout the build ran in, so an ordinary @stack build@ stamps itself
+-- too; a tree with uncommitted changes to tracked files is marked @-dirty@.
+-- A build that can find neither reports 'Nothing'.
+--
+-- Note that a stale stamp is possible: neither stack nor GHC tracks the
+-- environment for recompilation, and stack may skip a package it considers
+-- unchanged even though @HEAD@ has moved. A clean build always gets it right,
+-- which is what CI does for a release binary.
+buildCommit :: Maybe String
+buildCommit
+  | Just fromEnv <- $(runIO (lookupEnv "RZK_GIT_COMMIT") >>= lift) = Just fromEnv
+  | hash == "UNKNOWN" = Nothing
+  | otherwise         = Just (take 8 hash <> dirty)
+  where
+    hash = $(gitHash)
+    dirty
+      | $(gitDirtyTracked) = "-dirty"
+      | otherwise          = ""
+
 -- | The build description of the running rzk.
---
--- The commit is baked in from the @RZK_GIT_COMMIT@ environment variable as it
--- stood when this module was compiled; the release workflow sets it, and an
--- ordinary build leaves it unset and reports 'Nothing'. To stamp a local build:
---
--- > RZK_GIT_COMMIT=$(git rev-parse --short HEAD) \
--- >   stack build --force-dirty --ghc-options=-fforce-recomp
---
--- Neither stack nor GHC tracks the environment for recompilation, hence the
--- forcing: a build that changes nothing but @RZK_GIT_COMMIT@ keeps the commit
--- the module was last compiled with. CI builds from a clean tree, so a release
--- binary always carries the commit it was made from.
 versionInfo :: VersionInfo
 versionInfo = VersionInfo
   { versionInfoVersion  = version
-  , versionInfoCommit   = $(runIO (lookupEnv "RZK_GIT_COMMIT") >>= lift)
+  , versionInfoCommit   = buildCommit
   , versionInfoCompiler =
       System.Info.compilerName <> "-" <> showVersion System.Info.fullCompilerVersion
   , versionInfoPlatform = System.Info.os <> "-" <> System.Info.arch

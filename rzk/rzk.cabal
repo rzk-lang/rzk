@@ -457,6 +457,7 @@ library
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
     , free-foil >=0.3.2 && <0.4
+    , gitrev >=1.3.1 && <2
     , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
@@ -510,6 +511,7 @@ executable rzk
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
     , free-foil >=0.3.2 && <0.4
+    , gitrev >=1.3.1 && <2
     , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
@@ -546,6 +548,7 @@ test-suite doctests
     , directory >=1.2.7.0 && <2
     , doctest-parallel >=0.3 && <1
     , free-foil >=0.3.2 && <0.4
+    , gitrev >=1.3.1 && <2
     , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
     , mtl >=2.2.2 && <3
@@ -594,6 +597,7 @@ test-suite rzk-test
     , directory >=1.2.7.0 && <2
     , filepath >=1.4 && <2
     , free-foil >=0.3.2 && <0.4
+    , gitrev >=1.3.1 && <2
     , hspec >=2.7 && <3
     , hspec-discover >=2.7 && <3
     , kind-generics >=0.5 && <1

@@ -66,6 +66,10 @@ dependencies:
   containers: ">= 0.6 && < 1"
   directory: ">= 1.2.7.0 && < 2"
   free-foil: ">= 0.3.2 && < 0.4"
+  # Reads the commit at compile time for `rzk version --full`. Degrades to
+  # "UNKNOWN" when there is no git or no repository (a Hackage tarball, the
+  # wasm cross-build), so it never breaks a build that cannot run git.
+  gitrev: ">= 1.3.1 && < 2"
   transformers: ">= 0.5 && < 1"
   kind-generics: ">= 0.5 && < 1"
   kind-generics-th: ">= 0.2 && < 1"
