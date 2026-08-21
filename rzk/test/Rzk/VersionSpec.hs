@@ -31,6 +31,11 @@ spec = do
       rendered `shouldContain` versionInfoCompiler versionInfo
       rendered `shouldContain` versionInfoPlatform versionInfo
 
+    it "renders flags in Cabal's notation" $ do
+      let rendered = ppVersionInfo versionInfo
+            { versionInfoFlags = [BuildFlag "lsp" FlagOn, BuildFlag "fancy" FlagOff] }
+      rendered `shouldContain` "flags:      +lsp -fancy"
+
     it "omits the commit date line when there is no date" $
       ppVersionInfo versionInfo { versionInfoCommitDate = Nothing }
         `shouldNotContain` "committed:"
@@ -52,7 +57,7 @@ spec = do
         [ "\"version\":\"" <> versionString <> "\""
         , "\"compiler\":\"" <> versionInfoCompiler versionInfo <> "\""
         , "\"platform\":\"" <> versionInfoPlatform versionInfo <> "\""
-        , "\"lsp\":"
+        , "\"flags\":[{\"enabled\":true,\"name\":\"lsp\"}]"
         , "\"commit\":"
         , "\"commitDate\":"
         ]
