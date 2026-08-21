@@ -437,6 +437,7 @@ library
       Rzk.TypeCheck.NbE
       Rzk.TypeCheck.Render
       Rzk.TypeCheck.Unify
+      Rzk.Version
   other-modules:
       Paths_rzk
   autogen-modules:

@@ -13,7 +13,6 @@ import           Main.Utf8               (withUtf8)
 #endif
 
 import           Control.Monad           (forM, forM_, unless, when, (>=>))
-import           Data.Version            (showVersion)
 
 #ifdef LSP_ENABLED
 import           Language.Rzk.VSCode.Lsp (runLsp)
@@ -27,7 +26,6 @@ import qualified Data.ByteString.Lazy.Char8 as BL8
 import           Data.Functor            (void, (<&>))
 import qualified Data.Text.IO            as T
 
-import           Paths_rzk               (version)
 import           Rzk.Diagnostic          (Diagnostic (..), Severity (..),
                                           diagnoseCheckWarning, diagnoseHole,
                                           diagnoseTypeError, ppCheckWarning,
@@ -36,6 +34,7 @@ import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
 import           Rzk.Main
 import           Rzk.TypeCheck
+import           Rzk.Version             (versionString)
 
 data FormatOptions = FormatOptions
   { check :: Bool
@@ -130,4 +129,4 @@ main = do
               exitFailure
             exitSuccess
 
-    Version -> putStrLn (showVersion version)
+    Version -> putStrLn versionString
