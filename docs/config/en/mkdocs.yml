@@ -50,6 +50,11 @@ nav:
   # relative playground/ link would point into the mike version directory,
   # which carries no playground.
   - Playground: https://rzk-lang.github.io/rzk/playground/
+  # Absolute URLs: each game is its own deployment, not part of this site.
+  - Games:
+      - "Rzk Warm-up Game": https://rzk-lang.github.io/warmup-game/
+      - "∞-Yoneda Game": https://rzk-lang.github.io/yoneda-game/
+      - "Author your own": https://github.com/rzk-lang/rzk-game-template
   - Blog: blog/index.html
 
 theme:

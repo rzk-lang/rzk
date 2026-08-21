@@ -7,6 +7,8 @@
 
 [![Rzk documentation](https://shields.io/badge/MkDocs-Rzk%20documentation-informational)](https://rzk-lang.github.io/rzk/)
 [![Rzk Playground](<https://shields.io/badge/Rzk%20Playground%20(latest)-online-success>)](https://rzk-lang.github.io/rzk/latest/playground/)
+[![Rzk Warm-up Game](https://shields.io/badge/Rzk%20Warm--up%20Game-play%20online-success)](https://rzk-lang.github.io/warmup-game/)
+[![∞-Yoneda Game](https://shields.io/badge/%E2%88%9E--Yoneda%20Game-play%20online-success)](https://rzk-lang.github.io/yoneda-game/)
 [![Rzk Zulip chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://rzk-lang.zulipchat.com)
 
 [![Haddock](<https://shields.io/badge/Haddock%20(develop)-Code%20documentation-informational>)](https://rzk-lang.github.io/rzk/haddock/index.html)
@@ -21,6 +23,8 @@ An experimental proof assistant for synthetic ∞-categories.
 ## About this project
 
 This project has started with the idea of bringing Riehl and Shulman's 2017 paper [1] to "life" by implementing a proof assistant based on their type theory with shapes. Currently an early prototype with an [online playground](https://rzk-lang.github.io/rzk/develop/playground/) is available. The current implementation is capable of checking various formalisations. Perhaps, the largest formalisations are available in two related projects: <https://rzk-lang.github.io/sHoTT> and <https://github.com/emilyriehl/yoneda>. `sHoTT` project (originally a fork of the yoneda project) aims to cover more formalisations in simplicial HoTT and ∞-categories, while `yoneda` project aims to compare different formalisations of the Yoneda lemma.
+
+For a first encounter with the type theory, two interactive games are available in the browser, with no installation: the [Rzk Warm-up Game](https://rzk-lang.github.io/warmup-game/) assumes no prior Rzk and builds up from functions and pairs to a taste of directed types, and the [∞-Yoneda Game](https://rzk-lang.github.io/yoneda-game/) follows Riehl's [geodesic to the Yoneda lemma](https://emilyriehl.github.io/yoneda/master/simplicial-hott/13-yoneda-geodesic.rzk/). Both are played by filling holes in a term, and run the `rzk` typechecker in the browser. Authoring a game of your own needs no Haskell: see [rzk-game](https://github.com/rzk-lang/rzk-game) and its [template](https://github.com/rzk-lang/rzk-game-template).
 
 Internally, `rzk` uses a version of second-order abstract syntax allowing relatively straightforward handling of binders (such as lambda abstraction). In the future, `rzk` aims to support dependent type inference relying on E-unification for second-order abstract syntax [2].
 Using such representation is motivated by automatic handling of binders and easily automated boilerplate code. The idea is that this should keep the implementation of `rzk` relatively small and less error-prone than some of the existing approaches to implementation of dependent type checkers.
