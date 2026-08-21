@@ -572,6 +572,7 @@ test-suite rzk-test
       Rzk.RefIndexSpec
       Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec
+      Rzk.VersionSpec
       Paths_rzk
   autogen-modules:
       Paths_rzk

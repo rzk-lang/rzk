@@ -34,7 +34,8 @@ import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
 import           Rzk.Main
 import           Rzk.TypeCheck
-import           Rzk.Version             (versionString)
+import           Rzk.Version             (ppVersionInfo, versionInfo,
+                                          versionString)
 
 data FormatOptions = FormatOptions
   { check :: Bool
@@ -56,11 +57,21 @@ instance ParseFields TypecheckOptions where
     <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
     <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
 
+data VersionOptions = VersionOptions
+  { versionFull :: Bool
+  , versionJson :: Bool
+  } deriving (Generic, Show, ParseRecord, Read, ParseField)
+
+instance ParseFields VersionOptions where
+  parseFields _ _ _ _ = VersionOptions
+    <$> parseFields (Just "Print the commit, compiler, platform and LSP support as well") (Just "full") (Just 'f') Nothing
+    <*> parseFields (Just "Output the build details as JSON on stdout") (Just "json") (Just 'j') Nothing
+
 data Command
   = Typecheck TypecheckOptions [FilePath]
   | Lsp
   | Format FormatOptions [FilePath]
-  | Version
+  | Version VersionOptions
   deriving (Generic, Show, ParseRecord)
 
 main :: IO ()
@@ -129,4 +140,10 @@ main = do
               exitFailure
             exitSuccess
 
-    Version -> putStrLn versionString
+    -- The bare version is the default on purpose: tools (the VS Code
+    -- extension among them) run `rzk version` and read stdout as the version
+    -- string, so the details go behind a flag.
+    Version (VersionOptions {versionFull, versionJson})
+      | versionJson -> BL8.putStrLn (encode versionInfo)
+      | versionFull -> putStr (ppVersionInfo versionInfo)
+      | otherwise   -> putStrLn versionString
