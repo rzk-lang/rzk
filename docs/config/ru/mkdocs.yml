@@ -50,6 +50,11 @@ nav:
   # относительная ссылка playground/ вела бы внутрь каталога версии mike,
   # в котором песочницы нет.
   - Песочница: https://rzk-lang.github.io/rzk/playground/
+  # Абсолютные ссылки: каждая игра разворачивается отдельно и не входит в этот сайт.
+  - Игры:
+      - "Rzk Warm-up Game (англ.)": https://rzk-lang.github.io/warmup-game/
+      - "∞-Yoneda Game (англ.)": https://rzk-lang.github.io/yoneda-game/
+      - "Создать свою игру": https://github.com/rzk-lang/rzk-game-template
   - Блог (англ.): blog/index.html
 
 theme:

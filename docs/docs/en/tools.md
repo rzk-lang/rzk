@@ -17,8 +17,20 @@ This engine powers interactive proof games in the style of the Lean 4 games, but
 for synthetic ∞-category theory. It compiles to WebAssembly and links the Rzk
 library, so the typechecker runs in the browser. The player fills holes
 (`#!rzk ?`) in a term, and for each hole the engine shows its goal and local
-context. The [∞-Yoneda Game](https://github.com/rzk-lang/yoneda-game) is built on
-it.
+context.
+
+Two games are playable in the browser, with no installation:
+
+- the [Rzk Warm-up Game](https://rzk-lang.github.io/warmup-game/) assumes no
+  prior Rzk and builds up from functions and pairs to a taste of directed types;
+- the [∞-Yoneda Game](https://rzk-lang.github.io/yoneda-game/) follows Riehl's
+  geodesic to the ∞-categorical Yoneda lemma.
+
+Authoring a game needs no Haskell: a game is a table of contents and one file
+per level. Start from the
+[template](https://github.com/rzk-lang/rzk-game-template), which is itself
+[playable](https://rzk-lang.github.io/rzk-game-template/) as a tour of what a
+game can do.
 
 ### MkDocs plugin for Rzk
 
