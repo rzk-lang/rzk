@@ -83,6 +83,9 @@ data VersionInfo = VersionInfo
 -- tarball, and the release workflow sets it. Otherwise the commit comes from
 -- the checkout the build ran in, so an ordinary @stack build@ stamps itself
 -- too; a tree with uncommitted changes to tracked files is marked @-dirty@.
+-- The hash is reported in full, as @rustc -vV@ and @ghc --info@ do: this is the
+-- verbose output, and an abbreviation can become ambiguous as a repository
+-- grows.
 -- A build that can find neither reports 'Nothing'.
 --
 -- Note that a stale stamp is possible: neither stack nor GHC tracks the
@@ -93,7 +96,7 @@ buildCommit :: Maybe String
 buildCommit
   | Just fromEnv <- $(runIO (lookupEnv "RZK_GIT_COMMIT") >>= lift) = Just fromEnv
   | hash == "UNKNOWN" = Nothing
-  | otherwise         = Just (take 8 hash <> dirty)
+  | otherwise         = Just (hash <> dirty)
   where
     hash = $(gitHash)
     dirty
