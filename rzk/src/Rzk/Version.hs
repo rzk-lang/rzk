@@ -102,9 +102,9 @@ versionInfo = VersionInfo
 ppVersionInfo :: VersionInfo -> String
 ppVersionInfo VersionInfo{..} = unlines
   [ "rzk " <> showVersion versionInfoVersion <> commitSuffix
-  , "compiler: " <> versionInfoCompiler
-  , "platform: " <> versionInfoPlatform
-  , "LSP:      " <> lspSupport
+  , "built with: " <> versionInfoCompiler
+  , "platform:   " <> versionInfoPlatform
+  , "LSP:        " <> lspSupport
   ]
   where
     commitSuffix = case versionInfoCommit of
