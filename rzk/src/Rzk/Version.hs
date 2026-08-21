@@ -27,11 +27,13 @@ module Rzk.Version (
   LspSupport (..),
   versionInfo,
   ppVersionInfo,
+  isoCommitDate,
 ) where
 
 import           Data.Aeson                 (ToJSON (..), object, (.=))
 import           Data.Version               (Version, showVersion)
-import           Development.GitRev         (gitDirtyTracked, gitHash)
+import           Development.GitRev         (gitCommitDate, gitDirtyTracked,
+                                             gitHash)
 import           Language.Haskell.TH.Syntax (lift, runIO)
 import           System.Environment         (lookupEnv)
 import qualified System.Info
@@ -67,6 +69,9 @@ data VersionInfo = VersionInfo
   , versionInfoCommit    :: Maybe String
     -- ^ The commit rzk was built from, when the build knew one (see
     -- 'buildCommit'); 'Nothing' otherwise.
+  , versionInfoCommitDate :: Maybe String
+    -- ^ The date of that commit, when it came from a repository (see
+    -- 'buildCommitDate').
   , versionInfoCompiler  :: String
     -- ^ The Haskell implementation, e.g. @"ghc-9.10.3"@.
   , versionInfoPlatform  :: String
@@ -94,20 +99,55 @@ data VersionInfo = VersionInfo
 -- which is what CI does for a release binary.
 buildCommit :: Maybe String
 buildCommit
-  | Just fromEnv <- $(runIO (lookupEnv "RZK_GIT_COMMIT") >>= lift) = Just fromEnv
-  | hash == "UNKNOWN" = Nothing
-  | otherwise         = Just (hash <> dirty)
+  | Just fromEnv <- envCommit = Just fromEnv
+  | hash == "UNKNOWN"         = Nothing
+  | otherwise                 = Just (hash <> dirty)
   where
     hash = $(gitHash)
     dirty
       | $(gitDirtyTracked) = "-dirty"
       | otherwise          = ""
 
+-- | The commit named by @RZK_GIT_COMMIT@ when this module was compiled.
+envCommit :: Maybe String
+envCommit = $(runIO (lookupEnv "RZK_GIT_COMMIT") >>= lift)
+
+-- | The date of 'buildCommit', when the commit came from a repository.
+--
+-- A commit supplied through @RZK_GIT_COMMIT@ comes with no date, and reporting
+-- the checkout's date next to someone else's commit would be misleading, so
+-- this is 'Nothing' in that case.
+buildCommitDate :: Maybe String
+buildCommitDate
+  | Just _ <- envCommit = Nothing
+  | date == "UNKNOWN"   = Nothing
+  | otherwise           = Just (isoCommitDate date)
+  where
+    date = $(gitCommitDate)
+
+-- | Git's default commit date (@Fri Aug 21 21:14:42 2026 +0300@) as a plain ISO
+-- date (@2026-08-21@), which is the form @rustc -vV@ reports. A date that does
+-- not parse is passed through unchanged.
+isoCommitDate :: String -> String
+isoCommitDate raw = case words raw of
+  [_weekday, month, day, _time, year, _timezone]
+    | Just m <- lookup month months -> year <> "-" <> m <> "-" <> twoDigits day
+  _ -> raw
+  where
+    twoDigits [d] = ['0', d]
+    twoDigits ds  = ds
+    months = zip
+      [ "Jan", "Feb", "Mar", "Apr", "May", "Jun"
+      , "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
+      [ "01", "02", "03", "04", "05", "06"
+      , "07", "08", "09", "10", "11", "12" ]
+
 -- | The build description of the running rzk.
 versionInfo :: VersionInfo
 versionInfo = VersionInfo
   { versionInfoVersion  = version
   , versionInfoCommit   = buildCommit
+  , versionInfoCommitDate = buildCommitDate
   , versionInfoCompiler =
       System.Info.compilerName <> "-" <> showVersion System.Info.fullCompilerVersion
   , versionInfoPlatform = System.Info.os <> "-" <> System.Info.arch
@@ -122,16 +162,21 @@ versionInfo = VersionInfo
 -- | Render a build description as a block of lines, as printed by
 -- @rzk version --full@.
 ppVersionInfo :: VersionInfo -> String
-ppVersionInfo VersionInfo{..} = unlines
-  [ "rzk " <> showVersion versionInfoVersion <> commitSuffix
-  , "built with: " <> versionInfoCompiler
-  , "platform:   " <> versionInfoPlatform
-  , "LSP:        " <> lspSupport
+ppVersionInfo VersionInfo{..} = unlines $ concat
+  [ [ "rzk " <> showVersion versionInfoVersion <> commitSuffix ]
+  , commitDateLine
+  , [ "built with: " <> versionInfoCompiler
+    , "platform:   " <> versionInfoPlatform
+    , "LSP:        " <> lspSupport
+    ]
   ]
   where
     commitSuffix = case versionInfoCommit of
       Nothing     -> " (commit unknown)"
       Just commit -> " (" <> commit <> ")"
+    commitDateLine = case versionInfoCommitDate of
+      Nothing   -> []
+      Just date -> ["committed:  " <> date]
     lspSupport = case versionInfoLsp of
       LspSupported   -> "supported"
       LspUnsupported -> "not supported in this build"
@@ -142,9 +187,10 @@ instance ToJSON LspSupport where
 
 instance ToJSON VersionInfo where
   toJSON VersionInfo{..} = object
-    [ "version"  .= showVersion versionInfoVersion
-    , "commit"   .= versionInfoCommit
-    , "compiler" .= versionInfoCompiler
-    , "platform" .= versionInfoPlatform
-    , "lsp"      .= versionInfoLsp
+    [ "version"    .= showVersion versionInfoVersion
+    , "commit"     .= versionInfoCommit
+    , "commitDate" .= versionInfoCommitDate
+    , "compiler"   .= versionInfoCompiler
+    , "platform"   .= versionInfoPlatform
+    , "lsp"        .= versionInfoLsp
     ]

@@ -31,6 +31,20 @@ spec = do
       rendered `shouldContain` versionInfoCompiler versionInfo
       rendered `shouldContain` versionInfoPlatform versionInfo
 
+    it "omits the commit date line when there is no date" $
+      ppVersionInfo versionInfo { versionInfoCommitDate = Nothing }
+        `shouldNotContain` "committed:"
+
+  describe "isoCommitDate" $ do
+    it "normalises git's default format" $
+      isoCommitDate "Fri Aug 21 21:14:42 2026 +0300" `shouldBe` "2026-08-21"
+
+    it "pads a single-digit day" $
+      isoCommitDate "Mon Jan 5 09:00:00 2026 -0500" `shouldBe` "2026-01-05"
+
+    it "passes an unrecognised date through unchanged" $
+      isoCommitDate "2026-08-21" `shouldBe` "2026-08-21"
+
   describe "the JSON encoding" $ do
     it "carries every field" $ do
       let json = BL8.unpack (encode versionInfo)
@@ -40,4 +54,5 @@ spec = do
         , "\"platform\":\"" <> versionInfoPlatform versionInfo <> "\""
         , "\"lsp\":"
         , "\"commit\":"
+        , "\"commitDate\":"
         ]
