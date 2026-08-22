@@ -596,6 +596,15 @@ spec = do
         [h] -> intros h `shouldBe` ["\\ n → ?"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
+    -- A hole in a cube position gets the cube's closed points. Writing a corner
+    -- of a square as `α ? ?` is common, and 0₂ / 1₂ are the only two points of
+    -- the directed interval, so leaving them unoffered left such a hole with no
+    -- introduction at all. An in-scope cube variable is already a candidate.
+    it "introduces a directed-interval goal as its two endpoints" $ do
+      case holesOf "#lang rzk-1\n#define D1 : 2 -> TOPE := \\ t -> TOP\n#define f (A : U) (a : D1 -> A) : A := a ?\n" of
+        [h] -> intros h `shouldBe` ["0₂", "1₂"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
     -- The λ binder is freshened so it does not shadow a name already in scope.
     -- Here the goal unfolds to `(t : 2) -> A`, whose binder `t` (taken from
     -- `endo`'s definition, mirroring `hom`) clashes with the in-scope cube

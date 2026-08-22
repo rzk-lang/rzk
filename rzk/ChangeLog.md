@@ -10,6 +10,8 @@ and this project adheres to the
 
 Fixed:
 
+- **A hole in a cube position is offered the cube's points.** A hole of type `#!rzk 2` had no introduction forms at all, so writing a corner of a square as `#!rzk α ? ?` left the two obvious fillings, `#!rzk 0₂` and `#!rzk 1₂`, unsuggested. The directed interval and the unit cube now offer their closed points, the way every other goal shape offers its introductions. An in-scope cube variable was already offered as a candidate and is unaffected.
+
 - **A lemma about projections is offered as a hole candidate** where it was not. A result type headed by a hole is treated as fitting any goal (see [#338](https://github.com/rzk-lang/rzk/pull/338)); a projection applied to a hole now counts the same way, since `#!rzk first ?` is whatever the pair's first component turns out to be and has no shape of its own to mismatch with. Before this, a lemma such as `#!rzk first-path-Σ ... : first s = first t` was offered only when both endpoints matched structurally, and was dropped exactly when it was needed, against a goal with a plain variable at one endpoint.
 
 ## v0.11.2 — 2026-08-20
