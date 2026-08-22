@@ -354,8 +354,8 @@ isHoleT :: TermT n -> Bool
 isHoleT HoleT{} = True
 isHoleT _       = False
 
--- | Is the term a /flexible/ spine: a hole, or an application headed by one
--- (@? a b@)?
+-- | Is the term a /flexible/ spine: a hole, or an elimination headed by one
+-- (@? a b@, @first ?@, @second (? a)@)?
 --
 -- Such a term is not yet committed to any shape: filling the head hole can turn
 -- it into anything. A type of this form therefore stands for an arbitrary type,
@@ -363,10 +363,19 @@ isHoleT _       = False
 -- (@ind-path A a C d x p : C x p@) be judged against a concrete goal. Contrast
 -- 'containsHole', which is also true of a term whose /shape/ is already fixed
 -- and only has holes among its parts (@? = ?@ is an identity type either way).
+--
+-- A projection counts for the same reason an application does. @first ?@ is
+-- whatever the first component of the pair turns out to be, so it has no shape
+-- of its own to mismatch with. Without this, a lemma stating a property of
+-- projections (@first-path-Σ ... : first s = first t@) is not offered against a
+-- goal whose endpoint is a plain variable, because solving @first ?t@ against it
+-- would mean inventing the pair.
 isHoleHeadedT :: TermT n -> Bool
-isHoleHeadedT HoleT{}     = True
-isHoleHeadedT (AppT _ f _) = isHoleHeadedT f
-isHoleHeadedT _           = False
+isHoleHeadedT HoleT{}       = True
+isHoleHeadedT (AppT _ f _)  = isHoleHeadedT f
+isHoleHeadedT (FirstT _ t)  = isHoleHeadedT t
+isHoleHeadedT (SecondT _ t) = isHoleHeadedT t
+isHoleHeadedT _             = False
 
 -- | The name of every hole in a term.
 holeNamesOf :: Term n -> [Maybe VarIdent]

@@ -468,6 +468,23 @@ spec = do
       in flip oneHole (holesWithLemmas ["ind-path"] indSrc) $ \h ->
            cands h `shouldContain` ["ind-path ? ? ? ? ? ?"]
 
+    -- A projection is flexible for the same reason an application is: @first ?@
+    -- has no shape of its own. Without that, a lemma about projections is
+    -- offered only when both endpoints happen to match structurally, and is
+    -- dropped exactly when the goal needs it, e.g. the first-path-Σ step of the
+    -- Yoneda geodesic, whose goal has a plain variable on the right.
+    it "offers a lemma with a projection endpoint against a rigid endpoint" $
+      let fstSrc = "#lang rzk-1\n"
+                <> "#define fst-path (A : U) (B : A -> U)\n"
+                <> "  (s t : Sigma (a : A) , B a) (e : s = t)\n"
+                <> "  : first s = first t\n"
+                <> "  := idJ (Sigma (a : A) , B a , s ,\n"
+                <> "          \\ t' e' -> first s = first t' , refl , t , e)\n"
+                <> "#define goal (A : U) (B : A -> U)\n"
+                <> "  (w : Sigma (a : A) , B a) (c : A) : first w = c := ?\n"
+      in flip oneHole (holesWithLemmas ["fst-path"] fstSrc) $ \h ->
+           cands h `shouldContain` ["fst-path ? ? ? ? ?"]
+
     -- Fitting anything does not mean escaping the allow-list: a hole-headed
     -- lemma is still only offered when the level grants it.
     it "does not offer a hole-headed lemma that was not allow-listed" $

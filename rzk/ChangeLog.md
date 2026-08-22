@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## Unreleased
+
+Fixed:
+
+- **A lemma about projections is offered as a hole candidate** where it was not. A result type headed by a hole is treated as fitting any goal (see [#338](https://github.com/rzk-lang/rzk/pull/338)); a projection applied to a hole now counts the same way, since `#!rzk first ?` is whatever the pair's first component turns out to be and has no shape of its own to mismatch with. Before this, a lemma such as `#!rzk first-path-Σ ... : first s = first t` was offered only when both endpoints matched structurally, and was dropped exactly when it was needed, against a goal with a plain variable at one endpoint.
+
 ## v0.11.2 — 2026-08-20
 
 A maintenance release. Checking no longer stops at the first declaration that fails, errors are reported at the sub-term rather than at the enclosing declaration, and a lemma stated over a motive is offered as a hole candidate, so an eliminator written in the sHoTT style is visible as a move.
