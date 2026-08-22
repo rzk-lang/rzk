@@ -505,6 +505,11 @@ allIntroductionsOf target takenNames = do
       pure [ pairT target' h (mkHole bAt) ]
     CubeProductT _ty a b ->
       pure [ pairT target' (mkHole a) (mkHole b) ]
+    -- the directed interval: its two endpoints are the only closed points, and
+    -- they are what a hole in a cube position (@α ? ?@) almost always wants.
+    -- The unit cube is offered the same way, for its single point.
+    Cube2T{} -> pure [ cube2_0T, cube2_1T ]
+    CubeUnitT{} -> pure [ cubeUnitStarT ]
     TypeIdT _ty a _tA b -> do
       agree <- endpointsAgree a b
       pure [ reflT target' Nothing | agree ]
