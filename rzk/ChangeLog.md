@@ -8,6 +8,10 @@ and this project adheres to the
 
 ## Unreleased
 
+Added:
+
+- **A suggested move names its holes.** A candidate spine used to render as `#!rzk id-hom ? ?`, giving no clue what each hole stood for, and two spines of the same lemma applied to different numbers of arguments were told apart only by counting. Each hole now carries its Π binder's name, so the same pair reads `#!rzk id-hom ?A ?x` and `#!rzk id-hom ?A ?x ?t`, and the move reads like the lemma's own signature. Named holes were already valid input syntax and are reported by name, so a tapped move keeps its names in the editor.
+
 Fixed:
 
 - **A hole in a cube position is offered the cube's points.** A hole of type `#!rzk 2` had no introduction forms at all, so writing a corner of a square as `#!rzk α ? ?` left the two obvious fillings, `#!rzk 0₂` and `#!rzk 1₂`, unsuggested. The directed interval and the unit cube now offer their closed points, the way every other goal shape offers its introductions. An in-scope cube variable was already offered as a candidate and is unaffected.
