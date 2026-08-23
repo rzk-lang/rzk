@@ -440,8 +440,8 @@ spec = do
                  <> "#postulate pick : (X : U) -> (Y : U) -> X -> X\n"
                  <> "#define goal : A -> A := ?\n"
       in flip oneHole (holesWithLemmas ["pick"] metaSrc) $ \h -> do
-           cands h `shouldContain` ["pick ? ?"]
-           filter (`elem` ["pick", "pick ?"]) (cands h) `shouldBe` []
+           cands h `shouldContain` ["pick ?X ?Y"]
+           filter (`elem` ["pick", "pick ?X"]) (cands h) `shouldBe` []
 
     -- Also at the schema's own type: the bare alias is not offered (writing
     -- the alias is the user's call), while the saturated spine still is.
@@ -450,7 +450,7 @@ spec = do
                   <> "#define my-id (X : U) (x : X) : X := x\n"
                   <> "#define goal : (X : U) -> X -> X := ?\n"
       in flip oneHole (holesWithLemmas ["my-id"] aliasSrc) $ \h -> do
-           cands h `shouldContain` ["my-id ?"]
+           cands h `shouldContain` ["my-id ?X"]
            filter (== "my-id") (cands h) `shouldBe` []
 
     -- A lemma whose result type is a motive application (@ind-path ... : C x p@)
@@ -466,7 +466,7 @@ spec = do
                 <> "  := idJ (A , a , C , d , x , p)\n"
                 <> "#define goal (A : U) (x y : A) (p : x = y) : y = x := ?\n"
       in flip oneHole (holesWithLemmas ["ind-path"] indSrc) $ \h ->
-           cands h `shouldContain` ["ind-path ? ? ? ? ? ?"]
+           cands h `shouldContain` ["ind-path ?A ?a ?C ?d ?x ?p"]
 
     -- A projection is flexible for the same reason an application is: @first ?@
     -- has no shape of its own. Without that, a lemma about projections is
@@ -483,7 +483,7 @@ spec = do
                 <> "#define goal (A : U) (B : A -> U)\n"
                 <> "  (w : Sigma (a : A) , B a) (c : A) : first w = c := ?\n"
       in flip oneHole (holesWithLemmas ["fst-path"] fstSrc) $ \h ->
-           cands h `shouldContain` ["fst-path ? ? ? ? ?"]
+           cands h `shouldContain` ["fst-path ?A ?B ?s ?t ?e"]
 
     -- Fitting anything does not mean escaping the allow-list: a hole-headed
     -- lemma is still only offered when the level grants it.

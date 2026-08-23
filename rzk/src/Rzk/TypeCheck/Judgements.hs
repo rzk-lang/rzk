@@ -103,7 +103,16 @@ checkNameShadowing name =
 
 -- | A fresh hole of the given type.
 mkHole :: TermT n -> TermT n
-mkHole t = HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } Nothing
+mkHole = mkNamedHole Nothing
+
+-- | A hole carrying a name, so a suggested move can say what each of its holes
+-- stands for: @id-hom ?A ?x@ rather than @id-hom ? ?@. The name is the Π
+-- binder's, so the move reads like the lemma's own signature, and two spines of
+-- the same lemma applied to different numbers of arguments are told apart by
+-- what the extra holes are called.
+mkNamedHole :: Maybe VarIdent -> TermT n -> TermT n
+mkNamedHole mname t =
+  HoleT TypeInfo{ infoType = t, infoWHNF = Nothing, infoNF = Nothing } mname
 
 -- | The constructors of a @#data@ type former, in declaration order; empty
 -- for anything else. Found by their roles: the type former itself carries
@@ -316,9 +325,9 @@ eliminatorsOf
   => Set.Set VarIdent -> TermT n -> TypeCheck n [(ElimCost, TermT n -> TypeCheck n (TermT n))]
 eliminatorsOf takenNames ty =
   case stripTypeRestrictions ty of
-    TypeFunT _ty _orig _md param _mtope ret ->
+    TypeFunT _ty orig _md param _mtope ret ->
       pure [ (SpineStep, \term -> do
-                let h = mkHole param
+                let h = mkNamedHole (binderName orig) param
                 retAt <- instantiate ret h
                 pure (appT retAt term h)) ]
     TypeSigmaT _ty _orig _md a b ->
