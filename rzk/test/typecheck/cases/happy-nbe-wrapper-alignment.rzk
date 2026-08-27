@@ -1,0 +1,48 @@
+#lang rzk-1
+
+-- A term compared against itself under a thin wrapper. The wrapper is a
+-- δ-step away from what it wraps, so the conversion fast path
+-- (Rzk.TypeCheck.NbE) can answer from the two spines, without unfolding
+-- either side. Normalising instead means normalising `big`, whose normal
+-- form has 2^22 applications.
+--
+-- We test both directions. The search for a shared head has to be
+-- breadth-first over both sides at once. Walking one side to the end before
+-- starting the other normalises that side in full whenever the wrapper is on
+-- the side walked second.
+
+#define CN : U
+  := (X : U) → (X → X) → X → X
+
+#define czero : CN
+  := \ X s x → x
+
+#define csucc (n : CN) : CN
+  := \ X s x → s (n X s x)
+
+#define cadd (m n : CN) : CN
+  := \ X s x → m X s (n X s x)
+
+#define cexp (m n : CN) : CN
+  := \ X → n (X → X) (m X)
+
+#define c1 : CN := csucc czero
+#define c2 : CN := cadd c1 c1
+#define c4 : CN := cadd c2 c2
+#define c8 : CN := cadd c4 c4
+#define c16 : CN := cadd c8 c8
+#define c22 : CN := cadd c16 (cadd c4 c2)
+
+-- 2 ^ 22, i.e. a normal form of a few million nodes
+#define big : CN := cexp c2 c22
+
+#define alias (A : U) (a : A) : A := a
+
+-- wrapper on the right
+#define test-wrapper-right : big = alias CN big := refl
+
+-- wrapper on the left
+#define test-wrapper-left : alias CN big = big := refl
+
+-- a wrapper on each side, so neither single-sided walk finds the alignment
+#define test-wrapper-both : alias CN big = alias CN big := refl
