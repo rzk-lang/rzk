@@ -32,13 +32,16 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-shape-param` and `ill-data-cube-param` for shape and cube
   parameters — the last four enforced on the elaborated sort, so the
   named spelling meets the same rule as the inline one,
-  `ill-data-modal-shape-field` for a modal shape field) and name clashes
+  `ill-data-modal-type-field` for a modal type field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
   shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,
   its recursor as the representability rule, strict β on a syntactic
   point, and the cube-generic form; `happy-data-shape-tope` — the tope
   reaching a `match` branch, a field mentioning the cube variable an
-  earlier shape field binds, and a subshape of a product cube);
+  earlier shape field binds, and a subshape of a product cube;
+  `happy-data-modal-shape-field` — a shape field under a modality, with
+  strict β through the lock, and `ill-data-modal-shape-field-lock` — the
+  lock discipline enforced on the bound cube variable);
   re-ascription clauses (`eliminate with`:
   `happy-data-eliminator-reascription` — a definitionally equal
   spelling is stored and stays interchangeable with the canonical type,

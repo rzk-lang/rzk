@@ -585,9 +585,10 @@ dataParamVars = fmap concat . mapM paramVarsOf
 
 -- | A constructor field.
 --
--- Plain typed fields @(x : A)@ and shape fields @(t : I | φ)@ are accepted;
--- modal fields are not. What a shape field means, and why it is sound, is
--- worth stating precisely, because the neighbouring constructions are not.
+-- Plain typed fields @(x : A)@ and shape fields @(t : I | φ)@ are accepted,
+-- the latter also under a modality (@(t :♭ I | φ)@); modal type fields are
+-- not. What a shape field means, and why it is sound, is worth stating
+-- precisely, because the neighbouring constructions are not.
 --
 -- A shape is a predicate on a cube, spelled @I -> TOPE@ as @Δ¹@ and @Λ²₁@ are,
 -- and a field may name one (@(t : Φ)@), give a bare cube (@(t : I)@, the shape
@@ -620,7 +621,7 @@ dataParamVars = fmap concat . mapM paramVarsOf
 --   directed circle and friends). Their eliminator needs a Segal or covariant
 --   target and the metatheory is open. They are unreachable because the
 --   @#data@ grammar has no syntax for them, not because of a check.
--- * __Modal fields__, below.
+-- * __Modal type fields__, below.
 --
 -- Cube and shape /parameters/ and /indices/ go the other way: rejected in
 -- every spelling. The inline spelling falls to the surface checks in
@@ -632,24 +633,32 @@ dataFieldToParamDecl :: Distinct n => Rzk.VarIdent -> Rzk.Param -> TypeCheck n [
 dataFieldToParamDecl cname = \case
   p@Rzk.ParamPatternType{} -> paramToParamDecl p
   p@Rzk.ParamPatternShape{} -> paramToParamDecl p
+  p@Rzk.ParamPatternModalShape{} -> paramToParamDecl p
   Rzk.ParamPattern _ pat -> issueTypeError $ TypeErrorOther $
     "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
   Rzk.ParamPatternModalType{} -> modalFieldError cname
-  Rzk.ParamPatternModalShape{} -> modalFieldError cname
 
--- | Modal fields are deferred, and the reason is worth separating from the
--- usual heading of \"crisp induction\", which conflates two things.
+-- | Modal /type/ fields are deferred; modal /shape/ fields are accepted.
+-- The line between them is drawn by recursion, not by \"crisp induction\".
 --
--- A modal /field/ is an ordinary constructor argument sitting under a lock;
--- the ordinary eliminator suffices for it and no new principle is involved.
--- /Crisp induction/ is the separate principle that eliminates a crisp
--- @x :♭ D@ by cases, and that is the one needing the inductive type to be
--- defined in a crisp context. Only the second is hard, and it is what the
--- modal track is waiting on. Modal fields are held back with it because the
--- modal layer is experimental, not because they are known to be difficult.
+-- A modal field of either kind is an ordinary constructor argument sitting
+-- under a lock; the ordinary eliminator suffices for it, binding the field
+-- with its modality so the lock discipline applies inside a branch, and no
+-- new principle is involved. /Crisp induction/ — eliminating a crisp
+-- @x :♭ D@ by cases — is a separate principle that @#data@ does not
+-- provide either way.
+--
+-- What does distinguish the two kinds is that a type field can be
+-- /recursive/, and the recursion and positivity bookkeeping
+-- ('dataConSurface' collects @fieldTypes@ and the probe from plain
+-- 'Rzk.ParamTermType' declarations only) does not see through a modal
+-- binder: a modal recursive field would silently evade the positivity probe
+-- and the induction-hypothesis machinery. A shape field cannot be
+-- recursive — its domain is a cube — so nothing is evaded, and the modal
+-- form is as safe as the plain one.
 modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
 modalFieldError cname = issueTypeError $ TypeErrorOther $
-  "modal fields are not supported yet in constructor " <> Rzk.printTree cname
+  "modal type fields are not supported yet in constructor " <> Rzk.printTree cname
 
 dataConSurface
   :: Distinct n
@@ -720,13 +729,15 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
     -- cases the field's type reaches the constructor but its binder does not,
     -- and 'conApplied' applies the constructor to too few arguments.
     fieldVars = \case
-      Rzk.ParamPatternType _ pats _    -> concatMap surfacePatternVars pats
-      Rzk.ParamPatternShape _ pats _ _ -> concatMap surfacePatternVars pats
-      _                                -> []
+      Rzk.ParamPatternType _ pats _         -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternShape _ pats _ _      -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap surfacePatternVars pats
+      _                                     -> []
     fieldPats = \case
-      Rzk.ParamPatternType _ pats _    -> map patternToTerm pats
-      Rzk.ParamPatternShape _ pats _ _ -> map patternToTerm pats
-      _                                -> []
+      Rzk.ParamPatternType _ pats _         -> map patternToTerm pats
+      Rzk.ParamPatternShape _ pats _ _      -> map patternToTerm pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> map patternToTerm pats
+      _                                     -> []
     isIdentity = \case
       Rzk.TypeId{}       -> True
       Rzk.TypeIdSimple{} -> True

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A modal field of a type is still rejected: unlike a shape field, a type
+-- field can be recursive, and the recursion and positivity bookkeeping does
+-- not see through the modal binder yet.
+#data Wrap (A : U) := wrap (x :_b A)
