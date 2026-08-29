@@ -39,9 +39,12 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   point, and the cube-generic form; `happy-data-shape-tope` — the tope
   reaching a `match` branch, a field mentioning the cube variable an
   earlier shape field binds, and a subshape of a product cube;
-  `happy-data-modal-shape-field` — a shape field under a modality, with
-  strict β through the lock, and `ill-data-modal-shape-field-lock` — the
-  lock discipline enforced on the bound cube variable);
+  `happy-data-modal-shape-field` — cube and shape fields under a
+  modality in all three spellings, with strict β through the lock,
+  and `ill-data-modal-shape-field-lock` — the lock discipline enforced
+  on the bound cube variable; `happy-data-path-shape-field` — path
+  constructors with a shape field: undirected Φ-indexed cells and the
+  cone whose endpoints mention the shape variable);
   re-ascription clauses (`eliminate with`:
   `happy-data-eliminator-reascription` — a definitionally equal
   spelling is stored and stays interchangeable with the canonical type,
