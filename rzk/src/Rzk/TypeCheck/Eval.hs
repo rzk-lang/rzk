@@ -170,9 +170,9 @@ underBinder binder orig md ty mval action = do
   discrete <- discreteAxiomOf md ty mval binder
   let info = binderInfo orig md ty mval (ctxLocation ctx)
       ctx' = enterBinder binder info discrete ctx
-      -- A new discreteness axiom changes the saturation input; an ordinary binder
-      -- carries the cached value in with the rest of the context (saturation
-      -- commutes with renaming).
+  -- A new discreteness axiom changes the saturation input; an ordinary binder
+  -- carries the cached value in with the rest of the context (saturation
+  -- commutes with renaming).
   inContext ctx' $
     if null discrete then action else withRefreshedTopes id action
 
