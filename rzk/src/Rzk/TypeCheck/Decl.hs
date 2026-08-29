@@ -86,9 +86,9 @@ sinkDecl = Foil.sink
 
 -- | Sinking a whole list is a coercion too, with no per-element rebuild.
 sinkDecls :: DExt n l => [Decl n] -> [Decl l]
-sinkDecls = Foil.sinkContainer
+sinkDecls = Foil.sink1
 
--- | The per-file groups also sink by coercion. 'Foil.sinkContainer' cannot
+-- | The per-file groups also sink by coercion. 'Foil.sink1' cannot
 -- see through the pair (its element must be the sunk type itself), but the
 -- sinkability argument is the same: only the declarations mention the scope.
 sinkDeclGroups :: DExt n l => [(FilePath, [Decl n])] -> [(FilePath, [Decl l])]
@@ -147,9 +147,9 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           { declName = name
           , declNameOf = Foil.nameOf binder
           , declType = Foil.sink ty
-          , declValue = Foil.sinkContainer mval
+          , declValue = Foil.sink1 mval
           , declIsAssumption = isAssumption
-          , declUsedVars = Foil.sinkContainer usedVars
+          , declUsedVars = Foil.sink1 usedVars
           , declLocation = ctxLocation ctx
           }
     inContext ctx' (k binder decl)
@@ -695,7 +695,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
   dDeps <- assumptionDepsOf dTy
   withTopLevel (varIdentAt path name) dTy Nothing False
     (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
-      bindCons (Foil.nameOf dBinder) (Foil.sinkContainer used) 0 consData [sinkDecl dDecl] $
+      bindCons (Foil.nameOf dBinder) (Foil.sink1 used) 0 consData [sinkDecl dDecl] $
         \dName usedL declsAcc -> bindElims dName usedL declsAcc
   where
     numParams  = length paramDecls
@@ -750,7 +750,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
               (map fst (dataConRecursive con)))
       withTopLevel (varIdentAt path (dataConName con)) conTy Nothing False
         (nubNames (usedHere <> conDeps)) (Just role) $ \_conBinder conDecl ->
-          bindCons (Foil.sink dName) (Foil.sinkContainer usedHere) (index + 1) rest
+          bindCons (Foil.sink dName) (Foil.sink1 usedHere) (index + 1) rest
             (sinkDecls acc <> [conDecl]) kk
 
     bindElims
@@ -885,12 +885,12 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           recCanonical <- memoizeWHNF =<< typecheck recTyT universeT
           recTy' <- reascribe recName recCanonical mrecTy
           recDeps <- assumptionDepsOf recTy'
-          let usedAtInd = Foil.sinkContainer usedHere
+          let usedAtInd = Foil.sink1 usedHere
           withTopLevel (varIdentAt path recName) recTy' Nothing False
             (nubNames (usedAtInd <> recDeps))
             (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
               bindComputes
-                (Foil.sinkContainer usedAtInd)
+                (Foil.sink1 usedAtInd)
                 computeReasc
                 (computeRules et)
                 (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
@@ -912,7 +912,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
       deps <- assumptionDepsOf ty'
       withTopLevel (varIdentAt path cname) ty' Nothing False
         (nubNames (usedHere <> deps)) Nothing $ \_ decl ->
-          bindComputes (Foil.sinkContainer usedHere) reasc rest
+          bindComputes (Foil.sink1 usedHere) reasc rest
             (sinkDecls acc <> [decl])
 
     -- | Split the re-ascription clauses among the generated entries: the

@@ -387,7 +387,7 @@ withOpenTerm term k = go Foil.emptyScope [] Map.empty idents
 
 -- | Sink an association list of binders by coercion, with no per-entry
 -- rebuild ('withOpenTerm' calls this at every binder it opens).
--- 'Foil.sinkContainer' cannot see through the pair (its element must be the
+-- 'Foil.sink1' cannot see through the pair (its element must be the
 -- sunk type itself), but the sinkability argument is the same: only the
 -- names mention the scope, and a name sinks by coercion.
 sinkBound :: Foil.DExt n l => [(VarIdent, Foil.Name n)] -> [(VarIdent, Foil.Name l)]

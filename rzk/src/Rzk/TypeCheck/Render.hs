@@ -332,7 +332,7 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
               ret' <- openScoped binder ret
               -- FIXME: breaks for 2 * (2 * 2), but works for 2 * 2 * 2 = (2 * 2) * 2
               Just <$> renderForSubShapeSVG mainColor dim
-                (Foil.sinkContainer xs) (Foil.nameOf binder)
+                (Foil.sink1 xs) (Foil.nameOf binder)
                 ret' (Foil.sink f) (Foil.sink x)
       _ -> do
         t' <- whnfT t
@@ -351,8 +351,8 @@ renderTermSVGFor mainColor accDim (mp, xs) t = do
             pure (appT ret' (Foil.sink t') z)
         let mp' | extend = join' (fmap (both Foil.sink) mp) arg' z
                 | otherwise = fmap (both Foil.sink) mp
-            xs' | extend = Foil.nameOf binder : Foil.sinkContainer xs
-                | otherwise = Foil.sinkContainer xs
+            xs' | extend = Foil.nameOf binder : Foil.sink1 xs
+                | otherwise = Foil.sink1 xs
         renderTermSVGFor mainColor accDim' (mp', xs') body
 
     both f (x, y) = (f x, f y)
