@@ -39,7 +39,7 @@
 --
 -- The evaluator is a pure function of the 'Context': 'valueOfVar' is a plain
 -- reader-only lookup, and fresh variables for comparing closures are de
--- Bruijn levels ('NLevel'), so the foil scope machinery is never extended and
+-- Bruijn levels ('HFresh'), so the foil scope machinery is never extended and
 -- no quote function is needed.
 --
 -- == Attribution
@@ -86,7 +86,6 @@ module Rzk.TypeCheck.NbE (Conversion (..), nbeConvertible) where
 import           Control.Monad.Reader              (asks)
 import           Data.Bifoldable                   (bifoldMap)
 import           Data.Bifunctor                    (bimap)
-import           Data.Maybe                        (isJust)
 import           Data.Monoid                       (All (..))
 import           Data.ZipMatchK                    (zipMatch2)
 
@@ -105,17 +104,8 @@ import           Rzk.TypeCheck.Monad
 data Val n
   = VLam (Closure n)
     -- ^ A lambda: its body under the environment it was evaluated in.
-  | VNeutral (Neu n) (Maybe (Val n))
-    -- ^ A \emph{glued} elimination spine over a variable. The first field is
-    -- the spine. The second is the value that spine unfolds to, when its head
-    -- has a definition, and 'Nothing' for a rigid head (a local, an
-    -- assumption, a comparison level). The unfolding is a lazy thunk, so we
-    -- compute it at most once, and only on demand.
-    --
-    -- We keep both so that 'conv' can answer @f a =? f a@ from the spines,
-    -- without unfolding @f@. Keeping only the unfolding, as this evaluator
-    -- did before, normalises a repeated lemma once per occurrence, and again
-    -- per nesting level.
+  | VNeutral (Neu n)
+    -- ^ An elimination spine, \emph{glued} to its unfolding when it has one.
   | VCon (TermSig (Closure n) (Val n))
     -- ^ Any other node, its term fields evaluated and its scoped fields
     -- closed over the environment. Covers constructors (pairs, @refl@),
@@ -130,16 +120,89 @@ data Val n
     -- 'nbeConvertible' alone, whose 'DontKnow' says only that the fast path
     -- declined. The eval cases below say which construct each abort is for.
 
+-- | An elimination spine: what it stands on, and what is eliminated off it.
+--
+-- The two constructors carry the gluing invariant. Only a spine on a name with
+-- a definition unfolds, so only 'NGlued' has an unfolding, and a spine on a
+-- comparison level cannot be given one. This was a 'Maybe' beside the spine
+-- and a comment saying when it was 'Just'.
 data Neu n
-  = NVar (Foil.Name n)
-    -- ^ An ambient variable. Its definition, if it has one, sits beside the
-    -- spine in the 'VNeutral' that carries it.
-  | NLevel Int
-    -- ^ A fresh variable minted while comparing closures.
-  | NApp (Neu n) (Val n)
-  | NFirst (Neu n)
-  | NSecond (Neu n)
-  | NIdJ (Val n) (Val n) (Val n) (Val n) (Val n) (Neu n)
+  = NRigid (Head n) [Elim n]
+    -- ^ A spine that does not unfold: on a local, an assumption, or a fresh
+    -- comparison level.
+  | NGlued (Foil.Name n) [Elim n] (Val n)
+    -- ^ A spine on a name with a definition, beside the value the /whole
+    -- spine/ unfolds to. That value is a lazy thunk maintained as the spine
+    -- grows, so we compute it at most once and only on demand.
+    --
+    -- We keep both so that 'conv' can answer @f a =? f a@ from the two
+    -- spines, without unfolding @f@. Keeping only the unfolding, as this
+    -- evaluator did before, normalises a repeated lemma once per occurrence,
+    -- and again per nesting level.
+
+-- | What a spine stands on.
+data Head n
+  = HVar (Foil.Name n)
+    -- ^ An ambient name with no definition.
+  | HFresh DeBruijnLevel
+    -- ^ A fresh variable minted while comparing two closures.
+
+-- | One elimination off a spine.
+--
+-- A spine holds its eliminations \emph{outermost first}, so @f a b@ is
+-- @'NRigid' ('HVar' f) ['EApp' b, 'EApp' a]@. Growing a spine is then a cons
+-- rather than an append, which keeps 'applyVal' constant-time in the length
+-- of the spine.
+data Elim n
+  = EApp (Val n)
+  | EFirst
+  | ESecond
+  | EIdJ (Val n) (Val n) (Val n) (Val n) (Val n)
+    -- ^ Path induction over the spine: the type, the base point, the motive,
+    -- the base case, and the endpoint. The path is the spine itself.
+
+-- | The supply of fresh variables minted while comparing two closures: a de
+-- Bruijn level, counting binders from the outside in.
+--
+-- Note that such a variable is not a name of the ambient scope @n@, so a
+-- @'Val' n@ is really a value in @n@ extended by whichever of these are live.
+-- We do not index that: extending the foil scope per comparison is the cost
+-- this module exists to avoid, and it would need a quote function to get back
+-- out. The newtype buys only that the supply cannot be confused with another
+-- 'Int'.
+--
+-- The discipline it rests on is that every level reachable from a value being
+-- compared at @lvl@ was minted below @lvl@. That holds because a closure
+-- captures only levels minted before it, and because sibling fields of a
+-- 'VCon' are compared independently, so one field's levels never reach
+-- another. It is checked by reading, not by the types.
+newtype DeBruijnLevel = DeBruijnLevel Int
+  deriving (Eq)
+
+-- | The next level to mint, once @lvl@ has been used.
+nextLevel :: DeBruijnLevel -> DeBruijnLevel
+nextLevel (DeBruijnLevel i) = DeBruijnLevel (i + 1)
+
+-- | Grow a spine by one elimination, pushing the same elimination into the
+-- unfolding when there is one.
+--
+-- We match on the spine rather than use 'fmap' over a 'Maybe'. A rigid spine
+-- then costs one allocation, and not also the closure that would push the
+-- elimination into an unfolding it does not have.
+elimNeu :: Elim n -> (Val n -> Val n) -> Neu n -> Neu n
+elimNeu e onUnfolding = \case
+  NRigid h es   -> NRigid h (e : es)
+  NGlued x es u -> NGlued x (e : es) (onUnfolding u)
+
+-- | What a spine stands on, always.
+headOf :: Neu n -> Head n
+headOf (NRigid h _)   = h
+headOf (NGlued x _ _) = HVar x
+
+-- | What is eliminated off a spine, outermost first.
+elimsOf :: Neu n -> [Elim n]
+elimsOf (NRigid _ es)   = es
+elimsOf (NGlued _ es _) = es
 
 -- | A scoped term closed over its environment. The term lives in the scope
 -- @i@ the environment is defined on, and the values it evaluates to live in
@@ -173,11 +236,11 @@ data Closure n where
 -- This is the same invariant 'peelLambdas' relies on for its substitution.
 type Env i n = Foil.Substitution Val i n
 
--- | A name stands for the rigid spine on itself. 'Foil.lookupSubst' uses this
--- for a name the environment does not carry, which is also how the name
+-- | A name stands for the empty rigid spine on itself. 'Foil.lookupSubst' uses
+-- this for a name the environment does not carry, which is also how the name
 -- arrives at the ambient scope @n@.
 instance Foil.InjectName Val where
-  injectName x = VNeutral (NVar x) Nothing
+  injectName x = VNeutral (NRigid (HVar x) [])
 
 -- * Evaluation
 
@@ -189,13 +252,15 @@ eval ctx env = \case
   --
   -- The environment carries no ambient name, so a lookup that lands here is
   -- either a miss, or a hit on a value that is itself a rigid spine on an
-  -- ambient name. Every value the environment holds is an output of 'eval' or
-  -- a fresh 'NLevel', so in the second case the head was already glued and
-  -- carries no definition, and gluing it again changes nothing.
+  -- ambient name with nothing eliminated off it. Every value the environment
+  -- holds is an output of 'eval' or a fresh 'HFresh' variable, so in the
+  -- second case the head was already glued and carries no definition, and
+  -- gluing it again changes nothing.
   Var x -> case Foil.lookupSubst env x of
-    VNeutral (NVar x') Nothing ->
-      VNeutral (NVar x')
-        (eval ctx Foil.identitySubst <$> varValue (lookupVarInfo x' ctx))
+    v@(VNeutral (NRigid (HVar x') [])) ->
+      case varValue (lookupVarInfo x' ctx) of
+        Nothing   -> v
+        Just body -> VNeutral (NGlued x' [] (eval ctx Foil.identitySubst body))
     v -> v
 
   AppT _ty f x -> applyVal ctx (eval ctx env f) (eval ctx env x)
@@ -208,15 +273,15 @@ eval ctx env = \case
   TypeAscT _ty term _ty' -> eval ctx env term
   IdJT _ty tA a tC d x p ->
     let vd = eval ctx env d
-        stuck np = NIdJ (eval ctx env tA) (eval ctx env a) (eval ctx env tC)
-                        vd (eval ctx env x) np
+        e = EIdJ (eval ctx env tA) (eval ctx env a) (eval ctx env tC)
+                 vd (eval ctx env x)
         -- As in 'projVal'. The induction stays stuck on the spine, and is
         -- glued to the induction over the unfolded path.
         elim = \case
-          VCon ReflF{}      -> vd
-          VNeutral np munf  -> VNeutral (stuck np) (elim <$> munf)
+          VCon ReflF{} -> vd
+          VNeutral neu -> VNeutral (elimNeu e elim neu)
           -- an abort propagating through, or a stuck induction
-          _                 -> VAbort
+          _            -> VAbort
     in elim (eval ctx env p)
 
   -- The context-sensitive fragment. A @recOR@ reduces by deciding its guards
@@ -249,11 +314,7 @@ eval ctx env = \case
 applyVal :: Context n -> Val n -> Val n -> Val n
 applyVal ctx f v = case f of
   VLam closure -> applyClosure ctx closure v
-  -- We match on the unfolding rather than use 'fmap'. A rigid spine then
-  -- costs one allocation, and not also the closure that would push the
-  -- application into an unfolding it does not have.
-  VNeutral neu Nothing -> VNeutral (NApp neu v) Nothing
-  VNeutral neu (Just u) -> VNeutral (NApp neu v) (Just (applyVal ctx u v))
+  VNeutral neu -> VNeutral (elimNeu (EApp v) (\u -> applyVal ctx u v) neu)
   -- an abort propagating through, or a stuck application
   _ -> VAbort
 
@@ -276,12 +337,12 @@ projVal proj = go
       VCon (PairF l r) -> case proj of
         ProjFirst  -> l
         ProjSecond -> r
-      VNeutral n munf  -> VNeutral (neu n) (go <$> munf)
+      VNeutral neu -> VNeutral (elimNeu e go neu)
       -- an abort propagating through, or a stuck projection
-      _                -> VAbort
-    neu = case proj of
-      ProjFirst  -> NFirst
-      ProjSecond -> NSecond
+      _            -> VAbort
+    e = case proj of
+      ProjFirst  -> EFirst
+      ProjSecond -> ESecond
 
 -- * Conversion
 
@@ -294,7 +355,7 @@ projVal proj = go
 -- both sides to a weak head normal form first, which is what this module did
 -- before, normalises a repeated lemma once per occurrence, and again per
 -- nesting level.
-conv :: Context n -> Int -> Val n -> Val n -> Bool
+conv :: Context n -> DeBruijnLevel -> Val n -> Val n -> Bool
 conv ctx lvl l r
   -- Look for a nearby state in which the two sides stand on the same
   -- definition, and answer from their spines if there is one.
@@ -306,19 +367,19 @@ conv ctx lvl l r
       (_, VAbort) -> False
 
       (VLam c1, VLam c2) ->
-        conv ctx (lvl + 1) (applyClosure ctx c1 (freshV lvl)) (applyClosure ctx c2 (freshV lvl))
+        conv ctx (nextLevel lvl) (applyClosure ctx c1 (freshV lvl)) (applyClosure ctx c2 (freshV lvl))
       -- one-step η for lambdas, as in 'etaMatch'
       (VLam c1, v2) ->
-        conv ctx (lvl + 1) (applyClosure ctx c1 (freshV lvl)) (applyVal ctx v2 (freshV lvl))
+        conv ctx (nextLevel lvl) (applyClosure ctx c1 (freshV lvl)) (applyVal ctx v2 (freshV lvl))
       (v1, VLam c2) ->
-        conv ctx (lvl + 1) (applyVal ctx v1 (freshV lvl)) (applyClosure ctx c2 (freshV lvl))
+        conv ctx (nextLevel lvl) (applyVal ctx v1 (freshV lvl)) (applyClosure ctx c2 (freshV lvl))
 
-      -- one-step η for pairs. The spine is rigid here, so the projections off
-      -- it are rigid too.
-      (VCon (PairF a b), VNeutral n _) ->
-        conv ctx lvl a (rigid (NFirst n)) && conv ctx lvl b (rigid (NSecond n))
-      (VNeutral n _, VCon (PairF a b)) ->
-        conv ctx lvl (rigid (NFirst n)) a && conv ctx lvl (rigid (NSecond n)) b
+      -- one-step η for pairs. Both sides are forced here, so the spine is
+      -- rigid and 'projVal' grows it without unfolding anything.
+      (VCon (PairF a b), n@(VNeutral _)) ->
+        conv ctx lvl a (projVal ProjFirst n) && conv ctx lvl b (projVal ProjSecond n)
+      (n@(VNeutral _), VCon (PairF a b)) ->
+        conv ctx lvl (projVal ProjFirst n) a && conv ctx lvl (projVal ProjSecond n) b
 
       (VCon s1, VCon s2) -> case zipMatch2 s1 s2 of
         Nothing -> False
@@ -327,22 +388,22 @@ conv ctx lvl l r
           (All . uncurry (conv ctx lvl))
           s)
 
-      (VNeutral n1 _, VNeutral n2 _) -> convNeu ctx lvl n1 n2
+      (VNeutral n1, VNeutral n2) -> convNeu ctx lvl n1 n2
       _ -> False
   where
-    rigid n = VNeutral n Nothing
-    freshV = rigid . NLevel
+    freshV k = VNeutral (NRigid (HFresh k) [])
 
-    -- Two spines on the same definition are convertible when their arguments
-    -- are. This is congruence, and it needs no unfolding.
-    aligned (VNeutral n1 munf1) (VNeutral n2 _) =
-      -- A rigid head reaches the structural case below anyway. Attempting it
-      -- here would only repeat a failure.
-      isJust munf1 && sameHead n1 n2 && convNeu ctx lvl n1 n2
+    -- Two spines on the same definition are convertible when their
+    -- eliminations are. This is congruence, and it needs no unfolding.
+    --
+    -- Only a glued spine is worth trying. A rigid one reaches the structural
+    -- case below anyway, and attempting it here would only repeat a failure.
+    -- We need no separate head test: 'convNeu' compares the two heads first.
+    aligned (VNeutral n1@NGlued{}) (VNeutral n2) = convNeu ctx lvl n1 n2
     aligned _ _ = False
 
-    unfolded (VNeutral _ munf) = munf
-    unfolded _                 = Nothing
+    unfolded (VNeutral (NGlued _ _ u)) = Just u
+    unfolded _                         = Nothing
 
     -- The two sides need not stand on the same definition to begin with.
     -- One is often the other under a thin wrapper, such as
@@ -378,42 +439,36 @@ conv ctx lvl l r
 maxAlignOffset :: Int
 maxAlignOffset = 4
 
--- | Do both spines stand on the same variable? Only their heads are compared;
--- the arguments are left to 'convNeu'.
-sameHead :: Neu n -> Neu n -> Bool
-sameHead n1 n2 = case (neuHead n1, neuHead n2) of
-  (Just x, Just y) -> Foil.nameId x == Foil.nameId y
-  _                -> False
-
--- | The variable a spine is stuck on, unless it is a fresh comparison level.
-neuHead :: Neu n -> Maybe (Foil.Name n)
-neuHead = \case
-  NVar x           -> Just x
-  NLevel _         -> Nothing
-  NApp n _         -> neuHead n
-  NFirst n         -> neuHead n
-  NSecond n        -> neuHead n
-  NIdJ _ _ _ _ _ n -> neuHead n
-
-convClosure :: Context n -> Int -> Closure n -> Closure n -> Bool
+convClosure :: Context n -> DeBruijnLevel -> Closure n -> Closure n -> Bool
 convClosure ctx lvl c1 c2 =
-  conv ctx (lvl + 1) (applyClosure ctx c1 fresh) (applyClosure ctx c2 fresh)
+  conv ctx (nextLevel lvl) (applyClosure ctx c1 fresh) (applyClosure ctx c2 fresh)
   where
-    fresh = VNeutral (NLevel lvl) Nothing
+    fresh = VNeutral (NRigid (HFresh lvl) [])
 
-convNeu :: Context n -> Int -> Neu n -> Neu n -> Bool
-convNeu ctx lvl = go
+-- | Two spines are convertible when they stand on the same head and their
+-- eliminations agree pairwise. Neither side is unfolded.
+convNeu :: Context n -> DeBruijnLevel -> Neu n -> Neu n -> Bool
+convNeu ctx lvl n1 n2 =
+  convHead (headOf n1) (headOf n2) && convElims (elimsOf n1) (elimsOf n2)
   where
-    go (NVar x) (NVar y) = Foil.nameId x == Foil.nameId y
-    go (NLevel i) (NLevel j) = i == j
-    go (NApp n v) (NApp n' v') = go n n' && conv ctx lvl v v'
-    go (NFirst n) (NFirst n') = go n n'
-    go (NSecond n) (NSecond n') = go n n'
-    go (NIdJ tA a tC d x n) (NIdJ tA' a' tC' d' x' n') =
-      go n n'
-        && conv ctx lvl tA tA' && conv ctx lvl a a' && conv ctx lvl tC tC'
+    convHead (HVar x) (HVar y)     = Foil.nameId x == Foil.nameId y
+    convHead (HFresh i) (HFresh j) = i == j
+    convHead _ _                   = False
+
+    -- The recursive call comes first so that a difference in spine length,
+    -- and the innermost eliminations, are settled before we compare the
+    -- arguments of the outermost one.
+    convElims [] []           = True
+    convElims (e:es) (e':es') = convElims es es' && convElim e e'
+    convElims _ _             = False
+
+    convElim (EApp v) (EApp v') = conv ctx lvl v v'
+    convElim EFirst EFirst      = True
+    convElim ESecond ESecond    = True
+    convElim (EIdJ tA a tC d x) (EIdJ tA' a' tC' d' x') =
+      conv ctx lvl tA tA' && conv ctx lvl a a' && conv ctx lvl tC tC'
         && conv ctx lvl d d' && conv ctx lvl x x'
-    go _ _ = False
+    convElim _ _                = False
 
 -- * Entry point
 
@@ -433,7 +488,7 @@ data Conversion
 -- | Are the two terms definitely convertible?
 nbeConvertible :: TermT n -> TermT n -> TypeCheck n Conversion
 nbeConvertible t1 t2 = asks $ \ctx ->
-  if conv ctx 0 (eval ctx Foil.identitySubst t1) (eval ctx Foil.identitySubst t2)
+  if conv ctx (DeBruijnLevel 0) (eval ctx Foil.identitySubst t1) (eval ctx Foil.identitySubst t2)
     then Convertible
     else DontKnow
 
