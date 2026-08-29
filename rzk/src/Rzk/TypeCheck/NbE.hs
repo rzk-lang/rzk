@@ -17,23 +17,25 @@
 -- are then compared argument by argument, without unfolding it. Only where
 -- the spines disagree is an unfolding forced.
 --
--- It answers only 'True' ("definitely convertible") or 'False' ("do not
--- know"), never a definite inequality, so a caller falls back to the
--- ordinary unification on 'False'. The fast path can therefore accept more
+-- It answers only 'Convertible' or 'DontKnow', never a definite inequality,
+-- so a caller falls back to the ordinary unification on 'DontKnow'. The two
+-- cases are not opposites, which is why the answer is not a 'Bool'. The fast
+-- path can therefore accept more
 -- than the unification below it, but never less. Note that it does accept
 -- more. The ordinary path decomposes an application pairwise, which invents
 -- subgoals that a βδ-equal but structurally different pair need not meet
 -- (see 'Rzk.TypeCheck.Unify.unifyViaDecompose').
 --
--- Soundness is a subset argument: 'True' is answered only for terms that are
+-- Soundness is a subset argument: 'Convertible' is answered only for terms that are
 -- βδ-convertible up to α and the one-step η above, with every construct whose
 -- /reduction/ consults the context — @recOR@ guard selection, holes, the
 -- modal constructs — evaluating to an opaque 'VAbort' that poisons the
--- comparison into 'False'. Extension types and @recBOT@ are compared
+-- comparison into 'DontKnow'. Extension types and @recBOT@ are compared
 -- structurally (see the note at their 'eval' case): a structurally identical
 -- pair of restricted types is also accepted by the ordinary unification,
 -- through reflexive coverage and the cross-face coherences already proved at
--- formation. Every 'True' is therefore also a success of the old unification.
+-- formation. Every 'Convertible' is therefore also a success of the old
+-- unification.
 --
 -- The evaluator is a pure function of the 'Context': 'valueOfVar' is a plain
 -- reader-only lookup, and fresh variables for comparing closures are de
@@ -76,7 +78,7 @@
 -- implementation lineage in @cooltt@.
 --
 -- What is specific to rzk is only the packaging: the all-or-nothing gating
--- ('True' or do-not-know, never refute), and 'VAbort' poisoning of the
+-- ('Convertible' or 'DontKnow', never refute), and 'VAbort' poisoning of the
 -- context-sensitive fragment so that the fast path stays sound by a subset
 -- argument.
 module Rzk.TypeCheck.NbE (Conversion (..), nbeConvertible) where
@@ -119,20 +121,14 @@ data Val n
     -- closed over the environment. Covers constructors (pairs, @refl@),
     -- types (Π, Σ, identity, universes) and the cube/tope operators, which
     -- are compared structurally only (reflexivity is entailment).
-  | VAbort AbortReason
-    -- ^ A construct outside the context-insensitive fragment. Poisons the
-    -- comparison: 'conv' answers 'False' the moment it meets one. The
-    -- reason records which construct, for diagnostics.
-
--- | Why evaluation gave up: which context-sensitive construct was met.
-data AbortReason
-  = AbortHole
-  | AbortRecOr
-  | AbortModal
-  | AbortStuckElim
-    -- ^ An elimination of a non-canonical, non-neutral value (an abort
-    -- propagating through an application, projection or @idJ@).
-  deriving (Eq, Ord, Show, Enum, Bounded)
+  | VAbort
+    -- ^ A construct outside the context-insensitive fragment, or an
+    -- elimination of a value that is neither canonical nor neutral. Poisons
+    -- the comparison: 'conv' gives up the moment it meets one.
+    --
+    -- Carries no reason. Nothing can observe one: the module exports
+    -- 'nbeConvertible' alone, whose 'DontKnow' says only that the fast path
+    -- declined. The eval cases below say which construct each abort is for.
 
 data Neu n
   = NVar (Foil.Name n)
@@ -219,8 +215,8 @@ eval ctx env = \case
         elim = \case
           VCon ReflF{}      -> vd
           VNeutral np munf  -> VNeutral (stuck np) (elim <$> munf)
-          VAbort r          -> VAbort r
-          _                 -> VAbort AbortStuckElim
+          -- an abort propagating through, or a stuck induction
+          _                 -> VAbort
     in elim (eval ctx env p)
 
   -- The context-sensitive fragment. A @recOR@ reduces by deciding its guards
@@ -235,12 +231,12 @@ eval ctx env = \case
   -- disjunction containing itself) and by re-checking the cross-face
   -- coherences that were already proved when the type was formed (entailment
   -- is monotone in the tope context). Two @recBOT@s unify unconditionally.
-  HoleT{} -> VAbort AbortHole
-  RecOrT{} -> VAbort AbortRecOr
-  TypeModalT{} -> VAbort AbortModal
-  ModAppT{} -> VAbort AbortModal
-  ModExtractT{} -> VAbort AbortModal
-  LetModT{} -> VAbort AbortModal
+  HoleT{} -> VAbort
+  RecOrT{} -> VAbort
+  TypeModalT{} -> VAbort
+  ModAppT{} -> VAbort
+  ModExtractT{} -> VAbort
+  LetModT{} -> VAbort
 
   -- everything else is a plain constructor: evaluate the fields
   Node (AnnSig _info sig) ->
@@ -258,8 +254,8 @@ applyVal ctx f v = case f of
   -- application into an unfolding it does not have.
   VNeutral neu Nothing -> VNeutral (NApp neu v) Nothing
   VNeutral neu (Just u) -> VNeutral (NApp neu v) (Just (applyVal ctx u v))
-  VAbort r -> VAbort r
-  _ -> VAbort AbortStuckElim
+  -- an abort propagating through, or a stuck application
+  _ -> VAbort
 
 applyClosure :: Context n -> Closure n -> Val n -> Val n
 applyClosure ctx (Closure env binder body) v =
@@ -281,15 +277,17 @@ projVal proj = go
         ProjFirst  -> l
         ProjSecond -> r
       VNeutral n munf  -> VNeutral (neu n) (go <$> munf)
-      VAbort r         -> VAbort r
-      _                -> VAbort AbortStuckElim
+      -- an abort propagating through, or a stuck projection
+      _                -> VAbort
     neu = case proj of
       ProjFirst  -> NFirst
       ProjSecond -> NSecond
 
 -- * Conversion
 
--- | 'False' means "do not know", never a definite inequality.
+-- | 'False' means "do not know", never a definite inequality. The exported
+-- 'nbeConvertible' names the two cases; inside, 'Bool' is the conjunction
+-- monoid this folds with.
 --
 -- We compare two spines standing on the same definition argument by argument,
 -- with neither side unfolded. Congruence makes that answer definite. Forcing
@@ -304,8 +302,8 @@ conv ctx lvl l r
   -- Without an alignment we force both sides to a weak head normal form and
   -- compare them structurally, as before.
   | otherwise = case (forceVal l, forceVal r) of
-      (VAbort _, _) -> False
-      (_, VAbort _) -> False
+      (VAbort, _) -> False
+      (_, VAbort) -> False
 
       (VLam c1, VLam c2) ->
         conv ctx (lvl + 1) (applyClosure ctx c1 (freshV lvl)) (applyClosure ctx c2 (freshV lvl))
