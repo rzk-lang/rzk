@@ -9,8 +9,8 @@ let
       free-foil = final.callHackageDirect
         {
           pkg = "free-foil";
-          ver = "0.3.2";
-          sha256 = "sha256-B9JccfYo9jSjJ3sPt2fTRM463Qg7qvt7czDU5Vc+utA=";
+          ver = "0.4.0";
+          sha256 = "sha256-6c7BKi9DtC2IeLh55FyEAXTGscbABpTdYia4cdebEtc=";
         }
         { };
       ${rzk} = final.callCabal2nix rzk rzk-src { };
