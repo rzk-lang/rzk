@@ -478,7 +478,8 @@ unifyInCurrentContext mterm expected actual = performing action $ do
             _ -> err
         ModExtractT _ty app inn te ->
           case actual' of
-            ModExtractT _ty' _app' inn' te' -> do
+            ModExtractT _ty' app' inn' te' -> do
+              when (app' /= app) err
               when (inn' /= inn) err
               enterModality app $ unify Nothing te te'
             _ -> err
