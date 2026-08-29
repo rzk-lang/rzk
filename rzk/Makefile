@@ -20,16 +20,18 @@ SYNTAX_DIR = src/Language/Rzk/Syntax
 # build-type: Simple build try to run alex/happy again (and fail without them),
 # which is the whole problem this layout avoids. Only the committed .hs build.
 #
-# BNFC also writes Skel.hs (a template of `failure` stubs, meant to be copied
-# and filled in) and Test.hs (a standalone `main` that parses stdin). Neither
-# has ever been part of the build, and rzk has its own parser tests, so we
-# delete them too rather than committing them and excluding them again.
+# BNFC also writes three modules that have never been part of the build:
+# Skel.hs (a template of `failure` stubs, meant to be copied out and filled
+# in), Test.hs (a standalone `main` that parses stdin), and ErrM.hs (an error
+# monad the generated parser does not use). We delete them rather than commit
+# them, so hpack does not discover them out of source-dirs and nobody has to
+# exclude them again.
 regen-parser:
 	bnfc -d -p Language.Rzk --generic --functor --text-token -o src/ $(GRAMMAR)
 	alex --ghc $(SYNTAX_DIR)/Lex.x
 	happy --array --info --ghc --coerce $(SYNTAX_DIR)/Par.y
 	rm -f $(SYNTAX_DIR)/Lex.x $(SYNTAX_DIR)/Par.y
-	rm -f $(SYNTAX_DIR)/Skel.hs $(SYNTAX_DIR)/Test.hs
+	rm -f $(SYNTAX_DIR)/Skel.hs $(SYNTAX_DIR)/Test.hs $(SYNTAX_DIR)/ErrM.hs
 
 # Fail if the grammar has LR conflicts or unused rules. happy resolves
 # shift/reduce and reduce/reduce conflicts silently, by rule order, so a
