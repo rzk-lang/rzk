@@ -1,0 +1,25 @@
+#lang rzk-1
+
+-- The tope of a shape field is available inside a match branch: the
+-- eliminator brings it into the branch's context, so it is discharged in the
+-- tope layer rather than escaping as a cube term.
+
+#data Bd := bd (t : 2 | (t === 0_2) \/ (t === 1_2))
+
+#define at-bd
+  ( A : U) (a : A)
+  : (j : 2 | (j === 0_2) \/ (j === 1_2)) -> A
+  := \ j -> a
+
+#define bd-carries-its-tope (A : U) (a : A) (s : Bd) : A
+  := match s (bd t ⇒ at-bd A a t)
+
+-- A shape field may be followed by fields mentioning the cube variable it
+-- binds: this is the total space Σ_{t : Δ¹} A(t), which has no other spelling.
+#data Total (A : (t : 2) -> U) := tot (t : 2 | ⊤) (a : A t)
+
+#define total-fst (A : (t : 2) -> U) (w : Total A) : U
+  := match w (tot t a ⇒ A t)
+
+-- A subshape of a product cube: the 2-simplex as a type.
+#data Tri := tri (t : 2 * 2 | second t <= first t)

@@ -27,8 +27,14 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-fun-field` for function-typed recursive fields,
   `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
-  `ill-data-shape-field`) and name clashes
+  `ill-data-shape-index` for a shape index,
+  `ill-data-modal-shape-field` for a modal shape field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
+  shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,
+  its recursor as the representability rule, strict β on a syntactic
+  point, and the cube-generic form; `happy-data-shape-tope` — the tope
+  reaching a `match` branch, a field mentioning the cube variable an
+  earlier shape field binds, and a subshape of a product cube);
   re-ascription clauses (`eliminate with`:
   `happy-data-eliminator-reascription` — a definitionally equal
   spelling is stored and stays interchangeable with the canonical type,

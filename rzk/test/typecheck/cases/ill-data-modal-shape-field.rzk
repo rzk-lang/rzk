@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A shape field is allowed, but not a modal one. A modal field is an
+-- ordinary argument under a lock and needs no crisp induction, but it is
+-- held back with the rest of the experimental modal layer.
+#data ModArr := marr (t :_b 2 | ⊤)
