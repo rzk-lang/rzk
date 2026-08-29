@@ -1,13 +1,15 @@
 #lang rzk-1
 
--- Test: _op (flip(i) === 0_2) is equivalent to (i === 1_2)
--- Verified via propositional equality of topes under _op
+-- Test: _op (flip(i) === 0_2) is equivalent to (i === 1_2).
+-- The topes cannot be compared by an identity type (TOPE is not a type),
+-- so each law is observed as definitional equality of the shapes the two
+-- topes carve out of the unit cube.
 
 #def test-flip-tope-equiv
   (i : 2)
   : let mod _op q := inv_op (i === 1_2) in
     let mod _op fi := flip_op i in
-    _op (q = (fi === 0_2))
+    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 0_2) -> Unit))
   := mod _op refl
 
 -- Symmetric case: _op (flip(i) === 1_2) is equivalent to (i === 0_2)
@@ -16,7 +18,7 @@
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    _op (q = (fi === 1_2))
+    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 1_2) -> Unit))
   := mod _op refl
 
 -- flip/unflip with 2: inv roundtrip
@@ -25,5 +27,5 @@
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    _op (q = (fi === 1_2))
+    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 1_2) -> Unit))
   := mod _op refl

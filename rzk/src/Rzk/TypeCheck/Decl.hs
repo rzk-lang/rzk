@@ -577,78 +577,6 @@ checkDataSortLayers paramDecls sortIndices = go positions
         inScope orig md param ret (go rest)
       _ -> panicImpossible "#data sort has fewer Π binders than parameters and indices"
 
--- | The kind of a binder domain, for the @#data@ layer rules. The layers a
--- domain can inhabit are finer than type\/cube\/shape: the universes @CUBE@
--- and @TOPE@ and the tope-family kinds are all @U@-sorted today (a shipped
--- convenience), so they look like types until inspected. This
--- classification is what lets the checks around it implement the B′
--- discipline of the tope-reflection design: no position of a @#data@ may
--- store or be indexed by a cube- or tope-layer citizen, and parameters keep
--- exactly the audited kinds (types, @CUBE@, and plain tope families — the
--- generic @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on the two
--- non-type ones).
-data DomainKind
-  = DomainType
-    -- ^ an ordinary type (including @U@, families, extension types)
-  | DomainCubePoint
-    -- ^ a cube: the domain's sort is @CUBE@, as in @(t : 2)@
-  | DomainCubeUniverse
-    -- ^ @CUBE@ itself, as in @(I : CUBE)@
-  | DomainCubeFamily
-    -- ^ a function into @CUBE@, which is no parameter kind of the
-    -- meta-theoretic parameter layer
-  | DomainTopeFamily
-    -- ^ a tope family @{I | ψ} → TOPE@ (every Π-binder a cube or shape),
-    -- the Rzk paper's parameter kind; includes bare @TOPE@ (arity 0),
-    -- which the general tope-binder rule rejects before @#data@ sees it
-  | DomainOtherTopeFamily
-    -- ^ a function into @TOPE@ over a non-cube domain — not the paper's kind
-  | DomainModalTope
-    -- ^ a modal type over @TOPE@ or a family into one (@ᵒᵖ TOPE@,
-    -- @I → ᵒᵖ TOPE@, …) — the modal tope reflection, closed pending a
-    -- modal extension of the parameter layer
-
--- | Classify an elaborated binder domain. Restricted binders (shapes) never
--- reach this: callers dispatch on the binder's tope first.
-classifyDomain :: Distinct n => TermT n -> TypeCheck n DomainKind
-classifyDomain ty = typeOf ty >>= \case
-  UniverseCubeT{} -> pure DomainCubePoint
-  _ -> whnfT ty >>= \case
-    UniverseCubeT{} -> pure DomainCubeUniverse
-    UniverseTopeT{} -> pure DomainTopeFamily
-    TypeModalT _ty _md inner -> classifyDomain inner >>= \case
-      DomainType      -> pure DomainType
-      DomainCubePoint -> pure DomainType   -- unreachable: @(x :_µ I)@ parses as a modal binder
-      _               -> pure DomainModalTope
-    TypeFunT _ty orig md param mtope ret -> do
-      cubeDom <- case mtope of
-        Just _  -> pure True
-        Nothing -> typeOf param >>= \case
-          UniverseCubeT{} -> pure True
-          _               -> pure False
-      inner <- inScope orig md param ret classifyDomain
-      pure $ case inner of
-        DomainTopeFamily
-          | cubeDom   -> DomainTopeFamily
-          | otherwise -> DomainOtherTopeFamily
-        DomainOtherTopeFamily -> DomainOtherTopeFamily
-        DomainModalTope       -> DomainModalTope
-        DomainCubeUniverse    -> DomainCubeFamily
-        DomainCubeFamily      -> DomainCubeFamily
-        _                     -> DomainType
-    _ -> pure DomainType
-
--- | The printed name of a rejected kind, for error messages.
-domainKindName :: DomainKind -> String
-domainKindName = \case
-  DomainType            -> "a type"
-  DomainCubePoint       -> "a cube"
-  DomainCubeUniverse    -> "the cube universe"
-  DomainCubeFamily      -> "a cube family"
-  DomainTopeFamily      -> "a tope family"
-  DomainOtherTopeFamily -> "a tope family over a non-cube domain"
-  DomainModalTope       -> "a modal tope"
-
 dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
 dataBodyParts = \case
   Rzk.NoDataBody _              -> ([], [])
@@ -1453,7 +1381,14 @@ checkCommands path i total commands k = case commands of
             -- run stopping at this one.
             result <- tryCheck $ do
               valTerm <- elaborate (addParams params term)
-              atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+              val' <- atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+              -- A definition at type U must define a type: a body that is a
+              -- universe kind would be a synonym smuggling the kind into
+              -- every position that accepts U.
+              whnfT ty' >>= \case
+                UniverseT{} -> ensureTypeAtU "a definition at type U" val'
+                _           -> pure ()
+              pure val'
             let (mvalue, bodyErrors) = case result of
                   Right term'  -> (Just term', [])
                   Left bodyErr -> (Nothing, [bodyErr])
@@ -1506,7 +1441,16 @@ checkCommands path i total commands k = case commands of
       withCommand command k $ do
         typeResult <- tryCheck $ do
           tyTerm <- elaborate ty
-          atSurface ty $ typecheck tyTerm universeT
+          ty' <- atSurface ty $ typecheck tyTerm universeT
+          -- A bare tope assumption would let section closure manufacture the
+          -- Π over TOPE that the binder rule forbids; the tope-family
+          -- spelling (psi : 1 -> TOPE) is the supported form of a bare tope
+          -- parameter.
+          whnfT ty' >>= \case
+            UniverseTopeT{} -> issueTypeError $ TypeErrorOther
+              "tope assumptions are illegal; assume a tope family instead, e.g. (psi : 1 -> TOPE)"
+            _ -> pure ()
+          pure ty'
         case typeResult of
           Left typeError -> skippingCommand typeError path i total more k
           Right ty' ->

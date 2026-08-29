@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- A tope family cannot be a Σ component.
+#define A : U := Σ (phi : 2 -> TOPE) , Unit

@@ -1035,6 +1035,99 @@ etaExpand term = do
 
 -- * Layers
 
+-- | The kind of a binder domain or of a term standing at type @U@. The
+-- layers a domain can inhabit are finer than type\/cube\/shape: the
+-- universes @CUBE@ and @TOPE@ and the tope-family kinds are all @U@-sorted
+-- today (a shipped convenience), so they look like types until inspected.
+-- This classification implements the layer discipline: the @#data@ checks
+-- in "Rzk.TypeCheck.Decl" decide what each declaration position may take,
+-- and 'ensureTypeAtU' rejects the universe kinds where an ordinary type is
+-- required (Σ components, identity carriers, type arguments), so that a
+-- cube- or tope-layer citizen cannot be stored as type-layer data by any
+-- direct spelling.
+data DomainKind
+  = DomainType
+    -- ^ an ordinary type (including @U@, families, extension types)
+  | DomainCubePoint
+    -- ^ a cube: the domain's sort is @CUBE@, as in @(t : 2)@
+  | DomainCubeUniverse
+    -- ^ @CUBE@ itself, as in @(I : CUBE)@
+  | DomainCubeFamily
+    -- ^ a function into @CUBE@, which is no parameter kind of the
+    -- meta-theoretic parameter layer
+  | DomainTopeUniverse
+    -- ^ @TOPE@ itself, which the general binder and assumption rules
+    -- reject before most positions see it
+  | DomainTopeFamily
+    -- ^ a tope family @{I | ψ} → TOPE@ (every Π-binder a cube or shape),
+    -- the Rzk paper's parameter kind
+  | DomainOtherTopeFamily
+    -- ^ a function into @TOPE@ over a non-cube domain — not the paper's kind
+  | DomainModalTope
+    -- ^ a modal type over @TOPE@ or a family into one (@ᵒᵖ TOPE@,
+    -- @I → ᵒᵖ TOPE@, …) — the modal tope reflection, closed pending a
+    -- modal extension of the parameter layer
+
+-- | Classify an elaborated binder domain. Restricted binders (shapes) never
+-- reach this: callers dispatch on the binder's tope first.
+classifyDomain :: Distinct n => TermT n -> TypeCheck n DomainKind
+classifyDomain ty = typeOf ty >>= \case
+  UniverseCubeT{} -> pure DomainCubePoint
+  _ -> whnfT ty >>= \case
+    UniverseCubeT{} -> pure DomainCubeUniverse
+    UniverseTopeT{} -> pure DomainTopeUniverse
+    TypeModalT _ty _md inner -> classifyDomain inner >>= \case
+      DomainType      -> pure DomainType
+      DomainCubePoint -> pure DomainType   -- unreachable: @(x :_µ I)@ parses as a modal binder
+      _               -> pure DomainModalTope
+    TypeFunT _ty orig md param mtope ret -> do
+      cubeDom <- case mtope of
+        Just _  -> pure True
+        Nothing -> typeOf param >>= \case
+          UniverseCubeT{} -> pure True
+          _               -> pure False
+      inner <- inScope orig md param ret classifyDomain
+      pure $ case inner of
+        DomainTopeUniverse
+          | cubeDom   -> DomainTopeFamily
+          | otherwise -> DomainOtherTopeFamily
+        DomainTopeFamily
+          | cubeDom   -> DomainTopeFamily
+          | otherwise -> DomainOtherTopeFamily
+        DomainOtherTopeFamily -> DomainOtherTopeFamily
+        DomainModalTope       -> DomainModalTope
+        DomainCubeUniverse    -> DomainCubeFamily
+        DomainCubeFamily      -> DomainCubeFamily
+        _                     -> DomainType
+    _ -> pure DomainType
+
+-- | The printed name of a rejected kind, for error messages.
+domainKindName :: DomainKind -> String
+domainKindName = \case
+  DomainType            -> "a type"
+  DomainCubePoint       -> "a cube"
+  DomainCubeUniverse    -> "the cube universe"
+  DomainCubeFamily      -> "a cube family"
+  DomainTopeUniverse    -> "the tope universe"
+  DomainTopeFamily      -> "a tope family"
+  DomainOtherTopeFamily -> "a tope family over a non-cube domain"
+  DomainModalTope       -> "a modal tope"
+
+-- | Reject a universe kind standing where an ordinary type is required.
+-- The check is on the weak head normal form, so a synonym
+-- (@#define A : U := TOPE@) meets the same rule as the spelled-out kind.
+-- This closes the /direct/ spellings only: a kind can still travel through
+-- a @U@-polymorphic definition (@(X : U) → …@ applied to @TOPE@ is caught
+-- at the application, but a kind reaching a variable another way is not),
+-- and the complete closure — the universe kinds leaving @U@ — is a
+-- separate, larger change.
+ensureTypeAtU :: Distinct n => String -> TermT n -> TypeCheck n ()
+ensureTypeAtU position t = classifyDomain t >>= \case
+  DomainType      -> pure ()
+  DomainCubePoint -> pure ()   -- cannot stand at type U; rejected by its sort
+  kind -> issueTypeError $ TypeErrorOther $
+    position <> " must be a type, got " <> domainKindName kind
+
 inCubeLayer :: Distinct n => TermT n -> TypeCheck n Bool
 inCubeLayer = \case
   RecBottomT{}    -> pure False

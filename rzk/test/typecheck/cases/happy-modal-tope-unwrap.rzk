@@ -9,7 +9,7 @@
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    _op (q = (fi === 1_2))
+    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 1_2) -> Unit))
   := mod _op refl
 
 -- 2. _b phi implies phi:

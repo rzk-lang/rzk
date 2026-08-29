@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "tope assumptions are illegal"
+regression_for:
+  - layer-discipline-direct-guards
