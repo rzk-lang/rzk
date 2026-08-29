@@ -178,7 +178,7 @@ At the moment:
 
 - recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
 - parameters and indices must be types: a cube point (`#!rzk (t : I)`) or a shape point, in any spelling, is rejected. The rule is checked on the elaborated sort, so the named spelling `#!rzk (t : Δ¹)` meets it too. Parameters of type `#!rzk CUBE` or `#!rzk I → TOPE` range over cubes and shapes themselves, not over their points, and are fine — see the generic realisation below. A family varying over a shape is what extension types are for;
-- a modal *type* field (`#!rzk (x :_b A)`) is not supported yet: a type field can be recursive, and the recursion and positivity bookkeeping does not see through a modal binder. A modal *shape* field (`#!rzk (t :_b I | φ)`) is fine — a shape field cannot be recursive — and the eliminator binds it with its modality, so the lock discipline of [modalities](../modalities.rzk.md) applies inside a branch;
+- a modal *type* field (`#!rzk (x :_b A)`) is not supported yet: a type field can be recursive, and the recursion and positivity bookkeeping does not see through a modal binder. A modal *cube* or *shape* field (`#!rzk (t :_b I)`, `#!rzk (t :_b Φ)`, `#!rzk (t :_b I | φ)`) is fine — such a field cannot be recursive — and the eliminator binds it with its modality, so the lock discipline of [modalities](../modalities.rzk.md) applies inside a branch. The distinction is made after elaboration, so it does not depend on the spelling;
 - path constructors are not supported in indexed families, and only paths between points are supported: an identity carrier or an identity-typed field (a higher path, as in the 0-truncation) is rejected.
 
 ## Shape fields

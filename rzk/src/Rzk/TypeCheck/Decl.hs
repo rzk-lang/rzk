@@ -585,10 +585,13 @@ dataParamVars = fmap concat . mapM paramVarsOf
 
 -- | A constructor field.
 --
--- Plain typed fields @(x : A)@ and shape fields @(t : I | φ)@ are accepted,
--- the latter also under a modality (@(t :♭ I | φ)@); modal type fields are
--- not. What a shape field means, and why it is sound, is worth stating
--- precisely, because the neighbouring constructions are not.
+-- Plain typed fields @(x : A)@ and cube and shape fields are accepted, in
+-- every spelling and also under a modality (@(t :♭ I | φ)@, @(t :♭ I)@,
+-- @(t :♭ Φ)@); modal /type/ fields are not, and since that distinction is
+-- not recognisable on the surface it is decided by
+-- 'checkDataConFieldLayers' after elaboration. What a shape field means,
+-- and why it is sound, is worth stating precisely, because the
+-- neighbouring constructions are not.
 --
 -- A shape is a predicate on a cube, spelled @I -> TOPE@ as @Δ¹@ and @Λ²₁@ are,
 -- and a field may name one (@(t : Φ)@), give a bare cube (@(t : I)@, the shape
@@ -634,31 +637,69 @@ dataFieldToParamDecl cname = \case
   p@Rzk.ParamPatternType{} -> paramToParamDecl p
   p@Rzk.ParamPatternShape{} -> paramToParamDecl p
   p@Rzk.ParamPatternModalShape{} -> paramToParamDecl p
+  -- Not rejected here: whether a modal binder is a (fine) cube or shape
+  -- field or a (rejected) modal type field is not recognisable on the
+  -- surface — @(t :♭ Δ¹)@ looks exactly like @(x :♭ A)@ — so the decision
+  -- is made by 'checkDataConFieldLayers' on the elaborated constructor type.
+  p@Rzk.ParamPatternModalType{} -> paramToParamDecl p
   Rzk.ParamPattern _ pat -> issueTypeError $ TypeErrorOther $
     "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
-  Rzk.ParamPatternModalType{} -> modalFieldError cname
 
--- | Modal /type/ fields are deferred; modal /shape/ fields are accepted.
--- The line between them is drawn by recursion, not by \"crisp induction\".
+-- | Modal /type/ fields are deferred; modal /cube/ and /shape/ fields are
+-- accepted. The line between them is drawn by recursion, not by \"crisp
+-- induction\".
 --
--- A modal field of either kind is an ordinary constructor argument sitting
+-- A modal field of any kind is an ordinary constructor argument sitting
 -- under a lock; the ordinary eliminator suffices for it, binding the field
 -- with its modality so the lock discipline applies inside a branch, and no
 -- new principle is involved. /Crisp induction/ — eliminating a crisp
 -- @x :♭ D@ by cases — is a separate principle that @#data@ does not
 -- provide either way.
 --
--- What does distinguish the two kinds is that a type field can be
--- /recursive/, and the recursion and positivity bookkeeping
--- ('dataConSurface' collects @fieldTypes@ and the probe from plain
--- 'Rzk.ParamTermType' declarations only) does not see through a modal
--- binder: a modal recursive field would silently evade the positivity probe
--- and the induction-hypothesis machinery. A shape field cannot be
--- recursive — its domain is a cube — so nothing is evaded, and the modal
--- form is as safe as the plain one.
+-- What does distinguish the kinds is that a type field can be /recursive/,
+-- and the recursion and positivity bookkeeping ('dataConSurface' collects
+-- @fieldTypes@ and the probe from plain 'Rzk.ParamTermType' declarations
+-- only) does not see through a modal binder: a modal recursive field would
+-- silently evade the positivity probe and the induction-hypothesis
+-- machinery. A cube or shape field cannot be recursive — its domain is not
+-- a type — so nothing is evaded, and the modal form is as safe as the
+-- plain one.
 modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
 modalFieldError cname = issueTypeError $ TypeErrorOther $
   "modal type fields are not supported yet in constructor " <> Rzk.printTree cname
+
+-- | The modal-field rule, on the elaborated form: a modal binder whose
+-- domain is a cube or a shape is an ordinary (modal) cube or shape field; a
+-- modal binder whose domain is a type is rejected ('modalFieldError').
+--
+-- The decision cannot be syntactic: @(t :♭ Δ¹)@ and @(x :♭ A)@ are the same
+-- surface form ('Rzk.ParamPatternModalType'), and only elaboration tells a
+-- named shape from a type. This check therefore walks the elaborated
+-- constructor Π-telescope past the parameters and inspects the binders that
+-- came from the modal type-annotated spelling, exactly as
+-- 'checkDataSortLayers' does for the sort. A restricted binder (a shape,
+-- named or inline) and a cube domain pass; anything else is a modal type
+-- field.
+checkDataConFieldLayers
+  :: Distinct n
+  => Rzk.VarIdent -> Int -> [Rzk.ParamDecl] -> TermT n -> TypeCheck n ()
+checkDataConFieldLayers cname numParams fieldDecls =
+  go (replicate numParams False <> map isModalTypeSpelling fieldDecls)
+  where
+    isModalTypeSpelling = \case
+      Rzk.ParamTermModalType{} -> True
+      _                        -> False
+    go :: Distinct m => [Bool] -> TermT m -> TypeCheck m ()
+    go [] _ = pure ()
+    go (check : rest) ty = whnfT ty >>= \case
+      TypeFunT _ty orig md param mtope ret -> do
+        when check $ case mtope of
+          Just _  -> pure ()                  -- a (named) modal shape field
+          Nothing -> typeOf param >>= \case
+            UniverseCubeT{} -> pure ()        -- a modal cube field
+            _               -> modalFieldError cname
+        inScope orig md param ret (go rest)
+      _ -> panicImpossible "constructor type has fewer Π binders than parameters and fields"
 
 dataConSurface
   :: Distinct n
@@ -729,15 +770,17 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
     -- cases the field's type reaches the constructor but its binder does not,
     -- and 'conApplied' applies the constructor to too few arguments.
     fieldVars = \case
-      Rzk.ParamPatternType _ pats _         -> concatMap surfacePatternVars pats
-      Rzk.ParamPatternShape _ pats _ _      -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternType _ pats _           -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternShape _ pats _ _        -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalType _ pats _ _    -> concatMap surfacePatternVars pats
       Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap surfacePatternVars pats
-      _                                     -> []
+      _                                       -> []
     fieldPats = \case
-      Rzk.ParamPatternType _ pats _         -> map patternToTerm pats
-      Rzk.ParamPatternShape _ pats _ _      -> map patternToTerm pats
+      Rzk.ParamPatternType _ pats _           -> map patternToTerm pats
+      Rzk.ParamPatternShape _ pats _ _        -> map patternToTerm pats
+      Rzk.ParamPatternModalType _ pats _ _    -> map patternToTerm pats
       Rzk.ParamPatternModalShape _ pats _ _ _ -> map patternToTerm pats
-      _                                     -> []
+      _                                       -> []
     isIdentity = \case
       Rzk.TypeId{}       -> True
       Rzk.TypeIdSimple{} -> True
@@ -858,6 +901,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           loc
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
+      checkDataConFieldLayers (dataConName con) numParams (dataConFields con) conTy
       conDeps <- assumptionDepsOf conTy
       let conSort = case dataConSort con of
             DataConPoint  -> PointCon

@@ -2,6 +2,6 @@ status: error
 error_tag: TypeErrorOther
 message_contains:
   - "modal type fields are not supported yet"
-line: 6
+line: 8
 regression_for:
   - data-shape-fields-reject-modal-type-field
