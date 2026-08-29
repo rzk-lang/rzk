@@ -104,6 +104,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-index-mismatch.rzk
     test/typecheck/cases/ill-data-missing-return.rzk
     test/typecheck/cases/ill-data-modal-shape-field-lock.rzk
+    test/typecheck/cases/ill-data-modal-tope-field.rzk
+    test/typecheck/cases/ill-data-modal-tope-index.rzk
     test/typecheck/cases/ill-data-modal-tope-param.rzk
     test/typecheck/cases/ill-data-modal-type-field.rzk
     test/typecheck/cases/ill-data-negative.rzk
@@ -308,6 +310,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-index-mismatch.expect.yaml
     test/typecheck/cases/ill-data-missing-return.expect.yaml
     test/typecheck/cases/ill-data-modal-shape-field-lock.expect.yaml
+    test/typecheck/cases/ill-data-modal-tope-field.expect.yaml
+    test/typecheck/cases/ill-data-modal-tope-index.expect.yaml
     test/typecheck/cases/ill-data-modal-tope-param.expect.yaml
     test/typecheck/cases/ill-data-modal-type-field.expect.yaml
     test/typecheck/cases/ill-data-negative.expect.yaml

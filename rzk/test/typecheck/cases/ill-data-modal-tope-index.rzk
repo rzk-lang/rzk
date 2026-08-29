@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- An index of a modal tope kind is internal quantification over the tope
+-- layer through a modality; an index must be a type.
+#data X : (_op TOPE) -> U

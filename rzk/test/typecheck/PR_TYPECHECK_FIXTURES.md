@@ -33,7 +33,7 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   parameters — the last four enforced on the elaborated sort, so the
   named spelling meets the same rule as the inline one;
   `ill-data-cube-universe-{field,index}`,
-  `ill-data-tope-family-{field,index}`, and `ill-data-modal-tope-param`
+  `ill-data-tope-family-{field,index}`, and `ill-data-modal-tope-{field,param,index}`
   for the B′ layer rules — no position stores or is indexed by a cube-
   or tope-layer citizen, and modal tope kinds are closed everywhere;
   `ill-data-modal-type-field` for a modal type field) and name clashes
