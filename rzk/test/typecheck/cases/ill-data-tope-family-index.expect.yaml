@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "an index of a #data sort must be a type, got a tope family: 2 -> TOPE"
+regression_for:
+  - data-shape-fields-b-prime-layer-rules

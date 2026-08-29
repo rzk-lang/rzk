@@ -94,6 +94,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-compute-unknown.rzk
     test/typecheck/cases/ill-data-cube-index.rzk
     test/typecheck/cases/ill-data-cube-param.rzk
+    test/typecheck/cases/ill-data-cube-universe-field.rzk
+    test/typecheck/cases/ill-data-cube-universe-index.rzk
     test/typecheck/cases/ill-data-duplicate-constructor.rzk
     test/typecheck/cases/ill-data-eliminator-duplicate.rzk
     test/typecheck/cases/ill-data-eliminator-mismatch.rzk
@@ -102,6 +104,7 @@ extra-source-files:
     test/typecheck/cases/ill-data-index-mismatch.rzk
     test/typecheck/cases/ill-data-missing-return.rzk
     test/typecheck/cases/ill-data-modal-shape-field-lock.rzk
+    test/typecheck/cases/ill-data-modal-tope-param.rzk
     test/typecheck/cases/ill-data-modal-type-field.rzk
     test/typecheck/cases/ill-data-negative.rzk
     test/typecheck/cases/ill-data-non-u-sort.rzk
@@ -114,6 +117,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-shape-index-named.rzk
     test/typecheck/cases/ill-data-shape-index.rzk
     test/typecheck/cases/ill-data-shape-param.rzk
+    test/typecheck/cases/ill-data-tope-family-field.rzk
+    test/typecheck/cases/ill-data-tope-family-index.rzk
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-hole-infer.rzk
     test/typecheck/cases/ill-hole-pattern-binder-names.rzk
@@ -293,6 +298,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-compute-unknown.expect.yaml
     test/typecheck/cases/ill-data-cube-index.expect.yaml
     test/typecheck/cases/ill-data-cube-param.expect.yaml
+    test/typecheck/cases/ill-data-cube-universe-field.expect.yaml
+    test/typecheck/cases/ill-data-cube-universe-index.expect.yaml
     test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
     test/typecheck/cases/ill-data-eliminator-duplicate.expect.yaml
     test/typecheck/cases/ill-data-eliminator-mismatch.expect.yaml
@@ -301,6 +308,7 @@ extra-source-files:
     test/typecheck/cases/ill-data-index-mismatch.expect.yaml
     test/typecheck/cases/ill-data-missing-return.expect.yaml
     test/typecheck/cases/ill-data-modal-shape-field-lock.expect.yaml
+    test/typecheck/cases/ill-data-modal-tope-param.expect.yaml
     test/typecheck/cases/ill-data-modal-type-field.expect.yaml
     test/typecheck/cases/ill-data-negative.expect.yaml
     test/typecheck/cases/ill-data-non-u-sort.expect.yaml
@@ -313,6 +321,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-shape-index-named.expect.yaml
     test/typecheck/cases/ill-data-shape-index.expect.yaml
     test/typecheck/cases/ill-data-shape-param.expect.yaml
+    test/typecheck/cases/ill-data-tope-family-field.expect.yaml
+    test/typecheck/cases/ill-data-tope-family-index.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-hole-infer.expect.yaml
     test/typecheck/cases/ill-hole-pattern-binder-names.expect.yaml

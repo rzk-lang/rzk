@@ -530,6 +530,16 @@ dataSortIndices = \case
 -- their points, and the generic realisation
 -- @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on both.
 --
+-- The rule per position ('DomainKind' has the fine classification):
+-- /parameters/ may be types, @CUBE@, or plain tope families — exactly the
+-- kinds of the meta-theoretic parameter layer of the Rzk paper, which the
+-- generic realisation @#data Shape (I : CUBE) (phi : I → TOPE)@ depends
+-- on; /indices/ must be types, full stop. A family indexed by the cube
+-- universe or by tope families is internal quantification over the
+-- cube\/tope layers, which no written metatheory covers, and the modal
+-- tope kinds (@ᵒᵖ TOPE@ and families into it) are closed everywhere in
+-- @#data@ pending a modal extension of the parameter layer.
+--
 -- Rejecting is deliberate, not an accident of implementation. The generated
 -- eliminators for a cube parameter or index are pointwise and look
 -- plausible, but no metatheory is written down for an inductive family over
@@ -543,25 +553,101 @@ checkDataSortLayers
 checkDataSortLayers paramDecls sortIndices = go positions
   where
     positions =
-      [ ("a parameter of a #data", spelledParam p) | p <- paramDecls ]
-        <> [ ("an index of a #data sort", Rzk.printTree (sortIndexType si))
-           | si <- sortIndices ]
+      [ (True, spelledParam p) | p <- paramDecls ]
+        <> [ (False, Rzk.printTree (sortIndexType si)) | si <- sortIndices ]
     spelledParam = \case
       Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
       p                        -> Rzk.printTree p
-    go :: Distinct m => [(String, String)] -> TermT m -> TypeCheck m ()
+    go :: Distinct m => [(Bool, String)] -> TermT m -> TypeCheck m ()
     go [] _ = pure ()
-    go ((position, spelled) : rest) ty = whnfT ty >>= \case
+    go ((isParam, spelled) : rest) ty = whnfT ty >>= \case
       TypeFunT _ty orig md param mtope ret -> do
-        badLayer <- case mtope of
-          Just _  -> pure (Just "a shape")
-          Nothing -> typeOf param >>= \case
-            UniverseCubeT{} -> pure (Just "a cube")
-            _               -> pure Nothing
-        forM_ badLayer $ \layer -> issueTypeError $ TypeErrorOther $
-          position <> " must be a type, got " <> layer <> ": " <> spelled
+        let position
+              | isParam   = "a parameter of a #data must be a type, CUBE, or a tope family, got "
+              | otherwise = "an index of a #data sort must be a type, got "
+            reject kind = issueTypeError $ TypeErrorOther $
+              position <> kind <> ": " <> spelled
+        case mtope of
+          Just _  -> reject "a shape"
+          Nothing -> classifyDomain param >>= \case
+            DomainType         -> pure ()
+            DomainCubeUniverse | isParam -> pure ()
+            DomainTopeFamily   | isParam -> pure ()
+            kind               -> reject (domainKindName kind)
         inScope orig md param ret (go rest)
       _ -> panicImpossible "#data sort has fewer Π binders than parameters and indices"
+
+-- | The kind of a binder domain, for the @#data@ layer rules. The layers a
+-- domain can inhabit are finer than type\/cube\/shape: the universes @CUBE@
+-- and @TOPE@ and the tope-family kinds are all @U@-sorted today (a shipped
+-- convenience), so they look like types until inspected. This
+-- classification is what lets the checks around it implement the B′
+-- discipline of the tope-reflection design: no position of a @#data@ may
+-- store or be indexed by a cube- or tope-layer citizen, and parameters keep
+-- exactly the audited kinds (types, @CUBE@, and plain tope families — the
+-- generic @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on the two
+-- non-type ones).
+data DomainKind
+  = DomainType
+    -- ^ an ordinary type (including @U@, families, extension types)
+  | DomainCubePoint
+    -- ^ a cube: the domain's sort is @CUBE@, as in @(t : 2)@
+  | DomainCubeUniverse
+    -- ^ @CUBE@ itself, as in @(I : CUBE)@
+  | DomainCubeFamily
+    -- ^ a function into @CUBE@, which is no parameter kind of the
+    -- meta-theoretic parameter layer
+  | DomainTopeFamily
+    -- ^ a tope family @{I | ψ} → TOPE@ (every Π-binder a cube or shape),
+    -- the Rzk paper's parameter kind; includes bare @TOPE@ (arity 0),
+    -- which the general tope-binder rule rejects before @#data@ sees it
+  | DomainOtherTopeFamily
+    -- ^ a function into @TOPE@ over a non-cube domain — not the paper's kind
+  | DomainModalTope
+    -- ^ a modal type over @TOPE@ or a family into one (@ᵒᵖ TOPE@,
+    -- @I → ᵒᵖ TOPE@, …) — the modal tope reflection, closed pending a
+    -- modal extension of the parameter layer
+
+-- | Classify an elaborated binder domain. Restricted binders (shapes) never
+-- reach this: callers dispatch on the binder's tope first.
+classifyDomain :: Distinct n => TermT n -> TypeCheck n DomainKind
+classifyDomain ty = typeOf ty >>= \case
+  UniverseCubeT{} -> pure DomainCubePoint
+  _ -> whnfT ty >>= \case
+    UniverseCubeT{} -> pure DomainCubeUniverse
+    UniverseTopeT{} -> pure DomainTopeFamily
+    TypeModalT _ty _md inner -> classifyDomain inner >>= \case
+      DomainType      -> pure DomainType
+      DomainCubePoint -> pure DomainType   -- unreachable: @(x :_µ I)@ parses as a modal binder
+      _               -> pure DomainModalTope
+    TypeFunT _ty orig md param mtope ret -> do
+      cubeDom <- case mtope of
+        Just _  -> pure True
+        Nothing -> typeOf param >>= \case
+          UniverseCubeT{} -> pure True
+          _               -> pure False
+      inner <- inScope orig md param ret classifyDomain
+      pure $ case inner of
+        DomainTopeFamily
+          | cubeDom   -> DomainTopeFamily
+          | otherwise -> DomainOtherTopeFamily
+        DomainOtherTopeFamily -> DomainOtherTopeFamily
+        DomainModalTope       -> DomainModalTope
+        DomainCubeUniverse    -> DomainCubeFamily
+        DomainCubeFamily      -> DomainCubeFamily
+        _                     -> DomainType
+    _ -> pure DomainType
+
+-- | The printed name of a rejected kind, for error messages.
+domainKindName :: DomainKind -> String
+domainKindName = \case
+  DomainType            -> "a type"
+  DomainCubePoint       -> "a cube"
+  DomainCubeUniverse    -> "the cube universe"
+  DomainCubeFamily      -> "a cube family"
+  DomainTopeFamily      -> "a tope family"
+  DomainOtherTopeFamily -> "a tope family over a non-cube domain"
+  DomainModalTope       -> "a modal tope"
 
 dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
 dataBodyParts = \case
@@ -668,36 +754,50 @@ modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
 modalFieldError cname = issueTypeError $ TypeErrorOther $
   "modal type fields are not supported yet in constructor " <> Rzk.printTree cname
 
--- | The modal-field rule, on the elaborated form: a modal binder whose
--- domain is a cube or a shape is an ordinary (modal) cube or shape field; a
--- modal binder whose domain is a type is rejected ('modalFieldError').
+-- | The field rule, on the elaborated form: a constructor field must be a
+-- type, a cube point, or a shape. That is the realisation fragment of
+-- Kudasov's 2021 note — points go /into/ constructors and the eliminator
+-- maps out into types — and nothing beyond it: a field of the cube universe,
+-- of a tope-family kind, or of a modal tope kind would /store/ a cube- or
+-- tope-layer citizen inside type-layer data, which no written metatheory
+-- covers ('DomainKind' names the rejected kinds).
 --
--- The decision cannot be syntactic: @(t :♭ Δ¹)@ and @(x :♭ A)@ are the same
--- surface form ('Rzk.ParamPatternModalType'), and only elaboration tells a
--- named shape from a type. This check therefore walks the elaborated
--- constructor Π-telescope past the parameters and inspects the binders that
--- came from the modal type-annotated spelling, exactly as
--- 'checkDataSortLayers' does for the sort. A restricted binder (a shape,
--- named or inline) and a cube domain pass; anything else is a modal type
--- field.
+-- The modal spelling adds one distinction the surface cannot make:
+-- @(t :♭ Δ¹)@ and @(x :♭ A)@ are the same surface form
+-- ('Rzk.ParamPatternModalType'), and only elaboration tells a named shape
+-- from a type. A modal binder with a cube or shape domain is an ordinary
+-- (modal) cube or shape field; with a type domain it is rejected
+-- ('modalFieldError'). The check walks the elaborated constructor
+-- Π-telescope past the parameters, exactly as 'checkDataSortLayers' does
+-- for the sort.
 checkDataConFieldLayers
   :: Distinct n
   => Rzk.VarIdent -> Int -> [Rzk.ParamDecl] -> TermT n -> TypeCheck n ()
 checkDataConFieldLayers cname numParams fieldDecls =
-  go (replicate numParams False <> map isModalTypeSpelling fieldDecls)
+  go (replicate numParams Nothing <> map fieldInfo fieldDecls)
   where
+    fieldInfo d = Just (isModalTypeSpelling d, spelledField d)
     isModalTypeSpelling = \case
       Rzk.ParamTermModalType{} -> True
       _                        -> False
-    go :: Distinct m => [Bool] -> TermT m -> TypeCheck m ()
+    spelledField = \case
+      Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
+      d                        -> Rzk.printTree d
+    go :: Distinct m => [Maybe (Bool, String)] -> TermT m -> TypeCheck m ()
     go [] _ = pure ()
-    go (check : rest) ty = whnfT ty >>= \case
+    go (checkInfo : rest) ty = whnfT ty >>= \case
       TypeFunT _ty orig md param mtope ret -> do
-        when check $ case mtope of
-          Just _  -> pure ()                  -- a (named) modal shape field
-          Nothing -> typeOf param >>= \case
-            UniverseCubeT{} -> pure ()        -- a modal cube field
-            _               -> modalFieldError cname
+        forM_ checkInfo $ \(modalSpelled, spelled) -> case mtope of
+          Just _  -> pure ()   -- a shape field, in any spelling and modality
+          Nothing -> classifyDomain param >>= \case
+            DomainCubePoint -> pure ()
+            DomainType
+              | modalSpelled -> modalFieldError cname
+              | otherwise    -> pure ()
+            kind -> issueTypeError $ TypeErrorOther $
+              "a field of constructor " <> Rzk.printTree cname
+                <> " must be a type, a cube point, or a shape, got "
+                <> domainKindName kind <> ": " <> spelled
         inScope orig md param ret (go rest)
       _ -> panicImpossible "constructor type has fewer Π binders than parameters and fields"
 

@@ -31,7 +31,11 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   spellings of a shape index, `ill-data-cube-index` for a cube index,
   `ill-data-shape-param` and `ill-data-cube-param` for shape and cube
   parameters — the last four enforced on the elaborated sort, so the
-  named spelling meets the same rule as the inline one,
+  named spelling meets the same rule as the inline one;
+  `ill-data-cube-universe-{field,index}`,
+  `ill-data-tope-family-{field,index}`, and `ill-data-modal-tope-param`
+  for the B′ layer rules — no position stores or is indexed by a cube-
+  or tope-layer citizen, and modal tope kinds are closed everywhere;
   `ill-data-modal-type-field` for a modal type field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
   shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,
