@@ -51,6 +51,24 @@ alphaEq l r = do
   scope <- asks ctxScope
   pure (alphaEqT scope l r)
 
+-- | Run @check super sub@ on the pair @(expected, actual)@, oriented by the
+-- ambient variance. Under 'Covariant' the expected type is the supertype and
+-- under 'Contravariant' the actual one is. 'Invariant' is normally handled
+-- upstream by running both directions; we run both here as well, for safety.
+bySubtyping
+  :: (TermT n -> TermT n -> TypeCheck n ())
+  -> TermT n -> TermT n -> TypeCheck n ()
+bySubtyping check expected actual = asks ctxCovariance >>= \case
+  Covariant     -> check expected actual
+  Contravariant -> check actual expected
+  Invariant     -> check expected actual >> check actual expected
+
+-- | The domain of a shape-indexed function is contravariant, so the subtype's
+-- domain tope has to hold wherever the supertype's does. Shared by Π-types
+-- and by the lambdas that inhabit them.
+domainEntails :: Distinct n => TermT n -> TermT n -> TypeCheck n ()
+domainEntails superTope subTope = localTope superTope $ contextEntails subTope
+
 unifyTopes :: Distinct n => TermT n -> TermT n -> TypeCheck n ()
 unifyTopes l r = do
   equiv <- (&&)
@@ -285,14 +303,6 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               switchVariance $  -- unifying in the negative position!
                 unifyTerms cube cube' -- FIXME: unifyCubes
               inScope2 orig' md cube' ret ret' $ \binder retBody retBody' -> do
-                -- The tope checks below are subtyping checks with a fixed direction
-                -- relative to (subtype, supertype). Which side is the subtype
-                -- depends on the ambient variance: under Covariant the actual type
-                -- must be a subtype of the expected one; under Contravariant (inside
-                -- a domain) the roles are reversed. Invariant is normally handled
-                -- upstream by running both directions; it is handled here as well
-                -- for safety.
-                variance <- asks ctxCovariance
                 scope <- asks ctxScope
                 let openTope = fmap (openWith scope (Foil.nameOf binder))
                     mtopeIn = openTope mtope
@@ -305,16 +315,11 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                     -- We DO NOT take the tope context Φ into account!
                     expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtopeIn
                     actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtopeIn'
-                    let subEntailsSuper subNF superNF = do
+                    let superEntailedBySub superNF subNF = do
                           entails <- [plainTope subNF] `entailM` superNF
                           unless (entails || containsHole subNF || containsHole superNF) $
                             issueTypeError (TypeErrorTopeNotSatisfied [subNF] superNF)
-                    case variance of
-                      Covariant     -> subEntailsSuper actualTopeNF expectedTopeNF
-                      Contravariant -> subEntailsSuper expectedTopeNF actualTopeNF
-                      Invariant     -> do
-                        subEntailsSuper actualTopeNF expectedTopeNF
-                        subEntailsSuper expectedTopeNF actualTopeNF
+                    bySubtyping superEntailedBySub expectedTopeNF actualTopeNF
                   _ -> do
                     -- this is the case for Π-types and extension types
                     --
@@ -322,14 +327,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                     -- when Ξ | Φ, ψ ⊢ φ
                     expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtopeIn
                     actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtopeIn'
-                    let superEntailsSub superNF subNF =
-                          localTope superNF $ contextEntails subNF
-                    case variance of
-                      Covariant     -> superEntailsSub expectedTopeNF actualTopeNF
-                      Contravariant -> superEntailsSub actualTopeNF expectedTopeNF
-                      Invariant     -> do
-                        superEntailsSub expectedTopeNF actualTopeNF
-                        superEntailsSub actualTopeNF expectedTopeNF
+                    bySubtyping domainEntails expectedTopeNF actualTopeNF
                 case mterm of
                   Nothing -> unifyTerms retBody retBody'
                   Just term ->
@@ -386,8 +384,14 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                         let openTope = fmap (openWith scope (Foil.nameOf binder))
                         case (openTope mtope, openTope mtope') of
                           (Just tope, Just tope') -> do
-                            unify Nothing tope tope' -- we (should) have already checked this in types!
-                            localTope tope $ unify Nothing bodyIn bodyIn'
+                            -- The two lambdas need not stand on the same shape.
+                            -- η-expansion takes the domain tope from the
+                            -- function's own type, so this is the same
+                            -- obligation as for the Π-type above.
+                            bySubtyping domainEntails tope tope'
+                            -- The bodies agree only where both are defined.
+                            localTope (topeAndT tope tope') $
+                              unify Nothing bodyIn bodyIn'
                           (Nothing, Nothing) ->
                             unify Nothing bodyIn bodyIn'
                           _ -> errIn
