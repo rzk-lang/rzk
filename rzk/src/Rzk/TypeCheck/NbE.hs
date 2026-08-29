@@ -207,8 +207,8 @@ eval ctx env = \case
     VLam (Closure env binder body)
   LetT _ty _orig _mparam val (ScopedAST binder body) ->
     eval ctx (Foil.addSubst env binder (eval ctx env val)) body
-  FirstT _ty t  -> projVal NFirst  fstOf (eval ctx env t)
-  SecondT _ty t -> projVal NSecond sndOf (eval ctx env t)
+  FirstT _ty t  -> projVal ProjFirst  (eval ctx env t)
+  SecondT _ty t -> projVal ProjSecond (eval ctx env t)
   TypeAscT _ty term _ty' -> eval ctx env term
   IdJT _ty tA a tC d x p ->
     let vd = eval ctx env d
@@ -245,9 +245,6 @@ eval ctx env = \case
   -- everything else is a plain constructor: evaluate the fields
   Node (AnnSig _info sig) ->
     VCon (bimap (\(ScopedAST binder body) -> Closure env binder body) (eval ctx env) sig)
-  where
-    fstOf l _r = l
-    sndOf _l r = r
 
 -- | β, and the same application pushed into the glued unfolding. Applying a
 -- spine grows the spine rather than forcing its head. We carry the unfolded
@@ -268,19 +265,27 @@ applyClosure :: Context n -> Closure n -> Val n -> Val n
 applyClosure ctx (Closure env binder body) v =
   eval ctx (Foil.addSubst env binder v) body
 
+-- | Which component of a pair a projection takes. One value decides both the
+-- spine 'projVal' builds and the component it picks, so the two cannot
+-- disagree.
+data Proj = ProjFirst | ProjSecond
+
 -- | Project from a pair value, or stay neutral. For a glued spine the
 -- projection stays stuck on the spine, and is glued to the projection out of
 -- the unfolding. Thus 'conv' can still compare @π₁ (f a)@ rigidly.
-projVal
-  :: (Neu n -> Neu n) -> (Val n -> Val n -> Val n)
-  -> Val n -> Val n
-projVal neu pick = go
+projVal :: Proj -> Val n -> Val n
+projVal proj = go
   where
     go = \case
-      VCon (PairF l r) -> pick l r
+      VCon (PairF l r) -> case proj of
+        ProjFirst  -> l
+        ProjSecond -> r
       VNeutral n munf  -> VNeutral (neu n) (go <$> munf)
       VAbort r         -> VAbort r
       _                -> VAbort AbortStuckElim
+    neu = case proj of
+      ProjFirst  -> NFirst
+      ProjSecond -> NSecond
 
 -- * Conversion
 
