@@ -84,11 +84,9 @@ module Rzk.TypeCheck.NbE (nbeConvertible) where
 import           Control.Monad.Reader              (asks)
 import           Data.Bifoldable                   (bifoldMap)
 import           Data.Bifunctor                    (bimap)
-import qualified Data.IntMap                       as IntMap
 import           Data.Maybe                        (isJust)
 import           Data.Monoid                       (All (..))
 import           Data.ZipMatchK                    (zipMatch2)
-import           Unsafe.Coerce                     (unsafeCoerce)
 
 import           Control.Monad.Foil                (NameBinder)
 import qualified Control.Monad.Foil                as Foil
@@ -147,10 +145,9 @@ data Neu n
   | NSecond (Neu n)
   | NIdJ (Val n) (Val n) (Val n) (Val n) (Val n) (Neu n)
 
--- | A scoped term closed over its environment. The environment maps the raw
--- ids of the binders passed on the way down to values; a missing id belongs
--- to the ambient scope @n@ (the same invariant 'peelLambdas' relies on for
--- its substitution).
+-- | A scoped term closed over its environment. The term lives in the scope
+-- @i@ the environment is defined on, and the values it evaluates to live in
+-- the ambient scope @n@.
 --
 -- One binder, not @NameBinders i l@: every scope field of every 'TermSig'
 -- constructor is a unary 'ScopedAST' (even a pair-pattern lambda binds one
@@ -158,33 +155,58 @@ data Neu n
 -- be built from without peeling syntactic lambda chains in 'eval'. Peeling
 -- (the eval/apply arity optimisation of Marlow and Peyton Jones' fast
 -- curry) does not pay here the way spine-batching paid at the term level:
--- an intermediate 'VLam' costs one closure and one persistent
--- 'IntMap.insert', not a 'substituteT' traversal, and η-comparison and
--- partial application want one-argument-at-a-time semantics anyway.
+-- an intermediate 'VLam' costs one closure and one persistent environment
+-- insert, not a 'substituteT' traversal, and η-comparison and partial
+-- application want one-argument-at-a-time semantics anyway.
 data Closure n where
-  Closure :: Env n -> NameBinder i l -> TermT l -> Closure n
+  Closure :: Env i n -> NameBinder i l -> TermT l -> Closure n
 
--- | Lazy on purpose: forcing an entry would evaluate it, and evaluation is
--- call-by-need.
-type Env n = IntMap.IntMap (Val n)
+-- | An environment for evaluating a term of scope @i@ into values of the
+-- ambient scope @n@. It maps the binders passed on the way down to the values
+-- they were bound to; the entries are lazy on purpose, since forcing one would
+-- evaluate it and evaluation is call-by-need.
+--
+-- This is 'Foil.Substitution', which is exactly that: a map from the names of
+-- @i@ to something in @n@, storing only the names it moves. A name it does not
+-- carry stands for itself, and 'Foil.lookupSubst' produces that itself through
+-- 'Foil.injectName' (see 'Foil.addRename', which deletes an identity rename
+-- rather than storing it). Every 'Foil.addSubst' advances @i@ by the binder it
+-- inserts, so the scope index tracks which binders the environment accounts
+-- for, and the identity environment for the ambient scope is the empty one.
+--
+-- This is the same invariant 'peelLambdas' relies on for its substitution.
+type Env i n = Foil.Substitution Val i n
+
+-- | A name stands for the rigid spine on itself. 'Foil.lookupSubst' uses this
+-- for a name the environment does not carry, which is also how the name
+-- arrives at the ambient scope @n@.
+instance Foil.InjectName Val where
+  injectName x = VNeutral (NVar x) Nothing
 
 -- * Evaluation
 
-eval :: forall i n. Context n -> Env n -> TermT i -> Val n
+eval :: forall i n. Context n -> Env i n -> TermT i -> Val n
 eval ctx env = \case
-  Var x -> case IntMap.lookup (Foil.nameId x) env of
-    Just v  -> v
-    -- An env miss is an ambient name. It stays a spine, glued to the value of
-    -- its definition when it has one. We evaluate that value only on demand.
-    Nothing ->
-      let x' = unsafeCoerce x
-      in VNeutral (NVar x') (eval ctx IntMap.empty <$> varValue (lookupVarInfo x' ctx))
+  -- An ambient name stays a spine, glued to the value of its definition when
+  -- it has one. We evaluate that value only on demand, and in the ambient
+  -- scope, whose identity environment is the empty one.
+  --
+  -- The environment carries no ambient name, so a lookup that lands here is
+  -- either a miss, or a hit on a value that is itself a rigid spine on an
+  -- ambient name. Every value the environment holds is an output of 'eval' or
+  -- a fresh 'NLevel', so in the second case the head was already glued and
+  -- carries no definition, and gluing it again changes nothing.
+  Var x -> case Foil.lookupSubst env x of
+    VNeutral (NVar x') Nothing ->
+      VNeutral (NVar x')
+        (eval ctx Foil.identitySubst <$> varValue (lookupVarInfo x' ctx))
+    v -> v
 
   AppT _ty f x -> applyVal ctx (eval ctx env f) (eval ctx env x)
   LambdaT _ty _orig _mparam (ScopedAST binder body) ->
     VLam (Closure env binder body)
   LetT _ty _orig _mparam val (ScopedAST binder body) ->
-    eval ctx (IntMap.insert (Foil.nameId (Foil.nameOf binder)) (eval ctx env val) env) body
+    eval ctx (Foil.addSubst env binder (eval ctx env val)) body
   FirstT _ty t  -> projVal NFirst  fstOf (eval ctx env t)
   SecondT _ty t -> projVal NSecond sndOf (eval ctx env t)
   TypeAscT _ty term _ty' -> eval ctx env term
@@ -244,7 +266,7 @@ applyVal ctx f v = case f of
 
 applyClosure :: Context n -> Closure n -> Val n -> Val n
 applyClosure ctx (Closure env binder body) v =
-  eval ctx (IntMap.insert (Foil.nameId (Foil.nameOf binder)) v env) body
+  eval ctx (Foil.addSubst env binder v) body
 
 -- | Project from a pair value, or stay neutral. For a glued spine the
 -- projection stays stuck on the spine, and is glued to the projection out of
@@ -396,5 +418,5 @@ convNeu ctx lvl = go
 -- fall back to the ordinary unification.
 nbeConvertible :: TermT n -> TermT n -> TypeCheck n Bool
 nbeConvertible t1 t2 = asks $ \ctx ->
-  conv ctx 0 (eval ctx IntMap.empty t1) (eval ctx IntMap.empty t2)
+  conv ctx 0 (eval ctx Foil.identitySubst t1) (eval ctx Foil.identitySubst t2)
 
