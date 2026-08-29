@@ -60,6 +60,8 @@ extra-source-files:
     test/typecheck/cases/happy-modal-topes.rzk
     test/typecheck/cases/happy-multivar-binder.rzk
     test/typecheck/cases/happy-nbe-church-conversion.rzk
+    test/typecheck/cases/happy-nbe-transport-refl-spine.rzk
+    test/typecheck/cases/happy-nbe-wrapper-alignment.rzk
     test/typecheck/cases/happy-op-hom-to-hom.rzk
     test/typecheck/cases/happy-recbot-term-wellformed.rzk
     test/typecheck/cases/happy-recor-guard-exceeds-context.rzk
@@ -246,6 +248,8 @@ extra-source-files:
     test/typecheck/cases/happy-modal-topes.expect.yaml
     test/typecheck/cases/happy-multivar-binder.expect.yaml
     test/typecheck/cases/happy-nbe-church-conversion.expect.yaml
+    test/typecheck/cases/happy-nbe-transport-refl-spine.expect.yaml
+    test/typecheck/cases/happy-nbe-wrapper-alignment.expect.yaml
     test/typecheck/cases/happy-op-hom-to-hom.expect.yaml
     test/typecheck/cases/happy-recbot-term-wellformed.expect.yaml
     test/typecheck/cases/happy-recor-guard-exceeds-context.expect.yaml

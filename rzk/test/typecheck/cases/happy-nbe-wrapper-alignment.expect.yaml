@@ -1,0 +1,4 @@
+status: ok
+regression_for:
+  - nbe-glued-spines
+  - nbe-shared-head-alignment
