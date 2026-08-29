@@ -316,9 +316,10 @@ nubT (t : ts) = t : nubT (filter (not . eqT t) ts)
 
 -- | The free variables of a term.
 --
--- free-foil has @freeVarsOf@ only on its unreleased @main@, so this is written
--- here. A name bound on the way down is dropped from the result, which is what
--- makes the coercion back to the outer scope right.
+-- free-foil 0.4.0 exports @freeVarsOf@, but it deduplicates and sorts; this one
+-- keeps mention order and repeats, as the old representation's did. A name
+-- bound on the way down is dropped from the result, which is what makes the
+-- coercion back to the outer scope right.
 freeVarsOfTerm :: Term n -> [Foil.Name n]
 freeVarsOfTerm (Var x)    = [x]
 freeVarsOfTerm (UntypedNode sig) = bifoldMap freeVarsOfScoped freeVarsOfTerm sig
