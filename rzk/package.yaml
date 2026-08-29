@@ -65,7 +65,7 @@ dependencies:
   bytestring: ">= 0.10.8.2 && < 1"
   containers: ">= 0.6 && < 1"
   directory: ">= 1.2.7.0 && < 2"
-  free-foil: ">= 0.3.2 && < 0.4"
+  free-foil: ">= 0.4 && < 0.5"
   # Reads the commit at compile time for `rzk version --full`. Degrades to
   # "UNKNOWN" when there is no git or no repository (a Hackage tarball, the
   # wasm cross-build), so it never breaks a build that cannot run git.

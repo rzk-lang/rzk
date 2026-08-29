@@ -2,9 +2,9 @@ resolver: lts-24.34
 packages:
   - rzk
 
-# Not in the snapshot: free-foil 0.3.2 (its ZipMatchK TH deriver, explicit
-# annotated ZipMatchK, and sinkContainer are what the core relies on) and the
-# kind-generics deriving it needs.
+# Not in the snapshot: free-foil 0.4.0 (its ZipMatchK TH deriver, explicit
+# annotated ZipMatchK, and the O(1) sink family are what the core relies on)
+# and the kind-generics deriving it needs.
 extra-deps:
-  - free-foil-0.3.2
+  - free-foil-0.4.0
   - kind-generics-th-0.2.3.3

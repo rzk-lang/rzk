@@ -419,16 +419,16 @@ instance Foil.Sinkable ModalTope where
     tope { tTope = Foil.sinkabilityProof rename (tTope tope) }
 
 sinkVars :: DExt n l => NameMap n (VarInfo n) -> NameMap n (VarInfo l)
-sinkVars = Foil.sinkContainer
+sinkVars = Foil.sink1
 
 sinkTopes :: DExt n l => [ModalTope n] -> [ModalTope l]
-sinkTopes = Foil.sinkContainer
+sinkTopes = Foil.sink1
 
 sinkNamed :: DExt n l => Map VarIdent (Foil.Name n) -> Map VarIdent (Foil.Name l)
-sinkNamed = Foil.sinkContainer
+sinkNamed = Foil.sink1
 
 sinkNames :: DExt n l => [Foil.Name n] -> [Foil.Name l]
-sinkNames = Foil.sinkContainer
+sinkNames = Foil.sink1
 
 -- * Lookup
 
