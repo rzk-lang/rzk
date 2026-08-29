@@ -2463,7 +2463,7 @@ happyReduction_225 (happy_x_7 `HappyStk`
         case happyOut91 happy_x_5 of { (HappyWrap91 happy_var_5) -> 
         case happyOut91 happy_x_7 of { (HappyWrap91 happy_var_7) -> 
         happyIn90
-                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetMod (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7))
+                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModBind (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7))
         ) `HappyStk` happyRest}}}}}
 
 happyReduce_226 = happyReduce 8# 43# happyReduction_226
@@ -2482,7 +2482,7 @@ happyReduction_226 (happy_x_8 `HappyStk`
         case happyOut91 happy_x_6 of { (HappyWrap91 happy_var_6) -> 
         case happyOut91 happy_x_8 of { (HappyWrap91 happy_var_8) -> 
         happyIn90
-                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModExt (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_4) (snd happy_var_6) (snd happy_var_8))
+                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetMod (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_4) (snd happy_var_6) (snd happy_var_8))
         ) `HappyStk` happyRest}}}}}
 
 happyReduce_227 = happyReduce 9# 43# happyReduction_227
@@ -2503,7 +2503,7 @@ happyReduction_227 (happy_x_9 `HappyStk`
         case happyOut91 happy_x_7 of { (HappyWrap91 happy_var_7) -> 
         case happyOut91 happy_x_9 of { (HappyWrap91 happy_var_9) -> 
         happyIn90
-                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModComp (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9))
+                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModFramed (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9))
         ) `HappyStk` happyRest}}}}}}
 
 happyReduce_228 = happyReduce 9# 43# happyReduction_228
@@ -2524,7 +2524,7 @@ happyReduction_228 (happy_x_9 `HappyStk`
         case happyOut91 happy_x_7 of { (HappyWrap91 happy_var_7) -> 
         case happyOut91 happy_x_9 of { (HappyWrap91 happy_var_9) -> 
         happyIn90
-                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModInto (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9))
+                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModBindInto (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_3) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9))
         ) `HappyStk` happyRest}}}}}}
 
 happyReduce_229 = happyReduce 10# 43# happyReduction_229
@@ -2546,7 +2546,7 @@ happyReduction_229 (happy_x_10 `HappyStk`
         case happyOut91 happy_x_8 of { (HappyWrap91 happy_var_8) -> 
         case happyOut91 happy_x_10 of { (HappyWrap91 happy_var_10) -> 
         happyIn90
-                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModExtInto (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_4) (snd happy_var_6) (snd happy_var_8) (snd happy_var_10))
+                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModInto (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_3) (snd happy_var_4) (snd happy_var_6) (snd happy_var_8) (snd happy_var_10))
         ) `HappyStk` happyRest}}}}}}
 
 happyReduce_230 = happyReduce 11# 43# happyReduction_230
@@ -2570,7 +2570,7 @@ happyReduction_230 (happy_x_11 `HappyStk`
         case happyOut91 happy_x_9 of { (HappyWrap91 happy_var_9) -> 
         case happyOut91 happy_x_11 of { (HappyWrap91 happy_var_11) -> 
         happyIn90
-                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModCompInto (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9) (snd happy_var_11))
+                 ((uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1), Language.Rzk.Syntax.Abs.LetModFramedInto (uncurry Language.Rzk.Syntax.Abs.BNFC'Position (tokenLineCol happy_var_1)) (snd happy_var_2) (snd happy_var_4) (snd happy_var_5) (snd happy_var_7) (snd happy_var_9) (snd happy_var_11))
         ) `HappyStk` happyRest}}}}}}}
 
 happyReduce_231 = happySpecReduce_1  43# happyReduction_231

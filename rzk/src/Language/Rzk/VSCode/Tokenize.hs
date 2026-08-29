@@ -266,12 +266,12 @@ tokenizeTerm' varTokenType = go
         [ foldMap tokenizeParam params
         , go body ]
       Let _loc bind val expr -> concat [tokenizeBind bind, go val, go expr]
-      LetMod _loc md bind val expr -> concat [tokenizeModality md, tokenizeBind bind, go val, go expr]
-      LetModExt _loc inn bind val expr -> concat [tokenizeModality inn, tokenizeBind bind, go val, go expr]
-      LetModComp _loc ext inn bind val expr -> concat [tokenizeModality ext, tokenizeModality inn, tokenizeBind bind, go val, go expr]
-      LetModInto _loc md bind val motive expr -> concat [tokenizeModality md, tokenizeBind bind, go val, go motive, go expr]
-      LetModExtInto _loc inn bind val motive expr -> concat [tokenizeModality inn, tokenizeBind bind, go val, go motive, go expr]
-      LetModCompInto _loc ext inn bind val motive expr -> concat [tokenizeModality ext, tokenizeModality inn, tokenizeBind bind, go val, go motive, go expr]
+      LetModBind _loc md bind val expr -> concat [tokenizeModality md, tokenizeBind bind, go val, go expr]
+      LetMod _loc inn bind val expr -> concat [tokenizeModality inn, tokenizeBind bind, go val, go expr]
+      LetModFramed _loc ext inn bind val expr -> concat [tokenizeModality ext, tokenizeModality inn, tokenizeBind bind, go val, go expr]
+      LetModBindInto _loc md bind val motive expr -> concat [tokenizeModality md, tokenizeBind bind, go val, go motive, go expr]
+      LetModInto _loc inn bind val motive expr -> concat [tokenizeModality inn, tokenizeBind bind, go val, go motive, go expr]
+      LetModFramedInto _loc ext inn bind val motive expr -> concat [tokenizeModality ext, tokenizeModality inn, tokenizeBind bind, go val, go motive, go expr]
       ASCII_Lambda loc params body -> go (Lambda loc params body)
 
       Pair _loc l r -> foldMap go [l, r]

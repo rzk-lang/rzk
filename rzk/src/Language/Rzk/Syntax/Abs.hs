@@ -215,12 +215,12 @@ data Term' a
     | ModApp a (Modality' a) (Term' a)
     | ModType a (Modality' a) (Term' a)
     | ModExtract a (ModComp' a) (Term' a)
+    | LetModBind a (Modality' a) (Bind' a) (Term' a) (Term' a)
     | LetMod a (Modality' a) (Bind' a) (Term' a) (Term' a)
-    | LetModExt a (Modality' a) (Bind' a) (Term' a) (Term' a)
-    | LetModComp a (Modality' a) (Modality' a) (Bind' a) (Term' a) (Term' a)
+    | LetModFramed a (Modality' a) (Modality' a) (Bind' a) (Term' a) (Term' a)
+    | LetModBindInto a (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | LetModInto a (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
-    | LetModExtInto a (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
-    | LetModCompInto a (Modality' a) (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
+    | LetModFramedInto a (Modality' a) (Modality' a) (Bind' a) (Term' a) (Term' a) (Term' a)
     | First a (Term' a)
     | Second a (Term' a)
     | Unit a
@@ -519,12 +519,12 @@ instance HasPosition Term where
     ModApp p _ _ -> p
     ModType p _ _ -> p
     ModExtract p _ _ -> p
+    LetModBind p _ _ _ _ -> p
     LetMod p _ _ _ _ -> p
-    LetModExt p _ _ _ _ -> p
-    LetModComp p _ _ _ _ _ -> p
+    LetModFramed p _ _ _ _ _ -> p
+    LetModBindInto p _ _ _ _ _ -> p
     LetModInto p _ _ _ _ _ -> p
-    LetModExtInto p _ _ _ _ _ -> p
-    LetModCompInto p _ _ _ _ _ _ -> p
+    LetModFramedInto p _ _ _ _ _ _ -> p
     First p _ -> p
     Second p _ -> p
     Unit p -> p

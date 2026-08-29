@@ -313,19 +313,19 @@ toTerm scope env = go
       Rzk.ModApp _loc md body -> ModApp (Free.toModality md) (go body)
       Rzk.ModType _loc md ty -> TypeModal (Free.toModality md) (go ty)
       Rzk.ModExtract{} -> error "$extract$ is an internal term and cannot appear in source"
-      Rzk.LetMod _loc md bind val body ->
+      Rzk.LetModBind _loc md bind val body ->
         let m = Free.toModality md
          in letMod bind Id m (ModApp m (go val)) Nothing body
-      Rzk.LetModInto _loc md bind val motive body ->
+      Rzk.LetModBindInto _loc md bind val motive body ->
         let m = Free.toModality md
          in letMod bind Id m (ModApp m (go val)) (Just (go motive)) body
-      Rzk.LetModExt _loc inn bind val body ->
+      Rzk.LetMod _loc inn bind val body ->
         letMod bind Id (Free.toModality inn) (go val) Nothing body
-      Rzk.LetModExtInto _loc inn bind val motive body ->
+      Rzk.LetModInto _loc inn bind val motive body ->
         letMod bind Id (Free.toModality inn) (go val) (Just (go motive)) body
-      Rzk.LetModComp _loc ext inn bind val body ->
+      Rzk.LetModFramed _loc ext inn bind val body ->
         letMod bind (Free.toModality ext) (Free.toModality inn) (go val) Nothing body
-      Rzk.LetModCompInto _loc ext inn bind val motive body ->
+      Rzk.LetModFramedInto _loc ext inn bind val motive body ->
         letMod bind (Free.toModality ext) (Free.toModality inn) (go val) (Just (go motive)) body
     letMod bind app inn value mmotive body =
       case bind of
