@@ -79,7 +79,7 @@
 -- ('True' or do-not-know, never refute), and 'VAbort' poisoning of the
 -- context-sensitive fragment so that the fast path stays sound by a subset
 -- argument.
-module Rzk.TypeCheck.NbE (nbeConvertible) where
+module Rzk.TypeCheck.NbE (Conversion (..), nbeConvertible) where
 
 import           Control.Monad.Reader              (asks)
 import           Data.Bifoldable                   (bifoldMap)
@@ -414,9 +414,23 @@ convNeu ctx lvl = go
 
 -- * Entry point
 
--- | Are the two terms definitely convertible? 'False' means "do not know" —
--- fall back to the ordinary unification.
-nbeConvertible :: TermT n -> TermT n -> TypeCheck n Bool
+-- | The answer of the fast path.
+--
+-- Note that the two cases are not opposites, so this is deliberately not a
+-- 'Bool': 'DontKnow' is never a refutation, and a caller may not read it as
+-- one.
+data Conversion
+  = Convertible
+    -- ^ Definitely convertible, by the module's soundness argument.
+  | DontKnow
+    -- ^ No answer. The two terms may well be convertible, and the caller
+    -- falls back to the ordinary unification to find out.
+  deriving (Eq, Show)
+
+-- | Are the two terms definitely convertible?
+nbeConvertible :: TermT n -> TermT n -> TypeCheck n Conversion
 nbeConvertible t1 t2 = asks $ \ctx ->
-  conv ctx 0 (eval ctx Foil.identitySubst t1) (eval ctx Foil.identitySubst t2)
+  if conv ctx 0 (eval ctx Foil.identitySubst t1) (eval ctx Foil.identitySubst t2)
+    then Convertible
+    else DontKnow
 
