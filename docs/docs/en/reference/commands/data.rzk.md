@@ -177,7 +177,7 @@ The clauses are equally available on declarations without path constructors, e.g
 At the moment:
 
 - recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
-- indices must be plain types (no cube or shape indices);
+- parameters and indices must be types: a cube point (`#!rzk (t : I)`) or a shape point, in any spelling, is rejected. The rule is checked on the elaborated sort, so the named spelling `#!rzk (t : Δ¹)` meets it too. Parameters of type `#!rzk CUBE` or `#!rzk I → TOPE` range over cubes and shapes themselves, not over their points, and are fine — see the generic realisation below. A family varying over a shape is what extension types are for;
 - constructor fields may not be modal (`#!rzk (x :_b A)`);
 - path constructors are not supported in indexed families, and only paths between points are supported: an identity carrier or an identity-typed field (a higher path, as in the 0-truncation) is rejected.
 

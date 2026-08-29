@@ -1,10 +1,8 @@
 #lang rzk-1
 
--- The INLINE spelling of a shape is rejected in index position. Note that
--- this is not a boundary on shape indices as such: the named spelling
--- `#data Fam : D1 → U := at (t : D1) : Fam t` for `D1 : 2 → TOPE` is
--- accepted, and gives a genuinely shape-indexed family. The two spellings
--- disagreeing is an unresolved asymmetry, recorded here so a change to
--- either is deliberate.
+-- The inline spelling of a shape index is rejected on the surface form.
+-- The named spelling `#data Fam : D1 → U` for `D1 : 2 → TOPE` is rejected
+-- too, on the elaborated sort (see ill-data-shape-index-named), so the two
+-- spellings of one thing meet the same rule.
 #data Fam : (t : 2 | ⊤) → U
   := at (t : 2 | ⊤) : Fam t

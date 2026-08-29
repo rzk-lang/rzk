@@ -27,7 +27,11 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-fun-field` for function-typed recursive fields,
   `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
-  `ill-data-shape-index` for a shape index,
+  `ill-data-shape-index` and `ill-data-shape-index-named` for the two
+  spellings of a shape index, `ill-data-cube-index` for a cube index,
+  `ill-data-shape-param` and `ill-data-cube-param` for shape and cube
+  parameters — the last four enforced on the elaborated sort, so the
+  named spelling meets the same rule as the inline one,
   `ill-data-modal-shape-field` for a modal shape field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
   shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,

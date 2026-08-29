@@ -90,6 +90,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-compute-kind.rzk
     test/typecheck/cases/ill-data-compute-mismatch.rzk
     test/typecheck/cases/ill-data-compute-unknown.rzk
+    test/typecheck/cases/ill-data-cube-index.rzk
+    test/typecheck/cases/ill-data-cube-param.rzk
     test/typecheck/cases/ill-data-duplicate-constructor.rzk
     test/typecheck/cases/ill-data-eliminator-duplicate.rzk
     test/typecheck/cases/ill-data-eliminator-mismatch.rzk
@@ -106,7 +108,9 @@ extra-source-files:
     test/typecheck/cases/ill-data-path-indexed.rzk
     test/typecheck/cases/ill-data-path-unannotated.rzk
     test/typecheck/cases/ill-data-return-type.rzk
+    test/typecheck/cases/ill-data-shape-index-named.rzk
     test/typecheck/cases/ill-data-shape-index.rzk
+    test/typecheck/cases/ill-data-shape-param.rzk
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-hole-infer.rzk
     test/typecheck/cases/ill-hole-pattern-binder-names.rzk
@@ -282,6 +286,8 @@ extra-source-files:
     test/typecheck/cases/ill-data-compute-kind.expect.yaml
     test/typecheck/cases/ill-data-compute-mismatch.expect.yaml
     test/typecheck/cases/ill-data-compute-unknown.expect.yaml
+    test/typecheck/cases/ill-data-cube-index.expect.yaml
+    test/typecheck/cases/ill-data-cube-param.expect.yaml
     test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
     test/typecheck/cases/ill-data-eliminator-duplicate.expect.yaml
     test/typecheck/cases/ill-data-eliminator-mismatch.expect.yaml
@@ -298,7 +304,9 @@ extra-source-files:
     test/typecheck/cases/ill-data-path-indexed.expect.yaml
     test/typecheck/cases/ill-data-path-unannotated.expect.yaml
     test/typecheck/cases/ill-data-return-type.expect.yaml
+    test/typecheck/cases/ill-data-shape-index-named.expect.yaml
     test/typecheck/cases/ill-data-shape-index.expect.yaml
+    test/typecheck/cases/ill-data-shape-param.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-hole-infer.expect.yaml
     test/typecheck/cases/ill-hole-pattern-binder-names.expect.yaml

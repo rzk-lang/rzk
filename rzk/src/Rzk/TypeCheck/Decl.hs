@@ -488,8 +488,8 @@ addParams params = Rzk.Lambda Nothing params
 -- terms by hand.
 --
 -- The declaration grammar already covers the later stages; this checker
--- rejects what it does not support (cube/shape and modal constructor
--- fields, function-typed recursive fields).
+-- rejects what it does not support (cube and shape parameters and indices,
+-- modal type fields, function-typed recursive fields).
 
 -- | The index telescope of the sort. The sort must be @U@ (no indices) or a
 -- Π-telescope of plain types ending in @U@.
@@ -513,6 +513,55 @@ dataSortIndices = \case
           <> Rzk.printTree pat
       p -> issueTypeError $ TypeErrorOther $
         "an index of a #data sort must be a plain type, got " <> Rzk.printTree p
+
+-- | The layer rule for the sort, on the elaborated form: every parameter and
+-- index of a @#data@ must be a type. A cube point @(t : I)@ and a shape
+-- point, in either spelling — named @(t : Φ)@ or inline @(t : I | φ)@ — are
+-- rejected.
+--
+-- The surface checks in 'dataParamVars' and 'dataSortIndices' reject the
+-- inline spelling only, because the other two are not recognisable
+-- syntactically: @(t : Φ)@ looks exactly like a type-valued binder until @Φ@
+-- is resolved. This check therefore walks the elaborated Π-telescope of the
+-- sort, where a named shape has become the restricted binder @(t : I | Φ t)@
+-- and a cube domain is recognisable by its sort, so the rule does not depend
+-- on the spelling. The cube and tope /universes/ pass: a parameter of type
+-- @CUBE@ or @I → TOPE@ ranges over cubes or shapes themselves, not over
+-- their points, and the generic realisation
+-- @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on both.
+--
+-- Rejecting is deliberate, not an accident of implementation. The generated
+-- eliminators for a cube parameter or index are pointwise and look
+-- plausible, but no metatheory is written down for an inductive family over
+-- a shape — unlike shape /fields/, which are the representability rule of
+-- Kudasov's 2021 note — and a family over a shape is what extension types
+-- are for. A rejection can be relaxed later; an acceptance cannot be
+-- revoked. Bare tope binders never reach this check: they are rejected by
+-- the general rule in "Rzk.TypeCheck.Judgements" while the sort is checked.
+checkDataSortLayers
+  :: Distinct n => [Rzk.ParamDecl] -> [SortIndex] -> TermT n -> TypeCheck n ()
+checkDataSortLayers paramDecls sortIndices = go positions
+  where
+    positions =
+      [ ("a parameter of a #data", spelledParam p) | p <- paramDecls ]
+        <> [ ("an index of a #data sort", Rzk.printTree (sortIndexType si))
+           | si <- sortIndices ]
+    spelledParam = \case
+      Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
+      p                        -> Rzk.printTree p
+    go :: Distinct m => [(String, String)] -> TermT m -> TypeCheck m ()
+    go [] _ = pure ()
+    go ((position, spelled) : rest) ty = whnfT ty >>= \case
+      TypeFunT _ty orig md param mtope ret -> do
+        badLayer <- case mtope of
+          Just _  -> pure (Just "a shape")
+          Nothing -> typeOf param >>= \case
+            UniverseCubeT{} -> pure (Just "a cube")
+            _               -> pure Nothing
+        forM_ badLayer $ \layer -> issueTypeError $ TypeErrorOther $
+          position <> " must be a type, got " <> layer <> ": " <> spelled
+        inScope orig md param ret (go rest)
+      _ -> panicImpossible "#data sort has fewer Π binders than parameters and indices"
 
 dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
 dataBodyParts = \case
@@ -573,13 +622,12 @@ dataParamVars = fmap concat . mapM paramVarsOf
 --   @#data@ grammar has no syntax for them, not because of a check.
 -- * __Modal fields__, below.
 --
--- One thing is __not__ ruled out, though it looks as if it is. Shape
--- /indices/ are rejected in the inline spelling by 'dataSortIndices', but the
--- named spelling is a 'Rzk.ParamPatternType' and goes straight through, so
--- @#data Fam : Δ¹ → U := at (t : Δ¹) : Fam t@ is accepted and gives a
--- genuinely shape-indexed family. The same holds of parameters. That
--- asymmetry between the two spellings of one thing is unresolved and wants a
--- design pass, not a patch; see the handoff note.
+-- Cube and shape /parameters/ and /indices/ go the other way: rejected in
+-- every spelling. The inline spelling falls to the surface checks in
+-- 'dataParamVars' and 'dataSortIndices'; the named and bare-cube spellings
+-- look like type-valued binders on the surface and are caught by
+-- 'checkDataSortLayers' on the elaborated sort, so the rule does not depend
+-- on the spelling.
 dataFieldToParamDecl :: Distinct n => Rzk.VarIdent -> Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
 dataFieldToParamDecl cname = \case
   p@Rzk.ParamPatternType{} -> paramToParamDecl p
@@ -749,6 +797,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
         Nothing -> surfaceArrow ty body
   dTyTerm <- elaborate (addParamDecls paramDecls sortTerm)
   dTy <- memoizeWHNF =<< typecheck dTyTerm universeT
+  checkDataSortLayers paramDecls sortIndices dTy
   dDeps <- assumptionDepsOf dTy
   withTopLevel (varIdentAt path name) dTy Nothing False
     (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
