@@ -100,11 +100,6 @@ library:
   generated-other-modules:
     - Paths_rzk
   when:
-    - condition: false
-      other-modules:
-        - Language.Rzk.Syntax.Test
-        - Language.Rzk.Syntax.ErrM
-        - Language.Rzk.Syntax.Skel
     - condition: flag(lsp) && !impl(ghcjs)
       exposed-modules:
         - Language.Rzk.VSCode.Config
