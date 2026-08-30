@@ -476,10 +476,17 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               when (m' /= m) err
               enterModality m $ unify Nothing ty ty'
             _ -> err
+        -- The external component of an extraction is bookkeeping, not
+        -- denotation: it records the lock under which the extracted value was
+        -- checked, so that evaluation re-enters it correctly, but the term
+        -- denotes the counit of the inner modality at the value either way.
+        -- It is also not canonical: 'etaExpand' always writes @Id@, while the
+        -- elaboration of @let ν mod µ@ writes ν, so comparing the external
+        -- components would sever η-equal spellings of the same counit
+        -- (e.g. @$extract$ ♯/♯ t@ against @$extract$ _id/♯ t@).
         ModExtractT _ty app inn te ->
           case actual' of
-            ModExtractT _ty' app' inn' te' -> do
-              when (app' /= app) err
+            ModExtractT _ty' _app' inn' te' -> do
               when (inn' /= inn) err
               enterModality app $ unify Nothing te te'
             _ -> err

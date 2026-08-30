@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- The external component of an extraction is bookkeeping, not denotation:
+-- the same neutral t, bound through an external ♯ lock and without one,
+-- denotes the ♯-counit of t both times, so the two bodies agree. With the
+-- external components compared in unification, the two stuck extractions
+-- ($extract$ ♯/♯ t and $extract$ _id/♯ t) would be severed, breaking η for
+-- the right-adjoint modalities (etaExpand always writes _id).
+#define same-counit (A : U) (f : A -> A) (t : _# A)
+  : (let _# mod _# x := t in mod _# (f x)) =_{_# A} (let mod _# y := t in mod _# (f y))
+  := refl
