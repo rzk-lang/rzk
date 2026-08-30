@@ -2,30 +2,34 @@
 
 -- Test: _op (flip(i) === 0_2) is equivalent to (i === 1_2).
 -- The topes cannot be compared by an identity type (TOPE is not a type),
--- so each law is observed as definitional equality of the shapes the two
--- topes carve out of the unit cube.
+-- so each law is observed as definitional equality of the extension types
+-- the two topes carve out of the unit cube, over an arbitrary type A
+-- (op-bound, so it is accessible under the _op lock).
 
 #def test-flip-tope-equiv
+  (A :_op U)
   (i : 2)
   : let mod _op q := inv_op (i === 1_2) in
     let mod _op fi := flip_op i in
-    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 0_2) -> Unit))
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 0_2) -> A))
   := mod _op refl
 
 -- Symmetric case: _op (flip(i) === 1_2) is equivalent to (i === 0_2)
 
 #def test-flip-tope-equiv-sym
+  (A :_op U)
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 1_2) -> Unit))
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1_2) -> A))
   := mod _op refl
 
 -- flip/unflip with 2: inv roundtrip
 
 #def test-flip-inv-roundtrip-2
+  (A :_op U)
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 1_2) -> Unit))
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1_2) -> A))
   := mod _op refl

@@ -6,10 +6,11 @@
 --    given _op phi we can derive uninv_op(phi), and vice versa.
 
 #def test-op-unwrap-to-uninv
+  (A :_op U)
   (i : 2)
   : let mod _op q := inv_op (i === 0_2) in
     let mod _op fi := flip_op i in
-    _op (((t : 1 | q) -> Unit) = ((t : 1 | fi === 1_2) -> Unit))
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1_2) -> A))
   := mod _op refl
 
 -- 2. _b phi implies phi:
