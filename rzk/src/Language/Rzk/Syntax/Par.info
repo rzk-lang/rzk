@@ -231,20 +231,24 @@ Grammar
 	Term1 -> Term2 '=' Term2                           (222)
 	Term1 -> 'let' Bind ':=' Term 'in' Term            (223)
 	Term1 -> '\\' ListParam '→' Term1                  (224)
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'in' Term   (225)
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'into' Term 'in' Term   (226)
-	Term1 -> Term2                                     (227)
-	Term1 -> ParamDecl '->' Term1                      (228)
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1   (229)
-	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' ',' Term1   (230)
-	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1   (231)
-	Term1 -> '\\' ListParam '->' Term1                 (232)
-	Term1 -> '∑' '(' Pattern ':' Term ')' ',' Term1    (233)
-	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1   (234)
-	Term -> Term2 'as' Term1                           (235)
-	Term -> Term1                                      (236)
-	ListTerm -> Term                                   (237)
-	ListTerm -> Term ',' ListTerm                      (238)
+	Term1 -> 'let' Modality Bind ':=' Term 'in' Term   (225)
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'in' Term   (226)
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'in' Term   (227)
+	Term1 -> 'let' Modality Bind ':=' Term 'into' Term 'in' Term   (228)
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'into' Term 'in' Term   (229)
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'into' Term 'in' Term   (230)
+	Term1 -> Term2                                     (231)
+	Term1 -> ParamDecl '->' Term1                      (232)
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1   (233)
+	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' ',' Term1   (234)
+	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1   (235)
+	Term1 -> '\\' ListParam '->' Term1                 (236)
+	Term1 -> '∑' '(' Pattern ':' Term ')' ',' Term1    (237)
+	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1   (238)
+	Term -> Term2 'as' Term1                           (239)
+	Term -> Term1                                      (240)
+	ListTerm -> Term                                   (241)
+	ListTerm -> Term ',' ListTerm                      (242)
 
 -----------------------------------------------------------------------------
 Terminals
@@ -461,9 +465,9 @@ Non-terminals
 	Term3           rules 193, 194, 195
 	Term2           rules 196, 197, 198
 	Term6           rules 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216
-	Term1           rules 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234
-	Term            rules 235, 236
-	ListTerm        rules 237, 238
+	Term1           rules 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238
+	Term            rules 239, 240
+	ListTerm        rules 241, 242
 
 -----------------------------------------------------------------------------
 States
@@ -2078,10 +2082,10 @@ State 48
 State 49
 
 	Term1 -> ParamDecl . '→' Term1                      (rule 217)
-	Term1 -> ParamDecl . '->' Term1                     (rule 228)
+	Term1 -> ParamDecl . '->' Term1                     (rule 232)
 
-	'->'           shift, and enter state 314
-	'→'            shift, and enter state 315
+	'->'           shift, and enter state 315
+	'→'            shift, and enter state 316
 
 
 State 50
@@ -2134,7 +2138,7 @@ State 50
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 313
+	Term7          goto state 314
 
 State 51
 
@@ -2248,9 +2252,9 @@ State 52
 	':♭'           reduce using rule 190
 	':♯'           reduce using rule 190
 	';'            reduce using rule 190
-	'<='           shift, and enter state 309
+	'<='           shift, and enter state 310
 	'='            reduce using rule 190
-	'==='          shift, and enter state 310
+	'==='          shift, and enter state 311
 	'=_{'          reduce using rule 190
 	'\\/'          reduce using rule 190
 	']'            reduce using rule 190
@@ -2266,8 +2270,8 @@ State 52
 	'↦'            reduce using rule 190
 	'∧'            reduce using rule 190
 	'∨'            reduce using rule 190
-	'≡'            shift, and enter state 311
-	'≤'            shift, and enter state 312
+	'≡'            shift, and enter state 312
+	'≤'            shift, and enter state 313
 	'⊓'            shift, and enter state 271
 	'⊔'            shift, and enter state 272
 	%eof           reduce using rule 190
@@ -2281,7 +2285,7 @@ State 53
 
 	')'            reduce using rule 194
 	','            reduce using rule 194
-	'/\\'          shift, and enter state 307
+	'/\\'          shift, and enter state 308
 	':'            reduce using rule 194
 	':='           reduce using rule 194
 	':_#'          reduce using rule 194
@@ -2305,7 +2309,7 @@ State 53
 	'|->'          reduce using rule 194
 	'}'            reduce using rule 194
 	'↦'            reduce using rule 194
-	'∧'            shift, and enter state 308
+	'∧'            shift, and enter state 309
 	'∨'            reduce using rule 194
 	%eof           reduce using rule 194
 
@@ -2330,7 +2334,7 @@ State 54
 	';'            reduce using rule 197
 	'='            reduce using rule 197
 	'=_{'          reduce using rule 197
-	'\\/'          shift, and enter state 305
+	'\\/'          shift, and enter state 306
 	']'            reduce using rule 197
 	'as'           reduce using rule 197
 	'compute'      reduce using rule 197
@@ -2341,7 +2345,7 @@ State 54
 	'|->'          reduce using rule 197
 	'}'            reduce using rule 197
 	'↦'            reduce using rule 197
-	'∨'            shift, and enter state 306
+	'∨'            shift, and enter state 307
 	%eof           reduce using rule 197
 
 
@@ -2349,34 +2353,34 @@ State 55
 
 	Term1 -> Term2 . '=_{' Term '}' Term2               (rule 221)
 	Term1 -> Term2 . '=' Term2                          (rule 222)
-	Term1 -> Term2 .                                    (rule 227)
-	Term -> Term2 . 'as' Term1                          (rule 235)
+	Term1 -> Term2 .                                    (rule 231)
+	Term -> Term2 . 'as' Term1                          (rule 239)
 
-	')'            reduce using rule 227
-	','            reduce using rule 227
-	':'            reduce using rule 227
-	':='           reduce using rule 227
-	':_#'          reduce using rule 227
-	':_b'          reduce using rule 227
-	':_id'         reduce using rule 227
-	':_op'         reduce using rule 227
-	':ᵒᵖ'          reduce using rule 227
-	':♭'           reduce using rule 227
-	':♯'           reduce using rule 227
-	';'            reduce using rule 227
+	')'            reduce using rule 231
+	','            reduce using rule 231
+	':'            reduce using rule 231
+	':='           reduce using rule 231
+	':_#'          reduce using rule 231
+	':_b'          reduce using rule 231
+	':_id'         reduce using rule 231
+	':_op'         reduce using rule 231
+	':ᵒᵖ'          reduce using rule 231
+	':♭'           reduce using rule 231
+	':♯'           reduce using rule 231
+	';'            reduce using rule 231
 	'='            shift, and enter state 274
 	'=_{'          shift, and enter state 275
-	']'            reduce using rule 227
-	'as'           shift, and enter state 304
-	'compute'      reduce using rule 227
-	'eliminate'    reduce using rule 227
-	'in'           reduce using rule 227
-	'into'         reduce using rule 227
-	'|'            reduce using rule 227
-	'|->'          reduce using rule 227
-	'}'            reduce using rule 227
-	'↦'            reduce using rule 227
-	%eof           reduce using rule 227
+	']'            reduce using rule 231
+	'as'           shift, and enter state 305
+	'compute'      reduce using rule 231
+	'eliminate'    reduce using rule 231
+	'in'           reduce using rule 231
+	'into'         reduce using rule 231
+	'|'            reduce using rule 231
+	'|->'          reduce using rule 231
+	'}'            reduce using rule 231
+	'↦'            reduce using rule 231
+	%eof           reduce using rule 231
 
 
 State 56
@@ -2476,40 +2480,40 @@ State 56
 
 State 57
 
-	Term -> Term1 .                                     (rule 236)
+	Term -> Term1 .                                     (rule 240)
 
-	')'            reduce using rule 236
-	','            reduce using rule 236
-	':'            reduce using rule 236
-	':='           reduce using rule 236
-	':_#'          reduce using rule 236
-	':_b'          reduce using rule 236
-	':_id'         reduce using rule 236
-	':_op'         reduce using rule 236
-	':ᵒᵖ'          reduce using rule 236
-	':♭'           reduce using rule 236
-	':♯'           reduce using rule 236
-	';'            reduce using rule 236
-	']'            reduce using rule 236
-	'compute'      reduce using rule 236
-	'eliminate'    reduce using rule 236
-	'in'           reduce using rule 236
-	'into'         reduce using rule 236
-	'|'            reduce using rule 236
-	'|->'          reduce using rule 236
-	'}'            reduce using rule 236
-	'↦'            reduce using rule 236
-	%eof           reduce using rule 236
+	')'            reduce using rule 240
+	','            reduce using rule 240
+	':'            reduce using rule 240
+	':='           reduce using rule 240
+	':_#'          reduce using rule 240
+	':_b'          reduce using rule 240
+	':_id'         reduce using rule 240
+	':_op'         reduce using rule 240
+	':ᵒᵖ'          reduce using rule 240
+	':♭'           reduce using rule 240
+	':♯'           reduce using rule 240
+	';'            reduce using rule 240
+	']'            reduce using rule 240
+	'compute'      reduce using rule 240
+	'eliminate'    reduce using rule 240
+	'in'           reduce using rule 240
+	'into'         reduce using rule 240
+	'|'            reduce using rule 240
+	'|->'          reduce using rule 240
+	'}'            reduce using rule 240
+	'↦'            reduce using rule 240
+	%eof           reduce using rule 240
 
 
 State 58
 
-	ListTerm -> Term .                                  (rule 237)
-	ListTerm -> Term . ',' ListTerm                     (rule 238)
+	ListTerm -> Term .                                  (rule 241)
+	ListTerm -> Term . ',' ListTerm                     (rule 242)
 
-	')'            reduce using rule 237
-	','            shift, and enter state 303
-	%eof           reduce using rule 237
+	')'            reduce using rule 241
+	','            shift, and enter state 304
+	%eof           reduce using rule 241
 
 
 State 59
@@ -2532,7 +2536,7 @@ State 60
 	'♯'            shift, and enter state 116
 
 	Modality       goto state 139
-	ModComp        goto state 302
+	ModComp        goto state 303
 
 State 61
 
@@ -2618,7 +2622,7 @@ State 61
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 301
+	Term           goto state 302
 
 State 62
 
@@ -3912,11 +3916,11 @@ State 76
 
 State 77
 
-	Term1 -> 'Sigma' . '(' Pattern ':' Term ')' ',' Term1    (rule 229)
-	Term1 -> 'Sigma' . '(' Pattern ModalColon Term ')' ',' Term1    (rule 230)
-	Term1 -> 'Sigma' . '(' SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 231)
+	Term1 -> 'Sigma' . '(' Pattern ':' Term ')' ',' Term1    (rule 233)
+	Term1 -> 'Sigma' . '(' Pattern ModalColon Term ')' ',' Term1    (rule 234)
+	Term1 -> 'Sigma' . '(' SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 235)
 
-	'('            shift, and enter state 300
+	'('            shift, and enter state 301
 
 
 State 78
@@ -4266,7 +4270,7 @@ State 81
 State 82
 
 	Term1 -> '\\' . ListParam '→' Term1                 (rule 224)
-	Term1 -> '\\' . ListParam '->' Term1                (rule 232)
+	Term1 -> '\\' . ListParam '->' Term1                (rule 236)
 
 	'('            shift, and enter state 160
 	'unit'         shift, and enter state 151
@@ -4276,7 +4280,7 @@ State 82
 	VarIdent       goto state 146
 	Pattern        goto state 157
 	Param          goto state 158
-	ListParam      goto state 299
+	ListParam      goto state 300
 
 State 83
 
@@ -4520,7 +4524,7 @@ State 87
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 298
+	Term7          goto state 299
 
 State 88
 
@@ -4572,7 +4576,7 @@ State 88
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 297
+	Term7          goto state 298
 
 State 89
 
@@ -4624,13 +4628,13 @@ State 89
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 296
+	Term7          goto state 297
 
 State 90
 
 	Term7 -> 'idJ' . '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 169)
 
-	'('            shift, and enter state 295
+	'('            shift, and enter state 296
 
 
 State 91
@@ -4683,7 +4687,7 @@ State 91
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 294
+	Term7          goto state 295
 
 State 92
 
@@ -4735,7 +4739,7 @@ State 92
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 293
+	Term7          goto state 294
 
 State 93
 
@@ -4787,23 +4791,35 @@ State 93
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 292
+	Term7          goto state 293
 
 State 94
 
 	Term1 -> 'let' . Bind ':=' Term 'in' Term           (rule 223)
-	Term1 -> 'let' . 'mod' ModComp Bind ':=' Term 'in' Term    (rule 225)
-	Term1 -> 'let' . 'mod' ModComp Bind ':=' Term 'into' Term 'in' Term    (rule 226)
+	Term1 -> 'let' . Modality Bind ':=' Term 'in' Term    (rule 225)
+	Term1 -> 'let' . 'mod' Modality Bind ':=' Term 'in' Term    (rule 226)
+	Term1 -> 'let' . Modality 'mod' Modality Bind ':=' Term 'in' Term    (rule 227)
+	Term1 -> 'let' . Modality Bind ':=' Term 'into' Term 'in' Term    (rule 228)
+	Term1 -> 'let' . 'mod' Modality Bind ':=' Term 'into' Term 'in' Term    (rule 229)
+	Term1 -> 'let' . Modality 'mod' Modality Bind ':=' Term 'into' Term 'in' Term    (rule 230)
 
 	'('            shift, and enter state 150
-	'mod'          shift, and enter state 291
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'mod'          shift, and enter state 292
 	'unit'         shift, and enter state 151
+	'ᵒᵖ'           shift, and enter state 111
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
 	L_VarIdentTokenshift, and enter state 118
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
 	Pattern        goto state 155
 	Bind           goto state 290
+	Modality       goto state 291
 
 State 95
 
@@ -5693,8 +5709,8 @@ State 111
 
 State 112
 
-	Term1 -> '∑' . '(' Pattern ':' Term ')' ',' Term1    (rule 233)
-	Term1 -> '∑' . '(' SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 234)
+	Term1 -> '∑' . '(' Pattern ':' Term ')' ',' Term1    (rule 237)
+	Term1 -> '∑' . '(' SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 238)
 
 	'('            shift, and enter state 276
 
@@ -6239,32 +6255,32 @@ State 121
 
 	Term1 -> Term2 . '=_{' Term '}' Term2               (rule 221)
 	Term1 -> Term2 . '=' Term2                          (rule 222)
-	Term1 -> Term2 .                                    (rule 227)
+	Term1 -> Term2 .                                    (rule 231)
 
-	')'            reduce using rule 227
-	','            reduce using rule 227
-	':'            reduce using rule 227
-	':='           reduce using rule 227
-	':_#'          reduce using rule 227
-	':_b'          reduce using rule 227
-	':_id'         reduce using rule 227
-	':_op'         reduce using rule 227
-	':ᵒᵖ'          reduce using rule 227
-	':♭'           reduce using rule 227
-	':♯'           reduce using rule 227
-	';'            reduce using rule 227
+	')'            reduce using rule 231
+	','            reduce using rule 231
+	':'            reduce using rule 231
+	':='           reduce using rule 231
+	':_#'          reduce using rule 231
+	':_b'          reduce using rule 231
+	':_id'         reduce using rule 231
+	':_op'         reduce using rule 231
+	':ᵒᵖ'          reduce using rule 231
+	':♭'           reduce using rule 231
+	':♯'           reduce using rule 231
+	';'            reduce using rule 231
 	'='            shift, and enter state 274
 	'=_{'          shift, and enter state 275
-	']'            reduce using rule 227
-	'compute'      reduce using rule 227
-	'eliminate'    reduce using rule 227
-	'in'           reduce using rule 227
-	'into'         reduce using rule 227
-	'|'            reduce using rule 227
-	'|->'          reduce using rule 227
-	'}'            reduce using rule 227
-	'↦'            reduce using rule 227
-	%eof           reduce using rule 227
+	']'            reduce using rule 231
+	'compute'      reduce using rule 231
+	'eliminate'    reduce using rule 231
+	'in'           reduce using rule 231
+	'into'         reduce using rule 231
+	'|'            reduce using rule 231
+	'|->'          reduce using rule 231
+	'}'            reduce using rule 231
+	'↦'            reduce using rule 231
+	%eof           reduce using rule 231
 
 
 State 122
@@ -8374,21 +8390,21 @@ State 222
 
 	LanguageDecl -> '#lang' Language . ';'              (rule 51)
 
-	';'            shift, and enter state 392
+	';'            shift, and enter state 395
 
 
 State 223
 
 	Command -> '#variables' ListVarIdent . ':' Term     (rule 63)
 
-	':'            shift, and enter state 391
+	':'            shift, and enter state 394
 
 
 State 224
 
 	Command -> '#variable' VarIdent . ':' Term          (rule 62)
 
-	':'            shift, and enter state 390
+	':'            shift, and enter state 393
 
 
 State 225
@@ -8403,7 +8419,7 @@ State 226
 
 	Command -> '#set-option' String . '=' String        (rule 53)
 
-	'='            shift, and enter state 389
+	'='            shift, and enter state 392
 
 
 State 227
@@ -8425,7 +8441,7 @@ State 228
 	'uses'         shift, and enter state 191
 	L_VarIdentTokenreduce using rule 75
 
-	DeclUsedVars   goto state 388
+	DeclUsedVars   goto state 391
 
 State 229
 
@@ -8446,7 +8462,7 @@ State 230
 	'uses'         shift, and enter state 191
 	L_VarIdentTokenreduce using rule 75
 
-	DeclUsedVars   goto state 387
+	DeclUsedVars   goto state 390
 
 State 231
 
@@ -8459,7 +8475,7 @@ State 231
 	'uses'         shift, and enter state 191
 	L_VarIdentTokenreduce using rule 75
 
-	DeclUsedVars   goto state 386
+	DeclUsedVars   goto state 389
 
 State 232
 
@@ -8475,7 +8491,7 @@ State 232
 	L_VarIdentTokenreduce using rule 75
 	%eof           reduce using rule 75
 
-	DeclUsedVars   goto state 385
+	DeclUsedVars   goto state 388
 
 State 233
 
@@ -8505,14 +8521,14 @@ State 236
 
 	Command -> '#check' Term . ':' Term                 (rule 55)
 
-	':'            shift, and enter state 384
+	':'            shift, and enter state 387
 
 
 State 237
 
 	Command -> '#assume' ListVarIdent . ':' Term        (rule 61)
 
-	':'            shift, and enter state 383
+	':'            shift, and enter state 386
 
 
 State 238
@@ -8537,7 +8553,7 @@ State 238
 	%eof           reduce using rule 72
 
 	Command        goto state 192
-	ListCommand    goto state 382
+	ListCommand    goto state 385
 
 State 239
 
@@ -8547,7 +8563,7 @@ State 239
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 214
-	ListVarIdent   goto state 381
+	ListVarIdent   goto state 384
 
 State 240
 
@@ -8568,7 +8584,7 @@ State 241
 	%eof           reduce using rule 90
 
 	DataElim       goto state 173
-	ListDataElim   goto state 380
+	ListDataElim   goto state 383
 
 State 242
 
@@ -8579,7 +8595,7 @@ State 242
 	VarIdentToken  goto state 45
 	VarIdent       goto state 180
 	Constructor    goto state 181
-	ListConstructorgoto state 379
+	ListConstructorgoto state 382
 
 State 243
 
@@ -8603,7 +8619,7 @@ State 244
 	'|'            reduce using rule 87
 	%eof           reduce using rule 87
 
-	ConstructorTypegoto state 378
+	ConstructorTypegoto state 381
 
 State 245
 
@@ -8623,7 +8639,7 @@ State 246
 	L_VarIdentTokenshift, and enter state 118
 
 	VarIdentToken  goto state 45
-	VarIdent       goto state 377
+	VarIdent       goto state 380
 
 State 247
 
@@ -8632,7 +8648,7 @@ State 247
 	L_VarIdentTokenshift, and enter state 118
 
 	VarIdentToken  goto state 45
-	VarIdent       goto state 376
+	VarIdent       goto state 379
 
 State 248
 
@@ -8651,15 +8667,15 @@ State 249
 	VarIdentToken  goto state 45
 	VarIdent       goto state 169
 	MatchBranch    goto state 170
-	ListMatchBranchgoto state 375
+	ListMatchBranchgoto state 378
 
 State 250
 
 	MatchBranch -> VarIdent ListPattern . '⇒' Term      (rule 92)
 	MatchBranch -> VarIdent ListPattern . '=>' Term     (rule 94)
 
-	'=>'           shift, and enter state 373
-	'⇒'            shift, and enter state 374
+	'=>'           shift, and enter state 376
+	'⇒'            shift, and enter state 377
 
 
 State 251
@@ -8740,7 +8756,7 @@ State 251
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 372
+	Term           goto state 375
 
 State 252
 
@@ -8820,7 +8836,7 @@ State 252
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 371
+	Term           goto state 374
 
 State 253
 
@@ -8851,7 +8867,7 @@ State 254
 	VarIdent       goto state 146
 	Pattern        goto state 162
 	Pattern1       goto state 163
-	ListPattern1   goto state 370
+	ListPattern1   goto state 373
 
 State 255
 
@@ -8861,7 +8877,7 @@ State 255
 	ListPattern -> Pattern . ListPattern                (rule 103)
 
 	'('            shift, and enter state 150
-	','            shift, and enter state 365
+	','            shift, and enter state 368
 	':'            reduce using rule 102
 	':_#'          reduce using rule 102
 	':_b'          reduce using rule 102
@@ -8885,7 +8901,7 @@ State 256
 	Param -> '(' ListPattern . ModalColon Term ')'      (rule 110)
 	Param -> '(' ListPattern . ModalColon Term '|' Term ')'    (rule 111)
 
-	':'            shift, and enter state 369
+	':'            shift, and enter state 372
 	':_#'          shift, and enter state 132
 	':_b'          shift, and enter state 133
 	':_id'         shift, and enter state 134
@@ -8894,7 +8910,7 @@ State 256
 	':♭'           shift, and enter state 137
 	':♯'           shift, and enter state 138
 
-	ModalColon     goto state 368
+	ModalColon     goto state 371
 
 State 257
 
@@ -8989,7 +9005,7 @@ State 258
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 367
+	Term           goto state 370
 
 State 259
 
@@ -9148,7 +9164,7 @@ State 260
 	VarIdent       goto state 48
 	ParamDecl      goto state 49
 	Restriction    goto state 142
-	ListRestrictiongoto state 366
+	ListRestrictiongoto state 369
 	Modality       goto state 50
 	Term7          goto state 51
 	Term5          goto state 52
@@ -9164,7 +9180,7 @@ State 261
 	Pattern -> '(' Pattern . ',' Pattern ')'            (rule 100)
 	Pattern -> '(' Pattern . ',' Pattern ',' ListPattern1 ')'    (rule 101)
 
-	','            shift, and enter state 365
+	','            shift, and enter state 368
 
 
 State 262
@@ -9179,7 +9195,7 @@ State 262
 	VarIdent       goto state 146
 	Pattern        goto state 147
 	SigmaParam     goto state 148
-	ListSigmaParam goto state 364
+	ListSigmaParam goto state 367
 
 State 263
 
@@ -9259,7 +9275,7 @@ State 263
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 363
+	Term           goto state 366
 
 State 264
 
@@ -9339,7 +9355,7 @@ State 264
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 362
+	Term           goto state 365
 
 State 265
 
@@ -9419,7 +9435,7 @@ State 265
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 361
+	Term           goto state 364
 
 State 266
 
@@ -9499,7 +9515,7 @@ State 266
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 360
+	Term           goto state 363
 
 State 267
 
@@ -9572,7 +9588,7 @@ State 267
 	VarIdent       goto state 48
 	ParamDecl      goto state 49
 	Restriction    goto state 142
-	ListRestrictiongoto state 359
+	ListRestrictiongoto state 362
 	Modality       goto state 50
 	Term7          goto state 51
 	Term5          goto state 52
@@ -9595,7 +9611,7 @@ State 268
 	'♭'            shift, and enter state 115
 	'♯'            shift, and enter state 116
 
-	Modality       goto state 358
+	Modality       goto state 361
 
 State 269
 
@@ -9663,7 +9679,7 @@ State 269
 	VarIdent       goto state 48
 	Modality       goto state 50
 	Term7          goto state 51
-	Term6          goto state 357
+	Term6          goto state 360
 
 State 270
 
@@ -9731,7 +9747,7 @@ State 270
 	VarIdent       goto state 48
 	Modality       goto state 50
 	Term7          goto state 51
-	Term6          goto state 356
+	Term6          goto state 359
 
 State 271
 
@@ -9799,7 +9815,7 @@ State 271
 	VarIdent       goto state 48
 	Modality       goto state 50
 	Term7          goto state 51
-	Term6          goto state 355
+	Term6          goto state 358
 
 State 272
 
@@ -9867,7 +9883,7 @@ State 272
 	VarIdent       goto state 48
 	Modality       goto state 50
 	Term7          goto state 51
-	Term6          goto state 354
+	Term6          goto state 357
 
 State 273
 
@@ -9875,8 +9891,8 @@ State 273
 	Term7 -> '(' Term . ',' Term ',' ListTerm ')'       (rule 162)
 	Term7 -> '(' Term . ')'                             (rule 174)
 
-	')'            shift, and enter state 330
-	','            shift, and enter state 331
+	')'            shift, and enter state 331
+	','            shift, and enter state 332
 
 
 State 274
@@ -9948,7 +9964,7 @@ State 274
 	Term5          goto state 52
 	Term4          goto state 53
 	Term3          goto state 54
-	Term2          goto state 353
+	Term2          goto state 356
 	Term6          goto state 126
 
 State 275
@@ -10029,12 +10045,12 @@ State 275
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 352
+	Term           goto state 355
 
 State 276
 
-	Term1 -> '∑' '(' . Pattern ':' Term ')' ',' Term1    (rule 233)
-	Term1 -> '∑' '(' . SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 234)
+	Term1 -> '∑' '(' . Pattern ':' Term ')' ',' Term1    (rule 237)
+	Term1 -> '∑' '(' . SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 238)
 
 	'('            shift, and enter state 150
 	'unit'         shift, and enter state 151
@@ -10042,8 +10058,8 @@ State 276
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
-	Pattern        goto state 350
-	SigmaParam     goto state 351
+	Pattern        goto state 353
+	SigmaParam     goto state 354
 
 State 277
 
@@ -10229,8 +10245,8 @@ State 279
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
-	Pattern        goto state 348
-	SigmaParam     goto state 349
+	Pattern        goto state 351
+	SigmaParam     goto state 352
 
 State 280
 
@@ -10626,7 +10642,7 @@ State 284
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 347
+	Term7          goto state 350
 
 State 285
 
@@ -10719,8 +10735,8 @@ State 286
 	Term7 -> 'refl_{' Term . '}'                        (rule 167)
 	Term7 -> 'refl_{' Term . ':' Term '}'               (rule 168)
 
-	':'            shift, and enter state 345
-	'}'            shift, and enter state 346
+	':'            shift, and enter state 348
+	'}'            shift, and enter state 349
 
 
 State 287
@@ -10794,7 +10810,7 @@ State 287
 	VarIdent       goto state 48
 	ParamDecl      goto state 49
 	Restriction    goto state 142
-	ListRestrictiongoto state 344
+	ListRestrictiongoto state 347
 	Modality       goto state 50
 	Term7          goto state 51
 	Term5          goto state 52
@@ -10855,28 +10871,45 @@ State 288
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 343
+	Term7          goto state 346
 
 State 289
 
 	Term7 -> 'match' Term7 . '(' ListMatchBranch ')'    (rule 170)
 	Term7 -> 'match' Term7 . 'into' Term7 '(' ListMatchBranch ')'    (rule 171)
 
-	'('            shift, and enter state 341
-	'into'         shift, and enter state 342
+	'('            shift, and enter state 344
+	'into'         shift, and enter state 345
 
 
 State 290
 
 	Term1 -> 'let' Bind . ':=' Term 'in' Term           (rule 223)
 
-	':='           shift, and enter state 340
+	':='           shift, and enter state 343
 
 
 State 291
 
-	Term1 -> 'let' 'mod' . ModComp Bind ':=' Term 'in' Term    (rule 225)
-	Term1 -> 'let' 'mod' . ModComp Bind ':=' Term 'into' Term 'in' Term    (rule 226)
+	Term1 -> 'let' Modality . Bind ':=' Term 'in' Term    (rule 225)
+	Term1 -> 'let' Modality . 'mod' Modality Bind ':=' Term 'in' Term    (rule 227)
+	Term1 -> 'let' Modality . Bind ':=' Term 'into' Term 'in' Term    (rule 228)
+	Term1 -> 'let' Modality . 'mod' Modality Bind ':=' Term 'into' Term 'in' Term    (rule 230)
+
+	'('            shift, and enter state 150
+	'mod'          shift, and enter state 342
+	'unit'         shift, and enter state 151
+	L_VarIdentTokenshift, and enter state 118
+
+	VarIdentToken  goto state 45
+	VarIdent       goto state 146
+	Pattern        goto state 155
+	Bind           goto state 341
+
+State 292
+
+	Term1 -> 'let' 'mod' . Modality Bind ':=' Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' . Modality Bind ':=' Term 'into' Term 'in' Term    (rule 229)
 
 	'_#'           shift, and enter state 83
 	'_b'           shift, and enter state 84
@@ -10886,10 +10919,9 @@ State 291
 	'♭'            shift, and enter state 115
 	'♯'            shift, and enter state 116
 
-	Modality       goto state 139
-	ModComp        goto state 339
+	Modality       goto state 340
 
-State 292
+State 293
 
 	Term6 -> 'invᵒᵖ' Term7 .                            (rule 199)
 
@@ -10975,7 +11007,7 @@ State 292
 	%eof           reduce using rule 199
 
 
-State 293
+State 294
 
 	Term6 -> 'inv_op' Term7 .                           (rule 200)
 
@@ -11061,7 +11093,7 @@ State 293
 	%eof           reduce using rule 200
 
 
-State 294
+State 295
 
 	Term6 -> 'inf' Term7 . Term7                        (rule 214)
 
@@ -11111,9 +11143,9 @@ State 294
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 338
+	Term7          goto state 339
 
-State 295
+State 296
 
 	Term7 -> 'idJ' '(' . Term ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 169)
 
@@ -11191,9 +11223,9 @@ State 295
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 337
+	Term           goto state 338
 
-State 296
+State 297
 
 	Term6 -> 'flipᵒᵖ' Term7 .                           (rule 203)
 
@@ -11279,7 +11311,7 @@ State 296
 	%eof           reduce using rule 203
 
 
-State 297
+State 298
 
 	Term6 -> 'flip_op' Term7 .                          (rule 204)
 
@@ -11365,7 +11397,7 @@ State 297
 	%eof           reduce using rule 204
 
 
-State 298
+State 299
 
 	Term6 -> 'first' Term7 .                            (rule 215)
 
@@ -11451,20 +11483,20 @@ State 298
 	%eof           reduce using rule 215
 
 
-State 299
-
-	Term1 -> '\\' ListParam . '→' Term1                 (rule 224)
-	Term1 -> '\\' ListParam . '->' Term1                (rule 232)
-
-	'->'           shift, and enter state 335
-	'→'            shift, and enter state 336
-
-
 State 300
 
-	Term1 -> 'Sigma' '(' . Pattern ':' Term ')' ',' Term1    (rule 229)
-	Term1 -> 'Sigma' '(' . Pattern ModalColon Term ')' ',' Term1    (rule 230)
-	Term1 -> 'Sigma' '(' . SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 231)
+	Term1 -> '\\' ListParam . '→' Term1                 (rule 224)
+	Term1 -> '\\' ListParam . '->' Term1                (rule 236)
+
+	'->'           shift, and enter state 336
+	'→'            shift, and enter state 337
+
+
+State 301
+
+	Term1 -> 'Sigma' '(' . Pattern ':' Term ')' ',' Term1    (rule 233)
+	Term1 -> 'Sigma' '(' . Pattern ModalColon Term ')' ',' Term1    (rule 234)
+	Term1 -> 'Sigma' '(' . SigmaParam ',' ListSigmaParam ')' ',' Term1    (rule 235)
 
 	'('            shift, and enter state 150
 	'unit'         shift, and enter state 151
@@ -11472,10 +11504,10 @@ State 300
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
-	Pattern        goto state 333
-	SigmaParam     goto state 334
+	Pattern        goto state 334
+	SigmaParam     goto state 335
 
-State 301
+State 302
 
 	ParamDecl -> '(' Term . ':' Term ')'                (rule 117)
 	ParamDecl -> '(' Term . ':' Term '|' Term ')'       (rule 118)
@@ -11485,9 +11517,9 @@ State 301
 	Term7 -> '(' Term . ',' Term ',' ListTerm ')'       (rule 162)
 	Term7 -> '(' Term . ')'                             (rule 174)
 
-	')'            shift, and enter state 330
-	','            shift, and enter state 331
-	':'            shift, and enter state 332
+	')'            shift, and enter state 331
+	','            shift, and enter state 332
+	':'            shift, and enter state 333
 	':_#'          shift, and enter state 132
 	':_b'          shift, and enter state 133
 	':_id'         shift, and enter state 134
@@ -11496,9 +11528,9 @@ State 301
 	':♭'           shift, and enter state 137
 	':♯'           shift, and enter state 138
 
-	ModalColon     goto state 329
+	ModalColon     goto state 330
 
-State 302
+State 303
 
 	Term6 -> '$extract$' ModComp . Term7                (rule 209)
 
@@ -11548,11 +11580,11 @@ State 302
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 328
+	Term7          goto state 329
 
-State 303
+State 304
 
-	ListTerm -> Term ',' . ListTerm                     (rule 238)
+	ListTerm -> Term ',' . ListTerm                     (rule 242)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -11629,11 +11661,11 @@ State 303
 	Term6          goto state 56
 	Term1          goto state 57
 	Term           goto state 58
-	ListTerm       goto state 327
+	ListTerm       goto state 328
 
-State 304
+State 305
 
-	Term -> Term2 'as' . Term1                          (rule 235)
+	Term -> Term2 'as' . Term1                          (rule 239)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -11708,11 +11740,83 @@ State 304
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 326
+	Term1          goto state 327
 
-State 305
+State 306
 
 	Term2 -> Term3 '\\/' . Term2                        (rule 198)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 124
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 326
+	Term6          goto state 126
+
+State 307
+
+	Term2 -> Term3 '∨' . Term2                          (rule 196)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -11782,9 +11886,9 @@ State 305
 	Term2          goto state 325
 	Term6          goto state 126
 
-State 306
+State 308
 
-	Term2 -> Term3 '∨' . Term2                          (rule 196)
+	Term3 -> Term4 '/\\' . Term3                        (rule 195)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -11850,13 +11954,12 @@ State 306
 	Term7          goto state 51
 	Term5          goto state 52
 	Term4          goto state 53
-	Term3          goto state 54
-	Term2          goto state 324
+	Term3          goto state 324
 	Term6          goto state 126
 
-State 307
+State 309
 
-	Term3 -> Term4 '/\\' . Term3                        (rule 195)
+	Term3 -> Term4 '∧' . Term3                          (rule 193)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -11925,9 +12028,9 @@ State 307
 	Term3          goto state 323
 	Term6          goto state 126
 
-State 308
+State 310
 
-	Term3 -> Term4 '∧' . Term3                          (rule 193)
+	Term4 -> Term5 '<=' . Term5                         (rule 192)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -11991,14 +12094,12 @@ State 308
 	VarIdent       goto state 48
 	Modality       goto state 50
 	Term7          goto state 51
-	Term5          goto state 52
-	Term4          goto state 53
-	Term3          goto state 322
+	Term5          goto state 322
 	Term6          goto state 126
 
-State 309
+State 311
 
-	Term4 -> Term5 '<=' . Term5                         (rule 192)
+	Term4 -> Term5 '===' . Term5                        (rule 191)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -12065,9 +12166,9 @@ State 309
 	Term5          goto state 321
 	Term6          goto state 126
 
-State 310
+State 312
 
-	Term4 -> Term5 '===' . Term5                        (rule 191)
+	Term4 -> Term5 '≡' . Term5                          (rule 188)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -12134,9 +12235,9 @@ State 310
 	Term5          goto state 320
 	Term6          goto state 126
 
-State 311
+State 313
 
-	Term4 -> Term5 '≡' . Term5                          (rule 188)
+	Term4 -> Term5 '≤' . Term5                          (rule 189)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 124
@@ -12203,76 +12304,7 @@ State 311
 	Term5          goto state 319
 	Term6          goto state 126
 
-State 312
-
-	Term4 -> Term5 '≤' . Term5                          (rule 189)
-
-	'$extract$'    shift, and enter state 60
-	'('            shift, and enter state 124
-	'*_1'          shift, and enter state 62
-	'*₁'           shift, and enter state 63
-	'0_2'          shift, and enter state 64
-	'0_I'          shift, and enter state 65
-	'0ᵢ'           shift, and enter state 66
-	'0₂'           shift, and enter state 67
-	'1'            shift, and enter state 68
-	'1_2'          shift, and enter state 69
-	'1_I'          shift, and enter state 70
-	'1ᵢ'           shift, and enter state 71
-	'1₂'           shift, and enter state 72
-	'2'            shift, and enter state 73
-	'BOT'          shift, and enter state 74
-	'CUBE'         shift, and enter state 75
-	'II'           shift, and enter state 76
-	'TOP'          shift, and enter state 78
-	'TOPE'         shift, and enter state 79
-	'U'            shift, and enter state 80
-	'Unit'         shift, and enter state 81
-	'_#'           shift, and enter state 83
-	'_b'           shift, and enter state 84
-	'_id'          shift, and enter state 85
-	'_op'          shift, and enter state 86
-	'first'        shift, and enter state 87
-	'flip_op'      shift, and enter state 88
-	'flipᵒᵖ'       shift, and enter state 89
-	'idJ'          shift, and enter state 90
-	'inf'          shift, and enter state 91
-	'inv_op'       shift, and enter state 92
-	'invᵒᵖ'        shift, and enter state 93
-	'match'        shift, and enter state 95
-	'mod'          shift, and enter state 96
-	'recBOT'       shift, and enter state 97
-	'recOR'        shift, and enter state 98
-	'refl'         shift, and enter state 99
-	'refl_{'       shift, and enter state 100
-	'second'       shift, and enter state 101
-	'sup'          shift, and enter state 102
-	'unflip_op'    shift, and enter state 103
-	'unflipᵒᵖ'     shift, and enter state 104
-	'uninv_op'     shift, and enter state 105
-	'uninvᵒᵖ'      shift, and enter state 106
-	'unit'         shift, and enter state 107
-	'π₁'           shift, and enter state 109
-	'π₂'           shift, and enter state 110
-	'ᵒᵖ'           shift, and enter state 111
-	'⊤'            shift, and enter state 113
-	'⊥'            shift, and enter state 114
-	'♭'            shift, and enter state 115
-	'♯'            shift, and enter state 116
-	'𝕀'            shift, and enter state 117
-	L_VarIdentTokenshift, and enter state 118
-	L_HoleIdentTokenshift, and enter state 119
-
-	VarIdentToken  goto state 45
-	HoleIdentToken goto state 46
-	HoleIdent      goto state 47
-	VarIdent       goto state 48
-	Modality       goto state 50
-	Term7          goto state 51
-	Term5          goto state 318
-	Term6          goto state 126
-
-State 313
+State 314
 
 	Term7 -> Modality Term7 .                           (rule 164)
 
@@ -12358,9 +12390,9 @@ State 313
 	%eof           reduce using rule 164
 
 
-State 314
+State 315
 
-	Term1 -> ParamDecl '->' . Term1                     (rule 228)
+	Term1 -> ParamDecl '->' . Term1                     (rule 232)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -12435,9 +12467,9 @@ State 314
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 317
+	Term1          goto state 318
 
-State 315
+State 316
 
 	Term1 -> ParamDecl '→' . Term1                      (rule 217)
 
@@ -12514,9 +12546,9 @@ State 315
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 316
+	Term1          goto state 317
 
-State 316
+State 317
 
 	Term1 -> ParamDecl '→' Term1 .                      (rule 217)
 
@@ -12544,35 +12576,35 @@ State 316
 	%eof           reduce using rule 217
 
 
-State 317
-
-	Term1 -> ParamDecl '->' Term1 .                     (rule 228)
-
-	')'            reduce using rule 228
-	','            reduce using rule 228
-	':'            reduce using rule 228
-	':='           reduce using rule 228
-	':_#'          reduce using rule 228
-	':_b'          reduce using rule 228
-	':_id'         reduce using rule 228
-	':_op'         reduce using rule 228
-	':ᵒᵖ'          reduce using rule 228
-	':♭'           reduce using rule 228
-	':♯'           reduce using rule 228
-	';'            reduce using rule 228
-	']'            reduce using rule 228
-	'compute'      reduce using rule 228
-	'eliminate'    reduce using rule 228
-	'in'           reduce using rule 228
-	'into'         reduce using rule 228
-	'|'            reduce using rule 228
-	'|->'          reduce using rule 228
-	'}'            reduce using rule 228
-	'↦'            reduce using rule 228
-	%eof           reduce using rule 228
-
-
 State 318
+
+	Term1 -> ParamDecl '->' Term1 .                     (rule 232)
+
+	')'            reduce using rule 232
+	','            reduce using rule 232
+	':'            reduce using rule 232
+	':='           reduce using rule 232
+	':_#'          reduce using rule 232
+	':_b'          reduce using rule 232
+	':_id'         reduce using rule 232
+	':_op'         reduce using rule 232
+	':ᵒᵖ'          reduce using rule 232
+	':♭'           reduce using rule 232
+	':♯'           reduce using rule 232
+	';'            reduce using rule 232
+	']'            reduce using rule 232
+	'compute'      reduce using rule 232
+	'eliminate'    reduce using rule 232
+	'in'           reduce using rule 232
+	'into'         reduce using rule 232
+	'|'            reduce using rule 232
+	'|->'          reduce using rule 232
+	'}'            reduce using rule 232
+	'↦'            reduce using rule 232
+	%eof           reduce using rule 232
+
+
+State 319
 
 	Term5 -> Term5 . '×' Term6                          (rule 183)
 	Term5 -> Term5 . '⊔' Term6                          (rule 184)
@@ -12615,7 +12647,7 @@ State 318
 	%eof           reduce using rule 189
 
 
-State 319
+State 320
 
 	Term5 -> Term5 . '×' Term6                          (rule 183)
 	Term5 -> Term5 . '⊔' Term6                          (rule 184)
@@ -12658,7 +12690,7 @@ State 319
 	%eof           reduce using rule 188
 
 
-State 320
+State 321
 
 	Term5 -> Term5 . '×' Term6                          (rule 183)
 	Term5 -> Term5 . '⊔' Term6                          (rule 184)
@@ -12701,7 +12733,7 @@ State 320
 	%eof           reduce using rule 191
 
 
-State 321
+State 322
 
 	Term5 -> Term5 . '×' Term6                          (rule 183)
 	Term5 -> Term5 . '⊔' Term6                          (rule 184)
@@ -12744,7 +12776,7 @@ State 321
 	%eof           reduce using rule 192
 
 
-State 322
+State 323
 
 	Term3 -> Term4 '∧' Term3 .                          (rule 193)
 
@@ -12777,7 +12809,7 @@ State 322
 	%eof           reduce using rule 193
 
 
-State 323
+State 324
 
 	Term3 -> Term4 '/\\' Term3 .                        (rule 195)
 
@@ -12810,7 +12842,7 @@ State 323
 	%eof           reduce using rule 195
 
 
-State 324
+State 325
 
 	Term2 -> Term3 '∨' Term2 .                          (rule 196)
 
@@ -12841,7 +12873,7 @@ State 324
 	%eof           reduce using rule 196
 
 
-State 325
+State 326
 
 	Term2 -> Term3 '\\/' Term2 .                        (rule 198)
 
@@ -12872,43 +12904,43 @@ State 325
 	%eof           reduce using rule 198
 
 
-State 326
-
-	Term -> Term2 'as' Term1 .                          (rule 235)
-
-	')'            reduce using rule 235
-	','            reduce using rule 235
-	':'            reduce using rule 235
-	':='           reduce using rule 235
-	':_#'          reduce using rule 235
-	':_b'          reduce using rule 235
-	':_id'         reduce using rule 235
-	':_op'         reduce using rule 235
-	':ᵒᵖ'          reduce using rule 235
-	':♭'           reduce using rule 235
-	':♯'           reduce using rule 235
-	';'            reduce using rule 235
-	']'            reduce using rule 235
-	'compute'      reduce using rule 235
-	'eliminate'    reduce using rule 235
-	'in'           reduce using rule 235
-	'into'         reduce using rule 235
-	'|'            reduce using rule 235
-	'|->'          reduce using rule 235
-	'}'            reduce using rule 235
-	'↦'            reduce using rule 235
-	%eof           reduce using rule 235
-
-
 State 327
 
-	ListTerm -> Term ',' ListTerm .                     (rule 238)
+	Term -> Term2 'as' Term1 .                          (rule 239)
 
-	')'            reduce using rule 238
-	%eof           reduce using rule 238
+	')'            reduce using rule 239
+	','            reduce using rule 239
+	':'            reduce using rule 239
+	':='           reduce using rule 239
+	':_#'          reduce using rule 239
+	':_b'          reduce using rule 239
+	':_id'         reduce using rule 239
+	':_op'         reduce using rule 239
+	':ᵒᵖ'          reduce using rule 239
+	':♭'           reduce using rule 239
+	':♯'           reduce using rule 239
+	';'            reduce using rule 239
+	']'            reduce using rule 239
+	'compute'      reduce using rule 239
+	'eliminate'    reduce using rule 239
+	'in'           reduce using rule 239
+	'into'         reduce using rule 239
+	'|'            reduce using rule 239
+	'|->'          reduce using rule 239
+	'}'            reduce using rule 239
+	'↦'            reduce using rule 239
+	%eof           reduce using rule 239
 
 
 State 328
+
+	ListTerm -> Term ',' ListTerm .                     (rule 242)
+
+	')'            reduce using rule 242
+	%eof           reduce using rule 242
+
+
+State 329
 
 	Term6 -> '$extract$' ModComp Term7 .                (rule 209)
 
@@ -12994,7 +13026,7 @@ State 328
 	%eof           reduce using rule 209
 
 
-State 329
+State 330
 
 	ParamDecl -> '(' Term ModalColon . Term ')'         (rule 119)
 	ParamDecl -> '(' Term ModalColon . Term '|' Term ')'    (rule 120)
@@ -13073,9 +13105,9 @@ State 329
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 435
+	Term           goto state 440
 
-State 330
+State 331
 
 	Term7 -> '(' Term ')' .                             (rule 174)
 
@@ -13161,7 +13193,7 @@ State 330
 	%eof           reduce using rule 174
 
 
-State 331
+State 332
 
 	Term7 -> '(' Term ',' . Term ')'                    (rule 161)
 	Term7 -> '(' Term ',' . Term ',' ListTerm ')'       (rule 162)
@@ -13240,9 +13272,9 @@ State 331
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 434
+	Term           goto state 439
 
-State 332
+State 333
 
 	ParamDecl -> '(' Term ':' . Term ')'                (rule 117)
 	ParamDecl -> '(' Term ':' . Term '|' Term ')'       (rule 118)
@@ -13321,16 +13353,16 @@ State 332
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 433
+	Term           goto state 438
 
-State 333
+State 334
 
 	SigmaParam -> Pattern . ':' Term                    (rule 121)
 	SigmaParam -> Pattern . ModalColon Term             (rule 122)
-	Term1 -> 'Sigma' '(' Pattern . ':' Term ')' ',' Term1    (rule 229)
-	Term1 -> 'Sigma' '(' Pattern . ModalColon Term ')' ',' Term1    (rule 230)
+	Term1 -> 'Sigma' '(' Pattern . ':' Term ')' ',' Term1    (rule 233)
+	Term1 -> 'Sigma' '(' Pattern . ModalColon Term ')' ',' Term1    (rule 234)
 
-	':'            shift, and enter state 432
+	':'            shift, and enter state 437
 	':_#'          shift, and enter state 132
 	':_b'          shift, and enter state 133
 	':_id'         shift, and enter state 134
@@ -13339,18 +13371,18 @@ State 333
 	':♭'           shift, and enter state 137
 	':♯'           shift, and enter state 138
 
-	ModalColon     goto state 431
-
-State 334
-
-	Term1 -> 'Sigma' '(' SigmaParam . ',' ListSigmaParam ')' ',' Term1    (rule 231)
-
-	','            shift, and enter state 430
-
+	ModalColon     goto state 436
 
 State 335
 
-	Term1 -> '\\' ListParam '->' . Term1                (rule 232)
+	Term1 -> 'Sigma' '(' SigmaParam . ',' ListSigmaParam ')' ',' Term1    (rule 235)
+
+	','            shift, and enter state 435
+
+
+State 336
+
+	Term1 -> '\\' ListParam '->' . Term1                (rule 236)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -13425,9 +13457,9 @@ State 335
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 429
+	Term1          goto state 434
 
-State 336
+State 337
 
 	Term1 -> '\\' ListParam '→' . Term1                 (rule 224)
 
@@ -13504,16 +13536,16 @@ State 336
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 428
+	Term1          goto state 433
 
-State 337
+State 338
 
 	Term7 -> 'idJ' '(' Term . ',' Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 169)
 
-	','            shift, and enter state 427
+	','            shift, and enter state 432
 
 
-State 338
+State 339
 
 	Term6 -> 'inf' Term7 Term7 .                        (rule 214)
 
@@ -13599,10 +13631,10 @@ State 338
 	%eof           reduce using rule 214
 
 
-State 339
+State 340
 
-	Term1 -> 'let' 'mod' ModComp . Bind ':=' Term 'in' Term    (rule 225)
-	Term1 -> 'let' 'mod' ModComp . Bind ':=' Term 'into' Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality . Bind ':=' Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality . Bind ':=' Term 'into' Term 'in' Term    (rule 229)
 
 	'('            shift, and enter state 150
 	'unit'         shift, and enter state 151
@@ -13611,9 +13643,32 @@ State 339
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
 	Pattern        goto state 155
-	Bind           goto state 426
+	Bind           goto state 431
 
-State 340
+State 341
+
+	Term1 -> 'let' Modality Bind . ':=' Term 'in' Term    (rule 225)
+	Term1 -> 'let' Modality Bind . ':=' Term 'into' Term 'in' Term    (rule 228)
+
+	':='           shift, and enter state 430
+
+
+State 342
+
+	Term1 -> 'let' Modality 'mod' . Modality Bind ':=' Term 'in' Term    (rule 227)
+	Term1 -> 'let' Modality 'mod' . Modality Bind ':=' Term 'into' Term 'in' Term    (rule 230)
+
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'ᵒᵖ'           shift, and enter state 111
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+
+	Modality       goto state 429
+
+State 343
 
 	Term1 -> 'let' Bind ':=' . Term 'in' Term           (rule 223)
 
@@ -13691,9 +13746,9 @@ State 340
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 425
+	Term           goto state 428
 
-State 341
+State 344
 
 	Term7 -> 'match' Term7 '(' . ListMatchBranch ')'    (rule 170)
 
@@ -13702,9 +13757,9 @@ State 341
 	VarIdentToken  goto state 45
 	VarIdent       goto state 169
 	MatchBranch    goto state 170
-	ListMatchBranchgoto state 424
+	ListMatchBranchgoto state 427
 
-State 342
+State 345
 
 	Term7 -> 'match' Term7 'into' . Term7 '(' ListMatchBranch ')'    (rule 171)
 
@@ -13754,9 +13809,9 @@ State 342
 	HoleIdent      goto state 47
 	VarIdent       goto state 48
 	Modality       goto state 50
-	Term7          goto state 423
+	Term7          goto state 426
 
-State 343
+State 346
 
 	Term7 -> 'mod' Modality Term7 .                     (rule 163)
 
@@ -13842,14 +13897,14 @@ State 343
 	%eof           reduce using rule 163
 
 
-State 344
+State 347
 
 	Term7 -> 'recOR' '(' ListRestriction . ')'          (rule 159)
 
-	')'            shift, and enter state 422
+	')'            shift, and enter state 425
 
 
-State 345
+State 348
 
 	Term7 -> 'refl_{' Term ':' . Term '}'               (rule 168)
 
@@ -13927,9 +13982,9 @@ State 345
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 421
+	Term           goto state 424
 
-State 346
+State 349
 
 	Term7 -> 'refl_{' Term '}' .                        (rule 167)
 
@@ -14015,7 +14070,7 @@ State 346
 	%eof           reduce using rule 167
 
 
-State 347
+State 350
 
 	Term6 -> 'sup' Term7 Term7 .                        (rule 213)
 
@@ -14101,12 +14156,36 @@ State 347
 	%eof           reduce using rule 213
 
 
-State 348
+State 351
 
 	SigmaParam -> Pattern . ':' Term                    (rule 121)
 	SigmaParam -> Pattern . ModalColon Term             (rule 122)
 	Term1 -> 'Σ' '(' Pattern . ':' Term ')' ',' Term1    (rule 218)
 	Term1 -> 'Σ' '(' Pattern . ModalColon Term ')' ',' Term1    (rule 219)
+
+	':'            shift, and enter state 423
+	':_#'          shift, and enter state 132
+	':_b'          shift, and enter state 133
+	':_id'         shift, and enter state 134
+	':_op'         shift, and enter state 135
+	':ᵒᵖ'          shift, and enter state 136
+	':♭'           shift, and enter state 137
+	':♯'           shift, and enter state 138
+
+	ModalColon     goto state 422
+
+State 352
+
+	Term1 -> 'Σ' '(' SigmaParam . ',' ListSigmaParam ')' ',' Term1    (rule 220)
+
+	','            shift, and enter state 421
+
+
+State 353
+
+	SigmaParam -> Pattern . ':' Term                    (rule 121)
+	SigmaParam -> Pattern . ModalColon Term             (rule 122)
+	Term1 -> '∑' '(' Pattern . ':' Term ')' ',' Term1    (rule 237)
 
 	':'            shift, and enter state 420
 	':_#'          shift, and enter state 132
@@ -14117,47 +14196,23 @@ State 348
 	':♭'           shift, and enter state 137
 	':♯'           shift, and enter state 138
 
-	ModalColon     goto state 419
-
-State 349
-
-	Term1 -> 'Σ' '(' SigmaParam . ',' ListSigmaParam ')' ',' Term1    (rule 220)
-
-	','            shift, and enter state 418
-
-
-State 350
-
-	SigmaParam -> Pattern . ':' Term                    (rule 121)
-	SigmaParam -> Pattern . ModalColon Term             (rule 122)
-	Term1 -> '∑' '(' Pattern . ':' Term ')' ',' Term1    (rule 233)
-
-	':'            shift, and enter state 417
-	':_#'          shift, and enter state 132
-	':_b'          shift, and enter state 133
-	':_id'         shift, and enter state 134
-	':_op'         shift, and enter state 135
-	':ᵒᵖ'          shift, and enter state 136
-	':♭'           shift, and enter state 137
-	':♯'           shift, and enter state 138
-
 	ModalColon     goto state 263
 
-State 351
+State 354
 
-	Term1 -> '∑' '(' SigmaParam . ',' ListSigmaParam ')' ',' Term1    (rule 234)
+	Term1 -> '∑' '(' SigmaParam . ',' ListSigmaParam ')' ',' Term1    (rule 238)
 
-	','            shift, and enter state 416
+	','            shift, and enter state 419
 
 
-State 352
+State 355
 
 	Term1 -> Term2 '=_{' Term . '}' Term2               (rule 221)
 
-	'}'            shift, and enter state 415
+	'}'            shift, and enter state 418
 
 
-State 353
+State 356
 
 	Term1 -> Term2 '=' Term2 .                          (rule 222)
 
@@ -14185,7 +14240,7 @@ State 353
 	%eof           reduce using rule 222
 
 
-State 354
+State 357
 
 	Term5 -> Term5 '⊔' Term6 .                          (rule 184)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 207)
@@ -14277,7 +14332,7 @@ State 354
 	Modality       goto state 50
 	Term7          goto state 259
 
-State 355
+State 358
 
 	Term5 -> Term5 '⊓' Term6 .                          (rule 185)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 207)
@@ -14369,7 +14424,7 @@ State 355
 	Modality       goto state 50
 	Term7          goto state 259
 
-State 356
+State 359
 
 	Term5 -> Term5 '×' Term6 .                          (rule 183)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 207)
@@ -14461,7 +14516,7 @@ State 356
 	Modality       goto state 50
 	Term7          goto state 259
 
-State 357
+State 360
 
 	Term5 -> Term5 '*' Term6 .                          (rule 187)
 	Term6 -> Term6 . '[' ListRestriction ']'            (rule 207)
@@ -14553,7 +14608,7 @@ State 357
 	Modality       goto state 50
 	Term7          goto state 259
 
-State 358
+State 361
 
 	ModComp -> Modality '/' Modality .                  (rule 137)
 
@@ -14600,7 +14655,7 @@ State 358
 	%eof           reduce using rule 137
 
 
-State 359
+State 362
 
 	ListRestriction -> Restriction ',' ListRestriction .    (rule 128)
 
@@ -14609,7 +14664,7 @@ State 359
 	%eof           reduce using rule 128
 
 
-State 360
+State 363
 
 	Restriction -> Term '↦' Term .                      (rule 125)
 
@@ -14619,7 +14674,7 @@ State 360
 	%eof           reduce using rule 125
 
 
-State 361
+State 364
 
 	Restriction -> Term '|->' Term .                    (rule 126)
 
@@ -14629,7 +14684,7 @@ State 361
 	%eof           reduce using rule 126
 
 
-State 362
+State 365
 
 	SigmaParam -> Pattern ':' Term .                    (rule 121)
 
@@ -14638,7 +14693,7 @@ State 362
 	%eof           reduce using rule 121
 
 
-State 363
+State 366
 
 	SigmaParam -> Pattern ModalColon Term .             (rule 122)
 
@@ -14647,7 +14702,7 @@ State 363
 	%eof           reduce using rule 122
 
 
-State 364
+State 367
 
 	ListSigmaParam -> SigmaParam ',' ListSigmaParam .    (rule 124)
 
@@ -14655,7 +14710,7 @@ State 364
 	%eof           reduce using rule 124
 
 
-State 365
+State 368
 
 	Pattern -> '(' Pattern ',' . Pattern ')'            (rule 100)
 	Pattern -> '(' Pattern ',' . Pattern ',' ListPattern1 ')'    (rule 101)
@@ -14666,16 +14721,16 @@ State 365
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
-	Pattern        goto state 414
+	Pattern        goto state 417
 
-State 366
+State 369
 
 	Term6 -> Term6 '[' ListRestriction . ']'            (rule 207)
 
-	']'            shift, and enter state 413
+	']'            shift, and enter state 416
 
 
-State 367
+State 370
 
 	Bind -> Pattern ':' Term .                          (rule 115)
 
@@ -14683,7 +14738,7 @@ State 367
 	%eof           reduce using rule 115
 
 
-State 368
+State 371
 
 	Param -> '(' ListPattern ModalColon . Term ')'      (rule 110)
 	Param -> '(' ListPattern ModalColon . Term '|' Term ')'    (rule 111)
@@ -14762,9 +14817,9 @@ State 368
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 412
+	Term           goto state 415
 
-State 369
+State 372
 
 	Param -> '(' ListPattern ':' . Term ')'             (rule 108)
 	Param -> '(' ListPattern ':' . Term '|' Term ')'    (rule 109)
@@ -14843,9 +14898,9 @@ State 369
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 411
+	Term           goto state 414
 
-State 370
+State 373
 
 	ListPattern1 -> Pattern1 ',' ListPattern1 .         (rule 106)
 
@@ -14853,7 +14908,7 @@ State 370
 	%eof           reduce using rule 106
 
 
-State 371
+State 374
 
 	MatchBranch -> VarIdent '⇒' Term .                  (rule 93)
 
@@ -14862,7 +14917,7 @@ State 371
 	%eof           reduce using rule 93
 
 
-State 372
+State 375
 
 	MatchBranch -> VarIdent '=>' Term .                 (rule 95)
 
@@ -14871,7 +14926,7 @@ State 372
 	%eof           reduce using rule 95
 
 
-State 373
+State 376
 
 	MatchBranch -> VarIdent ListPattern '=>' . Term     (rule 94)
 
@@ -14949,9 +15004,9 @@ State 373
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 410
+	Term           goto state 413
 
-State 374
+State 377
 
 	MatchBranch -> VarIdent ListPattern '⇒' . Term      (rule 92)
 
@@ -15029,9 +15084,9 @@ State 374
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 409
+	Term           goto state 412
 
-State 375
+State 378
 
 	ListMatchBranch -> MatchBranch '|' ListMatchBranch .    (rule 97)
 
@@ -15039,21 +15094,21 @@ State 375
 	%eof           reduce using rule 97
 
 
-State 376
+State 379
 
 	DataElim -> 'compute' 'with' VarIdent . ':' Term    (rule 89)
 
-	':'            shift, and enter state 408
+	':'            shift, and enter state 411
 
 
-State 377
+State 380
 
 	DataElim -> 'eliminate' 'with' VarIdent . ':' Term    (rule 88)
 
-	':'            shift, and enter state 407
+	':'            shift, and enter state 410
 
 
-State 378
+State 381
 
 	Constructor -> VarIdent ListParam ConstructorType .    (rule 82)
 
@@ -15064,7 +15119,7 @@ State 378
 	%eof           reduce using rule 82
 
 
-State 379
+State 382
 
 	ListConstructor -> Constructor '|' ListConstructor .    (rule 85)
 
@@ -15074,7 +15129,7 @@ State 379
 	%eof           reduce using rule 85
 
 
-State 380
+State 383
 
 	DataBody -> ':=' ListConstructor ListDataElim .     (rule 80)
 
@@ -15082,21 +15137,21 @@ State 380
 	%eof           reduce using rule 80
 
 
-State 381
+State 384
 
 	DeclUsedVars -> 'uses' '(' ListVarIdent . ')'       (rule 74)
 
-	')'            shift, and enter state 406
+	')'            shift, and enter state 409
 
 
-State 382
+State 385
 
 	ListCommand -> Command ';' ListCommand .            (rule 73)
 
 	%eof           reduce using rule 73
 
 
-State 383
+State 386
 
 	Command -> '#assume' ListVarIdent ':' . Term        (rule 61)
 
@@ -15174,9 +15229,9 @@ State 383
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 405
+	Term           goto state 408
 
-State 384
+State 387
 
 	Command -> '#check' Term ':' . Term                 (rule 55)
 
@@ -15254,9 +15309,9 @@ State 384
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 404
+	Term           goto state 407
 
-State 385
+State 388
 
 	Command -> '#data' VarIdent DeclUsedVars . ListParam DataSort DataBody    (rule 70)
 	Command -> '#data' VarIdent DeclUsedVars . DataSort DataBody    (rule 71)
@@ -15271,18 +15326,18 @@ State 385
 
 	VarIdentToken  goto state 45
 	VarIdent       goto state 146
-	DataSort       goto state 402
+	DataSort       goto state 405
 	Pattern        goto state 157
 	Param          goto state 158
-	ListParam      goto state 403
+	ListParam      goto state 406
 
-State 386
+State 389
 
 	Command -> '#def' VarIdent DeclUsedVars . ListParam ':' Term ':=' Term    (rule 68)
 	Command -> '#def' VarIdent DeclUsedVars . ':' Term ':=' Term    (rule 69)
 
 	'('            shift, and enter state 160
-	':'            shift, and enter state 401
+	':'            shift, and enter state 404
 	'unit'         shift, and enter state 151
 	L_VarIdentTokenshift, and enter state 118
 
@@ -15290,15 +15345,15 @@ State 386
 	VarIdent       goto state 146
 	Pattern        goto state 157
 	Param          goto state 158
-	ListParam      goto state 400
+	ListParam      goto state 403
 
-State 387
+State 390
 
 	Command -> '#define' VarIdent DeclUsedVars . ListParam ':' Term ':=' Term    (rule 66)
 	Command -> '#define' VarIdent DeclUsedVars . ':' Term ':=' Term    (rule 67)
 
 	'('            shift, and enter state 160
-	':'            shift, and enter state 399
+	':'            shift, and enter state 402
 	'unit'         shift, and enter state 151
 	L_VarIdentTokenshift, and enter state 118
 
@@ -15306,15 +15361,15 @@ State 387
 	VarIdent       goto state 146
 	Pattern        goto state 157
 	Param          goto state 158
-	ListParam      goto state 398
+	ListParam      goto state 401
 
-State 388
+State 391
 
 	Command -> '#postulate' VarIdent DeclUsedVars . ListParam ':' Term    (rule 59)
 	Command -> '#postulate' VarIdent DeclUsedVars . ':' Term    (rule 60)
 
 	'('            shift, and enter state 160
-	':'            shift, and enter state 397
+	':'            shift, and enter state 400
 	'unit'         shift, and enter state 151
 	L_VarIdentTokenshift, and enter state 118
 
@@ -15322,17 +15377,17 @@ State 388
 	VarIdent       goto state 146
 	Pattern        goto state 157
 	Param          goto state 158
-	ListParam      goto state 396
+	ListParam      goto state 399
 
-State 389
+State 392
 
 	Command -> '#set-option' String '=' . String        (rule 53)
 
 	L_quoted       shift, and enter state 44
 
-	String         goto state 395
+	String         goto state 398
 
-State 390
+State 393
 
 	Command -> '#variable' VarIdent ':' . Term          (rule 62)
 
@@ -15410,9 +15465,9 @@ State 390
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 394
+	Term           goto state 397
 
-State 391
+State 394
 
 	Command -> '#variables' ListVarIdent ':' . Term     (rule 63)
 
@@ -15490,9 +15545,9 @@ State 391
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 393
+	Term           goto state 396
 
-State 392
+State 395
 
 	LanguageDecl -> '#lang' Language ';' .              (rule 51)
 
@@ -15514,7 +15569,7 @@ State 392
 	%eof           reduce using rule 51
 
 
-State 393
+State 396
 
 	Command -> '#variables' ListVarIdent ':' Term .     (rule 63)
 
@@ -15522,7 +15577,7 @@ State 393
 	%eof           reduce using rule 63
 
 
-State 394
+State 397
 
 	Command -> '#variable' VarIdent ':' Term .          (rule 62)
 
@@ -15530,7 +15585,7 @@ State 394
 	%eof           reduce using rule 62
 
 
-State 395
+State 398
 
 	Command -> '#set-option' String '=' String .        (rule 53)
 
@@ -15538,14 +15593,14 @@ State 395
 	%eof           reduce using rule 53
 
 
-State 396
+State 399
 
 	Command -> '#postulate' VarIdent DeclUsedVars ListParam . ':' Term    (rule 59)
 
-	':'            shift, and enter state 472
+	':'            shift, and enter state 479
 
 
-State 397
+State 400
 
 	Command -> '#postulate' VarIdent DeclUsedVars ':' . Term    (rule 60)
 
@@ -15623,16 +15678,16 @@ State 397
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 471
+	Term           goto state 478
 
-State 398
+State 401
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam . ':' Term ':=' Term    (rule 66)
 
-	':'            shift, and enter state 470
+	':'            shift, and enter state 477
 
 
-State 399
+State 402
 
 	Command -> '#define' VarIdent DeclUsedVars ':' . Term ':=' Term    (rule 67)
 
@@ -15710,16 +15765,16 @@ State 399
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 469
+	Term           goto state 476
 
-State 400
+State 403
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam . ':' Term ':=' Term    (rule 68)
 
-	':'            shift, and enter state 468
+	':'            shift, and enter state 475
 
 
-State 401
+State 404
 
 	Command -> '#def' VarIdent DeclUsedVars ':' . Term ':=' Term    (rule 69)
 
@@ -15797,9 +15852,9 @@ State 401
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 467
+	Term           goto state 474
 
-State 402
+State 405
 
 	Command -> '#data' VarIdent DeclUsedVars DataSort . DataBody    (rule 71)
 
@@ -15807,9 +15862,9 @@ State 402
 	';'            reduce using rule 81
 	%eof           reduce using rule 81
 
-	DataBody       goto state 466
+	DataBody       goto state 473
 
-State 403
+State 406
 
 	Command -> '#data' VarIdent DeclUsedVars ListParam . DataSort DataBody    (rule 70)
 
@@ -15818,9 +15873,9 @@ State 403
 	';'            reduce using rule 79
 	%eof           reduce using rule 79
 
-	DataSort       goto state 465
+	DataSort       goto state 472
 
-State 404
+State 407
 
 	Command -> '#check' Term ':' Term .                 (rule 55)
 
@@ -15828,7 +15883,7 @@ State 404
 	%eof           reduce using rule 55
 
 
-State 405
+State 408
 
 	Command -> '#assume' ListVarIdent ':' Term .        (rule 61)
 
@@ -15836,7 +15891,7 @@ State 405
 	%eof           reduce using rule 61
 
 
-State 406
+State 409
 
 	DeclUsedVars -> 'uses' '(' ListVarIdent ')' .       (rule 74)
 
@@ -15849,7 +15904,7 @@ State 406
 	%eof           reduce using rule 74
 
 
-State 407
+State 410
 
 	DataElim -> 'eliminate' 'with' VarIdent ':' . Term    (rule 88)
 
@@ -15927,9 +15982,9 @@ State 407
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 464
+	Term           goto state 471
 
-State 408
+State 411
 
 	DataElim -> 'compute' 'with' VarIdent ':' . Term    (rule 89)
 
@@ -16007,9 +16062,9 @@ State 408
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 463
+	Term           goto state 470
 
-State 409
+State 412
 
 	MatchBranch -> VarIdent ListPattern '⇒' Term .      (rule 92)
 
@@ -16018,7 +16073,7 @@ State 409
 	%eof           reduce using rule 92
 
 
-State 410
+State 413
 
 	MatchBranch -> VarIdent ListPattern '=>' Term .     (rule 94)
 
@@ -16027,25 +16082,25 @@ State 410
 	%eof           reduce using rule 94
 
 
-State 411
+State 414
 
 	Param -> '(' ListPattern ':' Term . ')'             (rule 108)
 	Param -> '(' ListPattern ':' Term . '|' Term ')'    (rule 109)
 
-	')'            shift, and enter state 461
-	'|'            shift, and enter state 462
+	')'            shift, and enter state 468
+	'|'            shift, and enter state 469
 
 
-State 412
+State 415
 
 	Param -> '(' ListPattern ModalColon Term . ')'      (rule 110)
 	Param -> '(' ListPattern ModalColon Term . '|' Term ')'    (rule 111)
 
-	')'            shift, and enter state 459
-	'|'            shift, and enter state 460
+	')'            shift, and enter state 466
+	'|'            shift, and enter state 467
 
 
-State 413
+State 416
 
 	Term6 -> Term6 '[' ListRestriction ']' .            (rule 207)
 
@@ -16131,16 +16186,16 @@ State 413
 	%eof           reduce using rule 207
 
 
-State 414
+State 417
 
 	Pattern -> '(' Pattern ',' Pattern . ')'            (rule 100)
 	Pattern -> '(' Pattern ',' Pattern . ',' ListPattern1 ')'    (rule 101)
 
-	')'            shift, and enter state 457
-	','            shift, and enter state 458
+	')'            shift, and enter state 464
+	','            shift, and enter state 465
 
 
-State 415
+State 418
 
 	Term1 -> Term2 '=_{' Term '}' . Term2               (rule 221)
 
@@ -16209,12 +16264,12 @@ State 415
 	Term5          goto state 52
 	Term4          goto state 53
 	Term3          goto state 54
-	Term2          goto state 456
+	Term2          goto state 463
 	Term6          goto state 126
 
-State 416
+State 419
 
-	Term1 -> '∑' '(' SigmaParam ',' . ListSigmaParam ')' ',' Term1    (rule 234)
+	Term1 -> '∑' '(' SigmaParam ',' . ListSigmaParam ')' ',' Term1    (rule 238)
 
 	'('            shift, and enter state 150
 	'unit'         shift, and enter state 151
@@ -16224,12 +16279,12 @@ State 416
 	VarIdent       goto state 146
 	Pattern        goto state 147
 	SigmaParam     goto state 148
-	ListSigmaParam goto state 455
+	ListSigmaParam goto state 462
 
-State 417
+State 420
 
 	SigmaParam -> Pattern ':' . Term                    (rule 121)
-	Term1 -> '∑' '(' Pattern ':' . Term ')' ',' Term1    (rule 233)
+	Term1 -> '∑' '(' Pattern ':' . Term ')' ',' Term1    (rule 237)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -16305,9 +16360,9 @@ State 417
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 454
+	Term           goto state 461
 
-State 418
+State 421
 
 	Term1 -> 'Σ' '(' SigmaParam ',' . ListSigmaParam ')' ',' Term1    (rule 220)
 
@@ -16319,9 +16374,9 @@ State 418
 	VarIdent       goto state 146
 	Pattern        goto state 147
 	SigmaParam     goto state 148
-	ListSigmaParam goto state 453
+	ListSigmaParam goto state 460
 
-State 419
+State 422
 
 	SigmaParam -> Pattern ModalColon . Term             (rule 122)
 	Term1 -> 'Σ' '(' Pattern ModalColon . Term ')' ',' Term1    (rule 219)
@@ -16400,9 +16455,9 @@ State 419
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 452
+	Term           goto state 459
 
-State 420
+State 423
 
 	SigmaParam -> Pattern ':' . Term                    (rule 121)
 	Term1 -> 'Σ' '(' Pattern ':' . Term ')' ',' Term1    (rule 218)
@@ -16481,16 +16536,16 @@ State 420
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 451
+	Term           goto state 458
 
-State 421
+State 424
 
 	Term7 -> 'refl_{' Term ':' Term . '}'               (rule 168)
 
-	'}'            shift, and enter state 450
+	'}'            shift, and enter state 457
 
 
-State 422
+State 425
 
 	Term7 -> 'recOR' '(' ListRestriction ')' .          (rule 159)
 
@@ -16576,36 +16631,131 @@ State 422
 	%eof           reduce using rule 159
 
 
-State 423
+State 426
 
 	Term7 -> 'match' Term7 'into' Term7 . '(' ListMatchBranch ')'    (rule 171)
 
-	'('            shift, and enter state 449
-
-
-State 424
-
-	Term7 -> 'match' Term7 '(' ListMatchBranch . ')'    (rule 170)
-
-	')'            shift, and enter state 448
-
-
-State 425
-
-	Term1 -> 'let' Bind ':=' Term . 'in' Term           (rule 223)
-
-	'in'           shift, and enter state 447
-
-
-State 426
-
-	Term1 -> 'let' 'mod' ModComp Bind . ':=' Term 'in' Term    (rule 225)
-	Term1 -> 'let' 'mod' ModComp Bind . ':=' Term 'into' Term 'in' Term    (rule 226)
-
-	':='           shift, and enter state 446
+	'('            shift, and enter state 456
 
 
 State 427
+
+	Term7 -> 'match' Term7 '(' ListMatchBranch . ')'    (rule 170)
+
+	')'            shift, and enter state 455
+
+
+State 428
+
+	Term1 -> 'let' Bind ':=' Term . 'in' Term           (rule 223)
+
+	'in'           shift, and enter state 454
+
+
+State 429
+
+	Term1 -> 'let' Modality 'mod' Modality . Bind ':=' Term 'in' Term    (rule 227)
+	Term1 -> 'let' Modality 'mod' Modality . Bind ':=' Term 'into' Term 'in' Term    (rule 230)
+
+	'('            shift, and enter state 150
+	'unit'         shift, and enter state 151
+	L_VarIdentTokenshift, and enter state 118
+
+	VarIdentToken  goto state 45
+	VarIdent       goto state 146
+	Pattern        goto state 155
+	Bind           goto state 453
+
+State 430
+
+	Term1 -> 'let' Modality Bind ':=' . Term 'in' Term    (rule 225)
+	Term1 -> 'let' Modality Bind ':=' . Term 'into' Term 'in' Term    (rule 228)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 452
+
+State 431
+
+	Term1 -> 'let' 'mod' Modality Bind . ':=' Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality Bind . ':=' Term 'into' Term 'in' Term    (rule 229)
+
+	':='           shift, and enter state 451
+
+
+State 432
 
 	Term7 -> 'idJ' '(' Term ',' . Term ',' Term ',' Term ',' Term ',' Term ')'    (rule 169)
 
@@ -16683,9 +16833,9 @@ State 427
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 445
+	Term           goto state 450
 
-State 428
+State 433
 
 	Term1 -> '\\' ListParam '→' Term1 .                 (rule 224)
 
@@ -16713,37 +16863,37 @@ State 428
 	%eof           reduce using rule 224
 
 
-State 429
+State 434
 
-	Term1 -> '\\' ListParam '->' Term1 .                (rule 232)
+	Term1 -> '\\' ListParam '->' Term1 .                (rule 236)
 
-	')'            reduce using rule 232
-	','            reduce using rule 232
-	':'            reduce using rule 232
-	':='           reduce using rule 232
-	':_#'          reduce using rule 232
-	':_b'          reduce using rule 232
-	':_id'         reduce using rule 232
-	':_op'         reduce using rule 232
-	':ᵒᵖ'          reduce using rule 232
-	':♭'           reduce using rule 232
-	':♯'           reduce using rule 232
-	';'            reduce using rule 232
-	']'            reduce using rule 232
-	'compute'      reduce using rule 232
-	'eliminate'    reduce using rule 232
-	'in'           reduce using rule 232
-	'into'         reduce using rule 232
-	'|'            reduce using rule 232
-	'|->'          reduce using rule 232
-	'}'            reduce using rule 232
-	'↦'            reduce using rule 232
-	%eof           reduce using rule 232
+	')'            reduce using rule 236
+	','            reduce using rule 236
+	':'            reduce using rule 236
+	':='           reduce using rule 236
+	':_#'          reduce using rule 236
+	':_b'          reduce using rule 236
+	':_id'         reduce using rule 236
+	':_op'         reduce using rule 236
+	':ᵒᵖ'          reduce using rule 236
+	':♭'           reduce using rule 236
+	':♯'           reduce using rule 236
+	';'            reduce using rule 236
+	']'            reduce using rule 236
+	'compute'      reduce using rule 236
+	'eliminate'    reduce using rule 236
+	'in'           reduce using rule 236
+	'into'         reduce using rule 236
+	'|'            reduce using rule 236
+	'|->'          reduce using rule 236
+	'}'            reduce using rule 236
+	'↦'            reduce using rule 236
+	%eof           reduce using rule 236
 
 
-State 430
+State 435
 
-	Term1 -> 'Sigma' '(' SigmaParam ',' . ListSigmaParam ')' ',' Term1    (rule 231)
+	Term1 -> 'Sigma' '(' SigmaParam ',' . ListSigmaParam ')' ',' Term1    (rule 235)
 
 	'('            shift, and enter state 150
 	'unit'         shift, and enter state 151
@@ -16753,12 +16903,12 @@ State 430
 	VarIdent       goto state 146
 	Pattern        goto state 147
 	SigmaParam     goto state 148
-	ListSigmaParam goto state 444
+	ListSigmaParam goto state 449
 
-State 431
+State 436
 
 	SigmaParam -> Pattern ModalColon . Term             (rule 122)
-	Term1 -> 'Sigma' '(' Pattern ModalColon . Term ')' ',' Term1    (rule 230)
+	Term1 -> 'Sigma' '(' Pattern ModalColon . Term ')' ',' Term1    (rule 234)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -16834,12 +16984,12 @@ State 431
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 443
+	Term           goto state 448
 
-State 432
+State 437
 
 	SigmaParam -> Pattern ':' . Term                    (rule 121)
-	Term1 -> 'Sigma' '(' Pattern ':' . Term ')' ',' Term1    (rule 229)
+	Term1 -> 'Sigma' '(' Pattern ':' . Term ')' ',' Term1    (rule 233)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -16915,36 +17065,36 @@ State 432
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 442
+	Term           goto state 447
 
-State 433
+State 438
 
 	ParamDecl -> '(' Term ':' Term . ')'                (rule 117)
 	ParamDecl -> '(' Term ':' Term . '|' Term ')'       (rule 118)
 
-	')'            shift, and enter state 440
-	'|'            shift, and enter state 441
+	')'            shift, and enter state 445
+	'|'            shift, and enter state 446
 
 
-State 434
+State 439
 
 	Term7 -> '(' Term ',' Term . ')'                    (rule 161)
 	Term7 -> '(' Term ',' Term . ',' ListTerm ')'       (rule 162)
 
-	')'            shift, and enter state 438
-	','            shift, and enter state 439
+	')'            shift, and enter state 443
+	','            shift, and enter state 444
 
 
-State 435
+State 440
 
 	ParamDecl -> '(' Term ModalColon Term . ')'         (rule 119)
 	ParamDecl -> '(' Term ModalColon Term . '|' Term ')'    (rule 120)
 
-	')'            shift, and enter state 436
-	'|'            shift, and enter state 437
+	')'            shift, and enter state 441
+	'|'            shift, and enter state 442
 
 
-State 436
+State 441
 
 	ParamDecl -> '(' Term ModalColon Term ')' .         (rule 119)
 
@@ -16953,7 +17103,7 @@ State 436
 	%eof           reduce using rule 119
 
 
-State 437
+State 442
 
 	ParamDecl -> '(' Term ModalColon Term '|' . Term ')'    (rule 120)
 
@@ -17031,9 +17181,9 @@ State 437
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 496
+	Term           goto state 506
 
-State 438
+State 443
 
 	Term7 -> '(' Term ',' Term ')' .                    (rule 161)
 
@@ -17119,7 +17269,7 @@ State 438
 	%eof           reduce using rule 161
 
 
-State 439
+State 444
 
 	Term7 -> '(' Term ',' Term ',' . ListTerm ')'       (rule 162)
 
@@ -17198,9 +17348,9 @@ State 439
 	Term6          goto state 56
 	Term1          goto state 57
 	Term           goto state 58
-	ListTerm       goto state 495
+	ListTerm       goto state 505
 
-State 440
+State 445
 
 	ParamDecl -> '(' Term ':' Term ')' .                (rule 117)
 
@@ -17209,7 +17359,7 @@ State 440
 	%eof           reduce using rule 117
 
 
-State 441
+State 446
 
 	ParamDecl -> '(' Term ':' Term '|' . Term ')'       (rule 118)
 
@@ -17287,44 +17437,44 @@ State 441
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 494
+	Term           goto state 504
 
-State 442
+State 447
 
 	SigmaParam -> Pattern ':' Term .                    (rule 121)
-	Term1 -> 'Sigma' '(' Pattern ':' Term . ')' ',' Term1    (rule 229)
+	Term1 -> 'Sigma' '(' Pattern ':' Term . ')' ',' Term1    (rule 233)
 
-	')'            shift, and enter state 493
+	')'            shift, and enter state 503
 	','            reduce using rule 121
 
 
-State 443
+State 448
 
 	SigmaParam -> Pattern ModalColon Term .             (rule 122)
-	Term1 -> 'Sigma' '(' Pattern ModalColon Term . ')' ',' Term1    (rule 230)
+	Term1 -> 'Sigma' '(' Pattern ModalColon Term . ')' ',' Term1    (rule 234)
 
-	')'            shift, and enter state 492
+	')'            shift, and enter state 502
 	','            reduce using rule 122
 
 
-State 444
+State 449
 
-	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam . ')' ',' Term1    (rule 231)
+	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam . ')' ',' Term1    (rule 235)
 
-	')'            shift, and enter state 491
+	')'            shift, and enter state 501
 
 
-State 445
+State 450
 
 	Term7 -> 'idJ' '(' Term ',' Term . ',' Term ',' Term ',' Term ',' Term ')'    (rule 169)
 
-	','            shift, and enter state 490
+	','            shift, and enter state 500
 
 
-State 446
+State 451
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' . Term 'in' Term    (rule 225)
-	Term1 -> 'let' 'mod' ModComp Bind ':=' . Term 'into' Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality Bind ':=' . Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality Bind ':=' . Term 'into' Term 'in' Term    (rule 229)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -17400,9 +17550,26 @@ State 446
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 489
+	Term           goto state 499
 
-State 447
+State 452
+
+	Term1 -> 'let' Modality Bind ':=' Term . 'in' Term    (rule 225)
+	Term1 -> 'let' Modality Bind ':=' Term . 'into' Term 'in' Term    (rule 228)
+
+	'in'           shift, and enter state 497
+	'into'         shift, and enter state 498
+
+
+State 453
+
+	Term1 -> 'let' Modality 'mod' Modality Bind . ':=' Term 'in' Term    (rule 227)
+	Term1 -> 'let' Modality 'mod' Modality Bind . ':=' Term 'into' Term 'in' Term    (rule 230)
+
+	':='           shift, and enter state 496
+
+
+State 454
 
 	Term1 -> 'let' Bind ':=' Term 'in' . Term           (rule 223)
 
@@ -17480,9 +17647,9 @@ State 447
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 488
+	Term           goto state 495
 
-State 448
+State 455
 
 	Term7 -> 'match' Term7 '(' ListMatchBranch ')' .    (rule 170)
 
@@ -17568,7 +17735,7 @@ State 448
 	%eof           reduce using rule 170
 
 
-State 449
+State 456
 
 	Term7 -> 'match' Term7 'into' Term7 '(' . ListMatchBranch ')'    (rule 171)
 
@@ -17577,9 +17744,9 @@ State 449
 	VarIdentToken  goto state 45
 	VarIdent       goto state 169
 	MatchBranch    goto state 170
-	ListMatchBranchgoto state 487
+	ListMatchBranchgoto state 494
 
-State 450
+State 457
 
 	Term7 -> 'refl_{' Term ':' Term '}' .               (rule 168)
 
@@ -17665,48 +17832,48 @@ State 450
 	%eof           reduce using rule 168
 
 
-State 451
+State 458
 
 	SigmaParam -> Pattern ':' Term .                    (rule 121)
 	Term1 -> 'Σ' '(' Pattern ':' Term . ')' ',' Term1    (rule 218)
 
-	')'            shift, and enter state 486
+	')'            shift, and enter state 493
 	','            reduce using rule 121
 
 
-State 452
+State 459
 
 	SigmaParam -> Pattern ModalColon Term .             (rule 122)
 	Term1 -> 'Σ' '(' Pattern ModalColon Term . ')' ',' Term1    (rule 219)
 
-	')'            shift, and enter state 485
+	')'            shift, and enter state 492
 	','            reduce using rule 122
 
 
-State 453
+State 460
 
 	Term1 -> 'Σ' '(' SigmaParam ',' ListSigmaParam . ')' ',' Term1    (rule 220)
 
-	')'            shift, and enter state 484
+	')'            shift, and enter state 491
 
 
-State 454
+State 461
 
 	SigmaParam -> Pattern ':' Term .                    (rule 121)
-	Term1 -> '∑' '(' Pattern ':' Term . ')' ',' Term1    (rule 233)
+	Term1 -> '∑' '(' Pattern ':' Term . ')' ',' Term1    (rule 237)
 
-	')'            shift, and enter state 483
+	')'            shift, and enter state 490
 	','            reduce using rule 121
 
 
-State 455
+State 462
 
-	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam . ')' ',' Term1    (rule 234)
+	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam . ')' ',' Term1    (rule 238)
 
-	')'            shift, and enter state 482
+	')'            shift, and enter state 489
 
 
-State 456
+State 463
 
 	Term1 -> Term2 '=_{' Term '}' Term2 .               (rule 221)
 
@@ -17734,7 +17901,7 @@ State 456
 	%eof           reduce using rule 221
 
 
-State 457
+State 464
 
 	Pattern -> '(' Pattern ',' Pattern ')' .            (rule 100)
 
@@ -17763,7 +17930,7 @@ State 457
 	%eof           reduce using rule 100
 
 
-State 458
+State 465
 
 	Pattern -> '(' Pattern ',' Pattern ',' . ListPattern1 ')'    (rule 101)
 
@@ -17775,9 +17942,9 @@ State 458
 	VarIdent       goto state 146
 	Pattern        goto state 162
 	Pattern1       goto state 163
-	ListPattern1   goto state 481
+	ListPattern1   goto state 488
 
-State 459
+State 466
 
 	Param -> '(' ListPattern ModalColon Term ')' .      (rule 110)
 
@@ -17795,7 +17962,7 @@ State 459
 	%eof           reduce using rule 110
 
 
-State 460
+State 467
 
 	Param -> '(' ListPattern ModalColon Term '|' . Term ')'    (rule 111)
 
@@ -17873,9 +18040,9 @@ State 460
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 480
+	Term           goto state 487
 
-State 461
+State 468
 
 	Param -> '(' ListPattern ':' Term ')' .             (rule 108)
 
@@ -17893,7 +18060,7 @@ State 461
 	%eof           reduce using rule 108
 
 
-State 462
+State 469
 
 	Param -> '(' ListPattern ':' Term '|' . Term ')'    (rule 109)
 
@@ -17971,9 +18138,9 @@ State 462
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 479
+	Term           goto state 486
 
-State 463
+State 470
 
 	DataElim -> 'compute' 'with' VarIdent ':' Term .    (rule 89)
 
@@ -17983,7 +18150,7 @@ State 463
 	%eof           reduce using rule 89
 
 
-State 464
+State 471
 
 	DataElim -> 'eliminate' 'with' VarIdent ':' Term .    (rule 88)
 
@@ -17993,7 +18160,7 @@ State 464
 	%eof           reduce using rule 88
 
 
-State 465
+State 472
 
 	Command -> '#data' VarIdent DeclUsedVars ListParam DataSort . DataBody    (rule 70)
 
@@ -18001,9 +18168,9 @@ State 465
 	';'            reduce using rule 81
 	%eof           reduce using rule 81
 
-	DataBody       goto state 478
+	DataBody       goto state 485
 
-State 466
+State 473
 
 	Command -> '#data' VarIdent DeclUsedVars DataSort DataBody .    (rule 71)
 
@@ -18011,14 +18178,14 @@ State 466
 	%eof           reduce using rule 71
 
 
-State 467
+State 474
 
 	Command -> '#def' VarIdent DeclUsedVars ':' Term . ':=' Term    (rule 69)
 
-	':='           shift, and enter state 477
+	':='           shift, and enter state 484
 
 
-State 468
+State 475
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' . Term ':=' Term    (rule 68)
 
@@ -18096,16 +18263,16 @@ State 468
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 476
+	Term           goto state 483
 
-State 469
+State 476
 
 	Command -> '#define' VarIdent DeclUsedVars ':' Term . ':=' Term    (rule 67)
 
-	':='           shift, and enter state 475
+	':='           shift, and enter state 482
 
 
-State 470
+State 477
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' . Term ':=' Term    (rule 66)
 
@@ -18183,9 +18350,9 @@ State 470
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 474
+	Term           goto state 481
 
-State 471
+State 478
 
 	Command -> '#postulate' VarIdent DeclUsedVars ':' Term .    (rule 60)
 
@@ -18193,7 +18360,7 @@ State 471
 	%eof           reduce using rule 60
 
 
-State 472
+State 479
 
 	Command -> '#postulate' VarIdent DeclUsedVars ListParam ':' . Term    (rule 59)
 
@@ -18271,9 +18438,9 @@ State 472
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 473
+	Term           goto state 480
 
-State 473
+State 480
 
 	Command -> '#postulate' VarIdent DeclUsedVars ListParam ':' Term .    (rule 59)
 
@@ -18281,14 +18448,14 @@ State 473
 	%eof           reduce using rule 59
 
 
-State 474
+State 481
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' Term . ':=' Term    (rule 66)
 
-	':='           shift, and enter state 518
+	':='           shift, and enter state 531
 
 
-State 475
+State 482
 
 	Command -> '#define' VarIdent DeclUsedVars ':' Term ':=' . Term    (rule 67)
 
@@ -18366,16 +18533,16 @@ State 475
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 517
+	Term           goto state 530
 
-State 476
+State 483
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' Term . ':=' Term    (rule 68)
 
-	':='           shift, and enter state 516
+	':='           shift, and enter state 529
 
 
-State 477
+State 484
 
 	Command -> '#def' VarIdent DeclUsedVars ':' Term ':=' . Term    (rule 69)
 
@@ -18453,9 +18620,9 @@ State 477
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 515
+	Term           goto state 528
 
-State 478
+State 485
 
 	Command -> '#data' VarIdent DeclUsedVars ListParam DataSort DataBody .    (rule 70)
 
@@ -18463,70 +18630,70 @@ State 478
 	%eof           reduce using rule 70
 
 
-State 479
+State 486
 
 	Param -> '(' ListPattern ':' Term '|' Term . ')'    (rule 109)
 
-	')'            shift, and enter state 514
-
-
-State 480
-
-	Param -> '(' ListPattern ModalColon Term '|' Term . ')'    (rule 111)
-
-	')'            shift, and enter state 513
-
-
-State 481
-
-	Pattern -> '(' Pattern ',' Pattern ',' ListPattern1 . ')'    (rule 101)
-
-	')'            shift, and enter state 512
-
-
-State 482
-
-	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' . ',' Term1    (rule 234)
-
-	','            shift, and enter state 511
-
-
-State 483
-
-	Term1 -> '∑' '(' Pattern ':' Term ')' . ',' Term1    (rule 233)
-
-	','            shift, and enter state 510
-
-
-State 484
-
-	Term1 -> 'Σ' '(' SigmaParam ',' ListSigmaParam ')' . ',' Term1    (rule 220)
-
-	','            shift, and enter state 509
-
-
-State 485
-
-	Term1 -> 'Σ' '(' Pattern ModalColon Term ')' . ',' Term1    (rule 219)
-
-	','            shift, and enter state 508
-
-
-State 486
-
-	Term1 -> 'Σ' '(' Pattern ':' Term ')' . ',' Term1    (rule 218)
-
-	','            shift, and enter state 507
+	')'            shift, and enter state 527
 
 
 State 487
 
-	Term7 -> 'match' Term7 'into' Term7 '(' ListMatchBranch . ')'    (rule 171)
+	Param -> '(' ListPattern ModalColon Term '|' Term . ')'    (rule 111)
 
-	')'            shift, and enter state 506
+	')'            shift, and enter state 526
 
 
 State 488
+
+	Pattern -> '(' Pattern ',' Pattern ',' ListPattern1 . ')'    (rule 101)
+
+	')'            shift, and enter state 525
+
+
+State 489
+
+	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' . ',' Term1    (rule 238)
+
+	','            shift, and enter state 524
+
+
+State 490
+
+	Term1 -> '∑' '(' Pattern ':' Term ')' . ',' Term1    (rule 237)
+
+	','            shift, and enter state 523
+
+
+State 491
+
+	Term1 -> 'Σ' '(' SigmaParam ',' ListSigmaParam ')' . ',' Term1    (rule 220)
+
+	','            shift, and enter state 522
+
+
+State 492
+
+	Term1 -> 'Σ' '(' Pattern ModalColon Term ')' . ',' Term1    (rule 219)
+
+	','            shift, and enter state 521
+
+
+State 493
+
+	Term1 -> 'Σ' '(' Pattern ':' Term ')' . ',' Term1    (rule 218)
+
+	','            shift, and enter state 520
+
+
+State 494
+
+	Term7 -> 'match' Term7 'into' Term7 '(' ListMatchBranch . ')'    (rule 171)
+
+	')'            shift, and enter state 519
+
+
+State 495
 
 	Term1 -> 'let' Bind ':=' Term 'in' Term .           (rule 223)
 
@@ -18554,16 +18721,257 @@ State 488
 	%eof           reduce using rule 223
 
 
-State 489
+State 496
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term . 'in' Term    (rule 225)
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term . 'into' Term 'in' Term    (rule 226)
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' . Term 'in' Term    (rule 227)
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' . Term 'into' Term 'in' Term    (rule 230)
 
-	'in'           shift, and enter state 504
-	'into'         shift, and enter state 505
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 518
+
+State 497
+
+	Term1 -> 'let' Modality Bind ':=' Term 'in' . Term    (rule 225)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 517
+
+State 498
+
+	Term1 -> 'let' Modality Bind ':=' Term 'into' . Term 'in' Term    (rule 228)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 516
+
+State 499
+
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term . 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term . 'into' Term 'in' Term    (rule 229)
+
+	'in'           shift, and enter state 514
+	'into'         shift, and enter state 515
 
 
-State 490
+State 500
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' . Term ',' Term ',' Term ',' Term ')'    (rule 169)
 
@@ -18641,51 +19049,51 @@ State 490
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 503
+	Term           goto state 513
 
-State 491
+State 501
 
-	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' . ',' Term1    (rule 231)
+	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' . ',' Term1    (rule 235)
 
-	','            shift, and enter state 502
-
-
-State 492
-
-	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' . ',' Term1    (rule 230)
-
-	','            shift, and enter state 501
+	','            shift, and enter state 512
 
 
-State 493
+State 502
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' . ',' Term1    (rule 229)
+	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' . ',' Term1    (rule 234)
 
-	','            shift, and enter state 500
+	','            shift, and enter state 511
 
 
-State 494
+State 503
+
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' . ',' Term1    (rule 233)
+
+	','            shift, and enter state 510
+
+
+State 504
 
 	ParamDecl -> '(' Term ':' Term '|' Term . ')'       (rule 118)
 
-	')'            shift, and enter state 499
+	')'            shift, and enter state 509
 
 
-State 495
+State 505
 
 	Term7 -> '(' Term ',' Term ',' ListTerm . ')'       (rule 162)
 
-	')'            shift, and enter state 498
+	')'            shift, and enter state 508
 
 
-State 496
+State 506
 
 	ParamDecl -> '(' Term ModalColon Term '|' Term . ')'    (rule 120)
 
-	')'            shift, and enter state 497
+	')'            shift, and enter state 507
 
 
-State 497
+State 507
 
 	ParamDecl -> '(' Term ModalColon Term '|' Term ')' .    (rule 120)
 
@@ -18694,7 +19102,7 @@ State 497
 	%eof           reduce using rule 120
 
 
-State 498
+State 508
 
 	Term7 -> '(' Term ',' Term ',' ListTerm ')' .       (rule 162)
 
@@ -18780,7 +19188,7 @@ State 498
 	%eof           reduce using rule 162
 
 
-State 499
+State 509
 
 	ParamDecl -> '(' Term ':' Term '|' Term ')' .       (rule 118)
 
@@ -18789,88 +19197,9 @@ State 499
 	%eof           reduce using rule 118
 
 
-State 500
+State 510
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' . Term1    (rule 229)
-
-	'$extract$'    shift, and enter state 60
-	'('            shift, and enter state 61
-	'*_1'          shift, and enter state 62
-	'*₁'           shift, and enter state 63
-	'0_2'          shift, and enter state 64
-	'0_I'          shift, and enter state 65
-	'0ᵢ'           shift, and enter state 66
-	'0₂'           shift, and enter state 67
-	'1'            shift, and enter state 68
-	'1_2'          shift, and enter state 69
-	'1_I'          shift, and enter state 70
-	'1ᵢ'           shift, and enter state 71
-	'1₂'           shift, and enter state 72
-	'2'            shift, and enter state 73
-	'BOT'          shift, and enter state 74
-	'CUBE'         shift, and enter state 75
-	'II'           shift, and enter state 76
-	'Sigma'        shift, and enter state 77
-	'TOP'          shift, and enter state 78
-	'TOPE'         shift, and enter state 79
-	'U'            shift, and enter state 80
-	'Unit'         shift, and enter state 81
-	'\\'           shift, and enter state 82
-	'_#'           shift, and enter state 83
-	'_b'           shift, and enter state 84
-	'_id'          shift, and enter state 85
-	'_op'          shift, and enter state 86
-	'first'        shift, and enter state 87
-	'flip_op'      shift, and enter state 88
-	'flipᵒᵖ'       shift, and enter state 89
-	'idJ'          shift, and enter state 90
-	'inf'          shift, and enter state 91
-	'inv_op'       shift, and enter state 92
-	'invᵒᵖ'        shift, and enter state 93
-	'let'          shift, and enter state 94
-	'match'        shift, and enter state 95
-	'mod'          shift, and enter state 96
-	'recBOT'       shift, and enter state 97
-	'recOR'        shift, and enter state 98
-	'refl'         shift, and enter state 99
-	'refl_{'       shift, and enter state 100
-	'second'       shift, and enter state 101
-	'sup'          shift, and enter state 102
-	'unflip_op'    shift, and enter state 103
-	'unflipᵒᵖ'     shift, and enter state 104
-	'uninv_op'     shift, and enter state 105
-	'uninvᵒᵖ'      shift, and enter state 106
-	'unit'         shift, and enter state 107
-	'Σ'            shift, and enter state 108
-	'π₁'           shift, and enter state 109
-	'π₂'           shift, and enter state 110
-	'ᵒᵖ'           shift, and enter state 111
-	'∑'            shift, and enter state 112
-	'⊤'            shift, and enter state 113
-	'⊥'            shift, and enter state 114
-	'♭'            shift, and enter state 115
-	'♯'            shift, and enter state 116
-	'𝕀'            shift, and enter state 117
-	L_VarIdentTokenshift, and enter state 118
-	L_HoleIdentTokenshift, and enter state 119
-
-	VarIdentToken  goto state 45
-	HoleIdentToken goto state 46
-	HoleIdent      goto state 47
-	VarIdent       goto state 48
-	ParamDecl      goto state 49
-	Modality       goto state 50
-	Term7          goto state 51
-	Term5          goto state 52
-	Term4          goto state 53
-	Term3          goto state 54
-	Term2          goto state 121
-	Term6          goto state 56
-	Term1          goto state 531
-
-State 501
-
-	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' ',' . Term1    (rule 230)
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' . Term1    (rule 233)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -18945,11 +19274,11 @@ State 501
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 530
+	Term1          goto state 547
 
-State 502
+State 511
 
-	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' . Term1    (rule 231)
+	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' ',' . Term1    (rule 234)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -19024,98 +19353,97 @@ State 502
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 529
+	Term1          goto state 546
 
-State 503
+State 512
+
+	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' . Term1    (rule 235)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 121
+	Term6          goto state 56
+	Term1          goto state 545
+
+State 513
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term . ',' Term ',' Term ',' Term ')'    (rule 169)
 
-	','            shift, and enter state 528
+	','            shift, and enter state 544
 
 
-State 504
+State 514
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'in' . Term    (rule 225)
-
-	'$extract$'    shift, and enter state 60
-	'('            shift, and enter state 61
-	'*_1'          shift, and enter state 62
-	'*₁'           shift, and enter state 63
-	'0_2'          shift, and enter state 64
-	'0_I'          shift, and enter state 65
-	'0ᵢ'           shift, and enter state 66
-	'0₂'           shift, and enter state 67
-	'1'            shift, and enter state 68
-	'1_2'          shift, and enter state 69
-	'1_I'          shift, and enter state 70
-	'1ᵢ'           shift, and enter state 71
-	'1₂'           shift, and enter state 72
-	'2'            shift, and enter state 73
-	'BOT'          shift, and enter state 74
-	'CUBE'         shift, and enter state 75
-	'II'           shift, and enter state 76
-	'Sigma'        shift, and enter state 77
-	'TOP'          shift, and enter state 78
-	'TOPE'         shift, and enter state 79
-	'U'            shift, and enter state 80
-	'Unit'         shift, and enter state 81
-	'\\'           shift, and enter state 82
-	'_#'           shift, and enter state 83
-	'_b'           shift, and enter state 84
-	'_id'          shift, and enter state 85
-	'_op'          shift, and enter state 86
-	'first'        shift, and enter state 87
-	'flip_op'      shift, and enter state 88
-	'flipᵒᵖ'       shift, and enter state 89
-	'idJ'          shift, and enter state 90
-	'inf'          shift, and enter state 91
-	'inv_op'       shift, and enter state 92
-	'invᵒᵖ'        shift, and enter state 93
-	'let'          shift, and enter state 94
-	'match'        shift, and enter state 95
-	'mod'          shift, and enter state 96
-	'recBOT'       shift, and enter state 97
-	'recOR'        shift, and enter state 98
-	'refl'         shift, and enter state 99
-	'refl_{'       shift, and enter state 100
-	'second'       shift, and enter state 101
-	'sup'          shift, and enter state 102
-	'unflip_op'    shift, and enter state 103
-	'unflipᵒᵖ'     shift, and enter state 104
-	'uninv_op'     shift, and enter state 105
-	'uninvᵒᵖ'      shift, and enter state 106
-	'unit'         shift, and enter state 107
-	'Σ'            shift, and enter state 108
-	'π₁'           shift, and enter state 109
-	'π₂'           shift, and enter state 110
-	'ᵒᵖ'           shift, and enter state 111
-	'∑'            shift, and enter state 112
-	'⊤'            shift, and enter state 113
-	'⊥'            shift, and enter state 114
-	'♭'            shift, and enter state 115
-	'♯'            shift, and enter state 116
-	'𝕀'            shift, and enter state 117
-	L_VarIdentTokenshift, and enter state 118
-	L_HoleIdentTokenshift, and enter state 119
-
-	VarIdentToken  goto state 45
-	HoleIdentToken goto state 46
-	HoleIdent      goto state 47
-	VarIdent       goto state 48
-	ParamDecl      goto state 49
-	Modality       goto state 50
-	Term7          goto state 51
-	Term5          goto state 52
-	Term4          goto state 53
-	Term3          goto state 54
-	Term2          goto state 55
-	Term6          goto state 56
-	Term1          goto state 57
-	Term           goto state 527
-
-State 505
-
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'into' . Term 'in' Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'in' . Term    (rule 226)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -19191,9 +19519,133 @@ State 505
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 526
+	Term           goto state 543
 
-State 506
+State 515
+
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'into' . Term 'in' Term    (rule 229)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 542
+
+State 516
+
+	Term1 -> 'let' Modality Bind ':=' Term 'into' Term . 'in' Term    (rule 228)
+
+	'in'           shift, and enter state 541
+
+
+State 517
+
+	Term1 -> 'let' Modality Bind ':=' Term 'in' Term .    (rule 225)
+
+	')'            reduce using rule 225
+	','            reduce using rule 225
+	':'            reduce using rule 225
+	':='           reduce using rule 225
+	':_#'          reduce using rule 225
+	':_b'          reduce using rule 225
+	':_id'         reduce using rule 225
+	':_op'         reduce using rule 225
+	':ᵒᵖ'          reduce using rule 225
+	':♭'           reduce using rule 225
+	':♯'           reduce using rule 225
+	';'            reduce using rule 225
+	']'            reduce using rule 225
+	'compute'      reduce using rule 225
+	'eliminate'    reduce using rule 225
+	'in'           reduce using rule 225
+	'into'         reduce using rule 225
+	'|'            reduce using rule 225
+	'|->'          reduce using rule 225
+	'}'            reduce using rule 225
+	'↦'            reduce using rule 225
+	%eof           reduce using rule 225
+
+
+State 518
+
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term . 'in' Term    (rule 227)
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term . 'into' Term 'in' Term    (rule 230)
+
+	'in'           shift, and enter state 539
+	'into'         shift, and enter state 540
+
+
+State 519
 
 	Term7 -> 'match' Term7 'into' Term7 '(' ListMatchBranch ')' .    (rule 171)
 
@@ -19279,7 +19731,7 @@ State 506
 	%eof           reduce using rule 171
 
 
-State 507
+State 520
 
 	Term1 -> 'Σ' '(' Pattern ':' Term ')' ',' . Term1    (rule 218)
 
@@ -19356,9 +19808,9 @@ State 507
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 525
+	Term1          goto state 538
 
-State 508
+State 521
 
 	Term1 -> 'Σ' '(' Pattern ModalColon Term ')' ',' . Term1    (rule 219)
 
@@ -19435,9 +19887,9 @@ State 508
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 524
+	Term1          goto state 537
 
-State 509
+State 522
 
 	Term1 -> 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' . Term1    (rule 220)
 
@@ -19514,90 +19966,11 @@ State 509
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 523
+	Term1          goto state 536
 
-State 510
+State 523
 
-	Term1 -> '∑' '(' Pattern ':' Term ')' ',' . Term1    (rule 233)
-
-	'$extract$'    shift, and enter state 60
-	'('            shift, and enter state 61
-	'*_1'          shift, and enter state 62
-	'*₁'           shift, and enter state 63
-	'0_2'          shift, and enter state 64
-	'0_I'          shift, and enter state 65
-	'0ᵢ'           shift, and enter state 66
-	'0₂'           shift, and enter state 67
-	'1'            shift, and enter state 68
-	'1_2'          shift, and enter state 69
-	'1_I'          shift, and enter state 70
-	'1ᵢ'           shift, and enter state 71
-	'1₂'           shift, and enter state 72
-	'2'            shift, and enter state 73
-	'BOT'          shift, and enter state 74
-	'CUBE'         shift, and enter state 75
-	'II'           shift, and enter state 76
-	'Sigma'        shift, and enter state 77
-	'TOP'          shift, and enter state 78
-	'TOPE'         shift, and enter state 79
-	'U'            shift, and enter state 80
-	'Unit'         shift, and enter state 81
-	'\\'           shift, and enter state 82
-	'_#'           shift, and enter state 83
-	'_b'           shift, and enter state 84
-	'_id'          shift, and enter state 85
-	'_op'          shift, and enter state 86
-	'first'        shift, and enter state 87
-	'flip_op'      shift, and enter state 88
-	'flipᵒᵖ'       shift, and enter state 89
-	'idJ'          shift, and enter state 90
-	'inf'          shift, and enter state 91
-	'inv_op'       shift, and enter state 92
-	'invᵒᵖ'        shift, and enter state 93
-	'let'          shift, and enter state 94
-	'match'        shift, and enter state 95
-	'mod'          shift, and enter state 96
-	'recBOT'       shift, and enter state 97
-	'recOR'        shift, and enter state 98
-	'refl'         shift, and enter state 99
-	'refl_{'       shift, and enter state 100
-	'second'       shift, and enter state 101
-	'sup'          shift, and enter state 102
-	'unflip_op'    shift, and enter state 103
-	'unflipᵒᵖ'     shift, and enter state 104
-	'uninv_op'     shift, and enter state 105
-	'uninvᵒᵖ'      shift, and enter state 106
-	'unit'         shift, and enter state 107
-	'Σ'            shift, and enter state 108
-	'π₁'           shift, and enter state 109
-	'π₂'           shift, and enter state 110
-	'ᵒᵖ'           shift, and enter state 111
-	'∑'            shift, and enter state 112
-	'⊤'            shift, and enter state 113
-	'⊥'            shift, and enter state 114
-	'♭'            shift, and enter state 115
-	'♯'            shift, and enter state 116
-	'𝕀'            shift, and enter state 117
-	L_VarIdentTokenshift, and enter state 118
-	L_HoleIdentTokenshift, and enter state 119
-
-	VarIdentToken  goto state 45
-	HoleIdentToken goto state 46
-	HoleIdent      goto state 47
-	VarIdent       goto state 48
-	ParamDecl      goto state 49
-	Modality       goto state 50
-	Term7          goto state 51
-	Term5          goto state 52
-	Term4          goto state 53
-	Term3          goto state 54
-	Term2          goto state 121
-	Term6          goto state 56
-	Term1          goto state 522
-
-State 511
-
-	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' . Term1    (rule 234)
+	Term1 -> '∑' '(' Pattern ':' Term ')' ',' . Term1    (rule 237)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -19672,9 +20045,88 @@ State 511
 	Term3          goto state 54
 	Term2          goto state 121
 	Term6          goto state 56
-	Term1          goto state 521
+	Term1          goto state 535
 
-State 512
+State 524
+
+	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' . Term1    (rule 238)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 121
+	Term6          goto state 56
+	Term1          goto state 534
+
+State 525
 
 	Pattern -> '(' Pattern ',' Pattern ',' ListPattern1 ')' .    (rule 101)
 
@@ -19703,7 +20155,7 @@ State 512
 	%eof           reduce using rule 101
 
 
-State 513
+State 526
 
 	Param -> '(' ListPattern ModalColon Term '|' Term ')' .    (rule 111)
 
@@ -19721,7 +20173,7 @@ State 513
 	%eof           reduce using rule 111
 
 
-State 514
+State 527
 
 	Param -> '(' ListPattern ':' Term '|' Term ')' .    (rule 109)
 
@@ -19739,7 +20191,7 @@ State 514
 	%eof           reduce using rule 109
 
 
-State 515
+State 528
 
 	Command -> '#def' VarIdent DeclUsedVars ':' Term ':=' Term .    (rule 69)
 
@@ -19747,7 +20199,7 @@ State 515
 	%eof           reduce using rule 69
 
 
-State 516
+State 529
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' Term ':=' . Term    (rule 68)
 
@@ -19825,9 +20277,9 @@ State 516
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 520
+	Term           goto state 533
 
-State 517
+State 530
 
 	Command -> '#define' VarIdent DeclUsedVars ':' Term ':=' Term .    (rule 67)
 
@@ -19835,7 +20287,7 @@ State 517
 	%eof           reduce using rule 67
 
 
-State 518
+State 531
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' Term ':=' . Term    (rule 66)
 
@@ -19913,9 +20365,9 @@ State 518
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 519
+	Term           goto state 532
 
-State 519
+State 532
 
 	Command -> '#define' VarIdent DeclUsedVars ListParam ':' Term ':=' Term .    (rule 66)
 
@@ -19923,7 +20375,7 @@ State 519
 	%eof           reduce using rule 66
 
 
-State 520
+State 533
 
 	Command -> '#def' VarIdent DeclUsedVars ListParam ':' Term ':=' Term .    (rule 68)
 
@@ -19931,63 +20383,63 @@ State 520
 	%eof           reduce using rule 68
 
 
-State 521
+State 534
 
-	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 .    (rule 234)
+	Term1 -> '∑' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 .    (rule 238)
 
-	')'            reduce using rule 234
-	','            reduce using rule 234
-	':'            reduce using rule 234
-	':='           reduce using rule 234
-	':_#'          reduce using rule 234
-	':_b'          reduce using rule 234
-	':_id'         reduce using rule 234
-	':_op'         reduce using rule 234
-	':ᵒᵖ'          reduce using rule 234
-	':♭'           reduce using rule 234
-	':♯'           reduce using rule 234
-	';'            reduce using rule 234
-	']'            reduce using rule 234
-	'compute'      reduce using rule 234
-	'eliminate'    reduce using rule 234
-	'in'           reduce using rule 234
-	'into'         reduce using rule 234
-	'|'            reduce using rule 234
-	'|->'          reduce using rule 234
-	'}'            reduce using rule 234
-	'↦'            reduce using rule 234
-	%eof           reduce using rule 234
-
-
-State 522
-
-	Term1 -> '∑' '(' Pattern ':' Term ')' ',' Term1 .    (rule 233)
-
-	')'            reduce using rule 233
-	','            reduce using rule 233
-	':'            reduce using rule 233
-	':='           reduce using rule 233
-	':_#'          reduce using rule 233
-	':_b'          reduce using rule 233
-	':_id'         reduce using rule 233
-	':_op'         reduce using rule 233
-	':ᵒᵖ'          reduce using rule 233
-	':♭'           reduce using rule 233
-	':♯'           reduce using rule 233
-	';'            reduce using rule 233
-	']'            reduce using rule 233
-	'compute'      reduce using rule 233
-	'eliminate'    reduce using rule 233
-	'in'           reduce using rule 233
-	'into'         reduce using rule 233
-	'|'            reduce using rule 233
-	'|->'          reduce using rule 233
-	'}'            reduce using rule 233
-	'↦'            reduce using rule 233
-	%eof           reduce using rule 233
+	')'            reduce using rule 238
+	','            reduce using rule 238
+	':'            reduce using rule 238
+	':='           reduce using rule 238
+	':_#'          reduce using rule 238
+	':_b'          reduce using rule 238
+	':_id'         reduce using rule 238
+	':_op'         reduce using rule 238
+	':ᵒᵖ'          reduce using rule 238
+	':♭'           reduce using rule 238
+	':♯'           reduce using rule 238
+	';'            reduce using rule 238
+	']'            reduce using rule 238
+	'compute'      reduce using rule 238
+	'eliminate'    reduce using rule 238
+	'in'           reduce using rule 238
+	'into'         reduce using rule 238
+	'|'            reduce using rule 238
+	'|->'          reduce using rule 238
+	'}'            reduce using rule 238
+	'↦'            reduce using rule 238
+	%eof           reduce using rule 238
 
 
-State 523
+State 535
+
+	Term1 -> '∑' '(' Pattern ':' Term ')' ',' Term1 .    (rule 237)
+
+	')'            reduce using rule 237
+	','            reduce using rule 237
+	':'            reduce using rule 237
+	':='           reduce using rule 237
+	':_#'          reduce using rule 237
+	':_b'          reduce using rule 237
+	':_id'         reduce using rule 237
+	':_op'         reduce using rule 237
+	':ᵒᵖ'          reduce using rule 237
+	':♭'           reduce using rule 237
+	':♯'           reduce using rule 237
+	';'            reduce using rule 237
+	']'            reduce using rule 237
+	'compute'      reduce using rule 237
+	'eliminate'    reduce using rule 237
+	'in'           reduce using rule 237
+	'into'         reduce using rule 237
+	'|'            reduce using rule 237
+	'|->'          reduce using rule 237
+	'}'            reduce using rule 237
+	'↦'            reduce using rule 237
+	%eof           reduce using rule 237
+
+
+State 536
 
 	Term1 -> 'Σ' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 .    (rule 220)
 
@@ -20015,7 +20467,7 @@ State 523
 	%eof           reduce using rule 220
 
 
-State 524
+State 537
 
 	Term1 -> 'Σ' '(' Pattern ModalColon Term ')' ',' Term1 .    (rule 219)
 
@@ -20043,7 +20495,7 @@ State 524
 	%eof           reduce using rule 219
 
 
-State 525
+State 538
 
 	Term1 -> 'Σ' '(' Pattern ':' Term ')' ',' Term1 .    (rule 218)
 
@@ -20071,42 +20523,282 @@ State 525
 	%eof           reduce using rule 218
 
 
-State 526
+State 539
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'into' Term . 'in' Term    (rule 226)
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'in' . Term    (rule 227)
 
-	'in'           shift, and enter state 533
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 552
+
+State 540
+
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'into' . Term 'in' Term    (rule 230)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 551
+
+State 541
+
+	Term1 -> 'let' Modality Bind ':=' Term 'into' Term 'in' . Term    (rule 228)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 550
+
+State 542
+
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'into' Term . 'in' Term    (rule 229)
+
+	'in'           shift, and enter state 549
 
 
-State 527
+State 543
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'in' Term .    (rule 225)
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'in' Term .    (rule 226)
 
-	')'            reduce using rule 225
-	','            reduce using rule 225
-	':'            reduce using rule 225
-	':='           reduce using rule 225
-	':_#'          reduce using rule 225
-	':_b'          reduce using rule 225
-	':_id'         reduce using rule 225
-	':_op'         reduce using rule 225
-	':ᵒᵖ'          reduce using rule 225
-	':♭'           reduce using rule 225
-	':♯'           reduce using rule 225
-	';'            reduce using rule 225
-	']'            reduce using rule 225
-	'compute'      reduce using rule 225
-	'eliminate'    reduce using rule 225
-	'in'           reduce using rule 225
-	'into'         reduce using rule 225
-	'|'            reduce using rule 225
-	'|->'          reduce using rule 225
-	'}'            reduce using rule 225
-	'↦'            reduce using rule 225
-	%eof           reduce using rule 225
+	')'            reduce using rule 226
+	','            reduce using rule 226
+	':'            reduce using rule 226
+	':='           reduce using rule 226
+	':_#'          reduce using rule 226
+	':_b'          reduce using rule 226
+	':_id'         reduce using rule 226
+	':_op'         reduce using rule 226
+	':ᵒᵖ'          reduce using rule 226
+	':♭'           reduce using rule 226
+	':♯'           reduce using rule 226
+	';'            reduce using rule 226
+	']'            reduce using rule 226
+	'compute'      reduce using rule 226
+	'eliminate'    reduce using rule 226
+	'in'           reduce using rule 226
+	'into'         reduce using rule 226
+	'|'            reduce using rule 226
+	'|->'          reduce using rule 226
+	'}'            reduce using rule 226
+	'↦'            reduce using rule 226
+	%eof           reduce using rule 226
 
 
-State 528
+State 544
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' . Term ',' Term ',' Term ')'    (rule 169)
 
@@ -20184,102 +20876,102 @@ State 528
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 532
+	Term           goto state 548
 
-State 529
+State 545
 
-	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 .    (rule 231)
+	Term1 -> 'Sigma' '(' SigmaParam ',' ListSigmaParam ')' ',' Term1 .    (rule 235)
 
-	')'            reduce using rule 231
-	','            reduce using rule 231
-	':'            reduce using rule 231
-	':='           reduce using rule 231
-	':_#'          reduce using rule 231
-	':_b'          reduce using rule 231
-	':_id'         reduce using rule 231
-	':_op'         reduce using rule 231
-	':ᵒᵖ'          reduce using rule 231
-	':♭'           reduce using rule 231
-	':♯'           reduce using rule 231
-	';'            reduce using rule 231
-	']'            reduce using rule 231
-	'compute'      reduce using rule 231
-	'eliminate'    reduce using rule 231
-	'in'           reduce using rule 231
-	'into'         reduce using rule 231
-	'|'            reduce using rule 231
-	'|->'          reduce using rule 231
-	'}'            reduce using rule 231
-	'↦'            reduce using rule 231
-	%eof           reduce using rule 231
-
-
-State 530
-
-	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' ',' Term1 .    (rule 230)
-
-	')'            reduce using rule 230
-	','            reduce using rule 230
-	':'            reduce using rule 230
-	':='           reduce using rule 230
-	':_#'          reduce using rule 230
-	':_b'          reduce using rule 230
-	':_id'         reduce using rule 230
-	':_op'         reduce using rule 230
-	':ᵒᵖ'          reduce using rule 230
-	':♭'           reduce using rule 230
-	':♯'           reduce using rule 230
-	';'            reduce using rule 230
-	']'            reduce using rule 230
-	'compute'      reduce using rule 230
-	'eliminate'    reduce using rule 230
-	'in'           reduce using rule 230
-	'into'         reduce using rule 230
-	'|'            reduce using rule 230
-	'|->'          reduce using rule 230
-	'}'            reduce using rule 230
-	'↦'            reduce using rule 230
-	%eof           reduce using rule 230
+	')'            reduce using rule 235
+	','            reduce using rule 235
+	':'            reduce using rule 235
+	':='           reduce using rule 235
+	':_#'          reduce using rule 235
+	':_b'          reduce using rule 235
+	':_id'         reduce using rule 235
+	':_op'         reduce using rule 235
+	':ᵒᵖ'          reduce using rule 235
+	':♭'           reduce using rule 235
+	':♯'           reduce using rule 235
+	';'            reduce using rule 235
+	']'            reduce using rule 235
+	'compute'      reduce using rule 235
+	'eliminate'    reduce using rule 235
+	'in'           reduce using rule 235
+	'into'         reduce using rule 235
+	'|'            reduce using rule 235
+	'|->'          reduce using rule 235
+	'}'            reduce using rule 235
+	'↦'            reduce using rule 235
+	%eof           reduce using rule 235
 
 
-State 531
+State 546
 
-	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1 .    (rule 229)
+	Term1 -> 'Sigma' '(' Pattern ModalColon Term ')' ',' Term1 .    (rule 234)
 
-	')'            reduce using rule 229
-	','            reduce using rule 229
-	':'            reduce using rule 229
-	':='           reduce using rule 229
-	':_#'          reduce using rule 229
-	':_b'          reduce using rule 229
-	':_id'         reduce using rule 229
-	':_op'         reduce using rule 229
-	':ᵒᵖ'          reduce using rule 229
-	':♭'           reduce using rule 229
-	':♯'           reduce using rule 229
-	';'            reduce using rule 229
-	']'            reduce using rule 229
-	'compute'      reduce using rule 229
-	'eliminate'    reduce using rule 229
-	'in'           reduce using rule 229
-	'into'         reduce using rule 229
-	'|'            reduce using rule 229
-	'|->'          reduce using rule 229
-	'}'            reduce using rule 229
-	'↦'            reduce using rule 229
-	%eof           reduce using rule 229
+	')'            reduce using rule 234
+	','            reduce using rule 234
+	':'            reduce using rule 234
+	':='           reduce using rule 234
+	':_#'          reduce using rule 234
+	':_b'          reduce using rule 234
+	':_id'         reduce using rule 234
+	':_op'         reduce using rule 234
+	':ᵒᵖ'          reduce using rule 234
+	':♭'           reduce using rule 234
+	':♯'           reduce using rule 234
+	';'            reduce using rule 234
+	']'            reduce using rule 234
+	'compute'      reduce using rule 234
+	'eliminate'    reduce using rule 234
+	'in'           reduce using rule 234
+	'into'         reduce using rule 234
+	'|'            reduce using rule 234
+	'|->'          reduce using rule 234
+	'}'            reduce using rule 234
+	'↦'            reduce using rule 234
+	%eof           reduce using rule 234
 
 
-State 532
+State 547
+
+	Term1 -> 'Sigma' '(' Pattern ':' Term ')' ',' Term1 .    (rule 233)
+
+	')'            reduce using rule 233
+	','            reduce using rule 233
+	':'            reduce using rule 233
+	':='           reduce using rule 233
+	':_#'          reduce using rule 233
+	':_b'          reduce using rule 233
+	':_id'         reduce using rule 233
+	':_op'         reduce using rule 233
+	':ᵒᵖ'          reduce using rule 233
+	':♭'           reduce using rule 233
+	':♯'           reduce using rule 233
+	';'            reduce using rule 233
+	']'            reduce using rule 233
+	'compute'      reduce using rule 233
+	'eliminate'    reduce using rule 233
+	'in'           reduce using rule 233
+	'into'         reduce using rule 233
+	'|'            reduce using rule 233
+	'|->'          reduce using rule 233
+	'}'            reduce using rule 233
+	'↦'            reduce using rule 233
+	%eof           reduce using rule 233
+
+
+State 548
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term . ',' Term ',' Term ')'    (rule 169)
 
-	','            shift, and enter state 535
+	','            shift, and enter state 555
 
 
-State 533
+State 549
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'into' Term 'in' . Term    (rule 226)
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'into' Term 'in' . Term    (rule 229)
 
 	'$extract$'    shift, and enter state 60
 	'('            shift, and enter state 61
@@ -20355,37 +21047,180 @@ State 533
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 534
+	Term           goto state 554
 
-State 534
+State 550
 
-	Term1 -> 'let' 'mod' ModComp Bind ':=' Term 'into' Term 'in' Term .    (rule 226)
+	Term1 -> 'let' Modality Bind ':=' Term 'into' Term 'in' Term .    (rule 228)
 
-	')'            reduce using rule 226
-	','            reduce using rule 226
-	':'            reduce using rule 226
-	':='           reduce using rule 226
-	':_#'          reduce using rule 226
-	':_b'          reduce using rule 226
-	':_id'         reduce using rule 226
-	':_op'         reduce using rule 226
-	':ᵒᵖ'          reduce using rule 226
-	':♭'           reduce using rule 226
-	':♯'           reduce using rule 226
-	';'            reduce using rule 226
-	']'            reduce using rule 226
-	'compute'      reduce using rule 226
-	'eliminate'    reduce using rule 226
-	'in'           reduce using rule 226
-	'into'         reduce using rule 226
-	'|'            reduce using rule 226
-	'|->'          reduce using rule 226
-	'}'            reduce using rule 226
-	'↦'            reduce using rule 226
-	%eof           reduce using rule 226
+	')'            reduce using rule 228
+	','            reduce using rule 228
+	':'            reduce using rule 228
+	':='           reduce using rule 228
+	':_#'          reduce using rule 228
+	':_b'          reduce using rule 228
+	':_id'         reduce using rule 228
+	':_op'         reduce using rule 228
+	':ᵒᵖ'          reduce using rule 228
+	':♭'           reduce using rule 228
+	':♯'           reduce using rule 228
+	';'            reduce using rule 228
+	']'            reduce using rule 228
+	'compute'      reduce using rule 228
+	'eliminate'    reduce using rule 228
+	'in'           reduce using rule 228
+	'into'         reduce using rule 228
+	'|'            reduce using rule 228
+	'|->'          reduce using rule 228
+	'}'            reduce using rule 228
+	'↦'            reduce using rule 228
+	%eof           reduce using rule 228
 
 
-State 535
+State 551
+
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'into' Term . 'in' Term    (rule 230)
+
+	'in'           shift, and enter state 553
+
+
+State 552
+
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'in' Term .    (rule 227)
+
+	')'            reduce using rule 227
+	','            reduce using rule 227
+	':'            reduce using rule 227
+	':='           reduce using rule 227
+	':_#'          reduce using rule 227
+	':_b'          reduce using rule 227
+	':_id'         reduce using rule 227
+	':_op'         reduce using rule 227
+	':ᵒᵖ'          reduce using rule 227
+	':♭'           reduce using rule 227
+	':♯'           reduce using rule 227
+	';'            reduce using rule 227
+	']'            reduce using rule 227
+	'compute'      reduce using rule 227
+	'eliminate'    reduce using rule 227
+	'in'           reduce using rule 227
+	'into'         reduce using rule 227
+	'|'            reduce using rule 227
+	'|->'          reduce using rule 227
+	'}'            reduce using rule 227
+	'↦'            reduce using rule 227
+	%eof           reduce using rule 227
+
+
+State 553
+
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'into' Term 'in' . Term    (rule 230)
+
+	'$extract$'    shift, and enter state 60
+	'('            shift, and enter state 61
+	'*_1'          shift, and enter state 62
+	'*₁'           shift, and enter state 63
+	'0_2'          shift, and enter state 64
+	'0_I'          shift, and enter state 65
+	'0ᵢ'           shift, and enter state 66
+	'0₂'           shift, and enter state 67
+	'1'            shift, and enter state 68
+	'1_2'          shift, and enter state 69
+	'1_I'          shift, and enter state 70
+	'1ᵢ'           shift, and enter state 71
+	'1₂'           shift, and enter state 72
+	'2'            shift, and enter state 73
+	'BOT'          shift, and enter state 74
+	'CUBE'         shift, and enter state 75
+	'II'           shift, and enter state 76
+	'Sigma'        shift, and enter state 77
+	'TOP'          shift, and enter state 78
+	'TOPE'         shift, and enter state 79
+	'U'            shift, and enter state 80
+	'Unit'         shift, and enter state 81
+	'\\'           shift, and enter state 82
+	'_#'           shift, and enter state 83
+	'_b'           shift, and enter state 84
+	'_id'          shift, and enter state 85
+	'_op'          shift, and enter state 86
+	'first'        shift, and enter state 87
+	'flip_op'      shift, and enter state 88
+	'flipᵒᵖ'       shift, and enter state 89
+	'idJ'          shift, and enter state 90
+	'inf'          shift, and enter state 91
+	'inv_op'       shift, and enter state 92
+	'invᵒᵖ'        shift, and enter state 93
+	'let'          shift, and enter state 94
+	'match'        shift, and enter state 95
+	'mod'          shift, and enter state 96
+	'recBOT'       shift, and enter state 97
+	'recOR'        shift, and enter state 98
+	'refl'         shift, and enter state 99
+	'refl_{'       shift, and enter state 100
+	'second'       shift, and enter state 101
+	'sup'          shift, and enter state 102
+	'unflip_op'    shift, and enter state 103
+	'unflipᵒᵖ'     shift, and enter state 104
+	'uninv_op'     shift, and enter state 105
+	'uninvᵒᵖ'      shift, and enter state 106
+	'unit'         shift, and enter state 107
+	'Σ'            shift, and enter state 108
+	'π₁'           shift, and enter state 109
+	'π₂'           shift, and enter state 110
+	'ᵒᵖ'           shift, and enter state 111
+	'∑'            shift, and enter state 112
+	'⊤'            shift, and enter state 113
+	'⊥'            shift, and enter state 114
+	'♭'            shift, and enter state 115
+	'♯'            shift, and enter state 116
+	'𝕀'            shift, and enter state 117
+	L_VarIdentTokenshift, and enter state 118
+	L_HoleIdentTokenshift, and enter state 119
+
+	VarIdentToken  goto state 45
+	HoleIdentToken goto state 46
+	HoleIdent      goto state 47
+	VarIdent       goto state 48
+	ParamDecl      goto state 49
+	Modality       goto state 50
+	Term7          goto state 51
+	Term5          goto state 52
+	Term4          goto state 53
+	Term3          goto state 54
+	Term2          goto state 55
+	Term6          goto state 56
+	Term1          goto state 57
+	Term           goto state 557
+
+State 554
+
+	Term1 -> 'let' 'mod' Modality Bind ':=' Term 'into' Term 'in' Term .    (rule 229)
+
+	')'            reduce using rule 229
+	','            reduce using rule 229
+	':'            reduce using rule 229
+	':='           reduce using rule 229
+	':_#'          reduce using rule 229
+	':_b'          reduce using rule 229
+	':_id'         reduce using rule 229
+	':_op'         reduce using rule 229
+	':ᵒᵖ'          reduce using rule 229
+	':♭'           reduce using rule 229
+	':♯'           reduce using rule 229
+	';'            reduce using rule 229
+	']'            reduce using rule 229
+	'compute'      reduce using rule 229
+	'eliminate'    reduce using rule 229
+	'in'           reduce using rule 229
+	'into'         reduce using rule 229
+	'|'            reduce using rule 229
+	'|->'          reduce using rule 229
+	'}'            reduce using rule 229
+	'↦'            reduce using rule 229
+	%eof           reduce using rule 229
+
+
+State 555
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' . Term ',' Term ')'    (rule 169)
 
@@ -20463,16 +21298,44 @@ State 535
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 536
+	Term           goto state 556
 
-State 536
+State 556
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term . ',' Term ')'    (rule 169)
 
-	','            shift, and enter state 537
+	','            shift, and enter state 558
 
 
-State 537
+State 557
+
+	Term1 -> 'let' Modality 'mod' Modality Bind ':=' Term 'into' Term 'in' Term .    (rule 230)
+
+	')'            reduce using rule 230
+	','            reduce using rule 230
+	':'            reduce using rule 230
+	':='           reduce using rule 230
+	':_#'          reduce using rule 230
+	':_b'          reduce using rule 230
+	':_id'         reduce using rule 230
+	':_op'         reduce using rule 230
+	':ᵒᵖ'          reduce using rule 230
+	':♭'           reduce using rule 230
+	':♯'           reduce using rule 230
+	';'            reduce using rule 230
+	']'            reduce using rule 230
+	'compute'      reduce using rule 230
+	'eliminate'    reduce using rule 230
+	'in'           reduce using rule 230
+	'into'         reduce using rule 230
+	'|'            reduce using rule 230
+	'|->'          reduce using rule 230
+	'}'            reduce using rule 230
+	'↦'            reduce using rule 230
+	%eof           reduce using rule 230
+
+
+State 558
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' . Term ')'    (rule 169)
 
@@ -20550,16 +21413,16 @@ State 537
 	Term2          goto state 55
 	Term6          goto state 56
 	Term1          goto state 57
-	Term           goto state 538
+	Term           goto state 559
 
-State 538
+State 559
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term . ')'    (rule 169)
 
-	')'            shift, and enter state 539
+	')'            shift, and enter state 560
 
 
-State 539
+State 560
 
 	Term7 -> 'idJ' '(' Term ',' Term ',' Term ',' Term ',' Term ',' Term ')' .    (rule 169)
 
@@ -20648,7 +21511,7 @@ State 539
 -----------------------------------------------------------------------------
 Grammar Totals
 -----------------------------------------------------------------------------
-Number of rules: 239
+Number of rules: 243
 Number of terminals: 122
 Number of non-terminals: 89
-Number of states: 540
+Number of states: 561

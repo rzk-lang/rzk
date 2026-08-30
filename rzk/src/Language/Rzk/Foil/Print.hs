@@ -36,7 +36,7 @@ import           Language.Rzk.Foil.Names (Binder (..), Display, Proj (..),
                                            binderToPattern, defaultVarIdents,
                                            fromTModalityToModalColon,
                                            fromVarIdent, fromMod, holeIdentToken,
-                                           modsToModComp, patternToTerm,
+                                           patternToTerm,
                                            refreshVar)
 import qualified Language.Rzk.Syntax      as Rzk
 
@@ -214,9 +214,11 @@ fromTerm used supply names = go
       let bind = case mty of
             Nothing -> Rzk.BindPattern loc (binderToPattern z')
             Just ty -> Rzk.BindPatternType loc (binderToPattern z') (go ty)
-       in case mmotive of
-            Nothing     -> Rzk.LetMod loc (modsToModComp app inn) bind (go val) body'
-            Just motive -> Rzk.LetModInto loc (modsToModComp app inn) bind (go val) (go motive) body'
+       in case (app, mmotive) of
+            (Id, Nothing)     -> Rzk.LetMod loc (goMod inn) bind (go val) body'
+            (Id, Just motive) -> Rzk.LetModInto loc (goMod inn) bind (go val) (go motive) body'
+            (_, Nothing)      -> Rzk.LetModFramed loc (goMod app) (goMod inn) bind (go val) body'
+            (_, Just motive)  -> Rzk.LetModFramedInto loc (goMod app) (goMod inn) bind (go val) (go motive) body'
 
 -- | Peel a match branch's arm chain back into its binder patterns and body.
 --

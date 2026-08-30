@@ -6,7 +6,7 @@
   : _# A
   :=
   let mod _# x_1 := a into (\ _ -> _# A) in
-  let mod _# / _# x_2 := x_1 in
+  let _# mod _# x_2 := x_1 in
   mod _# x_2
 
 #def double-op-into
@@ -15,7 +15,7 @@
   : A
   :=
   let mod _op x_1 := x into (\ _ -> A) in
-  let mod _op / _op x_2 := x_1 in
+  let _op mod _op x_2 := x_1 in
   x_2
 
 #def into-agrees-with-plain
@@ -43,3 +43,23 @@
   (x : _# A)
   : C x
   := let mod _# a := x into (\ z -> C z) in c a
+
+-- The single-modality binding accepts a motive too. Its value is `mod _# a`
+-- by construction, so the motive is applied to that.
+#def sugar-into
+  (A : U)
+  (C : (_# A) -> U)
+  (c : (a :_# A) -> C (mod _# a))
+  (a :_# A)
+  : C (mod _# a)
+  := let _# x := a into C in c x
+
+-- A motive on the full composition form, where the external lock is not `_id`.
+#def comp-into
+  (A : U)
+  (a : _# (_# A))
+  : _# A
+  :=
+  let mod _# x_1 := a in
+  let _# mod _# x_2 := x_1 into (\ _ -> _# A) in
+  mod _# x_2

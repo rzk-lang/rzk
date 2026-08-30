@@ -125,16 +125,22 @@ instantiate scoped arg = do
 -- @2@ (or of @I@) is one of the endpoints. Maintained at binder entry so that
 -- entailment does not have to rescan the context on every query.
 discreteAxiomOf
-  :: forall n l. Distinct n
-  => TModality -> TermT n -> NameBinder n l -> TypeCheck n [ModalTope l]
-discreteAxiomOf Flat ty binder = whnfT ty >>= \case
-    Cube2T{} -> pure [endpoints cube2_0T cube2_1T]
-    CubeIT{} -> pure [endpoints cubeI_0T cubeI_1T]
+  :: forall n l. (Distinct n, DExt n l)
+  => TModality -> TermT n -> Maybe (TermT n) -> NameBinder n l
+  -> TypeCheck n [ModalTope l]
+discreteAxiomOf Flat ty mval binder = whnfT ty >>= \case
+    Cube2T{} -> endpoints cube2_0T cube2_1T
+    CubeIT{} -> endpoints cubeI_0T cubeI_1T
     _        -> pure []
   where
-    z = Var (Foil.nameOf binder) :: TermT l
-    endpoints zero one = plainTope (topeOrT (topeEQT z zero) (topeEQT z one))
-discreteAxiomOf _ _ _ = pure []
+    point :: TypeCheck n (TermT l)
+    point = case mval of
+      Nothing -> pure (Var (Foil.nameOf binder))
+      Just v  -> Foil.sink <$> nfTope v
+    endpoints zero one = do
+      z <- point
+      pure [plainTope (topeOrT (topeEQT z zero) (topeEQT z one))]
+discreteAxiomOf _ _ _ _ = pure []
 
 -- | What a binder adds to the context.
 binderInfo
@@ -161,7 +167,7 @@ underBinder
   -> TypeCheck l a -> TypeCheck n a
 underBinder binder orig md ty mval action = do
   ctx <- ask
-  discrete <- discreteAxiomOf md ty binder
+  discrete <- discreteAxiomOf md ty mval binder
   let info = binderInfo orig md ty mval (ctxLocation ctx)
       ctx' = enterBinder binder info discrete ctx
   -- A new discreteness axiom changes the saturation input; an ordinary binder
@@ -988,6 +994,13 @@ etaMatch _mterm expected@PairT{} actual = do
 etaMatch _mterm expected actual@PairT{} = do
   expected' <- etaExpand expected
   pure (expected', actual)
+etaMatch _mterm expected@ModAppT{} actual@ModAppT{} = pure (expected, actual)
+etaMatch _mterm expected@ModAppT{} actual = do
+  actual' <- etaExpand actual
+  pure (expected, actual')
+etaMatch _mterm expected actual@ModAppT{} = do
+  expected' <- etaExpand expected
+  pure (expected', actual)
 etaMatch _mterm expected actual = pure (expected, actual)
 
 etaExpand :: Distinct n => TermT n -> TypeCheck n (TermT n)
@@ -1014,6 +1027,9 @@ etaExpand term = do
 
     CubeProductT _ty a b -> pure $
       pairT ty (firstT a term) (secondT b term)
+
+    TypeModalT _ty md inner | isRA md -> pure $
+      modAppT ty md (modExtractT inner Id md term)
 
     _ -> pure term
 
