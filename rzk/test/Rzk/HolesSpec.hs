@@ -440,8 +440,8 @@ spec = do
                  <> "#postulate pick : (X : U) -> (Y : U) -> X -> X\n"
                  <> "#define goal : A -> A := ?\n"
       in flip oneHole (holesWithLemmas ["pick"] metaSrc) $ \h -> do
-           cands h `shouldContain` ["pick ? ?"]
-           filter (`elem` ["pick", "pick ?"]) (cands h) `shouldBe` []
+           cands h `shouldContain` ["pick ?X ?Y"]
+           filter (`elem` ["pick", "pick ?X"]) (cands h) `shouldBe` []
 
     -- Also at the schema's own type: the bare alias is not offered (writing
     -- the alias is the user's call), while the saturated spine still is.
@@ -450,7 +450,7 @@ spec = do
                   <> "#define my-id (X : U) (x : X) : X := x\n"
                   <> "#define goal : (X : U) -> X -> X := ?\n"
       in flip oneHole (holesWithLemmas ["my-id"] aliasSrc) $ \h -> do
-           cands h `shouldContain` ["my-id ?"]
+           cands h `shouldContain` ["my-id ?X"]
            filter (== "my-id") (cands h) `shouldBe` []
 
     -- A lemma whose result type is a motive application (@ind-path ... : C x p@)
@@ -466,7 +466,24 @@ spec = do
                 <> "  := idJ (A , a , C , d , x , p)\n"
                 <> "#define goal (A : U) (x y : A) (p : x = y) : y = x := ?\n"
       in flip oneHole (holesWithLemmas ["ind-path"] indSrc) $ \h ->
-           cands h `shouldContain` ["ind-path ? ? ? ? ? ?"]
+           cands h `shouldContain` ["ind-path ?A ?a ?C ?d ?x ?p"]
+
+    -- A projection is flexible for the same reason an application is: @first ?@
+    -- has no shape of its own. Without that, a lemma about projections is
+    -- offered only when both endpoints happen to match structurally, and is
+    -- dropped exactly when the goal needs it, e.g. the first-path-Σ step of the
+    -- Yoneda geodesic, whose goal has a plain variable on the right.
+    it "offers a lemma with a projection endpoint against a rigid endpoint" $
+      let fstSrc = "#lang rzk-1\n"
+                <> "#define fst-path (A : U) (B : A -> U)\n"
+                <> "  (s t : Sigma (a : A) , B a) (e : s = t)\n"
+                <> "  : first s = first t\n"
+                <> "  := idJ (Sigma (a : A) , B a , s ,\n"
+                <> "          \\ t' e' -> first s = first t' , refl , t , e)\n"
+                <> "#define goal (A : U) (B : A -> U)\n"
+                <> "  (w : Sigma (a : A) , B a) (c : A) : first w = c := ?\n"
+      in flip oneHole (holesWithLemmas ["fst-path"] fstSrc) $ \h ->
+           cands h `shouldContain` ["fst-path ?A ?B ?s ?t ?e"]
 
     -- Fitting anything does not mean escaping the allow-list: a hole-headed
     -- lemma is still only offered when the level grants it.
@@ -577,6 +594,15 @@ spec = do
     it "introduces a function goal as a λ with a hole body" $ do
       case holesOf "#lang rzk-1\n#define f : (A : U) -> ((n : A) -> A)\n  := \\ A -> ?\n" of
         [h] -> intros h `shouldBe` ["\\ n → ?"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    -- A hole in a cube position gets the cube's closed points. Writing a corner
+    -- of a square as `α ? ?` is common, and 0₂ / 1₂ are the only two points of
+    -- the directed interval, so leaving them unoffered left such a hole with no
+    -- introduction at all. An in-scope cube variable is already a candidate.
+    it "introduces a directed-interval goal as its two endpoints" $ do
+      case holesOf "#lang rzk-1\n#define D1 : 2 -> TOPE := \\ t -> TOP\n#define f (A : U) (a : D1 -> A) : A := a ?\n" of
+        [h] -> intros h `shouldBe` ["0₂", "1₂"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
     -- The λ binder is freshened so it does not shadow a name already in scope.

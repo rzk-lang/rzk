@@ -108,5 +108,11 @@ jobs:
           restore-keys: |
             wasm-cabal-${{ runner.os }}-ghc${{ env.FLAVOUR }}-
 
+      - name: 🔄 Refresh the Hackage index
+        # The toolchain cache freezes the index snapshot setup.sh fetched, so
+        # a dependency released since the cache entry was created is invisible
+        # to the solver until the index is refreshed.
+        run: wasm32-wasi-cabal update
+
       - name: 🔨 Build rzk library (LSP off)
         run: wasm32-wasi-cabal build rzk:lib:rzk --flags=-lsp

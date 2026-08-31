@@ -1,5 +1,5 @@
 name: rzk
-version: 0.11.2
+version: 0.11.3
 github: "rzk-lang/rzk"
 license: BSD3
 author: "Nikolai Kudasov"
@@ -65,7 +65,11 @@ dependencies:
   bytestring: ">= 0.10.8.2 && < 1"
   containers: ">= 0.6 && < 1"
   directory: ">= 1.2.7.0 && < 2"
-  free-foil: ">= 0.3.2 && < 0.4"
+  free-foil: ">= 0.4 && < 0.5"
+  # Reads the commit at compile time for `rzk version --full`. Degrades to
+  # "UNKNOWN" when there is no git or no repository (a Hackage tarball, the
+  # wasm cross-build), so it never breaks a build that cannot run git.
+  gitrev: ">= 1.3.1 && < 2"
   transformers: ">= 0.5 && < 1"
   kind-generics: ">= 0.5 && < 1"
   kind-generics-th: ">= 0.2 && < 1"
@@ -96,11 +100,6 @@ library:
   generated-other-modules:
     - Paths_rzk
   when:
-    - condition: false
-      other-modules:
-        - Language.Rzk.Syntax.Test
-        - Language.Rzk.Syntax.ErrM
-        - Language.Rzk.Syntax.Skel
     - condition: flag(lsp) && !impl(ghcjs)
       exposed-modules:
         - Language.Rzk.VSCode.Config

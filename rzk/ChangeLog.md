@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.11.3 — 2026-08-31
+
+A maintenance release. The conversion fast path now compares stuck applications spine to spine, the modal `#!rzk let` gets a clearer surface syntax, and `rzk version --full` describes the build.
+
+Added:
+
+- **`rzk version --full` describes the build** (see [#340](https://github.com/rzk-lang/rzk/pull/340)): the commit with its date, the compiler, the platform, and the Cabal flags. `--json` prints the same record as an object, and the bare version stays the default output. The library exports the version as `Rzk.Version`.
+
+- **A suggested move names its holes** (see [#345](https://github.com/rzk-lang/rzk/pull/345)). A candidate spine now renders as `#!rzk id-hom ?A ?x` rather than `#!rzk id-hom ? ?`, taking the names from the lemma's own binders.
+
+Changed:
+
+- **The modal `#!rzk let` forms are reworked**, building on [#334](https://github.com/rzk-lang/rzk/pull/334) by [Islam Talipov](https://github.com/LIshy2) (see [#352](https://github.com/rzk-lang/rzk/pull/352)). The binding form is `#!rzk let ♯ x := a in u`, the eliminator is `#!rzk let mod ♯ x := a in u`, and an explicit external lock is written `#!rzk let ᵒᵖ mod ♯ x := a in u`. Each form takes an optional `#!rzk into` motive.
+
+Fixed:
+
+- **A function meets its η-expansion on a smaller shape** (see [#347](https://github.com/rzk-lang/rzk/pull/347)). Unification required two lambdas to carry logically equivalent domain topes; the domain is now a one-directional subtyping obligation, as for Π-types. The conversion fast path had been masking this bug on the sHoTT corpus.
+
+- **Modal values are identified across spellings** (see [#352](https://github.com/rzk-lang/rzk/pull/352)). The discreteness axiom of a flat point follows its value, the modal η-laws hold by `#!rzk refl`, and the external lock of an extraction is ignored in conversion.
+
+- **A hole in a cube position is offered the cube's points** (see [#344](https://github.com/rzk-lang/rzk/pull/344)). A goal of type `#!rzk 2` now suggests `#!rzk 0₂` and `#!rzk 1₂`, the way every other goal shape offers its introductions.
+
+- **A lemma about projections is offered as a hole candidate** (see [#343](https://github.com/rzk-lang/rzk/pull/343)). A projection applied to a hole is now treated as hole-headed, like a plain hole (see [#338](https://github.com/rzk-lang/rzk/pull/338)), so a result type such as `#!rzk first s = first t` fits any goal while probing candidates.
+
+Performance:
+
+- **Stuck applications are compared spine to spine in the conversion fast path** (see [#346](https://github.com/rzk-lang/rzk/pull/346), [#351](https://github.com/rzk-lang/rzk/pull/351)), following the glued evaluation of Kovács' smalltt. A proof reported by [Benno Lossin](https://github.com/BennoLossin) now checks in about two seconds, down from five minutes.
+
+- **free-foil 0.4.0** (see [#350](https://github.com/rzk-lang/rzk/pull/350)) brings 4% less wall clock and 20% less maximum residency on the sHoTT corpus.
+
+Documentation:
+
+- The README and the docs point newcomers at the interactive games (see [#341](https://github.com/rzk-lang/rzk/pull/341)).
+
+CI / infrastructure:
+
+- BNFC's unbuilt output (`Skel.hs`, `Test.hs`, `ErrM.hs`) is no longer committed (see [#353](https://github.com/rzk-lang/rzk/pull/353)).
+
 ## v0.11.2 — 2026-08-20
 
 A maintenance release. Checking no longer stops at the first declaration that fails, errors are reported at the sub-term rather than at the enclosing declaration, and a lemma stated over a motive is offered as a hole candidate, so an eliminator written in the sHoTT style is visible as a move.

@@ -5,12 +5,12 @@
 
 packages:
 - completed:
-    hackage: free-foil-0.3.2@sha256:cec5ff659a0214561bc7d5dc056137d1451d84e7133c658868e7f0ee1d762ee4,5491
+    hackage: free-foil-0.4.0@sha256:4cfd40e7ae9bc0b65e299adb71d67e68a34ebf5e2d05a2f8dd95f70864c8a072,7717
     pantry-tree:
-      sha256: b1ee9f798f887f203d6ca2255f7813366d8c8b1cd05c11794baac0aad8767f1e
-      size: 3081
+      sha256: 009de37e1cbabd5869cf38851c2004d7f34805d06594af3e6707ddf4c6ecebbc
+      size: 4324
   original:
-    hackage: free-foil-0.3.2
+    hackage: free-foil-0.4.0
 - completed:
     hackage: kind-generics-th-0.2.3.3@sha256:c53280116db0dab9891f5a531679073f0b1f9ba6b8a3399bca11d98c506d0c62,1578
     pantry-tree:

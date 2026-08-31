@@ -56,6 +56,11 @@ jobs:
           ./setup.sh
           ~/.ghc-wasm/add_to_github_path.sh
 
+      - name: 🔄 Refresh the Hackage index
+        # Keep in sync with wasm.yml: a dependency released after setup.sh
+        # fetched its index snapshot is invisible to the solver otherwise.
+        run: wasm32-wasi-cabal update
+
       - name: 💾 Restore cached wasm cabal store
         uses: actions/cache@v4
         with:

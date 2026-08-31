@@ -1,0 +1,4 @@
+status: ok
+regression_for:
+  - nbe-glued-spines
+  - https://github.com/BennoLossin/sHoTT/commit/84fdfe3160cd785eec36f75590fad1b5d32e5cd5

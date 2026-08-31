@@ -1,0 +1,62 @@
+#lang rzk-1
+
+-- Transporting a large term along `refl`. The path is `refl`, so the whole
+-- application ι-reduces to the term it carries, one δ-step away. The
+-- conversion fast path (Rzk.TypeCheck.NbE) can then answer from the two
+-- spines, without unfolding what is carried.
+--
+-- This is the shape that made a definition in Benno Lossin's sHoTT fork take
+-- five minutes to check. There `path-of-pairs-pair-of-paths` was applied with
+-- `refl` as its first component path, which leaves `transport … refl t` to be
+-- compared against `t`. In that proof `t` was a nested iso-induction with a
+-- very large normal form. Here `big` plays that part, and its normal form has
+-- 2^22 applications.
+
+#define CN : U
+  := (X : U) → (X → X) → X → X
+
+#define czero : CN
+  := \ X s x → x
+
+#define csucc (n : CN) : CN
+  := \ X s x → s (n X s x)
+
+#define cadd (m n : CN) : CN
+  := \ X s x → m X s (n X s x)
+
+#define cexp (m n : CN) : CN
+  := \ X → n (X → X) (m X)
+
+#define c1 : CN := csucc czero
+#define c2 : CN := cadd c1 c1
+#define c4 : CN := cadd c2 c2
+#define c8 : CN := cadd c4 c4
+#define c16 : CN := cadd c8 c8
+#define c22 : CN := cadd c16 (cadd c4 c2)
+
+-- 2 ^ 22, i.e. a normal form of a few million nodes
+#define big : CN := cexp c2 c22
+
+-- rzk has no primitive transport; it goes through idJ.
+#define transport
+  ( A : U)
+  ( C : A → U)
+  ( x y : A)
+  ( p : x = y)
+  ( cx : C x)
+  : C y
+  := idJ (A, x, \ z _ → C z, cx, y, p)
+
+#define test-transport-refl
+  ( A : U)
+  ( a : A)
+  : transport A (\ _ → CN) a a refl big = big
+  := refl
+
+-- and the other way round, since the alignment search must reach a shared
+-- head from either side
+#define test-transport-refl-flipped
+  ( A : U)
+  ( a : A)
+  : big = transport A (\ _ → CN) a a refl big
+  := refl

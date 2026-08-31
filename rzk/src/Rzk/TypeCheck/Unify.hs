@@ -29,7 +29,7 @@ import           Rzk.TypeCheck.Display (panicImpossible)
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Monad
-import           Rzk.TypeCheck.NbE (nbeConvertible)
+import           Rzk.TypeCheck.NbE (Conversion (..), nbeConvertible)
 
 -- | Open two scoped terms under /one/ binder, so that the two sides of a
 -- comparison are compared as functions of the same variable.
@@ -50,6 +50,24 @@ alphaEq :: Distinct n => TermT n -> TermT n -> TypeCheck n Bool
 alphaEq l r = do
   scope <- asks ctxScope
   pure (alphaEqT scope l r)
+
+-- | Run @check super sub@ on the pair @(expected, actual)@, oriented by the
+-- ambient variance. Under 'Covariant' the expected type is the supertype and
+-- under 'Contravariant' the actual one is. 'Invariant' is normally handled
+-- upstream by running both directions; we run both here as well, for safety.
+bySubtyping
+  :: (TermT n -> TermT n -> TypeCheck n ())
+  -> TermT n -> TermT n -> TypeCheck n ()
+bySubtyping check expected actual = asks ctxCovariance >>= \case
+  Covariant     -> check expected actual
+  Contravariant -> check actual expected
+  Invariant     -> check expected actual >> check actual expected
+
+-- | The domain of a shape-indexed function is contravariant, so the subtype's
+-- domain tope has to hold wherever the supertype's does. Shared by Π-types
+-- and by the lambdas that inhabit them.
+domainEntails :: Distinct n => TermT n -> TermT n -> TypeCheck n ()
+domainEntails superTope subTope = localTope superTope $ contextEntails subTope
 
 unifyTopes :: Distinct n => TermT n -> TermT n -> TypeCheck n ()
 unifyTopes l r = do
@@ -79,17 +97,18 @@ unifyViaDecompose expected actual = do
     then return ()
     else do
       -- The NbE fast path: a shared-evaluation βδη-conversion check over the
-      -- context-insensitive fragment. 'True' is definite (see the module's
-      -- soundness note); 'False' only means "do not know", and unification
-      -- proceeds unchanged. It must run /before/ the application decomposition
-      -- below: decomposing @f x@ against @g y@ compares the arguments pairwise,
-      -- which for βδ-equal but structurally different applications creates
-      -- false subgoals (e.g. @16 =? 128@ from @16 · 16 =? 128 + 128@) that the
-      -- old path then grinds through only to fail and unwind.
+      -- context-insensitive fragment. 'Convertible' is definite (see the
+      -- module's soundness note); 'DontKnow' is not a refutation, and
+      -- unification proceeds unchanged. It must run /before/ the application
+      -- decomposition below: decomposing @f x@ against @g y@ compares the
+      -- arguments pairwise, which for βδ-equal but structurally different
+      -- applications creates false subgoals (e.g. @16 =? 128@ from
+      -- @16 · 16 =? 128 + 128@) that the old path then grinds through only to
+      -- fail and unwind.
       fastPath <- nbeConvertible expected actual
-      if fastPath
-        then return ()
-        else case (expected, actual) of
+      case fastPath of
+        Convertible -> return ()
+        DontKnow -> case (expected, actual) of
           (AppT _ f x, AppT _ g y) -> do
             unify Nothing f g
             setVariance Invariant $ unify Nothing x y
@@ -284,14 +303,6 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               switchVariance $  -- unifying in the negative position!
                 unifyTerms cube cube' -- FIXME: unifyCubes
               inScope2 orig' md cube' ret ret' $ \binder retBody retBody' -> do
-                -- The tope checks below are subtyping checks with a fixed direction
-                -- relative to (subtype, supertype). Which side is the subtype
-                -- depends on the ambient variance: under Covariant the actual type
-                -- must be a subtype of the expected one; under Contravariant (inside
-                -- a domain) the roles are reversed. Invariant is normally handled
-                -- upstream by running both directions; it is handled here as well
-                -- for safety.
-                variance <- asks ctxCovariance
                 scope <- asks ctxScope
                 let openTope = fmap (openWith scope (Foil.nameOf binder))
                     mtopeIn = openTope mtope
@@ -304,16 +315,11 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                     -- We DO NOT take the tope context Φ into account!
                     expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtopeIn
                     actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtopeIn'
-                    let subEntailsSuper subNF superNF = do
+                    let superEntailedBySub superNF subNF = do
                           entails <- [plainTope subNF] `entailM` superNF
                           unless (entails || containsHole subNF || containsHole superNF) $
                             issueTypeError (TypeErrorTopeNotSatisfied [subNF] superNF)
-                    case variance of
-                      Covariant     -> subEntailsSuper actualTopeNF expectedTopeNF
-                      Contravariant -> subEntailsSuper expectedTopeNF actualTopeNF
-                      Invariant     -> do
-                        subEntailsSuper actualTopeNF expectedTopeNF
-                        subEntailsSuper expectedTopeNF actualTopeNF
+                    bySubtyping superEntailedBySub expectedTopeNF actualTopeNF
                   _ -> do
                     -- this is the case for Π-types and extension types
                     --
@@ -321,14 +327,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                     -- when Ξ | Φ, ψ ⊢ φ
                     expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtopeIn
                     actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtopeIn'
-                    let superEntailsSub superNF subNF =
-                          localTope superNF $ contextEntails subNF
-                    case variance of
-                      Covariant     -> superEntailsSub expectedTopeNF actualTopeNF
-                      Contravariant -> superEntailsSub actualTopeNF expectedTopeNF
-                      Invariant     -> do
-                        superEntailsSub expectedTopeNF actualTopeNF
-                        superEntailsSub actualTopeNF expectedTopeNF
+                    bySubtyping domainEntails expectedTopeNF actualTopeNF
                 case mterm of
                   Nothing -> unifyTerms retBody retBody'
                   Just term ->
@@ -385,8 +384,14 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                         let openTope = fmap (openWith scope (Foil.nameOf binder))
                         case (openTope mtope, openTope mtope') of
                           (Just tope, Just tope') -> do
-                            unify Nothing tope tope' -- we (should) have already checked this in types!
-                            localTope tope $ unify Nothing bodyIn bodyIn'
+                            -- The two lambdas need not stand on the same shape.
+                            -- η-expansion takes the domain tope from the
+                            -- function's own type, so this is the same
+                            -- obligation as for the Π-type above.
+                            bySubtyping domainEntails tope tope'
+                            -- The bodies agree only where both are defined.
+                            localTope (topeAndT tope tope') $
+                              unify Nothing bodyIn bodyIn'
                           (Nothing, Nothing) ->
                             unify Nothing bodyIn bodyIn'
                           _ -> errIn
@@ -471,10 +476,17 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               when (m' /= m) err
               enterModality m $ unify Nothing ty ty'
             _ -> err
+        -- The external component of an extraction is bookkeeping, not
+        -- denotation: it records the lock under which the extracted value was
+        -- checked, so that evaluation re-enters it correctly, but the term
+        -- denotes the counit of the inner modality at the value either way.
+        -- It is also not canonical: 'etaExpand' always writes @Id@, while the
+        -- elaboration of @let ν mod µ@ writes ν, so comparing the external
+        -- components would sever η-equal spellings of the same counit
+        -- (e.g. @$extract$ ♯/♯ t@ against @$extract$ _id/♯ t@).
         ModExtractT _ty app inn te ->
           case actual' of
-            ModExtractT _ty' app' inn' te' -> do
-              when (app' /= app) err
+            ModExtractT _ty' _app' inn' te' -> do
               when (inn' /= inn) err
               enterModality app $ unify Nothing te te'
             _ -> err
