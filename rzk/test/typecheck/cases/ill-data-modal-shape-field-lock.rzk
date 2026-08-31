@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- The lock discipline is enforced for a modal shape field: the branch binds
+-- the cube variable under the field's modality, so applying a family to it
+-- demands the matching accessibility. An unannotated (s : 2) is not
+-- accessible under the ♭ lock.
+#data FlatArr := fa (t :_b 2 | ⊤)
+
+#define fam (A :_b (t : 2) -> U) (x : FlatArr) : U
+  := match x (fa t ⇒ A t)
+
+#define bad (A :_b (t : 2) -> U) (s : 2) : fam A (fa s) = A s
+  := refl

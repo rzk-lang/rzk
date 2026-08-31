@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "an index of a #data sort must be a type, got a shape: Delta1"
+line: 9
+regression_for:
+  - data-shape-fields-reject-shape-index

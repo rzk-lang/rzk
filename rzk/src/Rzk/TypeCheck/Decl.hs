@@ -488,8 +488,8 @@ addParams params = Rzk.Lambda Nothing params
 -- terms by hand.
 --
 -- The declaration grammar already covers the later stages; this checker
--- rejects what it does not support (cube/shape and modal constructor
--- fields, function-typed recursive fields).
+-- rejects what it does not support (cube and shape parameters and indices,
+-- modal type fields, function-typed recursive fields).
 
 -- | The index telescope of the sort. The sort must be @U@ (no indices) or a
 -- Π-telescope of plain types ending in @U@.
@@ -514,6 +514,69 @@ dataSortIndices = \case
       p -> issueTypeError $ TypeErrorOther $
         "an index of a #data sort must be a plain type, got " <> Rzk.printTree p
 
+-- | The layer rule for the sort, on the elaborated form: every parameter and
+-- index of a @#data@ must be a type. A cube point @(t : I)@ and a shape
+-- point, in either spelling — named @(t : Φ)@ or inline @(t : I | φ)@ — are
+-- rejected.
+--
+-- The surface checks in 'dataParamVars' and 'dataSortIndices' reject the
+-- inline spelling only, because the other two are not recognisable
+-- syntactically: @(t : Φ)@ looks exactly like a type-valued binder until @Φ@
+-- is resolved. This check therefore walks the elaborated Π-telescope of the
+-- sort, where a named shape has become the restricted binder @(t : I | Φ t)@
+-- and a cube domain is recognisable by its sort, so the rule does not depend
+-- on the spelling. The cube and tope /universes/ pass: a parameter of type
+-- @CUBE@ or @I → TOPE@ ranges over cubes or shapes themselves, not over
+-- their points, and the generic realisation
+-- @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on both.
+--
+-- The rule per position ('DomainKind' has the fine classification):
+-- /parameters/ may be types, @CUBE@, or plain tope families — exactly the
+-- kinds of the meta-theoretic parameter layer of the Rzk paper, which the
+-- generic realisation @#data Shape (I : CUBE) (phi : I → TOPE)@ depends
+-- on; /indices/ must be types, full stop. A family indexed by the cube
+-- universe or by tope families is internal quantification over the
+-- cube\/tope layers, which no written metatheory covers, and the modal
+-- tope kinds (@ᵒᵖ TOPE@ and families into it) are closed everywhere in
+-- @#data@ pending a modal extension of the parameter layer.
+--
+-- Rejecting is deliberate, not an accident of implementation. The generated
+-- eliminators for a cube parameter or index are pointwise and look
+-- plausible, but no metatheory is written down for an inductive family over
+-- a shape — unlike shape /fields/, which are the representability rule of
+-- Kudasov's 2021 note — and a family over a shape is what extension types
+-- are for. A rejection can be relaxed later; an acceptance cannot be
+-- revoked. Bare tope binders never reach this check: they are rejected by
+-- the general rule in "Rzk.TypeCheck.Judgements" while the sort is checked.
+checkDataSortLayers
+  :: Distinct n => [Rzk.ParamDecl] -> [SortIndex] -> TermT n -> TypeCheck n ()
+checkDataSortLayers paramDecls sortIndices = go positions
+  where
+    positions =
+      [ (True, spelledParam p) | p <- paramDecls ]
+        <> [ (False, Rzk.printTree (sortIndexType si)) | si <- sortIndices ]
+    spelledParam = \case
+      Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
+      p                        -> Rzk.printTree p
+    go :: Distinct m => [(Bool, String)] -> TermT m -> TypeCheck m ()
+    go [] _ = pure ()
+    go ((isParam, spelled) : rest) ty = whnfT ty >>= \case
+      TypeFunT _ty orig md param mtope ret -> do
+        let position
+              | isParam   = "a parameter of a #data must be a type, CUBE, or a tope family, got "
+              | otherwise = "an index of a #data sort must be a type, got "
+            reject kind = issueTypeError $ TypeErrorOther $
+              position <> kind <> ": " <> spelled
+        case mtope of
+          Just _  -> reject "a shape"
+          Nothing -> classifyDomain param >>= \case
+            DomainType         -> pure ()
+            DomainCubeUniverse | isParam -> pure ()
+            DomainTopeFamily   | isParam -> pure ()
+            kind               -> reject (domainKindName kind)
+        inScope orig md param ret (go rest)
+      _ -> panicImpossible "#data sort has fewer Π binders than parameters and indices"
+
 dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
 dataBodyParts = \case
   Rzk.NoDataBody _              -> ([], [])
@@ -534,23 +597,137 @@ dataParamVars = fmap concat . mapM paramVarsOf
         "a parameter of a #data must be a typed variable (x : A), got "
           <> Rzk.printTree p
 
--- | A constructor field: a typed parameter, with cube/shape fields rejected
--- (over a directed interval they would declare directed cells, out of scope
--- for M3) and modal fields deferred (crisp induction).
+-- | A constructor field.
+--
+-- Plain typed fields @(x : A)@ and cube and shape fields are accepted, in
+-- every spelling and also under a modality (@(t :♭ I | φ)@, @(t :♭ I)@,
+-- @(t :♭ Φ)@); modal /type/ fields are not, and since that distinction is
+-- not recognisable on the surface it is decided by
+-- 'checkDataConFieldLayers' after elaboration. What a shape field means,
+-- and why it is sound, is worth stating precisely, because the
+-- neighbouring constructions are not.
+--
+-- A shape is a predicate on a cube, spelled @I -> TOPE@ as @Δ¹@ and @Λ²₁@ are,
+-- and a field may name one (@(t : Φ)@), give a bare cube (@(t : I)@, the shape
+-- whose tope is @⊤@), or write the shape inline (@(t : I | φ)@). The first two
+-- were already accepted here; the third was rejected, with a message claiming
+-- it would declare a directed cell. It does not: a cell needs face equations,
+-- and the @#data@ grammar has no syntax for them. All three are the same
+-- thing, so all three are accepted.
+--
+-- A shape field makes the declared type the /shape realisation/ @⌈{t : I | φ}⌉@:
+-- @#data D := c (t : I | φ)@ is freely generated by a Φ-indexed family of
+-- points with no identifications between them, and the generated recursor
+--
+-- > rec-D : (C : U) → ((t : I | φ) → C) → D → C
+--
+-- is exactly the representability rule of Kudasov's 2021 note, §4 "Shapes as
+-- types" (<https://fizruk.github.io/files/%5Bnotes%5D%20N.Kudasov.%20Booleans%2C%20coproducts%20and%20shape%20types%20in%20type%20theory%20for%20synthetic%20%E2%88%9E-categories.pdf Booleans, coproducts and shape types in type theory for synthetic ∞-categories>):
+-- elimination into an /extension type/, with strict computation
+-- @rec-D C m (c p) ≡ m p@ on a syntactic point. Nothing is asked of @C@, so
+-- no Segal or covariance condition appears, and nothing here produces a cube
+-- term from type-layer data: a point goes /into/ a constructor and the
+-- eliminator maps only /out/ into types. 'Rzk.Match' on such a constructor
+-- binds the cube variable and brings φ into the branch's context, which is
+-- where a tope belongs.
+--
+-- Three neighbouring things are deliberately /not/ enabled by this, and each
+-- is blocked somewhere else rather than here:
+--
+-- * __Face equations__ on a field, which would declare a directed cell (the
+--   directed circle and friends). Their eliminator needs a Segal or covariant
+--   target and the metatheory is open. They are unreachable because the
+--   @#data@ grammar has no syntax for them, not because of a check.
+-- * __Modal type fields__, below.
+--
+-- Cube and shape /parameters/ and /indices/ go the other way: rejected in
+-- every spelling. The inline spelling falls to the surface checks in
+-- 'dataParamVars' and 'dataSortIndices'; the named and bare-cube spellings
+-- look like type-valued binders on the surface and are caught by
+-- 'checkDataSortLayers' on the elaborated sort, so the rule does not depend
+-- on the spelling.
 dataFieldToParamDecl :: Distinct n => Rzk.VarIdent -> Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
 dataFieldToParamDecl cname = \case
   p@Rzk.ParamPatternType{} -> paramToParamDecl p
+  p@Rzk.ParamPatternShape{} -> paramToParamDecl p
+  p@Rzk.ParamPatternModalShape{} -> paramToParamDecl p
+  -- Not rejected here: whether a modal binder is a (fine) cube or shape
+  -- field or a (rejected) modal type field is not recognisable on the
+  -- surface — @(t :♭ Δ¹)@ looks exactly like @(x :♭ A)@ — so the decision
+  -- is made by 'checkDataConFieldLayers' on the elaborated constructor type.
+  p@Rzk.ParamPatternModalType{} -> paramToParamDecl p
   Rzk.ParamPattern _ pat -> issueTypeError $ TypeErrorOther $
     "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
-  Rzk.ParamPatternShape{} -> issueTypeError $ TypeErrorOther $
-    "constructor " <> Rzk.printTree cname
-      <> " takes a cube or shape argument; over the directed interval this would declare a directed cell, which is not supported"
-  Rzk.ParamPatternModalType{} -> modalFieldError cname
-  Rzk.ParamPatternModalShape{} -> modalFieldError cname
 
+-- | Modal /type/ fields are deferred; modal /cube/ and /shape/ fields are
+-- accepted. The line between them is drawn by recursion, not by \"crisp
+-- induction\".
+--
+-- A modal field of any kind is an ordinary constructor argument sitting
+-- under a lock; the ordinary eliminator suffices for it, binding the field
+-- with its modality so the lock discipline applies inside a branch, and no
+-- new principle is involved. /Crisp induction/ — eliminating a crisp
+-- @x :♭ D@ by cases — is a separate principle that @#data@ does not
+-- provide either way.
+--
+-- What does distinguish the kinds is that a type field can be /recursive/,
+-- and the recursion and positivity bookkeeping ('dataConSurface' collects
+-- @fieldTypes@ and the probe from plain 'Rzk.ParamTermType' declarations
+-- only) does not see through a modal binder: a modal recursive field would
+-- silently evade the positivity probe and the induction-hypothesis
+-- machinery. A cube or shape field cannot be recursive — its domain is not
+-- a type — so nothing is evaded, and the modal form is as safe as the
+-- plain one.
 modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
 modalFieldError cname = issueTypeError $ TypeErrorOther $
-  "modal fields are not supported yet in constructor " <> Rzk.printTree cname
+  "modal type fields are not supported yet in constructor " <> Rzk.printTree cname
+
+-- | The field rule, on the elaborated form: a constructor field must be a
+-- type, a cube point, or a shape. That is the realisation fragment of
+-- Kudasov's 2021 note — points go /into/ constructors and the eliminator
+-- maps out into types — and nothing beyond it: a field of the cube universe,
+-- of a tope-family kind, or of a modal tope kind would /store/ a cube- or
+-- tope-layer citizen inside type-layer data, which no written metatheory
+-- covers ('DomainKind' names the rejected kinds).
+--
+-- The modal spelling adds one distinction the surface cannot make:
+-- @(t :♭ Δ¹)@ and @(x :♭ A)@ are the same surface form
+-- ('Rzk.ParamPatternModalType'), and only elaboration tells a named shape
+-- from a type. A modal binder with a cube or shape domain is an ordinary
+-- (modal) cube or shape field; with a type domain it is rejected
+-- ('modalFieldError'). The check walks the elaborated constructor
+-- Π-telescope past the parameters, exactly as 'checkDataSortLayers' does
+-- for the sort.
+checkDataConFieldLayers
+  :: Distinct n
+  => Rzk.VarIdent -> Int -> [Rzk.ParamDecl] -> TermT n -> TypeCheck n ()
+checkDataConFieldLayers cname numParams fieldDecls =
+  go (replicate numParams Nothing <> map fieldInfo fieldDecls)
+  where
+    fieldInfo d = Just (isModalTypeSpelling d, spelledField d)
+    isModalTypeSpelling = \case
+      Rzk.ParamTermModalType{} -> True
+      _                        -> False
+    spelledField = \case
+      Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
+      d                        -> Rzk.printTree d
+    go :: Distinct m => [Maybe (Bool, String)] -> TermT m -> TypeCheck m ()
+    go [] _ = pure ()
+    go (checkInfo : rest) ty = whnfT ty >>= \case
+      TypeFunT _ty orig md param mtope ret -> do
+        forM_ checkInfo $ \(modalSpelled, spelled) -> case mtope of
+          Just _  -> pure ()   -- a shape field, in any spelling and modality
+          Nothing -> classifyDomain param >>= \case
+            DomainCubePoint -> pure ()
+            DomainType
+              | modalSpelled -> modalFieldError cname
+              | otherwise    -> pure ()
+            kind -> issueTypeError $ TypeErrorOther $
+              "a field of constructor " <> Rzk.printTree cname
+                <> " must be a type, a cube point, or a shape, got "
+                <> domainKindName kind <> ": " <> spelled
+        inScope orig md param ret (go rest)
+      _ -> panicImpossible "constructor type has fewer Π binders than parameters and fields"
 
 dataConSurface
   :: Distinct n
@@ -616,12 +793,22 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
     , dataConSort = sort
     }
   where
+    -- A shape field binds a cube variable, so it contributes a field variable
+    -- and a field pattern exactly as a plain typed field does. Without these
+    -- cases the field's type reaches the constructor but its binder does not,
+    -- and 'conApplied' applies the constructor to too few arguments.
     fieldVars = \case
-      Rzk.ParamPatternType _ pats _ -> concatMap surfacePatternVars pats
-      _                             -> []
+      Rzk.ParamPatternType _ pats _           -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternShape _ pats _ _        -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalType _ pats _ _    -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap surfacePatternVars pats
+      _                                       -> []
     fieldPats = \case
-      Rzk.ParamPatternType _ pats _ -> map patternToTerm pats
-      _                             -> []
+      Rzk.ParamPatternType _ pats _           -> map patternToTerm pats
+      Rzk.ParamPatternShape _ pats _ _        -> map patternToTerm pats
+      Rzk.ParamPatternModalType _ pats _ _    -> map patternToTerm pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> map patternToTerm pats
+      _                                       -> []
     isIdentity = \case
       Rzk.TypeId{}       -> True
       Rzk.TypeIdSimple{} -> True
@@ -692,6 +879,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
         Nothing -> surfaceArrow ty body
   dTyTerm <- elaborate (addParamDecls paramDecls sortTerm)
   dTy <- memoizeWHNF =<< typecheck dTyTerm universeT
+  checkDataSortLayers paramDecls sortIndices dTy
   dDeps <- assumptionDepsOf dTy
   withTopLevel (varIdentAt path name) dTy Nothing False
     (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
@@ -741,6 +929,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           loc
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
+      checkDataConFieldLayers (dataConName con) numParams (dataConFields con) conTy
       conDeps <- assumptionDepsOf conTy
       let conSort = case dataConSort con of
             DataConPoint  -> PointCon
@@ -1192,7 +1381,14 @@ checkCommands path i total commands k = case commands of
             -- run stopping at this one.
             result <- tryCheck $ do
               valTerm <- elaborate (addParams params term)
-              atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+              val' <- atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+              -- A definition at type U must define a type: a body that is a
+              -- universe kind would be a synonym smuggling the kind into
+              -- every position that accepts U.
+              whnfT ty' >>= \case
+                UniverseT{} -> ensureTypeAtU "a definition at type U" val'
+                _           -> pure ()
+              pure val'
             let (mvalue, bodyErrors) = case result of
                   Right term'  -> (Just term', [])
                   Left bodyErr -> (Nothing, [bodyErr])
@@ -1245,7 +1441,16 @@ checkCommands path i total commands k = case commands of
       withCommand command k $ do
         typeResult <- tryCheck $ do
           tyTerm <- elaborate ty
-          atSurface ty $ typecheck tyTerm universeT
+          ty' <- atSurface ty $ typecheck tyTerm universeT
+          -- A bare tope assumption would let section closure manufacture the
+          -- Π over TOPE that the binder rule forbids; the tope-family
+          -- spelling (psi : 1 -> TOPE) is the supported form of a bare tope
+          -- parameter.
+          whnfT ty' >>= \case
+            UniverseTopeT{} -> issueTypeError $ TypeErrorOther
+              "tope assumptions are illegal; assume a tope family instead, e.g. (psi : 1 -> TOPE)"
+            _ -> pure ()
+          pure ty'
         case typeResult of
           Left typeError -> skippingCommand typeError path i total more k
           Right ty' ->
