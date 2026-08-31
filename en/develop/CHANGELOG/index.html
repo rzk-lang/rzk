@@ -669,10 +669,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#unreleased" class="md-nav__link">
+  <a href="#v0113-2026-08-31" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Unreleased
+        v0.11.3 — 2026-08-31
       
     </span>
   </a>
@@ -1520,19 +1520,52 @@
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
 and this project adheres to the
 <a href="https://pvp.haskell.org/">Haskell Package Versioning Policy</a>.</p>
-<h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
+<h2 id="v0113-2026-08-31">v0.11.3 — 2026-08-31<a class="headerlink" href="#v0113-2026-08-31" title="Permanent link">&para;</a></h2>
+<p>A maintenance release. The conversion fast path now compares stuck applications spine to spine, the modal <code class="language-rzk highlight"><span class="k">let</span></code> gets a clearer surface syntax, and <code>rzk version --full</code> describes the build.</p>
 <p>Added:</p>
 <ul>
-<li><strong>A suggested move names its holes.</strong> A candidate spine used to render as <code class="language-rzk highlight">id-hom <span class="bp">?</span> <span class="bp">?</span></code>, giving no clue what each hole stood for, and two spines of the same lemma applied to different numbers of arguments were told apart only by counting. Each hole now carries its Π binder's name, so the same pair reads <code class="language-rzk highlight">id-hom <span class="bp">?</span>A <span class="bp">?</span>x</code> and <code class="language-rzk highlight">id-hom <span class="bp">?</span>A <span class="bp">?</span>x <span class="bp">?</span>t</code>, and the move reads like the lemma's own signature. Named holes were already valid input syntax and are reported by name, so a tapped move keeps its names in the editor.</li>
+<li>
+<p><strong><code>rzk version --full</code> describes the build</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/340">#340</a>): the commit with its date, the compiler, the platform, and the Cabal flags. <code>--json</code> prints the same record as an object, and the bare version stays the default output. The library exports the version as <code>Rzk.Version</code>.</p>
+</li>
+<li>
+<p><strong>A suggested move names its holes</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/345">#345</a>). A candidate spine now renders as <code class="language-rzk highlight">id-hom <span class="bp">?</span>A <span class="bp">?</span>x</code> rather than <code class="language-rzk highlight">id-hom <span class="bp">?</span> <span class="bp">?</span></code>, taking the names from the lemma's own binders.</p>
+</li>
+</ul>
+<p>Changed:</p>
+<ul>
+<li><strong>The modal <code class="language-rzk highlight"><span class="k">let</span></code> forms are reworked</strong>, building on <a href="https://github.com/rzk-lang/rzk/pull/334">#334</a> by <a href="https://github.com/LIshy2">Islam Talipov</a> (see <a href="https://github.com/rzk-lang/rzk/pull/352">#352</a>). The binding form is <code class="language-rzk highlight"><span class="k">let</span> <span class="nd">♯</span> x := a <span class="k">in</span> u</code>, the eliminator is <code class="language-rzk highlight"><span class="k">let mod</span> <span class="nd">♯</span> x := a <span class="k">in</span> u</code>, and an explicit external lock is written <code class="language-rzk highlight"><span class="k">let</span> <span class="nd">ᵒᵖ</span> <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♯</span> x := a <span class="k">in</span> u</code>. Each form takes an optional <code class="language-rzk highlight">into</code> motive.</li>
 </ul>
 <p>Fixed:</p>
 <ul>
 <li>
-<p><strong>A hole in a cube position is offered the cube's points.</strong> A hole of type <code class="language-rzk highlight"><span class="kt">2</span></code> had no introduction forms at all, so writing a corner of a square as <code class="language-rzk highlight">α <span class="bp">?</span> <span class="bp">?</span></code> left the two obvious fillings, <code class="language-rzk highlight">0₂</code> and <code class="language-rzk highlight">1₂</code>, unsuggested. The directed interval and the unit cube now offer their closed points, the way every other goal shape offers its introductions. An in-scope cube variable was already offered as a candidate and is unaffected.</p>
+<p><strong>A function meets its η-expansion on a smaller shape</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/347">#347</a>). Unification required two lambdas to carry logically equivalent domain topes; the domain is now a one-directional subtyping obligation, as for Π-types. The conversion fast path had been masking this bug on the sHoTT corpus.</p>
 </li>
 <li>
-<p><strong>A lemma about projections is offered as a hole candidate</strong> where it was not. A result type headed by a hole is treated as fitting any goal (see <a href="https://github.com/rzk-lang/rzk/pull/338">#338</a>); a projection applied to a hole now counts the same way, since <code class="language-rzk highlight"><span class="s">first</span> <span class="bp">?</span></code> is whatever the pair's first component turns out to be and has no shape of its own to mismatch with. Before this, a lemma such as <code class="language-rzk highlight">first-path-Σ ... : <span class="s">first</span> s = <span class="s">first</span> t</code> was offered only when both endpoints matched structurally, and was dropped exactly when it was needed, against a goal with a plain variable at one endpoint.</p>
+<p><strong>Modal values are identified across spellings</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/352">#352</a>). The discreteness axiom of a flat point follows its value, the modal η-laws hold by <code class="language-rzk highlight"><span class="s">refl</span></code>, and the external lock of an extraction is ignored in conversion.</p>
 </li>
+<li>
+<p><strong>A hole in a cube position is offered the cube's points</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/344">#344</a>). A goal of type <code class="language-rzk highlight"><span class="kt">2</span></code> now suggests <code class="language-rzk highlight">0₂</code> and <code class="language-rzk highlight">1₂</code>, the way every other goal shape offers its introductions.</p>
+</li>
+<li>
+<p><strong>A lemma about projections is offered as a hole candidate</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/343">#343</a>). A projection applied to a hole is now treated as hole-headed, like a plain hole (see <a href="https://github.com/rzk-lang/rzk/pull/338">#338</a>), so a result type such as <code class="language-rzk highlight"><span class="s">first</span> s = <span class="s">first</span> t</code> fits any goal while probing candidates.</p>
+</li>
+</ul>
+<p>Performance:</p>
+<ul>
+<li>
+<p><strong>Stuck applications are compared spine to spine in the conversion fast path</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/346">#346</a>, <a href="https://github.com/rzk-lang/rzk/pull/351">#351</a>), following the glued evaluation of Kovács' smalltt. A proof reported by <a href="https://github.com/BennoLossin">Benno Lossin</a> now checks in about two seconds, down from five minutes.</p>
+</li>
+<li>
+<p><strong>free-foil 0.4.0</strong> (see <a href="https://github.com/rzk-lang/rzk/pull/350">#350</a>) brings 4% less wall clock and 20% less maximum residency on the sHoTT corpus.</p>
+</li>
+</ul>
+<p>Documentation:</p>
+<ul>
+<li>The README and the docs point newcomers at the interactive games (see <a href="https://github.com/rzk-lang/rzk/pull/341">#341</a>).</li>
+</ul>
+<p>CI / infrastructure:</p>
+<ul>
+<li>BNFC's unbuilt output (<code>Skel.hs</code>, <code>Test.hs</code>, <code>ErrM.hs</code>) is no longer committed (see <a href="https://github.com/rzk-lang/rzk/pull/353">#353</a>).</li>
 </ul>
 <h2 id="v0112-2026-08-20">v0.11.2 — 2026-08-20<a class="headerlink" href="#v0112-2026-08-20" title="Permanent link">&para;</a></h2>
 <p>A maintenance release. Checking no longer stops at the first declaration that fails, errors are reported at the sub-term rather than at the enclosing declaration, and a lemma stated over a motive is offered as a hole candidate, so an eliminator written in the sHoTT style is visible as a move.</p>
