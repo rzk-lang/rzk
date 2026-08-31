@@ -1,0 +1,440 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Showing a term to the user.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- A term of the core names its variables by 'Foil.Name' (an @Int@), so anything</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- user-facing &#8212; an error, a trace of a judgement, a hole's goal &#8212; has to say what</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- each name is /called/. That is a 'Naming': a display name and a display binder</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- per name in scope, plus the supply of fresh names for the binders the printer</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- meets on the way down.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- This replaces the old @var -&gt; VarIdent@ threading (@name@, @nameInc@,</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- @BinderNames@, @ppTermInContext@ &#8212; four copies of the same idea), and with it</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- the unwinding loop that rebuilt those names one binder at a time.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html"><span class="hs-identifier">Rzk.TypeCheck.Display</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameMap</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foil</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NameMap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntMap</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>                   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">nub</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(\\)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>                    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Print.html"><span class="hs-identifier">Language.Rzk.Foil.Print</span></a></span><span>     </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Print.html#fromTerm"><span class="hs-identifier">fromTerm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html"><span class="hs-identifier">Language.Rzk.Foil.Syntax</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Names.html"><span class="hs-identifier">Language.Rzk.Foil.Names</span></a></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#Binder"><span class="hs-identifier">Binder</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#Display"><span class="hs-identifier">Display</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>                                              </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#TypeInfo"><span class="hs-identifier">TypeInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier">VarIdent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>                                              </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#binderIsCompound"><span class="hs-identifier">binderIsCompound</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#binderLeaves"><span class="hs-identifier">binderLeaves</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>                                              </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#binderDisplayName"><span class="hs-identifier">binderDisplayName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#binderToPattern"><span class="hs-identifier">binderToPattern</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#defaultVarIdents"><span class="hs-identifier">defaultVarIdents</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>                                              </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#freshenBinderLeaves"><span class="hs-identifier">freshenBinderLeaves</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#fromVarIdent"><span class="hs-identifier">fromVarIdent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>                                              </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#refreshVarIn"><span class="hs-identifier">refreshVarIn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.Rzk.Syntax.html"><span class="hs-identifier">Language.Rzk.Syntax</span></a></span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="annot"><a href="Rzk.html"><span class="hs-identifier">Rzk</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Context.html"><span class="hs-identifier">Rzk.TypeCheck.Context</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | What every name in scope is called, and what the printer may call the</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- binders it has yet to meet.</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="Naming"><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-var">Naming</span></a></span></span><span> </span><span id="local-6989586621680205136"><span class="annot"><a href="#local-6989586621680205136"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Naming"><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-var">Naming</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="namingOf"><span class="annot"><span class="annottext">forall (n :: S). Naming n -&gt; NameMap n Display
+</span><a href="Rzk.TypeCheck.Display.html#namingOf"><span class="hs-identifier hs-var hs-var">namingOf</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NameMap</span></span><span> </span><span class="annot"><a href="#local-6989586621680205136"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#Display"><span class="hs-identifier hs-type">Display</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="namingUsed"><span class="annot"><span class="annottext">forall (n :: S). Naming n -&gt; [VarIdent]
+</span><a href="Rzk.TypeCheck.Display.html#namingUsed"><span class="hs-identifier hs-var hs-var">namingUsed</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ the display names taken, so a bound binder is refreshed away from them</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="namingSupply"><span class="annot"><span class="annottext">forall (n :: S). Naming n -&gt; [VarIdent]
+</span><a href="Rzk.TypeCheck.Display.html#namingSupply"><span class="hs-identifier hs-var hs-var">namingSupply</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ the names left over, for anonymous binders</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Read the naming off a context.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- A named binder keeps its name, refreshed only if an outer name has already</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- taken it. An anonymous one draws from the supply. A pattern binder has its</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- component names freshened as a group, so that the pattern shown in the context</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- and the projections folded inside a term agree on them.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- Entries are named oldest binding first (see 'ctxBound'), so an outer binder</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- keeps its name and an inner one is the one refreshed away from it.</span><span>
+</span><span id="line-53"></span><span id="local-6989586621680205144"><span class="annot"><a href="Rzk.TypeCheck.Display.html#namingOfContext"><span class="hs-identifier hs-type">namingOfContext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205144"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205144"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-54"></span><span id="namingOfContext"><span class="annot"><span class="annottext">namingOfContext :: forall (n :: S). Context n -&gt; Naming n
+</span><a href="Rzk.TypeCheck.Display.html#namingOfContext"><span class="hs-identifier hs-var hs-var">namingOfContext</span></a></span></span><span> </span><span id="local-6989586621680205246"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680205246"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">namingOf :: NameMap n Display
+</span><a href="Rzk.TypeCheck.Display.html#namingOf"><span class="hs-identifier hs-var">namingOf</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap Display -&gt; NameMap n Display
+forall (n :: S) a. IntMap a -&gt; NameMap n a
+</span><span class="hs-identifier hs-var">NameMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(Key, Display)] -&gt; IntMap Display
+forall a. [(Key, a)] -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.fromList</span></span><span> </span><span class="annot"><span class="annottext">[(Key, Display)]
+</span><a href="#local-6989586621680205249"><span class="hs-identifier hs-var">entries</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">namingUsed :: [VarIdent]
+</span><a href="Rzk.TypeCheck.Display.html#namingUsed"><span class="hs-identifier hs-var">namingUsed</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205250"><span class="hs-identifier hs-var">used</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">namingSupply :: [VarIdent]
+</span><a href="Rzk.TypeCheck.Display.html#namingSupply"><span class="hs-identifier hs-var">namingSupply</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="Language.Rzk.Foil.Names.html#defaultVarIdents"><span class="hs-identifier hs-var">defaultVarIdents</span></a></span><span> </span><span class="annot"><span class="annottext">[VarIdent] -&gt; [VarIdent] -&gt; [VarIdent]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">\\</span></span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205250"><span class="hs-identifier hs-var">used</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621680205249"><span class="annot"><span class="annottext">[(Key, Display)]
+</span><a href="#local-6989586621680205249"><span class="hs-identifier hs-var">entries</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680205251"><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205251"><span class="hs-identifier hs-var">usedSet</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+-&gt; [VarIdent]
+-&gt; [(Name n, VarInfo n)]
+-&gt; ([(Key, Display)], Set VarIdent)
+forall {l :: S} {n :: S}.
+Set VarIdent
+-&gt; [VarIdent]
+-&gt; [(Name l, VarInfo n)]
+-&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205252"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="Language.Rzk.Foil.Names.html#defaultVarIdents"><span class="hs-identifier hs-var">defaultVarIdents</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context n -&gt; [(Name n, VarInfo n)]
+forall (n :: S). Context n -&gt; [(Name n, VarInfo n)]
+</span><a href="Rzk.TypeCheck.Context.html#varsInScope"><span class="hs-identifier hs-var">varsInScope</span></a></span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680205246"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621680205250"><span class="annot"><span class="annottext">used :: [VarIdent]
+</span><a href="#local-6989586621680205250"><span class="hs-identifier hs-var hs-var">used</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set VarIdent -&gt; [VarIdent]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205251"><span class="hs-identifier hs-var">usedSet</span></a></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-comment">-- Name the entries in binding order, each avoiding the names already taken.</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-comment">-- The taken names are a set: this runs once per entry, and a context can hold</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-comment">-- every top-level definition of a project.</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621680205252"><span class="annot"><span class="annottext">go :: Set VarIdent
+-&gt; [VarIdent]
+-&gt; [(Name l, VarInfo n)]
+-&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205252"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621680205260"><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205260"><span class="hs-identifier hs-var">taken</span></a></span></span><span> </span><span id="local-6989586621680205261"><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205261"><span class="hs-identifier hs-var">_supply</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205260"><span class="hs-identifier hs-var">taken</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><a href="#local-6989586621680205252"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621680205262"><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205262"><span class="hs-identifier hs-var">taken</span></a></span></span><span> </span><span id="local-6989586621680205263"><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205263"><span class="hs-identifier hs-var">supply</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621680205264"><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680205264"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680205265"><span class="annot"><span class="annottext">VarInfo n
+</span><a href="#local-6989586621680205265"><span class="hs-identifier hs-var">info</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680205266"><span class="annot"><span class="annottext">[(Name l, VarInfo n)]
+</span><a href="#local-6989586621680205266"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">VarInfo n -&gt; Binder
+forall (n :: S). VarInfo n -&gt; Binder
+</span><a href="Rzk.TypeCheck.Context.html#varOrig"><span class="hs-identifier hs-var">varOrig</span></a></span><span> </span><span class="annot"><span class="annottext">VarInfo n
+</span><a href="#local-6989586621680205265"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#BinderVar"><span class="hs-identifier hs-type">BinderVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680205269"><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205269"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-70"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680205270"><span class="annot"><span class="annottext">x' :: VarIdent
+</span><a href="#local-6989586621680205270"><span class="hs-identifier hs-var hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set VarIdent -&gt; VarIdent -&gt; VarIdent
+</span><a href="Language.Rzk.Foil.Names.html#refreshVarIn"><span class="hs-identifier hs-var">refreshVarIn</span></a></span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205262"><span class="hs-identifier hs-var">taken</span></a></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205269"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-71"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Display
+-&gt; [VarIdent] -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+forall {t :: * -&gt; *}.
+Foldable t =&gt;
+Display
+-&gt; t VarIdent -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205271"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205270"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe VarIdent -&gt; Binder
+</span><a href="Language.Rzk.Foil.Names.html#BinderVar"><span class="hs-identifier hs-var">BinderVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VarIdent -&gt; Maybe VarIdent
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205270"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205270"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205263"><span class="hs-identifier hs-var">supply</span></a></span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#BinderVar"><span class="hs-identifier hs-type">BinderVar</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe VarIdent
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-73"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205263"><span class="hs-identifier hs-var">supply</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-74"></span><span>            </span><span id="local-6989586621680205272"><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205272"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680205273"><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205273"><span class="hs-identifier hs-var">supply'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Display
+-&gt; [VarIdent] -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+forall {t :: * -&gt; *}.
+Foldable t =&gt;
+Display
+-&gt; t VarIdent -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205271"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205272"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe VarIdent -&gt; Binder
+</span><a href="Language.Rzk.Foil.Names.html#BinderVar"><span class="hs-identifier hs-var">BinderVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VarIdent -&gt; Maybe VarIdent
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205272"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205272"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205273"><span class="hs-identifier hs-var">supply'</span></a></span><span>
+</span><span id="line-75"></span><span>            </span><span class="hs-special">[</span><span class="hs-special">]</span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ([(Key, Display)], Set VarIdent)
+forall a. String -&gt; a
+</span><a href="Rzk.TypeCheck.Display.html#panicImpossible"><span class="hs-identifier hs-var">panicImpossible</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;not enough fresh variables&quot;</span></span><span>
+</span><span id="line-76"></span><span>        </span><span id="local-6989586621680205275"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205275"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-77"></span><span>          </span><span class="hs-comment">-- A pattern binder: the variable itself needs a placeholder name only</span><span>
+</span><span id="line-78"></span><span>          </span><span class="hs-comment">-- when the whole point is used, and then it prints as the pattern &#8212;</span><span>
+</span><span id="line-79"></span><span>          </span><span class="hs-comment">-- so the placeholder is the pattern's own display name (&quot;(na, nb)&quot;),</span><span>
+</span><span id="line-80"></span><span>          </span><span class="hs-comment">-- which the identifier lexer can never produce. It must not draw</span><span>
+</span><span id="line-81"></span><span>          </span><span class="hs-comment">-- from the default supply: claiming x&#8321; here would displace a later</span><span>
+</span><span id="line-82"></span><span>          </span><span class="hs-comment">-- user-written x&#8321; in the display (and its hole moves) while the</span><span>
+</span><span id="line-83"></span><span>          </span><span class="hs-comment">-- source keeps the name. Only the leaves are freshened and claimed.</span><span>
+</span><span id="line-84"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680205276"><span class="annot"><span class="annottext">binder' :: Binder
+</span><a href="#local-6989586621680205276"><span class="hs-identifier hs-var hs-var">binder'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[VarIdent] -&gt; Binder -&gt; Binder
+</span><a href="Language.Rzk.Foil.Names.html#freshenBinderLeaves"><span class="hs-identifier hs-var">freshenBinderLeaves</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set VarIdent -&gt; [VarIdent]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205262"><span class="hs-identifier hs-var">taken</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205275"><span class="hs-identifier hs-var">binder</span></a></span><span>
+</span><span id="line-85"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Display
+-&gt; [VarIdent] -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+forall {t :: * -&gt; *}.
+Foldable t =&gt;
+Display
+-&gt; t VarIdent -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205271"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Binder -&gt; VarIdent
+</span><a href="Language.Rzk.Foil.Names.html#binderDisplayName"><span class="hs-identifier hs-var">binderDisplayName</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205276"><span class="hs-identifier hs-var">binder'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205276"><span class="hs-identifier hs-var">binder'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Binder -&gt; [VarIdent]
+</span><a href="Language.Rzk.Foil.Names.html#binderLeaves"><span class="hs-identifier hs-var">binderLeaves</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205276"><span class="hs-identifier hs-var">binder'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205263"><span class="hs-identifier hs-var">supply</span></a></span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>        </span><span id="local-6989586621680205271"><span class="annot"><span class="annottext">name :: Display
+-&gt; t VarIdent -&gt; [VarIdent] -&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205271"><span class="hs-identifier hs-var hs-var">name</span></a></span></span><span> </span><span id="local-6989586621680205278"><span class="annot"><span class="annottext">Display
+</span><a href="#local-6989586621680205278"><span class="hs-identifier hs-var">display</span></a></span></span><span> </span><span id="local-6989586621680205279"><span class="annot"><span class="annottext">t VarIdent
+</span><a href="#local-6989586621680205279"><span class="hs-identifier hs-var">claimed</span></a></span></span><span> </span><span id="local-6989586621680205280"><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205280"><span class="hs-identifier hs-var">supply'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680205285"><span class="annot"><span class="annottext">[(Key, Display)]
+</span><a href="#local-6989586621680205285"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680205286"><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205286"><span class="hs-identifier hs-var">taken'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+-&gt; [VarIdent]
+-&gt; [(Name l, VarInfo n)]
+-&gt; ([(Key, Display)], Set VarIdent)
+</span><a href="#local-6989586621680205252"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(VarIdent -&gt; Set VarIdent -&gt; Set VarIdent)
+-&gt; Set VarIdent -&gt; t VarIdent -&gt; Set VarIdent
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">VarIdent -&gt; Set VarIdent -&gt; Set VarIdent
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205262"><span class="hs-identifier hs-var">taken</span></a></span><span> </span><span class="annot"><span class="annottext">t VarIdent
+</span><a href="#local-6989586621680205279"><span class="hs-identifier hs-var">claimed</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205280"><span class="hs-identifier hs-var">supply'</span></a></span><span> </span><span class="annot"><span class="annottext">[(Name l, VarInfo n)]
+</span><a href="#local-6989586621680205266"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-89"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name l -&gt; Key
+forall (l :: S). Name l -&gt; Key
+</span><span class="hs-identifier hs-var">Foil.nameId</span></span><span> </span><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680205264"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Display
+</span><a href="#local-6989586621680205278"><span class="hs-identifier hs-var">display</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Key, Display) -&gt; [(Key, Display)] -&gt; [(Key, Display)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[(Key, Display)]
+</span><a href="#local-6989586621680205285"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set VarIdent
+</span><a href="#local-6989586621680205286"><span class="hs-identifier hs-var">taken'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | A term already rendered for the user, kept as surface syntax rather than a</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- string so that a consumer may still inspect it.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- Its 'Show' prints the surface syntax, which is what the old @Term'@ did, so a</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- rendered goal or candidate reads the same as it always has (@\\ (t, s) &#8594; ?@).</span><span>
+</span><span id="line-96"></span><span class="hs-keyword">newtype</span><span> </span><span id="Rendered"><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-var">Rendered</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Rendered"><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-var">Rendered</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getRendered"><span class="annot"><span class="annottext">Rendered -&gt; Term
+</span><a href="Rzk.TypeCheck.Display.html#getRendered"><span class="hs-identifier hs-var hs-var">getRendered</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.Syntax.Abs.html#Term"><span class="hs-identifier hs-type">Rzk.Term</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680205293"><span id="local-6989586621680205298"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span id="local-6989586621680205303"><span class="annot"><span class="annottext">show :: Rendered -&gt; String
+</span><a href="#local-6989586621680205303"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Term -&gt; String
+forall a. Print a =&gt; a -&gt; String
+</span><a href="Language.Rzk.Syntax.html#printTree"><span class="hs-identifier hs-var">Rzk.printTree</span></a></span><span> </span><span class="annot"><span class="annottext">(Term -&gt; String) -&gt; (Rendered -&gt; Term) -&gt; Rendered -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Rendered -&gt; Term
+</span><a href="Rzk.TypeCheck.Display.html#getRendered"><span class="hs-identifier hs-var">getRendered</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- | Two rendered terms are equal when they read the same. (The surface AST</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- carries source positions, which a rendered term should not be judged by.)</span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680205309"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-104"></span><span>  </span><span id="local-6989586621680205319"><span class="annot"><span class="annottext">Rendered
+</span><a href="#local-6989586621680205319"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621680205320"><span class="annot"><span class="annottext">== :: Rendered -&gt; Rendered -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621680205321"><span class="annot"><span class="annottext">Rendered
+</span><a href="#local-6989586621680205321"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rendered -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Rendered
+</span><a href="#local-6989586621680205319"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Rendered -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Rendered
+</span><a href="#local-6989586621680205321"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | A term as surface syntax, with the context's names.</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- A binder /inside/ the term is freshened only against the names the term itself</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- mentions &#8212; not against everything in scope. A type shows the binder it was</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- written with (@&#931; (a : A), B a@), even where the context happens to have an @a@ of</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- its own: the two are different variables, and shadowing is what binders are for.</span><span>
+</span><span id="line-112"></span><span id="local-6989586621680205184"><span class="annot"><a href="Rzk.TypeCheck.Display.html#renderTerm"><span class="hs-identifier hs-type">renderTerm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205184"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#Term"><span class="hs-identifier hs-type">Term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205184"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span></span><span>
+</span><span id="line-113"></span><span id="renderTerm"><span class="annot"><span class="annottext">renderTerm :: forall (n :: S). Naming n -&gt; Term n -&gt; Rendered
+</span><a href="Rzk.TypeCheck.Display.html#renderTerm"><span class="hs-identifier hs-var hs-var">renderTerm</span></a></span></span><span> </span><span id="local-6989586621680205323"><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205323"><span class="hs-identifier hs-var">naming</span></a></span></span><span> </span><span id="local-6989586621680205324"><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680205324"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Term -&gt; Rendered
+</span><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-var">Rendered</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[VarIdent] -&gt; [VarIdent] -&gt; NameMap n Display -&gt; Term n -&gt; Term
+forall (n :: S).
+[VarIdent] -&gt; [VarIdent] -&gt; NameMap n Display -&gt; Term n -&gt; Term
+</span><a href="Language.Rzk.Foil.Print.html#fromTerm"><span class="hs-identifier hs-var">fromTerm</span></a></span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205325"><span class="hs-identifier hs-var">used</span></a></span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205326"><span class="hs-identifier hs-var">supply</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Naming n -&gt; NameMap n Display
+forall (n :: S). Naming n -&gt; NameMap n Display
+</span><a href="Rzk.TypeCheck.Display.html#namingOf"><span class="hs-identifier hs-var">namingOf</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205323"><span class="hs-identifier hs-var">naming</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680205324"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621680205325"><span class="annot"><span class="annottext">used :: [VarIdent]
+</span><a href="#local-6989586621680205325"><span class="hs-identifier hs-var hs-var">used</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[VarIdent] -&gt; [VarIdent]
+forall a. Eq a =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">nub</span></span><span> </span><span class="annot"><span class="annottext">([VarIdent] -&gt; [VarIdent]) -&gt; [VarIdent] -&gt; [VarIdent]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[VarIdent]] -&gt; [VarIdent]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span>
+</span><span id="line-116"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205330"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">VarIdent -&gt; [VarIdent] -&gt; [VarIdent]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Binder -&gt; [VarIdent]
+</span><a href="Language.Rzk.Foil.Names.html#binderLeaves"><span class="hs-identifier hs-var">binderLeaves</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205331"><span class="hs-identifier hs-var">binder</span></a></span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680205332"><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621680205332"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Term n -&gt; [Name n]
+forall (n :: S). Term n -&gt; [Name n]
+</span><a href="Language.Rzk.Foil.Syntax.html#freeVarsOfTerm"><span class="hs-identifier hs-var">freeVarsOfTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680205324"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-118"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680205330"><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205330"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680205331"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205331"><span class="hs-identifier hs-var">binder</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Naming n -&gt; Name n -&gt; Display
+forall (n :: S). Naming n -&gt; Name n -&gt; Display
+</span><a href="Rzk.TypeCheck.Display.html#displayOf"><span class="hs-identifier hs-var">displayOf</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205323"><span class="hs-identifier hs-var">naming</span></a></span><span> </span><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621680205332"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-119"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621680205326"><span class="annot"><span class="annottext">supply :: [VarIdent]
+</span><a href="#local-6989586621680205326"><span class="hs-identifier hs-var hs-var">supply</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="Language.Rzk.Foil.Names.html#defaultVarIdents"><span class="hs-identifier hs-var">defaultVarIdents</span></a></span><span> </span><span class="annot"><span class="annottext">[VarIdent] -&gt; [VarIdent] -&gt; [VarIdent]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">\\</span></span><span> </span><span class="annot"><span class="annottext">[VarIdent]
+</span><a href="#local-6989586621680205325"><span class="hs-identifier hs-var">used</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><span class="hs-comment">-- | A term shown to the user.</span></span><span>
+</span><span id="line-123"></span><span id="local-6989586621680205197"><span class="annot"><a href="Rzk.TypeCheck.Display.html#ppTerm"><span class="hs-identifier hs-type">ppTerm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205197"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#Term"><span class="hs-identifier hs-type">Term</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205197"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span></span><span>
+</span><span id="line-124"></span><span id="ppTerm"><span class="annot"><span class="annottext">ppTerm :: forall (n :: S). Naming n -&gt; Term n -&gt; String
+</span><a href="Rzk.TypeCheck.Display.html#ppTerm"><span class="hs-identifier hs-var hs-var">ppTerm</span></a></span></span><span> </span><span id="local-6989586621680205338"><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205338"><span class="hs-identifier hs-var">naming</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rendered -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(Rendered -&gt; String) -&gt; (Term n -&gt; Rendered) -&gt; Term n -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Naming n -&gt; Term n -&gt; Rendered
+forall (n :: S). Naming n -&gt; Term n -&gt; Rendered
+</span><a href="Rzk.TypeCheck.Display.html#renderTerm"><span class="hs-identifier hs-var">renderTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205338"><span class="hs-identifier hs-var">naming</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- | A typed term shown as @term : type@, as the old @ppFoldT@ did. A variable is</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- shown bare: its type is in the context, not on the node.</span><span>
+</span><span id="line-128"></span><span id="local-6989586621680205199"><span class="annot"><a href="Rzk.TypeCheck.Display.html#ppTermT"><span class="hs-identifier hs-type">ppTermT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205199"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205199"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span></span><span>
+</span><span id="line-129"></span><span id="ppTermT"><span class="annot"><span class="annottext">ppTermT :: forall (n :: S). Naming n -&gt; TermT n -&gt; String
+</span><a href="Rzk.TypeCheck.Display.html#ppTermT"><span class="hs-identifier hs-var hs-var">ppTermT</span></a></span></span><span> </span><span id="local-6989586621680205346"><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205346"><span class="hs-identifier hs-var">naming</span></a></span></span><span> </span><span id="local-6989586621680205347"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680205347"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; Maybe (TypeInfo (TermT n))
+forall (n :: S). TermT n -&gt; Maybe (TypeInfo (TermT n))
+</span><a href="Language.Rzk.Foil.Syntax.html#typeInfoOf"><span class="hs-identifier hs-var">typeInfoOf</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680205347"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="annottext">Maybe (TypeInfo (TermT n))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Naming n -&gt; Term n -&gt; String
+forall (n :: S). Naming n -&gt; Term n -&gt; String
+</span><a href="Rzk.TypeCheck.Display.html#ppTerm"><span class="hs-identifier hs-var">ppTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205346"><span class="hs-identifier hs-var">naming</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT n -&gt; Term n
+forall (n :: S). TermT n -&gt; Term n
+</span><a href="Language.Rzk.Foil.Syntax.html#untyped"><span class="hs-identifier hs-var">untyped</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680205347"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680205350"><span class="annot"><span class="annottext">TypeInfo (TermT n)
+</span><a href="#local-6989586621680205350"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Naming n -&gt; Term n -&gt; String
+forall (n :: S). Naming n -&gt; Term n -&gt; String
+</span><a href="Rzk.TypeCheck.Display.html#ppTerm"><span class="hs-identifier hs-var">ppTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205346"><span class="hs-identifier hs-var">naming</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT n -&gt; Term n
+forall (n :: S). TermT n -&gt; Term n
+</span><a href="Language.Rzk.Foil.Syntax.html#untyped"><span class="hs-identifier hs-var">untyped</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680205347"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; : &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Naming n -&gt; Term n -&gt; String
+forall (n :: S). Naming n -&gt; Term n -&gt; String
+</span><a href="Rzk.TypeCheck.Display.html#ppTerm"><span class="hs-identifier hs-var">ppTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205346"><span class="hs-identifier hs-var">naming</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT n -&gt; Term n
+forall (n :: S). TermT n -&gt; Term n
+</span><a href="Language.Rzk.Foil.Syntax.html#untyped"><span class="hs-identifier hs-var">untyped</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeInfo (TermT n) -&gt; TermT n
+forall term. TypeInfo term -&gt; term
+</span><a href="Language.Rzk.Foil.Names.html#infoType"><span class="hs-identifier hs-var">infoType</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT n)
+</span><a href="#local-6989586621680205350"><span class="hs-identifier hs-var">info</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><span class="hs-comment">-- | What a name is called, and the (freshened) binder it was introduced by.</span></span><span>
+</span><span id="line-135"></span><span id="local-6989586621680205196"><span class="annot"><a href="Rzk.TypeCheck.Display.html#displayOf"><span class="hs-identifier hs-type">displayOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205196"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foil.Name</span></span><span> </span><span class="annot"><a href="#local-6989586621680205196"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#Display"><span class="hs-identifier hs-type">Display</span></a></span></span><span>
+</span><span id="line-136"></span><span id="displayOf"><span class="annot"><span class="annottext">displayOf :: forall (n :: S). Naming n -&gt; Name n -&gt; Display
+</span><a href="Rzk.TypeCheck.Display.html#displayOf"><span class="hs-identifier hs-var hs-var">displayOf</span></a></span></span><span> </span><span id="local-6989586621680205352"><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205352"><span class="hs-identifier hs-var">naming</span></a></span></span><span> </span><span id="local-6989586621680205353"><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621680205353"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name n -&gt; NameMap n Display -&gt; Display
+forall (n :: S) a. Name n -&gt; NameMap n a -&gt; a
+</span><span class="hs-identifier hs-var">Foil.lookupName</span></span><span> </span><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621680205353"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Naming n -&gt; NameMap n Display
+forall (n :: S). Naming n -&gt; NameMap n Display
+</span><a href="Rzk.TypeCheck.Display.html#namingOf"><span class="hs-identifier hs-var">namingOf</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205352"><span class="hs-identifier hs-var">naming</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- | A variable as the user sees it: a pattern binder shows as its pattern</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- (@(t, s)@), anything else by its display name.</span><span>
+</span><span id="line-140"></span><span id="local-6989586621680205215"><span class="annot"><a href="Rzk.TypeCheck.Display.html#ppName"><span class="hs-identifier hs-type">ppName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Naming"><span class="hs-identifier hs-type">Naming</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680205215"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foil.Name</span></span><span> </span><span class="annot"><a href="#local-6989586621680205215"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span></span><span>
+</span><span id="line-141"></span><span id="ppName"><span class="annot"><span class="annottext">ppName :: forall (n :: S). Naming n -&gt; Name n -&gt; String
+</span><a href="Rzk.TypeCheck.Display.html#ppName"><span class="hs-identifier hs-var hs-var">ppName</span></a></span></span><span> </span><span id="local-6989586621680205360"><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205360"><span class="hs-identifier hs-var">naming</span></a></span></span><span> </span><span id="local-6989586621680205361"><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621680205361"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Name n -&gt; NameMap n Display -&gt; Display
+forall (n :: S) a. Name n -&gt; NameMap n a -&gt; a
+</span><span class="hs-identifier hs-var">Foil.lookupName</span></span><span> </span><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621680205361"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Naming n -&gt; NameMap n Display
+forall (n :: S). Naming n -&gt; NameMap n Display
+</span><a href="Rzk.TypeCheck.Display.html#namingOf"><span class="hs-identifier hs-var">namingOf</span></a></span><span> </span><span class="annot"><span class="annottext">Naming n
+</span><a href="#local-6989586621680205360"><span class="hs-identifier hs-var">naming</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VarIdent
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680205362"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205362"><span class="hs-identifier hs-var">binder</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Binder -&gt; Bool
+</span><a href="Language.Rzk.Foil.Names.html#binderIsCompound"><span class="hs-identifier hs-var">binderIsCompound</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205362"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pattern -&gt; String
+forall a. Print a =&gt; a -&gt; String
+</span><a href="Language.Rzk.Syntax.html#printTree"><span class="hs-identifier hs-var">Rzk.printTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Binder -&gt; Pattern
+</span><a href="Language.Rzk.Foil.Names.html#binderToPattern"><span class="hs-identifier hs-var">binderToPattern</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680205362"><span class="hs-identifier hs-var">binder</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621680205363"><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205363"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Binder
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>                                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">VarIdent -&gt; String
+forall a. Print a =&gt; a -&gt; String
+</span><a href="Language.Rzk.Syntax.html#printTree"><span class="hs-identifier hs-var">Rzk.printTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">VarIdent -&gt; VarIdent
+</span><a href="Language.Rzk.Foil.Names.html#fromVarIdent"><span class="hs-identifier hs-var">fromVarIdent</span></a></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680205363"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span id="local-6989586621680205165"><span class="annot"><a href="Rzk.TypeCheck.Display.html#panicImpossible"><span class="hs-identifier hs-type">panicImpossible</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680205165"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-147"></span><span id="panicImpossible"><span class="annot"><span class="annottext">panicImpossible :: forall a. String -&gt; a
+</span><a href="Rzk.TypeCheck.Display.html#panicImpossible"><span class="hs-identifier hs-var hs-var">panicImpossible</span></a></span></span><span> </span><span id="local-6989586621680205371"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680205371"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; a) -&gt; String -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><span class="hs-identifier hs-var">unlines</span></span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PANIC! Impossible happened (&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680205371"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;)!&quot;</span></span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Please, report a bug at https://github.com/rzk-lang/rzk/issues&quot;</span></span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-special">]</span><span>
+</span><span id="line-151"></span></pre></body></html>

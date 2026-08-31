@@ -1,0 +1,1076 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-name-shadowing #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds         #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts  #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase        #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards   #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | The checker's monad.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- @TypeCheck n@ is the old @TypeCheck var@ with the scope index in place of the</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- variable type. The error channel, though, is /not/ indexed: an error carries</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- the context it was raised in (see &quot;Rzk.TypeCheck.Error&quot;). That is what makes</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- 'inContext' a one-liner &#8212; running a judgement in an inner scope is just running</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- it under a different reader, with nothing to re-index on the way out. The old</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- @closeScope@ had to wrap the error one binder deeper and re-emit the holes.</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html"><span class="hs-identifier">Rzk.TypeCheck.Monad</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unless</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Except</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ExceptT</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>                                           </span><span class="annot"><span class="hs-identifier">MonadError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catchError</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwError</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>                                           </span><span class="annot"><span class="hs-identifier">runExceptT</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ReaderT</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ask</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">asks</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">local</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans</span></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">lift</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">State</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">get</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">modify'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">put</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>                                           </span><span class="annot"><span class="hs-identifier">runState</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Debug.Trace</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">trace</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Distinct</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foil</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Names.html"><span class="hs-identifier">Language.Rzk.Foil.Names</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier">VarIdent</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html"><span class="hs-identifier">Language.Rzk.Foil.Syntax</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#positionOfTerm"><span class="hs-identifier">positionOfTerm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Context.html"><span class="hs-identifier">Rzk.TypeCheck.Context</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Display.html"><span class="hs-identifier">Rzk.TypeCheck.Display</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Error.html"><span class="hs-identifier">Rzk.TypeCheck.Error</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | A binding shown in a hole's local context: the display name and its type,</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- already rendered.</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="HoleEntry"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleEntry"><span class="hs-identifier hs-var">HoleEntry</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HoleEntry"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleEntry"><span class="hs-identifier hs-var">HoleEntry</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="holeEntryName"><span class="annot"><span class="annottext">HoleEntry -&gt; VarIdent
+</span><a href="Rzk.TypeCheck.Monad.html#holeEntryName"><span class="hs-identifier hs-var hs-var">holeEntryName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeEntryType"><span class="annot"><span class="annottext">HoleEntry -&gt; Rendered
+</span><a href="Rzk.TypeCheck.Monad.html#holeEntryType"><span class="hs-identifier hs-var hs-var">holeEntryType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680206799"><span id="local-6989586621680206805"><span class="annot"><span class="annottext">HoleEntry -&gt; HoleEntry -&gt; Bool
+(HoleEntry -&gt; HoleEntry -&gt; Bool)
+-&gt; (HoleEntry -&gt; HoleEntry -&gt; Bool) -&gt; Eq HoleEntry
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: HoleEntry -&gt; HoleEntry -&gt; Bool
+== :: HoleEntry -&gt; HoleEntry -&gt; Bool
+$c/= :: HoleEntry -&gt; HoleEntry -&gt; Bool
+/= :: HoleEntry -&gt; HoleEntry -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680206810"><span id="local-6989586621680206818"><span id="local-6989586621680206822"><span class="annot"><span class="annottext">Int -&gt; HoleEntry -&gt; ShowS
+[HoleEntry] -&gt; ShowS
+HoleEntry -&gt; String
+(Int -&gt; HoleEntry -&gt; ShowS)
+-&gt; (HoleEntry -&gt; String)
+-&gt; ([HoleEntry] -&gt; ShowS)
+-&gt; Show HoleEntry
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; HoleEntry -&gt; ShowS
+showsPrec :: Int -&gt; HoleEntry -&gt; ShowS
+$cshow :: HoleEntry -&gt; String
+show :: HoleEntry -&gt; String
+$cshowList :: [HoleEntry] -&gt; ShowS
+showList :: [HoleEntry] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | The structured goal and context at a hole, recorded in lenient mode (see</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- 'allowHoles'). Everything is rendered to user-facing names at record time, so</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- 'HoleInfo' is independent of the scope it came from. Local hypotheses are split</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- into ordinary term variables and cube variables (the cube/tope layer is</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- specific to Rzk); the global environment is deliberately excluded &#8212; it belongs</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- in a searchable inventory, not the goal panel.</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="HoleInfo"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleInfo"><span class="hs-identifier hs-var">HoleInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HoleInfo"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleInfo"><span class="hs-identifier hs-var">HoleInfo</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="holeName"><span class="annot"><span class="annottext">HoleInfo -&gt; Maybe VarIdent
+</span><a href="Rzk.TypeCheck.Monad.html#holeName"><span class="hs-identifier hs-var hs-var">holeName</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ the @?name@, if the hole was named</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeGoal"><span class="annot"><span class="annottext">HoleInfo -&gt; Rendered
+</span><a href="Rzk.TypeCheck.Monad.html#holeGoal"><span class="hs-identifier hs-var hs-var">holeGoal</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ expected type (the goal), kept symbolic</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeGoalShape"><span class="annot"><span class="annottext">HoleInfo -&gt; Maybe (VarIdent, Rendered)
+</span><a href="Rzk.TypeCheck.Monad.html#holeGoalShape"><span class="hs-identifier hs-var hs-var">holeGoalShape</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-comment">-- ^ when the goal is a /shape/ (the hole is the argument of a</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-comment">-- shape-restricted function), the shape's bound variable and its tope: the</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-comment">-- goal then reads @(binder : holeGoal | tope)@. 'Nothing' for an ordinary</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- goal. (Extension-type goals need no special handling &#8212; they are already a</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-comment">-- restricted type in 'holeGoal'.)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeTermVars"><span class="annot"><span class="annottext">HoleInfo -&gt; [HoleEntry]
+</span><a href="Rzk.TypeCheck.Monad.html#holeTermVars"><span class="hs-identifier hs-var hs-var">holeTermVars</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleEntry"><span class="hs-identifier hs-type">HoleEntry</span></a></span><span class="hs-special">]</span><span>    </span><span class="annot"><span class="hs-comment">-- ^ local hypotheses whose type is not a cube</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeCubeVars"><span class="annot"><span class="annottext">HoleInfo -&gt; [HoleEntry]
+</span><a href="Rzk.TypeCheck.Monad.html#holeCubeVars"><span class="hs-identifier hs-var hs-var">holeCubeVars</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleEntry"><span class="hs-identifier hs-type">HoleEntry</span></a></span><span class="hs-special">]</span><span>    </span><span class="annot"><span class="hs-comment">-- ^ local cube variables (type is a cube)</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeTopes"><span class="annot"><span class="annottext">HoleInfo -&gt; [Rendered]
+</span><a href="Rzk.TypeCheck.Monad.html#holeTopes"><span class="hs-identifier hs-var hs-var">holeTopes</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span><span class="hs-special">]</span><span>     </span><span class="annot"><span class="hs-comment">-- ^ local tope assumptions (excluding &#8868;)</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeCandidates"><span class="annot"><span class="annottext">HoleInfo -&gt; [Rendered]
+</span><a href="Rzk.TypeCheck.Monad.html#holeCandidates"><span class="hs-identifier hs-var hs-var">holeCandidates</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-comment">-- ^ elimination spines over the local hypotheses whose type fits the goal,</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-comment">-- with applied arguments left as holes. Already rendered, like the rest.</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeIntroductions"><span class="annot"><span class="annottext">HoleInfo -&gt; [Rendered]
+</span><a href="Rzk.TypeCheck.Monad.html#holeIntroductions"><span class="hs-identifier hs-var hs-var">holeIntroductions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Display.html#Rendered"><span class="hs-identifier hs-type">Rendered</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-comment">-- ^ introduction forms for the goal type, built from its head constructor</span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-comment">-- with the constituents left as holes. Already rendered, like the rest.</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeDiagram"><span class="annot"><span class="annottext">HoleInfo -&gt; Maybe String
+</span><a href="Rzk.TypeCheck.Monad.html#holeDiagram"><span class="hs-identifier hs-var hs-var">holeDiagram</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-comment">-- ^ an SVG of the goal cell, when the goal is a renderable shape (an arrow,</span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-comment">-- triangle, or square up to dimension 3).</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="holeLocation"><span class="annot"><span class="annottext">HoleInfo -&gt; Maybe LocationInfo
+</span><a href="Rzk.TypeCheck.Monad.html#holeLocation"><span class="hs-identifier hs-var hs-var">holeLocation</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680206839"><span id="local-6989586621680206858"><span class="annot"><span class="annottext">HoleInfo -&gt; HoleInfo -&gt; Bool
+(HoleInfo -&gt; HoleInfo -&gt; Bool)
+-&gt; (HoleInfo -&gt; HoleInfo -&gt; Bool) -&gt; Eq HoleInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: HoleInfo -&gt; HoleInfo -&gt; Bool
+== :: HoleInfo -&gt; HoleInfo -&gt; Bool
+$c/= :: HoleInfo -&gt; HoleInfo -&gt; Bool
+/= :: HoleInfo -&gt; HoleInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680206866"><span id="local-6989586621680206886"><span id="local-6989586621680206890"><span class="annot"><span class="annottext">Int -&gt; HoleInfo -&gt; ShowS
+[HoleInfo] -&gt; ShowS
+HoleInfo -&gt; String
+(Int -&gt; HoleInfo -&gt; ShowS)
+-&gt; (HoleInfo -&gt; String) -&gt; ([HoleInfo] -&gt; ShowS) -&gt; Show HoleInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; HoleInfo -&gt; ShowS
+showsPrec :: Int -&gt; HoleInfo -&gt; ShowS
+$cshow :: HoleInfo -&gt; String
+show :: HoleInfo -&gt; String
+$cshowList :: [HoleInfo] -&gt; ShowS
+showList :: [HoleInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | A non-fatal finding of the checker, recorded on the writer channel</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- beside the holes and carried out of a run in @Checked@. Structured, so</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- the CLI, the LSP, and (later) safe mode each decide how to present or</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- escalate it.</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span id="CheckWarning"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckWarning"><span class="hs-identifier hs-var">CheckWarning</span></a></span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="LargeInductiveTypeWarning"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#LargeInductiveTypeWarning"><span class="hs-identifier hs-var">LargeInductiveTypeWarning</span></a></span></span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ the data type</span></span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ the constructor whose field stores a universe</span></span><span>
+</span><span id="line-82"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MetaPrefixWarning"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixWarning"><span class="hs-identifier hs-var">MetaPrefixWarning</span></a></span></span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ the declaration whose type or body contains the use</span></span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ the declaration used with too few meta-prefix arguments</span></span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ the arguments supplied</span></span><span>
+</span><span id="line-87"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ the length of the meta prefix</span></span><span>
+</span><span id="line-88"></span><span>      </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixRule"><span class="hs-identifier hs-type">MetaPrefixRule</span></a></span><span>
+</span><span id="line-89"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680206899"><span id="local-6989586621680206916"><span class="annot"><span class="annottext">CheckWarning -&gt; CheckWarning -&gt; Bool
+(CheckWarning -&gt; CheckWarning -&gt; Bool)
+-&gt; (CheckWarning -&gt; CheckWarning -&gt; Bool) -&gt; Eq CheckWarning
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CheckWarning -&gt; CheckWarning -&gt; Bool
+== :: CheckWarning -&gt; CheckWarning -&gt; Bool
+$c/= :: CheckWarning -&gt; CheckWarning -&gt; Bool
+/= :: CheckWarning -&gt; CheckWarning -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680206920"><span id="local-6989586621680206936"><span id="local-6989586621680206940"><span class="annot"><span class="annottext">Int -&gt; CheckWarning -&gt; ShowS
+[CheckWarning] -&gt; ShowS
+CheckWarning -&gt; String
+(Int -&gt; CheckWarning -&gt; ShowS)
+-&gt; (CheckWarning -&gt; String)
+-&gt; ([CheckWarning] -&gt; ShowS)
+-&gt; Show CheckWarning
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CheckWarning -&gt; ShowS
+showsPrec :: Int -&gt; CheckWarning -&gt; ShowS
+$cshow :: CheckWarning -&gt; String
+show :: CheckWarning -&gt; String
+$cshowList :: [CheckWarning] -&gt; ShowS
+showList :: [CheckWarning] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | Where a warning points, for per-file attribution.</span></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#warningLocation"><span class="hs-identifier hs-type">warningLocation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckWarning"><span class="hs-identifier hs-type">CheckWarning</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span><span>
+</span><span id="line-94"></span><span id="warningLocation"><span class="annot"><span class="annottext">warningLocation :: CheckWarning -&gt; Maybe LocationInfo
+</span><a href="Rzk.TypeCheck.Monad.html#warningLocation"><span class="hs-identifier hs-var hs-var">warningLocation</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#LargeInductiveTypeWarning"><span class="hs-identifier hs-type">LargeInductiveTypeWarning</span></a></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680206943"><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680206943"><span class="hs-identifier hs-var">loc</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680206943"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#warningLocation"><span class="hs-identifier hs-var">warningLocation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixWarning"><span class="hs-identifier hs-type">MetaPrefixWarning</span></a></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">VarIdent
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">MetaPrefixRule
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680206944"><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680206944"><span class="hs-identifier hs-var">loc</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680206944"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Which candidate rule of the meta-parameter layer check flags a</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- 'MetaPrefixWarning' (see &quot;Rzk.TypeCheck.MetaPrefix&quot;): the structural</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- rule, or only its stricter variant. Both are emitted so the two</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- candidate defaults can be measured on a corpus side by side.</span><span>
+</span><span id="line-101"></span><span class="hs-keyword">data</span><span> </span><span id="MetaPrefixRule"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixRule"><span class="hs-identifier hs-var">MetaPrefixRule</span></a></span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="MetaPrefixBoth"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixBoth"><span class="hs-identifier hs-var">MetaPrefixBoth</span></a></span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MetaPrefixStrictOnly"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixStrictOnly"><span class="hs-identifier hs-var">MetaPrefixStrictOnly</span></a></span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680206948"><span id="local-6989586621680206952"><span class="annot"><span class="annottext">MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool
+(MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool)
+-&gt; (MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool) -&gt; Eq MetaPrefixRule
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool
+== :: MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool
+$c/= :: MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool
+/= :: MetaPrefixRule -&gt; MetaPrefixRule -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680206955"><span id="local-6989586621680206957"><span id="local-6989586621680206960"><span class="annot"><span class="annottext">Int -&gt; MetaPrefixRule -&gt; ShowS
+[MetaPrefixRule] -&gt; ShowS
+MetaPrefixRule -&gt; String
+(Int -&gt; MetaPrefixRule -&gt; ShowS)
+-&gt; (MetaPrefixRule -&gt; String)
+-&gt; ([MetaPrefixRule] -&gt; ShowS)
+-&gt; Show MetaPrefixRule
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; MetaPrefixRule -&gt; ShowS
+showsPrec :: Int -&gt; MetaPrefixRule -&gt; ShowS
+$cshow :: MetaPrefixRule -&gt; String
+show :: MetaPrefixRule -&gt; String
+$cshowList :: [MetaPrefixRule] -&gt; ShowS
+showList :: [MetaPrefixRule] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | What a run records besides its result: the holes it found and the non-fatal</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- findings it made. Both accumulate in reverse and are turned around by</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- 'checkLog' when the run ends.</span><span>
+</span><span id="line-109"></span><span class="hs-keyword">data</span><span> </span><span id="CheckLog"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-var">CheckLog</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CheckLog"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-var">CheckLog</span></a></span></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="logHolesRev"><span class="annot"><span class="annottext">CheckLog -&gt; [HoleInfo]
+</span><a href="Rzk.TypeCheck.Monad.html#logHolesRev"><span class="hs-identifier hs-var hs-var">logHolesRev</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleInfo"><span class="hs-identifier hs-type">HoleInfo</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="logWarningsRev"><span class="annot"><span class="annottext">CheckLog -&gt; [CheckWarning]
+</span><a href="Rzk.TypeCheck.Monad.html#logWarningsRev"><span class="hs-identifier hs-var hs-var">logWarningsRev</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckWarning"><span class="hs-identifier hs-type">CheckWarning</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#emptyCheckLog"><span class="hs-identifier hs-type">emptyCheckLog</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-type">CheckLog</span></a></span><span>
+</span><span id="line-115"></span><span id="emptyCheckLog"><span class="annot"><span class="annottext">emptyCheckLog :: CheckLog
+</span><a href="Rzk.TypeCheck.Monad.html#emptyCheckLog"><span class="hs-identifier hs-var hs-var">emptyCheckLog</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[HoleInfo] -&gt; [CheckWarning] -&gt; CheckLog
+</span><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-var">CheckLog</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="annot"><span class="hs-comment">-- | What a run recorded, in the order it was recorded.</span></span><span>
+</span><span id="line-118"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#checkLog"><span class="hs-identifier hs-type">checkLog</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-type">CheckLog</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleInfo"><span class="hs-identifier hs-type">HoleInfo</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckWarning"><span class="hs-identifier hs-type">CheckWarning</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span id="checkLog"><span class="annot"><span class="annottext">checkLog :: CheckLog -&gt; ([HoleInfo], [CheckWarning])
+</span><a href="Rzk.TypeCheck.Monad.html#checkLog"><span class="hs-identifier hs-var hs-var">checkLog</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-type">CheckLog</span></a></span><span> </span><span id="local-6989586621680206967"><span class="annot"><span class="annottext">[HoleInfo]
+</span><a href="#local-6989586621680206967"><span class="hs-identifier hs-var">holes</span></a></span></span><span> </span><span id="local-6989586621680206968"><span class="annot"><span class="annottext">[CheckWarning]
+</span><a href="#local-6989586621680206968"><span class="hs-identifier hs-var">warnings</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[HoleInfo] -&gt; [HoleInfo]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[HoleInfo]
+</span><a href="#local-6989586621680206967"><span class="hs-identifier hs-var">holes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[CheckWarning] -&gt; [CheckWarning]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[CheckWarning]
+</span><a href="#local-6989586621680206968"><span class="hs-identifier hs-var">warnings</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | The record of a run is kept in the /state/, beneath the error channel,</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- rather than on a writer channel above it.</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- The two differ exactly where a caught error is concerned: a writer discards</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- what the failing action wrote, and the state keeps it. That is what the</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- checker wants. A command that fails still reports the holes the user wrote in</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- it, and checking goes on to the next command with those holes in hand (see</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- @withCommand@ in &quot;Rzk.TypeCheck.Decl&quot;). A probe that wants the older</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- behaviour asks for it, with 'suppressing'.</span><span>
+</span><span id="line-130"></span><span class="hs-keyword">type</span><span> </span><span id="TypeCheck"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-var">TypeCheck</span></a></span></span><span> </span><span id="local-6989586621680206971"><span class="annot"><a href="#local-6989586621680206971"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">ReaderT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206971"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ExceptT</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeErrorInScopedContext"><span class="hs-identifier hs-type">TypeErrorInScopedContext</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">State</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-type">CheckLog</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><span class="hs-comment">-- | Run a judgement in a given context, keeping what it recorded.</span></span><span>
+</span><span id="line-135"></span><span id="local-6989586621680206566"><span id="local-6989586621680206568"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#runTypeCheckWith"><span class="hs-identifier hs-type">runTypeCheckWith</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206566"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206566"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206568"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeErrorInScopedContext"><span class="hs-identifier hs-type">TypeErrorInScopedContext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206568"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleInfo"><span class="hs-identifier hs-type">HoleInfo</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckWarning"><span class="hs-identifier hs-type">CheckWarning</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-138"></span><span id="runTypeCheckWith"><span class="annot"><span class="annottext">runTypeCheckWith :: forall (n :: S) a.
+Context n
+-&gt; TypeCheck n a
+-&gt; (Either TypeErrorInScopedContext a,
+    ([HoleInfo], [CheckWarning]))
+</span><a href="Rzk.TypeCheck.Monad.html#runTypeCheckWith"><span class="hs-identifier hs-var hs-var">runTypeCheckWith</span></a></span></span><span> </span><span id="local-6989586621680206973"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680206973"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621680206974"><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680206974"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">State CheckLog (Either TypeErrorInScopedContext a)
+-&gt; CheckLog -&gt; (Either TypeErrorInScopedContext a, CheckLog)
+forall s a. State s a -&gt; s -&gt; (a, s)
+</span><span class="hs-identifier hs-var">runState</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a
+-&gt; State CheckLog (Either TypeErrorInScopedContext a)
+forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><span class="hs-identifier hs-var">runExceptT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeCheck n a
+-&gt; Context n
+-&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a
+forall r (m :: * -&gt; *) a. ReaderT r m a -&gt; r -&gt; m a
+</span><span class="hs-identifier hs-var">runReaderT</span></span><span> </span><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680206974"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680206973"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">CheckLog
+</span><a href="Rzk.TypeCheck.Monad.html#emptyCheckLog"><span class="hs-identifier hs-var">emptyCheckLog</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621680206976"><span class="annot"><span class="annottext">Either TypeErrorInScopedContext a
+</span><a href="#local-6989586621680206976"><span class="hs-identifier hs-var">result</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680206977"><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680206977"><span class="hs-identifier hs-var">logged</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Either TypeErrorInScopedContext a
+</span><a href="#local-6989586621680206976"><span class="hs-identifier hs-var">result</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CheckLog -&gt; ([HoleInfo], [CheckWarning])
+</span><a href="Rzk.TypeCheck.Monad.html#checkLog"><span class="hs-identifier hs-var">checkLog</span></a></span><span> </span><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680206977"><span class="hs-identifier hs-var">logged</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><span class="hs-comment">-- | Run a judgement in the empty context, discarding the holes it records.</span></span><span>
+</span><span id="line-143"></span><span id="local-6989586621680206587"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#runTypeCheck"><span class="hs-identifier hs-type">runTypeCheck</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foil.VoidS</span></span><span> </span><span class="annot"><a href="#local-6989586621680206587"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeErrorInScopedContext"><span class="hs-identifier hs-type">TypeErrorInScopedContext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206587"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-144"></span><span id="runTypeCheck"><span class="annot"><span class="annottext">runTypeCheck :: forall a. TypeCheck 'VoidS a -&gt; Either TypeErrorInScopedContext a
+</span><a href="Rzk.TypeCheck.Monad.html#runTypeCheck"><span class="hs-identifier hs-var hs-var">runTypeCheck</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context 'VoidS
+-&gt; TypeCheck 'VoidS a -&gt; Either TypeErrorInScopedContext a
+forall (n :: S) a.
+Context n -&gt; TypeCheck n a -&gt; Either TypeErrorInScopedContext a
+</span><a href="Rzk.TypeCheck.Monad.html#runTypeCheckIn"><span class="hs-identifier hs-var">runTypeCheckIn</span></a></span><span> </span><span class="annot"><span class="annottext">Context 'VoidS
+</span><a href="Rzk.TypeCheck.Context.html#emptyContext"><span class="hs-identifier hs-var">emptyContext</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="annot"><span class="hs-comment">-- | Run a judgement in a given context, discarding the holes it records.</span></span><span>
+</span><span id="line-147"></span><span id="local-6989586621680206589"><span id="local-6989586621680206590"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#runTypeCheckIn"><span class="hs-identifier hs-type">runTypeCheckIn</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206589"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206589"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206590"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeErrorInScopedContext"><span class="hs-identifier hs-type">TypeErrorInScopedContext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206590"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-148"></span><span id="runTypeCheckIn"><span class="annot"><span class="annottext">runTypeCheckIn :: forall (n :: S) a.
+Context n -&gt; TypeCheck n a -&gt; Either TypeErrorInScopedContext a
+</span><a href="Rzk.TypeCheck.Monad.html#runTypeCheckIn"><span class="hs-identifier hs-var hs-var">runTypeCheckIn</span></a></span></span><span> </span><span id="local-6989586621680206981"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680206981"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621680206982"><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680206982"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Either TypeErrorInScopedContext a, ([HoleInfo], [CheckWarning]))
+-&gt; Either TypeErrorInScopedContext a
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context n
+-&gt; TypeCheck n a
+-&gt; (Either TypeErrorInScopedContext a,
+    ([HoleInfo], [CheckWarning]))
+forall (n :: S) a.
+Context n
+-&gt; TypeCheck n a
+-&gt; (Either TypeErrorInScopedContext a,
+    ([HoleInfo], [CheckWarning]))
+</span><a href="Rzk.TypeCheck.Monad.html#runTypeCheckWith"><span class="hs-identifier hs-var">runTypeCheckWith</span></a></span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680206981"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680206982"><span class="hs-identifier hs-var">tc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- | Run a judgement in another scope's context.</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- The error channel and the hole channel are shared and carry no scope index, so</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- there is nothing to translate: this is 'runReaderT' with the inner scope's</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- context, lifted back. Holes recorded inside land in the same state, and an</span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- error thrown inside already carries its own context.</span><span>
+</span><span id="line-156"></span><span id="local-6989586621680206595"><span id="local-6989586621680206596"><span id="local-6989586621680206597"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#inContext"><span class="hs-identifier hs-type">inContext</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206595"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206595"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206596"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206597"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206596"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-157"></span><span id="inContext"><span class="annot"><span class="annottext">inContext :: forall (l :: S) a (n :: S).
+Context l -&gt; TypeCheck l a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#inContext"><span class="hs-identifier hs-var hs-var">inContext</span></a></span></span><span> </span><span id="local-6989586621680206992"><span class="annot"><span class="annottext">Context l
+</span><a href="#local-6989586621680206992"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ReaderT (Context n) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">(ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (TypeCheck l a
+    -&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a)
+-&gt; TypeCheck l a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(TypeCheck l a
+ -&gt; Context l
+ -&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a)
+-&gt; Context l
+-&gt; TypeCheck l a
+-&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">TypeCheck l a
+-&gt; Context l
+-&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) a
+forall r (m :: * -&gt; *) a. ReaderT r m a -&gt; r -&gt; m a
+</span><span class="hs-identifier hs-var">runReaderT</span></span><span> </span><span class="annot"><span class="annottext">Context l
+</span><a href="#local-6989586621680206992"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">-- * Errors</span></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">-- | Raise a type error, capturing the context it happened in.</span></span><span>
+</span><span id="line-162"></span><span id="local-6989586621680206616"><span id="local-6989586621680206619"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#issueTypeError"><span class="hs-identifier hs-type">issueTypeError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680206616"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeError"><span class="hs-identifier hs-type">TypeError</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206616"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206616"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206619"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-163"></span><span id="issueTypeError"><span class="annot"><span class="annottext">issueTypeError :: forall (n :: S) a. Distinct n =&gt; TypeError n -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#issueTypeError"><span class="hs-identifier hs-var hs-var">issueTypeError</span></a></span></span><span> </span><span id="local-6989586621680207009"><span class="annot"><span class="annottext">TypeError n
+</span><a href="#local-6989586621680207009"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-164"></span><span>  </span><span id="local-6989586621680207010"><span class="annot"><a href="#local-6989586621680207010"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+  (Context n)
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">throwError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeErrorInScopedContext"><span class="hs-identifier hs-type">TypeErrorInScopedContext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207010"><span class="hs-identifier hs-type">ctx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207009"><span class="hs-identifier hs-type">err</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span id="local-6989586621680206639"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#issueWarning"><span class="hs-identifier hs-type">issueWarning</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206639"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-168"></span><span id="issueWarning"><span class="annot"><span class="annottext">issueWarning :: forall (n :: S). String -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.Monad.html#issueWarning"><span class="hs-identifier hs-var hs-var">issueWarning</span></a></span></span><span> </span><span id="local-6989586621680207022"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680207022"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; TypeCheck n () -&gt; TypeCheck n ()
+forall a. String -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">trace</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Warning: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680207022"><span class="hs-identifier hs-var">message</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; TypeCheck n ()
+forall a.
+a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="annot"><span class="hs-comment">-- * Tracing</span></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span id="local-6989586621680206651"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#trace%27"><span class="hs-identifier hs-type">trace'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Verbosity"><span class="hs-identifier hs-type">Verbosity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Verbosity"><span class="hs-identifier hs-type">Verbosity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680206651"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680206651"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-173"></span><span id="trace%27"><span class="annot"><span class="annottext">trace' :: forall a. Verbosity -&gt; Verbosity -&gt; String -&gt; a -&gt; a
+</span><a href="Rzk.TypeCheck.Monad.html#trace%27"><span class="hs-identifier hs-var hs-var">trace'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><a href="Rzk.TypeCheck.Context.html#Silent"><span class="hs-identifier hs-var">Silent</span></a></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-174"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#trace%27"><span class="hs-identifier hs-var">trace'</span></a></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><a href="Rzk.TypeCheck.Context.html#Normal"><span class="hs-identifier hs-var">Normal</span></a></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><a href="Rzk.TypeCheck.Context.html#Debug"><span class="hs-identifier hs-var">Debug</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-175"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#trace%27"><span class="hs-identifier hs-var">trace'</span></a></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680207028"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680207028"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a -&gt; a
+forall a. String -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">trace</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680207028"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span id="local-6989586621680206654"><span id="local-6989586621680206655"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#traceTypeCheck"><span class="hs-identifier hs-type">traceTypeCheck</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Verbosity"><span class="hs-identifier hs-type">Verbosity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206654"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206655"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206654"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206655"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-178"></span><span id="traceTypeCheck"><span class="annot"><span class="annottext">traceTypeCheck :: forall (n :: S) a.
+Verbosity -&gt; String -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#traceTypeCheck"><span class="hs-identifier hs-var hs-var">traceTypeCheck</span></a></span></span><span> </span><span id="local-6989586621680207035"><span class="annot"><span class="annottext">Verbosity
+</span><a href="#local-6989586621680207035"><span class="hs-identifier hs-var">verbosity</span></a></span></span><span> </span><span id="local-6989586621680207036"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680207036"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span id="local-6989586621680207037"><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680207037"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-179"></span><span>  </span><span id="local-6989586621680207038"><span class="annot"><a href="#local-6989586621680207038"><span class="hs-identifier hs-var">configuredVerbosity</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Verbosity)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     Verbosity
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; a) -&gt; m a
+</span><span class="hs-identifier hs-var">asks</span></span><span> </span><span class="annot"><span class="annottext">Context n -&gt; Verbosity
+forall (n :: S). Context n -&gt; Verbosity
+</span><a href="Rzk.TypeCheck.Context.html#ctxVerbosity"><span class="hs-identifier hs-var">ctxVerbosity</span></a></span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#trace%27"><span class="hs-identifier hs-type">trace'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207038"><span class="hs-identifier hs-type">configuredVerbosity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207035"><span class="hs-identifier hs-type">verbosity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207036"><span class="hs-identifier hs-type">msg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207037"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span id="local-6989586621680206662"><span id="local-6989586621680206663"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#localVerbosity"><span class="hs-identifier hs-type">localVerbosity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Verbosity"><span class="hs-identifier hs-type">Verbosity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206662"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206663"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206662"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206663"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-183"></span><span id="localVerbosity"><span class="annot"><span class="annottext">localVerbosity :: forall (n :: S) a. Verbosity -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localVerbosity"><span class="hs-identifier hs-var hs-var">localVerbosity</span></a></span></span><span> </span><span id="local-6989586621680207045"><span class="annot"><span class="annottext">Verbosity
+</span><a href="#local-6989586621680207045"><span class="hs-identifier hs-var">verbosity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207046"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207046"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207046"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxVerbosity"><span class="hs-identifier hs-var">ctxVerbosity</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207045"><span class="hs-identifier hs-type">verbosity</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span id="local-6989586621680206672"><span id="local-6989586621680206673"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#localRenderBackend"><span class="hs-identifier hs-type">localRenderBackend</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#RenderBackend"><span class="hs-identifier hs-type">RenderBackend</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206672"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206673"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206672"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206673"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-186"></span><span id="localRenderBackend"><span class="annot"><span class="annottext">localRenderBackend :: forall (n :: S) a.
+Maybe RenderBackend -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localRenderBackend"><span class="hs-identifier hs-var hs-var">localRenderBackend</span></a></span></span><span> </span><span id="local-6989586621680207052"><span class="annot"><span class="annottext">Maybe RenderBackend
+</span><a href="#local-6989586621680207052"><span class="hs-identifier hs-var">backend</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207053"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207053"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207053"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxRenderBackend"><span class="hs-identifier hs-var">ctxRenderBackend</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207052"><span class="hs-identifier hs-type">backend</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span id="local-6989586621680206676"><span id="local-6989586621680206677"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#localHideTerm"><span class="hs-identifier hs-type">localHideTerm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206676"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206676"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206677"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-189"></span><span id="localHideTerm"><span class="annot"><span class="annottext">localHideTerm :: forall (n :: S) a. Bool -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localHideTerm"><span class="hs-identifier hs-var hs-var">localHideTerm</span></a></span></span><span> </span><span id="local-6989586621680207060"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680207060"><span class="hs-identifier hs-var">hide</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207061"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207061"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207061"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxRenderHideTerm"><span class="hs-identifier hs-var">ctxRenderHideTerm</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207060"><span class="hs-identifier hs-type">hide</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span id="local-6989586621680207063"><span id="local-6989586621680207064"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#localWarnOverhang"><span class="hs-identifier hs-type">localWarnOverhang</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207063"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207064"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207063"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207064"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-192"></span><span id="localWarnOverhang"><span class="annot"><span class="annottext">localWarnOverhang :: forall (n :: S) a. Bool -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localWarnOverhang"><span class="hs-identifier hs-var hs-var">localWarnOverhang</span></a></span></span><span> </span><span id="local-6989586621680207070"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680207070"><span class="hs-identifier hs-var">warn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207071"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207071"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207071"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxWarnOverhang"><span class="hs-identifier hs-var">ctxWarnOverhang</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207070"><span class="hs-identifier hs-type">warn</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span id="local-6989586621680206683"><span id="local-6989586621680206684"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#localMetaPrefixSensitivity"><span class="hs-identifier hs-type">localMetaPrefixSensitivity</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#MetaPrefixSensitivity"><span class="hs-identifier hs-type">MetaPrefixSensitivity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206683"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206684"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206683"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206684"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-195"></span><span id="localMetaPrefixSensitivity"><span class="annot"><span class="annottext">localMetaPrefixSensitivity :: forall (n :: S) a.
+MetaPrefixSensitivity -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localMetaPrefixSensitivity"><span class="hs-identifier hs-var hs-var">localMetaPrefixSensitivity</span></a></span></span><span> </span><span id="local-6989586621680207078"><span class="annot"><span class="annottext">MetaPrefixSensitivity
+</span><a href="#local-6989586621680207078"><span class="hs-identifier hs-var">sensitivity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-196"></span><span>  </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207079"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207079"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207079"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxMetaPrefixSensitivity"><span class="hs-identifier hs-var">ctxMetaPrefixSensitivity</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207078"><span class="hs-identifier hs-type">sensitivity</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="annot"><span class="hs-comment">-- | Render the enclosed action with the proof term hidden.</span></span><span>
+</span><span id="line-199"></span><span id="local-6989586621680206687"><span id="local-6989586621680206688"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#hidingTerm"><span class="hs-identifier hs-type">hidingTerm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206687"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206688"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206687"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206688"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-200"></span><span id="hidingTerm"><span class="annot"><span class="annottext">hidingTerm :: forall (n :: S) a. TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#hidingTerm"><span class="hs-identifier hs-var hs-var">hidingTerm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; TypeCheck n a -&gt; TypeCheck n a
+forall (n :: S) a. Bool -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localHideTerm"><span class="hs-identifier hs-var">localHideTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="annot"><span class="hs-comment">-- * Variance</span></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span id="local-6989586621680207082"><span id="local-6989586621680207083"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#switchVariance"><span class="hs-identifier hs-type">switchVariance</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207082"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207083"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207082"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207083"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-205"></span><span id="switchVariance"><span class="annot"><span class="annottext">switchVariance :: forall (n :: S) a. TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#switchVariance"><span class="hs-identifier hs-var hs-var">switchVariance</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207089"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207089"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207089"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxCovariance"><span class="hs-identifier hs-var">ctxCovariance</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207091"><span class="hs-identifier hs-type">switch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxCovariance"><span class="hs-identifier hs-var">ctxCovariance</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207089"><span class="hs-identifier hs-type">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-207"></span><span>    </span><span id="local-6989586621680207091"><span class="annot"><span class="annottext">switch :: Covariance -&gt; Covariance
+</span><a href="#local-6989586621680207091"><span class="hs-identifier hs-var hs-var">switch</span></a></span></span><span> </span><span class="annot"><span class="annottext">Covariance
+</span><a href="Rzk.TypeCheck.Context.html#Covariant"><span class="hs-identifier hs-var">Covariant</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Covariance
+</span><a href="Rzk.TypeCheck.Context.html#Contravariant"><span class="hs-identifier hs-var">Contravariant</span></a></span><span>
+</span><span id="line-208"></span><span>    </span><span class="annot"><a href="#local-6989586621680207091"><span class="hs-identifier hs-var">switch</span></a></span><span> </span><span class="annot"><span class="annottext">Covariance
+</span><a href="Rzk.TypeCheck.Context.html#Contravariant"><span class="hs-identifier hs-var">Contravariant</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Covariance
+</span><a href="Rzk.TypeCheck.Context.html#Covariant"><span class="hs-identifier hs-var">Covariant</span></a></span><span>
+</span><span id="line-209"></span><span>    </span><span class="annot"><a href="#local-6989586621680207091"><span class="hs-identifier hs-var">switch</span></a></span><span> </span><span class="annot"><span class="annottext">Covariance
+</span><a href="Rzk.TypeCheck.Context.html#Invariant"><span class="hs-identifier hs-var">Invariant</span></a></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Covariance
+</span><a href="Rzk.TypeCheck.Context.html#Invariant"><span class="hs-identifier hs-var">Invariant</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span id="local-6989586621680206695"><span id="local-6989586621680206696"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#setVariance"><span class="hs-identifier hs-type">setVariance</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Covariance"><span class="hs-identifier hs-type">Covariance</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206695"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206696"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206695"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206696"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-212"></span><span id="setVariance"><span class="annot"><span class="annottext">setVariance :: forall (n :: S) a. Covariance -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#setVariance"><span class="hs-identifier hs-var hs-var">setVariance</span></a></span></span><span> </span><span id="local-6989586621680207100"><span class="annot"><span class="annottext">Covariance
+</span><a href="#local-6989586621680207100"><span class="hs-identifier hs-var">variance</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207101"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207101"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207101"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxCovariance"><span class="hs-identifier hs-var">ctxCovariance</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207100"><span class="hs-identifier hs-type">variance</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="annot"><span class="hs-comment">-- * The judgement stack</span></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- | The depth of nested judgements at which type checking gives up. Well-typed</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- input stays far below it; the cap catches a non-terminating search.</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- FIXME: expose as a parameter (@--max-depth@ and @rzk.yaml@).</span><span>
+</span><span id="line-219"></span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#maxActionStackDepth"><span class="hs-identifier hs-type">maxActionStackDepth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-220"></span><span id="maxActionStackDepth"><span class="annot"><span class="annottext">maxActionStackDepth :: Int
+</span><a href="Rzk.TypeCheck.Monad.html#maxActionStackDepth"><span class="hs-identifier hs-var hs-var">maxActionStackDepth</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span id="local-6989586621680206699"><span id="local-6989586621680206701"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#performing"><span class="hs-identifier hs-type">performing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680206699"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Action"><span class="hs-identifier hs-type">Action</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206699"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206699"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206701"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206699"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206701"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-223"></span><span id="performing"><span class="annot"><span class="annottext">performing :: forall (n :: S) a.
+Distinct n =&gt;
+Action n -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#performing"><span class="hs-identifier hs-var hs-var">performing</span></a></span></span><span> </span><span id="local-6989586621680207125"><span class="annot"><span class="annottext">Action n
+</span><a href="#local-6989586621680207125"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621680207126"><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680207126"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621680207127"><span class="annot"><a href="#local-6989586621680207127"><span class="hs-identifier hs-var">ctx</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span class="hs-special">{</span><span id="local-6989586621680207129"><span id="local-6989586621680207130"><span id="local-6989586621680207131"><span id="local-6989586621680207132"><span id="local-6989586621680207133"><span id="local-6989586621680207134"><span id="local-6989586621680207135"><span id="local-6989586621680207136"><span id="local-6989586621680207137"><span id="local-6989586621680207138"><span id="local-6989586621680207139"><span id="local-6989586621680207140"><span id="local-6989586621680207141"><span id="local-6989586621680207142"><span id="local-6989586621680207143"><span id="local-6989586621680207144"><span id="local-6989586621680207145"><span id="local-6989586621680207146"><span id="local-6989586621680207147"><span id="local-6989586621680207148"><span id="local-6989586621680207149"><span id="local-6989586621680207150"><span id="local-6989586621680207151"><span id="local-6989586621680207152"><span id="local-6989586621680207153"><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxVerbosity"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+  (Context n)
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-225"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680207142"><span class="hs-identifier hs-type">ctxActionStackDepth</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#maxActionStackDepth"><span class="hs-identifier hs-type">maxActionStackDepth</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-226"></span><span>    </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#issueTypeError"><span class="hs-identifier hs-type">issueTypeError</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Error.html#TypeErrorOther"><span class="hs-identifier hs-type">TypeErrorOther</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;maximum depth reached&quot;</span></span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680207178"><span class="annot"><a href="#local-6989586621680207178"><span class="hs-identifier hs-var hs-var">ctx'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207127"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-228"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxActionStack"><span class="hs-identifier hs-var">ctxActionStack</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207125"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="#local-6989586621680207141"><span class="hs-identifier hs-type">ctxActionStack</span></a></span><span>
+</span><span id="line-229"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxActionStackDepth"><span class="hs-identifier hs-var">ctxActionStackDepth</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207142"><span class="hs-identifier hs-type">ctxActionStackDepth</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span>
+</span><span id="line-230"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxLocation"><span class="hs-identifier hs-var">ctxLocation</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#narrowLocation"><span class="hs-identifier hs-type">narrowLocation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207125"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207144"><span class="hs-identifier hs-type">ctxLocation</span></a></span><span>
+</span><span id="line-231"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-comment">-- The trace message is built only when it is actually printed: at normal</span><span>
+</span><span id="line-233"></span><span>  </span><span class="hs-comment">-- verbosity rendering the action's terms on every judgement would cost a</span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-comment">-- thunk per judgement.</span><span>
+</span><span id="line-235"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621680207145"><span class="hs-identifier hs-type">ctxVerbosity</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;=</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Debug"><span class="hs-identifier hs-type">Debug</span></a></span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">trace</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Error.html#ppAction"><span class="hs-identifier hs-type">ppAction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Display.html#namingOfContext"><span class="hs-identifier hs-type">namingOfContext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207127"><span class="hs-identifier hs-type">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680207142"><span class="hs-identifier hs-type">ctxActionStackDepth</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207125"><span class="hs-identifier hs-type">action</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span>
+</span><span id="line-237"></span><span>           </span><span class="annot"><span class="hs-identifier hs-type">local</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">const</span></span><span> </span><span class="annot"><a href="#local-6989586621680207178"><span class="hs-identifier hs-type">ctx'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680207126"><span class="hs-identifier hs-type">tc</span></a></span><span>
+</span><span id="line-238"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">local</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">const</span></span><span> </span><span class="annot"><a href="#local-6989586621680207178"><span class="hs-identifier hs-type">ctx'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680207126"><span class="hs-identifier hs-type">tc</span></a></span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- | Point the location at the sub-term an action is about.</span><span>
+</span><span id="line-241"></span><span class="hs-comment">--</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- The checker descends through 'performing', so the location narrows as it</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- goes and an error is reported where the sub-term that caused it was written,</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- rather than at the declaration it is in (issue #81). A judgement about a term</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- the checker built itself carries no position, and leaves the location as it</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- found it: that is the innermost enclosing term the user did write.</span><span>
+</span><span id="line-247"></span><span id="local-6989586621680206741"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#narrowLocation"><span class="hs-identifier hs-type">narrowLocation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#Action"><span class="hs-identifier hs-type">Action</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206741"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span></span><span>
+</span><span id="line-248"></span><span id="narrowLocation"><span class="annot"><span class="annottext">narrowLocation :: forall (n :: S).
+Action n -&gt; Maybe LocationInfo -&gt; Maybe LocationInfo
+</span><a href="Rzk.TypeCheck.Monad.html#narrowLocation"><span class="hs-identifier hs-var hs-var">narrowLocation</span></a></span></span><span> </span><span id="local-6989586621680207187"><span class="annot"><span class="annottext">Action n
+</span><a href="#local-6989586621680207187"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621680207188"><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680207188"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Action n -&gt; Maybe (Term n)
+forall {n :: S}. Action n -&gt; Maybe (Term n)
+</span><a href="#local-6989586621680207189"><span class="hs-identifier hs-var">termOf</span></a></span><span> </span><span class="annot"><span class="annottext">Action n
+</span><a href="#local-6989586621680207187"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-249"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680207190"><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680207190"><span class="hs-identifier hs-var">term</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680207191"><span class="annot"><span class="annottext">RzkPosition
+</span><a href="#local-6989586621680207191"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Term n -&gt; Maybe RzkPosition
+forall (n :: S). Term n -&gt; Maybe RzkPosition
+</span><a href="Language.Rzk.Foil.Syntax.html#positionOfTerm"><span class="hs-identifier hs-var">positionOfTerm</span></a></span><span> </span><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680207190"><span class="hs-identifier hs-var">term</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RzkPosition -&gt; LocationInfo -&gt; LocationInfo
+</span><a href="Rzk.TypeCheck.Context.html#atPosition"><span class="hs-identifier hs-var">atPosition</span></a></span><span> </span><span class="annot"><span class="annottext">RzkPosition
+</span><a href="#local-6989586621680207191"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">(LocationInfo -&gt; LocationInfo)
+-&gt; Maybe LocationInfo -&gt; Maybe LocationInfo
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680207188"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-250"></span><span>  </span><span class="annot"><span class="annottext">Maybe (Term n)
+</span><span class="hs-identifier">_</span></span><span>                                           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe LocationInfo
+</span><a href="#local-6989586621680207188"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-252"></span><span>    </span><span id="local-6989586621680207189"><span class="annot"><span class="annottext">termOf :: Action n -&gt; Maybe (Term n)
+</span><a href="#local-6989586621680207189"><span class="hs-identifier hs-var hs-var">termOf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ActionTypeCheck"><span class="hs-identifier hs-type">ActionTypeCheck</span></a></span><span> </span><span id="local-6989586621680207195"><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680207195"><span class="hs-identifier hs-var">term</span></a></span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Term n -&gt; Maybe (Term n)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680207195"><span class="hs-identifier hs-var">term</span></a></span><span>
+</span><span id="line-253"></span><span>    </span><span class="annot"><a href="#local-6989586621680207189"><span class="hs-identifier hs-var">termOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ActionInfer"><span class="hs-identifier hs-type">ActionInfer</span></a></span><span> </span><span id="local-6989586621680207197"><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680207197"><span class="hs-identifier hs-var">term</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Term n -&gt; Maybe (Term n)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Term n
+</span><a href="#local-6989586621680207197"><span class="hs-identifier hs-var">term</span></a></span><span>
+</span><span id="line-254"></span><span>    </span><span class="annot"><a href="#local-6989586621680207189"><span class="hs-identifier hs-var">termOf</span></a></span><span> </span><span class="annot"><span class="annottext">Action n
+</span><span class="hs-identifier">_</span></span><span>                        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Term n)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span class="annot"><span class="hs-comment">-- * What a run records</span></span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span id="local-6989586621680206756"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#modifyLog"><span class="hs-identifier hs-type">modifyLog</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-type">CheckLog</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckLog"><span class="hs-identifier hs-type">CheckLog</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206756"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-259"></span><span id="modifyLog"><span class="annot"><span class="annottext">modifyLog :: forall (n :: S). (CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.Monad.html#modifyLog"><span class="hs-identifier hs-var hs-var">modifyLog</span></a></span></span><span> </span><span id="local-6989586621680207207"><span class="annot"><span class="annottext">CheckLog -&gt; CheckLog
+</span><a href="#local-6989586621680207207"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) ()
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     ()
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ReaderT (Context n) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State CheckLog ()
+-&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) ()
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; ExceptT TypeErrorInScopedContext m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(CheckLog -&gt; CheckLog) -&gt; State CheckLog ()
+forall (m :: * -&gt; *) s. Monad m =&gt; (s -&gt; s) -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">modify'</span></span><span> </span><span class="annot"><span class="annottext">CheckLog -&gt; CheckLog
+</span><a href="#local-6989586621680207207"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- | Run a probe for its answer alone, discarding whatever it records.</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- A hole's inventory is built by trying candidate moves and seeing which fit,</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- and each trial checks terms of its own; their holes and warnings are not the</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- user's and must not reach the report. This is what the writer channel's</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- @censor@ did before the record moved into the state: the state survives an</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- error, so it is put back on that path too.</span><span>
+</span><span id="line-268"></span><span id="local-6989586621680207208"><span id="local-6989586621680207209"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#suppressing"><span class="hs-identifier hs-type">suppressing</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207208"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207209"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207208"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207209"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-269"></span><span id="suppressing"><span class="annot"><span class="annottext">suppressing :: forall (n :: S) a. TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#suppressing"><span class="hs-identifier hs-var hs-var">suppressing</span></a></span></span><span> </span><span id="local-6989586621680207226"><span class="annot"><span class="annottext">TypeCheck n a
+</span><a href="#local-6989586621680207226"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-270"></span><span>  </span><span id="local-6989586621680207227"><span class="annot"><a href="#local-6989586621680207227"><span class="hs-identifier hs-var">saved</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ExceptT
+  TypeErrorInScopedContext (StateT CheckLog Identity) CheckLog
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     CheckLog
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ReaderT (Context n) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State CheckLog CheckLog
+-&gt; ExceptT
+     TypeErrorInScopedContext (StateT CheckLog Identity) CheckLog
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; ExceptT TypeErrorInScopedContext m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">State CheckLog CheckLog
+forall (m :: * -&gt; *) s. Monad m =&gt; StateT s m s
+</span><span class="hs-identifier hs-var">get</span></span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680207244"><span class="annot"><a href="#local-6989586621680207244"><span class="hs-identifier hs-var hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) ()
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     ()
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; ReaderT (Context n) m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State CheckLog ()
+-&gt; ExceptT TypeErrorInScopedContext (StateT CheckLog Identity) ()
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+m a -&gt; ExceptT TypeErrorInScopedContext m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CheckLog -&gt; State CheckLog ()
+forall (m :: * -&gt; *) s. Monad m =&gt; s -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680207227"><span class="hs-identifier hs-var">saved</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>  </span><span id="local-6989586621680207245"><span class="annot"><a href="#local-6989586621680207245"><span class="hs-identifier hs-var">result</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621680207226"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">`catchError`</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207246"><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><a href="#local-6989586621680207246"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+  ()
+</span><a href="#local-6989586621680207244"><span class="hs-identifier hs-var">restore</span></a></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+  ()
+-&gt; TypeCheck n a -&gt; TypeCheck n a
+forall a b.
+ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+  a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     b
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">TypeErrorInScopedContext -&gt; TypeCheck n a
+forall a.
+TypeErrorInScopedContext
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall e (m :: * -&gt; *) a. MonadError e m =&gt; e -&gt; m a
+</span><span class="hs-identifier hs-var">throwError</span></span><span> </span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><a href="#local-6989586621680207246"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-273"></span><span>  </span><span class="annot"><a href="#local-6989586621680207244"><span class="hs-identifier hs-type">restore</span></a></span><span>
+</span><span id="line-274"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621680207245"><span class="hs-identifier hs-type">result</span></a></span><span>
+</span><span id="line-275"></span><span>
+</span><span id="line-276"></span><span class="annot"><span class="hs-comment">-- * Holes</span></span><span>
+</span><span id="line-277"></span><span>
+</span><span id="line-278"></span><span id="local-6989586621680206773"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#recordHoleInfo"><span class="hs-identifier hs-type">recordHoleInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#HoleInfo"><span class="hs-identifier hs-type">HoleInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206773"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-279"></span><span id="recordHoleInfo"><span class="annot"><span class="annottext">recordHoleInfo :: forall (n :: S). HoleInfo -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.Monad.html#recordHoleInfo"><span class="hs-identifier hs-var hs-var">recordHoleInfo</span></a></span></span><span> </span><span id="local-6989586621680207248"><span class="annot"><span class="annottext">HoleInfo
+</span><a href="#local-6989586621680207248"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-280"></span><span>  </span><span class="annot"><span class="annottext">(CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+forall (n :: S). (CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.Monad.html#modifyLog"><span class="hs-identifier hs-var">modifyLog</span></a></span><span> </span><span class="annot"><span class="annottext">((CheckLog -&gt; CheckLog) -&gt; TypeCheck n ())
+-&gt; (CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207249"><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680207249"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680207249"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#logHolesRev"><span class="hs-identifier hs-var">logHolesRev</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207248"><span class="hs-identifier hs-type">info</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#logHolesRev"><span class="hs-identifier hs-var">logHolesRev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207249"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="annot"><span class="hs-comment">-- * Warnings</span></span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span id="local-6989586621680206775"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#recordCheckWarning"><span class="hs-identifier hs-type">recordCheckWarning</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#CheckWarning"><span class="hs-identifier hs-type">CheckWarning</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206775"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-285"></span><span id="recordCheckWarning"><span class="annot"><span class="annottext">recordCheckWarning :: forall (n :: S). CheckWarning -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.Monad.html#recordCheckWarning"><span class="hs-identifier hs-var hs-var">recordCheckWarning</span></a></span></span><span> </span><span id="local-6989586621680207251"><span class="annot"><span class="annottext">CheckWarning
+</span><a href="#local-6989586621680207251"><span class="hs-identifier hs-var">warning</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-286"></span><span>  </span><span class="annot"><span class="annottext">(CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+forall (n :: S). (CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.Monad.html#modifyLog"><span class="hs-identifier hs-var">modifyLog</span></a></span><span> </span><span class="annot"><span class="annottext">((CheckLog -&gt; CheckLog) -&gt; TypeCheck n ())
+-&gt; (CheckLog -&gt; CheckLog) -&gt; TypeCheck n ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207252"><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680207252"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CheckLog
+</span><a href="#local-6989586621680207252"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#logWarningsRev"><span class="hs-identifier hs-var">logWarningsRev</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680207251"><span class="hs-identifier hs-type">warning</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#logWarningsRev"><span class="hs-identifier hs-var">logWarningsRev</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680207252"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-287"></span><span>
+</span><span id="line-288"></span><span class="annot"><span class="hs-comment">-- * Locations</span></span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span id="local-6989586621680206777"><span id="local-6989586621680206778"><span class="annot"><a href="Rzk.TypeCheck.Monad.html#withLocation"><span class="hs-identifier hs-type">withLocation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#LocationInfo"><span class="hs-identifier hs-type">LocationInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206777"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206778"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206777"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680206778"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-291"></span><span id="withLocation"><span class="annot"><span class="annottext">withLocation :: forall (n :: S) a. LocationInfo -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#withLocation"><span class="hs-identifier hs-var hs-var">withLocation</span></a></span></span><span> </span><span id="local-6989586621680207258"><span class="annot"><span class="annottext">LocationInfo
+</span><a href="#local-6989586621680207258"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a.
+(Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span> </span><span class="annot"><span class="annottext">((Context n -&gt; Context n)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+      a)
+-&gt; (Context n -&gt; Context n)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (StateT CheckLog Identity))
+     a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680207259"><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207259"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Context n
+</span><a href="#local-6989586621680207259"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxLocation"><span class="hs-identifier hs-var">ctxLocation</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621680207258"><span class="hs-identifier hs-type">loc</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-292"></span></pre></body></html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric         #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveTraversable     #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts      #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms       #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds             #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving    #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell       #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators         #-}</span><span>
+</span><span id="line-14"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances  #-}</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- | Annotating every node of a free foil term.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- A node can be annotated with anything: a source position, a type, a memoised</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- normal form. 'AnnSig' turns a signature into an annotated one, and</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- 'AnnAST' is the annotated syntax it generates.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- The annotation is a /functor of the term/, and that is what lets it depend on</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- the node's scope. In @'AST' binder sig n@ the signature's term parameter /is/</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- the AST at the node's own scope, so an annotation built from it holds terms</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- in that scope, which is what a type annotation in a dependent language needs.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- An annotation that ignores the term (a source position, say) is @'Const' a@.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Whether two annotations must agree for their nodes to match is a property of</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- @ann@, and not of 'AnnSig'. Two examples:</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- An annotation that ignores the term (a source position) and /is/ compared:</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- &gt; instance Eq a =&gt; ZipMatchK (Const (a :: Type)) where</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- &gt;   zipMatchWithK _ (Const l) (Const r)</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- &gt;     | l == r    = Just (Const l)</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- &gt;     | otherwise = Nothing</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- An annotation that holds terms (a type, say) and is /ignored/, so that two</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- terms differing only in their types are &#945;-equivalent. Make the held term</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- optional, so that pairing can fail /without/ failing the match:</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- &gt; newtype TypeOf term = TypeOf (Maybe term)</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- &gt; instance ZipMatchK TypeOf where</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- &gt;   zipMatchWithK (f :^: M0) (TypeOf l) (TypeOf r) =</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- &gt;     Just (TypeOf (do { a &lt;- l; b &lt;- r; f a b }))</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- __The instance must return 'Just' unconditionally, and lazily.__ Matching is</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- annotation-blind, so it must succeed whatever the annotations are, and the</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- paired annotation is a thunk that the annotation-skipping 'Bifoldable' never</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- forces.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- A /strict/ shape, such as @TypeOf '&lt;$&gt;' f l r@ or anything else that yields</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- 'Nothing' when @f@ fails, goes wrong twice over. It breaks blindness, since</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- two nodes with different types would then fail to match. And it /diverges/</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- for a finite or lazily-bottomed annotation (a universe tower ending in</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- 'error', say), because forcing the annotation runs off the end. This is why</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- the held term is a 'Maybe': a plain @term@ field would have no value to pair</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- when @f@ fails, forcing a bottom into the result.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- __Do not reach for the generic instance here.__ It compares the annotation's</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- /shape/, so a node carrying a memoised normal form would fail to match the same</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- node without one. (Nor is 'zipMatchViaChooseLeft' available: an annotation</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- holding terms must /construct/ a value at the result index, and cannot simply</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- pick a side.)</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- __Note the asymmetry__ in the instances below: 'Bifunctor' and 'Bitraversable'</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- traverse the annotation, but 'Bifoldable' does /not/. This is deliberate.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- See 'AnnSig'.</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html"><span class="hs-identifier">Control.Monad.Free.Foil.Annotated</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier">AnnSig</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier">AnnAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnScopedAST"><span class="hs-identifier">AnnScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnNode"><span class="hs-identifier">AnnNode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#annotationOf"><span class="hs-identifier">annotationOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotated"><span class="hs-identifier">freeVarsOfAnnotated</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mapMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.ZipMatchK.TH.html"><span class="hs-identifier">Data.ZipMatchK.TH</span></a></span><span>     </span><span class="hs-special">(</span><span class="annot"><a href="Data.ZipMatchK.TH.html#deriveZipMatchK2"><span class="hs-identifier">deriveZipMatchK2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Generics.Kind</span></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GenericK</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Field</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Var0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Var1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(:$:)</span></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>                                        </span><span class="annot"><span class="hs-identifier">Atom</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(:@:)</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(:*:)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">GHC</span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Control.Monad.Foil.html"><span class="hs-identifier">Control.Monad.Foil</span></a></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foil</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Free.Foil.html"><span class="hs-identifier">Control.Monad.Free.Foil</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | A signature, with every node annotated by an @ann@ built from the node's term.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- The annotation is applied to the /term/ parameter, so in an</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @'AST' binder ('AnnSig' ann sig) n@ it holds terms in the node's own scope.</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- 'Bifoldable' deliberately __skips the annotation__. That is what makes</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- &#945;-equivalence annotation-blind: 'Control.Monad.Free.Foil.alphaEquiv' consumes a</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- zipped node with 'bifoldMap', so a type annotation is never compared, and two</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- terms that differ only in their annotations are &#945;-equivalent. The price is that</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- 'Control.Monad.Free.Foil.freeVarsOf', which is also 'Bifoldable', does not see</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- variables occurring inside annotations. Use 'freeVarsOfAnnotated' when those</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- matter.</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- @since 0.3.2</span><span>
+</span><span id="line-106"></span><span class="hs-keyword">data</span><span> </span><span id="AnnSig"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-var">AnnSig</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679244818"><span class="annot"><a href="#local-6989586621679244818"><span class="hs-identifier hs-type">ann</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679244820"><span class="annot"><a href="#local-6989586621679244820"><span class="hs-identifier hs-type">sig</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679244821"><span class="annot"><a href="#local-6989586621679244821"><span class="hs-identifier hs-type">scope</span></a></span></span><span> </span><span id="local-6989586621679244819"><span class="annot"><a href="#local-6989586621679244819"><span class="hs-identifier hs-type">term</span></a></span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="AnnSig"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-var">AnnSig</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244818"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244819"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244820"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244821"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244819"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679245014"><span id="local-6989586621679245016"><span class="annot"><span class="annottext">(forall x.
+ AnnSig ann sig scope term -&gt; Rep (AnnSig ann sig scope term) x)
+-&gt; (forall x.
+    Rep (AnnSig ann sig scope term) x -&gt; AnnSig ann sig scope term)
+-&gt; Generic (AnnSig ann sig scope term)
+forall x.
+Rep (AnnSig ann sig scope term) x -&gt; AnnSig ann sig scope term
+forall x.
+AnnSig ann sig scope term -&gt; Rep (AnnSig ann sig scope term) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *) scope term x.
+Rep (AnnSig ann sig scope term) x -&gt; AnnSig ann sig scope term
+forall (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *) scope term x.
+AnnSig ann sig scope term -&gt; Rep (AnnSig ann sig scope term) x
+$cfrom :: forall (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *) scope term x.
+AnnSig ann sig scope term -&gt; Rep (AnnSig ann sig scope term) x
+from :: forall x.
+AnnSig ann sig scope term -&gt; Rep (AnnSig ann sig scope term) x
+$cto :: forall (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *) scope term x.
+Rep (AnnSig ann sig scope term) x -&gt; AnnSig ann sig scope term
+to :: forall x.
+Rep (AnnSig ann sig scope term) x -&gt; AnnSig ann sig scope term
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">GHC.Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621679244744"><span id="local-6989586621679244745"><span id="local-6989586621679244746"><span id="local-6989586621679245024"><span id="local-6989586621679245028"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679244744"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244745"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244746"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244744"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244745"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244746"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-112"></span><span id="local-6989586621679244773"><span id="local-6989586621679244774"><span id="local-6989586621679244775"><span id="local-6989586621679245037"><span id="local-6989586621679245043"><span id="local-6989586621679245051"><span id="local-6989586621679245056"><span id="local-6989586621679245060"><span id="local-6989586621679245063"><span id="local-6989586621679245066"><span id="local-6989586621679245069"><span id="local-6989586621679245072"><span id="local-6989586621679245075"><span id="local-6989586621679245078"><span id="local-6989586621679245082"><span id="local-6989586621679245085"><span id="local-6989586621679245090"><span id="local-6989586621679245095"><span id="local-6989586621679245100"><span id="local-6989586621679245105"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244773"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244774"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244775"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244773"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244774"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244775"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-114"></span><span id="local-6989586621679244794"><span id="local-6989586621679244795"><span id="local-6989586621679244796"><span id="local-6989586621679245124"><span id="local-6989586621679245132"><span id="local-6989586621679245138"><span id="local-6989586621679245143"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244794"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244795"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244796"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244794"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244795"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244796"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679244812"><span id="local-6989586621679244813"><span id="local-6989586621679245157"><span id="local-6989586621679245161"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679244812"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679244813"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244812"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244813"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621679245168"><span class="annot"><span class="annottext">bimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; AnnSig ann sig a c -&gt; AnnSig ann sig b d
+</span><a href="#local-6989586621679245168"><span class="hs-identifier hs-var hs-var hs-var">bimap</span></a></span></span><span> </span><span id="local-6989586621679245170"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679245170"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679245171"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679245171"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span id="local-6989586621679245172"><span class="annot"><span class="annottext">ann c
+</span><a href="#local-6989586621679245172"><span class="hs-identifier hs-var">ann</span></a></span></span><span> </span><span id="local-6989586621679245173"><span class="annot"><span class="annottext">sig a c
+</span><a href="#local-6989586621679245173"><span class="hs-identifier hs-var">sig</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ann d -&gt; sig b d -&gt; AnnSig ann sig b d
+forall (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *) scope term.
+ann term -&gt; sig scope term -&gt; AnnSig ann sig scope term
+</span><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-var">AnnSig</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(c -&gt; d) -&gt; ann c -&gt; ann d
+forall a b. (a -&gt; b) -&gt; ann a -&gt; ann b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679245171"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ann c
+</span><a href="#local-6989586621679245172"><span class="hs-identifier hs-var">ann</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; (c -&gt; d) -&gt; sig a c -&gt; sig b d
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; sig a c -&gt; sig b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679245170"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679245171"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">sig a c
+</span><a href="#local-6989586621679245173"><span class="hs-identifier hs-var">sig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><span class="hs-comment">-- | __The annotation is not folded.__ See 'AnnSig'.</span></span><span>
+</span><span id="line-121"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679244837"><span id="local-6989586621679244838"><span id="local-6989586621679245176"><span id="local-6989586621679245183"><span id="local-6989586621679245186"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244837"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244838"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244837"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>  </span><span id="local-6989586621679245192"><span class="annot"><span class="annottext">bifoldMap :: forall m a b.
+Monoid m =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; AnnSig ann sig a b -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">bifoldMap</span></span></span><span> </span><span id="local-6989586621679245193"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679245193"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679245194"><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679245194"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span id="local-6989586621679245195"><span class="annot"><span class="annottext">ann b
+</span><a href="#local-6989586621679245195"><span class="hs-identifier hs-var">_ann</span></a></span></span><span> </span><span id="local-6989586621679245196"><span class="annot"><span class="annottext">sig a b
+</span><a href="#local-6989586621679245196"><span class="hs-identifier hs-var">sig</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; (b -&gt; m) -&gt; sig a b -&gt; m
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; sig a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679245193"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; m
+</span><a href="#local-6989586621679245194"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">sig a b
+</span><a href="#local-6989586621679245196"><span class="hs-identifier hs-var">sig</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679244851"><span id="local-6989586621679244852"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244851"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244852"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244851"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244852"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>  </span><span id="local-6989586621679245220"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c)
+-&gt; (b -&gt; f d) -&gt; AnnSig ann sig a b -&gt; f (AnnSig ann sig c d)
+</span><a href="#local-6989586621679245220"><span class="hs-identifier hs-var hs-var hs-var">bitraverse</span></a></span></span><span> </span><span id="local-6989586621679245222"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679245222"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679245223"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679245223"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span id="local-6989586621679245224"><span class="annot"><span class="annottext">ann b
+</span><a href="#local-6989586621679245224"><span class="hs-identifier hs-var">ann</span></a></span></span><span> </span><span id="local-6989586621679245225"><span class="annot"><span class="annottext">sig a b
+</span><a href="#local-6989586621679245225"><span class="hs-identifier hs-var">sig</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ann d -&gt; sig c d -&gt; AnnSig ann sig c d
+forall (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *) scope term.
+ann term -&gt; sig scope term -&gt; AnnSig ann sig scope term
+</span><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-var">AnnSig</span></a></span><span> </span><span class="annot"><span class="annottext">(ann d -&gt; sig c d -&gt; AnnSig ann sig c d)
+-&gt; f (ann d) -&gt; f (sig c d -&gt; AnnSig ann sig c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(b -&gt; f d) -&gt; ann b -&gt; f (ann d)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; ann a -&gt; f (ann b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679245223"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">ann b
+</span><a href="#local-6989586621679245224"><span class="hs-identifier hs-var">ann</span></a></span><span> </span><span class="annot"><span class="annottext">f (sig c d -&gt; AnnSig ann sig c d)
+-&gt; f (sig c d) -&gt; f (AnnSig ann sig c d)
+forall a b. f (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; sig a b -&gt; f (sig c d)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; sig a b -&gt; f (sig c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679245222"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679245223"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">sig a b
+</span><a href="#local-6989586621679245225"><span class="hs-identifier hs-var">sig</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679244907"><span id="local-6989586621679244908"><span id="local-6989586621679245227"><span id="local-6989586621679245235"><span class="annot"><span class="hs-identifier hs-type">GenericK</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244907"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244908"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="RepK"><span class="annot"><span class="hs-identifier hs-var">RepK</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244907"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244908"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Field</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244907"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:$:</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Var1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Field</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244908"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:$:</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Var0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">:@:</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Var1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | Matching for 'AnnSig' is /derived/, not left to the generic default.</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- The generic default would rebuild the &quot;Generics.Kind&quot; view of every node on</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- every comparison, and comparing terms is most of what a typechecker does, so</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- for an annotated signature, where it lands on the hottest path, that is a</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- measurable cost. 'Data.ZipMatchK.TH.deriveZipMatchK2' generates the</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- written-out instance instead: the annotation matched with the term zipper (an</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- annotation is a functor of the term), and the inner signature with both.</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- Write @deriveZipMatchK2 ''YourAnnSig@ for a bespoke annotated signature.</span><span>
+</span><span id="line-140"></span><span id="local-6989586621679244818"><span id="local-6989586621679244820"><span id="local-6989586621679245268"><span class="hs-identifier">deriveZipMatchK2</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">AnnSig</span></span></span></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- | An annotated scope-safe term.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- @since 0.3.2</span><span>
+</span><span id="line-145"></span><span class="hs-keyword">type</span><span> </span><span id="AnnAST"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-var">AnnAST</span></a></span></span><span> </span><span id="local-6989586621679245329"><span class="annot"><a href="#local-6989586621679245329"><span class="hs-identifier hs-type">binder</span></a></span></span><span> </span><span id="local-6989586621679245330"><span class="annot"><a href="#local-6989586621679245330"><span class="hs-identifier hs-type">ann</span></a></span></span><span> </span><span id="local-6989586621679245331"><span class="annot"><a href="#local-6989586621679245331"><span class="hs-identifier hs-type">sig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.html#AST"><span class="hs-identifier hs-type">AST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245329"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245330"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245331"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | An annotated scope-safe term under a binder.</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- @since 0.3.2</span><span>
+</span><span id="line-150"></span><span class="hs-keyword">type</span><span> </span><span id="AnnScopedAST"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnScopedAST"><span class="hs-identifier hs-var">AnnScopedAST</span></a></span></span><span> </span><span id="local-6989586621679245332"><span class="annot"><a href="#local-6989586621679245332"><span class="hs-identifier hs-type">binder</span></a></span></span><span> </span><span id="local-6989586621679245333"><span class="annot"><a href="#local-6989586621679245333"><span class="hs-identifier hs-type">ann</span></a></span></span><span> </span><span id="local-6989586621679245334"><span class="annot"><a href="#local-6989586621679245334"><span class="hs-identifier hs-type">sig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.html#ScopedAST"><span class="hs-identifier hs-type">ScopedAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245332"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245333"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245334"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- | An annotated node.</span><span>
+</span><span id="line-153"></span><span class="hs-comment">--</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- @since 0.3.2</span><span>
+</span><span id="line-155"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnNode"><span class="hs-identifier hs-type">AnnNode</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679244946"><span id="local-6989586621679244947"><span id="local-6989586621679244948"><span id="local-6989586621679244949"><span class="annot"><a href="#local-6989586621679244947"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-type">AnnAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244946"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244947"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244948"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244949"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679244948"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnScopedAST"><span class="hs-identifier hs-type">AnnScopedAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244946"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244947"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244948"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244949"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-type">AnnAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244946"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244947"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244948"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244949"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-type">AnnAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244946"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244947"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244948"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244949"><span class="hs-identifier hs-type">n</span></a></span></span></span></span></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">pattern</span><span> </span><span id="AnnNode"><span id="%24mAnnNode"><span id="%24bAnnNode"><span class="annot"><span class="annottext">$mAnnNode :: forall {r} {ann :: * -&gt; *} {binder :: S -&gt; S -&gt; *}
+       {sig :: * -&gt; * -&gt; *} {n :: S}.
+AnnAST binder ann sig n
+-&gt; (ann (AnnAST binder ann sig n)
+    -&gt; sig (AnnScopedAST binder ann sig n) (AnnAST binder ann sig n)
+    -&gt; r)
+-&gt; ((# #) -&gt; r)
+-&gt; r
+$bAnnNode :: forall (ann :: * -&gt; *) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (n :: S).
+ann (AnnAST binder ann sig n)
+-&gt; sig (AnnScopedAST binder ann sig n) (AnnAST binder ann sig n)
+-&gt; AnnAST binder ann sig n
+</span><a href="Control.Monad.Free.Foil.Annotated.html#AnnNode"><span class="hs-identifier hs-var hs-var hs-var">AnnNode</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679245337"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679245338"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnSig"><span class="hs-identifier hs-type">AnnSig</span></a></span><span> </span><span id="local-6989586621679245337"><span class="annot"><a href="#local-6989586621679245337"><span class="hs-identifier hs-var">ann</span></a></span></span><span> </span><span id="local-6989586621679245338"><span class="annot"><a href="#local-6989586621679245338"><span class="hs-identifier hs-var">sig</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.html#Var"><span class="hs-pragma hs-type">Var</span></a></span><span class="hs-pragma">,</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnNode"><span class="hs-pragma hs-type">AnnNode</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- | The annotation of a term, unless it is a variable (which is not a node, so it</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- carries none).</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- @since 0.3.2</span><span>
+</span><span id="line-167"></span><span id="local-6989586621679244962"><span id="local-6989586621679244963"><span id="local-6989586621679244964"><span id="local-6989586621679244965"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#annotationOf"><span class="hs-identifier hs-type">annotationOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-type">AnnAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244962"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244963"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244964"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244965"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679244963"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-type">AnnAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244962"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244963"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244964"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244965"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-168"></span><span id="annotationOf"><span class="annot"><span class="annottext">annotationOf :: forall (binder :: S -&gt; S -&gt; *) (ann :: * -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (n :: S).
+AnnAST binder ann sig n -&gt; Maybe (ann (AnnAST binder ann sig n))
+</span><a href="Control.Monad.Free.Foil.Annotated.html#annotationOf"><span class="hs-identifier hs-var hs-var">annotationOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span class="annot"><span class="annottext">Name n
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (ann (AnnAST binder ann sig n))
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnNode"><span class="hs-identifier hs-type">AnnNode</span></a></span><span> </span><span id="local-6989586621679245341"><span class="annot"><span class="annottext">ann (AnnAST binder ann sig n)
+</span><a href="#local-6989586621679245341"><span class="hs-identifier hs-var">ann</span></a></span></span><span> </span><span class="annot"><span class="annottext">sig (AnnScopedAST binder ann sig n) (AnnAST binder ann sig n)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ann (AnnAST binder ann sig n)
+-&gt; Maybe (ann (AnnAST binder ann sig n))
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ann (AnnAST binder ann sig n)
+</span><a href="#local-6989586621679245341"><span class="hs-identifier hs-var">ann</span></a></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- | The free variables of an annotated term, __including__ those occurring inside</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- annotations.</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- 'Control.Monad.Free.Foil.freeVarsOf' misses the latter, since 'Bifoldable' skips</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- the annotation (see 'AnnSig').</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- @since 0.3.2</span><span>
+</span><span id="line-179"></span><span id="local-6989586621679244971"><span id="local-6989586621679244973"><span id="local-6989586621679244975"><span id="local-6989586621679244976"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotated"><span class="hs-identifier hs-type">freeVarsOfAnnotated</span></a></span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Foil.Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244971"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#CoSinkable"><span class="hs-identifier hs-type">Foil.CoSinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244973"><span class="hs-identifier hs-type">binder</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244975"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244976"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnAST"><span class="hs-identifier hs-type">AnnAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244973"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244976"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244975"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244971"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Name"><span class="hs-identifier hs-type">Foil.Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244971"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">]</span></span></span></span></span><span>
+</span><span id="line-182"></span><span id="freeVarsOfAnnotated"><span class="annot"><span class="annottext">freeVarsOfAnnotated :: forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (ann :: * -&gt; *).
+(Distinct n, CoSinkable binder, Bifoldable sig, Foldable ann) =&gt;
+AnnAST binder ann sig n -&gt; [Name n]
+</span><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotated"><span class="hs-identifier hs-var hs-var">freeVarsOfAnnotated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span id="local-6989586621679245365"><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621679245365"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621679245365"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnNode"><span class="hs-identifier hs-type">AnnNode</span></a></span><span> </span><span id="local-6989586621679245366"><span class="annot"><span class="annottext">ann (AnnAST binder ann sig n)
+</span><a href="#local-6989586621679245366"><span class="hs-identifier hs-var">ann</span></a></span></span><span> </span><span id="local-6989586621679245367"><span class="annot"><span class="annottext">sig (AnnScopedAST binder ann sig n) (AnnAST binder ann sig n)
+</span><a href="#local-6989586621679245367"><span class="hs-identifier hs-var">sig</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><span class="annottext">(AnnAST binder ann sig n -&gt; [Name n])
+-&gt; ann (AnnAST binder ann sig n) -&gt; [Name n]
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ann a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">AnnAST binder ann sig n -&gt; [Name n]
+forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (ann :: * -&gt; *).
+(Distinct n, CoSinkable binder, Bifoldable sig, Foldable ann) =&gt;
+AnnAST binder ann sig n -&gt; [Name n]
+</span><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotated"><span class="hs-identifier hs-var">freeVarsOfAnnotated</span></a></span><span> </span><span class="annot"><span class="annottext">ann (AnnAST binder ann sig n)
+</span><a href="#local-6989586621679245366"><span class="hs-identifier hs-var">ann</span></a></span><span>
+</span><span id="line-186"></span><span>      </span><span class="annot"><span class="annottext">[Name n] -&gt; [Name n] -&gt; [Name n]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(AnnScopedAST binder ann sig n -&gt; [Name n])
+-&gt; (AnnAST binder ann sig n -&gt; [Name n])
+-&gt; sig (AnnScopedAST binder ann sig n) (AnnAST binder ann sig n)
+-&gt; [Name n]
+forall m a b. Monoid m =&gt; (a -&gt; m) -&gt; (b -&gt; m) -&gt; sig a b -&gt; m
+forall (p :: * -&gt; * -&gt; *) m a b.
+(Bifoldable p, Monoid m) =&gt;
+(a -&gt; m) -&gt; (b -&gt; m) -&gt; p a b -&gt; m
+</span><span class="hs-identifier hs-var">bifoldMap</span></span><span> </span><span class="annot"><span class="annottext">AnnScopedAST binder ann sig n -&gt; [Name n]
+forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (ann :: * -&gt; *).
+(Distinct n, CoSinkable binder, Bifoldable sig, Foldable ann) =&gt;
+AnnScopedAST binder ann sig n -&gt; [Name n]
+</span><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotatedScoped"><span class="hs-identifier hs-var">freeVarsOfAnnotatedScoped</span></a></span><span> </span><span class="annot"><span class="annottext">AnnAST binder ann sig n -&gt; [Name n]
+forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (ann :: * -&gt; *).
+(Distinct n, CoSinkable binder, Bifoldable sig, Foldable ann) =&gt;
+AnnAST binder ann sig n -&gt; [Name n]
+</span><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotated"><span class="hs-identifier hs-var">freeVarsOfAnnotated</span></a></span><span> </span><span class="annot"><span class="annottext">sig (AnnScopedAST binder ann sig n) (AnnAST binder ann sig n)
+</span><a href="#local-6989586621679245367"><span class="hs-identifier hs-var">sig</span></a></span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- | The free variables of an annotated scoped term, including those inside</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- annotations.</span><span>
+</span><span id="line-190"></span><span id="local-6989586621679244984"><span id="local-6989586621679244985"><span id="local-6989586621679244986"><span id="local-6989586621679244987"><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotatedScoped"><span class="hs-identifier hs-type">freeVarsOfAnnotatedScoped</span></a></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Foil.Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244984"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#CoSinkable"><span class="hs-identifier hs-type">Foil.CoSinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244985"><span class="hs-identifier hs-type">binder</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244986"><span class="hs-identifier hs-type">sig</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679244987"><span class="hs-identifier hs-type">ann</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Annotated.html#AnnScopedAST"><span class="hs-identifier hs-type">AnnScopedAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244985"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244987"><span class="hs-identifier hs-type">ann</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244986"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244984"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Name"><span class="hs-identifier hs-type">Foil.Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679244984"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">]</span></span></span></span></span><span>
+</span><span id="line-193"></span><span id="freeVarsOfAnnotatedScoped"><span class="annot"><span class="annottext">freeVarsOfAnnotatedScoped :: forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (ann :: * -&gt; *).
+(Distinct n, CoSinkable binder, Bifoldable sig, Foldable ann) =&gt;
+AnnScopedAST binder ann sig n -&gt; [Name n]
+</span><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotatedScoped"><span class="hs-identifier hs-var hs-var">freeVarsOfAnnotatedScoped</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#ScopedAST"><span class="hs-identifier hs-type">ScopedAST</span></a></span><span> </span><span id="local-6989586621679245376"><span class="annot"><span class="annottext">binder n l
+</span><a href="#local-6989586621679245376"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span id="local-6989586621679245377"><span class="annot"><span class="annottext">AST binder (AnnSig ann sig) l
+</span><a href="#local-6989586621679245377"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">binder n l -&gt; DistinctEvidence l
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#assertDistinct"><span class="hs-identifier hs-var">Foil.assertDistinct</span></a></span><span> </span><span class="annot"><span class="annottext">binder n l
+</span><a href="#local-6989586621679245376"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-195"></span><span>    </span><span class="annot"><span class="annottext">DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Foil.Distinct</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-196"></span><span>      </span><span class="annot"><span class="annottext">(Name l -&gt; Maybe (Name n)) -&gt; [Name l] -&gt; [Name n]
+forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">binder n l -&gt; Name l -&gt; Maybe (Name n)
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; Name l -&gt; Maybe (Name n)
+</span><a href="Control.Monad.Foil.Internal.html#unsinkNamePattern"><span class="hs-identifier hs-var">Foil.unsinkNamePattern</span></a></span><span> </span><span class="annot"><span class="annottext">binder n l
+</span><a href="#local-6989586621679245376"><span class="hs-identifier hs-var">binder</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AST binder (AnnSig ann sig) l -&gt; [Name l]
+forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *)
+       (ann :: * -&gt; *).
+(Distinct n, CoSinkable binder, Bifoldable sig, Foldable ann) =&gt;
+AnnAST binder ann sig n -&gt; [Name n]
+</span><a href="Control.Monad.Free.Foil.Annotated.html#freeVarsOfAnnotated"><span class="hs-identifier hs-var">freeVarsOfAnnotated</span></a></span><span> </span><span class="annot"><span class="annottext">AST binder (AnnSig ann sig) l
+</span><a href="#local-6989586621679245377"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span></pre></body></html>

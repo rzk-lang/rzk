@@ -1,0 +1,679 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DerivingStrategies         #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | Deterministic stripe assignment for separately checked units.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Each unit of a module system allocates its top-level names inside its own</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- reservation (see &quot;Control.Monad.Foil.Blocks&quot;), and the assignment of</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- reservations has to be /deterministic/: a unit's declarations are numbered</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- @base@, @base + 1@, and so on in declaration order, whatever else is</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- checked around it. Determinism is what makes raw names cacheable, since a</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- unit checked today and a unit loaded tomorrow then agree name for name. It</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- is also what discharges the trust obligation of</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- 'Control.Monad.Foil.Blocks.checkExtScope'.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- The registry is that assignment: an append-only map from unit names to</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- stripe indices, handing out the next index on first use. A build persists</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- it beside the build products, since a cached artifact survives a change</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- elsewhere in the build exactly when the assignment does not move.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Where the stripes lie on the raw-name line is a 'StripeLayout' and a</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- policy of the client. The library is region-agnostic, and the allocator</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- admits negative names.</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html"><span class="hs-identifier">Control.Monad.Foil.Registry</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Stripe indices</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier">StripeIndex</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Layouts</span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier">StripeSize</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier">StripeLayout</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#stripesBelowZero"><span class="hs-identifier">stripesBelowZero</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#stripesAbove"><span class="hs-identifier">stripesAbove</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Local-region layouts</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionWidth"><span class="hs-identifier">RegionWidth</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionsPerUnit"><span class="hs-identifier">RegionsPerUnit</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionLayout"><span class="hs-identifier">RegionLayout</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#regionsAbove"><span class="hs-identifier">regionsAbove</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="hs-comment">-- * The registry</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#Registry"><span class="hs-identifier">Registry</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#emptyRegistry"><span class="hs-identifier">emptyRegistry</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#registrySize"><span class="hs-identifier">registrySize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#registerUnit"><span class="hs-identifier">registerUnit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary</span></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Binary</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span>                    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Foil.Internal.html"><span class="hs-identifier">Control.Monad.Foil.Internal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier">NameRange</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RawName"><span class="hs-identifier">RawName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- &gt;&gt;&gt; import Control.Monad.Foil.Internal</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | A stripe's position in the registry: which run of names a unit draws</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- from. Its own type, so that a stripe index cannot be confused with a name,</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- a count, or an offset.</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">newtype</span><span> </span><span id="StripeIndex"><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-var">StripeIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StripeIndex"><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-var">StripeIndex</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231525"><span id="local-6989586621679231530"><span class="annot"><span class="annottext">StripeIndex -&gt; StripeIndex -&gt; Bool
+(StripeIndex -&gt; StripeIndex -&gt; Bool)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; Bool) -&gt; Eq StripeIndex
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: StripeIndex -&gt; StripeIndex -&gt; Bool
+== :: StripeIndex -&gt; StripeIndex -&gt; Bool
+$c/= :: StripeIndex -&gt; StripeIndex -&gt; Bool
+/= :: StripeIndex -&gt; StripeIndex -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231539"><span id="local-6989586621679231544"><span id="local-6989586621679231548"><span id="local-6989586621679231552"><span id="local-6989586621679231556"><span id="local-6989586621679231560"><span id="local-6989586621679231564"><span class="annot"><span class="annottext">Eq StripeIndex
+Eq StripeIndex =&gt;
+(StripeIndex -&gt; StripeIndex -&gt; Ordering)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; Bool)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; Bool)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; Bool)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; Bool)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; StripeIndex)
+-&gt; (StripeIndex -&gt; StripeIndex -&gt; StripeIndex)
+-&gt; Ord StripeIndex
+StripeIndex -&gt; StripeIndex -&gt; Bool
+StripeIndex -&gt; StripeIndex -&gt; Ordering
+StripeIndex -&gt; StripeIndex -&gt; StripeIndex
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: StripeIndex -&gt; StripeIndex -&gt; Ordering
+compare :: StripeIndex -&gt; StripeIndex -&gt; Ordering
+$c&lt; :: StripeIndex -&gt; StripeIndex -&gt; Bool
+&lt; :: StripeIndex -&gt; StripeIndex -&gt; Bool
+$c&lt;= :: StripeIndex -&gt; StripeIndex -&gt; Bool
+&lt;= :: StripeIndex -&gt; StripeIndex -&gt; Bool
+$c&gt; :: StripeIndex -&gt; StripeIndex -&gt; Bool
+&gt; :: StripeIndex -&gt; StripeIndex -&gt; Bool
+$c&gt;= :: StripeIndex -&gt; StripeIndex -&gt; Bool
+&gt;= :: StripeIndex -&gt; StripeIndex -&gt; Bool
+$cmax :: StripeIndex -&gt; StripeIndex -&gt; StripeIndex
+max :: StripeIndex -&gt; StripeIndex -&gt; StripeIndex
+$cmin :: StripeIndex -&gt; StripeIndex -&gt; StripeIndex
+min :: StripeIndex -&gt; StripeIndex -&gt; StripeIndex
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231576"><span id="local-6989586621679231581"><span id="local-6989586621679231585"><span class="annot"><span class="annottext">RawName -&gt; StripeIndex -&gt; ShowS
+[StripeIndex] -&gt; ShowS
+StripeIndex -&gt; String
+(RawName -&gt; StripeIndex -&gt; ShowS)
+-&gt; (StripeIndex -&gt; String)
+-&gt; ([StripeIndex] -&gt; ShowS)
+-&gt; Show StripeIndex
+forall a.
+(RawName -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: RawName -&gt; StripeIndex -&gt; ShowS
+showsPrec :: RawName -&gt; StripeIndex -&gt; ShowS
+$cshow :: StripeIndex -&gt; String
+show :: StripeIndex -&gt; String
+$cshowList :: [StripeIndex] -&gt; ShowS
+showList :: [StripeIndex] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231594"><span id="local-6989586621679231599"><span id="local-6989586621679231603"><span id="local-6989586621679231607"><span class="annot"><span class="annottext">ReadPrec [StripeIndex]
+ReadPrec StripeIndex
+RawName -&gt; ReadS StripeIndex
+ReadS [StripeIndex]
+(RawName -&gt; ReadS StripeIndex)
+-&gt; ReadS [StripeIndex]
+-&gt; ReadPrec StripeIndex
+-&gt; ReadPrec [StripeIndex]
+-&gt; Read StripeIndex
+forall a.
+(RawName -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: RawName -&gt; ReadS StripeIndex
+readsPrec :: RawName -&gt; ReadS StripeIndex
+$creadList :: ReadS [StripeIndex]
+readList :: ReadS [StripeIndex]
+$creadPrec :: ReadPrec StripeIndex
+readPrec :: ReadPrec StripeIndex
+$creadListPrec :: ReadPrec [StripeIndex]
+readListPrec :: ReadPrec [StripeIndex]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231617"><span id="local-6989586621679231622"><span id="local-6989586621679231626"><span class="annot"><span class="annottext">Get StripeIndex
+[StripeIndex] -&gt; Put
+StripeIndex -&gt; Put
+(StripeIndex -&gt; Put)
+-&gt; Get StripeIndex -&gt; ([StripeIndex] -&gt; Put) -&gt; Binary StripeIndex
+forall t. (t -&gt; Put) -&gt; Get t -&gt; ([t] -&gt; Put) -&gt; Binary t
+$cput :: StripeIndex -&gt; Put
+put :: StripeIndex -&gt; Put
+$cget :: Get StripeIndex
+get :: Get StripeIndex
+$cputList :: [StripeIndex] -&gt; Put
+putList :: [StripeIndex] -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Binary</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | How many names a unit may declare: the width of every stripe a layout</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- hands out. Its own type, so that a size cannot be confused with a name, an</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- index, or a base.</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">newtype</span><span> </span><span id="StripeSize"><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier hs-var">StripeSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StripeSize"><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier hs-var">StripeSize</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231636"><span id="local-6989586621679231640"><span class="annot"><span class="annottext">StripeSize -&gt; StripeSize -&gt; Bool
+(StripeSize -&gt; StripeSize -&gt; Bool)
+-&gt; (StripeSize -&gt; StripeSize -&gt; Bool) -&gt; Eq StripeSize
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: StripeSize -&gt; StripeSize -&gt; Bool
+== :: StripeSize -&gt; StripeSize -&gt; Bool
+$c/= :: StripeSize -&gt; StripeSize -&gt; Bool
+/= :: StripeSize -&gt; StripeSize -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231647"><span id="local-6989586621679231651"><span id="local-6989586621679231655"><span id="local-6989586621679231659"><span id="local-6989586621679231663"><span id="local-6989586621679231667"><span id="local-6989586621679231671"><span class="annot"><span class="annottext">Eq StripeSize
+Eq StripeSize =&gt;
+(StripeSize -&gt; StripeSize -&gt; Ordering)
+-&gt; (StripeSize -&gt; StripeSize -&gt; Bool)
+-&gt; (StripeSize -&gt; StripeSize -&gt; Bool)
+-&gt; (StripeSize -&gt; StripeSize -&gt; Bool)
+-&gt; (StripeSize -&gt; StripeSize -&gt; Bool)
+-&gt; (StripeSize -&gt; StripeSize -&gt; StripeSize)
+-&gt; (StripeSize -&gt; StripeSize -&gt; StripeSize)
+-&gt; Ord StripeSize
+StripeSize -&gt; StripeSize -&gt; Bool
+StripeSize -&gt; StripeSize -&gt; Ordering
+StripeSize -&gt; StripeSize -&gt; StripeSize
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: StripeSize -&gt; StripeSize -&gt; Ordering
+compare :: StripeSize -&gt; StripeSize -&gt; Ordering
+$c&lt; :: StripeSize -&gt; StripeSize -&gt; Bool
+&lt; :: StripeSize -&gt; StripeSize -&gt; Bool
+$c&lt;= :: StripeSize -&gt; StripeSize -&gt; Bool
+&lt;= :: StripeSize -&gt; StripeSize -&gt; Bool
+$c&gt; :: StripeSize -&gt; StripeSize -&gt; Bool
+&gt; :: StripeSize -&gt; StripeSize -&gt; Bool
+$c&gt;= :: StripeSize -&gt; StripeSize -&gt; Bool
+&gt;= :: StripeSize -&gt; StripeSize -&gt; Bool
+$cmax :: StripeSize -&gt; StripeSize -&gt; StripeSize
+max :: StripeSize -&gt; StripeSize -&gt; StripeSize
+$cmin :: StripeSize -&gt; StripeSize -&gt; StripeSize
+min :: StripeSize -&gt; StripeSize -&gt; StripeSize
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231676"><span id="local-6989586621679231680"><span id="local-6989586621679231684"><span class="annot"><span class="annottext">RawName -&gt; StripeSize -&gt; ShowS
+[StripeSize] -&gt; ShowS
+StripeSize -&gt; String
+(RawName -&gt; StripeSize -&gt; ShowS)
+-&gt; (StripeSize -&gt; String)
+-&gt; ([StripeSize] -&gt; ShowS)
+-&gt; Show StripeSize
+forall a.
+(RawName -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: RawName -&gt; StripeSize -&gt; ShowS
+showsPrec :: RawName -&gt; StripeSize -&gt; ShowS
+$cshow :: StripeSize -&gt; String
+show :: StripeSize -&gt; String
+$cshowList :: [StripeSize] -&gt; ShowS
+showList :: [StripeSize] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231689"><span id="local-6989586621679231693"><span id="local-6989586621679231697"><span id="local-6989586621679231701"><span class="annot"><span class="annottext">ReadPrec [StripeSize]
+ReadPrec StripeSize
+RawName -&gt; ReadS StripeSize
+ReadS [StripeSize]
+(RawName -&gt; ReadS StripeSize)
+-&gt; ReadS [StripeSize]
+-&gt; ReadPrec StripeSize
+-&gt; ReadPrec [StripeSize]
+-&gt; Read StripeSize
+forall a.
+(RawName -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: RawName -&gt; ReadS StripeSize
+readsPrec :: RawName -&gt; ReadS StripeSize
+$creadList :: ReadS [StripeSize]
+readList :: ReadS [StripeSize]
+$creadPrec :: ReadPrec StripeSize
+readPrec :: ReadPrec StripeSize
+$creadListPrec :: ReadPrec [StripeSize]
+readListPrec :: ReadPrec [StripeSize]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Where stripe @i@ lies on the raw-name line.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- The library does not choose: whether stripes descend below zero, ascend</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- from some base, or interleave with other reservations is a policy of the</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- client, and everything in &quot;Control.Monad.Foil.Blocks&quot; works from the</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- resulting 'NameRange's alone. A layout should give disjoint ranges to</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- distinct indices. Nothing checks this here, but</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- 'Control.Monad.Foil.Blocks.withDisjointUnion' refuses the overlap at the</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- point where it would do harm.</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-79"></span><span class="hs-keyword">newtype</span><span> </span><span id="StripeLayout"><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier hs-var">StripeLayout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StripeLayout"><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier hs-var">StripeLayout</span></a></span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="stripeRange"><span class="annot"><span class="annottext">StripeLayout -&gt; StripeIndex -&gt; NameRange
+</span><a href="Control.Monad.Foil.Registry.html#stripeRange"><span class="hs-identifier hs-var hs-var">stripeRange</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Stripe @i@ is the @i@-th run of @size@ names below zero, counting</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- downwards, so stripe 0 is @[-size .. -1]@. Within a stripe, allocation</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- still ascends (see 'Control.Monad.Foil.withFreshIn'), so declaration order</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- is ascending name order.</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- This layout leaves the whole non-negative range free for a client's local</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- names.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- &gt;&gt;&gt; stripeRange (stripesBelowZero (StripeSize 100)) (StripeIndex 0)</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- NameRange {nameRangeLo = -100, nameRangeHi = -1}</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- &gt;&gt;&gt; stripeRange (stripesBelowZero (StripeSize 100)) (StripeIndex 2)</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- NameRange {nameRangeLo = -300, nameRangeHi = -201}</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Control.Monad.Foil.Registry.html#stripesBelowZero"><span class="hs-identifier hs-type">stripesBelowZero</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier hs-type">StripeSize</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier hs-type">StripeLayout</span></a></span><span>
+</span><span id="line-98"></span><span id="stripesBelowZero"><span class="annot"><span class="annottext">stripesBelowZero :: StripeSize -&gt; StripeLayout
+</span><a href="Control.Monad.Foil.Registry.html#stripesBelowZero"><span class="hs-identifier hs-var hs-var">stripesBelowZero</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier hs-type">StripeSize</span></a></span><span> </span><span id="local-6989586621679231707"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231707"><span class="hs-identifier hs-var">size</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StripeIndex -&gt; NameRange) -&gt; StripeLayout
+</span><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier hs-var">StripeLayout</span></a></span><span> </span><span class="annot"><span class="annottext">((StripeIndex -&gt; NameRange) -&gt; StripeLayout)
+-&gt; (StripeIndex -&gt; NameRange) -&gt; StripeLayout
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span> </span><span id="local-6989586621679231708"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231708"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679231713"><span class="annot"><span class="annottext">hi :: RawName
+</span><a href="#local-6989586621679231713"><span class="hs-identifier hs-var hs-var">hi</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231708"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231707"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-100"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231713"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231707"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231713"><span class="hs-identifier hs-var">hi</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- | Stripe @i@ is the @i@-th run of @size@ names at or above a base,</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- counting upwards, so stripe 0 is @[base .. base + size - 1]@.</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- &gt;&gt;&gt; stripeRange (stripesAbove 0 (StripeSize 100)) (StripeIndex 1)</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- NameRange {nameRangeLo = 100, nameRangeHi = 199}</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-109"></span><span class="annot"><a href="Control.Monad.Foil.Registry.html#stripesAbove"><span class="hs-identifier hs-type">stripesAbove</span></a></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RawName"><span class="hs-identifier hs-type">RawName</span></a></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ The base: the low end of stripe 0.</span></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier hs-type">StripeSize</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier hs-type">StripeLayout</span></a></span><span>
+</span><span id="line-113"></span><span id="stripesAbove"><span class="annot"><span class="annottext">stripesAbove :: RawName -&gt; StripeSize -&gt; StripeLayout
+</span><a href="Control.Monad.Foil.Registry.html#stripesAbove"><span class="hs-identifier hs-var hs-var">stripesAbove</span></a></span></span><span> </span><span id="local-6989586621679231716"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231716"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeSize"><span class="hs-identifier hs-type">StripeSize</span></a></span><span> </span><span id="local-6989586621679231717"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231717"><span class="hs-identifier hs-var">size</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(StripeIndex -&gt; NameRange) -&gt; StripeLayout
+</span><a href="Control.Monad.Foil.Registry.html#StripeLayout"><span class="hs-identifier hs-var">StripeLayout</span></a></span><span> </span><span class="annot"><span class="annottext">((StripeIndex -&gt; NameRange) -&gt; StripeLayout)
+-&gt; (StripeIndex -&gt; NameRange) -&gt; StripeLayout
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span> </span><span id="local-6989586621679231718"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231718"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679231721"><span class="annot"><span class="annottext">lo :: RawName
+</span><a href="#local-6989586621679231721"><span class="hs-identifier hs-var hs-var">lo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231716"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231718"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231717"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-115"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231721"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231721"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231717"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- | Which stripe each unit's declarations live in, by the unit's name.</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- Append-only: a name, once registered, keeps its stripe for the lifetime of</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- the registry, and the next stripe index is always the registry's size.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-123"></span><span class="hs-keyword">type</span><span> </span><span id="Registry"><span class="annot"><a href="Control.Monad.Foil.Registry.html#Registry"><span class="hs-identifier hs-var">Registry</span></a></span></span><span> </span><span id="local-6989586621679231722"><span class="annot"><a href="#local-6989586621679231722"><span class="hs-identifier hs-type">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621679231722"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | The registry before any unit has ever been checked.</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-128"></span><span id="local-6989586621679231482"><span class="annot"><a href="Control.Monad.Foil.Registry.html#emptyRegistry"><span class="hs-identifier hs-type">emptyRegistry</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#Registry"><span class="hs-identifier hs-type">Registry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231482"><span class="hs-identifier hs-type">name</span></a></span></span><span>
+</span><span id="line-129"></span><span id="emptyRegistry"><span class="annot"><span class="annottext">emptyRegistry :: forall name. Registry name
+</span><a href="Control.Monad.Foil.Registry.html#emptyRegistry"><span class="hs-identifier hs-var hs-var">emptyRegistry</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map name StripeIndex
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- | How many units have been registered, which is also the next free stripe.</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-134"></span><span id="local-6989586621679231488"><span class="annot"><a href="Control.Monad.Foil.Registry.html#registrySize"><span class="hs-identifier hs-type">registrySize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#Registry"><span class="hs-identifier hs-type">Registry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231488"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-135"></span><span id="registrySize"><span class="annot"><span class="annottext">registrySize :: forall name. Registry name -&gt; RawName
+</span><a href="Control.Monad.Foil.Registry.html#registrySize"><span class="hs-identifier hs-var hs-var">registrySize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map name StripeIndex -&gt; RawName
+forall k a. Map k a -&gt; RawName
+</span><span class="hs-identifier hs-var">Map.size</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- | The stripe index of a unit, assigning the next one on first use.</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- Registration hands out the index and not a range. A unit's index</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- determines /every/ reservation derived for it: its stripe under a</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- 'StripeLayout', and its runs of local names under a 'RegionLayout'. The</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- layouts interpret the index, rather than being consulted here.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- &gt;&gt;&gt; let layout = stripesBelowZero (StripeSize 10)</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- &gt;&gt;&gt; let (r1, iA) = registerUnit &quot;A&quot; emptyRegistry</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- &gt;&gt;&gt; stripeRange layout iA</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- NameRange {nameRangeLo = -10, nameRangeHi = -1}</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- &gt;&gt;&gt; stripeRange layout (snd (registerUnit &quot;B&quot; r1))</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- NameRange {nameRangeLo = -20, nameRangeHi = -11}</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- Registration is idempotent, which is the determinism a cache rests on:</span><span>
+</span><span id="line-152"></span><span class="hs-comment">--</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- &gt;&gt;&gt; snd (registerUnit &quot;A&quot; r1) == iA</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- True</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-157"></span><span id="local-6989586621679231492"><span class="annot"><a href="Control.Monad.Foil.Registry.html#registerUnit"><span class="hs-identifier hs-type">registerUnit</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679231492"><span class="hs-identifier hs-type">name</span></a></span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231492"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#Registry"><span class="hs-identifier hs-type">Registry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231492"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#Registry"><span class="hs-identifier hs-type">Registry</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231492"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-160"></span><span id="registerUnit"><span class="annot"><span class="annottext">registerUnit :: forall name.
+Ord name =&gt;
+name -&gt; Registry name -&gt; (Registry name, StripeIndex)
+</span><a href="Control.Monad.Foil.Registry.html#registerUnit"><span class="hs-identifier hs-var hs-var">registerUnit</span></a></span></span><span> </span><span id="local-6989586621679231729"><span class="annot"><span class="annottext">name
+</span><a href="#local-6989586621679231729"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679231730"><span class="annot"><span class="annottext">Registry name
+</span><a href="#local-6989586621679231730"><span class="hs-identifier hs-var">registry</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">name -&gt; Registry name -&gt; Maybe StripeIndex
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">name
+</span><a href="#local-6989586621679231729"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Registry name
+</span><a href="#local-6989586621679231730"><span class="hs-identifier hs-var">registry</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679231732"><span class="annot"><span class="annottext">StripeIndex
+</span><a href="#local-6989586621679231732"><span class="hs-identifier hs-var">i</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registry name
+</span><a href="#local-6989586621679231730"><span class="hs-identifier hs-var">registry</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">StripeIndex
+</span><a href="#local-6989586621679231732"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="annottext">Maybe StripeIndex
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679231733"><span class="annot"><span class="annottext">i :: StripeIndex
+</span><a href="#local-6989586621679231733"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; StripeIndex
+</span><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-var">StripeIndex</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registry name -&gt; RawName
+forall k a. Map k a -&gt; RawName
+</span><span class="hs-identifier hs-var">Map.size</span></span><span> </span><span class="annot"><span class="annottext">Registry name
+</span><a href="#local-6989586621679231730"><span class="hs-identifier hs-var">registry</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">name -&gt; StripeIndex -&gt; Registry name -&gt; Registry name
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">name
+</span><a href="#local-6989586621679231729"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">StripeIndex
+</span><a href="#local-6989586621679231733"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Registry name
+</span><a href="#local-6989586621679231730"><span class="hs-identifier hs-var">registry</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">StripeIndex
+</span><a href="#local-6989586621679231733"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="annot"><span class="hs-comment">-- * Local-region layouts</span></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | How far apart consecutive local-region floors sit within a unit's runs.</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- This is spacing, not a hard width: a run is open-ended above its floor,</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- and a scope-driven allocator would have to hold this many names /in scope</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- at once/ to reach the next floor.</span><span>
+</span><span id="line-172"></span><span class="hs-comment">--</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-174"></span><span class="hs-keyword">newtype</span><span> </span><span id="RegionWidth"><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionWidth"><span class="hs-identifier hs-var">RegionWidth</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RegionWidth"><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionWidth"><span class="hs-identifier hs-var">RegionWidth</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231737"><span id="local-6989586621679231741"><span class="annot"><span class="annottext">RegionWidth -&gt; RegionWidth -&gt; Bool
+(RegionWidth -&gt; RegionWidth -&gt; Bool)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; Bool) -&gt; Eq RegionWidth
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RegionWidth -&gt; RegionWidth -&gt; Bool
+== :: RegionWidth -&gt; RegionWidth -&gt; Bool
+$c/= :: RegionWidth -&gt; RegionWidth -&gt; Bool
+/= :: RegionWidth -&gt; RegionWidth -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231748"><span id="local-6989586621679231752"><span id="local-6989586621679231756"><span id="local-6989586621679231760"><span id="local-6989586621679231764"><span id="local-6989586621679231768"><span id="local-6989586621679231772"><span class="annot"><span class="annottext">Eq RegionWidth
+Eq RegionWidth =&gt;
+(RegionWidth -&gt; RegionWidth -&gt; Ordering)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; Bool)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; Bool)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; Bool)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; Bool)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; RegionWidth)
+-&gt; (RegionWidth -&gt; RegionWidth -&gt; RegionWidth)
+-&gt; Ord RegionWidth
+RegionWidth -&gt; RegionWidth -&gt; Bool
+RegionWidth -&gt; RegionWidth -&gt; Ordering
+RegionWidth -&gt; RegionWidth -&gt; RegionWidth
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RegionWidth -&gt; RegionWidth -&gt; Ordering
+compare :: RegionWidth -&gt; RegionWidth -&gt; Ordering
+$c&lt; :: RegionWidth -&gt; RegionWidth -&gt; Bool
+&lt; :: RegionWidth -&gt; RegionWidth -&gt; Bool
+$c&lt;= :: RegionWidth -&gt; RegionWidth -&gt; Bool
+&lt;= :: RegionWidth -&gt; RegionWidth -&gt; Bool
+$c&gt; :: RegionWidth -&gt; RegionWidth -&gt; Bool
+&gt; :: RegionWidth -&gt; RegionWidth -&gt; Bool
+$c&gt;= :: RegionWidth -&gt; RegionWidth -&gt; Bool
+&gt;= :: RegionWidth -&gt; RegionWidth -&gt; Bool
+$cmax :: RegionWidth -&gt; RegionWidth -&gt; RegionWidth
+max :: RegionWidth -&gt; RegionWidth -&gt; RegionWidth
+$cmin :: RegionWidth -&gt; RegionWidth -&gt; RegionWidth
+min :: RegionWidth -&gt; RegionWidth -&gt; RegionWidth
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231777"><span id="local-6989586621679231781"><span id="local-6989586621679231785"><span class="annot"><span class="annottext">RawName -&gt; RegionWidth -&gt; ShowS
+[RegionWidth] -&gt; ShowS
+RegionWidth -&gt; String
+(RawName -&gt; RegionWidth -&gt; ShowS)
+-&gt; (RegionWidth -&gt; String)
+-&gt; ([RegionWidth] -&gt; ShowS)
+-&gt; Show RegionWidth
+forall a.
+(RawName -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: RawName -&gt; RegionWidth -&gt; ShowS
+showsPrec :: RawName -&gt; RegionWidth -&gt; ShowS
+$cshow :: RegionWidth -&gt; String
+show :: RegionWidth -&gt; String
+$cshowList :: [RegionWidth] -&gt; ShowS
+showList :: [RegionWidth] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231790"><span id="local-6989586621679231794"><span id="local-6989586621679231798"><span id="local-6989586621679231802"><span class="annot"><span class="annottext">ReadPrec [RegionWidth]
+ReadPrec RegionWidth
+RawName -&gt; ReadS RegionWidth
+ReadS [RegionWidth]
+(RawName -&gt; ReadS RegionWidth)
+-&gt; ReadS [RegionWidth]
+-&gt; ReadPrec RegionWidth
+-&gt; ReadPrec [RegionWidth]
+-&gt; Read RegionWidth
+forall a.
+(RawName -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: RawName -&gt; ReadS RegionWidth
+readsPrec :: RawName -&gt; ReadS RegionWidth
+$creadList :: ReadS [RegionWidth]
+readList :: ReadS [RegionWidth]
+$creadPrec :: ReadPrec RegionWidth
+readPrec :: ReadPrec RegionWidth
+$creadListPrec :: ReadPrec [RegionWidth]
+readListPrec :: ReadPrec [RegionWidth]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- | How many runs of local names a unit may hold before its runs would</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- spill into the next unit's. A spill is not unsound for a client that</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- refreshes on clash. It only forfeits the disjointness described under</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- 'RegionLayout' for the runs past the cap.</span><span>
+</span><span id="line-181"></span><span class="hs-comment">--</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-183"></span><span class="hs-keyword">newtype</span><span> </span><span id="RegionsPerUnit"><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionsPerUnit"><span class="hs-identifier hs-var">RegionsPerUnit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RegionsPerUnit"><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionsPerUnit"><span class="hs-identifier hs-var">RegionsPerUnit</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-184"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231808"><span id="local-6989586621679231812"><span class="annot"><span class="annottext">RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+(RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool) -&gt; Eq RegionsPerUnit
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+== :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+$c/= :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+/= :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231819"><span id="local-6989586621679231823"><span id="local-6989586621679231827"><span id="local-6989586621679231831"><span id="local-6989586621679231835"><span id="local-6989586621679231839"><span id="local-6989586621679231843"><span class="annot"><span class="annottext">Eq RegionsPerUnit
+Eq RegionsPerUnit =&gt;
+(RegionsPerUnit -&gt; RegionsPerUnit -&gt; Ordering)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit)
+-&gt; (RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit)
+-&gt; Ord RegionsPerUnit
+RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+RegionsPerUnit -&gt; RegionsPerUnit -&gt; Ordering
+RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Ordering
+compare :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Ordering
+$c&lt; :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+&lt; :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+$c&lt;= :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+&lt;= :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+$c&gt; :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+&gt; :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+$c&gt;= :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+&gt;= :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; Bool
+$cmax :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit
+max :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit
+$cmin :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit
+min :: RegionsPerUnit -&gt; RegionsPerUnit -&gt; RegionsPerUnit
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231848"><span id="local-6989586621679231852"><span id="local-6989586621679231856"><span class="annot"><span class="annottext">RawName -&gt; RegionsPerUnit -&gt; ShowS
+[RegionsPerUnit] -&gt; ShowS
+RegionsPerUnit -&gt; String
+(RawName -&gt; RegionsPerUnit -&gt; ShowS)
+-&gt; (RegionsPerUnit -&gt; String)
+-&gt; ([RegionsPerUnit] -&gt; ShowS)
+-&gt; Show RegionsPerUnit
+forall a.
+(RawName -&gt; a -&gt; ShowS)
+-&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: RawName -&gt; RegionsPerUnit -&gt; ShowS
+showsPrec :: RawName -&gt; RegionsPerUnit -&gt; ShowS
+$cshow :: RegionsPerUnit -&gt; String
+show :: RegionsPerUnit -&gt; String
+$cshowList :: [RegionsPerUnit] -&gt; ShowS
+showList :: [RegionsPerUnit] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679231861"><span id="local-6989586621679231865"><span id="local-6989586621679231869"><span id="local-6989586621679231873"><span class="annot"><span class="annottext">ReadPrec [RegionsPerUnit]
+ReadPrec RegionsPerUnit
+RawName -&gt; ReadS RegionsPerUnit
+ReadS [RegionsPerUnit]
+(RawName -&gt; ReadS RegionsPerUnit)
+-&gt; ReadS [RegionsPerUnit]
+-&gt; ReadPrec RegionsPerUnit
+-&gt; ReadPrec [RegionsPerUnit]
+-&gt; Read RegionsPerUnit
+forall a.
+(RawName -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: RawName -&gt; ReadS RegionsPerUnit
+readsPrec :: RawName -&gt; ReadS RegionsPerUnit
+$creadList :: ReadS [RegionsPerUnit]
+readList :: ReadS [RegionsPerUnit]
+$creadPrec :: ReadPrec RegionsPerUnit
+readPrec :: ReadPrec RegionsPerUnit
+$creadListPrec :: ReadPrec [RegionsPerUnit]
+readListPrec :: ReadPrec [RegionsPerUnit]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | Where a unit's runs of /local/ names lie: one open-ended region per</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- declaration (or command) of the unit, advanced with 'nextRegion' as the</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- unit's declarations are processed.</span><span>
+</span><span id="line-189"></span><span class="hs-comment">--</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- Stripes make a unit's top-level names disjoint from every other unit's,</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- and runs of local regions do the same for the names a checker invents</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- /inside/ a declaration. A term stored under one declaration then never</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- collides with another declaration's live locals when it is reopened, so a</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- refreshing substitution takes its no-rename fast path throughout.</span><span>
+</span><span id="line-195"></span><span class="hs-comment">--</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- The first run is derived from the unit's stripe index rather than from a</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- counter shared across units, so a unit's elaboration depends only on the</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- unit itself and editing a neighbour moves no name. That is the</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- determinism a cache rests on.</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- The trade-off is that local names carry large offsets. A client that</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- shows raw indices directly may prefer a single flat region, and accept</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- the transient renames instead.</span><span>
+</span><span id="line-204"></span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-206"></span><span class="hs-keyword">data</span><span> </span><span id="RegionLayout"><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionLayout"><span class="hs-identifier hs-var">RegionLayout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RegionLayout"><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionLayout"><span class="hs-identifier hs-var">RegionLayout</span></a></span></span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="firstRegionOf"><span class="annot"><span class="annottext">RegionLayout -&gt; StripeIndex -&gt; NameRange
+</span><a href="Control.Monad.Foil.Registry.html#firstRegionOf"><span class="hs-identifier hs-var hs-var">firstRegionOf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span>
+</span><span id="line-208"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ The run of the unit's first declaration.</span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="nextRegion"><span class="annot"><span class="annottext">RegionLayout -&gt; NameRange -&gt; NameRange
+</span><a href="Control.Monad.Foil.Registry.html#nextRegion"><span class="hs-identifier hs-var hs-var">nextRegion</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span>
+</span><span id="line-210"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ The next declaration's run.</span></span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- | Runs ascending from a base: the unit with stripe index @i@ starts its</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- runs at @base + i * perUnit * width@, and each declaration's floor sits</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- @width@ above the previous one. The top of every run is open.</span><span>
+</span><span id="line-216"></span><span class="hs-comment">--</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- &gt;&gt;&gt; let locals = regionsAbove 0 (RegionsPerUnit 0x10) (RegionWidth 0x100)</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- &gt;&gt;&gt; nameRangeLo (firstRegionOf locals (StripeIndex 2))</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- 8192</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- &gt;&gt;&gt; nameRangeLo (nextRegion locals (firstRegionOf locals (StripeIndex 2)))</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- 8448</span><span>
+</span><span id="line-222"></span><span class="hs-comment">--</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-224"></span><span class="annot"><a href="Control.Monad.Foil.Registry.html#regionsAbove"><span class="hs-identifier hs-type">regionsAbove</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RawName"><span class="hs-identifier hs-type">RawName</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionsPerUnit"><span class="hs-identifier hs-type">RegionsPerUnit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionWidth"><span class="hs-identifier hs-type">RegionWidth</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionLayout"><span class="hs-identifier hs-type">RegionLayout</span></a></span><span>
+</span><span id="line-225"></span><span id="regionsAbove"><span class="annot"><span class="annottext">regionsAbove :: RawName -&gt; RegionsPerUnit -&gt; RegionWidth -&gt; RegionLayout
+</span><a href="Control.Monad.Foil.Registry.html#regionsAbove"><span class="hs-identifier hs-var hs-var">regionsAbove</span></a></span></span><span> </span><span id="local-6989586621679231879"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231879"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionsPerUnit"><span class="hs-identifier hs-type">RegionsPerUnit</span></a></span><span> </span><span id="local-6989586621679231880"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231880"><span class="hs-identifier hs-var">perUnit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionWidth"><span class="hs-identifier hs-type">RegionWidth</span></a></span><span> </span><span id="local-6989586621679231881"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231881"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Registry.html#RegionLayout"><span class="hs-identifier hs-type">RegionLayout</span></a></span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">firstRegionOf :: StripeIndex -&gt; NameRange
+</span><a href="Control.Monad.Foil.Registry.html#firstRegionOf"><span class="hs-identifier hs-var">firstRegionOf</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Registry.html#StripeIndex"><span class="hs-identifier hs-type">StripeIndex</span></a></span><span> </span><span id="local-6989586621679231882"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231882"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-227"></span><span>      </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231879"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231882"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231880"><span class="hs-identifier hs-var">perUnit</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231881"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">RawName
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span>
+</span><span id="line-228"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">nextRegion :: NameRange -&gt; NameRange
+</span><a href="Control.Monad.Foil.Registry.html#nextRegion"><span class="hs-identifier hs-var">nextRegion</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231884"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231884"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231884"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231881"><span class="hs-identifier hs-var">w</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">RawName
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-230"></span></pre></body></html>

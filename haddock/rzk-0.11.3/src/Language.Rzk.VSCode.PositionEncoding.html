@@ -1,0 +1,314 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | Conversion between code-point and UTF-16 positions at the LSP boundary.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- LSP positions count UTF-16 code units (the default position encoding, and</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- the only one VS Code supports), while alex positions and everything derived</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- from them (the surface AST, the reference index, the typechecker) count</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Unicode code points. The two agree except on lines containing astral-plane</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- characters (code points above U+FFFF, such as @&#120128;@), each of which takes two</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- UTF-16 units. Emitting a code-point column for such a line shifts every</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- position to the right of the character, and a range boundary can land in</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- the middle of a surrogate pair, which is what shatters the glyph in the</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- editor (see issue #303).</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Everything internal stays in code points; the handlers convert with this</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- module when crossing the wire, in both directions. 'AstralLines' records</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- only the lines where the two encodings differ, so for the common all-BMP</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- document every conversion is an identity after one map lookup.</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html"><span class="hs-identifier">Language.Rzk.VSCode.PositionEncoding</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier">AstralLines</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#astralLines"><span class="hs-identifier">astralLines</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Length"><span class="hs-identifier">utf16Length</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#colToUtf16"><span class="hs-identifier">colToUtf16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#colFromUtf16"><span class="hs-identifier">colFromUtf16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#positionFromUtf16"><span class="hs-identifier">positionFromUtf16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#rangeToUtf16"><span class="hs-identifier">rangeToUtf16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#tokensToUtf16"><span class="hs-identifier">tokensToUtf16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap.Strict</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntMap</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                   </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.LSP.Protocol.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Position</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Position</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>                                              </span><span class="annot"><span class="hs-identifier">Range</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Range</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>                                              </span><span class="annot"><span class="hs-identifier">SemanticTokenAbsolute</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | The lines of a document on which code-point and UTF-16 columns differ,</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- keyed by 0-based line number.</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">newtype</span><span> </span><span id="AstralLines"><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-var">AstralLines</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="AstralLines"><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-var">AstralLines</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IntMap.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#astralLines"><span class="hs-identifier hs-type">astralLines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span>
+</span><span id="line-39"></span><span id="astralLines"><span class="annot"><span class="annottext">astralLines :: Text -&gt; AstralLines
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#astralLines"><span class="hs-identifier hs-var hs-var">astralLines</span></a></span></span><span> </span><span id="local-6989586621680200472"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200472"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap Text -&gt; AstralLines
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-var">AstralLines</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap Text -&gt; AstralLines) -&gt; IntMap Text -&gt; AstralLines
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[(Int, Text)] -&gt; IntMap Text
+forall a. [(Int, a)] -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.fromDistinctAscList</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200474"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200475"><span class="hs-identifier hs-var">line</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680200474"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200474"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680200475"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200475"><span class="hs-identifier hs-var">line</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Text] -&gt; [(Int, Text)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">T.lines</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200472"><span class="hs-identifier hs-var">src</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">T.any</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#isAstral"><span class="hs-identifier hs-var">isAstral</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200475"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#isAstral"><span class="hs-identifier hs-type">isAstral</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-43"></span><span id="isAstral"><span class="annot"><span class="annottext">isAstral :: Char -&gt; Bool
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#isAstral"><span class="hs-identifier hs-var hs-var">isAstral</span></a></span></span><span> </span><span id="local-6989586621680200479"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200479"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200479"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\xFFFF'</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Width"><span class="hs-identifier hs-type">utf16Width</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-46"></span><span id="utf16Width"><span class="annot"><span class="annottext">utf16Width :: Char -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Width"><span class="hs-identifier hs-var hs-var">utf16Width</span></a></span></span><span> </span><span id="local-6989586621680200482"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200482"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#isAstral"><span class="hs-identifier hs-var">isAstral</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200482"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- | The length of a text in UTF-16 code units.</span></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Length"><span class="hs-identifier hs-type">utf16Length</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-50"></span><span id="utf16Length"><span class="annot"><span class="annottext">utf16Length :: Text -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Length"><span class="hs-identifier hs-var hs-var">utf16Length</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Char -&gt; Int) -&gt; Int -&gt; Text -&gt; Int
+forall a. (a -&gt; Char -&gt; a) -&gt; a -&gt; Text -&gt; a
+</span><span class="hs-identifier hs-var">T.foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680200484"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200484"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621680200485"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200485"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200484"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Width"><span class="hs-identifier hs-var">utf16Width</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200485"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | Convert a 0-based code-point column on the given 0-based line to UTF-16</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- units. A column beyond the end of the line keeps its distance past the end</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- (the diagnostics code uses column 99 to mean &quot;to the end of the line&quot;).</span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#colToUtf16"><span class="hs-identifier hs-type">colToUtf16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-56"></span><span id="colToUtf16"><span class="annot"><span class="annottext">colToUtf16 :: AstralLines -&gt; Int -&gt; Int -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#colToUtf16"><span class="hs-identifier hs-var hs-var">colToUtf16</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span id="local-6989586621680200487"><span class="annot"><span class="annottext">IntMap Text
+</span><a href="#local-6989586621680200487"><span class="hs-identifier hs-var">ls</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680200488"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200488"><span class="hs-identifier hs-var">line</span></a></span></span><span> </span><span id="local-6989586621680200489"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200489"><span class="hs-identifier hs-var">col</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Text -&gt; Maybe Text
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IntMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200488"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Text
+</span><a href="#local-6989586621680200487"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200489"><span class="hs-identifier hs-var">col</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680200491"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200491"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Length"><span class="hs-identifier hs-var">utf16Length</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200489"><span class="hs-identifier hs-var">col</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200491"><span class="hs-identifier hs-var">text</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200489"><span class="hs-identifier hs-var">col</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int
+</span><span class="hs-identifier hs-var">T.length</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200491"><span class="hs-identifier hs-var">text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- | Convert a 0-based UTF-16 column on the given 0-based line to code</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- points. A column inside a surrogate pair maps to the start of its</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- character.</span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#colFromUtf16"><span class="hs-identifier hs-type">colFromUtf16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-65"></span><span id="colFromUtf16"><span class="annot"><span class="annottext">colFromUtf16 :: AstralLines -&gt; Int -&gt; Int -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#colFromUtf16"><span class="hs-identifier hs-var hs-var">colFromUtf16</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span id="local-6989586621680200495"><span class="annot"><span class="annottext">IntMap Text
+</span><a href="#local-6989586621680200495"><span class="hs-identifier hs-var">ls</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680200496"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200496"><span class="hs-identifier hs-var">line</span></a></span></span><span> </span><span id="local-6989586621680200497"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200497"><span class="hs-identifier hs-var">col</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntMap Text -&gt; Maybe Text
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IntMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200496"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Text
+</span><a href="#local-6989586621680200495"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200497"><span class="hs-identifier hs-var">col</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680200498"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200498"><span class="hs-identifier hs-var">text</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; [Char] -&gt; Int
+</span><a href="#local-6989586621680200499"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; [Char]
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680200498"><span class="hs-identifier hs-var">text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>        </span><span id="local-6989586621680200499"><span class="annot"><span class="annottext">go :: Int -&gt; Int -&gt; [Char] -&gt; Int
+</span><a href="#local-6989586621680200499"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621680200511"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200511"><span class="hs-identifier hs-var">cp</span></a></span></span><span> </span><span id="local-6989586621680200512"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200512"><span class="hs-identifier hs-var">units</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680200513"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200513"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621680200514"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621680200514"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200512"><span class="hs-identifier hs-var">units</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200497"><span class="hs-identifier hs-var">col</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200511"><span class="hs-identifier hs-var">cp</span></a></span><span>
+</span><span id="line-72"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200512"><span class="hs-identifier hs-var">units</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Width"><span class="hs-identifier hs-var">utf16Width</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200513"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200497"><span class="hs-identifier hs-var">col</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200511"><span class="hs-identifier hs-var">cp</span></a></span><span>
+</span><span id="line-73"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; [Char] -&gt; Int
+</span><a href="#local-6989586621680200499"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200511"><span class="hs-identifier hs-var">cp</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200512"><span class="hs-identifier hs-var">units</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#utf16Width"><span class="hs-identifier hs-var">utf16Width</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621680200513"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621680200514"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><a href="#local-6989586621680200499"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621680200515"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200515"><span class="hs-identifier hs-var">cp</span></a></span></span><span> </span><span id="local-6989586621680200516"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200516"><span class="hs-identifier hs-var">units</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>                  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200515"><span class="hs-identifier hs-var">cp</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200497"><span class="hs-identifier hs-var">col</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200516"><span class="hs-identifier hs-var">units</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><span class="hs-comment">-- | Convert an incoming LSP position (UTF-16) to code points.</span></span><span>
+</span><span id="line-77"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#positionFromUtf16"><span class="hs-identifier hs-type">positionFromUtf16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Position</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Position</span></span><span>
+</span><span id="line-78"></span><span id="positionFromUtf16"><span class="annot"><span class="annottext">positionFromUtf16 :: AstralLines -&gt; Position -&gt; Position
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#positionFromUtf16"><span class="hs-identifier hs-var hs-var">positionFromUtf16</span></a></span></span><span> </span><span id="local-6989586621680200517"><span class="annot"><span class="annottext">AstralLines
+</span><a href="#local-6989586621680200517"><span class="hs-identifier hs-var">als</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Position</span></span><span> </span><span id="local-6989586621680200518"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200518"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621680200519"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200519"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-79"></span><span>  </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Position
+</span><span class="hs-identifier hs-var">Position</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200518"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; UInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AstralLines -&gt; Int -&gt; Int -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#colFromUtf16"><span class="hs-identifier hs-var">colFromUtf16</span></a></span><span> </span><span class="annot"><span class="annottext">AstralLines
+</span><a href="#local-6989586621680200517"><span class="hs-identifier hs-var">als</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200518"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200519"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><span class="hs-comment">-- | Convert an outgoing range (code points) to UTF-16.</span></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#rangeToUtf16"><span class="hs-identifier hs-type">rangeToUtf16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Range</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Range</span></span><span>
+</span><span id="line-83"></span><span id="rangeToUtf16"><span class="annot"><span class="annottext">rangeToUtf16 :: AstralLines -&gt; Range -&gt; Range
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#rangeToUtf16"><span class="hs-identifier hs-var hs-var">rangeToUtf16</span></a></span></span><span> </span><span id="local-6989586621680200520"><span class="annot"><span class="annottext">AstralLines
+</span><a href="#local-6989586621680200520"><span class="hs-identifier hs-var">als</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Range</span></span><span> </span><span id="local-6989586621680200521"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621680200521"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621680200522"><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621680200522"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Position -&gt; Position -&gt; Range
+</span><span class="hs-identifier hs-var">Range</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Position -&gt; Position
+</span><a href="#local-6989586621680200523"><span class="hs-identifier hs-var">posToUtf16</span></a></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621680200521"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Position -&gt; Position
+</span><a href="#local-6989586621680200523"><span class="hs-identifier hs-var">posToUtf16</span></a></span><span> </span><span class="annot"><span class="annottext">Position
+</span><a href="#local-6989586621680200522"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621680200523"><span class="annot"><span class="annottext">posToUtf16 :: Position -&gt; Position
+</span><a href="#local-6989586621680200523"><span class="hs-identifier hs-var hs-var">posToUtf16</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Position</span></span><span> </span><span id="local-6989586621680200530"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200530"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621680200531"><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200531"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><span class="annottext">UInt -&gt; UInt -&gt; Position
+</span><span class="hs-identifier hs-var">Position</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200530"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; UInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AstralLines -&gt; Int -&gt; Int -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#colToUtf16"><span class="hs-identifier hs-var">colToUtf16</span></a></span><span> </span><span class="annot"><span class="annottext">AstralLines
+</span><a href="#local-6989586621680200520"><span class="hs-identifier hs-var">als</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200530"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">UInt
+</span><a href="#local-6989586621680200531"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | Convert semantic tokens (code points) to UTF-16. The length is converted</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- through the token's end column, so a token that itself contains astral</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- characters (e.g. the @&#120128;@ keyword) gets its UTF-16 width.</span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#tokensToUtf16"><span class="hs-identifier hs-type">tokensToUtf16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">SemanticTokenAbsolute</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">SemanticTokenAbsolute</span></span><span class="hs-special">]</span><span>
+</span><span id="line-92"></span><span id="tokensToUtf16"><span class="annot"><span class="annottext">tokensToUtf16 :: AstralLines -&gt; [SemanticTokenAbsolute] -&gt; [SemanticTokenAbsolute]
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#tokensToUtf16"><span class="hs-identifier hs-var hs-var">tokensToUtf16</span></a></span></span><span> </span><span id="local-6989586621680200532"><span class="annot"><span class="annottext">als :: AstralLines
+</span><a href="#local-6989586621680200532"><span class="hs-identifier hs-var">als</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.VSCode.PositionEncoding.html#AstralLines"><span class="hs-identifier hs-type">AstralLines</span></a></span><span> </span><span id="local-6989586621680200533"><span class="annot"><span class="annottext">IntMap Text
+</span><a href="#local-6989586621680200533"><span class="hs-identifier hs-var">ls</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680200534"><span class="annot"><span class="annottext">[SemanticTokenAbsolute]
+</span><a href="#local-6989586621680200534"><span class="hs-identifier hs-var">tokens</span></a></span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">IntMap Text -&gt; Bool
+forall a. IntMap a -&gt; Bool
+</span><span class="hs-identifier hs-var">IntMap.null</span></span><span> </span><span class="annot"><span class="annottext">IntMap Text
+</span><a href="#local-6989586621680200533"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SemanticTokenAbsolute]
+</span><a href="#local-6989586621680200534"><span class="hs-identifier hs-var">tokens</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SemanticTokenAbsolute -&gt; SemanticTokenAbsolute)
+-&gt; [SemanticTokenAbsolute] -&gt; [SemanticTokenAbsolute]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">SemanticTokenAbsolute -&gt; SemanticTokenAbsolute
+</span><a href="#local-6989586621680200536"><span class="hs-identifier hs-var">adjust</span></a></span><span> </span><span class="annot"><span class="annottext">[SemanticTokenAbsolute]
+</span><a href="#local-6989586621680200534"><span class="hs-identifier hs-var">tokens</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621680200536"><span class="annot"><span class="annottext">adjust :: SemanticTokenAbsolute -&gt; SemanticTokenAbsolute
+</span><a href="#local-6989586621680200536"><span class="hs-identifier hs-var hs-var">adjust</span></a></span></span><span> </span><span id="local-6989586621680200542"><span class="annot"><span class="annottext">SemanticTokenAbsolute
+</span><a href="#local-6989586621680200542"><span class="hs-identifier hs-var">token</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SemanticTokenAbsolute
+</span><a href="#local-6989586621680200542"><span class="hs-identifier hs-var">token</span></a></span><span>
+</span><span id="line-97"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">_startChar</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="annot"><a href="#local-6989586621680200544"><span class="hs-identifier hs-type">start'</span></a></span><span>
+</span><span id="line-98"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-var">_length</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680200546"><span class="hs-identifier hs-type">end'</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621680200544"><span class="hs-identifier hs-type">start'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>        </span><span id="local-6989586621680200549"><span class="annot"><span class="annottext">line :: Int
+</span><a href="#local-6989586621680200549"><span class="hs-identifier hs-var hs-var">line</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SemanticTokenAbsolute -&gt; UInt
+</span><span class="hs-identifier hs-var">_line</span></span><span> </span><span class="annot"><span class="annottext">SemanticTokenAbsolute
+</span><a href="#local-6989586621680200542"><span class="hs-identifier hs-var">token</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>        </span><span id="local-6989586621680200553"><span class="annot"><span class="annottext">start :: Int
+</span><a href="#local-6989586621680200553"><span class="hs-identifier hs-var hs-var">start</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SemanticTokenAbsolute -&gt; UInt
+</span><span class="hs-identifier hs-var">_startChar</span></span><span> </span><span class="annot"><span class="annottext">SemanticTokenAbsolute
+</span><a href="#local-6989586621680200542"><span class="hs-identifier hs-var">token</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>        </span><span id="local-6989586621680200544"><span class="annot"><span class="annottext">start' :: Int
+</span><a href="#local-6989586621680200544"><span class="hs-identifier hs-var hs-var">start'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AstralLines -&gt; Int -&gt; Int -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#colToUtf16"><span class="hs-identifier hs-var">colToUtf16</span></a></span><span> </span><span class="annot"><span class="annottext">AstralLines
+</span><a href="#local-6989586621680200532"><span class="hs-identifier hs-var">als</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200549"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200553"><span class="hs-identifier hs-var">start</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span id="local-6989586621680200546"><span class="annot"><span class="annottext">end' :: Int
+</span><a href="#local-6989586621680200546"><span class="hs-identifier hs-var hs-var">end'</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AstralLines -&gt; Int -&gt; Int -&gt; Int
+</span><a href="Language.Rzk.VSCode.PositionEncoding.html#colToUtf16"><span class="hs-identifier hs-var">colToUtf16</span></a></span><span> </span><span class="annot"><span class="annottext">AstralLines
+</span><a href="#local-6989586621680200532"><span class="hs-identifier hs-var">als</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200549"><span class="hs-identifier hs-var">line</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680200553"><span class="hs-identifier hs-var">start</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">UInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SemanticTokenAbsolute -&gt; UInt
+</span><span class="hs-identifier hs-var">_length</span></span><span> </span><span class="annot"><span class="annottext">SemanticTokenAbsolute
+</span><a href="#local-6989586621680200542"><span class="hs-identifier hs-var">token</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span></pre></body></html>

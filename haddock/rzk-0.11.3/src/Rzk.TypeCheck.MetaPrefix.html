@@ -1,0 +1,1598 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-name-shadowing #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds           #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts    #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE GADTs               #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase          #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings   #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms     #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes          #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- | The meta-parameter layer check.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- The type theory implemented in rzk separates a /meta-theoretic parameter</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- layer/ from the object theory (RSTT proper): see &#167;3.2 of the Rzk paper</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- (Kudasov, Sim, Ahrens, \&quot;Rzk: a Proof Assistant for Synthetic</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- &#8734;-Categories\&quot;, &lt;https://arxiv.org/abs/2607.12207 arXiv:2607.12207&gt;),</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- where a statement is abstracted over a context of schematic cube, tope,</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- and type parameters. The checker did not enforce responsible use of</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- this layer. Per declaration, the /meta prefix/ is the</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- parameter prefix up to and including the last parameter whose type lives</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- outside RSTT proper: a universe, @CUBE@, @TOPE@, or a &#928;-type quantifying</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- over or landing in one of those. Interleaved object parameters are swept</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- in, which only strengthens the check.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- The discipline: the meta prefix must be fully supplied wherever the</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- declaration is used at an object-level position; unsaturated use at a</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- meta-typed position is legitimate macro-level plumbing and stays allowed.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Then the development reads as a family of object-theory definitions, one</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- per meta instantiation.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- Positions are classified structurally, on the elaborated term:</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- - the root of a declaration's type and value is meta (a definition may</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--   alias a schema), and a &#955;-body inherits its &#955;'s position (the value's</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--   leading &#955;s are the declaration's own parameters);</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- - an application argument is meta when the function's &#928;-domain at that</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--   position is meta-shaped (the receiver declared a schema parameter);</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- - the components of type formers are meta (types are the schema layer),</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--   except the endpoints of an identity type, which are terms;</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- - everything else (pair components, projections, @recOR@ branches, a</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--   @let@-bound value, &#8230;) is an object position.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- The strict rule (the default, see 'MetaPrefixSensitivity') additionally</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- requires an unsaturated schema argument to sit within a /top-level/</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- receiver's meta prefix. This also polices meta-shaped domains that only</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- arise by instantiating a receiver's object parameters with large types</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- (as in composing schema-level implications with a generic @comp@); such</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- uses are emitted with the distinct code 'MetaPrefixStrictOnly', so the</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- structural sensitivity can silence them without losing the rest.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- Known blind spot: under type-in-type, an impredicative instantiation can</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- forge a meta-shaped argument domain out of an object parameter &#8212; with</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- @g : (X : U) &#8594; X &#8594; X@, in @g ((X : U) &#8594; X &#8594; X) my-id@ the second</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- domain is meta-shaped only because @X@ was instantiated with a large</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- type. The structural sensitivity reads such a position as meta and stays</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- silent. The strict default flags it when the argument falls outside the</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- receiver's meta prefix (as here), but a forgery landing /within/ the</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- prefix, or behind a &#955;-bound receiver, still passes: deciding whether an</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- instantiation is genuinely impredicative is level inference, a separate</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- (planned) analysis, not this check.</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html"><span class="hs-identifier">Rzk.TypeCheck.MetaPrefix</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#metaPrefixOf"><span class="hs-identifier">metaPrefixOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier">isMetaType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#recordMetaPrefixUses"><span class="hs-identifier">recordMetaPrefixUses</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Except</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catchError</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ask</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">asks</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bifoldr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Distinct</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Foil</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foil</span></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Free.Foil</span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AST</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Node</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Var</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.Free.Foil.Annotated</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AnnSig</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Names.html"><span class="hs-identifier">Language.Rzk.Foil.Names</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#TModality"><span class="hs-identifier">TModality</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#TypeInfo"><span class="hs-identifier">TypeInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>                                           </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier">VarIdent</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#binderName"><span class="hs-identifier">binderName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html"><span class="hs-identifier">Language.Rzk.Foil.Syntax</span></a></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Context.html"><span class="hs-identifier">Rzk.TypeCheck.Context</span></a></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Eval.html"><span class="hs-identifier">Rzk.TypeCheck.Eval</span></a></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html"><span class="hs-identifier">Rzk.TypeCheck.Monad</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="annot"><span class="hs-comment">-- * Classifying types</span></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | Does this type live outside RSTT proper &#8212; is it a universe, @CUBE@,</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- @TOPE@, or a &#928;-type that quantifies over or lands in one of those? This</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- covers a family into a universe (@A &#8594; U@, a tope family) and a schematic</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- type such as @(X : U) &#8594; X &#8594; X@ (predicatively both are large). A</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- parameter of such a type is a meta parameter. Never throws; an</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- unanswerable probe reads as object.</span><span>
+</span><span id="line-93"></span><span id="local-6989586621680210893"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier hs-type">isMetaType</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680210893"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210893"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210893"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-94"></span><span id="isMetaType"><span class="annot"><span class="annottext">isMetaType :: forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Bool
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier hs-var hs-var">isMetaType</span></a></span></span><span> </span><span id="local-6989586621680211103"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211103"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   Bool
+ -&gt; (TypeErrorInScopedContext
+     -&gt; ReaderT
+          (Context n)
+          (ExceptT TypeErrorInScopedContext (State CheckLog))
+          Bool)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      Bool)
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Bool)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  Bool
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Bool)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+ReaderT
+  (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   Bool
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      Bool)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-95"></span><span>  </span><span id="local-6989586621680211105"><span class="annot"><a href="#local-6989586621680211105"><span class="hs-identifier hs-var">t'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n (TermT n)
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#headView"><span class="hs-identifier hs-var">headView</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211103"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621680211105"><span class="hs-identifier hs-type">t'</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#UniverseT"><span class="hs-identifier hs-type">UniverseT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#UniverseCubeT"><span class="hs-identifier hs-type">UniverseCubeT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#UniverseTopeT"><span class="hs-identifier hs-type">UniverseTopeT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeFunT"><span class="hs-identifier hs-type">TypeFunT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT n)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211111"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211111"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211112"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211112"><span class="hs-identifier hs-var">md</span></a></span></span><span> </span><span id="local-6989586621680211113"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211113"><span class="hs-identifier hs-var">param</span></a></span></span><span> </span><span id="local-6989586621680211114"><span class="annot"><span class="annottext">Maybe (ScopedAST NameBinder (AnnSig TypeInfo TermSig) n)
+</span><a href="#local-6989586621680211114"><span class="hs-identifier hs-var">_mtope</span></a></span></span><span> </span><span id="local-6989586621680211115"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211115"><span class="hs-identifier hs-var">ret</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-101"></span><span>      </span><span id="local-6989586621680211116"><span class="annot"><a href="#local-6989586621680211116"><span class="hs-identifier hs-var">paramMeta</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TermT n
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Bool
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier hs-var">isMetaType</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211113"><span class="hs-identifier hs-var">param</span></a></span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621680211116"><span class="hs-identifier hs-type">paramMeta</span></a></span><span>
+</span><span id="line-103"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span>
+</span><span id="line-104"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Eval.html#inScope"><span class="hs-identifier hs-type">inScope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211111"><span class="hs-identifier hs-type">orig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211112"><span class="hs-identifier hs-type">md</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211113"><span class="hs-identifier hs-type">param</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211115"><span class="hs-identifier hs-type">ret</span></a></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier hs-type">isMetaType</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">TermT n
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- | The length of the meta prefix of a declaration with this type: the</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- number of leading parameters up to and including the last meta one</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- (0 when there is none). Never throws.</span><span>
+</span><span id="line-110"></span><span id="local-6989586621680210956"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#metaPrefixOf"><span class="hs-identifier hs-type">metaPrefixOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680210956"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210956"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210956"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-111"></span><span id="metaPrefixOf"><span class="annot"><span class="annottext">metaPrefixOf :: forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Int
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#metaPrefixOf"><span class="hs-identifier hs-var hs-var">metaPrefixOf</span></a></span></span><span> </span><span id="local-6989586621680211134"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211134"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+ -&gt; (TypeErrorInScopedContext
+     -&gt; ReaderT
+          (Context n)
+          (ExceptT TypeErrorInScopedContext (State CheckLog))
+          Int)
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      Int)
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Int)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Int)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall a.
+ReaderT
+  (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+ -&gt; ReaderT
+      (Context n)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      Int)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; Int
+-&gt; TermT n
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall (l :: S).
+Distinct l =&gt;
+Int -&gt; Int -&gt; TermT l -&gt; TypeCheck l Int
+</span><a href="#local-6989586621680211135"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211134"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621680210959"><span class="annot"><a href="#local-6989586621680211135"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680210959"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210959"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210959"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621680211135"><span class="annot"><span class="annottext">go :: forall (l :: S).
+Distinct l =&gt;
+Int -&gt; Int -&gt; TermT l -&gt; TypeCheck l Int
+</span><a href="#local-6989586621680211135"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621680211147"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211147"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span id="local-6989586621680211148"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211148"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621680211149"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211149"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l (TermT l)
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n (TermT n)
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#headView"><span class="hs-identifier hs-var">headView</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211149"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">TypeCheck l (TermT l)
+-&gt; (TermT l
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Int)
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall a b.
+ReaderT
+  (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (a
+    -&gt; ReaderT
+         (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) b)
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-115"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeFunT"><span class="hs-identifier hs-type">TypeFunT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211150"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211150"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211151"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211151"><span class="hs-identifier hs-var">md</span></a></span></span><span> </span><span id="local-6989586621680211152"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211152"><span class="hs-identifier hs-var">param</span></a></span></span><span> </span><span id="local-6989586621680211153"><span class="annot"><span class="annottext">Maybe (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l)
+</span><a href="#local-6989586621680211153"><span class="hs-identifier hs-var">_mtope</span></a></span></span><span> </span><span id="local-6989586621680211154"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211154"><span class="hs-identifier hs-var">ret</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>        </span><span id="local-6989586621680211155"><span class="annot"><a href="#local-6989586621680211155"><span class="hs-identifier hs-var">meta</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l Bool
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Bool
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier hs-var">isMetaType</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211152"><span class="hs-identifier hs-var">param</span></a></span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680211156"><span class="annot"><a href="#local-6989586621680211156"><span class="hs-identifier hs-var hs-var">acc'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680211155"><span class="hs-identifier hs-var">meta</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211147"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211148"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><a href="Rzk.TypeCheck.Eval.html#inScope"><span class="hs-identifier hs-type">inScope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211150"><span class="hs-identifier hs-type">orig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211151"><span class="hs-identifier hs-type">md</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211152"><span class="hs-identifier hs-type">param</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211154"><span class="hs-identifier hs-type">ret</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680211135"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680211147"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680211156"><span class="hs-identifier hs-type">acc'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>      </span><span class="annot"><span class="annottext">TermT l
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) Int
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211148"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | The head of a type, for classification: syntactically if the head is</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- already informative, through WHNF otherwise (a defined name such as</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- @FunExt@ must unfold). Restrictions are stripped either way; a boundary</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- does not change which layer a type lives in.</span><span>
+</span><span id="line-125"></span><span id="local-6989586621680210942"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#headView"><span class="hs-identifier hs-type">headView</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680210942"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210942"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210942"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210942"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-126"></span><span id="headView"><span class="annot"><span class="annottext">headView :: forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n (TermT n)
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#headView"><span class="hs-identifier hs-var hs-var">headView</span></a></span></span><span> </span><span id="local-6989586621680211181"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211181"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TermT n
+forall (n :: S). TermT n -&gt; TermT n
+</span><a href="Rzk.TypeCheck.Eval.html#stripTypeRestrictions"><span class="hs-identifier hs-var">stripTypeRestrictions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211181"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>  </span><span id="local-6989586621680211183"><span class="annot"><span class="annottext">t' :: TermT n
+</span><a href="#local-6989586621680211183"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#UniverseT"><span class="hs-identifier hs-type">UniverseT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211183"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span id="local-6989586621680211184"><span class="annot"><span class="annottext">t' :: TermT n
+</span><a href="#local-6989586621680211184"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#UniverseCubeT"><span class="hs-identifier hs-type">UniverseCubeT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211184"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-129"></span><span>  </span><span id="local-6989586621680211185"><span class="annot"><span class="annottext">t' :: TermT n
+</span><a href="#local-6989586621680211185"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#UniverseTopeT"><span class="hs-identifier hs-type">UniverseTopeT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211185"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621680211186"><span class="annot"><span class="annottext">t' :: TermT n
+</span><a href="#local-6989586621680211186"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeFunT"><span class="hs-identifier hs-type">TypeFunT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211186"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621680211187"><span class="annot"><span class="annottext">t' :: TermT n
+</span><a href="#local-6989586621680211187"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeSigmaT"><span class="hs-identifier hs-type">TypeSigmaT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211187"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621680211189"><span class="annot"><span class="annottext">t' :: TermT n
+</span><a href="#local-6989586621680211189"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeIdT"><span class="hs-identifier hs-type">TypeIdT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211189"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span id="local-6989586621680211191"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211191"><span class="hs-identifier hs-var">t'</span></a></span></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TermT n
+forall (n :: S). TermT n -&gt; TermT n
+</span><a href="Rzk.TypeCheck.Eval.html#stripTypeRestrictions"><span class="hs-identifier hs-var">stripTypeRestrictions</span></a></span><span> </span><span class="annot"><span class="annottext">(TermT n -&gt; TermT n)
+-&gt; TypeCheck n (TermT n) -&gt; TypeCheck n (TermT n)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">TermT n -&gt; TypeCheck n (TermT n)
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n (TermT n)
+</span><a href="Rzk.TypeCheck.Eval.html#whnfT"><span class="hs-identifier hs-var">whnfT</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211191"><span class="hs-identifier hs-var">t'</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><span class="hs-comment">-- * The use-site walk</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><span class="hs-comment">-- | How a position is classified under the two candidate rules.</span></span><span>
+</span><span id="line-138"></span><span class="hs-keyword">data</span><span> </span><span id="PosKind"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#PosKind"><span class="hs-identifier hs-var">PosKind</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MetaPos"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ObjectPos"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-var">ObjectPos</span></a></span></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680211197"><span id="local-6989586621680211202"><span class="annot"><span class="annottext">PosKind -&gt; PosKind -&gt; Bool
+(PosKind -&gt; PosKind -&gt; Bool)
+-&gt; (PosKind -&gt; PosKind -&gt; Bool) -&gt; Eq PosKind
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PosKind -&gt; PosKind -&gt; Bool
+== :: PosKind -&gt; PosKind -&gt; Bool
+$c/= :: PosKind -&gt; PosKind -&gt; Bool
+/= :: PosKind -&gt; PosKind -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="hs-keyword">data</span><span> </span><span id="Positions"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-var">Positions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Positions"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-var">Positions</span></a></span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="posStructural"><span class="annot"><span class="annottext">Positions -&gt; PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#posStructural"><span class="hs-identifier hs-var hs-var">posStructural</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#PosKind"><span class="hs-identifier hs-type">PosKind</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="posStrict"><span class="annot"><span class="annottext">Positions -&gt; PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#posStrict"><span class="hs-identifier hs-var hs-var">posStrict</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#PosKind"><span class="hs-identifier hs-type">PosKind</span></a></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#rootPositions"><span class="hs-identifier hs-type">rootPositions</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-type">typePositions</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-type">objectPositions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-type">Positions</span></a></span><span>
+</span><span id="line-147"></span><span id="rootPositions"><span class="annot"><span class="annottext">rootPositions :: Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#rootPositions"><span class="hs-identifier hs-var hs-var">rootPositions</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PosKind -&gt; PosKind -&gt; Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-var">Positions</span></a></span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span><span>
+</span><span id="line-148"></span><span id="typePositions"><span class="annot"><span class="annottext">typePositions :: Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var hs-var">typePositions</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PosKind -&gt; PosKind -&gt; Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-var">Positions</span></a></span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span><span>
+</span><span id="line-149"></span><span id="objectPositions"><span class="annot"><span class="annottext">objectPositions :: Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var hs-var">objectPositions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PosKind -&gt; PosKind -&gt; Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-var">Positions</span></a></span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-var">ObjectPos</span></a></span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-var">ObjectPos</span></a></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- | Walk a declaration's elaborated type and value, warning about every</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- use of a top-level name that supplies fewer arguments than its meta</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- prefix at an object-level position. Advisory: never throws, and runs</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- silently so WHNF probes do not trace.</span><span>
+</span><span id="line-155"></span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#recordMetaPrefixUses"><span class="hs-identifier hs-type">recordMetaPrefixUses</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680210979"><span class="annot"><a href="#local-6989586621680210979"><span class="hs-identifier hs-type">n</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680210979"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#VarIdent"><span class="hs-identifier hs-type">VarIdent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210979"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210979"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210979"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span id="recordMetaPrefixUses"><span class="annot"><span class="annottext">recordMetaPrefixUses :: forall (n :: S).
+Distinct n =&gt;
+VarIdent -&gt; TermT n -&gt; Maybe (TermT n) -&gt; TypeCheck n ()
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#recordMetaPrefixUses"><span class="hs-identifier hs-var hs-var">recordMetaPrefixUses</span></a></span></span><span> </span><span id="local-6989586621680211232"><span class="annot"><span class="annottext">VarIdent
+</span><a href="#local-6989586621680211232"><span class="hs-identifier hs-var">defName</span></a></span></span><span> </span><span id="local-6989586621680211233"><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211233"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621680211234"><span class="annot"><span class="annottext">Maybe (TermT n)
+</span><a href="#local-6989586621680211234"><span class="hs-identifier hs-var">mval</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="annottext">(Context n -&gt; MetaPrefixSensitivity)
+-&gt; ReaderT
+     (Context n)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     MetaPrefixSensitivity
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; a) -&gt; m a
+</span><span class="hs-identifier hs-var">asks</span></span><span> </span><span class="annot"><span class="annottext">Context n -&gt; MetaPrefixSensitivity
+forall (n :: S). Context n -&gt; MetaPrefixSensitivity
+</span><a href="Rzk.TypeCheck.Context.html#ctxMetaPrefixSensitivity"><span class="hs-identifier hs-var">ctxMetaPrefixSensitivity</span></a></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  MetaPrefixSensitivity
+-&gt; (MetaPrefixSensitivity
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a b.
+ReaderT
+  (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (a
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) b)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="annottext">MetaPrefixSensitivity
+</span><a href="Rzk.TypeCheck.Context.html#MetaPrefixOff"><span class="hs-identifier hs-var">MetaPrefixOff</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">()
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">MetaPrefixSensitivity
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Verbosity
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall (n :: S) a. Verbosity -&gt; TypeCheck n a -&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Monad.html#localVerbosity"><span class="hs-identifier hs-var">localVerbosity</span></a></span><span> </span><span class="annot"><span class="annottext">Verbosity
+</span><a href="Rzk.TypeCheck.Context.html#Silent"><span class="hs-identifier hs-var">Silent</span></a></span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+ -&gt; ReaderT
+      (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+ -&gt; (TypeErrorInScopedContext
+     -&gt; ReaderT
+          (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+ -&gt; ReaderT
+      (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a.
+ReaderT
+  (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">()
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a.
+a
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+ -&gt; ReaderT
+      (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-162"></span><span>      </span><span class="annot"><span class="annottext">Positions
+-&gt; TermT n
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#rootPositions"><span class="hs-identifier hs-var">rootPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT n
+</span><a href="#local-6989586621680211233"><span class="hs-identifier hs-var">ty</span></a></span><span>
+</span><span id="line-163"></span><span>      </span><span class="annot"><span class="annottext">(TermT n
+ -&gt; ReaderT
+      (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ())
+-&gt; Maybe (TermT n)
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions
+-&gt; TermT n
+-&gt; ReaderT
+     (Context n) (ExceptT TypeErrorInScopedContext (State CheckLog)) ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#rootPositions"><span class="hs-identifier hs-var">rootPositions</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT n)
+</span><a href="#local-6989586621680211234"><span class="hs-identifier hs-var">mval</span></a></span><span>
+</span><span id="line-164"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><a href="#local-6989586621680211239"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680210993"><span class="annot"><a href="#local-6989586621680210993"><span class="hs-identifier hs-type">l</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680210993"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-type">Positions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210993"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680210993"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621680211239"><span class="annot"><span class="annottext">go :: forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621680211319"><span class="annot"><span class="annottext">Positions
+</span><a href="#local-6989586621680211319"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span id="local-6989586621680211320"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211320"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211320"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-167"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span id="local-6989586621680211321"><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680211321"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Positions -&gt; Name l -&gt; Int -&gt; TypeCheck l ()
+forall (l :: S). Positions -&gt; Name l -&gt; Int -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211322"><span class="hs-identifier hs-var">checkHead</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="#local-6989586621680211319"><span class="hs-identifier hs-var">pos</span></a></span><span> </span><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680211321"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#AppT"><span class="hs-identifier hs-type">AppT</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-170"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680211324"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211324"><span class="hs-identifier hs-var hs-var">h</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680211325"><span class="annot"><span class="annottext">[(TermT l, TermT l)]
+</span><a href="#local-6989586621680211325"><span class="hs-identifier hs-var hs-var">args</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; [(TermT l, TermT l)] -&gt; (TermT l, [(TermT l, TermT l)])
+forall (n :: S).
+TermT n -&gt; [(TermT n, TermT n)] -&gt; (TermT n, [(TermT n, TermT n)])
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#collectSpine"><span class="hs-identifier hs-var">collectSpine</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211320"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-171"></span><span>        </span><span id="local-6989586621680211327"><span class="annot"><a href="#local-6989586621680211327"><span class="hs-identifier hs-var">mk</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211324"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-172"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Var</span></span><span> </span><span id="local-6989586621680211328"><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680211328"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-173"></span><span>            </span><span id="local-6989586621680211329"><span class="annot"><a href="#local-6989586621680211329"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context l)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  (Context l)
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-174"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680211330"><span class="annot"><a href="#local-6989586621680211330"><span class="hs-identifier hs-var hs-var">info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name l -&gt; Context l -&gt; VarInfo l
+forall (n :: S). Name n -&gt; Context n -&gt; VarInfo n
+</span><a href="Rzk.TypeCheck.Context.html#lookupVarInfo"><span class="hs-identifier hs-var">lookupVarInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680211328"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Context l
+</span><a href="#local-6989586621680211329"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-175"></span><span>            </span><span class="annot"><a href="#local-6989586621680211322"><span class="hs-identifier hs-type">checkHead</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211319"><span class="hs-identifier hs-type">pos</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211328"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">length</span></span><span> </span><span class="annot"><a href="#local-6989586621680211325"><span class="hs-identifier hs-type">args</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#varIsTopLevel"><span class="hs-identifier hs-var">varIsTopLevel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211330"><span class="hs-identifier hs-type">info</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#varMetaPrefix"><span class="hs-identifier hs-var">varMetaPrefix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211330"><span class="hs-identifier hs-type">info</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>          </span><span class="annot"><span class="annottext">TermT l
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-178"></span><span>            </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211324"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-179"></span><span>            </span><span class="annot"><span class="annottext">Maybe Int
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe Int)
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-180"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><a href="#local-6989586621680211325"><span class="hs-identifier hs-type">args</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621680211335"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211335"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680211336"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211336"><span class="hs-identifier hs-var">fnode</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680211337"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211337"><span class="hs-identifier hs-var">arg</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-181"></span><span>          </span><span id="local-6989586621680211338"><span class="annot"><a href="#local-6989586621680211338"><span class="hs-identifier hs-var">domMeta</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l Bool
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Bool
+</span><a href="#local-6989586621680211339"><span class="hs-identifier hs-var">domainIsMeta</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211336"><span class="hs-identifier hs-var">fnode</span></a></span><span>
+</span><span id="line-182"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680211340"><span class="annot"><a href="#local-6989586621680211340"><span class="hs-identifier hs-var hs-var">strict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621680211327"><span class="hs-identifier hs-var">mk</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-183"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680211341"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211341"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621680211338"><span class="hs-identifier hs-var">domMeta</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211335"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211341"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span><span>
+</span><span id="line-184"></span><span>                </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier">_</span></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-var">ObjectPos</span></a></span><span>
+</span><span id="line-185"></span><span>          </span><span class="annot"><a href="#local-6989586621680211239"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-type">Positions</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621680211338"><span class="hs-identifier hs-type">domMeta</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-type">MetaPos</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-type">ObjectPos</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680211340"><span class="hs-identifier hs-type">strict</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680211337"><span class="hs-identifier hs-type">arg</span></a></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#LambdaT"><span class="hs-identifier hs-type">LambdaT</span></a></span><span> </span><span id="local-6989586621680211345"><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><a href="#local-6989586621680211345"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span id="local-6989586621680211346"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211346"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211347"><span class="annot"><span class="annottext">Maybe
+  (LambdaParam
+     (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l) (TermT l))
+</span><a href="#local-6989586621680211347"><span class="hs-identifier hs-var">mparam</span></a></span></span><span> </span><span id="local-6989586621680211348"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211348"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-188"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621680211349"><span class="annot"><a href="#local-6989586621680211349"><span class="hs-identifier hs-var">mdom</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680211350"><span class="annot"><a href="#local-6989586621680211350"><span class="hs-identifier hs-var">md</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe
+  (LambdaParam
+     (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l) (TermT l))
+</span><a href="#local-6989586621680211347"><span class="hs-identifier hs-var">mparam</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-189"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#LambdaParam"><span class="hs-identifier hs-type">LambdaParam</span></a></span><span> </span><span id="local-6989586621680211352"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211352"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621680211353"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211353"><span class="hs-identifier hs-var">ty'</span></a></span></span><span> </span><span id="local-6989586621680211354"><span class="annot"><span class="annottext">Maybe (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l)
+</span><a href="#local-6989586621680211354"><span class="hs-identifier hs-var">_mtope</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-190"></span><span>            </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211353"><span class="hs-identifier hs-var">ty'</span></a></span><span>
+</span><span id="line-191"></span><span>            </span><span class="annot"><span class="annottext">(Maybe (TermT l), TModality)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l), TModality)
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TermT l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211353"><span class="hs-identifier hs-var">ty'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211352"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>          </span><span class="hs-comment">-- A bare &#955;: the domain of its own &#928;-type.</span><span>
+</span><span id="line-193"></span><span>          </span><span class="annot"><span class="annottext">Maybe
+  (LambdaParam
+     (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l) (TermT l))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-194"></span><span>            </span><span id="local-6989586621680211355"><span class="annot"><a href="#local-6989586621680211355"><span class="hs-identifier hs-var">dom</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l (Maybe (TermT l))
+forall (l :: S).
+Distinct l =&gt;
+TermT l -&gt; TypeCheck l (Maybe (TermT l))
+</span><a href="#local-6989586621680211356"><span class="hs-identifier hs-var">funDomain</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeInfo (TermT l) -&gt; TermT l
+forall term. TypeInfo term -&gt; term
+</span><a href="Language.Rzk.Foil.Names.html#infoType"><span class="hs-identifier hs-var">infoType</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><a href="#local-6989586621680211345"><span class="hs-identifier hs-var">info</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680211355"><span class="hs-identifier hs-type">dom</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Names.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>        </span><span class="annot"><a href="Rzk.TypeCheck.Eval.html#inScope"><span class="hs-identifier hs-type">inScope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211346"><span class="hs-identifier hs-type">orig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211350"><span class="hs-identifier hs-type">md</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromMaybe</span></span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#universeT"><span class="hs-identifier hs-type">universeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211349"><span class="hs-identifier hs-type">mdom</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680211348"><span class="hs-identifier hs-type">body</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680211239"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211319"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeFunT"><span class="hs-identifier hs-type">TypeFunT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211364"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211364"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211365"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211365"><span class="hs-identifier hs-var">md</span></a></span></span><span> </span><span id="local-6989586621680211366"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211366"><span class="hs-identifier hs-var">param</span></a></span></span><span> </span><span id="local-6989586621680211367"><span class="annot"><span class="annottext">Maybe (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l)
+</span><a href="#local-6989586621680211367"><span class="hs-identifier hs-var">_mtope</span></a></span></span><span> </span><span id="local-6989586621680211368"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211368"><span class="hs-identifier hs-var">ret</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-199"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211366"><span class="hs-identifier hs-var">param</span></a></span><span>
+</span><span id="line-200"></span><span>        </span><span class="annot"><span class="annottext">Binder
+-&gt; TModality
+-&gt; TermT l
+-&gt; ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+-&gt; (forall (l :: S).
+    (DExt l l, Distinct l) =&gt;
+    AST NameBinder (AnnSig TypeInfo TermSig) l -&gt; TypeCheck l ())
+-&gt; TypeCheck l ()
+forall (sig :: * -&gt; * -&gt; *) (n :: S) a.
+(Bifunctor sig, Distinct n) =&gt;
+Binder
+-&gt; TModality
+-&gt; TermT n
+-&gt; ScopedAST NameBinder sig n
+-&gt; (forall (l :: S).
+    (DExt n l, Distinct l) =&gt;
+    AST NameBinder sig l -&gt; TypeCheck l a)
+-&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Eval.html#inScope"><span class="hs-identifier hs-var">inScope</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211364"><span class="hs-identifier hs-var">orig</span></a></span><span> </span><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211365"><span class="hs-identifier hs-var">md</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211366"><span class="hs-identifier hs-var">param</span></a></span><span> </span><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211368"><span class="hs-identifier hs-var">ret</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeSigmaT"><span class="hs-identifier hs-type">TypeSigmaT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211373"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211373"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211374"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211374"><span class="hs-identifier hs-var">md</span></a></span></span><span> </span><span id="local-6989586621680211375"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211375"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680211376"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211376"><span class="hs-identifier hs-var">bscope</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-203"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211375"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-204"></span><span>        </span><span class="annot"><span class="annottext">Binder
+-&gt; TModality
+-&gt; TermT l
+-&gt; ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+-&gt; (forall (l :: S).
+    (DExt l l, Distinct l) =&gt;
+    AST NameBinder (AnnSig TypeInfo TermSig) l -&gt; TypeCheck l ())
+-&gt; TypeCheck l ()
+forall (sig :: * -&gt; * -&gt; *) (n :: S) a.
+(Bifunctor sig, Distinct n) =&gt;
+Binder
+-&gt; TModality
+-&gt; TermT n
+-&gt; ScopedAST NameBinder sig n
+-&gt; (forall (l :: S).
+    (DExt n l, Distinct l) =&gt;
+    AST NameBinder sig l -&gt; TypeCheck l a)
+-&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Eval.html#inScope"><span class="hs-identifier hs-var">inScope</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211373"><span class="hs-identifier hs-var">orig</span></a></span><span> </span><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211374"><span class="hs-identifier hs-var">md</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211375"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211376"><span class="hs-identifier hs-var">bscope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span>      </span><span class="hs-comment">-- The endpoints are terms; storing an unsaturated schema in an</span><span>
+</span><span id="line-207"></span><span>      </span><span class="hs-comment">-- identity type is an object-level use.</span><span>
+</span><span id="line-208"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeIdT"><span class="hs-identifier hs-type">TypeIdT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211381"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211381"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621680211382"><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211382"><span class="hs-identifier hs-var">mtA</span></a></span></span><span> </span><span id="local-6989586621680211383"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211383"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-209"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211381"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-210"></span><span>        </span><span class="annot"><span class="annottext">(TermT l -&gt; TypeCheck l ()) -&gt; Maybe (TermT l) -&gt; TypeCheck l ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211382"><span class="hs-identifier hs-var">mtA</span></a></span><span>
+</span><span id="line-211"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211383"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeRestrictedT"><span class="hs-identifier hs-type">TypeRestrictedT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211385"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211385"><span class="hs-identifier hs-var">ty'</span></a></span></span><span> </span><span id="local-6989586621680211386"><span class="annot"><span class="annottext">[(TermT l, TermT l)]
+</span><a href="#local-6989586621680211386"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-214"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211385"><span class="hs-identifier hs-var">ty'</span></a></span><span>
+</span><span id="line-215"></span><span>        </span><span class="annot"><span class="annottext">[(TermT l, TermT l)]
+-&gt; ((TermT l, TermT l) -&gt; TypeCheck l ()) -&gt; TypeCheck l ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="annot"><span class="annottext">[(TermT l, TermT l)]
+</span><a href="#local-6989586621680211386"><span class="hs-identifier hs-var">rs</span></a></span><span> </span><span class="annot"><span class="annottext">(((TermT l, TermT l) -&gt; TypeCheck l ()) -&gt; TypeCheck l ())
+-&gt; ((TermT l, TermT l) -&gt; TypeCheck l ()) -&gt; TypeCheck l ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621680211387"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211387"><span class="hs-identifier hs-var">_tope</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680211388"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211388"><span class="hs-identifier hs-var">term</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211388"><span class="hs-identifier hs-var">term</span></a></span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#LetT"><span class="hs-identifier hs-type">LetT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211390"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211390"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211391"><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211391"><span class="hs-identifier hs-var">manno</span></a></span></span><span> </span><span id="local-6989586621680211392"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211392"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span id="local-6989586621680211393"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211393"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-218"></span><span>        </span><span class="annot"><span class="annottext">(TermT l -&gt; TypeCheck l ()) -&gt; Maybe (TermT l) -&gt; TypeCheck l ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211391"><span class="hs-identifier hs-var">manno</span></a></span><span>
+</span><span id="line-219"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211392"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680211394"><span class="annot"><span class="annottext">valueType :: Maybe (TermT l)
+</span><a href="#local-6989586621680211394"><span class="hs-identifier hs-var hs-var">valueType</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TypeInfo (TermT l))
+forall (n :: S). TermT n -&gt; Maybe (TypeInfo (TermT n))
+</span><a href="Language.Rzk.Foil.Syntax.html#typeInfoOf"><span class="hs-identifier hs-var">typeInfoOf</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211392"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-221"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680211396"><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><a href="#local-6989586621680211396"><span class="hs-identifier hs-var">valueInfo</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TermT l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeInfo (TermT l) -&gt; TermT l
+forall term. TypeInfo term -&gt; term
+</span><a href="Language.Rzk.Foil.Names.html#infoType"><span class="hs-identifier hs-var">infoType</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><a href="#local-6989586621680211396"><span class="hs-identifier hs-var">valueInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span>              </span><span class="annot"><span class="annottext">Maybe (TypeInfo (TermT l))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211391"><span class="hs-identifier hs-var">manno</span></a></span><span>
+</span><span id="line-223"></span><span>        </span><span class="annot"><span class="annottext">Binder
+-&gt; TModality
+-&gt; TermT l
+-&gt; Maybe (TermT l)
+-&gt; ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+-&gt; (forall (l :: S).
+    (DExt l l, Distinct l) =&gt;
+    AST NameBinder (AnnSig TypeInfo TermSig) l -&gt; TypeCheck l ())
+-&gt; TypeCheck l ()
+forall (sig :: * -&gt; * -&gt; *) (n :: S) a.
+(Bifunctor sig, Distinct n) =&gt;
+Binder
+-&gt; TModality
+-&gt; TermT n
+-&gt; Maybe (TermT n)
+-&gt; ScopedAST NameBinder sig n
+-&gt; (forall (l :: S).
+    (DExt n l, Distinct l) =&gt;
+    AST NameBinder sig l -&gt; TypeCheck l a)
+-&gt; TypeCheck n a
+</span><a href="Rzk.TypeCheck.Eval.html#inScopeWith"><span class="hs-identifier hs-var">inScopeWith</span></a></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211390"><span class="hs-identifier hs-var">orig</span></a></span><span> </span><span class="annot"><span class="annottext">TModality
+</span><a href="Language.Rzk.Foil.Names.html#Id"><span class="hs-identifier hs-var">Id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TermT l) -&gt; TermT l
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">TermT l
+forall (n :: S). TermT n
+</span><a href="Language.Rzk.Foil.Syntax.html#universeT"><span class="hs-identifier hs-var">universeT</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211394"><span class="hs-identifier hs-var">valueType</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TermT l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211392"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211393"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="#local-6989586621680211319"><span class="hs-identifier hs-var">pos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span>      </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#LetModT"><span class="hs-identifier hs-type">LetModT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211403"><span class="annot"><span class="annottext">Binder
+</span><a href="#local-6989586621680211403"><span class="hs-identifier hs-var">orig</span></a></span></span><span> </span><span id="local-6989586621680211404"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211404"><span class="hs-identifier hs-var">_nu</span></a></span></span><span> </span><span id="local-6989586621680211405"><span class="annot"><span class="annottext">TModality
+</span><a href="#local-6989586621680211405"><span class="hs-identifier hs-var">mu</span></a></span></span><span> </span><span id="local-6989586621680211406"><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211406"><span class="hs-identifier hs-var">manno</span></a></span></span><span> </span><span id="local-6989586621680211407"><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211407"><span class="hs-identifier hs-var">mmotive</span></a></span></span><span> </span><span id="local-6989586621680211408"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211408"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span id="local-6989586621680211409"><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><a href="#local-6989586621680211409"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-226"></span><span>        </span><span class="annot"><span class="annottext">(TermT l -&gt; TypeCheck l ()) -&gt; Maybe (TermT l) -&gt; TypeCheck l ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211406"><span class="hs-identifier hs-var">manno</span></a></span><span>
+</span><span id="line-227"></span><span>        </span><span class="annot"><span class="annottext">(TermT l -&gt; TypeCheck l ()) -&gt; Maybe (TermT l) -&gt; TypeCheck l ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#typePositions"><span class="hs-identifier hs-var">typePositions</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+</span><a href="#local-6989586621680211407"><span class="hs-identifier hs-var">mmotive</span></a></span><span>
+</span><span id="line-228"></span><span>        </span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211408"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-229"></span><span>        </span><span id="local-6989586621680211410"><span class="annot"><a href="#local-6989586621680211410"><span class="hs-identifier hs-var">unwrapped</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TypeInfo (TermT l))
+forall (n :: S). TermT n -&gt; Maybe (TypeInfo (TermT n))
+</span><a href="Language.Rzk.Foil.Syntax.html#typeInfoOf"><span class="hs-identifier hs-var">typeInfoOf</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211408"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-230"></span><span>          </span><span class="annot"><span class="annottext">Maybe (TypeInfo (TermT l))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l) -&gt; TypeCheck l (Maybe (TermT l))
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-231"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680211411"><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><a href="#local-6989586621680211411"><span class="hs-identifier hs-var">valueInfo</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l (Maybe (TermT l))
+forall (l :: S). TermT l -&gt; TypeCheck l (Maybe (TermT l))
+</span><a href="#local-6989586621680211412"><span class="hs-identifier hs-var">modalDomain</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TypeInfo (TermT l) -&gt; TermT l
+forall term. TypeInfo term -&gt; term
+</span><a href="Language.Rzk.Foil.Names.html#infoType"><span class="hs-identifier hs-var">infoType</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><a href="#local-6989586621680211411"><span class="hs-identifier hs-var">valueInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>        </span><span class="annot"><a href="Rzk.TypeCheck.Eval.html#inScope"><span class="hs-identifier hs-type">inScope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211403"><span class="hs-identifier hs-type">orig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211405"><span class="hs-identifier hs-type">mu</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromMaybe</span></span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#universeT"><span class="hs-identifier hs-type">universeT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211410"><span class="hs-identifier hs-type">unwrapped</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621680211409"><span class="hs-identifier hs-type">body</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680211239"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211319"><span class="hs-identifier hs-type">pos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AnnSig</span></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211418"><span class="annot"><span class="annottext">TermSig
+  (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l) (TermT l)
+</span><a href="#local-6989586621680211418"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-235"></span><span>        </span><span class="annot"><span class="annottext">(TermT l -&gt; TypeCheck l ()) -&gt; [TermT l] -&gt; TypeCheck l ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">mapM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; TermT l -&gt; TypeCheck l ()
+forall (l :: S).
+Distinct l =&gt;
+Positions -&gt; TermT l -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211239"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#objectPositions"><span class="hs-identifier hs-var">objectPositions</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+ -&gt; [TermT l] -&gt; [TermT l])
+-&gt; (TermT l -&gt; [TermT l] -&gt; [TermT l])
+-&gt; [TermT l]
+-&gt; TermSig
+     (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l) (TermT l)
+-&gt; [TermT l]
+forall a c b.
+(a -&gt; c -&gt; c) -&gt; (b -&gt; c -&gt; c) -&gt; c -&gt; TermSig a b -&gt; c
+forall (p :: * -&gt; * -&gt; *) a c b.
+Bifoldable p =&gt;
+(a -&gt; c -&gt; c) -&gt; (b -&gt; c -&gt; c) -&gt; c -&gt; p a b -&gt; c
+</span><span class="hs-identifier hs-var">bifoldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211419"><span class="annot"><span class="annottext">[TermT l]
+</span><a href="#local-6989586621680211419"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[TermT l]
+</span><a href="#local-6989586621680211419"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">TermSig
+  (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l) (TermT l)
+</span><a href="#local-6989586621680211418"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span>    </span><span class="hs-comment">-- An unsaturated top-level head at an object position warns; at a</span><span>
+</span><span id="line-238"></span><span>    </span><span class="hs-comment">-- position only the strict rule rejects, the warning is marked so.</span><span>
+</span><span id="line-239"></span><span>    </span><span class="annot"><a href="#local-6989586621680211322"><span class="hs-identifier hs-type">checkHead</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680211001"><span class="annot"><a href="#local-6989586621680211001"><span class="hs-identifier hs-type">l</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#Positions"><span class="hs-identifier hs-type">Positions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foil.Name</span></span><span> </span><span class="annot"><a href="#local-6989586621680211001"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211001"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-240"></span><span>    </span><span id="local-6989586621680211322"><span class="annot"><span class="annottext">checkHead :: forall (l :: S). Positions -&gt; Name l -&gt; Int -&gt; TypeCheck l ()
+</span><a href="#local-6989586621680211322"><span class="hs-identifier hs-var hs-var">checkHead</span></a></span></span><span> </span><span id="local-6989586621680211432"><span class="annot"><span class="annottext">Positions
+</span><a href="#local-6989586621680211432"><span class="hs-identifier hs-var">pos</span></a></span></span><span> </span><span id="local-6989586621680211433"><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680211433"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621680211434"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680211434"><span class="hs-identifier hs-var">nargs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-241"></span><span>      </span><span id="local-6989586621680211435"><span class="annot"><a href="#local-6989586621680211435"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context l)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  (Context l)
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-242"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680211436"><span class="annot"><a href="#local-6989586621680211436"><span class="hs-identifier hs-var hs-var">info</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name l -&gt; Context l -&gt; VarInfo l
+forall (n :: S). Name n -&gt; Context n -&gt; VarInfo n
+</span><a href="Rzk.TypeCheck.Context.html#lookupVarInfo"><span class="hs-identifier hs-var">lookupVarInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621680211433"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Context l
+</span><a href="#local-6989586621680211435"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-243"></span><span>          </span><span id="local-6989586621680211437"><span class="annot"><a href="#local-6989586621680211437"><span class="hs-identifier hs-var hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">VarInfo l -&gt; Int
+forall (n :: S). VarInfo n -&gt; Int
+</span><a href="Rzk.TypeCheck.Context.html#varMetaPrefix"><span class="hs-identifier hs-var">varMetaPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">VarInfo l
+</span><a href="#local-6989586621680211436"><span class="hs-identifier hs-var">info</span></a></span><span>
+</span><span id="line-244"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#varIsTopLevel"><span class="hs-identifier hs-var">varIsTopLevel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211436"><span class="hs-identifier hs-type">info</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&amp;&amp;</span></span><span> </span><span class="annot"><a href="#local-6989586621680211437"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621680211434"><span class="hs-identifier hs-type">nargs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-245"></span><span>        </span><span id="local-6989586621680211439"><span class="annot"><a href="#local-6989586621680211439"><span class="hs-identifier hs-var">sensitivity</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">asks</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Context.html#ctxMetaPrefixSensitivity"><span class="hs-identifier hs-var">ctxMetaPrefixSensitivity</span></a></span><span>
+</span><span id="line-246"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680211440"><span class="annot"><a href="#local-6989586621680211440"><span class="hs-identifier hs-var hs-var">mrule</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Positions -&gt; PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#posStructural"><span class="hs-identifier hs-var">posStructural</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="#local-6989586621680211432"><span class="hs-identifier hs-var">pos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Positions -&gt; PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#posStrict"><span class="hs-identifier hs-var">posStrict</span></a></span><span> </span><span class="annot"><span class="annottext">Positions
+</span><a href="#local-6989586621680211432"><span class="hs-identifier hs-var">pos</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-247"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-var">ObjectPos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MetaPrefixRule -&gt; Maybe MetaPrefixRule
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">MetaPrefixRule
+</span><a href="Rzk.TypeCheck.Monad.html#MetaPrefixBoth"><span class="hs-identifier hs-var">MetaPrefixBoth</span></a></span><span>
+</span><span id="line-248"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#MetaPos"><span class="hs-identifier hs-var">MetaPos</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PosKind
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#ObjectPos"><span class="hs-identifier hs-var">ObjectPos</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">MetaPrefixSensitivity
+</span><a href="Rzk.TypeCheck.Context.html#MetaPrefixStrict"><span class="hs-identifier hs-var">MetaPrefixStrict</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MetaPrefixSensitivity
+</span><a href="#local-6989586621680211439"><span class="hs-identifier hs-var">sensitivity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MetaPrefixRule -&gt; Maybe MetaPrefixRule
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">MetaPrefixRule
+</span><a href="Rzk.TypeCheck.Monad.html#MetaPrefixStrictOnly"><span class="hs-identifier hs-var">MetaPrefixStrictOnly</span></a></span><span>
+</span><span id="line-250"></span><span>              </span><span class="annot"><span class="annottext">(PosKind, PosKind)
+</span><span class="hs-identifier">_</span></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe MetaPrefixRule
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-251"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="annot"><a href="#local-6989586621680211440"><span class="hs-identifier hs-type">mrule</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680211443"><span class="annot"><span class="annottext">MetaPrefixRule
+</span><a href="#local-6989586621680211443"><span class="hs-identifier hs-var">rule</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-252"></span><span>          </span><span id="local-6989586621680211444"><span class="annot"><a href="#local-6989586621680211444"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Context l -&gt; Maybe LocationInfo)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe LocationInfo)
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; a) -&gt; m a
+</span><span class="hs-identifier hs-var">asks</span></span><span> </span><span class="annot"><span class="annottext">Context l -&gt; Maybe LocationInfo
+forall (n :: S). Context n -&gt; Maybe LocationInfo
+</span><a href="Rzk.TypeCheck.Context.html#ctxLocation"><span class="hs-identifier hs-var">ctxLocation</span></a></span><span>
+</span><span id="line-253"></span><span>          </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#recordCheckWarning"><span class="hs-identifier hs-type">recordCheckWarning</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#MetaPrefixWarning"><span class="hs-identifier hs-type">MetaPrefixWarning</span></a></span><span>
+</span><span id="line-254"></span><span>            </span><span class="annot"><a href="#local-6989586621680211232"><span class="hs-identifier hs-type">defName</span></a></span><span>
+</span><span id="line-255"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromMaybe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;_&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Names.html#binderName"><span class="hs-identifier hs-type">binderName</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Rzk.TypeCheck.Context.html#varOrig"><span class="hs-identifier hs-var">varOrig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211436"><span class="hs-identifier hs-type">info</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-256"></span><span>            </span><span class="annot"><a href="#local-6989586621680211434"><span class="hs-identifier hs-type">nargs</span></a></span><span>
+</span><span id="line-257"></span><span>            </span><span class="annot"><a href="#local-6989586621680211437"><span class="hs-identifier hs-type">k</span></a></span><span>
+</span><span id="line-258"></span><span>            </span><span class="annot"><a href="#local-6989586621680211443"><span class="hs-identifier hs-type">rule</span></a></span><span>
+</span><span id="line-259"></span><span>            </span><span class="annot"><a href="#local-6989586621680211444"><span class="hs-identifier hs-type">loc</span></a></span><span>
+</span><span id="line-260"></span><span>
+</span><span id="line-261"></span><span>    </span><span class="hs-comment">-- Is the &#928;-domain of this function node meta-shaped?</span><span>
+</span><span id="line-262"></span><span>    </span><span class="annot"><a href="#local-6989586621680211339"><span class="hs-identifier hs-type">domainIsMeta</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680211449"><span class="annot"><a href="#local-6989586621680211449"><span class="hs-identifier hs-type">l</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680211449"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211449"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211449"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-263"></span><span>    </span><span id="local-6989586621680211339"><span class="annot"><span class="annottext">domainIsMeta :: forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Bool
+</span><a href="#local-6989586621680211339"><span class="hs-identifier hs-var hs-var">domainIsMeta</span></a></span></span><span> </span><span id="local-6989586621680211459"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211459"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context l)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   Bool
+ -&gt; (TypeErrorInScopedContext
+     -&gt; ReaderT
+          (Context l)
+          (ExceptT TypeErrorInScopedContext (State CheckLog))
+          Bool)
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      Bool)
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Bool)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context l)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  Bool
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         Bool)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+ReaderT
+  (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a)
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context l)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   Bool
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      Bool)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-264"></span><span>      </span><span id="local-6989586621680211460"><span class="annot"><a href="#local-6989586621680211460"><span class="hs-identifier hs-var">tf</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l (TermT l)
+forall (n :: S). TermT n -&gt; TypeCheck n (TermT n)
+</span><a href="Rzk.TypeCheck.Eval.html#typeOfUncomputed"><span class="hs-identifier hs-var">typeOfUncomputed</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211459"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-265"></span><span>      </span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#headView"><span class="hs-identifier hs-type">headView</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211460"><span class="hs-identifier hs-type">tf</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-266"></span><span>        </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeFunT"><span class="hs-identifier hs-type">TypeFunT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TModality
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211462"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211462"><span class="hs-identifier hs-var">dom</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT l
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n Bool
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#isMetaType"><span class="hs-identifier hs-var">isMetaType</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211462"><span class="hs-identifier hs-var">dom</span></a></span><span>
+</span><span id="line-267"></span><span>        </span><span class="annot"><span class="annottext">TermT l
+</span><span class="hs-identifier">_</span></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     Bool
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span>    </span><span class="annot"><a href="#local-6989586621680211356"><span class="hs-identifier hs-type">funDomain</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680211020"><span class="annot"><a href="#local-6989586621680211020"><span class="hs-identifier hs-type">l</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Distinct</span></span><span> </span><span class="annot"><a href="#local-6989586621680211020"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211020"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211020"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211020"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>    </span><span id="local-6989586621680211356"><span class="annot"><span class="annottext">funDomain :: forall (l :: S).
+Distinct l =&gt;
+TermT l -&gt; TypeCheck l (Maybe (TermT l))
+</span><a href="#local-6989586621680211356"><span class="hs-identifier hs-var hs-var">funDomain</span></a></span></span><span> </span><span id="local-6989586621680211471"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211471"><span class="hs-identifier hs-var">tf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context l)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   (Maybe (TermT l))
+ -&gt; (TypeErrorInScopedContext
+     -&gt; ReaderT
+          (Context l)
+          (ExceptT TypeErrorInScopedContext (State CheckLog))
+          (Maybe (TermT l)))
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      (Maybe (TermT l)))
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context l)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  (Maybe (TermT l))
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+ReaderT
+  (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a)
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context l)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   (Maybe (TermT l))
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-271"></span><span>      </span><span class="annot"><span class="annottext">TermT l -&gt; TypeCheck l (TermT l)
+forall (n :: S). Distinct n =&gt; TermT n -&gt; TypeCheck n (TermT n)
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#headView"><span class="hs-identifier hs-var">headView</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211471"><span class="hs-identifier hs-var">tf</span></a></span><span> </span><span class="annot"><span class="annottext">TypeCheck l (TermT l)
+-&gt; (TermT l
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a b.
+ReaderT
+  (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (a
+    -&gt; ReaderT
+         (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) b)
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-272"></span><span>        </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeFunT"><span class="hs-identifier hs-type">TypeFunT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Binder
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TModality
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211472"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211472"><span class="hs-identifier hs-var">dom</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (ScopedAST NameBinder (AnnSig TypeInfo TermSig) l)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ScopedAST NameBinder (AnnSig TypeInfo TermSig) l
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TermT l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211472"><span class="hs-identifier hs-var">dom</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>        </span><span class="annot"><span class="annottext">TermT l
+</span><span class="hs-identifier">_</span></span><span>                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-274"></span><span>
+</span><span id="line-275"></span><span>    </span><span class="annot"><a href="#local-6989586621680211412"><span class="hs-identifier hs-type">modalDomain</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680211033"><span class="annot"><a href="#local-6989586621680211033"><span class="hs-identifier hs-type">l</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211033"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Rzk.TypeCheck.Monad.html#TypeCheck"><span class="hs-identifier hs-type">TypeCheck</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211033"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211033"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-276"></span><span>    </span><span id="local-6989586621680211412"><span class="annot"><span class="annottext">modalDomain :: forall (l :: S). TermT l -&gt; TypeCheck l (Maybe (TermT l))
+</span><a href="#local-6989586621680211412"><span class="hs-identifier hs-var hs-var">modalDomain</span></a></span></span><span> </span><span id="local-6989586621680211477"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211477"><span class="hs-identifier hs-var">tv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context l)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   (Maybe (TermT l))
+ -&gt; (TypeErrorInScopedContext
+     -&gt; ReaderT
+          (Context l)
+          (ExceptT TypeErrorInScopedContext (State CheckLog))
+          (Maybe (TermT l)))
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      (Maybe (TermT l)))
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">ReaderT
+  (Context l)
+  (ExceptT TypeErrorInScopedContext (State CheckLog))
+  (Maybe (TermT l))
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l)
+         (ExceptT TypeErrorInScopedContext (State CheckLog))
+         (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+ReaderT
+  (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+-&gt; (TypeErrorInScopedContext
+    -&gt; ReaderT
+         (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a)
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall e (m :: * -&gt; *) a.
+MonadError e m =&gt;
+m a -&gt; (e -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">catchError</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TypeErrorInScopedContext
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReaderT
+   (Context l)
+   (ExceptT TypeErrorInScopedContext (State CheckLog))
+   (Maybe (TermT l))
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      (Maybe (TermT l)))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-277"></span><span>      </span><span class="annot"><span class="annottext">Maybe (TermT l)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a.
+a
+-&gt; ReaderT
+     (Context l) (ExceptT TypeErrorInScopedContext (State CheckLog)) a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (TermT l)
+ -&gt; ReaderT
+      (Context l)
+      (ExceptT TypeErrorInScopedContext (State CheckLog))
+      (Maybe (TermT l)))
+-&gt; Maybe (TermT l)
+-&gt; ReaderT
+     (Context l)
+     (ExceptT TypeErrorInScopedContext (State CheckLog))
+     (Maybe (TermT l))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; TermT l
+forall (n :: S). TermT n -&gt; TermT n
+</span><a href="Rzk.TypeCheck.Eval.html#stripTypeRestrictions"><span class="hs-identifier hs-var">stripTypeRestrictions</span></a></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211477"><span class="hs-identifier hs-var">tv</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-278"></span><span>        </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TypeModalT"><span class="hs-identifier hs-type">TypeModalT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (TermT l)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TModality
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211479"><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211479"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TermT l -&gt; Maybe (TermT l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">TermT l
+</span><a href="#local-6989586621680211479"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-279"></span><span>        </span><span class="annot"><span class="annottext">TermT l
+</span><span class="hs-identifier">_</span></span><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (TermT l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span id="local-6989586621680211002"><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#collectSpine"><span class="hs-identifier hs-type">collectSpine</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211002"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211002"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211002"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211002"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211002"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#TermT"><span class="hs-identifier hs-type">TermT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680211002"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span></span><span>
+</span><span id="line-282"></span><span id="collectSpine"><span class="annot"><span class="annottext">collectSpine :: forall (n :: S).
+TermT n -&gt; [(TermT n, TermT n)] -&gt; (TermT n, [(TermT n, TermT n)])
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#collectSpine"><span class="hs-identifier hs-var hs-var">collectSpine</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Rzk.Foil.Syntax.html#AppT"><span class="hs-identifier hs-type">AppT</span></a></span><span> </span><span class="annot"><span class="annottext">TypeInfo (AST NameBinder (AnnSig TypeInfo TermSig) n)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680211480"><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211480"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621680211481"><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211481"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680211482"><span class="annot"><span class="annottext">[(AST NameBinder (AnnSig TypeInfo TermSig) n,
+  AST NameBinder (AnnSig TypeInfo TermSig) n)]
+</span><a href="#local-6989586621680211482"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+-&gt; [(AST NameBinder (AnnSig TypeInfo TermSig) n,
+     AST NameBinder (AnnSig TypeInfo TermSig) n)]
+-&gt; (AST NameBinder (AnnSig TypeInfo TermSig) n,
+    [(AST NameBinder (AnnSig TypeInfo TermSig) n,
+      AST NameBinder (AnnSig TypeInfo TermSig) n)])
+forall (n :: S).
+TermT n -&gt; [(TermT n, TermT n)] -&gt; (TermT n, [(TermT n, TermT n)])
+</span><a href="Rzk.TypeCheck.MetaPrefix.html#collectSpine"><span class="hs-identifier hs-var">collectSpine</span></a></span><span> </span><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211480"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211480"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211481"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(AST NameBinder (AnnSig TypeInfo TermSig) n,
+ AST NameBinder (AnnSig TypeInfo TermSig) n)
+-&gt; [(AST NameBinder (AnnSig TypeInfo TermSig) n,
+     AST NameBinder (AnnSig TypeInfo TermSig) n)]
+-&gt; [(AST NameBinder (AnnSig TypeInfo TermSig) n,
+     AST NameBinder (AnnSig TypeInfo TermSig) n)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[(AST NameBinder (AnnSig TypeInfo TermSig) n,
+  AST NameBinder (AnnSig TypeInfo TermSig) n)]
+</span><a href="#local-6989586621680211482"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-283"></span><span class="annot"><a href="Rzk.TypeCheck.MetaPrefix.html#collectSpine"><span class="hs-identifier hs-var">collectSpine</span></a></span><span> </span><span id="local-6989586621680211483"><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211483"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621680211484"><span class="annot"><span class="annottext">[(AST NameBinder (AnnSig TypeInfo TermSig) n,
+  AST NameBinder (AnnSig TypeInfo TermSig) n)]
+</span><a href="#local-6989586621680211484"><span class="hs-identifier hs-var">acc</span></a></span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AST NameBinder (AnnSig TypeInfo TermSig) n
+</span><a href="#local-6989586621680211483"><span class="hs-identifier hs-var">h</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[(AST NameBinder (AnnSig TypeInfo TermSig) n,
+  AST NameBinder (AnnSig TypeInfo TermSig) n)]
+</span><a href="#local-6989586621680211484"><span class="hs-identifier hs-var">acc</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-284"></span></pre></body></html>

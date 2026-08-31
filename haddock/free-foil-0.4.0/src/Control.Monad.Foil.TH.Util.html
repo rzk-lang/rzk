@@ -1,0 +1,86 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternSynonyms                 #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ViewPatterns                 #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html"><span class="hs-identifier">Control.Monad.Foil.TH.Util</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#peelConT"><span class="hs-identifier hs-type">peelConT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span id="peelConT"><span class="annot"><span class="annottext">peelConT :: Type -&gt; Maybe (Name, [Type])
+</span><a href="Control.Monad.Foil.TH.Util.html#peelConT"><span class="hs-identifier hs-var hs-var">peelConT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ConT</span></span><span> </span><span id="local-6989586621679232290"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232290"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Name, [Type]) -&gt; Maybe (Name, [Type])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232290"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#peelConT"><span class="hs-identifier hs-var">peelConT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">AppT</span></span><span> </span><span id="local-6989586621679232292"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621679232292"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679232293"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621679232293"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Type -&gt; Maybe (Name, [Type])
+</span><a href="Control.Monad.Foil.TH.Util.html#peelConT"><span class="hs-identifier hs-var">peelConT</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621679232292"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679232294"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232294"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679232295"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621679232295"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Name, [Type]) -&gt; Maybe (Name, [Type])
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232294"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621679232295"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Type] -&gt; [Type] -&gt; [Type]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621679232293"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="annottext">Maybe (Name, [Type])
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Name, [Type])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-14"></span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#peelConT"><span class="hs-identifier hs-var">peelConT</span></a></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Name, [Type])
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#unpeelConT"><span class="hs-identifier hs-type">unpeelConT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span>
+</span><span id="line-17"></span><span id="unpeelConT"><span class="annot"><span class="annottext">unpeelConT :: Name -&gt; [Type] -&gt; Type
+</span><a href="Control.Monad.Foil.TH.Util.html#unpeelConT"><span class="hs-identifier hs-var hs-var">unpeelConT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Type -&gt; Type -&gt; Type) -&gt; Type -&gt; [Type] -&gt; Type
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="annot"><span class="annottext">Type -&gt; Type -&gt; Type
+</span><span class="hs-identifier hs-var">AppT</span></span><span> </span><span class="annot"><span class="annottext">(Type -&gt; [Type] -&gt; Type)
+-&gt; (Name -&gt; Type) -&gt; Name -&gt; [Type] -&gt; Type
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Type
+</span><span class="hs-identifier hs-var">ConT</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#PeelConT"><span class="hs-identifier hs-type">PeelConT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">pattern</span><span> </span><span id="PeelConT"><span id="%24mPeelConT"><span id="%24bPeelConT"><span class="annot"><span class="annottext">$mPeelConT :: forall {r}. Type -&gt; (Name -&gt; [Type] -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPeelConT :: Name -&gt; [Type] -&gt; Type
+</span><a href="Control.Monad.Foil.TH.Util.html#PeelConT"><span class="hs-identifier hs-var hs-var hs-var">PeelConT</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679232302"><span class="hs-identifier hs-type">name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679232303"><span class="hs-identifier hs-type">types</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#peelConT"><span class="hs-identifier hs-type">peelConT</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679232302"><span class="annot"><a href="#local-6989586621679232302"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679232303"><span class="annot"><a href="#local-6989586621679232303"><span class="hs-identifier hs-var">types</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#PeelConT"><span class="hs-identifier hs-var">PeelConT</span></a></span><span> </span><span id="local-6989586621679232304"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232304"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679232305"><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621679232305"><span class="hs-identifier hs-var">types</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; [Type] -&gt; Type
+</span><a href="Control.Monad.Foil.TH.Util.html#unpeelConT"><span class="hs-identifier hs-var">unpeelConT</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232304"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">[Type]
+</span><a href="#local-6989586621679232305"><span class="hs-identifier hs-var">types</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span id="local-6989586621679232282"><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#tvarName"><span class="hs-identifier hs-type">tvarName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TyVarBndr</span></span><span> </span><span class="annot"><a href="#local-6989586621679232282"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Name</span></span></span><span>
+</span><span id="line-24"></span><span id="tvarName"><span class="annot"><span class="annottext">tvarName :: forall a. TyVarBndr a -&gt; Name
+</span><a href="Control.Monad.Foil.TH.Util.html#tvarName"><span class="hs-identifier hs-var hs-var">tvarName</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PlainTV</span></span><span> </span><span id="local-6989586621679232308"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232308"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232308"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">KindedTV</span></span><span> </span><span id="local-6989586621679232310"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232310"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Type
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232310"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Control.Monad.Foil.TH.Util.html#removeName"><span class="hs-identifier hs-type">removeName</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VarBangType</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BangType</span></span><span>
+</span><span id="line-29"></span><span id="removeName"><span class="annot"><span class="annottext">removeName :: VarBangType -&gt; BangType
+</span><a href="Control.Monad.Foil.TH.Util.html#removeName"><span class="hs-identifier hs-var hs-var">removeName</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679232312"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679232312"><span class="hs-identifier hs-var">_name</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679232313"><span class="annot"><span class="annottext">Bang
+</span><a href="#local-6989586621679232313"><span class="hs-identifier hs-var">bang_</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679232314"><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621679232314"><span class="hs-identifier hs-var">type_</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bang
+</span><a href="#local-6989586621679232313"><span class="hs-identifier hs-var">bang_</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Type
+</span><a href="#local-6989586621679232314"><span class="hs-identifier hs-var">type_</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span></pre></body></html>

@@ -1,0 +1,912 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds           #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts    #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GADTs               #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE InstanceSigs        #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes          #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-redundant-constraints #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- | The labelled telescope: a chain of binders, each carrying a label and a</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- payload in the scope before it.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- This is the pattern behind a module's parameter block, a record signature,</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- or an algebraic theory: @(A : &#120140;) (m : A &#8594; A &#8594; A)@ is a two-step</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- telescope whose second payload mentions the first binder. Because a</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- telescope is a pattern ('CoSinkable', 'UnifiablePattern'), scope extension,</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- the names of a block, and &#945;-equivalence of blocks come from the pattern</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- machinery, with the payloads compared through 'AlphaEquiv'.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- What this module does not fix is what a payload /is/. The payload type is a</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- parameter, and the operations that need to look inside one, such as the</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- support a dependency closure needs, take the looking function as an</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- argument. A client instantiates the labels and payloads to its own types.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- To close a declaration over the fields it uses, apply 'closeOverTelescope'</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- and then 'withThinnedNameBinderList'.</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html"><span class="hs-identifier">Control.Monad.Foil.Telescope</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Foil.Internal.html"><span class="hs-identifier">Control.Monad.Foil.Internal</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Foil.Relative.html"><span class="hs-identifier">Control.Monad.Foil.Relative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Relative.html#RelMonad"><span class="hs-identifier">RelMonad</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Relative.html#liftRM"><span class="hs-identifier">liftRM</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | A labelled telescope: a chain of binders, each carrying a label and a</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- payload in the scope before it.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- The payload of a step lives in the scope the steps before it extend to, which</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- is what makes this a telescope rather than a list. For a module's parameters</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- the label is how the parameter is spelled and the payload is its type, so</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- that @(A : &#120140;) (m : A &#8594; A &#8594; A)@ is a two-step telescope whose second payload</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- mentions the first binder.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- See 'NameBinderList', which this follows almost line for line.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="Telescope"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-var">Telescope</span></a></span></span><span> </span><span id="local-6989586621679234518"><span class="annot"><a href="#local-6989586621679234518"><span class="hs-keyword hs-type">label</span></a></span></span><span> </span><span id="local-6989586621679234519"><span class="annot"><a href="#local-6989586621679234519"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679234520"><span class="annot"><a href="#local-6989586621679234520"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679234521"><span class="annot"><a href="#local-6989586621679234521"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621679234280"><span id="local-6989586621679234281"><span id="local-6989586621679234282"><span id="TelescopeEmpty"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234280"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234281"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234282"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234282"><span class="hs-identifier hs-type">n</span></a></span></span></span></span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679234292"><span id="local-6989586621679234293"><span id="local-6989586621679234294"><span id="local-6989586621679234296"><span id="local-6989586621679234523"><span id="TelescopeCons"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-var">TelescopeCons</span></a></span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679234292"><span class="hs-keyword hs-type">label</span></a></span><span>                        </span><span class="annot"><span class="hs-comment">-- ^ How the step is labelled.</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234293"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234294"><span class="hs-identifier hs-type">n</span></a></span><span>                          </span><span class="annot"><span class="hs-comment">-- ^ Its payload, in the scope before it.</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234294"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234523"><span class="hs-identifier hs-type">i</span></a></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ The binder it introduces.</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234292"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234293"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234523"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234296"><span class="hs-identifier hs-type">l</span></a></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ The steps after it.</span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234292"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234293"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234294"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234296"><span class="hs-identifier hs-type">l</span></a></span></span></span></span></span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | A telescope is a pattern, so the foil's own machinery walks it.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- 'coSinkabilityProof' typechecks only because a payload is sunk by the</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- renaming of the scope /before/ its binder, rather than by the extended one.</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- 'withPattern' has to be written out rather than derived. The generic</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- implementation refuses a pattern with a field indexed by a scope, since it</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- would leave a payload that names a refreshed binder pointing at the name</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- that binder used to have. This instance follows the recipe in</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- 'transportPayload': a 'PatternTransport' threaded through the traversal,</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- with each payload moved by the transport accumulated /before/ its own</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- binder, that being the scope the payload lives in.</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679234274"><span id="local-6989586621679234275"><span class="annot"><a href="Control.Monad.Foil.Internal.html#Sinkable"><span class="hs-identifier hs-type">Sinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234274"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#CoSinkable"><span class="hs-identifier hs-type">CoSinkable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234275"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234274"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679234533"><span class="annot"><span class="annottext">coSinkabilityProof :: forall (n :: S) (n' :: S) (l :: S) r.
+(Name n -&gt; Name n')
+-&gt; Telescope label e n l
+-&gt; (forall (l' :: S).
+    (Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Internal.html#coSinkabilityProof"><span class="hs-identifier hs-var hs-var hs-var">coSinkabilityProof</span></a></span></span><span> </span><span id="local-6989586621679234534"><span class="annot"><span class="annottext">Name n -&gt; Name n'
+</span><a href="#local-6989586621679234534"><span class="hs-identifier hs-var">rename</span></a></span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span id="local-6989586621679234536"><span class="annot"><span class="annottext">forall (l' :: S).
+(Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r
+</span><a href="#local-6989586621679234536"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Name l -&gt; Name n') -&gt; Telescope label e n' n' -&gt; r
+forall (l' :: S).
+(Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r
+</span><a href="#local-6989586621679234536"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">Name n -&gt; Name n'
+Name l -&gt; Name n'
+</span><a href="#local-6989586621679234534"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n' n'
+forall label (e :: S -&gt; *) (n :: S). Telescope label e n n
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#coSinkabilityProof"><span class="hs-identifier hs-var">coSinkabilityProof</span></a></span><span> </span><span id="local-6989586621679234537"><span class="annot"><span class="annottext">Name n -&gt; Name n'
+</span><a href="#local-6989586621679234537"><span class="hs-identifier hs-var">rename</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-type">TelescopeCons</span></a></span><span> </span><span id="local-6989586621679234540"><span class="annot"><span class="annottext">label
+</span><a href="#local-6989586621679234540"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679234541"><span class="annot"><span class="annottext">e n
+</span><a href="#local-6989586621679234541"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span id="local-6989586621679234542"><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234542"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span id="local-6989586621679234543"><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234543"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679234544"><span class="annot"><span class="annottext">forall (l' :: S).
+(Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r
+</span><a href="#local-6989586621679234544"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="annottext">(Name n -&gt; Name n')
+-&gt; NameBinder n i
+-&gt; (forall (l' :: S). (Name i -&gt; Name l') -&gt; NameBinder n' l' -&gt; r)
+-&gt; r
+forall (n :: S) (n' :: S) (l :: S) r.
+(Name n -&gt; Name n')
+-&gt; NameBinder n l
+-&gt; (forall (l' :: S). (Name l -&gt; Name l') -&gt; NameBinder n' l' -&gt; r)
+-&gt; r
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (n' :: S) (l :: S) r.
+CoSinkable pattern =&gt;
+(Name n -&gt; Name n')
+-&gt; pattern n l
+-&gt; (forall (l' :: S). (Name l -&gt; Name l') -&gt; pattern n' l' -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Internal.html#coSinkabilityProof"><span class="hs-identifier hs-var">coSinkabilityProof</span></a></span><span> </span><span class="annot"><span class="annottext">Name n -&gt; Name n'
+</span><a href="#local-6989586621679234537"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234542"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (l' :: S). (Name i -&gt; Name l') -&gt; NameBinder n' l' -&gt; r)
+ -&gt; r)
+-&gt; (forall (l' :: S). (Name i -&gt; Name l') -&gt; NameBinder n' l' -&gt; r)
+-&gt; r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679234546"><span class="annot"><span class="annottext">Name i -&gt; Name l'
+</span><a href="#local-6989586621679234546"><span class="hs-identifier hs-var">rename'</span></a></span></span><span> </span><span id="local-6989586621679234547"><span class="annot"><span class="annottext">NameBinder n' l'
+</span><a href="#local-6989586621679234547"><span class="hs-identifier hs-var">binder'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">(Name i -&gt; Name l')
+-&gt; Telescope label e i l
+-&gt; (forall (l' :: S).
+    (Name l -&gt; Name l') -&gt; Telescope label e l' l' -&gt; r)
+-&gt; r
+forall (n :: S) (n' :: S) (l :: S) r.
+(Name n -&gt; Name n')
+-&gt; Telescope label e n l
+-&gt; (forall (l' :: S).
+    (Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r)
+-&gt; r
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (n' :: S) (l :: S) r.
+CoSinkable pattern =&gt;
+(Name n -&gt; Name n')
+-&gt; pattern n l
+-&gt; (forall (l' :: S). (Name l -&gt; Name l') -&gt; pattern n' l' -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Internal.html#coSinkabilityProof"><span class="hs-identifier hs-var">coSinkabilityProof</span></a></span><span> </span><span class="annot"><span class="annottext">Name i -&gt; Name l'
+</span><a href="#local-6989586621679234546"><span class="hs-identifier hs-var">rename'</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234543"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (l' :: S).
+  (Name l -&gt; Name l') -&gt; Telescope label e l' l' -&gt; r)
+ -&gt; r)
+-&gt; (forall (l' :: S).
+    (Name l -&gt; Name l') -&gt; Telescope label e l' l' -&gt; r)
+-&gt; r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679234549"><span class="annot"><span class="annottext">Name l -&gt; Name l'
+</span><a href="#local-6989586621679234549"><span class="hs-identifier hs-var">rename''</span></a></span></span><span> </span><span id="local-6989586621679234550"><span class="annot"><span class="annottext">Telescope label e l' l'
+</span><a href="#local-6989586621679234550"><span class="hs-identifier hs-var">rest'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="annottext">(Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r
+forall (l' :: S).
+(Name l -&gt; Name l') -&gt; Telescope label e n' l' -&gt; r
+</span><a href="#local-6989586621679234544"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">Name l -&gt; Name l'
+</span><a href="#local-6989586621679234549"><span class="hs-identifier hs-var">rename''</span></a></span><span>
+</span><span id="line-69"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">label
+-&gt; e n'
+-&gt; NameBinder n' l'
+-&gt; Telescope label e l' l'
+-&gt; Telescope label e n' l'
+forall label (e :: S -&gt; *) (n :: S) (i :: S) (l :: S).
+label
+-&gt; e n
+-&gt; NameBinder n i
+-&gt; Telescope label e i l
+-&gt; Telescope label e n l
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-var">TelescopeCons</span></a></span><span> </span><span class="annot"><span class="annottext">label
+</span><a href="#local-6989586621679234540"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name n -&gt; Name n') -&gt; e n -&gt; e n'
+forall (n :: S) (l :: S). (Name n -&gt; Name l) -&gt; e n -&gt; e l
+forall (e :: S -&gt; *) (n :: S) (l :: S).
+Sinkable e =&gt;
+(Name n -&gt; Name l) -&gt; e n -&gt; e l
+</span><a href="Control.Monad.Foil.Internal.html#sinkabilityProof"><span class="hs-identifier hs-var">sinkabilityProof</span></a></span><span> </span><span class="annot"><span class="annottext">Name n -&gt; Name n'
+</span><a href="#local-6989586621679234537"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">e n
+</span><a href="#local-6989586621679234541"><span class="hs-identifier hs-var">payload</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameBinder n' l'
+</span><a href="#local-6989586621679234547"><span class="hs-identifier hs-var">binder'</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e l' l'
+</span><a href="#local-6989586621679234550"><span class="hs-identifier hs-var">rest'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#withPattern"><span class="hs-identifier hs-type">withPattern</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234305"><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679234300"><span class="annot"><a href="#local-6989586621679234300"><span class="hs-identifier hs-type">o</span></a></span></span><span> </span><span id="local-6989586621679234316"><span class="annot"><a href="#local-6989586621679234316"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679234317"><span class="annot"><a href="#local-6989586621679234317"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span id="local-6989586621679234319"><span class="annot"><a href="#local-6989586621679234319"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234300"><span class="hs-identifier hs-type">o</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234302"><span class="annot"><a href="#local-6989586621679234302"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679234303"><span class="annot"><a href="#local-6989586621679234303"><span class="hs-identifier hs-type">y</span></a></span></span><span> </span><span id="local-6989586621679234301"><span class="annot"><a href="#local-6989586621679234301"><span class="hs-identifier hs-type">z</span></a></span></span><span> </span><span id="local-6989586621679234306"><span class="annot"><a href="#local-6989586621679234306"><span class="hs-identifier hs-type">r'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234301"><span class="hs-identifier hs-type">z</span></a></span><span>
+</span><span id="line-74"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234301"><span class="hs-identifier hs-type">z</span></a></span><span>
+</span><span id="line-75"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234302"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234303"><span class="hs-identifier hs-type">y</span></a></span><span>
+</span><span id="line-76"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234304"><span class="annot"><a href="#local-6989586621679234304"><span class="hs-identifier hs-type">z'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234301"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234304"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234302"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234303"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234301"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234304"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234301"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234304"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234306"><span class="hs-identifier hs-type">r'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234306"><span class="hs-identifier hs-type">r'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234309"><span class="annot"><a href="#local-6989586621679234309"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679234307"><span class="annot"><a href="#local-6989586621679234307"><span class="hs-identifier hs-type">z</span></a></span></span><span> </span><span id="local-6989586621679234308"><span class="annot"><a href="#local-6989586621679234308"><span class="hs-identifier hs-type">z'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234307"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234308"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234309"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234309"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234307"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234308"><span class="hs-identifier hs-type">z'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234313"><span class="annot"><a href="#local-6989586621679234313"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679234314"><span class="annot"><a href="#local-6989586621679234314"><span class="hs-identifier hs-type">y</span></a></span></span><span> </span><span id="local-6989586621679234315"><span class="annot"><a href="#local-6989586621679234315"><span class="hs-identifier hs-type">y'</span></a></span></span><span> </span><span id="local-6989586621679234310"><span class="annot"><a href="#local-6989586621679234310"><span class="hs-identifier hs-type">z</span></a></span></span><span> </span><span id="local-6989586621679234311"><span class="annot"><a href="#local-6989586621679234311"><span class="hs-identifier hs-type">z'</span></a></span></span><span> </span><span id="local-6989586621679234312"><span class="annot"><a href="#local-6989586621679234312"><span class="hs-identifier hs-type">z''</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234310"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234311"><span class="hs-identifier hs-type">z'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234311"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234312"><span class="hs-identifier hs-type">z''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234313"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234314"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234310"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234311"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234314"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234315"><span class="hs-identifier hs-type">y'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234311"><span class="hs-identifier hs-type">z'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234312"><span class="hs-identifier hs-type">z''</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234313"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234315"><span class="hs-identifier hs-type">y'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234310"><span class="hs-identifier hs-type">z</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234312"><span class="hs-identifier hs-type">z''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234300"><span class="hs-identifier hs-type">o</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234275"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234274"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234316"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234317"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234318"><span class="annot"><a href="#local-6989586621679234318"><span class="hs-identifier hs-type">o'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234300"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234318"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234316"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234317"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234300"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234318"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234275"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234274"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234300"><span class="hs-identifier hs-type">o</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234318"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234318"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234319"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234319"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621679234568"><span class="annot"><span class="annottext">withPattern :: forall (f :: S -&gt; S -&gt; S -&gt; S -&gt; *) (o :: S) (n :: S) (l :: S) r.
+Distinct o =&gt;
+(forall (x :: S) (y :: S) (z :: S) r'.
+ Distinct z =&gt;
+ Scope z
+ -&gt; NameBinder x y
+ -&gt; (forall (z' :: S).
+     DExt z z' =&gt;
+     f x y z z' -&gt; NameBinder z z' -&gt; r')
+ -&gt; r')
+-&gt; (forall (x :: S) (z :: S) (z' :: S). DExt z z' =&gt; f x x z z')
+-&gt; (forall (x :: S) (y :: S) (y' :: S) (z :: S) (z' :: S)
+           (z'' :: S).
+    (DExt z z', DExt z' z'') =&gt;
+    f x y z z' -&gt; f y y' z' z'' -&gt; f x y' z z'')
+-&gt; Scope o
+-&gt; Telescope label e n l
+-&gt; (forall (o' :: S).
+    DExt o o' =&gt;
+    f n l o o' -&gt; Telescope label e o o' -&gt; Scope o' -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Internal.html#withPattern"><span class="hs-identifier hs-var hs-var hs-var">withPattern</span></a></span></span><span> </span><span id="local-6989586621679234569"><span class="annot"><span class="annottext">forall (x :: S) (y :: S) (z :: S) r'.
+Distinct z =&gt;
+Scope z
+-&gt; NameBinder x y
+-&gt; (forall (z' :: S).
+    DExt z z' =&gt;
+    f x y z z' -&gt; NameBinder z z' -&gt; r')
+-&gt; r'
+</span><a href="#local-6989586621679234569"><span class="hs-identifier hs-var">withBinder</span></a></span></span><span> </span><span id="local-6989586621679234570"><span class="annot"><span class="annottext">forall (x :: S) (z :: S) (z' :: S). DExt z z' =&gt; f x x z z'
+</span><a href="#local-6989586621679234570"><span class="hs-keyword hs-var">unit</span></a></span></span><span> </span><span id="local-6989586621679234571"><span class="annot"><span class="annottext">forall (x :: S) (y :: S) (y' :: S) (z :: S) (z' :: S) (z'' :: S).
+(DExt z z', DExt z' z'') =&gt;
+f x y z z' -&gt; f y y' z' z'' -&gt; f x y' z z''
+</span><a href="#local-6989586621679234571"><span class="hs-identifier hs-var">comp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PatternTransport n o
+-&gt; Scope o
+-&gt; Telescope label e n l
+-&gt; (forall (o' :: S).
+    DExt o o' =&gt;
+    f n l o o' -&gt; Telescope label e o o' -&gt; Scope o' -&gt; r)
+-&gt; r
+forall (n' :: S) (l' :: S) (o' :: S) r'.
+Distinct o' =&gt;
+PatternTransport n' o'
+-&gt; Scope o'
+-&gt; Telescope label e n' l'
+-&gt; (forall (o'' :: S).
+    DExt o' o'' =&gt;
+    f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r')
+-&gt; r'
+</span><a href="#local-6989586621679234574"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">PatternTransport n o
+forall (n :: S) (o :: S). PatternTransport n o
+</span><a href="Control.Monad.Foil.Internal.html#verbatimTransport"><span class="hs-identifier hs-var">verbatimTransport</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>      </span><span class="annot"><a href="#local-6989586621679234574"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234337"><span class="annot"><a href="#local-6989586621679234337"><span class="hs-identifier hs-type">n'</span></a></span></span><span> </span><span id="local-6989586621679234338"><span class="annot"><a href="#local-6989586621679234338"><span class="hs-identifier hs-type">l'</span></a></span></span><span> </span><span id="local-6989586621679234336"><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span></span><span> </span><span id="local-6989586621679234340"><span class="annot"><a href="#local-6989586621679234340"><span class="hs-identifier hs-type">r'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span><span>
+</span><span id="line-88"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#PatternTransport"><span class="hs-identifier hs-type">PatternTransport</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234337"><span class="hs-identifier hs-type">n'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span><span>
+</span><span id="line-89"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span><span>
+</span><span id="line-90"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234275"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234274"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234337"><span class="hs-identifier hs-type">n'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234338"><span class="hs-identifier hs-type">l'</span></a></span><span>
+</span><span id="line-91"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234339"><span class="annot"><a href="#local-6989586621679234339"><span class="hs-identifier hs-type">o''</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234339"><span class="hs-identifier hs-type">o''</span></a></span><span>
+</span><span id="line-92"></span><span>               </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234305"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234337"><span class="hs-identifier hs-type">n'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234338"><span class="hs-identifier hs-type">l'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234339"><span class="hs-identifier hs-type">o''</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234275"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234274"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234336"><span class="hs-identifier hs-type">o'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234339"><span class="hs-identifier hs-type">o''</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234339"><span class="hs-identifier hs-type">o''</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234340"><span class="hs-identifier hs-type">r'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234340"><span class="hs-identifier hs-type">r'</span></a></span><span>
+</span><span id="line-94"></span><span>      </span><span id="local-6989586621679234574"><span class="annot"><span class="annottext">go :: forall (n' :: S) (l' :: S) (o' :: S) r'.
+Distinct o' =&gt;
+PatternTransport n' o'
+-&gt; Scope o'
+-&gt; Telescope label e n' l'
+-&gt; (forall (o'' :: S).
+    DExt o' o'' =&gt;
+    f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r')
+-&gt; r'
+</span><a href="#local-6989586621679234574"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679234577"><span class="annot"><span class="annottext">PatternTransport n' o'
+</span><a href="#local-6989586621679234577"><span class="hs-identifier hs-var">_transport</span></a></span></span><span> </span><span id="local-6989586621679234578"><span class="annot"><span class="annottext">Scope o'
+</span><a href="#local-6989586621679234578"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n' l'
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span id="local-6989586621679234585"><span class="annot"><span class="annottext">forall (o'' :: S).
+DExt o' o'' =&gt;
+f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r'
+</span><a href="#local-6989586621679234585"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f n' l' o' o' -&gt; Telescope label e o' o' -&gt; Scope o' -&gt; r'
+forall (o'' :: S).
+DExt o' o'' =&gt;
+f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r'
+</span><a href="#local-6989586621679234585"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">f n' l' o' o'
+f l' l' o' o'
+forall (x :: S) (z :: S) (z' :: S). DExt z z' =&gt; f x x z z'
+</span><a href="#local-6989586621679234570"><span class="hs-keyword hs-var">unit</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e o' o'
+forall label (e :: S -&gt; *) (n :: S). Telescope label e n n
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Scope o'
+</span><a href="#local-6989586621679234578"><span class="hs-identifier hs-var">scope</span></a></span><span>
+</span><span id="line-95"></span><span>      </span><span class="annot"><a href="#local-6989586621679234574"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679234586"><span class="annot"><span class="annottext">PatternTransport n' o'
+</span><a href="#local-6989586621679234586"><span class="hs-identifier hs-var">transport</span></a></span></span><span> </span><span id="local-6989586621679234587"><span class="annot"><span class="annottext">Scope o'
+</span><a href="#local-6989586621679234587"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-type">TelescopeCons</span></a></span><span> </span><span id="local-6989586621679234589"><span class="annot"><span class="annottext">label
+</span><a href="#local-6989586621679234589"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679234590"><span class="annot"><span class="annottext">e n'
+</span><a href="#local-6989586621679234590"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span id="local-6989586621679234591"><span class="annot"><span class="annottext">NameBinder n' i
+</span><a href="#local-6989586621679234591"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span id="local-6989586621679234592"><span class="annot"><span class="annottext">Telescope label e i l'
+</span><a href="#local-6989586621679234592"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679234593"><span class="annot"><span class="annottext">forall (o'' :: S).
+DExt o' o'' =&gt;
+f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r'
+</span><a href="#local-6989586621679234593"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-96"></span><span>        </span><span class="annot"><span class="annottext">Scope o'
+-&gt; NameBinder n' i
+-&gt; (forall (z' :: S).
+    DExt o' z' =&gt;
+    f n' i o' z' -&gt; NameBinder o' z' -&gt; r')
+-&gt; r'
+forall (x :: S) (y :: S) (z :: S) r'.
+Distinct z =&gt;
+Scope z
+-&gt; NameBinder x y
+-&gt; (forall (z' :: S).
+    DExt z z' =&gt;
+    f x y z z' -&gt; NameBinder z z' -&gt; r')
+-&gt; r'
+</span><a href="#local-6989586621679234569"><span class="hs-identifier hs-var">withBinder</span></a></span><span> </span><span class="annot"><span class="annottext">Scope o'
+</span><a href="#local-6989586621679234587"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n' i
+</span><a href="#local-6989586621679234591"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (z' :: S).
+  DExt o' z' =&gt;
+  f n' i o' z' -&gt; NameBinder o' z' -&gt; r')
+ -&gt; r')
+-&gt; (forall (z' :: S).
+    DExt o' z' =&gt;
+    f n' i o' z' -&gt; NameBinder o' z' -&gt; r')
+-&gt; r'
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679234600"><span class="annot"><span class="annottext">f n' i o' z'
+</span><a href="#local-6989586621679234600"><span class="hs-identifier hs-var">fbinder</span></a></span></span><span> </span><span id="local-6989586621679234601"><span class="annot"><span class="annottext">NameBinder o' z'
+</span><a href="#local-6989586621679234601"><span class="hs-identifier hs-var">binder'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-97"></span><span>          </span><span class="annot"><span class="annottext">PatternTransport i z'
+-&gt; Scope z'
+-&gt; Telescope label e i l'
+-&gt; (forall (o'' :: S).
+    DExt z' o'' =&gt;
+    f i l' z' o'' -&gt; Telescope label e z' o'' -&gt; Scope o'' -&gt; r')
+-&gt; r'
+forall (n' :: S) (l' :: S) (o' :: S) r'.
+Distinct o' =&gt;
+PatternTransport n' o'
+-&gt; Scope o'
+-&gt; Telescope label e n' l'
+-&gt; (forall (o'' :: S).
+    DExt o' o'' =&gt;
+    f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r')
+-&gt; r'
+</span><a href="#local-6989586621679234574"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PatternTransport n' o'
+-&gt; NameBinder n' i -&gt; NameBinder o' z' -&gt; PatternTransport i z'
+forall (n :: S) (o :: S) (i :: S) (o' :: S).
+PatternTransport n o
+-&gt; NameBinder n i -&gt; NameBinder o o' -&gt; PatternTransport i o'
+</span><a href="Control.Monad.Foil.Internal.html#transportUnderBinder"><span class="hs-identifier hs-var">transportUnderBinder</span></a></span><span> </span><span class="annot"><span class="annottext">PatternTransport n' o'
+</span><a href="#local-6989586621679234586"><span class="hs-identifier hs-var">transport</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n' i
+</span><a href="#local-6989586621679234591"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder o' z'
+</span><a href="#local-6989586621679234601"><span class="hs-identifier hs-var">binder'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameBinder o' z' -&gt; Scope o' -&gt; Scope z'
+forall (n :: S) (l :: S). NameBinder n l -&gt; Scope n -&gt; Scope l
+</span><a href="Control.Monad.Foil.Internal.html#extendScope"><span class="hs-identifier hs-var">extendScope</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder o' z'
+</span><a href="#local-6989586621679234601"><span class="hs-identifier hs-var">binder'</span></a></span><span> </span><span class="annot"><span class="annottext">Scope o'
+</span><a href="#local-6989586621679234587"><span class="hs-identifier hs-var">scope</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>             </span><span class="annot"><span class="annottext">Telescope label e i l'
+</span><a href="#local-6989586621679234592"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (o'' :: S).
+  DExt z' o'' =&gt;
+  f i l' z' o'' -&gt; Telescope label e z' o'' -&gt; Scope o'' -&gt; r')
+ -&gt; r')
+-&gt; (forall (o'' :: S).
+    DExt z' o'' =&gt;
+    f i l' z' o'' -&gt; Telescope label e z' o'' -&gt; Scope o'' -&gt; r')
+-&gt; r'
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679234614"><span class="annot"><span class="annottext">f i l' z' o''
+</span><a href="#local-6989586621679234614"><span class="hs-identifier hs-var">frest</span></a></span></span><span> </span><span id="local-6989586621679234615"><span class="annot"><span class="annottext">Telescope label e z' o''
+</span><a href="#local-6989586621679234615"><span class="hs-identifier hs-var">rest'</span></a></span></span><span> </span><span id="local-6989586621679234616"><span class="annot"><span class="annottext">Scope o''
+</span><a href="#local-6989586621679234616"><span class="hs-identifier hs-var">scope''</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-100"></span><span>            </span><span class="annot"><span class="annottext">f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r'
+forall (o'' :: S).
+DExt o' o'' =&gt;
+f n' l' o' o'' -&gt; Telescope label e o' o'' -&gt; Scope o'' -&gt; r'
+</span><a href="#local-6989586621679234593"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">f n' i o' z' -&gt; f i l' z' o'' -&gt; f n' l' o' o''
+forall (x :: S) (y :: S) (y' :: S) (z :: S) (z' :: S) (z'' :: S).
+(DExt z z', DExt z' z'') =&gt;
+f x y z z' -&gt; f y y' z' z'' -&gt; f x y' z z''
+</span><a href="#local-6989586621679234571"><span class="hs-identifier hs-var">comp</span></a></span><span> </span><span class="annot"><span class="annottext">f n' i o' z'
+</span><a href="#local-6989586621679234600"><span class="hs-identifier hs-var">fbinder</span></a></span><span> </span><span class="annot"><span class="annottext">f i l' z' o''
+</span><a href="#local-6989586621679234614"><span class="hs-identifier hs-var">frest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="annottext">label
+-&gt; e o'
+-&gt; NameBinder o' z'
+-&gt; Telescope label e z' o''
+-&gt; Telescope label e o' o''
+forall label (e :: S -&gt; *) (n :: S) (i :: S) (l :: S).
+label
+-&gt; e n
+-&gt; NameBinder n i
+-&gt; Telescope label e i l
+-&gt; Telescope label e n l
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-var">TelescopeCons</span></a></span><span> </span><span class="annot"><span class="annottext">label
+</span><a href="#local-6989586621679234589"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PatternTransport n' o' -&gt; e n' -&gt; e o'
+forall (e :: S -&gt; *) (n :: S) (o :: S).
+Sinkable e =&gt;
+PatternTransport n o -&gt; e n -&gt; e o
+</span><a href="Control.Monad.Foil.Internal.html#transportPayload"><span class="hs-identifier hs-var">transportPayload</span></a></span><span> </span><span class="annot"><span class="annottext">PatternTransport n' o'
+</span><a href="#local-6989586621679234586"><span class="hs-identifier hs-var">transport</span></a></span><span> </span><span class="annot"><span class="annottext">e n'
+</span><a href="#local-6989586621679234590"><span class="hs-identifier hs-var">payload</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameBinder o' z'
+</span><a href="#local-6989586621679234601"><span class="hs-identifier hs-var">binder'</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e z' o''
+</span><a href="#local-6989586621679234615"><span class="hs-identifier hs-var">rest'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>              </span><span class="annot"><span class="annottext">Scope o''
+</span><a href="#local-6989586621679234616"><span class="hs-identifier hs-var">scope''</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- | Two telescopes unify when their binders line up and their payloads agree.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- Labels are ignored, which is what &#945;-equivalence should do with a label: a</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- parameter's spelling is no more relevant than a bound variable's. Payloads</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- are not, since two telescopes agreeing on binders may well disagree on types.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- 'unifyPatterns' is the binder-only approximation, which is all a caller</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- without a scope can be given. 'unifyPatternsIn' is the real answer, and</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- it is what the library's &#945;-equivalence calls.</span><span>
+</span><span id="line-113"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679234382"><span id="local-6989586621679234383"><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Sinkable"><span class="hs-identifier hs-type">Sinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234382"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#AlphaEquiv"><span class="hs-identifier hs-type">AlphaEquiv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234382"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Relative.html#RelMonad"><span class="hs-identifier hs-type">RelMonad</span></a></span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234382"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnifiablePattern"><span class="hs-identifier hs-type">UnifiablePattern</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234383"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234382"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621679234629"><span class="annot"><span class="annottext">unifyPatterns :: forall (n :: S) (l :: S) (r :: S).
+Distinct n =&gt;
+Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+</span><a href="Control.Monad.Foil.Internal.html#unifyPatterns"><span class="hs-identifier hs-var hs-var hs-var">unifyPatterns</span></a></span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">NameBinders n l -&gt; UnifyNameBinders (Telescope label e) n l l
+forall (n :: S) (l :: S) (pattern :: S -&gt; S -&gt; *).
+NameBinders n l -&gt; UnifyNameBinders pattern n l l
+</span><a href="Control.Monad.Foil.Internal.html#SameNameBinders"><span class="hs-identifier hs-var">SameNameBinders</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinders n n
+NameBinders n l
+forall (n :: S). NameBinders n n
+</span><a href="Control.Monad.Foil.Internal.html#emptyNameBinders"><span class="hs-identifier hs-var">emptyNameBinders</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#unifyPatterns"><span class="hs-identifier hs-var">unifyPatterns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-type">TelescopeCons</span></a></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">e n
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679234634"><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234634"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679234635"><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234635"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-type">TelescopeCons</span></a></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">e n
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679234640"><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234640"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679234641"><span class="annot"><span class="annottext">Telescope label e i r
+</span><a href="#local-6989586621679234641"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameBinder n i -&gt; DistinctEvidence i
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#assertDistinct"><span class="hs-identifier hs-var">assertDistinct</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234634"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">NameBinder n i -&gt; DistinctEvidence i
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#assertDistinct"><span class="hs-identifier hs-var">assertDistinct</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234640"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-119"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DistinctEvidence i
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DistinctEvidence i
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-120"></span><span>        </span><span class="annot"><span class="annottext">NameBinder n i
+-&gt; NameBinder n i -&gt; UnifyNameBinders (Telescope label e) n i i
+forall (i :: S) (l :: S) (r :: S) (pattern :: S -&gt; S -&gt; *).
+Distinct i =&gt;
+NameBinder i l -&gt; NameBinder i r -&gt; UnifyNameBinders pattern i l r
+</span><a href="Control.Monad.Foil.Internal.html#unifyNameBinders"><span class="hs-identifier hs-var">unifyNameBinders</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234640"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n i i
+-&gt; (Telescope label e i l, Telescope label e i r)
+-&gt; UnifyNameBinders (Telescope label e) n l r
+forall (pattern :: S -&gt; S -&gt; *) (l :: S) (l' :: S) (n :: S)
+       (r :: S) (r' :: S).
+(UnifiablePattern pattern, Distinct l, Distinct l') =&gt;
+UnifyNameBinders pattern n l l'
+-&gt; (pattern l r, pattern l' r') -&gt; UnifyNameBinders pattern n r r'
+</span><a href="Control.Monad.Foil.Internal.html#andThenUnifyPatterns"><span class="hs-operator hs-var">`andThenUnifyPatterns`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234635"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Telescope label e i r
+</span><a href="#local-6989586621679234641"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-comment">-- Telescopes of different lengths bind different numbers of names.</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#unifyPatterns"><span class="hs-identifier hs-var">unifyPatterns</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (l :: S) (r :: S).
+UnifyNameBinders pattern n l r
+</span><a href="Control.Monad.Foil.Internal.html#NotUnifiable"><span class="hs-identifier hs-var">NotUnifiable</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>  </span><span id="local-6989586621679234660"><span class="annot"><span class="annottext">unifyPatternsIn :: forall (n :: S) (l :: S) (r :: S).
+Distinct n =&gt;
+Scope n
+-&gt; Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+</span><a href="Control.Monad.Foil.Internal.html#unifyPatternsIn"><span class="hs-identifier hs-var hs-var hs-var">unifyPatternsIn</span></a></span></span><span> </span><span id="local-6989586621679234661"><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234661"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679234662"><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234662"><span class="hs-identifier hs-var">tele1</span></a></span></span><span> </span><span id="local-6989586621679234663"><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234663"><span class="hs-identifier hs-var">tele2</span></a></span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Scope n
+-&gt; Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+-&gt; Bool
+forall label (e :: S -&gt; *) (n :: S) (l :: S) (r :: S).
+(Sinkable e, AlphaEquiv e, RelMonad Name e, Distinct n) =&gt;
+Scope n
+-&gt; Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+-&gt; Bool
+</span><a href="Control.Monad.Foil.Telescope.html#payloadsAgree"><span class="hs-identifier hs-var">payloadsAgree</span></a></span><span> </span><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234661"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234662"><span class="hs-identifier hs-var">tele1</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234663"><span class="hs-identifier hs-var">tele2</span></a></span><span> </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+</span><a href="#local-6989586621679234665"><span class="hs-identifier hs-var">verdict</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+</span><a href="#local-6989586621679234665"><span class="hs-identifier hs-var">verdict</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (l :: S) (r :: S).
+UnifyNameBinders pattern n l r
+</span><a href="Control.Monad.Foil.Internal.html#NotUnifiable"><span class="hs-identifier hs-var">NotUnifiable</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-128"></span><span>      </span><span id="local-6989586621679234665"><span class="annot"><span class="annottext">verdict :: UnifyNameBinders (Telescope label e) n l r
+</span><a href="#local-6989586621679234665"><span class="hs-identifier hs-var hs-var">verdict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+forall (n :: S) (l :: S) (r :: S).
+Distinct n =&gt;
+Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (l :: S) (r :: S).
+(UnifiablePattern pattern, Distinct n) =&gt;
+pattern n l -&gt; pattern n r -&gt; UnifyNameBinders pattern n l r
+</span><a href="Control.Monad.Foil.Internal.html#unifyPatterns"><span class="hs-identifier hs-var">unifyPatterns</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234662"><span class="hs-identifier hs-var">tele1</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234663"><span class="hs-identifier hs-var">tele2</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- | The payloads of a telescope, each moved into its innermost scope.</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- Sinking is free, so putting them all in one scope costs nothing and lets a</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- renaming be applied to the whole block at once.</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-136"></span><span id="local-6989586621679234417"><span id="local-6989586621679234418"><span id="local-6989586621679234419"><span id="local-6989586621679234420"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#telescopePayloads"><span class="hs-identifier hs-type">telescopePayloads</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Sinkable"><span class="hs-identifier hs-type">Sinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234417"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234418"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234419"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234417"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234420"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234418"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679234417"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234418"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">]</span></span></span></span></span><span>
+</span><span id="line-138"></span><span id="telescopePayloads"><span class="annot"><span class="annottext">telescopePayloads :: forall (e :: S -&gt; *) (l :: S) label (n :: S).
+(Sinkable e, Distinct l) =&gt;
+Telescope label e n l -&gt; [e l]
+</span><a href="Control.Monad.Foil.Telescope.html#telescopePayloads"><span class="hs-identifier hs-var hs-var">telescopePayloads</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Param label e l -&gt; e l) -&gt; [Param label e l] -&gt; [e l]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Param label e l -&gt; e l
+forall label (e :: S -&gt; *) (l :: S). Param label e l -&gt; e l
+</span><a href="Control.Monad.Foil.Telescope.html#paramType"><span class="hs-identifier hs-var">paramType</span></a></span><span> </span><span class="annot"><span class="annottext">([Param label e l] -&gt; [e l])
+-&gt; (Telescope label e n l -&gt; [Param label e l])
+-&gt; Telescope label e n l
+-&gt; [e l]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l -&gt; [Param label e l]
+forall (e :: S -&gt; *) (l :: S) label (n :: S).
+(Sinkable e, Distinct l) =&gt;
+Telescope label e n l -&gt; [Param label e l]
+</span><a href="Control.Monad.Foil.Telescope.html#telescopeParams"><span class="hs-identifier hs-var">telescopeParams</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- | Do the payloads of two telescopes agree, under the way their binders were</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- unified?</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- The verdict speaks about binders only, so the renaming it prescribes has to</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- be applied before the payloads are compared, which is exactly what</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- 'Control.Monad.Free.alphaEquivScoped' does to the body of a scoped term.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- Comparing them as they stand would report @(A : &#120140;) (x : A)@ and</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- @(B : &#120140;) (y : B)@ as different, since the second payloads name different</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- binders until the first ones have been identified.</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-151"></span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#payloadsAgree"><span class="hs-identifier hs-type">payloadsAgree</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234414"><span class="annot"><a href="#local-6989586621679234414"><span class="hs-keyword hs-type">label</span></a></span></span><span> </span><span id="local-6989586621679234412"><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679234413"><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679234415"><span class="annot"><a href="#local-6989586621679234415"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span id="local-6989586621679234416"><span class="annot"><a href="#local-6989586621679234416"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-153"></span><span>     </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Sinkable"><span class="hs-identifier hs-type">Sinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#AlphaEquiv"><span class="hs-identifier hs-type">AlphaEquiv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Relative.html#RelMonad"><span class="hs-identifier hs-type">RelMonad</span></a></span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234414"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234415"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234414"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234416"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnifyNameBinders"><span class="hs-identifier hs-type">UnifyNameBinders</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234414"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234415"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234416"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-159"></span><span id="payloadsAgree"><span class="annot"><span class="annottext">payloadsAgree :: forall label (e :: S -&gt; *) (n :: S) (l :: S) (r :: S).
+(Sinkable e, AlphaEquiv e, RelMonad Name e, Distinct n) =&gt;
+Scope n
+-&gt; Telescope label e n l
+-&gt; Telescope label e n r
+-&gt; UnifyNameBinders (Telescope label e) n l r
+-&gt; Bool
+</span><a href="Control.Monad.Foil.Telescope.html#payloadsAgree"><span class="hs-identifier hs-var hs-var">payloadsAgree</span></a></span></span><span> </span><span id="local-6989586621679234682"><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234682"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679234683"><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234683"><span class="hs-identifier hs-var">tele1</span></a></span></span><span> </span><span id="local-6989586621679234684"><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234684"><span class="hs-identifier hs-var">tele2</span></a></span></span><span> </span><span id="local-6989586621679234685"><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+</span><a href="#local-6989586621679234685"><span class="hs-identifier hs-var">verdict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Telescope label e n l -&gt; DistinctEvidence l
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#assertDistinct"><span class="hs-identifier hs-var">assertDistinct</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234683"><span class="hs-identifier hs-var">tele1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Telescope label e n r -&gt; DistinctEvidence r
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#assertDistinct"><span class="hs-identifier hs-var">assertDistinct</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234684"><span class="hs-identifier hs-var">tele2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DistinctEvidence r
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-162"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679234700"><span class="annot"><span class="annottext">payloads1 :: [e l]
+</span><a href="#local-6989586621679234700"><span class="hs-identifier hs-var hs-var">payloads1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Telescope label e n l -&gt; [e l]
+forall (e :: S -&gt; *) (l :: S) label (n :: S).
+(Sinkable e, Distinct l) =&gt;
+Telescope label e n l -&gt; [e l]
+</span><a href="Control.Monad.Foil.Telescope.html#telescopePayloads"><span class="hs-identifier hs-var">telescopePayloads</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234683"><span class="hs-identifier hs-var">tele1</span></a></span><span>
+</span><span id="line-163"></span><span>          </span><span id="local-6989586621679234701"><span class="annot"><span class="annottext">payloads2 :: [e r]
+</span><a href="#local-6989586621679234701"><span class="hs-identifier hs-var hs-var">payloads2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Telescope label e n r -&gt; [e r]
+forall (e :: S -&gt; *) (l :: S) label (n :: S).
+(Sinkable e, Distinct l) =&gt;
+Telescope label e n l -&gt; [e l]
+</span><a href="Control.Monad.Foil.Telescope.html#telescopePayloads"><span class="hs-identifier hs-var">telescopePayloads</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234684"><span class="hs-identifier hs-var">tele2</span></a></span><span>
+</span><span id="line-164"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+</span><a href="#local-6989586621679234685"><span class="hs-identifier hs-var">verdict</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-165"></span><span>            </span><span class="annot"><span class="annottext">UnifyNameBinders (Telescope label e) n l r
+</span><a href="Control.Monad.Foil.Internal.html#NotUnifiable"><span class="hs-identifier hs-var">NotUnifiable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-166"></span><span>            </span><span class="hs-comment">-- The binders are the same, so the payloads already compare.</span><span>
+</span><span id="line-167"></span><span>            </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#SameNameBinders"><span class="hs-identifier hs-type">SameNameBinders</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-168"></span><span>              </span><span class="annot"><span class="annottext">Scope l -&gt; [e l] -&gt; [e l] -&gt; Bool
+forall (m :: S). Distinct m =&gt; Scope m -&gt; [e m] -&gt; [e m] -&gt; Bool
+</span><a href="#local-6989586621679234706"><span class="hs-identifier hs-var">agree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Telescope label e n l -&gt; Scope n -&gt; Scope l
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; Scope n -&gt; Scope l
+</span><a href="Control.Monad.Foil.Internal.html#extendScopePattern"><span class="hs-identifier hs-var">extendScopePattern</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234683"><span class="hs-identifier hs-var">tele1</span></a></span><span> </span><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234682"><span class="hs-identifier hs-var">scope</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e l]
+</span><a href="#local-6989586621679234700"><span class="hs-identifier hs-var">payloads1</span></a></span><span> </span><span class="annot"><span class="annottext">[e l]
+[e r]
+</span><a href="#local-6989586621679234701"><span class="hs-identifier hs-var">payloads2</span></a></span><span>
+</span><span id="line-169"></span><span>            </span><span class="hs-comment">-- The left telescope's binders become the right's, so its payloads</span><span>
+</span><span id="line-170"></span><span>            </span><span class="hs-comment">-- have to follow them before they can be compared.</span><span>
+</span><span id="line-171"></span><span>            </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RenameLeftNameBinder"><span class="hs-identifier hs-type">RenameLeftNameBinder</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinders n r
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679234709"><span class="annot"><span class="annottext">NameBinder n l -&gt; NameBinder n r
+</span><a href="#local-6989586621679234709"><span class="hs-identifier hs-var">renameL</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-172"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679234710"><span class="annot"><span class="annottext">scope' :: Scope r
+</span><a href="#local-6989586621679234710"><span class="hs-identifier hs-var hs-var">scope'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Telescope label e n r -&gt; Scope n -&gt; Scope r
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; Scope n -&gt; Scope l
+</span><a href="Control.Monad.Foil.Internal.html#extendScopePattern"><span class="hs-identifier hs-var">extendScopePattern</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n r
+</span><a href="#local-6989586621679234684"><span class="hs-identifier hs-var">tele2</span></a></span><span> </span><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234682"><span class="hs-identifier hs-var">scope</span></a></span><span>
+</span><span id="line-173"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Scope r -&gt; [e r] -&gt; [e r] -&gt; Bool
+forall (m :: S). Distinct m =&gt; Scope m -&gt; [e m] -&gt; [e m] -&gt; Bool
+</span><a href="#local-6989586621679234706"><span class="hs-identifier hs-var">agree</span></a></span><span> </span><span class="annot"><span class="annottext">Scope r
+</span><a href="#local-6989586621679234710"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(e l -&gt; e r) -&gt; [e l] -&gt; [e r]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope r -&gt; (NameBinder n l -&gt; NameBinder n r) -&gt; e l -&gt; e r
+forall (i :: S) (m :: S).
+Distinct m =&gt;
+Scope m -&gt; (NameBinder n i -&gt; NameBinder n m) -&gt; e i -&gt; e m
+</span><a href="#local-6989586621679234711"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">Scope r
+</span><a href="#local-6989586621679234710"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n l -&gt; NameBinder n r
+</span><a href="#local-6989586621679234709"><span class="hs-identifier hs-var">renameL</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e l]
+</span><a href="#local-6989586621679234700"><span class="hs-identifier hs-var">payloads1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e r]
+</span><a href="#local-6989586621679234701"><span class="hs-identifier hs-var">payloads2</span></a></span><span>
+</span><span id="line-174"></span><span>            </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RenameRightNameBinder"><span class="hs-identifier hs-type">RenameRightNameBinder</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinders n l
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679234713"><span class="annot"><span class="annottext">NameBinder n r -&gt; NameBinder n l
+</span><a href="#local-6989586621679234713"><span class="hs-identifier hs-var">renameR</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-175"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679234714"><span class="annot"><span class="annottext">scope' :: Scope l
+</span><a href="#local-6989586621679234714"><span class="hs-identifier hs-var hs-var">scope'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Telescope label e n l -&gt; Scope n -&gt; Scope l
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; Scope n -&gt; Scope l
+</span><a href="Control.Monad.Foil.Internal.html#extendScopePattern"><span class="hs-identifier hs-var">extendScopePattern</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="#local-6989586621679234683"><span class="hs-identifier hs-var">tele1</span></a></span><span> </span><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234682"><span class="hs-identifier hs-var">scope</span></a></span><span>
+</span><span id="line-176"></span><span>               </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Scope l -&gt; [e l] -&gt; [e l] -&gt; Bool
+forall (m :: S). Distinct m =&gt; Scope m -&gt; [e m] -&gt; [e m] -&gt; Bool
+</span><a href="#local-6989586621679234706"><span class="hs-identifier hs-var">agree</span></a></span><span> </span><span class="annot"><span class="annottext">Scope l
+</span><a href="#local-6989586621679234714"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="annot"><span class="annottext">[e l]
+</span><a href="#local-6989586621679234700"><span class="hs-identifier hs-var">payloads1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(e r -&gt; e l) -&gt; [e r] -&gt; [e l]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope l -&gt; (NameBinder n r -&gt; NameBinder n l) -&gt; e r -&gt; e l
+forall (i :: S) (m :: S).
+Distinct m =&gt;
+Scope m -&gt; (NameBinder n i -&gt; NameBinder n m) -&gt; e i -&gt; e m
+</span><a href="#local-6989586621679234711"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">Scope l
+</span><a href="#local-6989586621679234714"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n r -&gt; NameBinder n l
+</span><a href="#local-6989586621679234713"><span class="hs-identifier hs-var">renameR</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e r]
+</span><a href="#local-6989586621679234701"><span class="hs-identifier hs-var">payloads2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>            </span><span class="hs-comment">-- Neither side's binders survive, so both blocks move to the</span><span>
+</span><span id="line-178"></span><span>            </span><span class="hs-comment">-- unified ones.</span><span>
+</span><span id="line-179"></span><span>            </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RenameBothBinders"><span class="hs-identifier hs-type">RenameBothBinders</span></a></span><span> </span><span id="local-6989586621679234719"><span class="annot"><span class="annottext">NameBinders n lr
+</span><a href="#local-6989586621679234719"><span class="hs-identifier hs-var">binders</span></a></span></span><span> </span><span id="local-6989586621679234720"><span class="annot"><span class="annottext">NameBinder n l -&gt; NameBinder n lr
+</span><a href="#local-6989586621679234720"><span class="hs-identifier hs-var">renameL</span></a></span></span><span> </span><span id="local-6989586621679234721"><span class="annot"><span class="annottext">NameBinder n r -&gt; NameBinder n lr
+</span><a href="#local-6989586621679234721"><span class="hs-identifier hs-var">renameR</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-180"></span><span>              </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">NameBinders n lr -&gt; DistinctEvidence lr
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; DistinctEvidence l
+</span><a href="Control.Monad.Foil.Internal.html#assertDistinct"><span class="hs-identifier hs-var">assertDistinct</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinders n lr
+</span><a href="#local-6989586621679234719"><span class="hs-identifier hs-var">binders</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-181"></span><span>                </span><span class="annot"><span class="annottext">DistinctEvidence lr
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-182"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679234728"><span class="annot"><span class="annottext">scope' :: Scope lr
+</span><a href="#local-6989586621679234728"><span class="hs-identifier hs-var hs-var">scope'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameBinders n lr -&gt; Scope n -&gt; Scope lr
+forall (n :: S) (pattern :: S -&gt; S -&gt; *) (l :: S).
+(Distinct n, CoSinkable pattern) =&gt;
+pattern n l -&gt; Scope n -&gt; Scope l
+</span><a href="Control.Monad.Foil.Internal.html#extendScopePattern"><span class="hs-identifier hs-var">extendScopePattern</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinders n lr
+</span><a href="#local-6989586621679234719"><span class="hs-identifier hs-var">binders</span></a></span><span> </span><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679234682"><span class="hs-identifier hs-var">scope</span></a></span><span>
+</span><span id="line-183"></span><span>                   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Scope lr -&gt; [e lr] -&gt; [e lr] -&gt; Bool
+forall (m :: S). Distinct m =&gt; Scope m -&gt; [e m] -&gt; [e m] -&gt; Bool
+</span><a href="#local-6989586621679234706"><span class="hs-identifier hs-var">agree</span></a></span><span> </span><span class="annot"><span class="annottext">Scope lr
+</span><a href="#local-6989586621679234728"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(e l -&gt; e lr) -&gt; [e l] -&gt; [e lr]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope lr -&gt; (NameBinder n l -&gt; NameBinder n lr) -&gt; e l -&gt; e lr
+forall (i :: S) (m :: S).
+Distinct m =&gt;
+Scope m -&gt; (NameBinder n i -&gt; NameBinder n m) -&gt; e i -&gt; e m
+</span><a href="#local-6989586621679234711"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">Scope lr
+</span><a href="#local-6989586621679234728"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n l -&gt; NameBinder n lr
+</span><a href="#local-6989586621679234720"><span class="hs-identifier hs-var">renameL</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e l]
+</span><a href="#local-6989586621679234700"><span class="hs-identifier hs-var">payloads1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>                                   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(e r -&gt; e lr) -&gt; [e r] -&gt; [e lr]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope lr -&gt; (NameBinder n r -&gt; NameBinder n lr) -&gt; e r -&gt; e lr
+forall (i :: S) (m :: S).
+Distinct m =&gt;
+Scope m -&gt; (NameBinder n i -&gt; NameBinder n m) -&gt; e i -&gt; e m
+</span><a href="#local-6989586621679234711"><span class="hs-identifier hs-var">rename</span></a></span><span> </span><span class="annot"><span class="annottext">Scope lr
+</span><a href="#local-6989586621679234728"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n r -&gt; NameBinder n lr
+</span><a href="#local-6989586621679234721"><span class="hs-identifier hs-var">renameR</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e r]
+</span><a href="#local-6989586621679234701"><span class="hs-identifier hs-var">payloads2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-comment">-- Lengths cannot disagree here: a verdict other than 'NotUnifiable'</span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-comment">-- says the two telescopes bind the same number of names.</span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><a href="#local-6989586621679234706"><span class="hs-identifier hs-type">agree</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234443"><span class="annot"><a href="#local-6989586621679234443"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234443"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234443"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234443"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234443"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679234706"><span class="annot"><span class="annottext">agree :: forall (m :: S). Distinct m =&gt; Scope m -&gt; [e m] -&gt; [e m] -&gt; Bool
+</span><a href="#local-6989586621679234706"><span class="hs-identifier hs-var hs-var">agree</span></a></span></span><span> </span><span id="local-6989586621679234734"><span class="annot"><span class="annottext">Scope m
+</span><a href="#local-6989586621679234734"><span class="hs-identifier hs-var">scope'</span></a></span></span><span> </span><span id="local-6989586621679234735"><span class="annot"><span class="annottext">[e m]
+</span><a href="#local-6989586621679234735"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679234736"><span class="annot"><span class="annottext">[e m]
+</span><a href="#local-6989586621679234736"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Bool] -&gt; Bool
+forall (t :: * -&gt; *). Foldable t =&gt; t Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">and</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(e m -&gt; e m -&gt; Bool) -&gt; [e m] -&gt; [e m] -&gt; [Bool]
+forall a b c. (a -&gt; b -&gt; c) -&gt; [a] -&gt; [b] -&gt; [c]
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope m -&gt; e m -&gt; e m -&gt; Bool
+forall (n :: S). Distinct n =&gt; Scope n -&gt; e n -&gt; e n -&gt; Bool
+forall (e :: S -&gt; *) (n :: S).
+(AlphaEquiv e, Distinct n) =&gt;
+Scope n -&gt; e n -&gt; e n -&gt; Bool
+</span><a href="Control.Monad.Foil.Internal.html#alphaEquivIn"><span class="hs-identifier hs-var">alphaEquivIn</span></a></span><span> </span><span class="annot"><span class="annottext">Scope m
+</span><a href="#local-6989586621679234734"><span class="hs-identifier hs-var">scope'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[e m]
+</span><a href="#local-6989586621679234735"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[e m]
+</span><a href="#local-6989586621679234736"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>
+</span><span id="line-191"></span><span>    </span><span class="annot"><a href="#local-6989586621679234711"><span class="hs-identifier hs-type">rename</span></a></span><span>
+</span><span id="line-192"></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679234448"><span class="annot"><a href="#local-6989586621679234448"><span class="hs-identifier hs-type">i</span></a></span></span><span> </span><span id="local-6989586621679234447"><span class="annot"><a href="#local-6989586621679234447"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234447"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-193"></span><span>      </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234447"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234448"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234413"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234447"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234448"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679234412"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234447"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679234711"><span class="annot"><span class="annottext">rename :: forall (i :: S) (m :: S).
+Distinct m =&gt;
+Scope m -&gt; (NameBinder n i -&gt; NameBinder n m) -&gt; e i -&gt; e m
+</span><a href="#local-6989586621679234711"><span class="hs-identifier hs-var hs-var">rename</span></a></span></span><span> </span><span id="local-6989586621679234743"><span class="annot"><span class="annottext">Scope m
+</span><a href="#local-6989586621679234743"><span class="hs-identifier hs-var">scope'</span></a></span></span><span> </span><span id="local-6989586621679234744"><span class="annot"><span class="annottext">NameBinder n i -&gt; NameBinder n m
+</span><a href="#local-6989586621679234744"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Scope m -&gt; (Name i -&gt; Name m) -&gt; e i -&gt; e m
+forall (f :: S -&gt; *) (m :: S -&gt; *) (b :: S) (a :: S).
+(RelMonad f m, Distinct b) =&gt;
+Scope b -&gt; (f a -&gt; f b) -&gt; m a -&gt; m b
+</span><a href="Control.Monad.Foil.Relative.html#liftRM"><span class="hs-identifier hs-var">liftRM</span></a></span><span> </span><span class="annot"><span class="annottext">Scope m
+</span><a href="#local-6989586621679234743"><span class="hs-identifier hs-var">scope'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(NameBinder n i -&gt; NameBinder n m) -&gt; Name i -&gt; Name m
+forall (n :: S) (l :: S) (l' :: S).
+(NameBinder n l -&gt; NameBinder n l') -&gt; Name l -&gt; Name l'
+</span><a href="Control.Monad.Foil.Internal.html#fromNameBinderRenaming"><span class="hs-identifier hs-var">fromNameBinderRenaming</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i -&gt; NameBinder n m
+</span><a href="#local-6989586621679234744"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- | One step of a telescope, with everything about it moved into the innermost</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- scope.</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- Sinking is free, so this is the convenient form for anything that has to</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- compare parameters with the names of a term checked under all of them.</span><span>
+</span><span id="line-201"></span><span class="hs-comment">--</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-203"></span><span class="hs-keyword">data</span><span> </span><span id="Param"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Param"><span class="hs-identifier hs-var">Param</span></a></span></span><span> </span><span id="local-6989586621679234427"><span class="annot"><a href="#local-6989586621679234427"><span class="hs-keyword hs-type">label</span></a></span></span><span> </span><span id="local-6989586621679234428"><span class="annot"><a href="#local-6989586621679234428"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679234429"><span class="annot"><a href="#local-6989586621679234429"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Param"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Param"><span class="hs-identifier hs-var">Param</span></a></span></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="paramLabel"><span class="annot"><span class="annottext">forall label (e :: S -&gt; *) (l :: S). Param label e l -&gt; label
+</span><a href="Control.Monad.Foil.Telescope.html#paramLabel"><span class="hs-identifier hs-var hs-var">paramLabel</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679234427"><span class="hs-keyword hs-type">label</span></a></span><span>
+</span><span id="line-205"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="paramName"><span class="annot"><span class="annottext">forall label (e :: S -&gt; *) (l :: S). Param label e l -&gt; Name l
+</span><a href="Control.Monad.Foil.Telescope.html#paramName"><span class="hs-identifier hs-var hs-var">paramName</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234429"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="paramType"><span class="annot"><span class="annottext">forall label (e :: S -&gt; *) (l :: S). Param label e l -&gt; e l
+</span><a href="Control.Monad.Foil.Telescope.html#paramType"><span class="hs-identifier hs-var hs-var">paramType</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679234428"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234429"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-207"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-208"></span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- | The steps of a telescope, outermost first.</span><span>
+</span><span id="line-210"></span><span class="hs-comment">--</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-212"></span><span id="local-6989586621679234434"><span id="local-6989586621679234435"><span id="local-6989586621679234436"><span id="local-6989586621679234437"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#telescopeParams"><span class="hs-identifier hs-type">telescopeParams</span></a></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Sinkable"><span class="hs-identifier hs-type">Sinkable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234434"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234435"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234436"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234434"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234437"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234435"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Param"><span class="hs-identifier hs-type">Param</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234436"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234434"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234435"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">]</span></span></span></span></span><span>
+</span><span id="line-215"></span><span id="telescopeParams"><span class="annot"><span class="annottext">telescopeParams :: forall (e :: S -&gt; *) (l :: S) label (n :: S).
+(Sinkable e, Distinct l) =&gt;
+Telescope label e n l -&gt; [Param label e l]
+</span><a href="Control.Monad.Foil.Telescope.html#telescopeParams"><span class="hs-identifier hs-var hs-var">telescopeParams</span></a></span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-216"></span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#telescopeParams"><span class="hs-identifier hs-var">telescopeParams</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-type">TelescopeCons</span></a></span><span> </span><span id="local-6989586621679234754"><span class="annot"><span class="annottext">label
+</span><a href="#local-6989586621679234754"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679234755"><span class="annot"><span class="annottext">e n
+</span><a href="#local-6989586621679234755"><span class="hs-identifier hs-var">ty</span></a></span></span><span> </span><span id="local-6989586621679234756"><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234756"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span id="local-6989586621679234757"><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234757"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-217"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameBinder n i -&gt; ExtEvidence n i
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (l :: S).
+CoSinkable pattern =&gt;
+pattern n l -&gt; ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#assertExt"><span class="hs-identifier hs-var">assertExt</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234756"><span class="hs-identifier hs-var">binder</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Telescope label e i l -&gt; ExtEvidence i l
+forall (pattern :: S -&gt; S -&gt; *) (n :: S) (l :: S).
+CoSinkable pattern =&gt;
+pattern n l -&gt; ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#assertExt"><span class="hs-identifier hs-var">assertExt</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234757"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-218"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtEvidence n i
+</span><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-var">Ext</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ExtEvidence i l
+</span><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-var">Ext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-219"></span><span>      </span><span class="annot"><span class="annottext">label -&gt; Name l -&gt; e l -&gt; Param label e l
+forall label (e :: S -&gt; *) (l :: S).
+label -&gt; Name l -&gt; e l -&gt; Param label e l
+</span><a href="Control.Monad.Foil.Telescope.html#Param"><span class="hs-identifier hs-var">Param</span></a></span><span> </span><span class="annot"><span class="annottext">label
+</span><a href="#local-6989586621679234754"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name i -&gt; Name l
+forall (e :: S -&gt; *) (n :: S) (l :: S).
+(Sinkable e, DExt n l) =&gt;
+e n -&gt; e l
+</span><a href="Control.Monad.Foil.Internal.html#sink"><span class="hs-identifier hs-var">sink</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameBinder n i -&gt; Name i
+forall (n :: S) (l :: S). NameBinder n l -&gt; Name l
+</span><a href="Control.Monad.Foil.Internal.html#nameOf"><span class="hs-identifier hs-var">nameOf</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234756"><span class="hs-identifier hs-var">binder</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e n -&gt; e l
+forall (e :: S -&gt; *) (n :: S) (l :: S).
+(Sinkable e, DExt n l) =&gt;
+e n -&gt; e l
+</span><a href="Control.Monad.Foil.Internal.html#sink"><span class="hs-identifier hs-var">sink</span></a></span><span> </span><span class="annot"><span class="annottext">e n
+</span><a href="#local-6989586621679234755"><span class="hs-identifier hs-var">ty</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>        </span><span class="annot"><span class="annottext">Param label e l -&gt; [Param label e l] -&gt; [Param label e l]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Telescope label e i l -&gt; [Param label e l]
+forall (e :: S -&gt; *) (l :: S) label (n :: S).
+(Sinkable e, Distinct l) =&gt;
+Telescope label e n l -&gt; [Param label e l]
+</span><a href="Control.Monad.Foil.Telescope.html#telescopeParams"><span class="hs-identifier hs-var">telescopeParams</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234757"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- | The chain of binders a telescope forms.</span><span>
+</span><span id="line-223"></span><span class="hs-comment">--</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- This is 'nameBinderListOf' at a telescope, written out. The general one</span><span>
+</span><span id="line-225"></span><span class="hs-comment">-- goes through 'withPattern' and so rebuilds the telescope only to throw it</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- away, which is worth avoiding on the checking path.</span><span>
+</span><span id="line-227"></span><span class="hs-comment">--</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-229"></span><span id="local-6989586621679234489"><span id="local-6989586621679234490"><span id="local-6989586621679234491"><span id="local-6989586621679234492"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#telescopeBinders"><span class="hs-identifier hs-type">telescopeBinders</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Telescope"><span class="hs-identifier hs-type">Telescope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234489"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234490"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234491"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234492"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinderList"><span class="hs-identifier hs-type">NameBinderList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234491"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234492"><span class="hs-identifier hs-type">l</span></a></span></span></span></span></span><span>
+</span><span id="line-230"></span><span id="telescopeBinders"><span class="annot"><span class="annottext">telescopeBinders :: forall label (e :: S -&gt; *) (n :: S) (l :: S).
+Telescope label e n l -&gt; NameBinderList n l
+</span><a href="Control.Monad.Foil.Telescope.html#telescopeBinders"><span class="hs-identifier hs-var hs-var">telescopeBinders</span></a></span></span><span> </span><span class="annot"><span class="annottext">Telescope label e n l
+</span><a href="Control.Monad.Foil.Telescope.html#TelescopeEmpty"><span class="hs-identifier hs-var">TelescopeEmpty</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameBinderList n n
+NameBinderList n l
+forall (n :: S). NameBinderList n n
+</span><a href="Control.Monad.Foil.Internal.html#NameBinderListEmpty"><span class="hs-identifier hs-var">NameBinderListEmpty</span></a></span><span>
+</span><span id="line-231"></span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#telescopeBinders"><span class="hs-identifier hs-var">telescopeBinders</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#TelescopeCons"><span class="hs-identifier hs-type">TelescopeCons</span></a></span><span> </span><span class="annot"><span class="annottext">label
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">e n
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679234779"><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234779"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span id="local-6989586621679234780"><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234780"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-232"></span><span>  </span><span class="annot"><span class="annottext">NameBinder n i -&gt; NameBinderList i l -&gt; NameBinderList n l
+forall (n :: S) (i :: S) (l :: S).
+NameBinder n i -&gt; NameBinderList i l -&gt; NameBinderList n l
+</span><a href="Control.Monad.Foil.Internal.html#NameBinderListCons"><span class="hs-identifier hs-var">NameBinderListCons</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder n i
+</span><a href="#local-6989586621679234779"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Telescope label e i l -&gt; NameBinderList i l
+forall label (e :: S -&gt; *) (n :: S) (l :: S).
+Telescope label e n l -&gt; NameBinderList n l
+</span><a href="Control.Monad.Foil.Telescope.html#telescopeBinders"><span class="hs-identifier hs-var">telescopeBinders</span></a></span><span> </span><span class="annot"><span class="annottext">Telescope label e i l
+</span><a href="#local-6989586621679234780"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- | Close a set of parameters under the parameters their payloads need.</span><span>
+</span><span id="line-235"></span><span class="hs-comment">--</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- Keeping a parameter puts its payload into the result, so whatever that</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- payload mentions has to be kept too. A payload mentions only the parameters</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- before it, so working from the inside out settles it in one pass.</span><span>
+</span><span id="line-239"></span><span class="hs-comment">--</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- The support of a payload is the caller's to supply, since the library does</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- not know what a payload is. For terms of the free foil it is</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- 'Control.Monad.Free.Foil.supportOf'.</span><span>
+</span><span id="line-243"></span><span class="hs-comment">--</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-245"></span><span id="local-6989586621679234502"><span id="local-6989586621679234503"><span id="local-6989586621679234505"><span class="annot"><a href="Control.Monad.Foil.Telescope.html#closeOverTelescope"><span class="hs-identifier hs-type">closeOverTelescope</span></a></span><span>
+</span><span id="line-246"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234502"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-247"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679234503"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234502"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameSet"><span class="hs-identifier hs-type">NameSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234502"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span>  </span><span class="annot"><span class="hs-comment">-- ^ The support of a payload.</span></span><span>
+</span><span id="line-248"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Telescope.html#Param"><span class="hs-identifier hs-type">Param</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234505"><span class="hs-keyword hs-type">label</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234503"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234502"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameSet"><span class="hs-identifier hs-type">NameSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234502"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameSet"><span class="hs-identifier hs-type">NameSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679234502"><span class="hs-identifier hs-type">l</span></a></span></span></span></span><span>
+</span><span id="line-249"></span><span id="closeOverTelescope"><span class="annot"><span class="annottext">closeOverTelescope :: forall (l :: S) (e :: S -&gt; *) label.
+Distinct l =&gt;
+(e l -&gt; NameSet l) -&gt; [Param label e l] -&gt; NameSet l -&gt; NameSet l
+</span><a href="Control.Monad.Foil.Telescope.html#closeOverTelescope"><span class="hs-identifier hs-var hs-var">closeOverTelescope</span></a></span></span><span> </span><span id="local-6989586621679234786"><span class="annot"><span class="annottext">e l -&gt; NameSet l
+</span><a href="#local-6989586621679234786"><span class="hs-identifier hs-var">supportOfPayload</span></a></span></span><span> </span><span id="local-6989586621679234787"><span class="annot"><span class="annottext">[Param label e l]
+</span><a href="#local-6989586621679234787"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span id="local-6989586621679234788"><span class="annot"><span class="annottext">NameSet l
+</span><a href="#local-6989586621679234788"><span class="hs-identifier hs-var">wanted</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Param label e l -&gt; NameSet l -&gt; NameSet l)
+-&gt; NameSet l -&gt; [Param label e l] -&gt; NameSet l
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">Param label e l -&gt; NameSet l -&gt; NameSet l
+</span><a href="#local-6989586621679234790"><span class="hs-identifier hs-var">close</span></a></span><span> </span><span class="annot"><span class="annottext">NameSet l
+</span><a href="#local-6989586621679234788"><span class="hs-identifier hs-var">wanted</span></a></span><span> </span><span class="annot"><span class="annottext">[Param label e l]
+</span><a href="#local-6989586621679234787"><span class="hs-identifier hs-var">params</span></a></span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-251"></span><span>    </span><span id="local-6989586621679234790"><span class="annot"><span class="annottext">close :: Param label e l -&gt; NameSet l -&gt; NameSet l
+</span><a href="#local-6989586621679234790"><span class="hs-identifier hs-var hs-var">close</span></a></span></span><span> </span><span id="local-6989586621679234791"><span class="annot"><span class="annottext">Param label e l
+</span><a href="#local-6989586621679234791"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679234792"><span class="annot"><span class="annottext">NameSet l
+</span><a href="#local-6989586621679234792"><span class="hs-identifier hs-var">keep</span></a></span></span><span>
+</span><span id="line-252"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Name l -&gt; NameSet l -&gt; Bool
+forall (n :: S). Name n -&gt; NameSet n -&gt; Bool
+</span><a href="Control.Monad.Foil.Internal.html#nameSetMember"><span class="hs-identifier hs-var">nameSetMember</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Param label e l -&gt; Name l
+forall label (e :: S -&gt; *) (l :: S). Param label e l -&gt; Name l
+</span><a href="Control.Monad.Foil.Telescope.html#paramName"><span class="hs-identifier hs-var">paramName</span></a></span><span> </span><span class="annot"><span class="annottext">Param label e l
+</span><a href="#local-6989586621679234791"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameSet l
+</span><a href="#local-6989586621679234792"><span class="hs-identifier hs-var">keep</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameSet l
+</span><a href="#local-6989586621679234792"><span class="hs-identifier hs-var">keep</span></a></span><span> </span><span class="annot"><span class="annottext">NameSet l -&gt; NameSet l -&gt; NameSet l
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">e l -&gt; NameSet l
+</span><a href="#local-6989586621679234786"><span class="hs-identifier hs-var">supportOfPayload</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Param label e l -&gt; e l
+forall label (e :: S -&gt; *) (l :: S). Param label e l -&gt; e l
+</span><a href="Control.Monad.Foil.Telescope.html#paramType"><span class="hs-identifier hs-var">paramType</span></a></span><span> </span><span class="annot"><span class="annottext">Param label e l
+</span><a href="#local-6989586621679234791"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameSet l
+</span><a href="#local-6989586621679234792"><span class="hs-identifier hs-var">keep</span></a></span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span></pre></body></html>

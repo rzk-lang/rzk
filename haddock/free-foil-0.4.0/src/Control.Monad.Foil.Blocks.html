@@ -1,0 +1,922 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds           #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GADTs               #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures      #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes          #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications    #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-redundant-constraints #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- | Reserved name blocks, and linking of independently checked scopes.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Each unit of a module system allocates its names inside its own</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- reservation (a 'NameRange', via 'withFreshIn'), so that units checked</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- independently can be linked afterwards without renaming. 'ExtWithin' is</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- the evidence for that: scope @l@ extends scope @n@ only within a set of</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- reserved ranges. Note that the ranges bound the /extension/ and not the</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- scope, so the names of @n@ itself (typically, a unit's imports) may lie</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- anywhere.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Two units that extend a common scope within disjoint reservations have</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- disjoint extensions. 'withDisjointUnion' links them by comparing the</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- reservations rather than the scopes, and hands the continuation the</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- extension evidence for both sides, a 'ScopeUnion' witness that the result</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- is the union and nothing more, and the union's own evidence, so that a</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- linked unit is itself linkable. Evidence composes along a chain of units</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- with 'composeExtWithin'. To link more than two units, or to re-attach a</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- unit loaded from a cache, rebuild the union scope and mint the evidence</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- again with 'checkExtScope' and 'checkScopeUnion'.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- 'checkExtScope' and 'checkScopeUnion' are a trust boundary. They compare</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- raw names across independently built scopes, which is meaningful only</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- under a deterministic reservation policy. Everything else in this module</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- either tests what it claims or constructs it.</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html"><span class="hs-identifier">Control.Monad.Foil.Blocks</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Extension-within-a-range evidence</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier">ExtWithin</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#extWithinRanges"><span class="hs-identifier">extWithinRanges</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#extWithinRefl"><span class="hs-identifier">extWithinRefl</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#extWithinStep"><span class="hs-identifier">extWithinStep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#composeExtWithin"><span class="hs-identifier">composeExtWithin</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Blocks in use</span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier">Block</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#beginBlock"><span class="hs-identifier">beginBlock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#resumeBlock"><span class="hs-identifier">resumeBlock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#blockRange"><span class="hs-identifier">blockRange</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#blockExt"><span class="hs-identifier">blockExt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#withFreshInBlock"><span class="hs-identifier">withFreshInBlock</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Bulk extension of a scope by a range</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#withExtendScopeRange"><span class="hs-identifier">withExtendScopeRange</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Linking</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ScopeUnion"><span class="hs-identifier">ScopeUnion</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#withDisjointUnion"><span class="hs-identifier">withDisjointUnion</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#checkScopeUnion"><span class="hs-identifier">checkScopeUnion</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#checkExtScope"><span class="hs-identifier">checkExtScope</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#unionNameMaps"><span class="hs-identifier">unionNameMaps</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>                   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">sortOn</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntMap</span></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span>                 </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntSet</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Unsafe.Coerce</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeCoerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Foil.Internal.html"><span class="hs-identifier">Control.Monad.Foil.Internal</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XDataKinds</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XFlexibleContexts</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- &gt;&gt;&gt; import Control.Monad.Foil.Internal</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Evidence that scope @l@ extends scope @n@ only within a set of reserved</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- ranges: every name of @l@ that is not a name of @n@ lies inside one of</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- them.</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- The evidence is built alongside allocation, with 'extWithinRefl' at the</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- start of a unit and 'extWithinStep' at each binder, and composes along a</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- chain of scopes with 'composeExtWithin'. Its runtime content is the</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- ranges, sorted and disjoint.</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-79"></span><span class="hs-keyword">data</span><span> </span><span id="ExtWithin"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-var">ExtWithin</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679230972"><span class="annot"><a href="#local-6989586621679230972"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679230973"><span class="annot"><a href="#local-6989586621679230973"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UnsafeExtWithin"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-var">UnsafeExtWithin</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- | The reservations an 'ExtWithin' is evidence about: sorted, disjoint,</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- adjacent ranges coalesced, empty ones dropped.</span><span>
+</span><span id="line-83"></span><span class="hs-comment">--</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-85"></span><span id="local-6989586621679230964"><span id="local-6989586621679230965"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#extWithinRanges"><span class="hs-identifier hs-type">extWithinRanges</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230964"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230965"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-86"></span><span id="extWithinRanges"><span class="annot"><span class="annottext">extWithinRanges :: forall (n :: S) (l :: S). ExtWithin n l -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#extWithinRanges"><span class="hs-identifier hs-var hs-var">extWithinRanges</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-type">UnsafeExtWithin</span></a></span><span> </span><span id="local-6989586621679231143"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231143"><span class="hs-identifier hs-var">ranges</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231143"><span class="hs-identifier hs-var">ranges</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | A scope extends itself within any range: the extension is empty.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- Note that this does /not/ say the range is disjoint from the scope. It is</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- 'withExtendScopeRange' that checks that, because it allocates blindly.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679230970"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#extWithinRefl"><span class="hs-identifier hs-type">extWithinRefl</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230970"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230970"><span class="hs-identifier hs-type">n</span></a></span></span><span>
+</span><span id="line-95"></span><span id="extWithinRefl"><span class="annot"><span class="annottext">extWithinRefl :: forall (n :: S). NameRange -&gt; ExtWithin n n
+</span><a href="Control.Monad.Foil.Blocks.html#extWithinRefl"><span class="hs-identifier hs-var hs-var">extWithinRefl</span></a></span></span><span> </span><span id="local-6989586621679231144"><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231144"><span class="hs-identifier hs-var">range</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; ExtWithin n n
+forall (n :: S) (l :: S). [NameRange] -&gt; ExtWithin n l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-var">UnsafeExtWithin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#normaliseRanges"><span class="hs-identifier hs-var">normaliseRanges</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231144"><span class="hs-identifier hs-var">range</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Extend the evidence across one more binder, if its name lies inside one</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- of the ranges. One membership test per range.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- A binder allocated by 'withFreshIn' at one of these ranges always passes.</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- A binder allocated elsewhere, by 'withFresh' or 'withRefreshed', is</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- rejected with 'Nothing' unless it happens to land inside them, so the</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- evidence cannot be extended past a name that escapes the reservations.</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- &gt;&gt;&gt; let range = NameRange 100 199</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- &gt;&gt;&gt; withFreshIn range emptyScope (\b -&gt; fmap extWithinRanges (extWithinStep b (extWithinRefl range)))</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- Just [NameRange {nameRangeLo = 100, nameRangeHi = 199}]</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-110"></span><span id="local-6989586621679230974"><span id="local-6989586621679230975"><span id="local-6989586621679230977"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#extWithinStep"><span class="hs-identifier hs-type">extWithinStep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230974"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230975"><span class="hs-identifier hs-type">l'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230977"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230974"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230977"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230975"><span class="hs-identifier hs-type">l'</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-111"></span><span id="extWithinStep"><span class="annot"><span class="annottext">extWithinStep :: forall (l :: S) (l' :: S) (n :: S).
+NameBinder l l' -&gt; ExtWithin n l -&gt; Maybe (ExtWithin n l')
+</span><a href="Control.Monad.Foil.Blocks.html#extWithinStep"><span class="hs-identifier hs-var hs-var">extWithinStep</span></a></span></span><span> </span><span id="local-6989586621679231152"><span class="annot"><span class="annottext">NameBinder l l'
+</span><a href="#local-6989586621679231152"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-type">UnsafeExtWithin</span></a></span><span> </span><span id="local-6989586621679231153"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231153"><span class="hs-identifier hs-var">ranges</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(NameRange -&gt; Bool) -&gt; [NameRange] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231155"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231155"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679231156"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231156"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231155"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231158"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231158"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231156"><span class="hs-identifier hs-var">hi</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231153"><span class="hs-identifier hs-var">ranges</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExtWithin n l' -&gt; Maybe (ExtWithin n l')
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; ExtWithin n l'
+forall (n :: S) (l :: S). [NameRange] -&gt; ExtWithin n l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-var">UnsafeExtWithin</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231153"><span class="hs-identifier hs-var">ranges</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (ExtWithin n l')
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679231158"><span class="annot"><span class="annottext">x :: RawName
+</span><a href="#local-6989586621679231158"><span class="hs-identifier hs-var hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name l' -&gt; RawName
+forall (l :: S). Name l -&gt; RawName
+</span><a href="Control.Monad.Foil.Internal.html#nameId"><span class="hs-identifier hs-var">nameId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameBinder l l' -&gt; Name l'
+forall (n :: S) (l :: S). NameBinder n l -&gt; Name l
+</span><a href="Control.Monad.Foil.Internal.html#nameOf"><span class="hs-identifier hs-var">nameOf</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder l l'
+</span><a href="#local-6989586621679231152"><span class="hs-identifier hs-var">binder</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- | Compose evidence along a chain of scopes: if @m@ extends @n@ only within</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- one set of ranges and @l@ extends @m@ only within another, then @l@</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- extends @n@ only within their union.</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- The bound is the union of the two sets and not their hull, so a</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- reservation lying between them stays linkable. Adjacent ranges are</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- coalesced, so a chain of units with consecutive stripes collapses back to</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- a single range.</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- &gt;&gt;&gt; extWithinRanges (composeExtWithin (extWithinRefl (NameRange 0 9)) (extWithinRefl (NameRange 30 39)))</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- [NameRange {nameRangeLo = 0, nameRangeHi = 9},NameRange {nameRangeLo = 30, nameRangeHi = 39}]</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- &gt;&gt;&gt; extWithinRanges (composeExtWithin (extWithinRefl (NameRange 0 9)) (extWithinRefl (NameRange 10 19)))</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- [NameRange {nameRangeLo = 0, nameRangeHi = 19}]</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-132"></span><span id="local-6989586621679230989"><span id="local-6989586621679230990"><span id="local-6989586621679230991"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#composeExtWithin"><span class="hs-identifier hs-type">composeExtWithin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230989"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230990"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230990"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230991"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230989"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679230991"><span class="hs-identifier hs-type">l</span></a></span></span></span></span><span>
+</span><span id="line-133"></span><span id="composeExtWithin"><span class="annot"><span class="annottext">composeExtWithin :: forall (n :: S) (m :: S) (l :: S).
+ExtWithin n m -&gt; ExtWithin m l -&gt; ExtWithin n l
+</span><a href="Control.Monad.Foil.Blocks.html#composeExtWithin"><span class="hs-identifier hs-var hs-var">composeExtWithin</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-type">UnsafeExtWithin</span></a></span><span> </span><span id="local-6989586621679231164"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231164"><span class="hs-identifier hs-var">rs1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-type">UnsafeExtWithin</span></a></span><span> </span><span id="local-6989586621679231165"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231165"><span class="hs-identifier hs-var">rs2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><span class="annottext">[NameRange] -&gt; ExtWithin n l
+forall (n :: S) (l :: S). [NameRange] -&gt; ExtWithin n l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-var">UnsafeExtWithin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#normaliseRanges"><span class="hs-identifier hs-var">normaliseRanges</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231164"><span class="hs-identifier hs-var">rs1</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange] -&gt; [NameRange]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231165"><span class="hs-identifier hs-var">rs2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><span class="hs-comment">-- | Sort ranges, drop empty ones, and coalesce overlapping or adjacent ones.</span></span><span>
+</span><span id="line-137"></span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#normaliseRanges"><span class="hs-identifier hs-type">normaliseRanges</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-138"></span><span id="normaliseRanges"><span class="annot"><span class="annottext">normaliseRanges :: [NameRange] -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#normaliseRanges"><span class="hs-identifier hs-var hs-var">normaliseRanges</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="#local-6989586621679231166"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">([NameRange] -&gt; [NameRange])
+-&gt; ([NameRange] -&gt; [NameRange]) -&gt; [NameRange] -&gt; [NameRange]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(NameRange -&gt; RawName) -&gt; [NameRange] -&gt; [NameRange]
+forall b a. Ord b =&gt; (a -&gt; b) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">sortOn</span></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; RawName
+</span><a href="Control.Monad.Foil.Internal.html#nameRangeLo"><span class="hs-identifier hs-var">nameRangeLo</span></a></span><span> </span><span class="annot"><span class="annottext">([NameRange] -&gt; [NameRange])
+-&gt; ([NameRange] -&gt; [NameRange]) -&gt; [NameRange] -&gt; [NameRange]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(NameRange -&gt; Bool) -&gt; [NameRange] -&gt; [NameRange]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; Bool
+</span><a href="#local-6989586621679231169"><span class="hs-identifier hs-var">nonEmpty</span></a></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-140"></span><span>    </span><span id="local-6989586621679231169"><span class="annot"><span class="annottext">nonEmpty :: NameRange -&gt; Bool
+</span><a href="#local-6989586621679231169"><span class="hs-identifier hs-var hs-var">nonEmpty</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231171"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231171"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679231172"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231172"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231171"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231172"><span class="hs-identifier hs-var">hi</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679231166"><span class="annot"><span class="annottext">go :: [NameRange] -&gt; [NameRange]
+</span><a href="#local-6989586621679231166"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231183"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231183"><span class="hs-identifier hs-var">lo1</span></a></span></span><span> </span><span id="local-6989586621679231184"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231184"><span class="hs-identifier hs-var">hi1</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679231185"><span class="annot"><span class="annottext">r2 :: NameRange
+</span><a href="#local-6989586621679231185"><span class="hs-identifier hs-var">r2</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231186"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231186"><span class="hs-identifier hs-var">lo2</span></a></span></span><span> </span><span id="local-6989586621679231187"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231187"><span class="hs-identifier hs-var">hi2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679231188"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231188"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231186"><span class="hs-identifier hs-var">lo2</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231184"><span class="hs-identifier hs-var">hi1</span></a></span><span>                      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="#local-6989586621679231166"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231183"><span class="hs-identifier hs-var">lo1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231184"><span class="hs-identifier hs-var">hi1</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231187"><span class="hs-identifier hs-var">hi2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; [NameRange] -&gt; [NameRange]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231188"><span class="hs-identifier hs-var">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231184"><span class="hs-identifier hs-var">hi1</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231186"><span class="hs-identifier hs-var">lo2</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231184"><span class="hs-identifier hs-var">hi1</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="#local-6989586621679231166"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231183"><span class="hs-identifier hs-var">lo1</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231187"><span class="hs-identifier hs-var">hi2</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; [NameRange] -&gt; [NameRange]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231188"><span class="hs-identifier hs-var">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231183"><span class="hs-identifier hs-var">lo1</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231184"><span class="hs-identifier hs-var">hi1</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; [NameRange] -&gt; [NameRange]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="#local-6989586621679231166"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231185"><span class="hs-identifier hs-var">r2</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; [NameRange] -&gt; [NameRange]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231188"><span class="hs-identifier hs-var">rs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><a href="#local-6989586621679231166"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679231193"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231193"><span class="hs-identifier hs-var">rs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231193"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="annot"><span class="hs-comment">-- | Whether two sorted sets of disjoint ranges share a name. One sweep.</span></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#rangeSetsOverlap"><span class="hs-identifier hs-type">rangeSetsOverlap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-149"></span><span id="rangeSetsOverlap"><span class="annot"><span class="annottext">rangeSetsOverlap :: [NameRange] -&gt; [NameRange] -&gt; Bool
+</span><a href="Control.Monad.Foil.Blocks.html#rangeSetsOverlap"><span class="hs-identifier hs-var hs-var">rangeSetsOverlap</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231195"><span class="annot"><span class="annottext">r1 :: NameRange
+</span><a href="#local-6989586621679231195"><span class="hs-identifier hs-var">r1</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231196"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231196"><span class="hs-identifier hs-var">lo1</span></a></span></span><span> </span><span id="local-6989586621679231197"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231197"><span class="hs-identifier hs-var">hi1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679231198"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231198"><span class="hs-identifier hs-var">rs1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231199"><span class="annot"><span class="annottext">r2 :: NameRange
+</span><a href="#local-6989586621679231199"><span class="hs-identifier hs-var">r2</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231200"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231200"><span class="hs-identifier hs-var">lo2</span></a></span></span><span> </span><span id="local-6989586621679231201"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231201"><span class="hs-identifier hs-var">hi2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679231202"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231202"><span class="hs-identifier hs-var">rs2</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231197"><span class="hs-identifier hs-var">hi1</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231200"><span class="hs-identifier hs-var">lo2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange] -&gt; Bool
+</span><a href="Control.Monad.Foil.Blocks.html#rangeSetsOverlap"><span class="hs-identifier hs-var">rangeSetsOverlap</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231198"><span class="hs-identifier hs-var">rs1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231199"><span class="hs-identifier hs-var">r2</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; [NameRange] -&gt; [NameRange]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231202"><span class="hs-identifier hs-var">rs2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231201"><span class="hs-identifier hs-var">hi2</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231196"><span class="hs-identifier hs-var">lo1</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange] -&gt; Bool
+</span><a href="Control.Monad.Foil.Blocks.html#rangeSetsOverlap"><span class="hs-identifier hs-var">rangeSetsOverlap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231195"><span class="hs-identifier hs-var">r1</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; [NameRange] -&gt; [NameRange]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231198"><span class="hs-identifier hs-var">rs1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231202"><span class="hs-identifier hs-var">rs2</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-153"></span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#rangeSetsOverlap"><span class="hs-identifier hs-var">rangeSetsOverlap</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- | A reservation in use: the range fresh names are allocated from, paired</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- with the evidence that everything allocated since the base scope @c@ lies</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- within the unit's ranges.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- The allocation range is always among the evidence's ranges, so stepping</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- the evidence at a freshly allocated name cannot fail and 'withFreshInBlock'</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- is total. The two components are not redundant: the evidence is a</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- normalised set bounding the whole extension, and once units are composed</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- the range to allocate from can no longer be read off it.</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- @since 0.0.1</span><span>
+</span><span id="line-166"></span><span class="hs-keyword">data</span><span> </span><span id="Block"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-var">Block</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231009"><span class="annot"><a href="#local-6989586621679231009"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231010"><span class="annot"><a href="#local-6989586621679231010"><span class="hs-identifier hs-type">l</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UnsafeBlock"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-var">UnsafeBlock</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231009"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231010"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- | Start a unit: no names allocated yet, so the evidence is trivial.</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-171"></span><span id="local-6989586621679231006"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#beginBlock"><span class="hs-identifier hs-type">beginBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-type">Block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231006"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231006"><span class="hs-identifier hs-type">c</span></a></span></span><span>
+</span><span id="line-172"></span><span id="beginBlock"><span class="annot"><span class="annottext">beginBlock :: forall (c :: S). NameRange -&gt; Block c c
+</span><a href="Control.Monad.Foil.Blocks.html#beginBlock"><span class="hs-identifier hs-var hs-var">beginBlock</span></a></span></span><span> </span><span id="local-6989586621679231205"><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231205"><span class="hs-identifier hs-var">range</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; ExtWithin c c -&gt; Block c c
+forall (c :: S) (l :: S). NameRange -&gt; ExtWithin c l -&gt; Block c l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-var">UnsafeBlock</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231205"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameRange -&gt; ExtWithin c c
+forall (n :: S). NameRange -&gt; ExtWithin n n
+</span><a href="Control.Monad.Foil.Blocks.html#extWithinRefl"><span class="hs-identifier hs-var">extWithinRefl</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231205"><span class="hs-identifier hs-var">range</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- | Resume allocating from a range once the evidence has grown past what a</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- 'Block' tracked by itself, after composing in a loaded unit's evidence</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- with 'composeExtWithin'. This is what lets an interactive unit keep</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- allocating in its own reservation over the enlarged scope.</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- The allocation range must lie inside one of the evidence's ranges. The</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- ranges are normalised, so covering is containment in a single one, and</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- 'Nothing' says the range is not covered.</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- &gt;&gt;&gt; let grown = composeExtWithin (extWithinRefl (NameRange 0 9)) (extWithinRefl (NameRange 10 19))</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- &gt;&gt;&gt; fmap blockRange (resumeBlock (NameRange 0 9) grown)</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- Just (NameRange {nameRangeLo = 0, nameRangeHi = 9})</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- &gt;&gt;&gt; fmap blockRange (resumeBlock (NameRange 30 39) grown)</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-188"></span><span class="hs-comment">--</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-190"></span><span id="local-6989586621679231011"><span id="local-6989586621679231012"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#resumeBlock"><span class="hs-identifier hs-type">resumeBlock</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231011"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231012"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-type">Block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231011"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231012"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-191"></span><span id="resumeBlock"><span class="annot"><span class="annottext">resumeBlock :: forall (c :: S) (l :: S).
+NameRange -&gt; ExtWithin c l -&gt; Maybe (Block c l)
+</span><a href="Control.Monad.Foil.Blocks.html#resumeBlock"><span class="hs-identifier hs-var hs-var">resumeBlock</span></a></span></span><span> </span><span id="local-6989586621679231210"><span class="annot"><span class="annottext">range :: NameRange
+</span><a href="#local-6989586621679231210"><span class="hs-identifier hs-var">range</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231211"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231211"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679231212"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231212"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679231213"><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231213"><span class="hs-identifier hs-var">ext</span></a></span></span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231211"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231212"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Block c l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(NameRange -&gt; Bool) -&gt; [NameRange] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">NameRange -&gt; Bool
+</span><a href="#local-6989586621679231215"><span class="hs-identifier hs-var">covers</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ExtWithin c l -&gt; [NameRange]
+forall (n :: S) (l :: S). ExtWithin n l -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#extWithinRanges"><span class="hs-identifier hs-var">extWithinRanges</span></a></span><span> </span><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231213"><span class="hs-identifier hs-var">ext</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Block c l -&gt; Maybe (Block c l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameRange -&gt; ExtWithin c l -&gt; Block c l
+forall (c :: S) (l :: S). NameRange -&gt; ExtWithin c l -&gt; Block c l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-var">UnsafeBlock</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231210"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231213"><span class="hs-identifier hs-var">ext</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Block c l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-195"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-196"></span><span>    </span><span id="local-6989586621679231215"><span class="annot"><span class="annottext">covers :: NameRange -&gt; Bool
+</span><a href="#local-6989586621679231215"><span class="hs-identifier hs-var hs-var">covers</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231216"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231216"><span class="hs-identifier hs-var">lo'</span></a></span></span><span> </span><span id="local-6989586621679231217"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231217"><span class="hs-identifier hs-var">hi'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231216"><span class="hs-identifier hs-var">lo'</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231211"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231212"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231217"><span class="hs-identifier hs-var">hi'</span></a></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | The range 'withFreshInBlock' allocates from.</span><span>
+</span><span id="line-199"></span><span class="hs-comment">--</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-201"></span><span id="local-6989586621679231015"><span id="local-6989586621679231016"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#blockRange"><span class="hs-identifier hs-type">blockRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-type">Block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231015"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231016"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span></span></span><span>
+</span><span id="line-202"></span><span id="blockRange"><span class="annot"><span class="annottext">blockRange :: forall (c :: S) (l :: S). Block c l -&gt; NameRange
+</span><a href="Control.Monad.Foil.Blocks.html#blockRange"><span class="hs-identifier hs-var hs-var">blockRange</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-type">UnsafeBlock</span></a></span><span> </span><span id="local-6989586621679231218"><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231218"><span class="hs-identifier hs-var">range</span></a></span></span><span> </span><span class="annot"><span class="annottext">ExtWithin c l
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231218"><span class="hs-identifier hs-var">range</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- | The evidence accumulated so far: what a finished unit hands to</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- 'withDisjointUnion', or to 'composeExtWithin' for the next unit of a</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- chain.</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-209"></span><span id="local-6989586621679231019"><span id="local-6989586621679231020"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#blockExt"><span class="hs-identifier hs-type">blockExt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-type">Block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231019"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231020"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231019"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231020"><span class="hs-identifier hs-type">l</span></a></span></span></span><span>
+</span><span id="line-210"></span><span id="blockExt"><span class="annot"><span class="annottext">blockExt :: forall (c :: S) (l :: S). Block c l -&gt; ExtWithin c l
+</span><a href="Control.Monad.Foil.Blocks.html#blockExt"><span class="hs-identifier hs-var hs-var">blockExt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-type">UnsafeBlock</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679231219"><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231219"><span class="hs-identifier hs-var">ext</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231219"><span class="hs-identifier hs-var">ext</span></a></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- | Allocate a fresh name in the block's range, stepping the evidence in</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- the same motion. Fails with 'error' only on an exhausted range, exactly</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- as 'withFreshIn' does.</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- &gt;&gt;&gt; withFreshInBlock (beginBlock (NameRange 7 9)) emptyScope (\b block -&gt; (nameId (nameOf b), extWithinRanges (blockExt block)))</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- (7,[NameRange {nameRangeLo = 7, nameRangeHi = 9}])</span><span>
+</span><span id="line-218"></span><span class="hs-comment">--</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-220"></span><span id="local-6989586621679231023"><span id="local-6989586621679231025"><span id="local-6989586621679231029"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#withFreshInBlock"><span class="hs-identifier hs-type">withFreshInBlock</span></a></span><span>
+</span><span id="line-221"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231023"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-type">Block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231025"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231023"><span class="hs-identifier hs-type">l</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ The block to allocate from.</span></span><span>
+</span><span id="line-223"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231023"><span class="hs-identifier hs-type">l</span></a></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ The ambient scope.</span></span><span>
+</span><span id="line-224"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231027"><span class="annot"><a href="#local-6989586621679231027"><span class="hs-identifier hs-type">l'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231023"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231027"><span class="hs-identifier hs-type">l'</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231023"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231027"><span class="hs-identifier hs-type">l'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#Block"><span class="hs-identifier hs-type">Block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231025"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231027"><span class="hs-identifier hs-type">l'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231029"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231029"><span class="hs-identifier hs-type">r</span></a></span></span></span></span><span>
+</span><span id="line-226"></span><span id="withFreshInBlock"><span class="annot"><span class="annottext">withFreshInBlock :: forall (l :: S) (c :: S) r.
+Distinct l =&gt;
+Block c l
+-&gt; Scope l
+-&gt; (forall (l' :: S).
+    DExt l l' =&gt;
+    NameBinder l l' -&gt; Block c l' -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Blocks.html#withFreshInBlock"><span class="hs-identifier hs-var hs-var">withFreshInBlock</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-type">UnsafeBlock</span></a></span><span> </span><span id="local-6989586621679231223"><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231223"><span class="hs-identifier hs-var">range</span></a></span></span><span> </span><span id="local-6989586621679231224"><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231224"><span class="hs-identifier hs-var">ext</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679231225"><span class="annot"><span class="annottext">Scope l
+</span><a href="#local-6989586621679231225"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679231226"><span class="annot"><span class="annottext">forall (l' :: S). DExt l l' =&gt; NameBinder l l' -&gt; Block c l' -&gt; r
+</span><a href="#local-6989586621679231226"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-227"></span><span>  </span><span class="annot"><span class="annottext">NameRange
+-&gt; Scope l
+-&gt; (forall (l :: S). DExt l l =&gt; NameBinder l l -&gt; r)
+-&gt; r
+forall (n :: S) r.
+Distinct n =&gt;
+NameRange
+-&gt; Scope n
+-&gt; (forall (l :: S). DExt n l =&gt; NameBinder n l -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Internal.html#withFreshIn"><span class="hs-identifier hs-var">withFreshIn</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231223"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="annot"><span class="annottext">Scope l
+</span><a href="#local-6989586621679231225"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">((forall (l :: S). DExt l l =&gt; NameBinder l l -&gt; r) -&gt; r)
+-&gt; (forall (l :: S). DExt l l =&gt; NameBinder l l -&gt; r) -&gt; r
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679231231"><span class="annot"><span class="annottext">NameBinder l l
+</span><a href="#local-6989586621679231231"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-228"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">NameBinder l l -&gt; ExtWithin c l -&gt; Maybe (ExtWithin c l)
+forall (l :: S) (l' :: S) (n :: S).
+NameBinder l l' -&gt; ExtWithin n l -&gt; Maybe (ExtWithin n l')
+</span><a href="Control.Monad.Foil.Blocks.html#extWithinStep"><span class="hs-identifier hs-var">extWithinStep</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder l l
+</span><a href="#local-6989586621679231231"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231224"><span class="hs-identifier hs-var">ext</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-229"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679231232"><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231232"><span class="hs-identifier hs-var">ext'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NameBinder l l -&gt; Block c l -&gt; r
+forall (l' :: S). DExt l l' =&gt; NameBinder l l' -&gt; Block c l' -&gt; r
+</span><a href="#local-6989586621679231226"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinder l l
+</span><a href="#local-6989586621679231231"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NameRange -&gt; ExtWithin c l -&gt; Block c l
+forall (c :: S) (l :: S). NameRange -&gt; ExtWithin c l -&gt; Block c l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeBlock"><span class="hs-identifier hs-var">UnsafeBlock</span></a></span><span> </span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231223"><span class="hs-identifier hs-var">range</span></a></span><span> </span><span class="annot"><span class="annottext">ExtWithin c l
+</span><a href="#local-6989586621679231232"><span class="hs-identifier hs-var">ext'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span><span>      </span><span class="annot"><span class="annottext">Maybe (ExtWithin c l)
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; r
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;impossible: withFreshIn allocated outside its own range&quot;</span></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- | Extend a scope with the first @k@ names of a range, in one step.</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- This is the bulk form of a unit's allocation, for loading a cached unit</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- whose extension is known to be @k@ consecutive names, or for pre-allocating</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- a unit's names before checking its bodies. The range part of the scope must</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- be empty, which is checked, so the extension is fresh by construction.</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- 'Nothing' reports an occupied range, and also a range with fewer than @k@</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- names.</span><span>
+</span><span id="line-240"></span><span class="hs-comment">--</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- The continuation receives the extended scope, the binders in ascending</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- order (for extending a 'NameMap' in the same step), and the 'ExtWithin'</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- evidence. The scope extension is a dense 'IntSet.fromRange', \(O(k/W)\).</span><span>
+</span><span id="line-244"></span><span class="hs-comment">--</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- &gt;&gt;&gt; withExtendScopeRange emptyScope (NameRange 100 199) 3 (\_ binders _ -&gt; rawNameBinderList binders)</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- Just [100,101,102]</span><span>
+</span><span id="line-247"></span><span class="hs-comment">--</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-249"></span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#withExtendScopeRange"><span class="hs-identifier hs-type">withExtendScopeRange</span></a></span><span>
+</span><span id="line-250"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231045"><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span id="local-6989586621679231048"><span class="annot"><a href="#local-6989586621679231048"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-251"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The scope to extend (typically, a unit's imports).</span></span><span>
+</span><span id="line-252"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ The unit's reservation.</span></span><span>
+</span><span id="line-253"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ How many names to allocate.</span></span><span>
+</span><span id="line-254"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231046"><span class="annot"><a href="#local-6989586621679231046"><span class="hs-identifier hs-type">n</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231046"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231046"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinderList"><span class="hs-identifier hs-type">NameBinderList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231046"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231046"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231048"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679231048"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-256"></span><span id="withExtendScopeRange"><span class="annot"><span class="annottext">withExtendScopeRange :: forall (c :: S) r.
+Distinct c =&gt;
+Scope c
+-&gt; NameRange
+-&gt; RawName
+-&gt; (forall (n :: S).
+    DExt c n =&gt;
+    Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r)
+-&gt; Maybe r
+</span><a href="Control.Monad.Foil.Blocks.html#withExtendScopeRange"><span class="hs-identifier hs-var hs-var">withExtendScopeRange</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231257"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231257"><span class="hs-identifier hs-var">scope</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679231258"><span class="annot"><span class="annottext">range :: NameRange
+</span><a href="#local-6989586621679231258"><span class="hs-identifier hs-var">range</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679231259"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679231260"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231260"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679231261"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span id="local-6989586621679231262"><span class="annot"><span class="annottext">forall (n :: S).
+DExt c n =&gt;
+Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r
+</span><a href="#local-6989586621679231262"><span class="hs-identifier hs-var">cont</span></a></span></span><span>
+</span><span id="line-257"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">0</span></span><span>                        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe r
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679231263"><span class="hs-identifier hs-var">rangeOccupied</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe r
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-259"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679231264"><span class="hs-identifier hs-var">rangeCapacity</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe r
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-260"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-261"></span><span>      </span><span class="annot"><span class="annottext">r -&gt; Maybe r
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope (ZonkAny 2)
+-&gt; NameBinderList c (ZonkAny 2)
+-&gt; ExtWithin c (ZonkAny 2)
+-&gt; (DExt c (ZonkAny 2) =&gt;
+    Scope (ZonkAny 2)
+    -&gt; NameBinderList c (ZonkAny 2) -&gt; ExtWithin c (ZonkAny 2) -&gt; r)
+-&gt; r
+forall (c :: S) (n :: S) r.
+Scope n
+-&gt; NameBinderList c n
+-&gt; ExtWithin c n
+-&gt; (DExt c n =&gt;
+    Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Blocks.html#unsafeExtendedWithin"><span class="hs-identifier hs-var">unsafeExtendedWithin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawScope -&gt; Scope (ZonkAny 2)
+forall (n :: S). RawScope -&gt; Scope n
+</span><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-var">UnsafeScope</span></a></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231266"><span class="hs-identifier hs-var">scope'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">NameBinderList c (ZonkAny 2)
+forall (n :: S). NameBinderList c n
+</span><a href="#local-6989586621679231267"><span class="hs-identifier hs-var">binders</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; ExtWithin c (ZonkAny 2)
+forall (n :: S) (l :: S). [NameRange] -&gt; ExtWithin n l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-var">UnsafeExtWithin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#normaliseRanges"><span class="hs-identifier hs-var">normaliseRanges</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">NameRange
+</span><a href="#local-6989586621679231258"><span class="hs-identifier hs-var">range</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">DExt c (ZonkAny 2) =&gt;
+Scope (ZonkAny 2)
+-&gt; NameBinderList c (ZonkAny 2) -&gt; ExtWithin c (ZonkAny 2) -&gt; r
+Scope (ZonkAny 2)
+-&gt; NameBinderList c (ZonkAny 2) -&gt; ExtWithin c (ZonkAny 2) -&gt; r
+forall (n :: S).
+DExt c n =&gt;
+Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r
+</span><a href="#local-6989586621679231262"><span class="hs-identifier hs-var">cont</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-263"></span><span>    </span><span id="local-6989586621679231263"><span class="annot"><span class="annottext">rangeOccupied :: Bool
+</span><a href="#local-6989586621679231263"><span class="hs-identifier hs-var hs-var">rangeOccupied</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawScope -&gt; Maybe RawName
+</span><span class="hs-identifier hs-var">IntSet.lookupGE</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231257"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-264"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679231271"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231271"><span class="hs-identifier hs-var">y</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231271"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231260"><span class="hs-identifier hs-var">hi</span></a></span><span>
+</span><span id="line-265"></span><span>      </span><span class="annot"><span class="annottext">Maybe RawName
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-266"></span><span>    </span><span id="local-6989586621679231264"><span class="annot"><span class="annottext">rangeCapacity :: Integer
+</span><a href="#local-6989586621679231264"><span class="hs-identifier hs-var hs-var">rangeCapacity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231260"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>    </span><span id="local-6989586621679231266"><span class="annot"><span class="annottext">scope' :: RawScope
+</span><a href="#local-6989586621679231266"><span class="hs-identifier hs-var hs-var">scope'</span></a></span></span><span>
+</span><span id="line-268"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">0</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231257"><span class="hs-identifier hs-var">scope</span></a></span><span>
+</span><span id="line-269"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawScope -&gt; RawScope -&gt; RawScope
+</span><span class="hs-identifier hs-var">IntSet.union</span></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231257"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(RawName, RawName) -&gt; RawScope
+</span><span class="hs-identifier hs-var">IntSet.fromRange</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>    </span><span class="annot"><a href="#local-6989586621679231267"><span class="hs-identifier hs-type">binders</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231057"><span class="annot"><a href="#local-6989586621679231057"><span class="hs-identifier hs-type">n</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinderList"><span class="hs-identifier hs-type">NameBinderList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231045"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231057"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-271"></span><span>    </span><span id="local-6989586621679231267"><span class="annot"><span class="annottext">binders :: forall (n :: S). NameBinderList c n
+</span><a href="#local-6989586621679231267"><span class="hs-identifier hs-var hs-var">binders</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[RawName] -&gt; NameBinderList c n
+forall (m :: S) (m' :: S). [RawName] -&gt; NameBinderList m m'
+</span><a href="#local-6989586621679231280"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231259"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231261"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; RawName
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-273"></span><span>        </span><span class="annot"><a href="#local-6989586621679231280"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231059"><span class="annot"><a href="#local-6989586621679231059"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679231060"><span class="annot"><a href="#local-6989586621679231060"><span class="hs-identifier hs-type">m'</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#RawName"><span class="hs-identifier hs-type">RawName</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinderList"><span class="hs-identifier hs-type">NameBinderList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231059"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231060"><span class="hs-identifier hs-type">m'</span></a></span><span>
+</span><span id="line-274"></span><span>        </span><span id="local-6989586621679231280"><span class="annot"><span class="annottext">go :: forall (m :: S) (m' :: S). [RawName] -&gt; NameBinderList m m'
+</span><a href="#local-6989586621679231280"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameBinderList (ZonkAny 0) (ZonkAny 0) -&gt; NameBinderList m m'
+forall a b. a -&gt; b
+</span><span class="hs-identifier hs-var">unsafeCoerce</span></span><span> </span><span class="annot"><span class="annottext">NameBinderList (ZonkAny 0) (ZonkAny 0)
+forall (n :: S). NameBinderList n n
+</span><a href="Control.Monad.Foil.Internal.html#NameBinderListEmpty"><span class="hs-identifier hs-var">NameBinderListEmpty</span></a></span><span>
+</span><span id="line-275"></span><span>        </span><span class="annot"><a href="#local-6989586621679231280"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231282"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231282"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679231283"><span class="annot"><span class="annottext">[RawName]
+</span><a href="#local-6989586621679231283"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NameBinder m (ZonkAny 1)
+-&gt; NameBinderList (ZonkAny 1) m' -&gt; NameBinderList m m'
+forall (n :: S) (i :: S) (l :: S).
+NameBinder n i -&gt; NameBinderList i l -&gt; NameBinderList n l
+</span><a href="Control.Monad.Foil.Internal.html#NameBinderListCons"><span class="hs-identifier hs-var">NameBinderListCons</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Name (ZonkAny 1) -&gt; NameBinder m (ZonkAny 1)
+forall (n :: S) (l :: S). Name l -&gt; NameBinder n l
+</span><a href="Control.Monad.Foil.Internal.html#UnsafeNameBinder"><span class="hs-identifier hs-var">UnsafeNameBinder</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawName -&gt; Name (ZonkAny 1)
+forall (n :: S). RawName -&gt; Name n
+</span><a href="Control.Monad.Foil.Internal.html#UnsafeName"><span class="hs-identifier hs-var">UnsafeName</span></a></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679231282"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[RawName] -&gt; NameBinderList (ZonkAny 1) m'
+forall (m :: S) (m' :: S). [RawName] -&gt; NameBinderList m m'
+</span><a href="#local-6989586621679231280"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[RawName]
+</span><a href="#local-6989586621679231283"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-276"></span><span>
+</span><span id="line-277"></span><span class="hs-comment">-- | Unsafely mint the evidence for an extension built by this module.</span><span>
+</span><span id="line-278"></span><span class="hs-comment">--</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- Sound when the scope really is the given base extended by the binders, and</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- the binders' names lie inside the evidence's range and are fresh in the</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- base. The callers here check or construct all three.</span><span>
+</span><span id="line-282"></span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#unsafeExtendedWithin"><span class="hs-identifier hs-type">unsafeExtendedWithin</span></a></span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231054"><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span id="local-6989586621679231053"><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679231055"><span class="annot"><a href="#local-6989586621679231055"><span class="hs-identifier hs-type">r</span></a></span></span><span>
+</span><span id="line-284"></span><span>   </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinderList"><span class="hs-identifier hs-type">NameBinderList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-285"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#DExt"><span class="hs-identifier hs-type">DExt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinderList"><span class="hs-identifier hs-type">NameBinderList</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231055"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-286"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231055"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-287"></span><span id="unsafeExtendedWithin"><span class="annot"><span class="annottext">unsafeExtendedWithin :: forall (c :: S) (n :: S) r.
+Scope n
+-&gt; NameBinderList c n
+-&gt; ExtWithin c n
+-&gt; (DExt c n =&gt;
+    Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r)
+-&gt; r
+</span><a href="Control.Monad.Foil.Blocks.html#unsafeExtendedWithin"><span class="hs-identifier hs-var hs-var">unsafeExtendedWithin</span></a></span></span><span> </span><span id="local-6989586621679231287"><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679231287"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679231288"><span class="annot"><span class="annottext">NameBinderList c n
+</span><a href="#local-6989586621679231288"><span class="hs-identifier hs-var">binders</span></a></span></span><span> </span><span id="local-6989586621679231289"><span class="annot"><span class="annottext">ExtWithin c n
+</span><a href="#local-6989586621679231289"><span class="hs-identifier hs-var">ext</span></a></span></span><span> </span><span id="local-6989586621679231290"><span class="annot"><span class="annottext">DExt c n =&gt; Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r
+</span><a href="#local-6989586621679231290"><span class="hs-identifier hs-var">cont</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-288"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (n :: S). DistinctEvidence n
+</span><a href="Control.Monad.Foil.Internal.html#unsafeDistinct"><span class="hs-identifier hs-var">unsafeDistinct</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-289"></span><span>    </span><span class="annot"><span class="annottext">DistinctEvidence n
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (n :: S) (l :: S). ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#unsafeExt"><span class="hs-identifier hs-var">unsafeExt</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231054"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231053"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-290"></span><span>      </span><span class="annot"><span class="annottext">ExtEvidence c n
+</span><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-var">Ext</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">DExt c n =&gt; Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r
+Scope n -&gt; NameBinderList c n -&gt; ExtWithin c n -&gt; r
+</span><a href="#local-6989586621679231290"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">Scope n
+</span><a href="#local-6989586621679231287"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">NameBinderList c n
+</span><a href="#local-6989586621679231288"><span class="hs-identifier hs-var">binders</span></a></span><span> </span><span class="annot"><span class="annottext">ExtWithin c n
+</span><a href="#local-6989586621679231289"><span class="hs-identifier hs-var">ext</span></a></span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- | Link two scopes that extend a common scope @c@ within their respective</span><span>
+</span><span id="line-293"></span><span class="hs-comment">-- reservations. The evidence check is one sweep over the two range sets;</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- the scope union is one 'IntSet.union'.</span><span>
+</span><span id="line-295"></span><span class="hs-comment">--</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- 'Nothing' when the two range sets overlap. The test is soundness and not</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- an optimisation. The extensions @n \\ c@ and @m \\ c@ lie inside their</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- respective range sets, so their disjointness is what guarantees that no</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- raw name denotes two different variables in the union. The names the two</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- scopes share are exactly the names of @c@, identified rather than renamed</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- apart, which is what linking two units over a common import must do.</span><span>
+</span><span id="line-302"></span><span class="hs-comment">--</span><span>
+</span><span id="line-303"></span><span class="hs-comment">-- The continuation receives both extension facts at once, a 'ScopeUnion'</span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- witness (which 'unionNameMaps' requires), and the union's own 'ExtWithin',</span><span>
+</span><span id="line-305"></span><span class="hs-comment">-- so that a linked unit is itself linkable and a whole build folds through</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- this one function. It also receives @'Ext' c k@, which a caller cannot</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- derive on the spot.</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-310"></span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#withDisjointUnion"><span class="hs-identifier hs-type">withDisjointUnion</span></a></span><span>
+</span><span id="line-311"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231084"><span class="annot"><a href="#local-6989586621679231084"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span id="local-6989586621679231082"><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span id="local-6989586621679231083"><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679231087"><span class="annot"><a href="#local-6989586621679231087"><span class="hs-identifier hs-type">r</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231084"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Evidence for the first unit.</span></span><span>
+</span><span id="line-313"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231084"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Evidence for the second unit.</span></span><span>
+</span><span id="line-314"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ The first unit's scope.</span></span><span>
+</span><span id="line-315"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ The second unit's scope.</span></span><span>
+</span><span id="line-316"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231085"><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-type">Ext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-type">Ext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-type">Ext</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231084"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-317"></span><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ScopeUnion"><span class="hs-identifier hs-type">ScopeUnion</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ExtWithin"><span class="hs-identifier hs-type">ExtWithin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231084"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231085"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231087"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-318"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679231087"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-319"></span><span id="withDisjointUnion"><span class="annot"><span class="annottext">withDisjointUnion :: forall (c :: S) (n :: S) (m :: S) r.
+(Distinct n, Distinct m) =&gt;
+ExtWithin c n
+-&gt; ExtWithin c m
+-&gt; Scope n
+-&gt; Scope m
+-&gt; (forall (k :: S).
+    (Ext n k, Ext m k, Ext c k, Distinct k) =&gt;
+    Scope k -&gt; ScopeUnion n m k -&gt; ExtWithin c k -&gt; r)
+-&gt; Maybe r
+</span><a href="Control.Monad.Foil.Blocks.html#withDisjointUnion"><span class="hs-identifier hs-var hs-var">withDisjointUnion</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-type">UnsafeExtWithin</span></a></span><span> </span><span id="local-6989586621679231300"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231300"><span class="hs-identifier hs-var">rs1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-type">UnsafeExtWithin</span></a></span><span> </span><span id="local-6989586621679231301"><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231301"><span class="hs-identifier hs-var">rs2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231302"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231302"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231303"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231303"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679231304"><span class="annot"><span class="annottext">forall (k :: S).
+(Ext n k, Ext m k, Ext c k, Distinct k) =&gt;
+Scope k -&gt; ScopeUnion n m k -&gt; ExtWithin c k -&gt; r
+</span><a href="#local-6989586621679231304"><span class="hs-identifier hs-var">cont</span></a></span></span><span>
+</span><span id="line-320"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange] -&gt; Bool
+</span><a href="Control.Monad.Foil.Blocks.html#rangeSetsOverlap"><span class="hs-identifier hs-var">rangeSetsOverlap</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231300"><span class="hs-identifier hs-var">rs1</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231301"><span class="hs-identifier hs-var">rs2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe r
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-321"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">r -&gt; Maybe r
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope (ZonkAny 3) -&gt; r
+forall (k :: S). Scope k -&gt; r
+</span><a href="#local-6989586621679231305"><span class="hs-identifier hs-var">unsafeUnion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawScope -&gt; Scope (ZonkAny 3)
+forall (n :: S). RawScope -&gt; Scope n
+</span><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-var">UnsafeScope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawScope -&gt; RawScope -&gt; RawScope
+</span><span class="hs-identifier hs-var">IntSet.union</span></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231302"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231303"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-322"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-323"></span><span>    </span><span class="annot"><a href="#local-6989586621679231305"><span class="hs-identifier hs-type">unsafeUnion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679231092"><span class="annot"><a href="#local-6989586621679231092"><span class="hs-identifier hs-type">k</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231092"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679231087"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-324"></span><span>    </span><span id="local-6989586621679231305"><span class="annot"><span class="annottext">unsafeUnion :: forall (k :: S). Scope k -&gt; r
+</span><a href="#local-6989586621679231305"><span class="hs-identifier hs-var hs-var">unsafeUnion</span></a></span></span><span> </span><span id="local-6989586621679231306"><span class="annot"><span class="annottext">Scope k
+</span><a href="#local-6989586621679231306"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-325"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (n :: S). DistinctEvidence n
+</span><a href="Control.Monad.Foil.Internal.html#unsafeDistinct"><span class="hs-identifier hs-var">unsafeDistinct</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231092"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-326"></span><span>        </span><span class="annot"><span class="annottext">DistinctEvidence k
+</span><a href="Control.Monad.Foil.Internal.html#Distinct"><span class="hs-identifier hs-var">Distinct</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (n :: S) (l :: S). ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#unsafeExt"><span class="hs-identifier hs-var">unsafeExt</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231082"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231092"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-327"></span><span>          </span><span class="annot"><span class="annottext">ExtEvidence n k
+</span><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-var">Ext</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (n :: S) (l :: S). ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#unsafeExt"><span class="hs-identifier hs-var">unsafeExt</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231083"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231092"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-328"></span><span>            </span><span class="annot"><span class="annottext">ExtEvidence m k
+</span><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-var">Ext</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (n :: S) (l :: S). ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#unsafeExt"><span class="hs-identifier hs-var">unsafeExt</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231084"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679231092"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-329"></span><span>              </span><span class="hs-comment">-- Each side extends the base within its own ranges, so the</span><span>
+</span><span id="line-330"></span><span>              </span><span class="hs-comment">-- names of c are in n and in m, hence in the union. This is</span><span>
+</span><span id="line-331"></span><span>              </span><span class="hs-comment">-- handed to the continuation as a given because deriving it</span><span>
+</span><span id="line-332"></span><span>              </span><span class="hs-comment">-- from Ext c n and Ext n k leaves the solver two candidate</span><span>
+</span><span id="line-333"></span><span>              </span><span class="hs-comment">-- paths and it commits to neither.</span><span>
+</span><span id="line-334"></span><span>              </span><span class="annot"><span class="annottext">ExtEvidence c k
+</span><a href="Control.Monad.Foil.Internal.html#Ext"><span class="hs-identifier hs-var">Ext</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope k -&gt; ScopeUnion n m k -&gt; ExtWithin c k -&gt; r
+forall (k :: S).
+(Ext n k, Ext m k, Ext c k, Distinct k) =&gt;
+Scope k -&gt; ScopeUnion n m k -&gt; ExtWithin c k -&gt; r
+</span><a href="#local-6989586621679231304"><span class="hs-identifier hs-var">cont</span></a></span><span> </span><span class="annot"><span class="annottext">Scope k
+</span><a href="#local-6989586621679231306"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">ScopeUnion n m k
+forall (n :: S) (m :: S) (k :: S). ScopeUnion n m k
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeScopeUnion"><span class="hs-identifier hs-var">UnsafeScopeUnion</span></a></span><span>
+</span><span id="line-335"></span><span>                          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; ExtWithin c k
+forall (n :: S) (l :: S). [NameRange] -&gt; ExtWithin n l
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeExtWithin"><span class="hs-identifier hs-var">UnsafeExtWithin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange]
+</span><a href="Control.Monad.Foil.Blocks.html#normaliseRanges"><span class="hs-identifier hs-var">normaliseRanges</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231300"><span class="hs-identifier hs-var">rs1</span></a></span><span> </span><span class="annot"><span class="annottext">[NameRange] -&gt; [NameRange] -&gt; [NameRange]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[NameRange]
+</span><a href="#local-6989586621679231301"><span class="hs-identifier hs-var">rs2</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- | Evidence that scope @k@ is /precisely/ the union of scopes @n@ and @m@:</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- every name of @n@ and of @m@ is a name of @k@, and nothing else is.</span><span>
+</span><span id="line-339"></span><span class="hs-comment">--</span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- The extension constraints @('Ext' n k, 'Ext' m k)@ state only the first</span><span>
+</span><span id="line-341"></span><span class="hs-comment">-- half, since a strict superset of the union satisfies them too. The second</span><span>
+</span><span id="line-342"></span><span class="hs-comment">-- half is what totality of a merged 'NameMap' rests on, so 'unionNameMaps'</span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- demands this witness. It comes from 'withDisjointUnion', which builds the</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- union, or from 'checkScopeUnion', which tests for it.</span><span>
+</span><span id="line-345"></span><span class="hs-comment">--</span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-347"></span><span class="hs-keyword">data</span><span> </span><span id="ScopeUnion"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ScopeUnion"><span class="hs-identifier hs-var">ScopeUnion</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231094"><span class="annot"><a href="#local-6989586621679231094"><span class="hs-identifier hs-type">n</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231095"><span class="annot"><a href="#local-6989586621679231095"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679231096"><span class="annot"><a href="#local-6989586621679231096"><span class="hs-identifier hs-type">k</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#S"><span class="hs-identifier hs-type">S</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UnsafeScopeUnion"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#UnsafeScopeUnion"><span class="hs-identifier hs-var">UnsafeScopeUnion</span></a></span></span><span>
+</span><span id="line-348"></span><span>
+</span><span id="line-349"></span><span class="hs-comment">-- | Test that a scope is precisely the union of two others, and produce the</span><span>
+</span><span id="line-350"></span><span class="hs-comment">-- witness if so. \(O(n+m)\).</span><span>
+</span><span id="line-351"></span><span class="hs-comment">--</span><span>
+</span><span id="line-352"></span><span class="hs-comment">-- This is the union witness for the re-attachment path, where the union</span><span>
+</span><span id="line-353"></span><span class="hs-comment">-- scope was rebuilt rather than handed down by 'withDisjointUnion'. Like</span><span>
+</span><span id="line-354"></span><span class="hs-comment">-- 'checkExtScope', it compares raw names across independently built scopes,</span><span>
+</span><span id="line-355"></span><span class="hs-comment">-- and is meaningful only under a deterministic reservation policy.</span><span>
+</span><span id="line-356"></span><span class="hs-comment">--</span><span>
+</span><span id="line-357"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-358"></span><span id="local-6989586621679231097"><span id="local-6989586621679231098"><span id="local-6989586621679231099"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#checkScopeUnion"><span class="hs-identifier hs-type">checkScopeUnion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231097"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231098"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231099"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ScopeUnion"><span class="hs-identifier hs-type">ScopeUnion</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231097"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231098"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231099"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-359"></span><span id="checkScopeUnion"><span class="annot"><span class="annottext">checkScopeUnion :: forall (n :: S) (m :: S) (k :: S).
+Scope n -&gt; Scope m -&gt; Scope k -&gt; Maybe (ScopeUnion n m k)
+</span><a href="Control.Monad.Foil.Blocks.html#checkScopeUnion"><span class="hs-identifier hs-var hs-var">checkScopeUnion</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231319"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231319"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231320"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231320"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231321"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231321"><span class="hs-identifier hs-var">s3</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-360"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawScope -&gt; RawScope -&gt; RawScope
+</span><span class="hs-identifier hs-var">IntSet.union</span></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231319"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231320"><span class="hs-identifier hs-var">s2</span></a></span><span> </span><span class="annot"><span class="annottext">RawScope -&gt; RawScope -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231321"><span class="hs-identifier hs-var">s3</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ScopeUnion n m k -&gt; Maybe (ScopeUnion n m k)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ScopeUnion n m k
+forall (n :: S) (m :: S) (k :: S). ScopeUnion n m k
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeScopeUnion"><span class="hs-identifier hs-var">UnsafeScopeUnion</span></a></span><span>
+</span><span id="line-361"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (ScopeUnion n m k)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-362"></span><span>
+</span><span id="line-363"></span><span class="hs-comment">-- | Test that every name of one scope is a name of another, and mint the</span><span>
+</span><span id="line-364"></span><span class="hs-comment">-- extension evidence if so. \(O(n+m)\) ('IntSet.isSubsetOf').</span><span>
+</span><span id="line-365"></span><span class="hs-comment">--</span><span>
+</span><span id="line-366"></span><span class="hs-comment">-- __This is a trust boundary.__ The test compares raw names, and raw names</span><span>
+</span><span id="line-367"></span><span class="hs-comment">-- from independently built scopes need not mean the same variable. The type</span><span>
+</span><span id="line-368"></span><span class="hs-comment">-- system tracks meaning through binders, and this function goes around it</span><span>
+</span><span id="line-369"></span><span class="hs-comment">-- deliberately, to re-attach a scope built elsewhere: in an earlier run, in</span><span>
+</span><span id="line-370"></span><span class="hs-comment">-- a cache, or in a parallel session. It is sound only under the external</span><span>
+</span><span id="line-371"></span><span class="hs-comment">-- discipline that a raw name has one global meaning, which a deterministic</span><span>
+</span><span id="line-372"></span><span class="hs-comment">-- reservation policy provides. Nothing here checks that discipline, and the</span><span>
+</span><span id="line-373"></span><span class="hs-comment">-- caller's allocator is what has to.</span><span>
+</span><span id="line-374"></span><span class="hs-comment">--</span><span>
+</span><span id="line-375"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-376"></span><span id="local-6989586621679231103"><span id="local-6989586621679231104"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#checkExtScope"><span class="hs-identifier hs-type">checkExtScope</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231103"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Scope"><span class="hs-identifier hs-type">Scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231104"><span class="hs-identifier hs-type">l</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#ExtEvidence"><span class="hs-identifier hs-type">ExtEvidence</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231103"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231104"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-377"></span><span id="checkExtScope"><span class="annot"><span class="annottext">checkExtScope :: forall (n :: S) (l :: S).
+Scope n -&gt; Scope l -&gt; Maybe (ExtEvidence n l)
+</span><a href="Control.Monad.Foil.Blocks.html#checkExtScope"><span class="hs-identifier hs-var hs-var">checkExtScope</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231323"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231323"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeScope"><span class="hs-identifier hs-type">UnsafeScope</span></a></span><span> </span><span id="local-6989586621679231324"><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231324"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-378"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231323"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="annot"><span class="annottext">RawScope -&gt; RawScope -&gt; Bool
+</span><span class="hs-operator hs-var">`IntSet.isSubsetOf`</span></span><span> </span><span class="annot"><span class="annottext">RawScope
+</span><a href="#local-6989586621679231324"><span class="hs-identifier hs-var">s2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ExtEvidence n l -&gt; Maybe (ExtEvidence n l)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ExtEvidence n l
+forall (n :: S) (l :: S). ExtEvidence n l
+</span><a href="Control.Monad.Foil.Internal.html#unsafeExt"><span class="hs-identifier hs-var">unsafeExt</span></a></span><span>
+</span><span id="line-379"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (ExtEvidence n l)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-380"></span><span>
+</span><span id="line-381"></span><span class="hs-comment">-- | Union of two total maps into a map on the union of their scopes.</span><span>
+</span><span id="line-382"></span><span class="hs-comment">-- Left-biased, like 'IntMap.union'.</span><span>
+</span><span id="line-383"></span><span class="hs-comment">--</span><span>
+</span><span id="line-384"></span><span class="hs-comment">-- The witness is what makes the result total on @k@. The inputs are total on</span><span>
+</span><span id="line-385"></span><span class="hs-comment">-- @n@ and @m@, and 'ScopeUnion' says that @k@ holds their names and no</span><span>
+</span><span id="line-386"></span><span class="hs-comment">-- others. (It also determines @k@, which an extension constraint alone would</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- leave open.)</span><span>
+</span><span id="line-388"></span><span class="hs-comment">--</span><span>
+</span><span id="line-389"></span><span class="hs-comment">-- What no witness can say is that the two maps agree on the names their</span><span>
+</span><span id="line-390"></span><span class="hs-comment">-- scopes share. Linked units agree there when the shared part comes from the</span><span>
+</span><span id="line-391"></span><span class="hs-comment">-- same checked imports, and the left bias then only ever chooses between</span><span>
+</span><span id="line-392"></span><span class="hs-comment">-- equal entries.</span><span>
+</span><span id="line-393"></span><span class="hs-comment">--</span><span>
+</span><span id="line-394"></span><span class="hs-comment">-- @since 0.4.0</span><span>
+</span><span id="line-395"></span><span id="local-6989586621679231107"><span id="local-6989586621679231108"><span id="local-6989586621679231109"><span id="local-6989586621679231110"><span class="annot"><a href="Control.Monad.Foil.Blocks.html#unionNameMaps"><span class="hs-identifier hs-type">unionNameMaps</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Blocks.html#ScopeUnion"><span class="hs-identifier hs-type">ScopeUnion</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231107"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231108"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231109"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameMap"><span class="hs-identifier hs-type">NameMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231107"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231110"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameMap"><span class="hs-identifier hs-type">NameMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231108"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231110"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameMap"><span class="hs-identifier hs-type">NameMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231109"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679231110"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-396"></span><span id="unionNameMaps"><span class="annot"><span class="annottext">unionNameMaps :: forall (n :: S) (m :: S) (k :: S) a.
+ScopeUnion n m k -&gt; NameMap n a -&gt; NameMap m a -&gt; NameMap k a
+</span><a href="Control.Monad.Foil.Blocks.html#unionNameMaps"><span class="hs-identifier hs-var hs-var">unionNameMaps</span></a></span></span><span> </span><span class="annot"><span class="annottext">ScopeUnion n m k
+</span><a href="Control.Monad.Foil.Blocks.html#UnsafeScopeUnion"><span class="hs-identifier hs-var">UnsafeScopeUnion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameMap"><span class="hs-identifier hs-type">NameMap</span></a></span><span> </span><span id="local-6989586621679231326"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679231326"><span class="hs-identifier hs-var">m1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameMap"><span class="hs-identifier hs-type">NameMap</span></a></span><span> </span><span id="local-6989586621679231327"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679231327"><span class="hs-identifier hs-var">m2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap a -&gt; NameMap k a
+forall (n :: S) a. IntMap a -&gt; NameMap n a
+</span><a href="Control.Monad.Foil.Internal.html#NameMap"><span class="hs-identifier hs-var">NameMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap a -&gt; IntMap a -&gt; IntMap a
+forall a. IntMap a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.union</span></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679231326"><span class="hs-identifier hs-var">m1</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679231327"><span class="hs-identifier hs-var">m2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-397"></span></pre></body></html>
