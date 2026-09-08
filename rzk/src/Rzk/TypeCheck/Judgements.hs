@@ -1060,16 +1060,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             bindType' <- infer bindType
             bindUniv <- typeOf bindType'
             enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
-        bindTy <- typeOf val' >>= \case
-          o@(TypeModalT _ty md t) ->
-            if md == inn
-              then return t
-              else issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-          o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-        bindVal <- whnfT val' >>= \case
-          ModAppT _ty _m t -> pure (Just t)
-          o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
-          _ -> pure Nothing
+        valTy <- typeOf val'
+        bindTy <- case typeUnderModal inn valTy of
+          Just t  -> pure t
+          Nothing -> issueTypeError $ TypeErrorNotModal (untyped valTy) inn val'
+        o <- whnfT val'
+        bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
           typecheck bodyTerm (Foil.sink ty')
         return (letModT ty' orig app inn (Just bindTy) Nothing val' body')
@@ -1741,13 +1737,11 @@ infer tt = performing (ActionInfer tt) $ case tt of
         bindUniv <- typeOf bindType'
         enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
     valTy <- typeOf val'
-    bindTy <- case valTy of
-      TypeModalT _ty md t | md == inn -> return t
-      o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-    bindVal <- whnfT val' >>= \case
-      ModAppT _ty _m t -> pure (Just t)
-      o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
-      _ -> pure Nothing
+    bindTy <- case typeUnderModal inn valTy of
+      Just t  -> pure t
+      Nothing -> issueTypeError $ TypeErrorNotModal (untyped valTy) inn val'
+    o <- whnfT val'
+    bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
     -- The motive is a family over the modal value, @(z :^app ⟨inn|A⟩) → U@, so its
     -- binder stands for the whole @val@ and not for the let-bound @orig : A@; it is
     -- left anonymous rather than reusing @orig@, which would show the wrong role in
@@ -1768,7 +1762,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
           body' <- infer bodyTerm
           ret <- typeOf body'
           pure (ScopedAST binder body', ScopedAST binder ret)
-        retAt <- instantiate ret val'
+        retAt <- instantiate ret (maybe val' id bindVal)
         return (letModT retAt orig app inn (Just bindTy) Nothing val' body')
 
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt

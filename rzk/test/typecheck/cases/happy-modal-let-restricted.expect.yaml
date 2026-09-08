@@ -1,0 +1,5 @@
+status: ok
+warnings: []
+regression_for:
+  - let-mod-eliminates-an-outer-restricted-modal-type
+  - let-mod-into-infers-an-outer-restricted-modal-type
