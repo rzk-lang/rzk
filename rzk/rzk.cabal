@@ -55,6 +55,7 @@ extra-source-files:
     test/typecheck/cases/happy-match-indexed.rzk
     test/typecheck/cases/happy-meta-prefix-option-off.rzk
     test/typecheck/cases/happy-meta-prefix-plumbing.rzk
+    test/typecheck/cases/happy-meta-prefix-section-value.rzk
     test/typecheck/cases/happy-modal-basics.rzk
     test/typecheck/cases/happy-modal-extract-external-lock.rzk
     test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
@@ -269,6 +270,7 @@ extra-source-files:
     test/typecheck/cases/happy-match-indexed.expect.yaml
     test/typecheck/cases/happy-meta-prefix-option-off.expect.yaml
     test/typecheck/cases/happy-meta-prefix-plumbing.expect.yaml
+    test/typecheck/cases/happy-meta-prefix-section-value.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
     test/typecheck/cases/happy-modal-extract-external-lock.expect.yaml
     test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml

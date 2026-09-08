@@ -204,7 +204,15 @@ endSection errs = do
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
   -- funext becomes a leading meta parameter), so recompute it.
-  kept <- forM kept0 $ \(name, info) -> do
+  -- The rewritten types in @kept0@ may apply another rewritten definition to
+  -- the assumptions just made explicit.  Meta-prefix classification reduces
+  -- such applications, so its lookups must see the rewritten values too.  In
+  -- the old context a definition still has its pre-abstraction value: reducing
+  -- @f a@ there could feed @a@ to @f@'s first /ordinary/ lambda instead of to
+  -- its new section-parameter lambda.
+  ctxBeforeMetaPrefix <- ask
+  let ctxWithKept0 = foldr (uncurry insertVarInfo) ctxBeforeMetaPrefix kept0
+  kept <- inContext ctxWithKept0 $ forM kept0 $ \(name, info) -> do
     metaPrefix <- metaPrefixOf (varType info)
     pure (name, info { varMetaPrefix = metaPrefix })
 
@@ -311,6 +319,13 @@ makeAssumptionExplicit
   -> [(Foil.Name n, VarInfo n)]
   -> TypeCheck n (AssumptionUse, [(Foil.Name n, VarInfo n)])
 makeAssumptionExplicit (a, aInfo) entries = do
+    originalCtx <- ask
+    -- @entries@ may already have been rewritten while closing a newer
+    -- assumption of the same section.  Install that current snapshot for all
+    -- deep dependency walks in this pass; the ambient context still contains
+    -- the pre-close values.
+    let currentCtx = foldr (uncurry insertVarInfo) originalCtx entries
+    inContext currentCtx $ do
     -- A #data family closes over a section assumption uniformly: its type
     -- former is abstracted whenever any entry of the family uses the
     -- assumption, even though the former's own type (params → U) cannot
@@ -319,16 +334,16 @@ makeAssumptionExplicit (a, aInfo) entries = do
     -- mention the former) follow through the ordinary deep-use path; not
     -- forcing the former would leave one unparameterised type inhabited by
     -- constructors of every instantiation.
-    forced <- fmap concat $ forM entries $ \(_x, xInfo) ->
-      case varDataRole xInfo of
-        Nothing   -> pure []
-        Just role -> do
-          inTy <- freeVarsDeep (varType xInfo)
-          pure [ Foil.nameId (dataRoleDataType role) | a `elemName` inTy ]
-    go forced entries
+      forced <- fmap concat $ forM entries $ \(_x, xInfo) ->
+        case varDataRole xInfo of
+          Nothing   -> pure []
+          Just role -> do
+            inTy <- freeVarsDeep (varType xInfo)
+            pure [ Foil.nameId (dataRoleDataType role) | a `elemName` inTy ]
+      go originalCtx forced entries
   where
-    go _ [] = pure (AssumptionUnused, [])
-    go forced ((x, xInfo) : xs) = do
+    go _ _ [] = pure (AssumptionUnused, [])
+    go originalCtx forced ((x, xInfo) : xs) = do
       scope <- asks ctxScope
       -- Two notions of use, and the difference between them is what 'implicit' means.
       -- The deep one follows the types of the variables the entry mentions, so it sees
@@ -340,7 +355,7 @@ makeAssumptionExplicit (a, aInfo) entries = do
       -- The syntactic check reads the declaration as the user wrote it, from the
       -- context — not the entry, which the assumptions abstracted before this one have
       -- already rewritten (and which therefore mentions them).
-      written <- asks (lookupVarInfo x)
+      let written = lookupVarInfo x originalCtx
       let forcedFormer = Foil.nameId x `elem` forced
           hasAssumption = forcedFormer || a `elemName` deepVars
           inTypeSyntactically = a `elemName` freeVarsOfTermT (varType written)
@@ -361,10 +376,18 @@ makeAssumptionExplicit (a, aInfo) entries = do
             issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
           let xInfo' = abstractOver scope a aInfo xInfo
               xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
-          (_use, xs'') <- go forced xs'
+          ctx <- ask
+          -- Later entries have just been rewritten to apply @x@ to the
+          -- explicit assumption.  Their deep free-variable walk must resolve
+          -- @x@ to that rewritten entry, not to the pre-abstraction value
+          -- still installed in the ambient context.  Otherwise closing the
+          -- next section assumption can abstract a caller and its callee with
+          -- incompatible spines.
+          let ctx' = foldr (uncurry insertVarInfo) ctx ((x, xInfo') : xs')
+          (_use, xs'') <- inContext ctx' $ go originalCtx forced xs'
           return (AssumptionUsed, (x, xInfo') : xs'')
         else do
-          (use, xs'') <- go forced xs
+          (use, xs'') <- go originalCtx forced xs
           return (use, (x, xInfo) : xs'')
 
 -- | Give an entry the assumption as an explicit parameter.

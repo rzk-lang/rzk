@@ -1,0 +1,23 @@
+#lang rzk-1
+
+-- Meta-prefix recomputation at #end may reduce the type of a later definition.
+-- Both that type and the value looked up for its head must come from the
+-- post-abstraction context. Otherwise A is fed to helper's X lambda and the
+-- let-mod evaluator receives a non-modal value. This uses only established
+-- modal types, so the section regression is independent of modal TOPE support.
+#section sec
+#assume A B : U
+
+#define helper uses (A B)
+  (X :_op U)
+  (x : _op X)
+  : U
+  := let mod _op _ := x in
+    _op (A → B → Unit)
+
+#define consumer uses (A B)
+  (X :_op U)
+  (x : _op X)
+  : helper X x
+  := mod _op (\ (_ : A) (_ : B) → unit)
+#end sec

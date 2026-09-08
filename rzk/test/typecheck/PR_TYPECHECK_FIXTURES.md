@@ -103,8 +103,9 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   warning (`warn-meta-prefix-object-position`), the strict-only marking
   (`warn-meta-prefix-strict-only`), warning-free plumbing — aliasing,
   saturation, passing a schema to a meta-prefix parameter
-  (`happy-meta-prefix-plumbing`), the recomputation of the prefix at
-  section close (`warn-meta-prefix-section`), and the sensitivity option
+  (`happy-meta-prefix-plumbing`), the recomputation of the prefix and
+  rewritten definition values at section close
+  (`warn-meta-prefix-section`, `happy-meta-prefix-section-value`), and the sensitivity option
   (`happy-meta-prefix-option-off`, `warn-meta-prefix-option-structural`);
   all asserted via the `warnings` field.
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
