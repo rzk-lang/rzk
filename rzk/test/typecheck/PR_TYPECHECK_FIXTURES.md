@@ -93,12 +93,16 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`ill-match-not-data`), and a motive-less match in inference position
   (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
   labelled goals) are covered by `Rzk.HolesSpec`.
-- **Modal `let mod` with an explicit motive:** `happy-modal-let-into`
+- **Modal `let mod`:** `happy-modal-let-into`
   (constant motives agreeing with the motive-free form, and the
   dependent elimination the motive exists for: the goal is `C x` while
   the body only proves `C (mod ♭ a)`, which flat admits only through
-  the motive since it has no η-rule), `ill-modal-let-into-body` (a body
-  that misses the motive at the introduction form).
+  the motive since it has no η-rule), `happy-modal-let-restricted`
+  (motive-free checking and explicit-motive inference through an outer
+  restriction), `happy-modal-uninv-shape-restricted` (un-inversion of a
+  restricted tope application keeps and saturates its shape side
+  condition), and `ill-modal-let-into-body` (a body that misses the
+  motive at the introduction form).
 - **Meta-parameter layer check:** the object-position
   warning (`warn-meta-prefix-object-position`), the strict-only marking
   (`warn-meta-prefix-strict-only`), warning-free plumbing — aliasing,

@@ -1,0 +1,4 @@
+status: ok
+regression_for:
+  - "saturateInv: an uninv assumption must survive the shape side condition of a restricted application"
+  - "saturateForEntailment: topes derived after simplifyLHSwithDisjunctions are never split into atoms"
