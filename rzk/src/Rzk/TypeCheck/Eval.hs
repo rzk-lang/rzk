@@ -1627,68 +1627,35 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   TopeLEQT ty l r -> TopeLEQT ty <$> nfTope l <*> nfTope r
 
   TopeInvT ty t ->
-    -- Match And/Or on the *unnormalised* input: nfTope of a shape-restricted App
-    -- produces a TopeAnd via shape-side-condition propagation, and distributing
-    -- inv over that synthetic conjunction loops forever, because the recursive
-    -- topeInvT renormalises the same App back into a TopeAnd.
-    case t of
+    nfTope t >>= \case
       TopeUninvT _ phi -> pure phi
-      TopeTopT _ -> pure $ modAppT topeT Op topeTopT
-      TopeBottomT _ -> pure $ modAppT topeT Op topeBottomT
+      TopeTopT _ -> pure (underOp topeTopT)
+      TopeBottomT _ -> pure (underOp topeBottomT)
       TopeLEQT _ x y -> invOf topeLEQT x y
       TopeEQT _ x y -> invOf topeEQT x y
-      TopeAndT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeAndT
-            (modExtractT topeT Id Op (topeInvT phi))
-            (modExtractT topeT Id Op (topeInvT psi)))
-      TopeOrT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeOrT
-            (modExtractT topeT Id Op (topeInvT phi))
-            (modExtractT topeT Id Op (topeInvT psi)))
-      _ ->
-        nfTope t >>= \case
-          TopeTopT _       -> pure topeTopT
-          TopeBottomT _    -> pure topeBottomT
-          TopeUninvT _ phi -> pure phi
-          TopeLEQT _ x y   -> invOf topeLEQT x y
-          TopeEQT _ x y    -> invOf topeEQT x y
-          t'               -> pure (TopeInvT ty t')
+      TopeAndT _ phi psi -> distribute topeAndT phi psi
+      TopeOrT _ phi psi -> distribute topeOrT phi psi
+      t' -> pure (TopeInvT ty t')
     where
+      underOp phi = modAppT (typeModalT universeT Op topeT) Op phi
+      extractInv phi = modExtractT topeT Id Op (topeInvT phi)
+      distribute mk phi psi =
+        nfTope (underOp (mk (extractInv phi) (extractInv psi)))
+
       invOf mk x y = do
         xTy <- typeOf x
         yTy <- typeOf y
-        nfTope $
-          modAppT (typeModalT universeT Op topeT) Op
-            (mk (modExtractT topeT Id Op (cubeFlipT xTy y))
-                (modExtractT topeT Id Op (cubeFlipT yTy x)))
+        nfTope $ underOp $
+          mk (modExtractT topeT Id Op (cubeFlipT xTy y))
+             (modExtractT topeT Id Op (cubeFlipT yTy x))
 
   TopeUninvT ty t ->
-    case t of
-      ModAppT _ Op inner -> case inner of
-        TopeTopT _ -> pure topeTopT
-        TopeBottomT _ -> pure topeBottomT
-        TopeAndT _ phi psi -> distribute topeAndT phi psi
-        TopeOrT _ phi psi -> distribute topeOrT phi psi
-        _ ->
-          nfTope t >>= \case
-            TopeTopT _ -> pure topeTopT
-            TopeBottomT _ -> pure topeBottomT
-            TopeInvT _ phi -> pure phi
-            ModAppT _ Op inner' -> uninvNF inner'
-            t' -> pure (TopeUninvT ty t')
-      _ ->
-        nfTope t >>= \case
-          TopeTopT _ -> pure topeTopT
-          TopeBottomT _ -> pure topeBottomT
-          TopeInvT _ phi -> pure phi
-          ModAppT _ Op inner -> uninvNF inner
-          t' -> pure (TopeUninvT ty t')
+    nfTope t >>= \case
+      TopeInvT _ phi -> pure phi
+      ModAppT _ Op inner -> uninvNF inner
+      t' -> pure (TopeUninvT ty t')
     where
       underOp phi = modAppT (typeModalT universeT Op topeT) Op phi
-      distribute mk phi psi =
-        nfTope (mk (topeUninvT (underOp phi)) (topeUninvT (underOp psi)))
 
       uninvNF inner = case inner of
         TopeTopT _ -> pure topeTopT
