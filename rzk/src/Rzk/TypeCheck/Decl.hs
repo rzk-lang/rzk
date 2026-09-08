@@ -204,12 +204,6 @@ endSection errs = do
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
   -- funext becomes a leading meta parameter), so recompute it.
-  -- The rewritten types in @kept0@ may apply another rewritten definition to
-  -- the assumptions just made explicit.  Meta-prefix classification reduces
-  -- such applications, so its lookups must see the rewritten values too.  In
-  -- the old context a definition still has its pre-abstraction value: reducing
-  -- @f a@ there could feed @a@ to @f@'s first /ordinary/ lambda instead of to
-  -- its new section-parameter lambda.
   ctxBeforeMetaPrefix <- ask
   let ctxWithKept0 = foldr (uncurry insertVarInfo) ctxBeforeMetaPrefix kept0
   kept <- inContext ctxWithKept0 $ forM kept0 $ \(name, info) -> do
@@ -320,10 +314,6 @@ makeAssumptionExplicit
   -> TypeCheck n (AssumptionUse, [(Foil.Name n, VarInfo n)])
 makeAssumptionExplicit (a, aInfo) entries = do
     originalCtx <- ask
-    -- @entries@ may already have been rewritten while closing a newer
-    -- assumption of the same section.  Install that current snapshot for all
-    -- deep dependency walks in this pass; the ambient context still contains
-    -- the pre-close values.
     let currentCtx = foldr (uncurry insertVarInfo) originalCtx entries
     inContext currentCtx $ do
     -- A #data family closes over a section assumption uniformly: its type
@@ -377,12 +367,6 @@ makeAssumptionExplicit (a, aInfo) entries = do
           let xInfo' = abstractOver scope a aInfo xInfo
               xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
           ctx <- ask
-          -- Later entries have just been rewritten to apply @x@ to the
-          -- explicit assumption.  Their deep free-variable walk must resolve
-          -- @x@ to that rewritten entry, not to the pre-abstraction value
-          -- still installed in the ambient context.  Otherwise closing the
-          -- next section assumption can abstract a caller and its callee with
-          -- incompatible spines.
           let ctx' = foldr (uncurry insertVarInfo) ctx ((x, xInfo') : xs')
           (_use, xs'') <- inContext ctx' $ go originalCtx forced xs'
           return (AssumptionUsed, (x, xInfo') : xs'')
