@@ -97,12 +97,6 @@ If `#!rzk ext` is omitted, `#!rzk let mod m x := value in body` is sugar for `#!
 
 There is also a single-modality form `#!rzk let m x := t in body`, which is sugar for `#!rzk let mod m x := mod m t in body`. It does not eliminate a modal value; it merely checks that `#!rzk t` is available under modality `#!rzk m` and binds `#!rzk x` \(:^{m}\) to it.
 
-A restriction may refine the modal type as a whole, for example
-`#!rzk x : (♭ A)[φ ↦ mod ♭ a]`. The same `#!rzk let mod ♭ y := x in ...`
-form eliminates it: the outer restriction does not hide the modal payload
-type, and its boundary equation remains available through the usual
-restriction rules.
-
 It can be seen as a pattern-match on `#!rzk mod` in the binder. For example, `#!rzk double-op` uses `#!rzk let mod` to define the modal composition \(\langle \text{op} | \langle \text{op} | A \rangle \rangle \to A\), since \(\text{op} \cdot \text{op} = id\):
 
 ```rzk
