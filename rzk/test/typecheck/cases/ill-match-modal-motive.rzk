@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#data D := c
+
+#define bad-modal-motive
+  (x :_b D)
+  : Unit
+  := match _b x into (\ (_ : D) -> Unit)
+       (c => unit)

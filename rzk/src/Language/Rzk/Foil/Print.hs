@@ -194,10 +194,12 @@ fromTerm used supply names = go
     go (Refl (Just (t, Just ty))) = Rzk.ReflTermType loc (go t) (go ty)
     go (IdJ a b c d e f) = Rzk.IdJ loc (go a) (go b) (go c) (go d) (go e) (go f)
 
-    go (Match scrut mmotive branches) =
-      case mmotive of
-        Nothing     -> Rzk.Match loc (go scrut) (map goBranch branches)
-        Just motive -> Rzk.MatchInto loc (go scrut) (go motive) (map goBranch branches)
+    go (Match md scrut mmotive branches) =
+      case (md, mmotive) of
+        (Id, Nothing)     -> Rzk.Match loc (go scrut) (map goBranch branches)
+        (Id, Just motive) -> Rzk.MatchInto loc (go scrut) (go motive) (map goBranch branches)
+        (_, Nothing)      -> Rzk.MatchModal loc (goMod md) (go scrut) (map goBranch branches)
+        (_, Just motive)  -> Rzk.MatchModalInto loc (goMod md) (go scrut) (go motive) (map goBranch branches)
       where
         goBranch (con, chain) = Rzk.MatchBranch loc (fromVarIdent con) pats body
           where (pats, body) = matchArms used supply names chain

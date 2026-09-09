@@ -29,6 +29,36 @@ Here `ih` stands for `plus k m`, the result of the recursion on `k`. Recursion h
 
 Branches must be in bijection with the constructors: every constructor appears exactly once (in any order), with exactly as many binders as its method takes. There are no nested patterns and no wildcards.
 
+## Modal matching
+
+The form `match μ x (...)` checks the scrutinee `x` under modality `μ`.
+If a constructor method binds an argument under modality `ν`, the
+corresponding branch variable is bound under the composition `μ · ν`. This
+applies to every field and induction hypothesis. An ordinary `match x (...)`
+is the special case `μ = _id`.
+
+```rzk
+#data ModalMatch := mm (plain : 2) (op :_op 2)
+
+#define modal-match-flat
+  (f :_b (i : 2) -> (j : 2) -> Unit)
+  (x :_b ModalMatch)
+  : _b Unit
+  := match _b x
+       (mm plain op => mod _b (f plain op))
+```
+
+Here both branch variables are available under `_b`: their modalities are
+`_b · _id = _b` and `_b · _op = _b`. The explicit-motive spelling is
+`match μ x into motive (...)`. For a non-indexed datatype `D`, the motive
+has type `(z :_μ D) → U`: its scrutinee binder inherits the match modality.
+For an indexed datatype, every binder in the motive telescope inherits `μ`,
+so its type is `(i :_μ I) → (z :_μ D i) → U` for one plain index.
+
+Since a bare modality immediately after `match` selects this form, parenthesise
+a modality-prefixed scrutinee when writing an ordinary match, for example
+`match (mod ♭ x) (...)`.
+
 ## The motive
 
 A `match` used in checking position takes its motive from the expected type: when the scrutinee is a variable, that variable is abstracted out of the goal, so the branches see the goal at each constructor. This gives dependent matching by substitution:

@@ -230,6 +230,8 @@ data Term' a
     | IdJ a (Term' a) (Term' a) (Term' a) (Term' a) (Term' a) (Term' a)
     | Match a (Term' a) [MatchBranch' a]
     | MatchInto a (Term' a) (Term' a) [MatchBranch' a]
+    | MatchModal a (Modality' a) (Term' a) [MatchBranch' a]
+    | MatchModalInto a (Modality' a) (Term' a) (Term' a) [MatchBranch' a]
     | Hole a (HoleIdent' a)
     | Var a (VarIdent' a)
     | TypeAsc a (Term' a) (Term' a)
@@ -534,6 +536,8 @@ instance HasPosition Term where
     IdJ p _ _ _ _ _ _ -> p
     Match p _ _ -> p
     MatchInto p _ _ _ -> p
+    MatchModal p _ _ _ -> p
+    MatchModalInto p _ _ _ _ -> p
     Hole p _ -> p
     Var p _ -> p
     TypeAsc p _ _ -> p

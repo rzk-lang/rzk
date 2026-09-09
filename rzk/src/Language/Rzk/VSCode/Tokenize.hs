@@ -313,6 +313,15 @@ tokenizeTerm' varTokenType = go
         [ go scrut
         , go motive
         , foldMap tokenizeMatchBranch branches ]
+      MatchModal _loc md scrut branches -> concat
+        [ tokenizeModality md
+        , go scrut
+        , foldMap tokenizeMatchBranch branches ]
+      MatchModalInto _loc md scrut motive branches -> concat
+        [ tokenizeModality md
+        , go scrut
+        , go motive
+        , foldMap tokenizeMatchBranch branches ]
 
       ModType _loc md type_ -> concat [tokenizeModality md, go type_]
       ModApp _loc md te -> concat [tokenizeModality md, go te]

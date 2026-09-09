@@ -1,0 +1,8 @@
+status: ok
+warnings: []
+regression_for:
+  - modal-match-scrutinee-accessibility
+  - modal-match-composes-constructor-argument-modalities
+  - modal-match-explicit-motive
+  - modal-match-composition-order-op-op
+  - modal-match-composes-induction-hypotheses

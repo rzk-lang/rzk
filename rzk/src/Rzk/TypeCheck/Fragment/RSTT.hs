@@ -295,7 +295,7 @@ checkFragmentUses view defName ty mval isAssumption = do
         goTerm OutsideParameterPrefix p
 
       -- Preserve prefix status for parameters bound after a schematic split.
-      MatchT _ scrut mmotive branches -> do
+      MatchT _ _md scrut mmotive branches -> do
         goTerm OutsideParameterPrefix scrut
         mapM_ (goAssumed UseMotive) mmotive
         forM_ branches $ \(_con, branch) -> goTerm prefixPosition branch

@@ -199,9 +199,13 @@ toTerm scope env = go
       Rzk.ReflTermType _loc x tA -> Refl (Just (go x, Just (go tA)))
       Rzk.IdJ _loc a b c d e f -> IdJ (go a) (go b) (go c) (go d) (go e) (go f)
       Rzk.Match _loc scrut branches ->
-        Match (go scrut) Nothing (map matchBranch branches)
+        Match Id (go scrut) Nothing (map matchBranch branches)
       Rzk.MatchInto _loc scrut motive branches ->
-        Match (go scrut) (Just (go motive)) (map matchBranch branches)
+        Match Id (go scrut) (Just (go motive)) (map matchBranch branches)
+      Rzk.MatchModal _loc md scrut branches ->
+        Match (Free.toModality md) (go scrut) Nothing (map matchBranch branches)
+      Rzk.MatchModalInto _loc md scrut motive branches ->
+        Match (Free.toModality md) (go scrut) (Just (go motive)) (map matchBranch branches)
       Rzk.TypeAsc _loc x t -> TypeAsc (go x) (go t)
 
       -- A binder may name several variables sharing a type, e.g. @(x y : A)@,
