@@ -75,6 +75,7 @@ extra-source-files:
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/happy-subtype-variance-restriction-faces.rzk
     test/typecheck/cases/happy-subtype-variance-tope-family.rzk
+    test/typecheck/cases/happy-tope-family-domain-instance.rzk
     test/typecheck/cases/happy-tope-high-dim-cubes.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d4.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d5.rzk
@@ -173,6 +174,8 @@ extra-source-files:
     test/typecheck/cases/ill-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/ill-subtype-variance-restriction-faces.rzk
     test/typecheck/cases/ill-subtype-variance-tope-family.rzk
+    test/typecheck/cases/ill-tope-family-domain-non-instance.rzk
+    test/typecheck/cases/ill-tope-family-domain-same-domain.rzk
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d4.rzk
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d5.rzk
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d6.rzk
@@ -264,6 +267,7 @@ extra-source-files:
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/happy-subtype-variance-restriction-faces.expect.yaml
     test/typecheck/cases/happy-subtype-variance-tope-family.expect.yaml
+    test/typecheck/cases/happy-tope-family-domain-instance.expect.yaml
     test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d4.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d5.expect.yaml
@@ -362,6 +366,8 @@ extra-source-files:
     test/typecheck/cases/ill-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/ill-subtype-variance-restriction-faces.expect.yaml
     test/typecheck/cases/ill-subtype-variance-tope-family.expect.yaml
+    test/typecheck/cases/ill-tope-family-domain-non-instance.expect.yaml
+    test/typecheck/cases/ill-tope-family-domain-same-domain.expect.yaml
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d4.expect.yaml
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d5.expect.yaml
     test/typecheck/cases/ill-tope-nested-rec-or-inner-singleton-d6.expect.yaml

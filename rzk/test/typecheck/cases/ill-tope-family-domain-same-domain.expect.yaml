@@ -1,0 +1,5 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+line: 14
+regression_for:
+  - tope-family-domain-conjunct-elaboration

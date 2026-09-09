@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+message_contains:
+  - "local context"
+  - "entails"
+line: 17
+regression_for:
+  - tope-family-domain-conjunct-elaboration
