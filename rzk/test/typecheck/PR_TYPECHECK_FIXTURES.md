@@ -93,6 +93,15 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`ill-match-not-data`), and a motive-less match in inference position
   (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
   labelled goals) are covered by `Rzk.HolesSpec`.
+- **Modal `match`:** `happy-match-modal` covers both motive spellings,
+  scrutinee accessibility, left composition with plain and modal fields,
+  the order-sensitive equation `Op · Op = Id`, and composition on an
+  induction hypothesis, and the modality inherited by the motive's
+  scrutinee binder; `ill-match-modal-inaccessible` rejects a plain
+  scrutinee under a Flat lock, while `ill-match-modal-motive` rejects a
+  plain scrutinee binder in a Flat match motive. Surface/core round trips,
+  including the parenthesised ordinary match of a `mod` expression, are
+  covered by `Rzk.FoilCoreSpec`.
 - **Modal `let mod` with an explicit motive:** `happy-modal-let-into`
   (constant motives agreeing with the motive-free form, and the
   dependent elimination the motive exists for: the goal is `C x` while

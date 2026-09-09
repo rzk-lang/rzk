@@ -180,6 +180,13 @@ spec = do
       tokenizeSyntaxSymbols "#lang rzk-1\n#define broken (x : A) := ?\n"
         `shouldSatisfy` any ((== SemanticTokenTypes_Regexp) . _tokenType)
 
+    it "marks a modal match modality as a decorator" $ do
+      let mtoks = tokensOf $ T.unlines
+            [ "#lang rzk-1"
+            , "#define f (x : D) : D := match _b x (c a => a)"
+            ]
+      tokenAt mtoks (1, 31) `shouldBe` Just SemanticTokenTypes_Decorator
+
   describe "formatSignature" $ do
     let fmt name src = case parseTerm (T.pack src) of
           Left err -> error ("parse error: " <> T.unpack err)

@@ -173,7 +173,7 @@ matchHoleOf
   => Context n -> Set.Set VarIdent -> Foil.Scope n
   -> Int -> [Foil.Name n] -> TermT n -> TermT n
 matchHoleOf ctx taken scope numParams cons term =
-  MatchT anyInfo term Nothing
+  MatchT anyInfo Id term Nothing
     [ (name, armChain scope (branchBinders c))
     | c <- cons
     , Just name <- [binderName (varOrig (lookupVarInfo c ctx))]
@@ -1124,7 +1124,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
           TypeErrorOther "a recOR cannot be used as a tope"
         _ -> checkRecOrAgainst ty' rs
 
-      Match scrut mmotive branches -> checkMatch term scrut mmotive branches (Just ty')
+      Match md scrut mmotive branches -> checkMatch term md scrut mmotive branches (Just ty')
 
       -- A neutral term is inferred, then its type unified with the expected one. In
       -- lenient (hole-checking) mode a term that still carries an unfilled hole is a
@@ -1168,13 +1168,14 @@ data MatchPlan n
 checkMatch
   :: Distinct n
   => Term n                 -- ^ the whole match, for error messages
+  -> TModality
   -> Term n                 -- ^ the scrutinee
   -> Maybe (Term n)         -- ^ the @into@ motive, if written
   -> [(VarIdent, Term n)]   -- ^ branches: constructor name, arm chain
   -> Maybe (TermT n)        -- ^ the goal, in checking position
   -> TypeCheck n (TermT n)
-checkMatch term scrut mmotive branches mgoal = do
-  scrut' <- infer scrut
+checkMatch term matchMd scrut mmotive branches mgoal = do
+  scrut' <- enterModality matchMd $ infer scrut
   scrutTy <- stripTypeRestrictions <$> (typeOf scrut' >>= whnfT)
   d <- case collectAppSpine scrutTy of
     (Var d, _) -> pure d
@@ -1235,19 +1236,18 @@ checkMatch term scrut mmotive branches mgoal = do
   -- The spine: parameters, motive, methods (each branch checked against its
   -- method's Π-type), indices, scrutinee.
   atParams <- applyPlan (Var e) (map Just paramArgs)
+  dAtParams <- applyPlan (Var d) (map Just paramArgs)
+  dAtParamsTy <- typeOf dAtParams >>= whnfT
+  scope <- asks ctxScope
+  let dependent = case plan of
+        MatchInd{} -> True
+        MatchRec   -> False
+  motiveTy <- matchMotiveType scope dependent matchMd dAtParams dAtParamsTy
   motive' <- case mmotive of
-    Just motive -> do
-      motiveTy <- typeOf atParams >>= whnfT >>= \case
-        TypeFunT _ _ _ mty _ _ -> pure mty
-        _ -> panicImpossible "an eliminator's type has no motive parameter"
-      typecheck motive motiveTy
+    Just motive -> typecheck motive motiveTy
     Nothing -> case mgoal of
       Nothing -> issueTypeError (TypeErrorMatchCannotInfer term)
       Just goal -> do
-        motiveTy <- typeOf atParams >>= whnfT >>= \case
-          TypeFunT _ _ _ mty _ _ -> pure mty
-          _ -> panicImpossible "an eliminator's type has no motive parameter"
-        scope <- asks ctxScope
         -- Under @rec-D@ the motive type has no scrutinee binder, so there
         -- is nothing to substitute (and the goal does not mention the
         -- scrutinee variable anyway — that is what chose @rec-D@). The
@@ -1260,7 +1260,7 @@ checkMatch term scrut mmotive branches mgoal = do
   let applyMethods t [] = pure t
       applyMethods t (c : rest) = typeOf t >>= whnfT >>= \case
         TypeFunT _ _ _ methodTy _ ret -> do
-          method <- checkMatchArms (branchFor c) methodTy
+          method <- checkMatchArms matchMd (branchFor c) methodTy
           retAt <- instantiate ret method
           applyMethods (appT retAt t method) rest
         _ -> panicImpossible "an eliminator's type runs out of method parameters"
@@ -1284,22 +1284,24 @@ checkMatch term scrut mmotive branches mgoal = do
 -- of the method's Π-type, and the elaborated arm becomes the method's λ under
 -- the same binder. Holes inside the branch body therefore see the branch
 -- binders as ordinary hypotheses, under the user's names.
-checkMatchArms :: Distinct n => Term n -> TermT n -> TypeCheck n (TermT n)
-checkMatchArms (MatchArm orig scoped) ty = whnfT ty >>= \case
+checkMatchArms
+  :: Distinct n
+  => TModality -> Term n -> TermT n -> TypeCheck n (TermT n)
+checkMatchArms matchMd (MatchArm orig scoped) ty = whnfT ty >>= \case
   ty'@(TypeFunT _ _orig' md' param0 mtope' ret) -> do
     -- an induction hypothesis's type is the motive at a field, so it carries
     -- an administrative redex too: reduce it before it enters the context
     param' <- betaMotiveApps param0
     mapM_ checkNameShadowing (binderLeaves orig)
-    body' <- elaborateUnder orig md' param' Nothing scoped $ \binder bodyTerm -> do
+    body' <- elaborateUnder orig (comp matchMd md') param' Nothing scoped $ \binder bodyTerm -> do
       mtopeIn <- traverse (openScoped binder) mtope'
       maybe id localTope mtopeIn $ do
         retIn <- openScoped binder ret
-        checkMatchArms bodyTerm retIn
+        checkMatchArms matchMd bodyTerm retIn
     return (lambdaT ty' orig (Just (LambdaParam md' param' mtope')) body')
   -- unreachable: the arity check matches the arm count to the method's arity
   _ -> panicImpossible "a match arm beyond its method's arity"
-checkMatchArms body ty = typecheck body =<< betaMotiveApps ty
+checkMatchArms _ body ty = typecheck body =<< betaMotiveApps ty
 
 -- | β-reduce the administrative redexes elaboration introduces: a motive built
 -- as a λ-chain and applied to a constructor form is substituted through, so a
@@ -1326,12 +1328,31 @@ firstDuplicate (x : xs)
   | x `elem` xs = Just x
   | otherwise   = firstDuplicate xs
 
+matchMotiveType
+  :: Distinct n
+  => Foil.Scope n -> Bool -> TModality -> TermT n -> TermT n
+  -> TypeCheck n (TermT n)
+matchMotiveType scope dependent matchMd = go scope
+  where
+    go :: Distinct m => Foil.Scope m -> TermT m -> TermT m -> TypeCheck m (TermT m)
+    go sc family (TypeFunT _ orig md param mtope ret) = do
+      let inheritedMd = comp matchMd md
+      ret' <- withScopedT sc ret $ \binder body ->
+        ScopedAST binder <$> underBinder binder orig inheritedMd param Nothing (do
+          sc' <- asks ctxScope
+          let family' = appT body (Foil.sink family) (Var (Foil.nameOf binder))
+          go sc' family' body)
+      pure (typeFunT orig inheritedMd param mtope ret')
+    go sc family UniverseT{}
+      | dependent = pure (typeFunT (BinderVar Nothing) matchMd family Nothing
+          (closedScope sc universeT))
+      | otherwise = pure universeT
+    go _ _ _ = panicImpossible "a #data type does not end in U"
+
 -- | A motive built from the goal: λ-binders along the motive's Π-type (the
 -- family's indices, then the scrutinee), whose body is the goal — with the
 -- scrutinee variable replaced by the motive's own scrutinee binder, when the
 -- scrutinee is a variable. A non-variable scrutinee gives a constant family.
--- (The motive types the eliminator generator builds are literal Π-chains, so
--- matching them structurally is enough; cf. 'lambdaHoleOf'.)
 motiveFromGoal
   :: Distinct n
   => Foil.Scope n -> TermT n -> Maybe (Foil.Name n) -> TermT n -> TermT n
@@ -1830,7 +1851,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   -- A match infers only through its "into" motive; 'checkMatch' rejects it
   -- otherwise, since there is no goal to build the motive from.
-  Match scrut mmotive branches -> checkMatch tt scrut mmotive branches Nothing
+  Match md scrut mmotive branches -> checkMatch tt md scrut mmotive branches Nothing
   MatchArm{} -> panicImpossible "a match arm outside of a match branch"
 
 -- | The type of the motive of a path induction: @(z : A) → (a =_A z) → U@.

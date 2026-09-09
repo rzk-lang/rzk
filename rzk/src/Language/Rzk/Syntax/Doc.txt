@@ -174,7 +174,7 @@ All other symbols are terminals.
   |  |  **|**  | ``:_b``
   |  |  **|**  | ``:_#``
   |  |  **|**  | ``:_op``
-  | //Term7// | -> | ``U``
+  | //Term8// | -> | ``U``
   |  |  **|**  | ``CUBE``
   |  |  **|**  | ``TOPE``
   |  |  **|**  | ``1``
@@ -192,15 +192,11 @@ All other symbols are terminals.
   |  |  **|**  | ``Unit``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``)``
   |  |  **|**  | ``(`` //Term// ``,`` //Term// ``,`` //[Term]// ``)``
-  |  |  **|**  | ``mod`` //Modality// //Term7//
-  |  |  **|**  | //Modality// //Term7//
   |  |  **|**  | ``unit``
   |  |  **|**  | ``refl``
   |  |  **|**  | ``refl_{`` //Term// ``}``
   |  |  **|**  | ``refl_{`` //Term// ``:`` //Term// ``}``
   |  |  **|**  | ``idJ`` ``(`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``,`` //Term// ``)``
-  |  |  **|**  | ``match`` //Term7// ``(`` //[MatchBranch]// ``)``
-  |  |  **|**  | ``match`` //Term7// ``into`` //Term7// ``(`` //[MatchBranch]// ``)``
   |  |  **|**  | //HoleIdent//
   |  |  **|**  | //VarIdent//
   |  |  **|**  | ``(`` //Term// ``)``
@@ -268,6 +264,13 @@ All other symbols are terminals.
   |  |  **|**  | ``\`` //[Param]// ``->`` //Term1//
   |  |  **|**  | ``∑`` ``(`` //Pattern// ``:`` //Term// ``)`` ``,`` //Term1//
   |  |  **|**  | ``∑`` ``(`` //SigmaParam// ``,`` //[SigmaParam]// ``)`` ``,`` //Term1//
+  | //Term7// | -> | ``mod`` //Modality// //Term7//
+  |  |  **|**  | //Modality// //Term7//
+  |  |  **|**  | ``match`` //Term8// ``(`` //[MatchBranch]// ``)``
+  |  |  **|**  | ``match`` //Term8// ``into`` //Term8// ``(`` //[MatchBranch]// ``)``
+  |  |  **|**  | ``match`` //Modality// //Term8// ``(`` //[MatchBranch]// ``)``
+  |  |  **|**  | ``match`` //Modality// //Term8// ``into`` //Term8// ``(`` //[MatchBranch]// ``)``
+  |  |  **|**  | //Term8//
   | //Term// | -> | //Term2// ``as`` //Term1//
   |  |  **|**  | //Term1//
   | //[Term]// | -> | //Term//
