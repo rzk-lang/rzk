@@ -5,4 +5,5 @@ regression_for:
   - modal-match-composes-constructor-argument-modalities
   - modal-match-explicit-motive
   - modal-match-composition-order-op-op
-  - modal-match-composes-induction-hypotheses
+  - modal-match-keeps-induction-hypothesis-modality
+  - modal-data-eliminators-are-generated

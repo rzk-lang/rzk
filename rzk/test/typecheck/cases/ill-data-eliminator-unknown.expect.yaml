@@ -2,7 +2,7 @@ status: error
 error_tag: TypeErrorOther
 message_contains:
   - "eliminate with clause for elim-d"
-  - "the eliminators are ind-d and rec-d"
+  - "the eliminators are ind-d, rec-d, ind-op-d, rec-op-d, ind-b-d, rec-b-d, ind-sharp-d, rec-sharp-d"
 line: 4
 regression_for:
   - data-eliminator-reascription-clause
