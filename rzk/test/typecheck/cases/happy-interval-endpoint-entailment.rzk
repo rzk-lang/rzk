@@ -1,0 +1,19 @@
+#lang rzk-1
+
+#def simplex
+  : (II * II) -> TOPE
+  := \ (t , s) -> s <= t
+
+#def horn
+  : (II * II) -> TOPE
+  := \ (t , s) -> t === 1_I \/ s === 0_I
+
+#def restrict-simplex
+  (A : U)
+  (a : simplex -> A)
+  : horn -> A
+  := \ (t , s) ->
+    recOR(
+        t === 1_I |-> a (t , s)
+      , s === 0_I |-> a (t , s)
+    )
