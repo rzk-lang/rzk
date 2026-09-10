@@ -39,13 +39,50 @@
   := match _op x
        (op-field point => f point)
 
--- Induction hypotheses are method arguments too, so they receive the same
--- left composition by the match modality as constructor fields.
 #data Nat := zero | suc (pred : Nat)
+
+#check ind-Nat
+  : (C : Nat -> U)
+  -> C zero
+  -> ((pred : Nat) -> (ih : C pred) -> C (suc pred))
+  -> (n : Nat)
+  -> C n
+#check rec-Nat
+  : (C : U) -> C -> ((pred : Nat) -> C -> C) -> Nat -> C
+#check ind-op-Nat
+  : (C : (n :_op Nat) -> U)
+  -> C zero
+  -> ((pred :_op Nat) -> (ih : C pred) -> C (suc pred))
+  -> (n :_op Nat)
+  -> C n
+#check rec-op-Nat
+  : (C : U) -> C -> ((pred :_op Nat) -> C -> C) -> (n :_op Nat) -> C
+#check ind-b-Nat
+  : (C : (n :_b Nat) -> U)
+  -> C zero
+  -> ((pred :_b Nat) -> (ih : C pred) -> C (suc pred))
+  -> (n :_b Nat)
+  -> C n
+#check rec-b-Nat
+  : (C : U) -> C -> ((pred :_b Nat) -> C -> C) -> (n :_b Nat) -> C
+#check ind-sharp-Nat
+  : (C : (n :_# Nat) -> U)
+  -> C zero
+  -> ((pred :_# Nat) -> (ih : C pred) -> C (suc pred))
+  -> (n :_# Nat)
+  -> C n
+#check rec-sharp-Nat
+  : (C : U) -> C -> ((pred :_# Nat) -> C -> C) -> (n :_# Nat) -> C
+
+#define modal-predecessor-generated
+  (n :_b Nat)
+  : _b Nat
+  := rec-b-Nat (_b Nat) (mod _b zero)
+       (\ pred _ -> mod _b pred) n
 
 #define modal-match-recursive
   (x :_b Nat)
-  : _b Unit
+  : Unit
   := match _b x
-       ( zero => mod _b unit
+       ( zero => unit
        | suc pred ih => ih)

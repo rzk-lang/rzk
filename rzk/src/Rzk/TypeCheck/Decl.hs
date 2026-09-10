@@ -1053,36 +1053,46 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
       -- The surface types of the eliminators and the path computation rules
       -- (see "Rzk.TypeCheck.Decl.Data"), pushed through the ordinary
       -- elaborator below just like any user-written type.
-      let spec = ElimSpec
-            { esName = name, esParamVars = paramVars, esParamDecls = paramDecls
+      let spec md = ElimSpec
+            { esName = name, esModality = md
+            , esParamVars = paramVars, esParamDecls = paramDecls
             , esIndexVars = indexVars, esIndexDecls = indexDecls, esMotiveV = motiveV
             , esScrutV = scrutV, esIhNames = ihNames, esMethodVars = methodVars
             , esEndpointV = endpointV, esPathV = pathV, esTransportV = transportV
             , esConsData = consData, esPathData = pathData }
-          et = elimTerms spec
-          indName = prefixedIdent "ind-" name
-          recName = prefixedIdent "rec-" name
-      (mindTy, mrecTy, computeReasc) <- splitClauses indName recName (map fst (computeRules et))
-      indTyT <- elaborate (indTypeTerm et)
-      indCanonical <- memoizeWHNF =<< typecheck indTyT universeT
-      indTy' <- reascribe indName indCanonical mindTy
-      indDeps <- assumptionDepsOf indTy'
-      withTopLevel (varIdentAt path indName) indTy' Nothing False
-        (nubNames (usedHere <> indDeps))
-        (Just (DataRole dName numParams (DataElimKind numMethods indexArity ElimInd))) $ \_ indDecl -> do
-          recTyT <- elaborate (recTypeTerm et)
-          recCanonical <- memoizeWHNF =<< typecheck recTyT universeT
-          recTy' <- reascribe recName recCanonical mrecTy
-          recDeps <- assumptionDepsOf recTy'
-          let usedAtInd = Foil.sink1 usedHere
-          withTopLevel (varIdentAt path recName) recTy' Nothing False
-            (nubNames (usedAtInd <> recDeps))
-            (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
-              bindComputes
-                (Foil.sink1 usedAtInd)
-                computeReasc
-                (computeRules et)
-                (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
+          modalities = if hasPaths then [Id] else [Id, Op, Flat, Sharp]
+          modalTerms = [ (md, elimTerms (spec md)) | md <- modalities ]
+          generated = concat
+            [ [ (md, ElimInd, elimIdent "ind" md name, indTypeTerm et)
+              , (md, ElimRec, elimIdent "rec" md name, recTypeTerm et) ]
+            | (md, et) <- modalTerms ]
+          computes = concatMap (computeRules . snd) modalTerms
+      (elimReasc, computeReasc) <- splitClauses
+        [ n | (_, _, n, _) <- generated ] (map fst computes)
+      bindEliminators dName usedHere elimReasc computeReasc computes generated declsAcc
+
+    bindEliminators
+      :: forall m. DExt n m
+      => Foil.Name m -> [Foil.Name m]
+      -> [(Rzk.VarIdentToken, Rzk.Term)]
+      -> [(Rzk.VarIdentToken, Rzk.Term)]
+      -> [(Rzk.VarIdent, Rzk.Term)]
+      -> [(TModality, ElimKind, Rzk.VarIdent, Rzk.Term)]
+      -> [Decl m]
+      -> TypeCheck m r
+    bindEliminators _dName usedHere _elimReasc computeReasc computes [] acc =
+      bindComputes usedHere computeReasc computes acc
+    bindEliminators dName usedHere elimReasc computeReasc computes
+        ((md, kind, elimName, elimTy) : rest) acc = do
+      tyT <- elaborate elimTy
+      canonical <- memoizeWHNF =<< typecheck tyT universeT
+      ty' <- reascribe elimName canonical (lookup (identTokenOf elimName) elimReasc)
+      deps <- assumptionDepsOf ty'
+      withTopLevel (varIdentAt path elimName) ty' Nothing False
+        (nubNames (usedHere <> deps))
+        (Just (DataRole dName numParams (DataElimKind md numMethods indexArity kind))) $ \_ decl ->
+          bindEliminators (Foil.sink dName) (Foil.sink1 usedHere)
+            elimReasc computeReasc computes rest (sinkDecls acc <> [decl])
 
     -- | Bind the generated @compute-@ lemmas (one @ind@/@rec@ pair per
     -- path constructor), re-ascribing the ones a @compute with@ clause
@@ -1104,37 +1114,29 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           bindComputes (Foil.sink1 usedHere) reasc rest
             (sinkDecls acc <> [decl])
 
-    -- | Split the re-ascription clauses among the generated entries: the
-    -- two eliminators (@eliminate with@) and the computation rules of the
-    -- path constructors (@compute with@). A clause must name an entry of
-    -- the matching kind, at most once each.
     splitClauses
       :: Distinct m
-      => Rzk.VarIdent -> Rzk.VarIdent -> [Rzk.VarIdent]
+      => [Rzk.VarIdent] -> [Rzk.VarIdent]
       -> TypeCheck m
-           (Maybe Rzk.Term, Maybe Rzk.Term, [(Rzk.VarIdentToken, Rzk.Term)])
-    splitClauses indName recName computeNames = go (Nothing, Nothing, []) elims
+           ([(Rzk.VarIdentToken, Rzk.Term)], [(Rzk.VarIdentToken, Rzk.Term)])
+    splitClauses elimNames computeNames = go ([], []) elims
       where
         go acc [] = pure acc
-        go (mind, mrec, mcomp) (Rzk.DataElim _loc elimName ty : rest)
-          | sameIdent elimName indName =
-              case mind of
-                Nothing -> go (Just ty, mrec, mcomp) rest
-                Just _  -> duplicate elimName
-          | sameIdent elimName recName =
-              case mrec of
-                Nothing -> go (mind, Just ty, mcomp) rest
-                Just _  -> duplicate elimName
+        go (melims, mcomp) (Rzk.DataElim _loc elimName ty : rest)
+          | any (sameIdent elimName) elimNames =
+              if identTokenOf elimName `elem` map fst melims
+                then duplicate elimName
+                else go (melims <> [(identTokenOf elimName, ty)], mcomp) rest
           | otherwise = issueTypeError $ TypeErrorOther $
               "eliminate with clause for " <> Rzk.printTree elimName
                 <> ", which is not an eliminator of " <> Rzk.printTree name
-                <> " (the eliminators are " <> Rzk.printTree indName
-                <> " and " <> Rzk.printTree recName <> ")"
-        go (mind, mrec, mcomp) (Rzk.DataCompute _loc ruleName ty : rest)
+                <> " (the eliminators are "
+                <> intercalate ", " (map Rzk.printTree elimNames) <> ")"
+        go (melims, mcomp) (Rzk.DataCompute _loc ruleName ty : rest)
           | any (sameIdent ruleName) computeNames =
               if identTokenOf ruleName `elem` map fst mcomp
                 then duplicate ruleName
-                else go (mind, mrec, mcomp <> [(identTokenOf ruleName, ty)]) rest
+                else go (melims, mcomp <> [(identTokenOf ruleName, ty)]) rest
           | otherwise = issueTypeError $ TypeErrorOther $
               "compute with clause for " <> Rzk.printTree ruleName
                 <> ", which is not a computation rule of " <> Rzk.printTree name

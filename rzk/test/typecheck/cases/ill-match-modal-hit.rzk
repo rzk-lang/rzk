@@ -1,0 +1,8 @@
+#lang rzk-1
+
+#data S1 := base | loop : base =_{S1} base
+
+#define modal-match-hit (x :_b S1) : Unit
+  := match _b x
+       (base => unit
+       | loop => unit)

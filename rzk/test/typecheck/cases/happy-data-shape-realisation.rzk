@@ -22,6 +22,21 @@
       -> ((t : I | phi t) -> C (point I phi t)) -> (x : Shape I phi) -> C x
   := ind-Shape
 
+#define rec-op-Shape-type
+  (I :_op CUBE)
+  (phi :_op I -> TOPE)
+  (x :_op Shape I phi)
+  : Unit
+  := rec-op-Shape I phi Unit (\ _ -> unit) x
+
+#define match-op-Shape
+  (I :_op CUBE)
+  (phi :_op I -> TOPE)
+  (x :_op Shape I phi)
+  : Unit
+  := match _op x into (\ (_ :_op Shape I phi) -> Unit)
+       (point _ => unit)
+
 -- Strict computation on a syntactic point: rec(Point p) ≡ a[p/t].
 #define shape-beta
   ( I : CUBE) (phi : I -> TOPE)

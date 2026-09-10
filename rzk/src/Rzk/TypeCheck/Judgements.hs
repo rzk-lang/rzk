@@ -135,10 +135,13 @@ dataEliminatorsOf d = do
   pure $ map snd $ sortOn fst
     [ (order, (v, role))
     | v <- ctxBound ctx
-    , Just role@(DataRole d' _ (DataElimKind _ _ elimKind)) <-
+    , Just role@(DataRole d' _ (DataElimKind md _ _ elimKind)) <-
         [varDataRole (lookupVarInfo v ctx)]
     , Foil.nameId d' == Foil.nameId d
-    , let order = case elimKind of ElimInd -> 0 :: Int; ElimRec -> 1
+    , let modalOrder = case md of
+            Id -> 0 :: Int; Op -> 1; Flat -> 2; Sharp -> 3
+          elimOrder = case elimKind of ElimInd -> 0 :: Int; ElimRec -> 1
+          order = modalOrder * 2 + elimOrder
     ]
 
 -- | A term of the given type built as λ-binders over a single typed hole
@@ -392,7 +395,7 @@ eliminatorsOf takenNames ty =
                   applyPlan atMotive
                     (Just motive : replicate numMethods Nothing
                       <> map Just indexArgs <> [Just term]))
-              | (e, DataRole _ numParams (DataElimKind numMethods _numIndices _)) <- elims ]
+              | (e, DataRole _ numParams (DataElimKind Id numMethods _numIndices _)) <- elims ]
         pure (matchMoves <> elimSpines)
       _ -> pure []
 
@@ -1013,7 +1016,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                   Just _ ->
                     withBinder orig md param' $ \binder -> do
                       -- eta expand the shape into a tope over the bound variable
-                      let etaTope = appT topeT (Foil.sink paramType) (Var (Foil.nameOf binder))
+                      let etaTope = modalizeTope md $
+                            appT topeT (Foil.sink paramType) (Var (Foil.nameOf binder))
                       expected <- maybe (pure topeTopT) (openScoped binder) mtope'
                       unifyTerms expected etaTope
 
@@ -1181,6 +1185,12 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
     (Var d, _) -> pure d
     _          -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   elims <- dataEliminatorsOf d
+  ctx <- ask
+  cons <- dataConstructorsOf d
+  let hasPathConstructor = any isPathConstructor cons
+      isPathConstructor c = case varDataRole (lookupVarInfo c ctx) of
+        Just (DataRole _ _ (DataConKind PathCon _ _ _)) -> True
+        _                                                -> False
   -- The eliminator to elaborate into: @ind-D@ when the motive genuinely
   -- depends on the scrutinee (an @into@ motive, or a variable scrutinee
   -- occurring in the goal); @rec-D@ otherwise. The choice matters for path
@@ -1197,16 +1207,20 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
         MatchRec   -> ElimRec
         MatchInd{} -> ElimInd
   (e, numParams) <- case
-      [ er | er@(_, DataRole _ _ (DataElimKind _ _ ek)) <- elims, ek == wantedKind ] of
+      [ er
+      | er@(_, DataRole _ _ (DataElimKind md _ _ ek)) <- elims
+      , md == matchMd
+      , ek == wantedKind ] of
     (e, DataRole _ numParams _) : _ -> pure (e, numParams)
+    [] | matchMd /= Id && hasPathConstructor ->
+      issueTypeError $ TypeErrorOther
+        "modal match is not supported for higher inductive types"
     [] -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   let dargs = case collectAppSpine scrutTy of
         (_, args) -> map snd args
       (paramArgs, indexArgs) = splitAt numParams dargs
 
   -- The bijection between branches and constructors, with per-branch arity.
-  ctx <- ask
-  cons <- dataConstructorsOf d
   let conIdent c = case binderName (varOrig (lookupVarInfo c ctx)) of
         Just x  -> x
         Nothing -> panicImpossible "a constructor entry with no name"
@@ -1236,13 +1250,10 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
   -- The spine: parameters, motive, methods (each branch checked against its
   -- method's Π-type), indices, scrutinee.
   atParams <- applyPlan (Var e) (map Just paramArgs)
-  dAtParams <- applyPlan (Var d) (map Just paramArgs)
-  dAtParamsTy <- typeOf dAtParams >>= whnfT
   scope <- asks ctxScope
-  let dependent = case plan of
-        MatchInd{} -> True
-        MatchRec   -> False
-  motiveTy <- matchMotiveType scope dependent matchMd dAtParams dAtParamsTy
+  motiveTy <- typeOf atParams >>= whnfT >>= \case
+    TypeFunT _ _ _ ty _ _ -> pure ty
+    _ -> panicImpossible "an eliminator's type has no motive parameter"
   motive' <- case mmotive of
     Just motive -> typecheck motive motiveTy
     Nothing -> case mgoal of
@@ -1260,7 +1271,7 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
   let applyMethods t [] = pure t
       applyMethods t (c : rest) = typeOf t >>= whnfT >>= \case
         TypeFunT _ _ _ methodTy _ ret -> do
-          method <- checkMatchArms matchMd (branchFor c) methodTy
+          method <- checkMatchArms (branchFor c) methodTy
           retAt <- instantiate ret method
           applyMethods (appT retAt t method) rest
         _ -> panicImpossible "an eliminator's type runs out of method parameters"
@@ -1286,22 +1297,22 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
 -- binders as ordinary hypotheses, under the user's names.
 checkMatchArms
   :: Distinct n
-  => TModality -> Term n -> TermT n -> TypeCheck n (TermT n)
-checkMatchArms matchMd (MatchArm orig scoped) ty = whnfT ty >>= \case
+  => Term n -> TermT n -> TypeCheck n (TermT n)
+checkMatchArms (MatchArm orig scoped) ty = whnfT ty >>= \case
   ty'@(TypeFunT _ _orig' md' param0 mtope' ret) -> do
     -- an induction hypothesis's type is the motive at a field, so it carries
     -- an administrative redex too: reduce it before it enters the context
     param' <- betaMotiveApps param0
     mapM_ checkNameShadowing (binderLeaves orig)
-    body' <- elaborateUnder orig (comp matchMd md') param' Nothing scoped $ \binder bodyTerm -> do
+    body' <- elaborateUnder orig md' param' Nothing scoped $ \binder bodyTerm -> do
       mtopeIn <- traverse (openScoped binder) mtope'
       maybe id localTope mtopeIn $ do
         retIn <- openScoped binder ret
-        checkMatchArms matchMd bodyTerm retIn
+        checkMatchArms bodyTerm retIn
     return (lambdaT ty' orig (Just (LambdaParam md' param' mtope')) body')
   -- unreachable: the arity check matches the arm count to the method's arity
   _ -> panicImpossible "a match arm beyond its method's arity"
-checkMatchArms _ body ty = typecheck body =<< betaMotiveApps ty
+checkMatchArms body ty = typecheck body =<< betaMotiveApps ty
 
 -- | β-reduce the administrative redexes elaboration introduces: a motive built
 -- as a λ-chain and applied to a constructor form is substituted through, so a
@@ -1328,26 +1339,9 @@ firstDuplicate (x : xs)
   | x `elem` xs = Just x
   | otherwise   = firstDuplicate xs
 
-matchMotiveType
-  :: Distinct n
-  => Foil.Scope n -> Bool -> TModality -> TermT n -> TermT n
-  -> TypeCheck n (TermT n)
-matchMotiveType scope dependent matchMd = go scope
-  where
-    go :: Distinct m => Foil.Scope m -> TermT m -> TermT m -> TypeCheck m (TermT m)
-    go sc family (TypeFunT _ orig md param mtope ret) = do
-      let inheritedMd = comp matchMd md
-      ret' <- withScopedT sc ret $ \binder body ->
-        ScopedAST binder <$> underBinder binder orig inheritedMd param Nothing (do
-          sc' <- asks ctxScope
-          let family' = appT body (Foil.sink family) (Var (Foil.nameOf binder))
-          go sc' family' body)
-      pure (typeFunT orig inheritedMd param mtope ret')
-    go sc family UniverseT{}
-      | dependent = pure (typeFunT (BinderVar Nothing) matchMd family Nothing
-          (closedScope sc universeT))
-      | otherwise = pure universeT
-    go _ _ _ = panicImpossible "a #data type does not end in U"
+modalizeTope :: TModality -> TermT n -> TermT n
+modalizeTope Id tope = tope
+modalizeTope md tope = typeModalT topeT md tope
 
 -- | A motive built from the goal: λ-binders along the motive's Π-type (the
 -- family's indices, then the scrutinee), whose body is the goal — with the
@@ -1609,7 +1603,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
         mapM_ checkNameShadowing (binderLeaves orig)
         (tope', b') <- checkUnder orig md cube b $ \binder bTerm -> do
           -- eta expand a' into a tope over the bound variable
-          let etaTope = appT topeT (Foil.sink a') (Var (Foil.nameOf binder))
+          let etaTope = modalizeTope md $
+                appT topeT (Foil.sink a') (Var (Foil.nameOf binder))
           tope' <- case mtope of
             Nothing     -> pure etaTope
             Just tope'' -> do
@@ -1717,7 +1712,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
       Just _ -> do
         (tope', body', ret) <- checkUnder orig md param body $ \binder bodyTerm -> do
           -- eta expand the shape into a tope over the bound variable
-          let etaTope = appT topeT (Foil.sink ty') (Var (Foil.nameOf binder))
+          let etaTope = modalizeTope md $
+                appT topeT (Foil.sink ty') (Var (Foil.nameOf binder))
           body' <- localTope etaTope $ infer bodyTerm
           ret <- typeOf body'
           pure (ScopedAST binder etaTope, ScopedAST binder body', ScopedAST binder ret)

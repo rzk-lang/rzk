@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnaccessibleVar
+message_contains:
+  - ih
+regression_for:
+  - a modal match changes constructor-field modalities but not the modality of an induction hypothesis

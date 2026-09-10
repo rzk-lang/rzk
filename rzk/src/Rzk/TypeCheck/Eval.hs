@@ -1417,7 +1417,7 @@ tryDataElimStep
   -> [(TypeInfo (TermT n), TermT n)]  -- ^ the collected spine arguments
   -> TypeCheck n (Maybe (TermT n))
 tryDataElimStep (Var v) pairs = asks (varDataRole . lookupVarInfo v) >>= \case
-  Just (DataRole dataType numParams (DataElimKind numMethods numIndices _elimKind))
+  Just (DataRole dataType numParams (DataElimKind _md numMethods numIndices _elimKind))
     -- The spine is parameters, motive, methods, indices, scrutinee. The
     -- index arguments are dropped on a step: the scrutinee determines them.
     | (beforeIndices, rest) <- splitAt (numParams + 1 + numMethods) pairs

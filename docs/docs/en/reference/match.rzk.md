@@ -31,29 +31,33 @@ Branches must be in bijection with the constructors: every constructor appears e
 
 ## Modal matching
 
-The form `match μ x (...)` checks the scrutinee `x` under modality `μ`.
-If a constructor method binds an argument under modality `ν`, the
-corresponding branch variable is bound under the composition `μ · ν`. This
-applies to every field and induction hypothesis. An ordinary `match x (...)`
-is the special case `μ = _id`.
+The form `match μ x (...)` checks the scrutinee `x` under modality `μ` and
+uses the eliminator generated for that modality. A datatype `D` without path
+constructors generates `ind-D` and `rec-D` for the identity modality, together
+with `ind-op-D`/`rec-op-D`, `ind-b-D`/`rec-b-D`, and
+`ind-sharp-D`/`rec-sharp-D`.
 
 ```rzk
-#data ModalMatch := mm (plain : 2) (op :_op 2)
+#data Nat := zero | suc (pred : Nat)
 
-#define modal-match-flat
-  (f :_b (i : 2) -> (j : 2) -> Unit)
-  (x :_b ModalMatch)
-  : _b Unit
-  := match _b x
-       (mm plain op => mod _b (f plain op))
+#define modal-predecessor (n :_b Nat) : _b Nat
+  := match _b n
+       (zero => mod _b zero
+       | suc pred _ => mod _b pred)
 ```
 
-Here both branch variables are available under `_b`: their modalities are
-`_b · _id = _b` and `_b · _op = _b`. The explicit-motive spelling is
-`match μ x into motive (...)`. For a non-indexed datatype `D`, the motive
-has type `(z :_μ D) → U`: its scrutinee binder inherits the match modality.
-For an indexed datatype, every binder in the motive telescope inherits `μ`,
-so its type is `(i :_μ I) → (z :_μ D i) → U` for one plain index.
+If a constructor field was declared under modality `ν`, its binder in the
+modal eliminator and the corresponding branch variable use `μ · ν`. Generated
+induction hypotheses remain plain; the `_` in the example is such an unused
+hypothesis. Datatype parameters, indices, shape fields and their guards also
+inherit `μ`.
+
+The explicit-motive spelling is `match μ x into motive (...)`. For a
+non-indexed datatype `D`, the motive has type `(z :_μ D) → U`. For an indexed
+datatype, every binder in the motive telescope inherits `μ`, so its type is
+`(i :_μ I) → (z :_μ D i) → U` for one plain index. Higher inductive types
+currently generate only `ind-D` and `rec-D`; modal matching on them is rejected
+because it requires modal path induction.
 
 Since a bare modality immediately after `match` selects this form, parenthesise
 a modality-prefixed scrutinee when writing an ordinary match, for example

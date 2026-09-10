@@ -157,6 +157,8 @@ extra-source-files:
     test/typecheck/cases/ill-match-missing-branch.rzk
     test/typecheck/cases/ill-match-missing-path-branch.rzk
     test/typecheck/cases/ill-match-modal-inaccessible.rzk
+    test/typecheck/cases/ill-match-modal-hit.rzk
+    test/typecheck/cases/ill-match-modal-ih-remodalized.rzk
     test/typecheck/cases/ill-match-modal-motive.rzk
     test/typecheck/cases/ill-match-not-data.rzk
     test/typecheck/cases/ill-match-unknown-branch.rzk
@@ -376,6 +378,8 @@ extra-source-files:
     test/typecheck/cases/ill-match-missing-branch.expect.yaml
     test/typecheck/cases/ill-match-missing-path-branch.expect.yaml
     test/typecheck/cases/ill-match-modal-inaccessible.expect.yaml
+    test/typecheck/cases/ill-match-modal-hit.expect.yaml
+    test/typecheck/cases/ill-match-modal-ih-remodalized.expect.yaml
     test/typecheck/cases/ill-match-modal-motive.expect.yaml
     test/typecheck/cases/ill-match-not-data.expect.yaml
     test/typecheck/cases/ill-match-unknown-branch.expect.yaml
