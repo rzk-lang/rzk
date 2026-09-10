@@ -150,25 +150,25 @@ ASCII_ModalColonSharp. ModalColon ::= ":_#" ;
 ASCII_ModalColonOp.    ModalColon ::= ":_op" ;
 
 -- Universes
-Universe.       Term7 ::= "U" ;
-UniverseCube.   Term7 ::= "CUBE" ;
-UniverseTope.   Term7 ::= "TOPE" ;
+Universe.       Term8 ::= "U" ;
+UniverseCube.   Term8 ::= "CUBE" ;
+UniverseTope.   Term8 ::= "TOPE" ;
 -- Cubes
-CubeUnit.       Term7 ::= "1" ;
-CubeUnitStar.   Term7 ::= "*₁" ;
-Cube2.          Term7 ::= "2" ;
-Cube2_0.        Term7 ::= "0₂" ;
-Cube2_1.        Term7 ::= "1₂" ;
-CubeI.          Term7 ::= "𝕀" ;
-CubeI_0.        Term7 ::= "0ᵢ" ;
-CubeI_1.        Term7 ::= "1ᵢ" ;
+CubeUnit.       Term8 ::= "1" ;
+CubeUnitStar.   Term8 ::= "*₁" ;
+Cube2.          Term8 ::= "2" ;
+Cube2_0.        Term8 ::= "0₂" ;
+Cube2_1.        Term8 ::= "1₂" ;
+CubeI.          Term8 ::= "𝕀" ;
+CubeI_0.        Term8 ::= "0ᵢ" ;
+CubeI_1.        Term8 ::= "1ᵢ" ;
 CubeProduct.    Term5 ::= Term5 "×" Term6 ;
 -- Lattice operations on cube points (join/meet)
 CubeSup.        Term5 ::= Term5 "⊔" Term6 ;
 CubeInf.        Term5 ::= Term5 "⊓" Term6 ;
 -- Topes
-TopeTop.        Term7 ::= "⊤" ;
-TopeBottom.     Term7 ::= "⊥" ;
+TopeTop.        Term8 ::= "⊤" ;
+TopeBottom.     Term8 ::= "⊥" ;
 TopeEQ.         Term4 ::= Term5 "≡" Term5 ;
 TopeLEQ.        Term4 ::= Term5 "≤" Term5 ;
 TopeAnd.        Term3 ::= Term4 "∧" Term3 ;
@@ -186,14 +186,14 @@ CubeUnflip.     Term6 ::= "unflipᵒᵖ" Term7 ;
 ascii_CubeUnflip. Term6 ::= "unflip_op" Term7 ;
 define ascii_CubeUnflip t = CubeUnflip t ;
 -- Tope disjunction elimination
-RecBottom.        Term7 ::= "recBOT" ;
-RecOr.            Term7 ::= "recOR" "(" [Restriction] ")" ;
+RecBottom.        Term8 ::= "recBOT" ;
+RecOr.            Term8 ::= "recOR" "(" [Restriction] ")" ;
 -- Types
 TypeFun.        Term1 ::= ParamDecl "→" Term1 ;
 TypeSigma.      Term1 ::= "Σ" "(" Pattern ":" Term ")" "," Term1 ;
 TypeSigmaModal.    Term1 ::= "Σ" "(" Pattern ModalColon Term ")" "," Term1 ;
 TypeSigmaTuple. Term1 ::= "Σ" "(" SigmaParam "," [SigmaParam] ")" "," Term1 ;
-TypeUnit.       Term7 ::= "Unit" ;
+TypeUnit.       Term8 ::= "Unit" ;
 TypeId.         Term1 ::= Term2 "=_{" Term "}" Term2 ;
 TypeIdSimple.   Term1 ::= Term2 "=" Term2 ;
 TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
@@ -201,8 +201,8 @@ TypeRestricted. Term6  ::= Term6 "[" [Restriction] "]" ;
 Let.            Term1 ::= "let" Bind ":=" Term "in" Term ;
 App.            Term6 ::= Term6 Term7 ;
 Lambda.         Term1 ::= "\\" [Param] "→" Term1 ;
-Pair.           Term7 ::= "(" Term "," Term ")" ;
-Tuple.          Term7 ::= "(" Term "," Term "," [Term] ")" ;
+Pair.           Term8 ::= "(" Term "," Term ")" ;
+Tuple.          Term8 ::= "(" Term "," Term "," [Term] ")" ;
 ModApp.         Term7 ::= "mod" Modality Term7 ;
 ModType.        Term7 ::= Modality Term7 ;
 ModExtract.     Term6 ::= "$extract$" ModComp Term7 ;
@@ -214,21 +214,25 @@ LetModInto.     Term1 ::= "let" "mod" Modality Bind ":=" Term "into" Term "in" T
 LetModFramedInto. Term1 ::= "let" Modality "mod" Modality Bind ":=" Term "into" Term "in" Term ;
 First.          Term6 ::= "π₁" Term7 ;
 Second.         Term6 ::= "π₂" Term7 ;
-Unit.           Term7 ::= "unit" ;
-Refl.           Term7 ::= "refl";
-ReflTerm.       Term7 ::= "refl_{" Term "}" ;
-ReflTermType.   Term7 ::= "refl_{" Term ":" Term "}" ;
-IdJ.            Term7 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
-Match.          Term7 ::= "match" Term7 "(" [MatchBranch] ")" ;
-MatchInto.      Term7 ::= "match" Term7 "into" Term7 "(" [MatchBranch] ")" ;
+Unit.           Term8 ::= "unit" ;
+Refl.           Term8 ::= "refl";
+ReflTerm.       Term8 ::= "refl_{" Term "}" ;
+ReflTermType.   Term8 ::= "refl_{" Term ":" Term "}" ;
+IdJ.            Term8 ::= "idJ" "(" Term "," Term "," Term "," Term "," Term "," Term ")" ;
+-- A bare modality after `match` belongs to the modal form. The ordinary form
+-- takes an atom; a prefixed scrutinee can still be written in parentheses.
+Match.          Term7 ::= "match" Term8 "(" [MatchBranch] ")" ;
+MatchInto.      Term7 ::= "match" Term8 "into" Term8 "(" [MatchBranch] ")" ;
+MatchModal.     Term7 ::= "match" Modality Term8 "(" [MatchBranch] ")" ;
+MatchModalInto. Term7 ::= "match" Modality Term8 "into" Term8 "(" [MatchBranch] ")" ;
 -- Variables and holes
-Hole.           Term7 ::= HoleIdent;
-Var.            Term7 ::= VarIdent ;
+Hole.           Term8 ::= HoleIdent;
+Var.            Term8 ::= VarIdent ;
 -- Miscellaneous
 TypeAsc.        Term ::= Term2 "as" Term1 ;
 
 separator nonempty Term "," ;
-coercions Term 7 ;
+coercions Term 8 ;
 
 -- ASCII version of some rules above
 
@@ -239,15 +243,15 @@ define ascii_CubeSup l r = CubeSup l r ;
 ascii_CubeInf.        Term6 ::= "inf" Term7 Term7 ;
 define ascii_CubeInf l r = CubeInf l r ;
 
-ASCII_CubeUnitStar.   Term7 ::= "*_1" ;
-ASCII_Cube2_0.        Term7 ::= "0_2" ;
-ASCII_Cube2_1.        Term7 ::= "1_2" ;
-ASCII_CubeI.          Term7 ::= "II" ;
-ASCII_CubeI_0.        Term7 ::= "0_I" ;
-ASCII_CubeI_1.        Term7 ::= "1_I" ;
+ASCII_CubeUnitStar.   Term8 ::= "*_1" ;
+ASCII_Cube2_0.        Term8 ::= "0_2" ;
+ASCII_Cube2_1.        Term8 ::= "1_2" ;
+ASCII_CubeI.          Term8 ::= "II" ;
+ASCII_CubeI_0.        Term8 ::= "0_I" ;
+ASCII_CubeI_1.        Term8 ::= "1_I" ;
 
-ASCII_TopeTop.        Term7 ::= "TOP" ;
-ASCII_TopeBottom.     Term7 ::= "BOT" ;
+ASCII_TopeTop.        Term8 ::= "TOP" ;
+ASCII_TopeBottom.     Term8 ::= "BOT" ;
 ASCII_TopeEQ.         Term4 ::= Term5 "===" Term5 ;
 ASCII_TopeLEQ.        Term4 ::= Term5 "<=" Term5 ;
 ASCII_TopeAnd.        Term3 ::= Term4 "/\\" Term3 ;

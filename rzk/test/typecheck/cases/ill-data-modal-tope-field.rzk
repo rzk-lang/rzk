@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A field of a modal tope kind would store a tope-layer citizen, seen
+-- through a modality, inside type-layer data; closed with the rest of the
+-- modal tope kinds pending a modal account of the parameter layer.
+#data F := c (psi : _op TOPE)

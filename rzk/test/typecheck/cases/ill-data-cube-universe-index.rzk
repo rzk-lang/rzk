@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- An index must be a type, full stop: a family over the cube universe is
+-- internal quantification over the cube layer.
+#data X : CUBE -> U

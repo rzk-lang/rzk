@@ -146,6 +146,21 @@ spec = describe "reference index" $ do
     it "does not occlude the type name with the derived entries" $
       -- hovering the declaration's own `bool` must hit `bool`, not ind-bool
       RI.bindingName (bindingAt riData "data.rzk" (1, 6)) `shouldBe` "bool"
+
+  describe "modal match" $ do
+    let matchSrc = T.unlines
+          [ "#lang rzk-1"                                  -- 0
+          , "#data D := c (a : Unit)"                      -- 1
+          , "#define f (x : D) (m : D -> U) : U"           -- 2
+          , "  := match _b x into m (c a => a)"            -- 3
+          ]
+        riMatch = indexOf [("match.rzk", matchSrc)]
+
+    it "indexes the scrutinee, motive, constructor, and branch binder" $ do
+      defPos (bindingAt riMatch "match.rzk" (3, 14)) `shouldBe` ("match.rzk", 2, 11)
+      defPos (bindingAt riMatch "match.rzk" (3, 21)) `shouldBe` ("match.rzk", 2, 19)
+      defPos (bindingAt riMatch "match.rzk" (3, 24)) `shouldBe` ("match.rzk", 1, 11)
+      defPos (bindingAt riMatch "match.rzk" (3, 31)) `shouldBe` ("match.rzk", 3, 26)
 #else
 spec :: Spec
 spec = describe "reference index" (pure ())

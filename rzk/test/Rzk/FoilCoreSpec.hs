@@ -84,6 +84,9 @@ spec = do
     it_roundTrips "\\ (t, s) -> first (t, s)" "\\ (t, s) → π₁ (t, s)"
     it_roundTrips "\\ A -> \\ (x : A) -> refl_{x : A}" "\\ A → \\ (x : A) → refl_{ x : A }"
     it_roundTrips "\\ t -> \\ s -> t === s" "\\ t → \\ s → t ≡ s"
+    it_roundTrips "\\ x -> match _b x (c a => a)" "\\ x → match ♭ x (c a ⇒ a)"
+    it_roundTrips "\\ x -> match _op x into (\\ _ -> Unit) (c => unit)" "\\ x → match ᵒᵖ x into (\\ x₁ → Unit) (c ⇒ unit)"
+    it_roundTrips "\\ x -> match (mod _b x) (c => unit)" "\\ x → match (mod ♭ x) (c ⇒ unit)"
 
   describe "α-equivalence ignores binder names" $ do
     it "\\ x -> x is \\ y -> y" $

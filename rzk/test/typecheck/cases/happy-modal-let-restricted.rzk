@@ -1,0 +1,21 @@
+#lang rzk-1
+
+-- A restriction is a refinement of the whole modal type, not an obstacle to
+-- modal elimination. `let mod` must look through the outer restriction when
+-- finding the modal payload type.
+#define unwrap-restricted-modal
+  (A :_b U)
+  (a :_b A)
+  (i : 2)
+  (x : (_b A) [ i === 0_2 |-> mod _b a ])
+  : _b A
+  := let mod _b y := x in mod _b y
+
+-- An explicit motive takes the inference path through the elaborator.
+#define unwrap-restricted-modal-into
+  (A :_b U)
+  (a :_b A)
+  (i : 2)
+  (x : (_b A) [ i === 0_2 |-> mod _b a ])
+  : _b A
+  := let mod _b y := x into (\ _ -> _b A) in mod _b y

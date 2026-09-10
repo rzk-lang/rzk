@@ -29,6 +29,40 @@ Here `ih` stands for `plus k m`, the result of the recursion on `k`. Recursion h
 
 Branches must be in bijection with the constructors: every constructor appears exactly once (in any order), with exactly as many binders as its method takes. There are no nested patterns and no wildcards.
 
+## Modal matching
+
+The form `match μ x (...)` checks the scrutinee `x` under modality `μ` and
+uses the eliminator generated for that modality. A datatype `D` without path
+constructors generates `ind-D` and `rec-D` for the identity modality, together
+with `ind-op-D`/`rec-op-D`, `ind-b-D`/`rec-b-D`, and
+`ind-sharp-D`/`rec-sharp-D`.
+
+```rzk
+#data Nat := zero | suc (pred : Nat)
+
+#define modal-predecessor (n :_b Nat) : _b Nat
+  := match _b n
+       (zero => mod _b zero
+       | suc pred _ => mod _b pred)
+```
+
+If a constructor field was declared under modality `ν`, its binder in the
+modal eliminator and the corresponding branch variable use `μ · ν`. Generated
+induction hypotheses remain plain; the `_` in the example is such an unused
+hypothesis. Datatype parameters, indices, shape fields and their guards also
+inherit `μ`.
+
+The explicit-motive spelling is `match μ x into motive (...)`. For a
+non-indexed datatype `D`, the motive has type `(z :_μ D) → U`. For an indexed
+datatype, every binder in the motive telescope inherits `μ`, so its type is
+`(i :_μ I) → (z :_μ D i) → U` for one plain index. Higher inductive types
+currently generate only `ind-D` and `rec-D`; modal matching on them is rejected
+because it requires modal path induction.
+
+Since a bare modality immediately after `match` selects this form, parenthesise
+a modality-prefixed scrutinee when writing an ordinary match, for example
+`match (mod ♭ x) (...)`.
+
 ## The motive
 
 A `match` used in checking position takes its motive from the expected type: when the scrutinee is a variable, that variable is abstracted out of the goal, so the branches see the goal at each constructor. This gives dependent matching by substitution:

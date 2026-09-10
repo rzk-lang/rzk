@@ -410,9 +410,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
             LetModT _ _ app' inn' _ _mmotive' val' body'
               | app == app', inn == inn' -> do
                 unify Nothing val val'
-                bty <- typeOf val >>= \case
-                  TypeModalT _ _ t -> pure t
-                  _ -> panicImpossible "not modal in letmod"
+                bty <- requireTypeUnderModal inn val
                 inScope2 orig (comp app inn) bty body body' $ \_binder bodyIn bodyIn' ->
                   unify Nothing bodyIn bodyIn'
             _ -> err

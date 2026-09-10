@@ -137,7 +137,7 @@ data DataRoleKind
     -- after the parameters, and the 0-based positions of its recursive
     -- fields (each contributes an induction hypothesis right after the
     -- field in the method)
-  | DataElimKind Int Int ElimKind
+  | DataElimKind TModality Int Int ElimKind
     -- ^ an eliminator: the number of methods (one per constructor, in
     -- declaration order) and the number of indices of the family; the
     -- spine is parameters, motive, methods, indices, scrutinee

@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- No identity types over the tope universe: TOPE is not a type.
+#define e : U := (TOP /\ TOP) =_{TOPE} TOP
