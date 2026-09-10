@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- The modal tope kinds are closed everywhere in #data, parameters included,
+-- pending a modal extension of the parameter layer. Plain tope families
+-- (I -> TOPE) remain legal parameters.
+#data P (psi : _op TOPE) := k

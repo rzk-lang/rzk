@@ -1,0 +1,26 @@
+#lang rzk-1
+
+-- Under an _op lock a plain assumption uninv_op (mod _op phi) must make phi
+-- available in the op-context: that is what un-inversion means. The control
+-- below (an unrestricted phi) works; the case that matters is a phi which is
+-- itself shape-restricted, as in sHoTT's op-ext-flip-2-fwd. There the normal
+-- form of (phi ft) carries the ambient shape (psi ft) as a side condition, so
+-- the assumption un-inverts to a conjunction, and both conjuncts have to become
+-- available separately: the domain of x is (psi ft) /\ (phi ft).
+
+#postulate uninv-under-op-unrestricted
+  ( phi :_op (2 -> TOPE))
+  ( A :_op (t : 2) -> U)
+  ( x :_op (t : 2 | phi t) -> A t)
+  : ( t : 2) ->
+    let mod _op ft := flip_op t in
+    (_op (A ft)) [ uninv_op (mod _op (phi ft)) |-> mod _op (x ft) ]
+
+#postulate uninv-under-op-shape-restricted
+  ( psi :_op (2 -> TOPE))
+  ( phi :_op ((t : 2 | psi t) -> TOPE))
+  ( A :_op (t : 2 | psi t) -> U)
+  ( x :_op (t : 2 | phi t) -> A t)
+  : ( t : 2 | let mod _op ft := flip_op t in _op (psi ft)) ->
+    let mod _op ft := flip_op t in
+    (_op (A ft)) [ uninv_op (mod _op (phi ft)) |-> mod _op (x ft) ]

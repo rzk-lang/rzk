@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- A cube index is rejected on the elaborated sort. A cube is an unrestricted
+-- shape, so it goes the same way as shape indices: a family varying over a
+-- shape is what extension types are for, and no metatheory is written down
+-- for an inductive family over one.
+#data Fam : 2 -> U := at (t : 2) : Fam t

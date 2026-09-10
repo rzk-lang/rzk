@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- The tope universe cannot be a Σ component: it would store topes as data.
+#define A : U := Σ (p : TOPE) , Unit
