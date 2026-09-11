@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- A modal field whose domain is a type is rejected: unlike a cube or shape
+-- field, a type field can be recursive, and the recursion and positivity
+-- bookkeeping does not see through a modal binder. The decision is made on
+-- the elaborated constructor type (checkDataConFieldLayers), since on the
+-- surface (x :_b Unit) is indistinguishable from a named modal shape field.
+#data Wrap := wrap (x :_b Unit)

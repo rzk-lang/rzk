@@ -1,7 +1,6 @@
 status: error
 error_tag: TypeErrorOther
 message_contains:
-  - "directed cell"
-line: 5
+  - "tope assumptions are illegal"
 regression_for:
-  - data-stage1-reject-shape-fields
+  - layer-discipline-direct-guards

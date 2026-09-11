@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- The named spelling of a shape parameter is rejected on the elaborated
+-- sort: (t : D1) elaborates to the restricted binder (t : 2 | D1 t), the
+-- same form the inline spelling would produce, so both spellings meet the
+-- same rule.
+#define D1 : 2 -> TOPE := \ t -> ⊤
+
+#data P (t : D1) := c

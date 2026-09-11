@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A universe kind cannot be passed where a type is expected: the guard is
+-- at the application, since at formation time the parameter is opaque.
+#define diag (X : U) : U := Σ (p : X) , Unit
+#define bad : U := diag TOPE

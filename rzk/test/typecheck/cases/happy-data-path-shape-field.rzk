@@ -1,0 +1,30 @@
+#lang rzk-1
+
+-- A path constructor may take a cube or shape field: a Φ-indexed family of
+-- *undirected* cells, i.e. identity paths. This cannot express a directed
+-- cell: the return type of a path constructor is an identity type, not a
+-- hom, and there is no syntax for face equations, so the directed-cell
+-- boundary holds. Deliberately kept and pinned here; the metatheoretic
+-- status is by analogy with an ordinary field of the realisation type
+-- (merid over ⌈Φ⌉), not by a written rule.
+
+#data Loops := base | turn (t : 2 | ⊤) : base =_{Loops} base
+
+#define rec-Loops-type
+  : (C : U) -> (m : C) -> ((t : 2 | ⊤) -> m =_{C} m) -> Loops -> C
+  := rec-Loops
+
+-- Endpoints may mention the variable a shape field of the same declaration
+-- binds: the undirected cone over the realisation.
+#data Cone := apex | pt (t : 2 | ⊤) | edge (t : 2 | ⊤) : pt t =_{Cone} apex
+
+#define rec-Cone-type
+  : (C : U) -> (m-apex : C) -> (m-pt : (t : 2 | ⊤) -> C)
+      -> ((t : 2 | ⊤) -> m-pt t =_{C} m-apex) -> Cone -> C
+  := rec-Cone
+
+-- The point methods still compute strictly on a syntactic point.
+#define collapse : Cone -> Unit
+  := rec-Cone Unit unit (\ _ -> unit) (\ _ -> refl)
+
+#define collapse-pt : collapse (pt 0_2) = unit := refl

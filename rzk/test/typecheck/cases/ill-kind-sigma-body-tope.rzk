@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- The second component is checked too.
+#define A : U := Σ (x : Unit) , TOPE
