@@ -1,0 +1,187 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | First-class type families</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- For example, here is a regular type family:</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- type family   FromMaybe (a :: k) (m :: Maybe k) :: k</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- type instance FromMaybe a 'Nothing  = a</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- type instance FromMaybe a ('Just b) = b</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- With @Fcf@, it translates to a @data@ declaration:</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- data FromMaybe :: k -&gt; Maybe k -&gt; 'Exp' k</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- type instance 'Eval' (FromMaybe a 'Nothing)  = a</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- type instance 'Eval' (FromMaybe a ('Just b)) = b</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- - Fcfs can be higher-order.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- - The kind constructor 'Exp' is a monad: there's @('=&lt;&lt;')@ and 'Pure'.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Essential language extensions for &quot;Fcf&quot;:</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- &gt; {-# LANGUAGE</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt;     DataKinds,</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- &gt;     PolyKinds,</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- &gt;     TypeFamilies,</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- &gt;     TypeOperators,</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- &gt;     UndecidableInstances #-}</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Fcf.html"><span class="hs-identifier">Fcf</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * First-class type families</span></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Fcf.Core.html#Exp"><span class="hs-identifier">Exp</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Core.html#Eval"><span class="hs-identifier">Eval</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Core.html#%40%40"><span class="hs-operator">(@@)</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Functional combinators</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure"><span class="hs-identifier">Pure</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure1"><span class="hs-identifier">Pure1</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure2"><span class="hs-identifier">Pure2</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure3"><span class="hs-identifier">Pure3</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure4"><span class="hs-identifier">Pure4</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure5"><span class="hs-identifier">Pure5</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure6"><span class="hs-identifier">Pure6</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure7"><span class="hs-identifier">Pure7</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure8"><span class="hs-identifier">Pure8</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Pure9"><span class="hs-identifier">Pure9</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#%3D%3C%3C"><span class="hs-operator">(=&lt;&lt;)</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#%3E%3E%3D"><span class="hs-operator">(&gt;&gt;=)</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#%3C%3D%3C"><span class="hs-operator">(&lt;=&lt;)</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#LiftM"><span class="hs-identifier">LiftM</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#LiftM2"><span class="hs-identifier">LiftM2</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#LiftM3"><span class="hs-identifier">LiftM3</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Join"><span class="hs-identifier">Join</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#%3C%24%3E"><span class="hs-operator">(&lt;$&gt;)</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#%3C%2A%3E"><span class="hs-operator">(&lt;*&gt;)</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#Flip"><span class="hs-identifier">Flip</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#ConstFn"><span class="hs-identifier">ConstFn</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Combinators.html#%24"><span class="hs-operator">($)</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Operations on common types</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Pairs</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#Uncurry"><span class="hs-identifier">Uncurry</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#Fst"><span class="hs-identifier">Fst</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#Snd"><span class="hs-identifier">Snd</span></a></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#%2A%2A%2A"><span class="hs-operator">(***)</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Either</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#UnEither"><span class="hs-identifier">UnEither</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#IsLeft"><span class="hs-identifier">IsLeft</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#IsRight"><span class="hs-identifier">IsRight</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Maybe</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#UnMaybe"><span class="hs-identifier">UnMaybe</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#FromMaybe"><span class="hs-identifier">FromMaybe</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#IsNothing"><span class="hs-identifier">IsNothing</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html#IsJust"><span class="hs-identifier">IsJust</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Lists</span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#%2B%2B"><span class="hs-operator">(++)</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Head"><span class="hs-identifier">Head</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Last"><span class="hs-identifier">Last</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Tail"><span class="hs-identifier">Tail</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Cons"><span class="hs-identifier">Cons</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Snoc"><span class="hs-identifier">Snoc</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Cons2"><span class="hs-identifier">Cons2</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Init"><span class="hs-identifier">Init</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Uncons"><span class="hs-identifier">Uncons</span></a></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Unsnoc"><span class="hs-identifier">Unsnoc</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Singleton"><span class="hs-identifier">Singleton</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Null"><span class="hs-identifier">Null</span></a></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Length"><span class="hs-identifier">Length</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Reverse"><span class="hs-identifier">Reverse</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Intersperse"><span class="hs-identifier">Intersperse</span></a></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Intercalate"><span class="hs-identifier">Intercalate</span></a></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Class.Foldable.html#Foldr"><span class="hs-identifier">Foldr</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#UnList"><span class="hs-identifier">UnList</span></a></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Class.Foldable.html#Concat"><span class="hs-identifier">Concat</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Class.Foldable.html#ConcatMap"><span class="hs-identifier">ConcatMap</span></a></span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Unfoldr"><span class="hs-identifier">Unfoldr</span></a></span><span>
+</span><span id="line-110"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Replicate"><span class="hs-identifier">Replicate</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Take"><span class="hs-identifier">Take</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Drop"><span class="hs-identifier">Drop</span></a></span><span>
+</span><span id="line-113"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#SplitAt"><span class="hs-identifier">SplitAt</span></a></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#TakeWhile"><span class="hs-identifier">TakeWhile</span></a></span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#DropWhile"><span class="hs-identifier">DropWhile</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Span"><span class="hs-identifier">Span</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Break"><span class="hs-identifier">Break</span></a></span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Tails"><span class="hs-identifier">Tails</span></a></span><span>
+</span><span id="line-119"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#IsPrefixOf"><span class="hs-identifier">IsPrefixOf</span></a></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#IsSuffixOf"><span class="hs-identifier">IsSuffixOf</span></a></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#IsInfixOf"><span class="hs-identifier">IsInfixOf</span></a></span><span>
+</span><span id="line-122"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Elem"><span class="hs-identifier">Elem</span></a></span><span>
+</span><span id="line-123"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Lookup"><span class="hs-identifier">Lookup</span></a></span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Find"><span class="hs-identifier">Find</span></a></span><span>
+</span><span id="line-125"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Filter"><span class="hs-identifier">Filter</span></a></span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Partition"><span class="hs-identifier">Partition</span></a></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#FindIndex"><span class="hs-identifier">FindIndex</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#SetIndex"><span class="hs-identifier">SetIndex</span></a></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#ZipWith"><span class="hs-identifier">ZipWith</span></a></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Zip"><span class="hs-identifier">Zip</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.List.html#Unzip"><span class="hs-identifier">Unzip</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Bool</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Bool.html#UnBool"><span class="hs-identifier">UnBool</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Bool.html#%7C%7C"><span class="hs-operator">(||)</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Bool.html#%26%26"><span class="hs-operator">(&amp;&amp;)</span></a></span><span>
+</span><span id="line-138"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Data.Bool.html#Not"><span class="hs-identifier">Not</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Case splitting</span></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Case"><span class="hs-identifier">Case</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Match"><span class="hs-identifier">Match</span></a></span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Utils.html#--%3E"><span class="hs-operator">(--&gt;)</span></a></span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Is"><span class="hs-identifier">Is</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Any"><span class="hs-identifier">Any</span></a></span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Else"><span class="hs-identifier">Else</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Nat</span></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%2B"><span class="hs-operator">(+)</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%2A"><span class="hs-operator">(Fcf.Data.Nat.*)</span></a></span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%5E"><span class="hs-operator">(^)</span></a></span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%3C%3D"><span class="hs-operator">(&lt;=)</span></a></span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%3E%3D"><span class="hs-operator">(&gt;=)</span></a></span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%3C"><span class="hs-operator">(&lt;)</span></a></span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html#%3E"><span class="hs-operator">(&gt;)</span></a></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Overloaded operations</span></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Class.Functor.html#Map"><span class="hs-identifier">Map</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Class.Bifunctor.html#Bimap"><span class="hs-identifier">Bimap</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Miscellaneous</span></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Error"><span class="hs-identifier">Error</span></a></span><span>
+</span><span id="line-168"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Constraints"><span class="hs-identifier">Constraints</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#TyEq"><span class="hs-identifier">TyEq</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Stuck"><span class="hs-identifier">Stuck</span></a></span><span>
+</span><span id="line-171"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#IsBool"><span class="hs-identifier">IsBool</span></a></span><span class="hs-special">(</span><span class="annot"><a href="Fcf.Utils.html#_If"><span class="hs-identifier">_If</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">If</span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#Assert"><span class="hs-identifier">Assert</span></a></span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Fcf.Utils.html#AssertNot"><span class="hs-identifier">AssertNot</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Core.html"><span class="hs-identifier">Fcf.Core</span></a></span><span>
+</span><span id="line-179"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Combinators.html"><span class="hs-identifier">Fcf.Combinators</span></a></span><span>
+</span><span id="line-180"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Data.Bool.html"><span class="hs-identifier">Fcf.Data.Bool</span></a></span><span>
+</span><span id="line-181"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Data.Common.html"><span class="hs-identifier">Fcf.Data.Common</span></a></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Data.List.html"><span class="hs-identifier">Fcf.Data.List</span></a></span><span>
+</span><span id="line-183"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Data.Nat.html"><span class="hs-identifier">Fcf.Data.Nat</span></a></span><span>
+</span><span id="line-184"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Class.Functor.html"><span class="hs-identifier">Fcf.Class.Functor</span></a></span><span>
+</span><span id="line-185"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Class.Bifunctor.html"><span class="hs-identifier">Fcf.Class.Bifunctor</span></a></span><span>
+</span><span id="line-186"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Fcf.Utils.html"><span class="hs-identifier">Fcf.Utils</span></a></span><span>
+</span><span id="line-187"></span></pre></body></html>

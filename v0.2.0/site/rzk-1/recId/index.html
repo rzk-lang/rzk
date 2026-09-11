@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Weak tope disjunction elimination - rzk: an experimental proof assistant for syntheric ∞-categories</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" rel="stylesheet" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/rzk/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/rzk/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/rzk/favicon-16x16.png">
+    <link rel="manifest" href="/rzk/site.webmanifest">
+<!-- <link rel="stylesheet" href="../../css/highlightjs-11.7.0.min.css" /> -->
+    <link rel="stylesheet" href="../../css/highlightjs-copy.css" />
+    <script src="../../js/highlight-11.7.0.min.js"></script>
+    <script src="../../js/rzk.js"></script>
+    <link rel="stylesheet" href="../../css/gruvbox-light.css" />
+    <!-- <link rel="stylesheet" href="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.css" /> -->
+    <script src="../../js/highlightjs-copy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script>
+      hljs.addPlugin(new CopyButtonPlugin());
+      hljs.highlightAll();
+    </script>
+    
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Weak tope disjunction elimination";
+        var mkdocs_page_input_path = "rzk-1/recId.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+ 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> rzk: an experimental proof assistant for syntheric ∞-categories
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">General</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../..">About</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">rzk-1 Language</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../introduction/">Introduction</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Weak tope disjunction elimination</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#relative-function-extensionality">Relative function extensionality</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#construction-of-recid">Construction of recId</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gluing-extension-types">Gluing extension types</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tools</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/ide/">IDE support</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/continuous/">Continuous Verification</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Related Projects</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/sHoTT/">sHoTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/simple-topes/">simple-topes</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">rzk: an experimental proof assistant for syntheric ∞-categories</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>rzk-1 Language &raquo;</li>
+      <li>Weak tope disjunction elimination</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="tope-disjuction-elimination-along-identity-paths">Tope disjuction elimination along identity paths</h1>
+<p>
+<script type="math/tex">\mathsf{rec}_{\lor}^{\psi,\phi}(a_\psi, a_\phi)</script> (written <code>recOR(psi, phi, a_psi, a_phi)</code> in the code)
+is well-typed when <script type="math/tex">a_\psi</script> and <script type="math/tex">a_\phi</script> are <em>definitionally equal</em> on <script type="math/tex">\psi \land \phi</script>.
+Sometimes this is too strong since many terms are not <em>definitionally</em> equal, but only equal up to a path.
+Luckily, assuming relative function extensionality, we can define a weaker version of <script type="math/tex">rec_{\lor}</script> (<code>recOR</code>), which we call <code>recId</code>, that can work in presence of a witness of type <script type="math/tex">\prod_{t : I \mid \psi \land \phi} a_\psi = a_\phi</script>.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p>We begin by introducing common HoTT definitions:</p>
+<pre><code class="language-rzk">#lang rzk-1
+
+-- A is contractible there exists x : A such that for any y : A we have x = y.
+#def iscontr (A : U) : U
+  := ∑ (a : A), (x : A) -&gt; a =_{A} x
+
+-- A is a proposition if for any x, y : A we have x = y
+#def isaprop (A : U) : U
+  := (x : A) -&gt; (y : A) -&gt; x =_{A} y
+
+-- A is a set if for any x, y : A the type x =_{A} y is a proposition
+#def isaset (A : U) : U
+  := (x : A) -&gt; (y : A) -&gt; isaprop (x =_{A} y)
+
+-- Non-dependent product of A and B
+#def prod (A : U) (B : U) : U
+  := ∑ (x : A), B
+
+-- A function f : A -&gt; B is an equivalence
+-- if there exists g : B -&gt; A
+-- such that for all x : A we have g (f x) = x
+-- and for all y : B we have f (g y) = y
+#def isweq (A : U) (B : U) (f : A -&gt; B) : U
+  := ∑ (g : B -&gt; A), prod ((x : A) -&gt; g (f x) =_{A} x) ((y : B) -&gt; f (g y) =_{B} y)
+
+-- Equivalence of types A and B
+#def weq (A : U) (B : U) : U
+  := ∑ (f : A -&gt; B), isweq A B f
+
+-- Transport along a path
+#def transport
+    (A : U)
+    (C : A -&gt; U)
+    (x y : A)
+    (p : x =_{A} y)
+    : C x -&gt; C y
+  := \cx -&gt; idJ(A, x, (\z q -&gt; C z), cx, y, p)
+</code></pre>
+<h2 id="relative-function-extensionality">Relative function extensionality</h2>
+<p>We can now define relative function extensionality. There are several formulations, we provide two, following Riehl and Shulman:</p>
+<pre><code class="language-rzk">-- [RS17, Axiom 4.6] Relative function extensionality.
+#def relfunext : U
+  := (I : CUBE)
+  -&gt; (psi : I -&gt; TOPE)
+  -&gt; (phi : psi -&gt; TOPE)
+  -&gt; (A : psi -&gt; U)
+  -&gt; ((t : psi) -&gt; iscontr (A t))
+  -&gt; (a : (t : phi) -&gt; A t)
+  -&gt; (t : psi) -&gt; A t [ phi t |-&gt; a t]
+
+-- [RS17, Proposition 4.8] A (weaker) formulation of function extensionality.
+#def relfunext2 : U
+  := (I : CUBE)
+  -&gt; (psi : I -&gt; TOPE)
+  -&gt; (phi : psi -&gt; TOPE)
+  -&gt; (A : psi -&gt; U)
+  -&gt; (a : (t : phi) -&gt; A t)
+  -&gt; (f : (t : psi) -&gt; A t [ phi t |-&gt; a t ])
+  -&gt; (g : (t : psi) -&gt; A t [ phi t |-&gt; a t ])
+  -&gt; weq (f = g)
+         ((t : psi) -&gt; (f t =_{A t} g t) [ phi t |-&gt; refl ])
+</code></pre>
+<h2 id="construction-of-recid">Construction of <code>recId</code></h2>
+<p>The idea is straightforward. We ask for a proof that <code>a = b</code> for all points in <code>psi /\ phi</code>. Then, by relative function extensionality (<code>relfunext2</code>), we can show that restrictions of <code>a</code> and <code>b</code> to <code>psi /\ phi</code> are equal. If we reformulate <code>a</code> as extension of its restriction, then we can <code>transport</code> such reformulation along the path connecting two restrictions and apply <code>recOR</code>.</p>
+<p>First, we define how to restrict an extension type to a subshape:</p>
+<pre><code class="language-rzk">-- Restrict extension type to a subshape.
+#def restrict
+    (I : CUBE)
+    (psi : I -&gt; TOPE)
+    (phi : I -&gt; TOPE)
+    (A : {t : I | psi t \/ phi t} -&gt; U)
+    (a : {t : I | psi t} -&gt; A t)
+  : {t : I | psi t /\ phi t} -&gt; A t
+  := \t -&gt; a t
+</code></pre>
+<p>Then, how to reformulate an <code>a</code> (or <code>b</code>) as an extension of its restriction:</p>
+<pre><code class="language-rzk">-- Reformulate extension type as an extension of a restriction.
+#def ext-of-restrict
+    (I : CUBE)
+    (psi : I -&gt; TOPE)
+    (phi : I -&gt; TOPE)
+    (A : {t : I | psi t \/ phi t} -&gt; U)
+    (a : {t : I | psi t} -&gt; A t)
+  : (t : psi) -&gt; A t [ psi t /\ phi t |-&gt; restrict I psi phi A a t ]
+  := a  -- type is coerced automatically here
+</code></pre>
+<p>Now, assuming relative function extensionality, we construct a path between restrictions:</p>
+<pre><code class="language-rzk">-- Transform extension of an identity into an identity of restrictions.
+#def restricts-path
+    (r : relfunext2)
+    (I : CUBE)
+    (psi : I -&gt; TOPE)
+    (phi : I -&gt; TOPE)
+    (A : {t : I | psi t \/ phi t} -&gt; U)
+    (a_psi : (t : psi) -&gt; A t)
+    (a_phi : (t : phi) -&gt; A t)
+    (e : {t : I | psi t /\ phi t} -&gt; a_psi t = a_phi t)
+  : restrict I psi phi A a_psi = restrict I phi psi A a_phi
+  := (first (second (r I
+      (\t -&gt; psi t /\ phi t)
+      (\t -&gt; BOT)
+      (\t -&gt; A t)
+      (\t -&gt; recBOT)
+      (\t -&gt; a_psi t)
+      (\t -&gt; a_phi t)))) e
+</code></pre>
+<p>Finally, we bring everything together into <code>recId</code>:</p>
+<pre><code class="language-rzk">-- A weaker version of recOR, demanding only a path between a and b:
+-- recOR(psi, phi, a, b) demands that for psi /\ phi we have a == b (definitionally)
+-- (recId psi phi a b e) demands that e is the proof that a = b (intensionally) for psi /\ phi
+#def recId
+    (r : relfunext2)
+    (I : CUBE)
+    (psi : I -&gt; TOPE)
+    (phi : I -&gt; TOPE)
+    (A : {t : I | psi t \/ phi t} -&gt; U)
+    (a_psi : (t : psi) -&gt; A t)
+    (a_phi : (t : phi) -&gt; A t)
+    (e : {t : I | psi t /\ phi t} -&gt; a_psi t = a_phi t)
+  : {t : I | psi t \/ phi t} -&gt; A t
+  := \t -&gt; recOR(
+        psi t |-&gt; transport
+          ({s : I | psi s /\ phi s} -&gt; A s)
+          (\ra -&gt; (s : psi) -&gt; A s [ psi s /\ phi s |-&gt; ra s ])
+          (restrict I psi phi A a_psi)
+          (restrict I phi psi A a_phi)
+          (restricts-path r I psi phi A a_psi a_phi e)
+          (ext-of-restrict I psi phi A a_psi)
+          t,
+        phi t |-&gt; ext-of-restrict I phi psi A a_phi t
+      )
+</code></pre>
+<h2 id="gluing-extension-types">Gluing extension types</h2>
+<p>An application of of <code>recId</code> is gluing together extension types,
+whenever we can show that they are equal on the intersection of shapes:</p>
+<pre><code class="language-rzk">-- If two extension types are equal along two subshapes,
+-- then they are also equal along their union.
+#def id-along-border
+    (r : relfunext2)
+    (I : CUBE)
+    (psi : I -&gt; TOPE)
+    (phi : I -&gt; TOPE)
+    (A : {t : I | psi t \/ phi t} -&gt; U)
+    (a b : {t : I | psi t \/ phi t} -&gt; A t)
+    (e_psi : (t : psi) -&gt; a t = b t)
+    (e_phi : (t : phi) -&gt; a t = b t)
+    (border-is-a-set : {t : I | psi t /\ phi t} -&gt; isaset (A t))
+  : {t : I | psi t \/ phi t} -&gt; a t = b t
+  := recId r I psi phi
+        (\t -&gt; a t = b t)
+        e_psi e_phi
+        (\t -&gt; border-is-a-set t (a t) (b t) (e_psi t) (e_phi t))
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../introduction/" class="btn btn-neutral float-left" title="Introduction"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../tools/ide/" class="btn btn-neutral float-right" title="IDE support">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../introduction/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../tools/ide/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

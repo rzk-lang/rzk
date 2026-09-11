@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://rzk-lang.github.io/rzk/en/blog/</loc>
+         <lastmod>2024-05-14</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://rzk-lang.github.io/rzk/en/blog/blog/</loc>
+         <lastmod>2024-05-14</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://rzk-lang.github.io/rzk/en/blog/2023/12/10/we-have-a-blog-now/</loc>
+         <lastmod>2024-05-14</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://rzk-lang.github.io/rzk/en/blog/2023/12/24/rzk-formatter/</loc>
+         <lastmod>2024-05-14</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://rzk-lang.github.io/rzk/en/blog/archive/2023/</loc>
+         <lastmod>2024-05-14</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://rzk-lang.github.io/rzk/en/blog/category/announcements/</loc>
+         <lastmod>2024-05-14</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+</urlset>

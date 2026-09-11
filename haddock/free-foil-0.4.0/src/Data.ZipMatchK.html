@@ -1,0 +1,221 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -Wno-redundant-constraints #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE AllowAmbiguousTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-11"></span><span class="annot"><span class="hs-comment">-- | Kind-polymorphic syntactic (first-order) unification.</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.ZipMatchK.html"><span class="hs-identifier">Data.ZipMatchK</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Mappings.html"><span class="hs-identifier">Data.ZipMatchK.Mappings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.Generic.html#ZipMatchK"><span class="hs-identifier">ZipMatchK</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatchK"><span class="hs-identifier">zipMatchK</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Specializations</span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Unification of plain 'Data.Kind.Type's</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatchViaEq"><span class="hs-identifier">zipMatchViaEq</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatchViaChooseLeft"><span class="hs-identifier">zipMatchViaChooseLeft</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Unification of 'Data.Functor.Functor's</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatchWith1"><span class="hs-identifier">zipMatchWith1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatch1"><span class="hs-identifier">zipMatch1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Unification of 'Data.Bifunctor.Bifunctor's</span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatchWith2"><span class="hs-identifier">zipMatchWith2</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><a href="Data.ZipMatchK.html#zipMatch2"><span class="hs-identifier">zipMatch2</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Generics.Kind</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Generic.html"><span class="hs-identifier">Data.ZipMatchK.Generic</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Mappings.html"><span class="hs-identifier">Data.ZipMatchK.Mappings</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | Perform one level of equality testing for two values and pair up components using @(,)@:</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- &gt; zipMatchK = zipMatchWithK (\x y -&gt; Just (,) :^: M0)</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- @since 0.2.0</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="Data.ZipMatchK.html#zipMatchK"><span class="hs-identifier hs-type">zipMatchK</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679237062"><span class="annot"><a href="#local-6989586621679237062"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span id="local-6989586621679237064"><span class="annot"><a href="#local-6989586621679237064"><span class="hs-keyword hs-type">as</span></a></span></span><span> </span><span id="local-6989586621679237065"><span class="annot"><a href="#local-6989586621679237065"><span class="hs-identifier hs-type">bs</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.ZipMatchK.Generic.html#ZipMatchK"><span class="hs-identifier hs-type">ZipMatchK</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237062"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Mappings.html#PairMappings"><span class="hs-identifier hs-type">PairMappings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237064"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237065"><span class="hs-identifier hs-type">bs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237062"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:@@:</span></span><span> </span><span class="annot"><a href="#local-6989586621679237064"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237062"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:@@:</span></span><span> </span><span class="annot"><a href="#local-6989586621679237065"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237062"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:@@:</span></span><span> </span><span class="annot"><a href="Data.ZipMatchK.Mappings.html#ZipLoT"><span class="hs-identifier hs-type">ZipLoT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237064"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237065"><span class="hs-identifier hs-type">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span id="zipMatchK"><span class="annot"><span class="annottext">zipMatchK :: forall {k} (f :: k) (as :: LoT k) (bs :: LoT k).
+(ZipMatchK f, PairMappings as bs) =&gt;
+(f :@@: as) -&gt; (f :@@: bs) -&gt; Maybe (f :@@: ZipLoT as bs)
+</span><a href="Data.ZipMatchK.html#zipMatchK"><span class="hs-identifier hs-var hs-var">zipMatchK</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall k (f :: k) (as :: LoT k) (bs :: LoT k) (cs :: LoT k).
+ZipMatchK f =&gt;
+Mappings as bs cs
+-&gt; (f :@@: as) -&gt; (f :@@: bs) -&gt; Maybe (f :@@: cs)
+</span><a href="Data.ZipMatchK.Generic.html#zipMatchWithK"><span class="hs-identifier hs-var">zipMatchWithK</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679237062"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679237064"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679237065"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Mappings as bs (ZipLoT as bs)
+forall k (as :: LoT k) (bs :: LoT k).
+PairMappings as bs =&gt;
+Mappings as bs (ZipLoT as bs)
+</span><a href="Data.ZipMatchK.Mappings.html#pairMappings"><span class="hs-identifier hs-var">pairMappings</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Unify values via 'Eq'.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- Can be used as an implementation of 'zipMatchWithK' when @k = 'Data.Kind.Type'@.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- @since 0.2.0</span><span>
+</span><span id="line-46"></span><span id="local-6989586621679237083"><span id="local-6989586621679237084"><span id="local-6989586621679237085"><span id="local-6989586621679237086"><span class="annot"><a href="Data.ZipMatchK.html#zipMatchViaEq"><span class="hs-identifier hs-type">zipMatchViaEq</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679237083"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Mappings.html#Mappings"><span class="hs-identifier hs-type">Mappings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237084"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237085"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237086"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237083"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237083"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679237083"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-47"></span><span id="zipMatchViaEq"><span class="annot"><span class="annottext">zipMatchViaEq :: forall {k} a (as :: LoT k) (bs :: LoT k) (cs :: LoT k).
+Eq a =&gt;
+Mappings as bs cs -&gt; a -&gt; a -&gt; Maybe a
+</span><a href="Data.ZipMatchK.html#zipMatchViaEq"><span class="hs-identifier hs-var hs-var">zipMatchViaEq</span></a></span></span><span> </span><span class="annot"><span class="annottext">Mappings as bs cs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679237170"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237170"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679237171"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237171"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237170"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237171"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237170"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- | Always successfully unify any two values of type @a@ by preferring the left value.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Can be used as an implementation of 'zipMatchWithK' when @k = 'Data.Kind.Type'@.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- @since 0.2.0</span><span>
+</span><span id="line-55"></span><span id="local-6989586621679237095"><span id="local-6989586621679237096"><span id="local-6989586621679237097"><span id="local-6989586621679237098"><span class="annot"><a href="Data.ZipMatchK.html#zipMatchViaChooseLeft"><span class="hs-identifier hs-type">zipMatchViaChooseLeft</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Mappings.html#Mappings"><span class="hs-identifier hs-type">Mappings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237095"><span class="hs-keyword hs-type">as</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237096"><span class="hs-identifier hs-type">bs</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237097"><span class="hs-identifier hs-type">cs</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237098"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237098"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679237098"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-56"></span><span id="zipMatchViaChooseLeft"><span class="annot"><span class="annottext">zipMatchViaChooseLeft :: forall {k} (as :: LoT k) (bs :: LoT k) (cs :: LoT k) a.
+Mappings as bs cs -&gt; a -&gt; a -&gt; Maybe a
+</span><a href="Data.ZipMatchK.html#zipMatchViaChooseLeft"><span class="hs-identifier hs-var hs-var">zipMatchViaChooseLeft</span></a></span></span><span> </span><span class="annot"><span class="annottext">Mappings as bs cs
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679237172"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237172"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679237172"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | 'zipMatchWithK' specialised to functors.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- Note: 'Traversable' is a morally correct constraint here.</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- @since 0.3.0</span><span>
+</span><span id="line-63"></span><span id="local-6989586621679237104"><span id="local-6989586621679237105"><span id="local-6989586621679237106"><span id="local-6989586621679237107"><span class="annot"><a href="Data.ZipMatchK.html#zipMatchWith1"><span class="hs-identifier hs-type">zipMatchWith1</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679237104"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Generic.html#ZipMatchK"><span class="hs-identifier hs-type">ZipMatchK</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237104"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237105"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237106"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679237107"><span class="hs-identifier hs-type">a''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237104"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237105"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237104"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237106"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237104"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237107"><span class="hs-identifier hs-type">a''</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-67"></span><span id="zipMatchWith1"><span class="annot"><span class="annottext">zipMatchWith1 :: forall (f :: * -&gt; *) a a' a''.
+(Traversable f, ZipMatchK f) =&gt;
+(a -&gt; a' -&gt; Maybe a'') -&gt; f a -&gt; f a' -&gt; Maybe (f a'')
+</span><a href="Data.ZipMatchK.html#zipMatchWith1"><span class="hs-identifier hs-var hs-var">zipMatchWith1</span></a></span></span><span> </span><span id="local-6989586621679237176"><span class="annot"><span class="annottext">a -&gt; a' -&gt; Maybe a''
+</span><a href="#local-6989586621679237176"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Mappings (a ':&amp;&amp;: 'LoT0) (a' ':&amp;&amp;: 'LoT0) (a'' ':&amp;&amp;: 'LoT0)
+-&gt; (f :@@: (a ':&amp;&amp;: 'LoT0))
+-&gt; (f :@@: (a' ':&amp;&amp;: 'LoT0))
+-&gt; Maybe (f :@@: (a'' ':&amp;&amp;: 'LoT0))
+forall k (f :: k) (as :: LoT k) (bs :: LoT k) (cs :: LoT k).
+ZipMatchK f =&gt;
+Mappings as bs cs
+-&gt; (f :@@: as) -&gt; (f :@@: bs) -&gt; Maybe (f :@@: cs)
+forall (as :: LoT (* -&gt; *)) (bs :: LoT (* -&gt; *))
+       (cs :: LoT (* -&gt; *)).
+Mappings as bs cs
+-&gt; (f :@@: as) -&gt; (f :@@: bs) -&gt; Maybe (f :@@: cs)
+</span><a href="Data.ZipMatchK.Generic.html#zipMatchWithK"><span class="hs-identifier hs-var">zipMatchWithK</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a' -&gt; Maybe a''
+</span><a href="#local-6989586621679237176"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a' -&gt; Maybe a'')
+-&gt; Mappings 'LoT0 'LoT0 'LoT0
+-&gt; Mappings (a ':&amp;&amp;: 'LoT0) (a' ':&amp;&amp;: 'LoT0) (a'' ':&amp;&amp;: 'LoT0)
+forall {k1} a b c (as1 :: LoT k1) (bs1 :: LoT k1) (cs1 :: LoT k1).
+(a -&gt; b -&gt; Maybe c)
+-&gt; Mappings as1 bs1 cs1
+-&gt; Mappings (a ':&amp;&amp;: as1) (b ':&amp;&amp;: bs1) (c ':&amp;&amp;: cs1)
+</span><a href="Data.ZipMatchK.Mappings.html#%3A%5E%3A"><span class="hs-operator hs-var">:^:</span></a></span><span> </span><span class="annot"><span class="annottext">Mappings 'LoT0 'LoT0 'LoT0
+</span><a href="Data.ZipMatchK.Mappings.html#M0"><span class="hs-identifier hs-var">M0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | 'zipMatchK' specialised to functors.</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- Note: 'Traversable' is a morally correct constraint here.</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- @since 0.3.0</span><span>
+</span><span id="line-74"></span><span id="local-6989586621679237121"><span id="local-6989586621679237122"><span id="local-6989586621679237123"><span class="annot"><a href="Data.ZipMatchK.html#zipMatch1"><span class="hs-identifier hs-type">zipMatch1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679237121"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Generic.html#ZipMatchK"><span class="hs-identifier hs-type">ZipMatchK</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237121"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237121"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237122"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237121"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237123"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237121"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237122"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679237123"><span class="hs-identifier hs-type">a'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-75"></span><span id="zipMatch1"><span class="annot"><span class="annottext">zipMatch1 :: forall (f :: * -&gt; *) a a'.
+(Traversable f, ZipMatchK f) =&gt;
+f a -&gt; f a' -&gt; Maybe (f (a, a'))
+</span><a href="Data.ZipMatchK.html#zipMatch1"><span class="hs-identifier hs-var hs-var">zipMatch1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a' -&gt; Maybe (a, a')) -&gt; f a -&gt; f a' -&gt; Maybe (f (a, a'))
+forall (f :: * -&gt; *) a a' a''.
+(Traversable f, ZipMatchK f) =&gt;
+(a -&gt; a' -&gt; Maybe a'') -&gt; f a -&gt; f a' -&gt; Maybe (f a'')
+</span><a href="Data.ZipMatchK.html#zipMatchWith1"><span class="hs-identifier hs-var">zipMatchWith1</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a' -&gt; Maybe (a, a')
+forall (f :: * -&gt; *) a b. Applicative f =&gt; a -&gt; b -&gt; f (a, b)
+</span><a href="Data.ZipMatchK.Mappings.html#pairA"><span class="hs-identifier hs-var">pairA</span></a></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | 'zipMatchWithK' specialised to bifunctors.</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- Note: 'Bitraversable' is a morally correct constraint here.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- @since 0.3.0</span><span>
+</span><span id="line-81"></span><span id="local-6989586621679237130"><span id="local-6989586621679237132"><span id="local-6989586621679237133"><span id="local-6989586621679237134"><span id="local-6989586621679237135"><span id="local-6989586621679237136"><span id="local-6989586621679237137"><span class="annot"><a href="Data.ZipMatchK.html#zipMatchWith2"><span class="hs-identifier hs-type">zipMatchWith2</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679237130"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Generic.html#ZipMatchK"><span class="hs-identifier hs-type">ZipMatchK</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237130"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237133"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679237134"><span class="hs-identifier hs-type">a''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237135"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237136"><span class="hs-identifier hs-type">b'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679237137"><span class="hs-identifier hs-type">b''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237130"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237135"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237130"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237133"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237136"><span class="hs-identifier hs-type">b'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237130"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237134"><span class="hs-identifier hs-type">a''</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237137"><span class="hs-identifier hs-type">b''</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span>
+</span><span id="line-86"></span><span id="zipMatchWith2"><span class="annot"><span class="annottext">zipMatchWith2 :: forall (f :: * -&gt; * -&gt; *) a a' a'' b b' b''.
+(Bitraversable f, ZipMatchK f) =&gt;
+(a -&gt; a' -&gt; Maybe a'')
+-&gt; (b -&gt; b' -&gt; Maybe b'') -&gt; f a b -&gt; f a' b' -&gt; Maybe (f a'' b'')
+</span><a href="Data.ZipMatchK.html#zipMatchWith2"><span class="hs-identifier hs-var hs-var">zipMatchWith2</span></a></span></span><span> </span><span id="local-6989586621679237189"><span class="annot"><span class="annottext">a -&gt; a' -&gt; Maybe a''
+</span><a href="#local-6989586621679237189"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679237190"><span class="annot"><span class="annottext">b -&gt; b' -&gt; Maybe b''
+</span><a href="#local-6989586621679237190"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Mappings
+  (a ':&amp;&amp;: (b ':&amp;&amp;: 'LoT0))
+  (a' ':&amp;&amp;: (b' ':&amp;&amp;: 'LoT0))
+  (a'' ':&amp;&amp;: (b'' ':&amp;&amp;: 'LoT0))
+-&gt; (f :@@: (a ':&amp;&amp;: (b ':&amp;&amp;: 'LoT0)))
+-&gt; (f :@@: (a' ':&amp;&amp;: (b' ':&amp;&amp;: 'LoT0)))
+-&gt; Maybe (f :@@: (a'' ':&amp;&amp;: (b'' ':&amp;&amp;: 'LoT0)))
+forall k (f :: k) (as :: LoT k) (bs :: LoT k) (cs :: LoT k).
+ZipMatchK f =&gt;
+Mappings as bs cs
+-&gt; (f :@@: as) -&gt; (f :@@: bs) -&gt; Maybe (f :@@: cs)
+forall (as :: LoT (* -&gt; * -&gt; *)) (bs :: LoT (* -&gt; * -&gt; *))
+       (cs :: LoT (* -&gt; * -&gt; *)).
+Mappings as bs cs
+-&gt; (f :@@: as) -&gt; (f :@@: bs) -&gt; Maybe (f :@@: cs)
+</span><a href="Data.ZipMatchK.Generic.html#zipMatchWithK"><span class="hs-identifier hs-var">zipMatchWithK</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a' -&gt; Maybe a''
+</span><a href="#local-6989586621679237189"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a' -&gt; Maybe a'')
+-&gt; Mappings (b ':&amp;&amp;: 'LoT0) (b' ':&amp;&amp;: 'LoT0) (b'' ':&amp;&amp;: 'LoT0)
+-&gt; Mappings
+     (a ':&amp;&amp;: (b ':&amp;&amp;: 'LoT0))
+     (a' ':&amp;&amp;: (b' ':&amp;&amp;: 'LoT0))
+     (a'' ':&amp;&amp;: (b'' ':&amp;&amp;: 'LoT0))
+forall {k1} a b c (as1 :: LoT k1) (bs1 :: LoT k1) (cs1 :: LoT k1).
+(a -&gt; b -&gt; Maybe c)
+-&gt; Mappings as1 bs1 cs1
+-&gt; Mappings (a ':&amp;&amp;: as1) (b ':&amp;&amp;: bs1) (c ':&amp;&amp;: cs1)
+</span><a href="Data.ZipMatchK.Mappings.html#%3A%5E%3A"><span class="hs-operator hs-var">:^:</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; b' -&gt; Maybe b''
+</span><a href="#local-6989586621679237190"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; b' -&gt; Maybe b'')
+-&gt; Mappings 'LoT0 'LoT0 'LoT0
+-&gt; Mappings (b ':&amp;&amp;: 'LoT0) (b' ':&amp;&amp;: 'LoT0) (b'' ':&amp;&amp;: 'LoT0)
+forall {k1} a b c (as1 :: LoT k1) (bs1 :: LoT k1) (cs1 :: LoT k1).
+(a -&gt; b -&gt; Maybe c)
+-&gt; Mappings as1 bs1 cs1
+-&gt; Mappings (a ':&amp;&amp;: as1) (b ':&amp;&amp;: bs1) (c ':&amp;&amp;: cs1)
+</span><a href="Data.ZipMatchK.Mappings.html#%3A%5E%3A"><span class="hs-operator hs-var">:^:</span></a></span><span> </span><span class="annot"><span class="annottext">Mappings 'LoT0 'LoT0 'LoT0
+</span><a href="Data.ZipMatchK.Mappings.html#M0"><span class="hs-identifier hs-var">M0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | 'zipMatchK' specialised to bifunctors.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- Note: 'Bitraversable' is a morally correct constraint here.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- @since 0.3.0</span><span>
+</span><span id="line-93"></span><span id="local-6989586621679237145"><span id="local-6989586621679237146"><span id="local-6989586621679237147"><span id="local-6989586621679237148"><span id="local-6989586621679237149"><span class="annot"><a href="Data.ZipMatchK.html#zipMatch2"><span class="hs-identifier hs-type">zipMatch2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679237145"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ZipMatchK.Generic.html#ZipMatchK"><span class="hs-identifier hs-type">ZipMatchK</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237145"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237145"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237147"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679237145"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237148"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679237149"><span class="hs-identifier hs-type">b'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237145"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237146"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679237148"><span class="hs-identifier hs-type">a'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679237147"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679237149"><span class="hs-identifier hs-type">b'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-94"></span><span id="zipMatch2"><span class="annot"><span class="annottext">zipMatch2 :: forall (f :: * -&gt; * -&gt; *) a b a' b'.
+(Bitraversable f, ZipMatchK f) =&gt;
+f a b -&gt; f a' b' -&gt; Maybe (f (a, a') (b, b'))
+</span><a href="Data.ZipMatchK.html#zipMatch2"><span class="hs-identifier hs-var hs-var">zipMatch2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a' -&gt; Maybe (a, a'))
+-&gt; (b -&gt; b' -&gt; Maybe (b, b'))
+-&gt; f a b
+-&gt; f a' b'
+-&gt; Maybe (f (a, a') (b, b'))
+forall (f :: * -&gt; * -&gt; *) a a' a'' b b' b''.
+(Bitraversable f, ZipMatchK f) =&gt;
+(a -&gt; a' -&gt; Maybe a'')
+-&gt; (b -&gt; b' -&gt; Maybe b'') -&gt; f a b -&gt; f a' b' -&gt; Maybe (f a'' b'')
+</span><a href="Data.ZipMatchK.html#zipMatchWith2"><span class="hs-identifier hs-var">zipMatchWith2</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a' -&gt; Maybe (a, a')
+forall (f :: * -&gt; *) a b. Applicative f =&gt; a -&gt; b -&gt; f (a, b)
+</span><a href="Data.ZipMatchK.Mappings.html#pairA"><span class="hs-identifier hs-var">pairA</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; b' -&gt; Maybe (b, b')
+forall (f :: * -&gt; *) a b. Applicative f =&gt; a -&gt; b -&gt; f (a, b)
+</span><a href="Data.ZipMatchK.Mappings.html#pairA"><span class="hs-identifier hs-var">pairA</span></a></span><span>
+</span><span id="line-95"></span></pre></body></html>

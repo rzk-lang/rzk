@@ -1,0 +1,189 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts      #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE GADTs                 #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE QuantifiedConstraints #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes            #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables   #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances  #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-orphans #-}</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- | 'Binary' instances for the scope-safe syntax: the wire view of a term</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- is the term itself, raw ids and all.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- The instances are deliberately orphans in a module of their own, so that</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- they are opt-in: importing this module is what brings them into scope,</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- and nothing else in the library does. (The dependency this costs is</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- @binary@, a GHC boot library.)</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Note that decoding /mints/ scope evidence: a 'Foil.Name' comes back at</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- whatever scope index the context asks for, and the existential scope</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- under a binder is chosen arbitrarily. Thus the instances are a trust</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- boundary, in the sense of 'Control.Monad.Foil.Blocks.checkExtScope'. The</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- bytes are meaningful only under the discipline of the layer that wrote</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- them, and that layer is expected to validate what it can on the way in.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- In particular, it should resolve the references it made</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- world-independent, and check that the names it left verbatim lie where its</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- allocation policy says. &quot;Control.Monad.Free.Foil.Artifact&quot; supplies those</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- checks.</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.Binary.html"><span class="hs-identifier">Control.Monad.Free.Foil.Binary</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary</span></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Binary</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Get</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getWord8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary.Put</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">putWord8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Foil.Internal.html"><span class="hs-identifier">Control.Monad.Foil.Internal</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Free.Foil.html"><span class="hs-identifier">Control.Monad.Free.Foil</span></a></span><span>     </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#AST"><span class="hs-identifier">AST</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.html#ScopedAST"><span class="hs-identifier">ScopedAST</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | The raw id and nothing else. See the module documentation for what</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- decoding trusts.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679243549"><span id="local-6989586621679243611"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243549"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span id="local-6989586621679243617"><span class="annot"><span class="annottext">put :: Name n -&gt; Put
+</span><a href="#local-6989586621679243617"><span class="hs-identifier hs-var hs-var hs-var">put</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeName"><span class="hs-identifier hs-type">UnsafeName</span></a></span><span> </span><span id="local-6989586621679243620"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679243620"><span class="hs-identifier hs-var">raw</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679243620"><span class="hs-identifier hs-var">raw</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679243624"><span class="annot"><span class="annottext">get :: Get (Name n)
+</span><a href="#local-6989586621679243624"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; Name n
+forall (n :: S). RawName -&gt; Name n
+</span><a href="Control.Monad.Foil.Internal.html#UnsafeName"><span class="hs-identifier hs-var">UnsafeName</span></a></span><span> </span><span class="annot"><span class="annottext">(RawName -&gt; Name n) -&gt; Get RawName -&gt; Get (Name n)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get RawName
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | See the 'Binary' instance of 'Name'.</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679243558"><span id="local-6989586621679243559"><span id="local-6989586621679243630"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameBinder"><span class="hs-identifier hs-type">NameBinder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243558"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243559"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679243634"><span class="annot"><span class="annottext">put :: NameBinder n l -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#UnsafeNameBinder"><span class="hs-identifier hs-type">UnsafeNameBinder</span></a></span><span> </span><span id="local-6989586621679243636"><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621679243636"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name l -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">Name l
+</span><a href="#local-6989586621679243636"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679243639"><span class="annot"><span class="annottext">get :: Get (NameBinder n l)
+</span><span class="hs-identifier hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name l -&gt; NameBinder n l
+forall (n :: S) (l :: S). Name l -&gt; NameBinder n l
+</span><a href="Control.Monad.Foil.Internal.html#UnsafeNameBinder"><span class="hs-identifier hs-var">UnsafeNameBinder</span></a></span><span> </span><span class="annot"><span class="annottext">(Name l -&gt; NameBinder n l) -&gt; Get (Name l) -&gt; Get (NameBinder n l)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (Name l)
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | The two bounds. A range carries no scope index, so nothing is minted:</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- this instance is layout metadata for the serialising layer.</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679243643"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679243650"><span class="annot"><span class="annottext">put :: NameRange -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-type">NameRange</span></a></span><span> </span><span id="local-6989586621679243652"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679243652"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679243653"><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679243653"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679243652"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">Put -&gt; Put -&gt; Put
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">RawName -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">RawName
+</span><a href="#local-6989586621679243653"><span class="hs-identifier hs-var">hi</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621679243659"><span class="annot"><span class="annottext">get :: Get NameRange
+</span><span class="hs-identifier hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RawName -&gt; RawName -&gt; NameRange
+</span><a href="Control.Monad.Foil.Internal.html#NameRange"><span class="hs-identifier hs-var">NameRange</span></a></span><span> </span><span class="annot"><span class="annottext">(RawName -&gt; RawName -&gt; NameRange)
+-&gt; Get RawName -&gt; Get (RawName -&gt; NameRange)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get RawName
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="annot"><span class="annottext">Get (RawName -&gt; NameRange) -&gt; Get RawName -&gt; Get NameRange
+forall a b. Get (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get RawName
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | The binder and the body, one after the other. Decoding mints the scope</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- under the binder. See the module documentation.</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679243575"><span id="local-6989586621679243576"><span id="local-6989586621679243577"><span id="local-6989586621679243665"><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679243571"><span class="annot"><a href="#local-6989586621679243571"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679243572"><span class="annot"><a href="#local-6989586621679243572"><span class="hs-identifier hs-type">y</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679243575"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243571"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243572"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679243573"><span class="annot"><a href="#local-6989586621679243573"><span class="hs-identifier hs-type">l</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#AST"><span class="hs-identifier hs-type">AST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243575"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243576"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243573"><span class="hs-identifier hs-type">l</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#ScopedAST"><span class="hs-identifier hs-type">ScopedAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243575"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243576"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243577"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679243670"><span class="annot"><span class="annottext">put :: ScopedAST binder sig n -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#ScopedAST"><span class="hs-identifier hs-type">ScopedAST</span></a></span><span> </span><span id="local-6989586621679243675"><span class="annot"><span class="annottext">binder n l
+</span><a href="#local-6989586621679243675"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span id="local-6989586621679243676"><span class="annot"><span class="annottext">AST binder sig l
+</span><a href="#local-6989586621679243676"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">binder n l -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">binder n l
+</span><a href="#local-6989586621679243675"><span class="hs-identifier hs-var">binder</span></a></span><span> </span><span class="annot"><span class="annottext">Put -&gt; Put -&gt; Put
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">AST binder sig l -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">AST binder sig l
+</span><a href="#local-6989586621679243676"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679243683"><span class="annot"><span class="annottext">get :: Get (ScopedAST binder sig n)
+</span><span class="hs-identifier hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679243684"><span class="annot"><a href="#local-6989586621679243684"><span class="hs-identifier hs-var">binder</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Get (binder n n)
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679243575"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243577"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243577"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679243685"><span class="annot"><a href="#local-6989586621679243685"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">get</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#ScopedAST"><span class="hs-identifier hs-type">ScopedAST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243684"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243685"><span class="hs-identifier hs-type">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><span class="hs-comment">-- | A tag byte, then the name or the node.</span></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679243591"><span id="local-6989586621679243592"><span id="local-6989586621679243593"><span id="local-6989586621679243691"><span class="hs-special">(</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679243587"><span class="annot"><a href="#local-6989586621679243587"><span class="hs-identifier hs-type">x</span></a></span></span><span> </span><span id="local-6989586621679243588"><span class="annot"><a href="#local-6989586621679243588"><span class="hs-identifier hs-type">y</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679243591"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243587"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243588"><span class="hs-identifier hs-type">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>         </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679243589"><span class="annot"><a href="#local-6989586621679243589"><span class="hs-identifier hs-type">scope</span></a></span></span><span> </span><span id="local-6989586621679243590"><span class="annot"><a href="#local-6989586621679243590"><span class="hs-identifier hs-type">term</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="#local-6989586621679243589"><span class="hs-identifier hs-type">scope</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="#local-6989586621679243590"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679243592"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243589"><span class="hs-identifier hs-type">scope</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243590"><span class="hs-identifier hs-type">term</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>         </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#AST"><span class="hs-identifier hs-type">AST</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243591"><span class="hs-identifier hs-type">binder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243592"><span class="hs-identifier hs-type">sig</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679243593"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>  </span><span id="local-6989586621679243709"><span class="annot"><span class="annottext">put :: AST binder sig n -&gt; Put
+</span><span class="hs-identifier hs-var hs-var hs-var">put</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span id="local-6989586621679243711"><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621679243711"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Put
+</span><span class="hs-identifier hs-var">putWord8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Put -&gt; Put -&gt; Put
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Name n -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">Name n
+</span><a href="#local-6989586621679243711"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">put</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Free.Foil.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679243713"><span class="annot"><span class="annottext">sig (ScopedAST binder sig n) (AST binder sig n)
+</span><a href="#local-6989586621679243713"><span class="hs-identifier hs-var">node</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Put
+</span><span class="hs-identifier hs-var">putWord8</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Put -&gt; Put -&gt; Put
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">sig (ScopedAST binder sig n) (AST binder sig n) -&gt; Put
+forall t. Binary t =&gt; t -&gt; Put
+</span><span class="hs-identifier hs-var">put</span></span><span> </span><span class="annot"><span class="annottext">sig (ScopedAST binder sig n) (AST binder sig n)
+</span><a href="#local-6989586621679243713"><span class="hs-identifier hs-var">node</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621679243736"><span class="annot"><span class="annottext">get :: Get (AST binder sig n)
+</span><span class="hs-identifier hs-var hs-var hs-var">get</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Get Word8
+</span><span class="hs-identifier hs-var">getWord8</span></span><span> </span><span class="annot"><span class="annottext">Get Word8
+-&gt; (Word8 -&gt; Get (AST binder sig n)) -&gt; Get (AST binder sig n)
+forall a b. Get a -&gt; (a -&gt; Get b) -&gt; Get b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name n -&gt; AST binder sig n
+forall (n :: S) (binder :: S -&gt; S -&gt; *) (sig :: * -&gt; * -&gt; *).
+Name n -&gt; AST binder sig n
+</span><a href="Control.Monad.Free.Foil.html#Var"><span class="hs-identifier hs-var">Var</span></a></span><span> </span><span class="annot"><span class="annottext">(Name n -&gt; AST binder sig n)
+-&gt; Get (Name n) -&gt; Get (AST binder sig n)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (Name n)
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">1</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">sig (ScopedAST binder sig n) (AST binder sig n) -&gt; AST binder sig n
+forall (sig :: * -&gt; * -&gt; *) (binder :: S -&gt; S -&gt; *) (n :: S).
+sig (ScopedAST binder sig n) (AST binder sig n) -&gt; AST binder sig n
+</span><a href="Control.Monad.Free.Foil.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">(sig (ScopedAST binder sig n) (AST binder sig n)
+ -&gt; AST binder sig n)
+-&gt; Get (sig (ScopedAST binder sig n) (AST binder sig n))
+-&gt; Get (AST binder sig n)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Get (sig (ScopedAST binder sig n) (AST binder sig n))
+forall t. Binary t =&gt; Get t
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679243737"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679243737"><span class="hs-identifier hs-var">tag</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Get (AST binder sig n)
+forall a. String -&gt; Get a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;unknown AST tag &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679243737"><span class="hs-identifier hs-var">tag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span></pre></body></html>
