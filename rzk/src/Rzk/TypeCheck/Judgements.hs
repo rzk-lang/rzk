@@ -1029,6 +1029,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                   unifyTerms expected tope''
 
             mapM_ checkNameShadowing (binderLeaves orig)
+            naming <- asks namingOfContext
             body' <- elaborateUnder orig md' param' Nothing body $ \binder bodyTerm -> do
               mtopeIn <- traverse (openScoped binder) mtope'
               maybe id localTope mtopeIn $ do
@@ -1039,13 +1040,24 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                 -- family variable together with its domain (see 'applyWhnfFun'), so a
                 -- concrete family must satisfy the domain as well, or the two readings
                 -- disagree (regression: ill-tope-family-domain-non-instance). The
-                -- conjunct is omitted when the body already entails the domain.
+                -- conjunct is omitted when the body already entails the domain;
+                -- otherwise the checked family differs from the written one,
+                -- which is reported as a warning.
                 case (retIn, mtopeIn) of
                   (UniverseTopeT{}, Just domainIn) -> do
                     bodyNF <- nfT bodyIn
                     domainNF <- nfT domainIn
                     included <- [plainTope bodyNF] `entailM` domainNF
-                    pure $ if included then bodyIn else topeAndT domainIn bodyIn
+                    if included then pure bodyIn else do
+                      warn <- asks ctxWarnTopeFamilyDomain
+                      when warn $ do
+                        namingIn <- asks namingOfContext
+                        loc <- asks ctxLocation
+                        recordCheckWarning $ TopeFamilyDomainWarning
+                          (ppTerm naming term)
+                          (ppTerm namingIn (untyped domainNF))
+                          loc
+                      pure (topeAndT domainIn bodyIn)
                   _ -> pure bodyIn
             return (lambdaT ty' orig (Just (LambdaParam md' param' mtope')) body')
 

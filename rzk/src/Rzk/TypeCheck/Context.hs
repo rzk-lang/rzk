@@ -275,6 +275,13 @@ data Context n = Context
     -- ^ How sensitively the meta-parameter layer check classifies use
     -- positions (see "Rzk.TypeCheck.MetaPrefix"). Strict by default; set
     -- with @#set-option "warn-meta-prefix" = "off" | "structural" | "strict"@.
+  , ctxWarnTopeFamilyDomain :: Bool
+    -- ^ When 'True' (the default), a tope family checked against a domain
+    -- type that it is not included in is reported with a warning: the
+    -- checker reads it as its intersection with the domain (see the λ case of
+    -- 'typecheck'), so the family checked differs from the family written.
+    -- Costs nothing beyond the entailment that decides the intersection.
+    -- Disabled with @#set-option "warn-tope-family-domain" = "no"@.
   }
 
 -- | The sensitivity levels of the meta-parameter layer check.
@@ -321,6 +328,7 @@ emptyContext = Context
   , ctxHintLemmas = []
   , ctxWarnOverhang = False
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
+  , ctxWarnTopeFamilyDomain = True
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.

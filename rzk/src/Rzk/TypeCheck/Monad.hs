@@ -87,12 +87,17 @@ data CheckWarning
       Int                   -- ^ the length of the meta prefix
       MetaPrefixRule
       (Maybe LocationInfo)
+  | TopeFamilyDomainWarning
+      String                -- ^ the family, rendered where it was checked
+      String                -- ^ its declared domain, rendered under the family's binder
+      (Maybe LocationInfo)
   deriving (Eq, Show)
 
 -- | Where a warning points, for per-file attribution.
 warningLocation :: CheckWarning -> Maybe LocationInfo
 warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
 warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
+warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
 
 -- | Which candidate rule of the meta-parameter layer check flags a
 -- 'MetaPrefixWarning' (see "Rzk.TypeCheck.MetaPrefix"): the structural
@@ -191,6 +196,9 @@ localHideTerm hide = local $ \ctx -> ctx { ctxRenderHideTerm = hide }
 localWarnOverhang :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnOverhang warn = local $ \ctx -> ctx { ctxWarnOverhang = warn }
 
+localWarnTopeFamilyDomain :: Bool -> TypeCheck n a -> TypeCheck n a
+localWarnTopeFamilyDomain warn = local $ \ctx -> ctx { ctxWarnTopeFamilyDomain = warn }
+
 localMetaPrefixSensitivity :: MetaPrefixSensitivity -> TypeCheck n a -> TypeCheck n a
 localMetaPrefixSensitivity sensitivity =
   local $ \ctx -> ctx { ctxMetaPrefixSensitivity = sensitivity }
@@ -281,9 +289,15 @@ recordHoleInfo info =
 
 -- * Warnings
 
+-- | Record a warning, once: a term can be elaborated twice (a definition's
+-- parameter annotation is checked for the signature and again as the domain
+-- of the body's λ), and the second elaboration makes the same finding at the
+-- same location.
 recordCheckWarning :: CheckWarning -> TypeCheck n ()
 recordCheckWarning warning =
-  modifyLog $ \l -> l { logWarningsRev = warning : logWarningsRev l }
+  modifyLog $ \l ->
+    if warning `elem` logWarningsRev l then l
+    else l { logWarningsRev = warning : logWarningsRev l }
 
 -- * Locations
 

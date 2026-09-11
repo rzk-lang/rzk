@@ -213,6 +213,8 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-option-structural.rzk
     test/typecheck/cases/warn-meta-prefix-section.rzk
     test/typecheck/cases/warn-meta-prefix-strict-only.rzk
+    test/typecheck/cases/warn-tope-family-domain-non-instance.rzk
+    test/typecheck/cases/warn-tope-family-domain-option.rzk
     test/typecheck/cases/happy-check.expect.yaml
     test/typecheck/cases/happy-data-bool.expect.yaml
     test/typecheck/cases/happy-data-circle.expect.yaml
@@ -402,6 +404,8 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-option-structural.expect.yaml
     test/typecheck/cases/warn-meta-prefix-section.expect.yaml
     test/typecheck/cases/warn-meta-prefix-strict-only.expect.yaml
+    test/typecheck/cases/warn-tope-family-domain-non-instance.expect.yaml
+    test/typecheck/cases/warn-tope-family-domain-option.expect.yaml
     test/typecheck/cases/literate-fence/expect.yaml
     test/typecheck/cases/multimodule-first-error/expect.yaml
     test/typecheck/cases/multimodule-two-ok/expect.yaml

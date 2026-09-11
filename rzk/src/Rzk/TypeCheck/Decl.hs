@@ -448,6 +448,13 @@ setOption "warn-meta-prefix" = \case
   "strict"     -> localMetaPrefixSensitivity MetaPrefixStrict
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-prefix\" (use \"off\", \"structural\", or \"strict\")"
+-- A tope family not included in its declared domain is read as the
+-- intersection with the domain; the warning says so. On by default.
+setOption "warn-tope-family-domain" = \case
+  "yes" -> localWarnTopeFamilyDomain True
+  "no"  -> localWarnTopeFamilyDomain False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -458,6 +465,8 @@ unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
 unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
+unsetOption "warn-tope-family-domain" =
+  localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
