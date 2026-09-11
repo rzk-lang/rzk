@@ -1,0 +1,14 @@
+#lang rzk-1
+
+-- Control for ill-tope-family-domain-non-instance: with a callee parameter of
+-- the same domain ψ, both readings carry ψ t ∧ φ t, and `bad` is rejected
+-- independently of the domain conjunct on concrete families.
+
+#def same (I : CUBE) (ψ : I → TOPE) (φ : ψ → TOPE) (A : U) : U := (t : φ) → A
+
+#def coerce (I : CUBE) (ψ : I → TOPE) (χ : ψ → TOPE) (A : U) (f : (t : χ) → A)
+  : same I ψ χ A
+  := f
+
+#def bad (A : U) : A
+  := coerce 2 (\ t → BOT) (\ t → TOP) A (\ t → recBOT) 0₂

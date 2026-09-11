@@ -107,6 +107,15 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   section close (`warn-meta-prefix-section`), and the sensitivity option
   (`happy-meta-prefix-option-off`, `warn-meta-prefix-option-structural`);
   all asserted via the `warnings` field.
+- **Tope-family domain conjunct:** a concrete family checked against a
+  domain type carries its domain (`\ t → TOP` at `{t : I | ⊥} → TOPE`
+  elaborates to `\ t → ⊥ ∧ ⊤`): the inconsistency that the missing
+  conjunct allowed (`ill-tope-family-domain-non-instance`, an inhabitant
+  of every type from the two readings of a family that violates its
+  declared domain), the same-domain control that was rejected all along
+  (`ill-tope-family-domain-same-domain`), and the intersected reading of
+  such a family through a wider parameter, plus a family that respects
+  its domain (`happy-tope-family-domain-instance`).
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 
 # Regression tests
@@ -136,6 +145,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | `match` elaboration (M3 PR 3) | `happy-match-*`, `ill-match-*` | A match elaborates into `ind-D params motive methods indices scrutinee` (`checkMatch`); branches are checked against the method Π-types one arm at a time (`checkMatchArms`, the λ rule's mirror); the motive comes from `into` or from goal abstraction (`motiveFromGoal`); administrative motive redexes are β-reduced before branch goals and hypothesis types are shown (`betaMotiveApps`). |
 | PR [#327](https://github.com/rzk-lang/rzk/pull/327) `let mod` motive | `happy-modal-let-into`, `ill-modal-let-into-body` | MTT's dependent modal elimination: the `into` motive is checked at `(z :^ν ⟨μ\|A⟩) → U`, the body against `C (mod_μ x)`, and the let itself gets `C M`. Without a motive the body is checked against the goal as written, which suffices only when the goal need not vary with the scrutinee. |
 | Meta-parameter layer check | `warn-meta-prefix-*`, `happy-meta-prefix-plumbing` | An unsaturated use of a declaration below its meta prefix warns at object-level positions (`Rzk.TypeCheck.MetaPrefix`); aliasing at a definition root and meta-shaped argument domains stay silent (the sHoTT `weakextext-extext` composition pattern); `endSection` recomputes `varMetaPrefix` after abstracting assumptions. |
+| Tope-family domain conjunct | `ill-tope-family-domain-non-instance`, `ill-tope-family-domain-same-domain`, `happy-tope-family-domain-instance` | A λ-family checked against `{t : I | ψ} → TOPE` is elaborated with the domain conjoined into its body (`typecheck`, the λ case), so every family value satisfies its declared domain; the checker already reads an applied family *variable* together with its domain (`applyWhnfFun`), and without the conjunct a concrete family violating its domain was read with the domain at its own binders and without it after being passed to a parameter with a wider domain. |
 
 # Test schema
 

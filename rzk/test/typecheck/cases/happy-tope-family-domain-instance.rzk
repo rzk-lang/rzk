@@ -1,0 +1,27 @@
+#lang rzk-1
+
+-- A concrete family checked against a domain type carries the domain:
+-- `\ t → TOP` at {t : I | ⊥} → TOPE becomes `\ t → ⊥ ∧ ⊤`. So it is read as
+-- its intersection with the domain, also through a parameter with a wider
+-- domain. Companion of ill-tope-family-domain-non-instance.
+
+#def wider     (I : CUBE) (φ : I → TOPE) (A : U) : U := (t : φ) → A
+#def via-wider (I : CUBE) (ψ : I → TOPE) (χ : ψ → TOPE) (A : U) : U := wider I χ A
+
+-- The family ⊤ over the domain ⊥ selects the empty shape, also through `wider`.
+#def into-clipped (I : CUBE) (A : U) (g : (t : I | BOT) → A)
+  : via-wider I (\ t → BOT) (\ t → TOP) A
+  := g
+
+#def from-clipped (I : CUBE) (A : U) (f : via-wider I (\ t → BOT) (\ t → TOP) A)
+  : (t : I | BOT) → A
+  := f
+
+-- A family that entails its domain is left unchanged.
+#def endpoint (A : U) (a : A)
+  : via-wider 2 (\ t → TOP) (\ t → t ≡ 0₂) A
+  := \ t → a
+
+#def use-endpoint (A : U) (h : via-wider 2 (\ t → TOP) (\ t → t ≡ 0₂) A)
+  : A
+  := h 0₂

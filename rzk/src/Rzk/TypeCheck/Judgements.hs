@@ -1033,7 +1033,20 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
               mtopeIn <- traverse (openScoped binder) mtope'
               maybe id localTope mtopeIn $ do
                 retIn <- openScoped binder ret
-                typecheck bodyTerm retIn
+                bodyIn <- typecheck bodyTerm retIn
+                -- A tope family checked against @{t : I | ψ} → TOPE@ carries its
+                -- domain: the body becomes @ψ t ∧ φ t@. The checker reads an applied
+                -- family variable together with its domain (see 'applyWhnfFun'), so a
+                -- concrete family must satisfy the domain as well, or the two readings
+                -- disagree (regression: ill-tope-family-domain-non-instance). The
+                -- conjunct is omitted when the body already entails the domain.
+                case (retIn, mtopeIn) of
+                  (UniverseTopeT{}, Just domainIn) -> do
+                    bodyNF <- nfT bodyIn
+                    domainNF <- nfT domainIn
+                    included <- [plainTope bodyNF] `entailM` domainNF
+                    pure $ if included then bodyIn else topeAndT domainIn bodyIn
+                  _ -> pure bodyIn
             return (lambdaT ty' orig (Just (LambdaParam md' param' mtope')) body')
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
