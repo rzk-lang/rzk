@@ -50,6 +50,7 @@ import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import           Rzk.TypeCheck.Fragment
 import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
@@ -127,6 +128,7 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
   metaPrefix <- metaPrefixOf ty
   recordMetaPrefixUses name ty mval
+  recordFragmentUses name ty mval isAssumption
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -455,6 +457,13 @@ setOption "warn-tope-family-domain" = \case
   "no"  -> localWarnTopeFamilyDomain False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
+-- The fragment check (see "Rzk.TypeCheck.Fragment"): a free-standing
+-- restriction may be concluded but not assumed.
+setOption "warn-free-standing-restriction" = \case
+  "yes" -> localWarnFreeStandingRestriction True
+  "no"  -> localWarnFreeStandingRestriction False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-free-standing-restriction\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -467,6 +476,8 @@ unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
 unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
+unsetOption "warn-free-standing-restriction" =
+  localWarnFreeStandingRestriction (ctxWarnFreeStandingRestriction emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 

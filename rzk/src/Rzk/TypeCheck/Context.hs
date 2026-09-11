@@ -282,6 +282,12 @@ data Context n = Context
     -- 'typecheck'), so the family checked differs from the family written.
     -- Costs nothing beyond the entailment that decides the intersection.
     -- Disabled with @#set-option "warn-tope-family-domain" = "no"@.
+  , ctxWarnFreeStandingRestriction :: Bool
+    -- ^ When 'True' (the default), a free-standing restriction assumed at a
+    -- binder, a motive, or inside a type passed as data is reported (see
+    -- "Rzk.TypeCheck.Fragment"). Such a declaration is outside the fragment
+    -- that conservativity over RSTT covers. Set with
+    -- @#set-option "warn-free-standing-restriction" = "yes" | "no"@.
   }
 
 -- | The sensitivity levels of the meta-parameter layer check.
@@ -329,6 +335,7 @@ emptyContext = Context
   , ctxWarnOverhang = False
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
   , ctxWarnTopeFamilyDomain = True
+  , ctxWarnFreeStandingRestriction = True
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.

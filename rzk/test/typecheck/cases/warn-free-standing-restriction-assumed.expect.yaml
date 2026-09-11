@@ -1,0 +1,10 @@
+status: ok
+warnings:
+  - FreeStandingRestrictionWarning
+  - FreeStandingRestrictionWarning
+  - FreeStandingRestrictionWarning
+  - FreeStandingRestrictionWarning
+  - FreeStandingRestrictionWarning
+  - FreeStandingRestrictionWarning
+regression_for:
+  - free-standing-restriction-warning

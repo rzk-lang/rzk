@@ -51,6 +51,15 @@ Controls the warning for a tope family that is not included in its declared doma
 - `"yes"` — warn about a family not included in its declared domain (default); the code is `TopeFamilyDomainWarning`
 - `"no"` — do not warn (the family is still read as its intersection with the domain)
 
+### `warn-free-standing-restriction`
+
+Controls the warning for a free-standing restriction in an assumed position. A restriction is _ext-style_ when it sits on the codomain of a shape-Π, which is the form the encoding of RSTT extension types produces; any other restriction is _free-standing_. Conservativity over RSTT is proved for the derivations that conclude a free-standing restriction but never assume one (Section 5 of the Rzk paper[^1]), so the checker reports the assumed positions: the type of a binder, the motive of an eliminator, the type of an identity type, and a type passed as data, which includes the body of a `U`-valued definition and an argument at a universe-typed parameter. A type passed as data matters because it is substituted into binder and motive positions later. Concluded types are exempt, including a restriction under an ordinary `Π`.
+
+- `"yes"` — warn about an assumed free-standing restriction (default); the code is `FreeStandingRestrictionWarning`
+- `"no"` — do not warn
+
+Note that the check is syntactic: a restriction that appears in an assumed position only after a definition is unfolded or a redex is reduced is not reported.
+
 ## Examples
 
 ```rzk

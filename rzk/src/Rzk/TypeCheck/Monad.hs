@@ -91,6 +91,26 @@ data CheckWarning
       String                -- ^ the family, rendered where it was checked
       String                -- ^ its declared domain, rendered under the family's binder
       (Maybe LocationInfo)
+  | FreeStandingRestrictionWarning
+      VarIdent              -- ^ the declaration
+      String                -- ^ the restricted type, rendered
+      FragmentUse           -- ^ what assumes it
+      (Maybe LocationInfo)
+  deriving (Eq, Show)
+
+-- | What assumes a free-standing restriction (see "Rzk.TypeCheck.Fragment"),
+-- which conservativity allows to be concluded but not assumed.
+data FragmentUse
+  = UseBinder
+    -- ^ the type of a binder (λ, Π, Σ, let, or a declaration's parameter)
+  | UseMotive
+    -- ^ the motive of an eliminator
+  | UseData
+    -- ^ inside a type passed as data, at a meta-typed argument or component
+  | UseIdentity
+    -- ^ the type of an identity type, whose endpoints it types
+  | UseConcluded
+    -- ^ a concluded type, off the spine of codomains (a Σ component, say)
   deriving (Eq, Show)
 
 -- | Where a warning points, for per-file attribution.
@@ -98,6 +118,7 @@ warningLocation :: CheckWarning -> Maybe LocationInfo
 warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
 warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
 warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
+warningLocation (FreeStandingRestrictionWarning _ _ _ loc) = loc
 
 -- | Which candidate rule of the meta-parameter layer check flags a
 -- 'MetaPrefixWarning' (see "Rzk.TypeCheck.MetaPrefix"): the structural
@@ -198,6 +219,10 @@ localWarnOverhang warn = local $ \ctx -> ctx { ctxWarnOverhang = warn }
 
 localWarnTopeFamilyDomain :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnTopeFamilyDomain warn = local $ \ctx -> ctx { ctxWarnTopeFamilyDomain = warn }
+
+localWarnFreeStandingRestriction :: Bool -> TypeCheck n a -> TypeCheck n a
+localWarnFreeStandingRestriction warn =
+  local $ \ctx -> ctx { ctxWarnFreeStandingRestriction = warn }
 
 localMetaPrefixSensitivity :: MetaPrefixSensitivity -> TypeCheck n a -> TypeCheck n a
 localMetaPrefixSensitivity sensitivity =

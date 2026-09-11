@@ -1,0 +1,22 @@
+#lang rzk-1
+
+-- Ext-style restrictions, and free-standing ones in concluded positions
+-- only: the fragment conservativity covers. Companion of
+-- warn-free-standing-restriction-assumed.
+
+-- On the codomain of a shape-Π, also with the shape tope left implicit.
+#def ext-type (A : 2 → U) (a : (t : 2 | t ≡ 0₂) → A t) : U
+  := (t : 2) → A t [t ≡ 0₂ ↦ a t]
+
+-- A tail type: the restriction sits under an ordinary Π, which is
+-- free-standing, but it is concluded rather than assumed.
+#def nested-tail
+  ( I : CUBE) (ψ : I → TOPE) (ϕ : ψ → TOPE) (X : U) (Y : ψ → X → U)
+  ( f : (t : ϕ) → (x : X) → Y t x)
+  ( g : (x : X) → (t : ψ) → (Y t x) [ϕ t ↦ f t x])
+  : (t : ψ) → (x : X) → (Y t x) [ϕ t ↦ f t x]
+  := \ t x → g x t
+
+-- A motive whose restriction is ext-style: the unit-cube encoding of RSTT.
+#def rstt-motive (A : U) (x : A) (p : x =_{A} x) : (t : 1) → A [TOP ↦ x]
+  := idJ (A , x , (\ _ _ → (t : 1) → A [TOP ↦ x]) , (\ t → x) , x , p)

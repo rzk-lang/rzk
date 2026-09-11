@@ -224,6 +224,22 @@ diagnoseCheckWarning (TopeFamilyDomainWarning family domain loc) = Diagnostic
   , diagnosticHole     = Nothing
   }
 
+diagnoseCheckWarning (FreeStandingRestrictionWarning defName ty use loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "FreeStandingRestrictionWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "free-standing restriction assumed at " <> place <> ": " <> ty
+        <> " (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
+  where
+    place = case use of
+      UseBinder    -> "a binder"
+      UseMotive    -> "an eliminator motive"
+      UseData      -> "a type passed as data"
+      UseIdentity  -> "the type of an identity type"
+      UseConcluded -> "a concluded type, off the spine of codomains"
 -- | A checker warning as a human-readable line (the CLI).
 ppCheckWarning :: CheckWarning -> String
 ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
