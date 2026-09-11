@@ -3,4 +3,4 @@ warnings:
   - TopeFamilyDomainWarning
   - TopeFamilyDomainWarning
 regression_for:
-  - tope-family-domain-conjunct-elaboration
+  - tope-family-domain-warning

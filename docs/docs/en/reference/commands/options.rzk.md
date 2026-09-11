@@ -44,6 +44,13 @@ Controls the non-fatal hint printed when a restriction face or a `recOR` guard o
 - `"yes"` — print the hint for overhanging faces and guards
 - `"no"` — do not check for overhang (default)
 
+### `warn-tope-family-domain`
+
+Controls the warning for a tope family that is not included in its declared domain. A family `χ : ψ → TOPE` stands for a tope within `ψ`, and the checker reads it as its intersection with the domain (see Section 6.2 of the Rzk paper[^1]): a concrete family `\ t → φ` checked against `{t : I | ψ} → TOPE` is elaborated to `\ t → ψ ∧ φ`, unless `φ` already entails `ψ`. When the conjunct is inserted, the family checked differs from the family written, and the warning says so. For example, an inner horn declared over `Δ³` with its faces written on the whole cube is read as the horn within `Δ³`, which is usually what is meant. The check costs nothing beyond the entailment that decides the conjunct.
+
+- `"yes"` — warn about a family not included in its declared domain (default); the code is `TopeFamilyDomainWarning`
+- `"no"` — do not warn (the family is still read as its intersection with the domain)
+
 ## Examples
 
 ```rzk

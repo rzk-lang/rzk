@@ -213,6 +213,17 @@ diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule 
   , diagnosticHole     = Nothing
   }
 
+diagnoseCheckWarning (TopeFamilyDomainWarning family domain loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "TopeFamilyDomainWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "tope family " <> family
+        <> " is not included in its declared domain " <> domain
+        <> "; it is read as its intersection with the domain"
+  , diagnosticHole     = Nothing
+  }
+
 -- | A checker warning as a human-readable line (the CLI).
 ppCheckWarning :: CheckWarning -> String
 ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning

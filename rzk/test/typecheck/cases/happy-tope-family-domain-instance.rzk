@@ -3,7 +3,8 @@
 -- A concrete family checked against a domain type carries the domain:
 -- `\ t → TOP` at {t : I | ⊥} → TOPE becomes `\ t → ⊥ ∧ ⊤`. So it is read as
 -- its intersection with the domain, also through a parameter with a wider
--- domain. Companion of ill-tope-family-domain-non-instance.
+-- domain. Companion of ill-tope-family-domain-non-instance. Each family that
+-- is not included in its domain is reported (warn-tope-family-domain-*).
 
 #def wider     (I : CUBE) (φ : I → TOPE) (A : U) : U := (t : φ) → A
 #def via-wider (I : CUBE) (ψ : I → TOPE) (χ : ψ → TOPE) (A : U) : U := wider I χ A
