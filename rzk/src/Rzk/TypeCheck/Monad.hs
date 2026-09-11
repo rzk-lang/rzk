@@ -96,6 +96,11 @@ data CheckWarning
       String                -- ^ the restricted type, rendered
       FragmentUse           -- ^ what assumes it
       (Maybe LocationInfo)
+  | MetaBinderWarning
+      VarIdent              -- ^ the declaration
+      VarIdent              -- ^ the variable bound inside a term
+      String                -- ^ its type, rendered
+      (Maybe LocationInfo)
   deriving (Eq, Show)
 
 -- | What assumes a free-standing restriction (see "Rzk.TypeCheck.Fragment.RSTT"),
@@ -119,6 +124,7 @@ warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
 warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
 warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
 warningLocation (FreeStandingRestrictionWarning _ _ _ loc) = loc
+warningLocation (MetaBinderWarning _ _ _ loc)       = loc
 
 -- | Which candidate rule of the meta-parameter layer check flags a
 -- 'MetaPrefixWarning' (see "Rzk.TypeCheck.MetaPrefix"): the structural
@@ -223,6 +229,9 @@ localWarnTopeFamilyDomain warn = local $ \ctx -> ctx { ctxWarnTopeFamilyDomain =
 localWarnFreeStandingRestriction :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnFreeStandingRestriction warn =
   local $ \ctx -> ctx { ctxWarnFreeStandingRestriction = warn }
+
+localWarnMetaBinder :: Bool -> TypeCheck n a -> TypeCheck n a
+localWarnMetaBinder warn = local $ \ctx -> ctx { ctxWarnMetaBinder = warn }
 
 localMetaPrefixSensitivity :: MetaPrefixSensitivity -> TypeCheck n a -> TypeCheck n a
 localMetaPrefixSensitivity sensitivity =

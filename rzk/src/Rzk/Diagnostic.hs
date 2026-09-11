@@ -240,6 +240,16 @@ diagnoseCheckWarning (FreeStandingRestrictionWarning defName ty use loc) = Diagn
       UseData      -> "a type passed as data"
       UseIdentity  -> "the type of an identity type"
       UseConcluded -> "a concluded type, off the spine of codomains"
+diagnoseCheckWarning (MetaBinderWarning defName varName ty loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "MetaBinderWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "schematic binder inside a term: " <> show varName <> " : " <> ty
+        <> " is bound below the parameter prefix (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
+
 -- | A checker warning as a human-readable line (the CLI).
 ppCheckWarning :: CheckWarning -> String
 ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning

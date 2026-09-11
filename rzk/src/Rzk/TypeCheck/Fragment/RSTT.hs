@@ -26,12 +26,24 @@
 -- has /ext-style hypotheses/ when every binder binds at an ext-style type,
 -- every context type is ext-style, and every concluded type is a tail type.
 -- Intuitively, a free-standing restriction may be concluded but not
--- assumed. This module reports a declaration that leaves the fragment: a
--- free-standing restriction is assumed, as the type of a binder, as an
--- eliminator motive, or inside a type passed as data
--- ('FreeStandingRestrictionWarning'). The last route matters because a
--- restricted type stored at @U@ is substituted into binder and motive
--- positions later.
+-- assumed. This module reports the two ways a declaration can leave the
+-- fragment:
+--
+-- - a free-standing restriction is assumed, as the type of a binder, as an
+--   eliminator motive, or inside a type passed as data
+--   ('FreeStandingRestrictionWarning'); the last route matters because a
+--   restricted type stored at @U@ is substituted into binder and motive
+--   positions later;
+-- - a variable is bound at a meta type (@U@, @CUBE@, @TOPE@, or a function
+--   into one) by a λ inside a term rather than in the declaration's
+--   parameter prefix ('MetaBinderWarning'), so the declaration does not
+--   read as a family of object-theory statements, one per instantiation.
+--   Two positions are still the parameter prefix: the branches of a case
+--   split reached while peeling it, since a schema defined by recursion on a
+--   schematic index has to split before binding its remaining parameters
+--   (both end up in the meta prefix, so uses supply both); and an argument at
+--   a schematic parameter, which is the plumbing the meta-prefix check
+--   allows.
 --
 -- Positions are classified on the elaborated declaration. The type is
 -- walked as a concluded type, except for an @#assume@, whose type enters
@@ -51,7 +63,7 @@ module Rzk.TypeCheck.Fragment.RSTT (
 ) where
 
 import           Control.Applicative      ((<|>))
-import           Control.Monad            (forM_, when)
+import           Control.Monad            (forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (asks)
 import           Data.Bifoldable          (bifoldr)
@@ -61,12 +73,13 @@ import           Control.Monad.Foil       (Distinct)
 import           Control.Monad.Free.Foil  (AST (Node, Var))
 
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
-import           Language.Rzk.Foil.Names  (TModality (..), TypeInfo (..),
-                                           VarIdent)
+import           Language.Rzk.Foil.Names  (Binder, TModality (..),
+                                           TypeInfo (..), VarIdent, binderName)
 import           Language.Rzk.Foil.Syntax
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Eval
+import           Rzk.TypeCheck.MetaPrefix (isMetaType)
 import           Rzk.TypeCheck.Monad
 
 -- | Where the walk is. A concluded type may carry restrictions along the
@@ -80,8 +93,9 @@ data Pos
     -- ^ 'True' while still peeling the value's leading λs, which bind the
     -- declaration's own parameters.
 
--- | Walk a declaration's elaborated type and value, reporting every
--- assumed free-standing restriction. Advisory: never throws, and runs silently so that WHNF probes do not
+-- | Walk a declaration's elaborated type and value, reporting assumed
+-- free-standing restrictions and schematic binders inside terms.
+-- Advisory: never throws, and runs silently so that WHNF probes do not
 -- trace.
 recordFragmentUses
   :: forall n. Distinct n
@@ -92,7 +106,8 @@ recordFragmentUses
   -> TypeCheck n ()
 recordFragmentUses defName ty mval isAssumption = do
   restrictions <- asks ctxWarnFreeStandingRestriction
-  when restrictions $
+  binders <- asks ctxWarnMetaBinder
+  when (restrictions || binders) $
     localVerbosity Silent $ flip catchError (\_ -> pure ()) $ do
       go (if isAssumption then Assumed UseBinder else Tail) ty
       mapM_ (go (Term True)) mval
@@ -178,6 +193,7 @@ recordFragmentUses defName ty mval isAssumption = do
         md <- case mparam of
           Just (LambdaParam md param _mtope) -> do
             goAssumed UseBinder param
+            unless inPrefix $ reportMetaBinder orig param
             pure md
           Nothing -> pure Id
         dom <- binderType info mparam
@@ -186,7 +202,11 @@ recordFragmentUses defName ty mval isAssumption = do
       AppT{} -> do
         let (h, args) = collectSpine t []
         goTerm False h
-        forM_ args $ \(_fnode, arg) -> goData arg
+        forM_ args $ \(fnode, arg) -> do
+          -- Supplying a schema at a schematic parameter is the plumbing that
+          -- the meta-prefix check allows, so its binders are not reported.
+          plumbing <- domainIsMeta fnode
+          if plumbing then goTerm True arg else goData arg
 
       -- The motive is assumed: the eliminator binds its variables at it.
       IdJT _ tA a tC d x p -> do
@@ -197,10 +217,14 @@ recordFragmentUses defName ty mval isAssumption = do
         goTerm False x
         goTerm False p
 
+      -- A case split reached while still in the parameter prefix is a split
+      -- on a schematic index: the declaration is a schema defined by
+      -- recursion, and the branches bind its remaining parameters, which the
+      -- recursion forces to be written after the split.
       MatchT _ scrut mmotive branches -> do
         goTerm False scrut
         mapM_ (goAssumed UseMotive) mmotive
-        forM_ branches $ \(_con, branch) -> goTerm False branch
+        forM_ branches $ \(_con, branch) -> goTerm inPrefix branch
 
       PairT _ l r -> do
         goData l
@@ -255,6 +279,14 @@ recordFragmentUses defName ty mval isAssumption = do
         UniverseCubeT{} -> pure True
         _               -> pure False
 
+    -- Is the Π-domain of this function node schematic?
+    domainIsMeta :: forall l. Distinct l => TermT l -> TypeCheck l Bool
+    domainIsMeta f = flip catchError (\_ -> pure False) $ do
+      tf <- typeOfUncomputed f
+      whnfT (stripTypeRestrictions tf) >>= \case
+        TypeFunT _ _ _ dom _ _ -> isMetaType dom
+        _                      -> pure False
+
     -- Is this term a type, or a family of types? That is, does its type land
     -- in a universe once its Π prefix is stripped.
     landsInUniverse :: forall l. Distinct l => TermT l -> TypeCheck l Bool
@@ -274,6 +306,22 @@ recordFragmentUses defName ty mval isAssumption = do
       whnfT (stripTypeRestrictions tf) >>= \case
         TypeFunT _ _ _ dom _ _ -> pure (Just dom)
         _                      -> pure Nothing
+
+    -- A λ below the leading λs of the value binds a schematic variable where
+    -- the parameter prefix should.
+    reportMetaBinder :: forall l. Distinct l => Binder -> TermT l -> TypeCheck l ()
+    reportMetaBinder orig param = do
+      enabled <- asks ctxWarnMetaBinder
+      when enabled $ do
+        meta <- flip catchError (\_ -> pure False) (isMetaType param)
+        when meta $ do
+          naming <- asks namingOfContext
+          loc <- asks ctxLocation
+          recordCheckWarning $ MetaBinderWarning
+            defName
+            (fromMaybe "_" (binderName orig))
+            (ppTerm naming (untyped param))
+            loc
 
     reportFreeStanding :: forall l. FragmentUse -> TermT l -> TypeCheck l ()
     reportFreeStanding use t = do
