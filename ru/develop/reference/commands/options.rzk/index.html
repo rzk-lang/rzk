@@ -1440,6 +1440,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#warn-tope-family-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        warn-tope-family-domain
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1900,6 +1911,12 @@
 <ul>
 <li><code>"yes"</code> — печатать подсказку для выходящих за пределы граней и условий</li>
 <li><code>"no"</code> — не проверять выход за пределы (по умолчанию)</li>
+</ul>
+<h3 id="warn-tope-family-domain"><code>warn-tope-family-domain</code><a class="headerlink" href="#warn-tope-family-domain" title="Permanent link">&para;</a></h3>
+<p>Управляет предупреждением о семействе топов, не содержащемся в своей объявленной области. Семейство <code>χ : ψ → TOPE</code> обозначает топ внутри <code>ψ</code>, и тайпчекер читает его как пересечение с областью: конкретное семейство <code>\ t → φ</code>, проверяемое против <code>{t : I | ψ} → TOPE</code>, элаборируется в <code>\ t → ψ ∧ φ</code>, если только из <code>φ</code> уже не следует <code>ψ</code>. Когда конъюнкт добавляется, проверенное семейство отличается от записанного, о чём и сообщает предупреждение. Например, внутренний рог, объявленный над <code>Δ³</code> с гранями, записанными на всём кубе, читается как рог внутри <code>Δ³</code>, что обычно и имеется в виду. Проверка не требует ничего сверх вывода, который решает, нужен ли конъюнкт.</p>
+<ul>
+<li><code>"yes"</code> — предупреждать о семействе, не содержащемся в своей объявленной области (по умолчанию); код предупреждения — <code>TopeFamilyDomainWarning</code></li>
+<li><code>"no"</code> — не предупреждать (семейство всё равно читается как пересечение с областью)</li>
 </ul>
 <h2 id="_4">Примеры<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <div class="language-rzk highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">#lang</span><span class="p"> </span><span class="s">rzk-1</span>
