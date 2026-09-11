@@ -39,6 +39,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-rec-section.rzk
     test/typecheck/cases/happy-data-section.rzk
     test/typecheck/cases/happy-data-vec.rzk
+    test/typecheck/cases/happy-ext-style-restrictions.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-endpoint-entailment.rzk
@@ -209,6 +210,8 @@ extra-source-files:
     test/typecheck/cases/multimodule-two-ok/user.rzk
     test/typecheck/cases/uses-whnf-discarded.rzk
     test/typecheck/cases/uses-whnf-masked-transitive.rzk
+    test/typecheck/cases/warn-free-standing-restriction-assumed.rzk
+    test/typecheck/cases/warn-free-standing-restriction-option.rzk
     test/typecheck/cases/warn-meta-prefix-object-position.rzk
     test/typecheck/cases/warn-meta-prefix-option-structural.rzk
     test/typecheck/cases/warn-meta-prefix-section.rzk
@@ -234,6 +237,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-rec-section.expect.yaml
     test/typecheck/cases/happy-data-section.expect.yaml
     test/typecheck/cases/happy-data-vec.expect.yaml
+    test/typecheck/cases/happy-ext-style-restrictions.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-endpoint-entailment.expect.yaml
@@ -400,6 +404,8 @@ extra-source-files:
     test/typecheck/cases/ill-unused-assumption.expect.yaml
     test/typecheck/cases/uses-whnf-discarded.expect.yaml
     test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
+    test/typecheck/cases/warn-free-standing-restriction-assumed.expect.yaml
+    test/typecheck/cases/warn-free-standing-restriction-option.expect.yaml
     test/typecheck/cases/warn-meta-prefix-object-position.expect.yaml
     test/typecheck/cases/warn-meta-prefix-option-structural.expect.yaml
     test/typecheck/cases/warn-meta-prefix-section.expect.yaml
@@ -449,6 +455,7 @@ library
       Rzk.TypeCheck.Display
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
+      Rzk.TypeCheck.Fragment.RSTT
       Rzk.TypeCheck.Judgements
       Rzk.TypeCheck.MetaPrefix
       Rzk.TypeCheck.Monad
