@@ -1451,6 +1451,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#warn-tope-family-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        warn-tope-family-domain
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1920,6 +1931,12 @@
 <li><code>"yes"</code> — print the hint for overhanging faces and guards</li>
 <li><code>"no"</code> — do not check for overhang (default)</li>
 </ul>
+<h3 id="warn-tope-family-domain"><code>warn-tope-family-domain</code><a class="headerlink" href="#warn-tope-family-domain" title="Permanent link">&para;</a></h3>
+<p>Controls the warning for a tope family that is not included in its declared domain. A family <code>χ : ψ → TOPE</code> stands for a tope within <code>ψ</code>, and the checker reads it as its intersection with the domain (see Section 6.2 of the Rzk paper<sup id="fnref2:1"><a class="footnote-ref" href="#fn:1">1</a></sup>): a concrete family <code>\ t → φ</code> checked against <code>{t : I | ψ} → TOPE</code> is elaborated to <code>\ t → ψ ∧ φ</code>, unless <code>φ</code> already entails <code>ψ</code>. When the conjunct is inserted, the family checked differs from the family written, and the warning says so. For example, an inner horn declared over <code>Δ³</code> with its faces written on the whole cube is read as the horn within <code>Δ³</code>, which is usually what is meant. The check costs nothing beyond the entailment that decides the conjunct.</p>
+<ul>
+<li><code>"yes"</code> — warn about a family not included in its declared domain (default); the code is <code>TopeFamilyDomainWarning</code></li>
+<li><code>"no"</code> — do not warn (the family is still read as its intersection with the domain)</li>
+</ul>
 <h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
 <div class="language-rzk highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">#lang</span><span class="p"> </span><span class="s">rzk-1</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c">-- Set verbosity to silent mode</span>
@@ -1945,7 +1962,7 @@
 <ol>
 <li id="fn:1">
 <p>Nikolai Kudasov, Violetta Sim, Benedikt Ahrens.
-<em>Rzk: a Proof Assistant for Synthetic ∞-Categories</em>. 2026. <a href="https://arxiv.org/abs/2607.12207">https://arxiv.org/abs/2607.12207</a>&#160;<a class="footnote-backref" href="#fnref:1" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+<em>Rzk: a Proof Assistant for Synthetic ∞-Categories</em>. 2026. <a href="https://arxiv.org/abs/2607.12207">https://arxiv.org/abs/2607.12207</a>&#160;<a class="footnote-backref" href="#fnref:1" title="Jump back to footnote 1 in the text">&#8617;</a><a class="footnote-backref" href="#fnref2:1" title="Jump back to footnote 1 in the text">&#8617;</a></p>
 </li>
 </ol>
 </div>
