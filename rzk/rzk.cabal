@@ -41,6 +41,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-vec.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
     test/typecheck/cases/happy-interval-basics.rzk
+    test/typecheck/cases/happy-interval-endpoint-entailment.rzk
     test/typecheck/cases/happy-interval-subtyping.rzk
     test/typecheck/cases/happy-issue-9-relfunext2-id.rzk
     test/typecheck/cases/happy-lattice-eq-gives-leq.rzk
@@ -230,6 +231,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-vec.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
+    test/typecheck/cases/happy-interval-endpoint-entailment.expect.yaml
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
     test/typecheck/cases/happy-issue-9-relfunext2-id.expect.yaml
     test/typecheck/cases/happy-lattice-eq-gives-leq.expect.yaml

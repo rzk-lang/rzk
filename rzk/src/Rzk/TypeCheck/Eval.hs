@@ -762,7 +762,9 @@ solveRHSM modalTopes goal =
       | goal `elemT` topes -> return True
       | solveRHS topes (topeEQT l r) -> return True
       | solveRHS topes (topeEQT l cube2_0T) -> return True
+      | solveRHS topes (topeEQT l cubeI_0T) -> return True
       | solveRHS topes (topeEQT r cube2_1T) -> return True
+      | solveRHS topes (topeEQT r cubeI_1T) -> return True
     TopeLEQT _ty (CubeSupT _ a b) r ->
       solveRHSM modalTopes (topeAndT (topeLEQT a r) (topeLEQT b r))
     TopeLEQT _ty l (CubeInfT _ a b) ->
@@ -831,7 +833,9 @@ solveRHS topes tope =
       | eqT l r -> True
       | solveRHS topes (topeEQT l r) -> True
       | solveRHS topes (topeEQT l cube2_0T) -> True
+      | solveRHS topes (topeEQT l cubeI_0T) -> True
       | solveRHS topes (topeEQT r cube2_1T) -> True
+      | solveRHS topes (topeEQT r cubeI_1T) -> True
     TopeAndT _ l r -> solveRHS topes l && solveRHS topes r
     TopeOrT  _ l r -> solveRHS topes l || solveRHS topes r
     _ -> tope `elemT` topes
