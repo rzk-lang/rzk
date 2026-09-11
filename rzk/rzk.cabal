@@ -212,6 +212,7 @@ extra-source-files:
     test/typecheck/cases/uses-whnf-masked-transitive.rzk
     test/typecheck/cases/warn-free-standing-restriction-assumed.rzk
     test/typecheck/cases/warn-free-standing-restriction-option.rzk
+    test/typecheck/cases/warn-meta-binder-inside-term.rzk
     test/typecheck/cases/warn-meta-prefix-object-position.rzk
     test/typecheck/cases/warn-meta-prefix-option-structural.rzk
     test/typecheck/cases/warn-meta-prefix-section.rzk
@@ -406,6 +407,7 @@ extra-source-files:
     test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
     test/typecheck/cases/warn-free-standing-restriction-assumed.expect.yaml
     test/typecheck/cases/warn-free-standing-restriction-option.expect.yaml
+    test/typecheck/cases/warn-meta-binder-inside-term.expect.yaml
     test/typecheck/cases/warn-meta-prefix-object-position.expect.yaml
     test/typecheck/cases/warn-meta-prefix-option-structural.expect.yaml
     test/typecheck/cases/warn-meta-prefix-section.expect.yaml

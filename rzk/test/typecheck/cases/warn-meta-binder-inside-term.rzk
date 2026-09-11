@@ -1,0 +1,21 @@
+#lang rzk-1
+
+-- Schematic parameters are bound in a declaration's parameter prefix, so
+-- that a declaration is a family of object-theory statements, one per
+-- instantiation. A λ inside a term that binds a universe, a cube or a tope
+-- family is outside that reading; it is reported when asked for.
+
+#set-option "warn-meta-binder" = "yes"
+
+-- Leading λs are the declaration's own parameters: silent.
+#def my-id : (X : U) → X → X
+  := \ X x → x
+
+#def at-universe (A : U) (a : A) : A
+  := (\ (B : U) → \ (b : B) → b) A a
+
+#def at-cube (A : U) (a : A) : A
+  := (\ (J : CUBE) → a) 2
+
+#def at-tope-family (I : CUBE) (A : U) (a : A) : A
+  := (\ (φ : I → TOPE) → a) (\ t → TOP)

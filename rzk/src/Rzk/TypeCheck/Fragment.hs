@@ -21,12 +21,18 @@
 -- has /ext-style hypotheses/ when every binder binds at an ext-style type,
 -- every context type is ext-style, and every concluded type is a tail type.
 -- Intuitively, a free-standing restriction may be concluded but not
--- assumed. This module reports a declaration that leaves the fragment: a
--- free-standing restriction is assumed, as the type of a binder, as an
--- eliminator motive, or inside a type passed as data
--- ('FreeStandingRestrictionWarning'). The last route matters because a
--- restricted type stored at @U@ is substituted into binder and motive
--- positions later.
+-- assumed. This module reports the two ways a declaration can leave the
+-- fragment:
+--
+-- - a free-standing restriction is assumed, as the type of a binder, as an
+--   eliminator motive, or inside a type passed as data
+--   ('FreeStandingRestrictionWarning'); the last route matters because a
+--   restricted type stored at @U@ is substituted into binder and motive
+--   positions later;
+-- - a variable is bound at a meta type (@U@, @CUBE@, @TOPE@, or a function
+--   into one) by a λ inside a term rather than in the declaration's
+--   parameter prefix ('MetaBinderWarning'), so the declaration does not
+--   read as a family of object-theory statements, one per instantiation.
 --
 -- Positions are classified on the elaborated declaration. The type is
 -- walked as a concluded type, except for an @#assume@, whose type enters
@@ -40,7 +46,7 @@ module Rzk.TypeCheck.Fragment (
 ) where
 
 import           Control.Applicative      ((<|>))
-import           Control.Monad            (forM_, when)
+import           Control.Monad            (forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (asks)
 import           Data.Bifoldable          (bifoldr)
@@ -50,8 +56,8 @@ import           Control.Monad.Foil       (Distinct)
 import           Control.Monad.Free.Foil  (AST (Node, Var))
 
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
-import           Language.Rzk.Foil.Names  (TModality (..), TypeInfo (..),
-                                           VarIdent)
+import           Language.Rzk.Foil.Names  (Binder, TModality (..),
+                                           TypeInfo (..), VarIdent, binderName)
 import           Language.Rzk.Foil.Syntax
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
@@ -70,8 +76,9 @@ data Pos
     -- ^ 'True' while still peeling the value's leading λs, which bind the
     -- declaration's own parameters.
 
--- | Walk a declaration's elaborated type and value, reporting every
--- assumed free-standing restriction. Advisory: never throws, and runs silently so that WHNF probes do not
+-- | Walk a declaration's elaborated type and value, reporting assumed
+-- free-standing restrictions and schematic binders inside terms.
+-- Advisory: never throws, and runs silently so that WHNF probes do not
 -- trace.
 recordFragmentUses
   :: forall n. Distinct n
@@ -82,7 +89,8 @@ recordFragmentUses
   -> TypeCheck n ()
 recordFragmentUses defName ty mval isAssumption = do
   restrictions <- asks ctxWarnFreeStandingRestriction
-  when restrictions $
+  binders <- asks ctxWarnMetaBinder
+  when (restrictions || binders) $
     localVerbosity Silent $ flip catchError (\_ -> pure ()) $ do
       go (if isAssumption then Assumed UseBinder else Tail) ty
       mapM_ (go (Term True)) mval
@@ -168,6 +176,7 @@ recordFragmentUses defName ty mval isAssumption = do
         md <- case mparam of
           Just (LambdaParam md param _mtope) -> do
             goAssumed UseBinder param
+            unless inPrefix $ reportMetaBinder orig param
             pure md
           Nothing -> pure Id
         dom <- binderType info mparam
@@ -251,6 +260,22 @@ recordFragmentUses defName ty mval isAssumption = do
       whnfT (stripTypeRestrictions tf) >>= \case
         TypeFunT _ _ _ dom _ _ -> pure (Just dom)
         _                      -> pure Nothing
+
+    -- A λ below the leading λs of the value binds a schematic variable where
+    -- the parameter prefix should.
+    reportMetaBinder :: forall l. Distinct l => Binder -> TermT l -> TypeCheck l ()
+    reportMetaBinder orig param = do
+      enabled <- asks ctxWarnMetaBinder
+      when enabled $ do
+        meta <- flip catchError (\_ -> pure False) (isMetaType param)
+        when meta $ do
+          naming <- asks namingOfContext
+          loc <- asks ctxLocation
+          recordCheckWarning $ MetaBinderWarning
+            defName
+            (fromMaybe "_" (binderName orig))
+            (ppTerm naming (untyped param))
+            loc
 
     reportFreeStanding :: forall l. FragmentUse -> TermT l -> TypeCheck l ()
     reportFreeStanding use t = do

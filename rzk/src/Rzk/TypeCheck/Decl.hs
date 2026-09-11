@@ -457,13 +457,19 @@ setOption "warn-tope-family-domain" = \case
   "no"  -> localWarnTopeFamilyDomain False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
--- The fragment check (see "Rzk.TypeCheck.Fragment"): a free-standing
--- restriction may be concluded but not assumed.
+-- The fragment checks (see "Rzk.TypeCheck.Fragment"). A free-standing
+-- restriction may be concluded but not assumed; a schematic binder inside a
+-- term is off by default, pending a measurement on larger developments.
 setOption "warn-free-standing-restriction" = \case
   "yes" -> localWarnFreeStandingRestriction True
   "no"  -> localWarnFreeStandingRestriction False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-free-standing-restriction\" (use \"yes\" or \"no\")"
+setOption "warn-meta-binder" = \case
+  "yes" -> localWarnMetaBinder True
+  "no"  -> localWarnMetaBinder False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-binder\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -478,6 +484,8 @@ unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
 unsetOption "warn-free-standing-restriction" =
   localWarnFreeStandingRestriction (ctxWarnFreeStandingRestriction emptyContext)
+unsetOption "warn-meta-binder" =
+  localWarnMetaBinder (ctxWarnMetaBinder emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 

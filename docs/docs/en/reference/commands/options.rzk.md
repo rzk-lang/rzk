@@ -60,6 +60,15 @@ Controls the warning for a free-standing restriction in an assumed position. A r
 
 Note that the check is syntactic: a restriction that appears in an assumed position only after a definition is unfolded or a redex is reduced is not reported.
 
+### `warn-meta-binder`
+
+Controls the warning for a schematic variable bound inside a term. A declaration's parameter prefix is its meta-theoretic parameter context, so that the declaration is a family of object-theory statements, one per instantiation (see `warn-meta-prefix`). A λ _inside_ a term that binds a variable at a universe, `CUBE`, `TOPE`, or a function into one of those is outside that reading. The leading λs of a definition's body are its own parameters and stay silent.
+
+- `"yes"` — warn about a schematic binder inside a term; the code is `MetaBinderWarning`
+- `"no"` — do not warn (default)
+
+The check is off by default because a development may package a statement quantified over a universe as a type and then prove it by a λ, which is idiomatic although it is outside the correspondence with the parameter layer.
+
 ## Examples
 
 ```rzk

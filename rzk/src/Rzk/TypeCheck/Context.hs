@@ -288,6 +288,13 @@ data Context n = Context
     -- "Rzk.TypeCheck.Fragment"). Such a declaration is outside the fragment
     -- that conservativity over RSTT covers. Set with
     -- @#set-option "warn-free-standing-restriction" = "yes" | "no"@.
+  , ctxWarnMetaBinder :: Bool
+    -- ^ When 'True', a λ inside a term that binds a variable at a meta type
+    -- (@U@, @CUBE@, @TOPE@, or a function into one) is reported, since
+    -- schematic parameters belong in the declaration's parameter prefix (see
+    -- "Rzk.TypeCheck.Fragment"). Off by default, as a development may
+    -- legitimately abstract over a statement it assumes. Set with
+    -- @#set-option "warn-meta-binder" = "yes" | "no"@.
   }
 
 -- | The sensitivity levels of the meta-parameter layer check.
@@ -336,6 +343,7 @@ emptyContext = Context
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
   , ctxWarnTopeFamilyDomain = True
   , ctxWarnFreeStandingRestriction = True
+  , ctxWarnMetaBinder = False
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.

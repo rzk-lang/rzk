@@ -128,6 +128,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Tope-family domain warning | `warn-tope-family-domain-non-instance`, `warn-tope-family-domain-option` | Where the domain conjunct is inserted (`typecheck`, the λ case), the family checked differs from the family written, and `TopeFamilyDomainWarning` is recorded; `#set-option "warn-tope-family-domain" = "no"` silences it. A warning identical in code, message and location is recorded once (`recordCheckWarning`): a parameter annotation is elaborated for the signature and again as the domain of the body's λ. |
 
 | Free-standing restrictions | `warn-free-standing-restriction-assumed`, `warn-free-standing-restriction-option`, `happy-ext-style-restrictions` | A restriction off a shape-Π codomain is reported where it is assumed, not concluded (`Rzk.TypeCheck.Fragment`): a binder type, an eliminator motive, the type of an identity type, a type passed as data (a `U`-valued body, an argument at a universe-typed parameter). Ext-style restrictions, and free-standing ones in a concluded tail type, stay silent. |
+| Schematic binders inside terms | `warn-meta-binder-inside-term` | A λ below the leading λs of a definition's body that binds a universe, a cube or a tope family is reported under `#set-option "warn-meta-binder" = "yes"` (off by default); the leading λs are the declaration's own parameters and stay silent. |
 
 # Test schema
 
