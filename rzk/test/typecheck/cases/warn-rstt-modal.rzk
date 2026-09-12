@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#def sharp-pure (A : U) (a : A) : _# A := mod _# a
+#def crisp (A :_b U) (a :_b A) : A := a

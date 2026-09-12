@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Audit S2 alone: report the introduction, not an unfolded use site.
+#set-option "rstt-safe" = "off"
+#def via-pair (A : U) (a : A) : U := first ((A [TOP ↦ a], unit) as Σ (X : U), Unit)

@@ -50,12 +50,14 @@ instance ParseFields FormatOptions where
 data TypecheckOptions = TypecheckOptions
   { typecheckAllowHoles :: Bool
   , typecheckJson       :: Bool
+  , typecheckRSTTSafe   :: Maybe String
   } deriving (Generic, Show, ParseRecord, Read, ParseField)
 
 instance ParseFields TypecheckOptions where
   parseFields _ _ _ _ = TypecheckOptions
     <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
     <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
+    <*> parseFields (Just "Enforce RSTT fragment checks throughout the run: warn, error, or off") (Just "rstt-safe") Nothing Nothing
 
 data VersionOptions = VersionOptions
   { versionFull :: Bool
@@ -80,9 +82,19 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag}) paths -> do
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag}) paths -> do
+      safeOverride <- case safeFlag of
+        Nothing -> pure Nothing
+        Just "warn" -> pure (Just RSTTSafeWarn)
+        Just "error" -> pure (Just RSTTSafeError)
+        Just "off" -> pure (Just RSTTSafeOff)
+        Just _ -> do
+          putStrLn "Unknown --rstt-safe mode (use warn, error, or off)"
+          exitFailure
       modules <- parseRzkFilesOrStdin paths
-      let reportError err = do
+      let baseContext = if jsonFlag || allowHolesFlag then allowHoles emptyContext else emptyContext
+          result = checkedModules modules (baseContext { ctxRSTTSafeOverride = safeOverride })
+          reportError err = do
             putStrLn "An error occurred when typechecking!"
             putStrLn $ unlines
               [ "Type Error:"
@@ -93,7 +105,7 @@ main = do
         -- holes as hints) as a JSON array on stdout; progress goes to stderr.
         -- Exit non-zero iff there is an error-severity diagnostic.
         then do
-          let diagnostics = case typecheckModulesWithHoles modules of
+          let diagnostics = case result of
                 Left err -> [diagnoseTypeError BottomUp err]
                 Right (Checked _ctx _decls errors warnings, holes) ->
                   map (diagnoseTypeError BottomUp) errors
@@ -102,7 +114,7 @@ main = do
           BL8.putStrLn (encode diagnostics)
           when (any ((== SeverityError) . diagnosticSeverity) diagnostics) exitFailure
         else if allowHolesFlag
-          then case typecheckModulesWithHoles modules of
+          then case result of
             Left err -> reportError err >> exitFailure
             Right (Checked _ctx _decls errors warnings, holes) -> do
               forM_ warnings (putStrLn . ppCheckWarning)
@@ -110,11 +122,13 @@ main = do
               case errors of
                 [] -> putStrLn ("Everything is ok! (" <> show (length holes) <> " hole(s))")
                 _  -> do forM_ errors reportError; exitFailure
-          else case typecheckModules modules of
+          else case result of
             Left err -> reportError err >> exitFailure
-            Right checked -> do
-              forM_ (checkedWarnings checked) (putStrLn . ppCheckWarning)
-              putStrLn "Everything is ok!"
+            Right (Checked _ _ errors warnings, _) -> do
+              forM_ warnings (putStrLn . ppCheckWarning)
+              case errors of
+                [] -> putStrLn "Everything is ok!"
+                _ -> do forM_ errors reportError; exitFailure
 
     Lsp ->
 #ifdef LSP_ENABLED

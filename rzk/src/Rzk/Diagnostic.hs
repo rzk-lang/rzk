@@ -7,11 +7,11 @@
 -- pre-formatted string. The core library produces these; the LSP maps them to
 -- LSP diagnostics, and the CLI can emit them as JSON (@rzk typecheck --json@).
 --
--- Locations are line-level: rzk currently retains only file + line at the point
--- an error is produced (the column is discarded, and core terms keep no
--- per-node position), so diagnostics point at the enclosing command's line.
+-- Locations give the source node's line and column when available, otherwise
+-- the nearest enclosing position retained by the checker.
 module Rzk.Diagnostic where
 
+import           Data.List                (intercalate)
 import           Data.Aeson           (ToJSON (..), Value (String), object,
                                        (.=))
 
@@ -35,7 +35,7 @@ data Severity
 --
 -- > { "severity": "error" | "warning" | "information" | "hint"
 -- > , "code":     <string>           -- "hole", or a TypeError tag (e.g. "TypeErrorUnify")
--- > , "location": { "file": <string|null>, "line": <int|null> } | null
+-- > , "location": { "file": <string|null>, "line": <int|null>, "column": <int|null> } | null
 -- > , "message":  <string>           -- human-facing prose (the CLI/LSP display text)
 -- > , "hole":     <HoleData> | null  -- present only for hole diagnostics (see 'HoleData')
 -- > }
@@ -46,7 +46,7 @@ data Severity
 data Diagnostic = Diagnostic
   { diagnosticSeverity :: Severity
   , diagnosticCode     :: String            -- ^ stable category, e.g. @\"TypeErrorUnify\"@ or @\"hole\"@
-  , diagnosticLocation :: Maybe LocationInfo -- ^ file + line (line-level granularity)
+  , diagnosticLocation :: Maybe LocationInfo -- ^ file, line and column when available
   , diagnosticMessage  :: String
   , diagnosticHole     :: Maybe HoleData     -- ^ structured hole payload ('Nothing' for type errors)
   } deriving (Eq, Show)
@@ -126,6 +126,7 @@ instance ToJSON HoleData where
 typeErrorTag :: TypeError n -> String
 typeErrorTag = \case
   TypeErrorOther{}                 -> "TypeErrorOther"
+  TypeErrorRSTT{}                  -> "TypeErrorRSTT"
   TypeErrorUnify{}                 -> "TypeErrorUnify"
   TypeErrorUnifyTerms{}            -> "TypeErrorUnifyTerms"
   TypeErrorNotPair{}               -> "TypeErrorNotPair"
@@ -210,6 +211,43 @@ diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule 
               MetaPrefixBoth       -> " at an object-level position"
               MetaPrefixStrictOnly -> " outside another declaration's meta prefix")
         <> " (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
+
+diagnoseCheckWarning (RSTTScopeWarning extension feature loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = case extension of
+      RSTTModal -> "RSTTModalWarning"
+      RSTTInterval -> "RSTTIntervalWarning"
+      RSTTInductive -> "RSTTInductiveWarning"
+      RSTTUnsupported -> "RSTTSyntaxWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = feature <> " is outside RSTT"
+  , diagnosticHole = Nothing
+  }
+diagnoseCheckWarning (RSTTHoleWarning loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = "RSTTHoleWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = "RSTT fragment check has an unfinished obligation"
+  , diagnosticHole = Nothing
+  }
+diagnoseCheckWarning (ExtensionBoundaryWarning name face shape loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = "ExtensionBoundaryWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = "restriction boundary " <> face <> " does not entail its shape " <> shape
+      <> " in an assumed type (in " <> show name <> ")"
+  , diagnosticHole = Nothing
+  }
+
+diagnoseCheckWarning (OverhangWarning what tope topes loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "OverhangWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      what <> " overhangs the local tope context: " <> tope
+        <> " does not entail " <> intercalate " ∧ " topes
   , diagnosticHole     = Nothing
   }
 

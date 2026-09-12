@@ -37,12 +37,32 @@ Controls the sensitivity of the meta-parameter layer check. The type theory impl
 
 Note that the check is syntactic and has a known blind spot: with type-in-type, instantiating an ordinary object parameter with a large type can make a position look meta-typed (for example, `g ((X : U) → X → X) h` where `g` expects `(X : U) (x : X)`). The strict sensitivity flags such a use when it falls outside the receiver's meta prefix, but a forgery landing within the prefix, or behind a λ-bound receiver, is not detected; recognising genuinely impredicative instantiations requires universe level inference, which rzk does not implement at the moment.
 
+### `rstt-safe`
+
+Controls the syntactic checks for the RSTT fragment:
+
+- `"warn"` — report detected violations (default).
+- `"error"` — reject a declaration when a violation is detected.
+- `"off"` — leave each standalone warning at its own setting.
+
+The bundle enables strict meta-prefix checking, checks for restrictions in assumed positions (including boundary inclusion in the immediate shape), and checks for schematic binders inside terms. It also reports modal constructs, the auxiliary interval and involutions, inductive declarations and their eliminations or constructors, and unfinished obligations. Individual warning options cannot disable these checks while the mode is active. In particular, `warn-meta-binder` remains off as a standalone default but is enabled by this bundle.
+
+Syntax is checked against an explicit allow-list before typechecking. Constructs outside it, including cube `sup` and `inf`, are reported even if computation would remove them. Known extensions receive specific diagnostic codes; other unsupported syntax receives `RSTTSyntaxWarning`. Diagnostics point to the outermost forbidden node on each branch, using its source position when available.
+
+The whole-context `warn-overhang` advisory and the family-clipping warning `warn-tope-family-domain` are separate. They do not fail `rstt-safe = "error"`. A free-standing restriction along a concluded codomain remains allowed.
+
+Use `rzk typecheck --rstt-safe=warn` or `--rstt-safe=error` to enforce the selected mode throughout the run, including all input modules. Source options cannot override this CLI selection. `--rstt-safe=off` instead selects standalone warnings throughout. Warning mode preserves a successful exit status for a well-typed input; error mode exits unsuccessfully on a fragment violation, including with `--json` or `--allow-holes`.
+
+A source `#set-option` affects only its scope. Enabling it after definitions were checked with the mode off does not check those dependencies retrospectively. A clean run means that these checks found no violation; it does not establish universe stratification or prove that an arbitrary development translates to RSTT. The syntactic traversal does not report restrictions that appear only after computation at a use site. The library must be checked from its introductions, and the impredicative instantiation gap remains open.
+
 ### `warn-overhang`
 
 Controls the non-fatal hint printed when a restriction face or a `recOR` guard overhangs the local tope context (is not entailed by it, while still overlapping it). Overhang is legitimate — for example, restricting with an already-defined shape whose faces live on the whole cube — so the hint is informational only. Deciding whether a face overhangs costs a solver query per face, so the hint is off by default.
 
 - `"yes"` — print the hint for overhanging faces and guards
 - `"no"` — do not check for overhang (default)
+
+The warning has diagnostic code `OverhangWarning` and is also reported in JSON and by the language server, including at silent verbosity. It tests whether the face or guard entails the whole local tope context. This advisory test is separate from the RSTT condition on the immediate shape binder.
 
 ### `warn-tope-family-domain`
 
@@ -53,9 +73,9 @@ Controls the warning for a tope family that is not included in its declared doma
 
 ### `warn-free-standing-restriction`
 
-Controls the warning for a free-standing restriction in an assumed position. A restriction is _ext-style_ when it sits on the codomain of a shape-Π, which is the form the encoding of RSTT extension types produces; any other restriction is _free-standing_. Conservativity over RSTT is proved for the derivations that conclude a free-standing restriction but never assume one (Section 5 of the Rzk paper[^1]), so the checker reports the assumed positions: the type of a binder, the motive of an eliminator, the type of an identity type, and a type passed as data, which includes the body of a `U`-valued definition and an argument at a universe-typed parameter. A type passed as data matters because it is substituted into binder and motive positions later. Concluded types are exempt, including a restriction under an ordinary `Π`.
+Controls the warning for a free-standing restriction in an assumed position. A restriction is _ext-style_ when it sits on the codomain of a shape-Π and its boundary entails that shape, which is the form the encoding of RSTT extension types produces; any other restriction is _free-standing_. Conservativity over RSTT is proved for the derivations that conclude a free-standing restriction but never assume one (Section 5 of the Rzk paper[^1]), so the checker reports the assumed positions: the type of a binder, the motive of an eliminator, the type of an identity type, and a type passed as data, which includes the body of a `U`-valued definition and an argument at a universe-typed parameter. A type passed as data matters because it is substituted into binder and motive positions later. Restrictions along concluded codomains are exempt, including a restriction under an ordinary `Π`. A postulate supplies an assumption, so its type is checked as assumed.
 
-- `"yes"` — warn about an assumed free-standing restriction (default); the code is `FreeStandingRestrictionWarning`
+- `"yes"` — warn about an assumed free-standing restriction (default); the code is `FreeStandingRestrictionWarning`, or `ExtensionBoundaryWarning` when the boundary does not entail its shape
 - `"no"` — do not warn
 
 Note that the check is syntactic: a restriction that appears in an assumed position only after a definition is unfolded or a redex is reduced is not reported.

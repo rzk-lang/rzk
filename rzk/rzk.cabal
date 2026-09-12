@@ -71,6 +71,11 @@ extra-source-files:
     test/typecheck/cases/happy-recor-split-simplex-overhang.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
+    test/typecheck/cases/happy-rstt-awareness.rzk
+    test/typecheck/cases/happy-rstt-boundary.rzk
+    test/typecheck/cases/happy-rstt-off.rzk
+    test/typecheck/cases/happy-rstt-tail-nested.rzk
+    test/typecheck/cases/happy-rstt-tau-flip.rzk
     test/typecheck/cases/happy-set-option-warn-overhang.rzk
     test/typecheck/cases/happy-shadowing-across-groups.rzk
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.rzk
@@ -167,6 +172,16 @@ extra-source-files:
     test/typecheck/cases/ill-repeated-binder-pair.rzk
     test/typecheck/cases/ill-repeated-binder-params.rzk
     test/typecheck/cases/ill-restrict-face-disjoint.rzk
+    test/typecheck/cases/ill-rstt-auxiliary-interval.rzk
+    test/typecheck/cases/ill-rstt-boundary.rzk
+    test/typecheck/cases/ill-rstt-inductive.rzk
+    test/typecheck/cases/ill-rstt-meta-binder.rzk
+    test/typecheck/cases/ill-rstt-meta-prefix.rzk
+    test/typecheck/cases/ill-rstt-modal.rzk
+    test/typecheck/cases/ill-rstt-option.rzk
+    test/typecheck/cases/ill-rstt-postulate.rzk
+    test/typecheck/cases/ill-rstt-restriction.rzk
+    test/typecheck/cases/ill-rstt-unsupported.rzk
     test/typecheck/cases/ill-section-end-mismatch.rzk
     test/typecheck/cases/ill-section-not-closed.rzk
     test/typecheck/cases/ill-section-unexpected-end.rzk
@@ -217,6 +232,19 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-option-structural.rzk
     test/typecheck/cases/warn-meta-prefix-section.rzk
     test/typecheck/cases/warn-meta-prefix-strict-only.rzk
+    test/typecheck/cases/warn-overhang-controls.rzk
+    test/typecheck/cases/warn-rstt-boundary.rzk
+    test/typecheck/cases/warn-rstt-default.rzk
+    test/typecheck/cases/warn-rstt-escape-beta.rzk
+    test/typecheck/cases/warn-rstt-escape-iota.rzk
+    test/typecheck/cases/warn-rstt-escape-let.rzk
+    test/typecheck/cases/warn-rstt-escape-pair.rzk
+    test/typecheck/cases/warn-rstt-escape-section.rzk
+    test/typecheck/cases/warn-rstt-escape-tope-family.rzk
+    test/typecheck/cases/warn-rstt-escape-unfolding.rzk
+    test/typecheck/cases/warn-rstt-inductive.rzk
+    test/typecheck/cases/warn-rstt-modal.rzk
+    test/typecheck/cases/warn-rstt-reset.rzk
     test/typecheck/cases/warn-tope-family-domain-non-instance.rzk
     test/typecheck/cases/warn-tope-family-domain-option.rzk
     test/typecheck/cases/happy-check.expect.yaml
@@ -270,6 +298,11 @@ extra-source-files:
     test/typecheck/cases/happy-recor-split-simplex-overhang.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
+    test/typecheck/cases/happy-rstt-awareness.expect.yaml
+    test/typecheck/cases/happy-rstt-boundary.expect.yaml
+    test/typecheck/cases/happy-rstt-off.expect.yaml
+    test/typecheck/cases/happy-rstt-tail-nested.expect.yaml
+    test/typecheck/cases/happy-rstt-tau-flip.expect.yaml
     test/typecheck/cases/happy-set-option-warn-overhang.expect.yaml
     test/typecheck/cases/happy-shadowing-across-groups.expect.yaml
     test/typecheck/cases/happy-shott-simplicial-subcomplexes.expect.yaml
@@ -366,6 +399,16 @@ extra-source-files:
     test/typecheck/cases/ill-repeated-binder-pair.expect.yaml
     test/typecheck/cases/ill-repeated-binder-params.expect.yaml
     test/typecheck/cases/ill-restrict-face-disjoint.expect.yaml
+    test/typecheck/cases/ill-rstt-auxiliary-interval.expect.yaml
+    test/typecheck/cases/ill-rstt-boundary.expect.yaml
+    test/typecheck/cases/ill-rstt-inductive.expect.yaml
+    test/typecheck/cases/ill-rstt-meta-binder.expect.yaml
+    test/typecheck/cases/ill-rstt-meta-prefix.expect.yaml
+    test/typecheck/cases/ill-rstt-modal.expect.yaml
+    test/typecheck/cases/ill-rstt-option.expect.yaml
+    test/typecheck/cases/ill-rstt-postulate.expect.yaml
+    test/typecheck/cases/ill-rstt-restriction.expect.yaml
+    test/typecheck/cases/ill-rstt-unsupported.expect.yaml
     test/typecheck/cases/ill-section-end-mismatch.expect.yaml
     test/typecheck/cases/ill-section-not-closed.expect.yaml
     test/typecheck/cases/ill-section-unexpected-end.expect.yaml
@@ -412,6 +455,19 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-option-structural.expect.yaml
     test/typecheck/cases/warn-meta-prefix-section.expect.yaml
     test/typecheck/cases/warn-meta-prefix-strict-only.expect.yaml
+    test/typecheck/cases/warn-overhang-controls.expect.yaml
+    test/typecheck/cases/warn-rstt-boundary.expect.yaml
+    test/typecheck/cases/warn-rstt-default.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-beta.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-iota.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-let.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-pair.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-section.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-tope-family.expect.yaml
+    test/typecheck/cases/warn-rstt-escape-unfolding.expect.yaml
+    test/typecheck/cases/warn-rstt-inductive.expect.yaml
+    test/typecheck/cases/warn-rstt-modal.expect.yaml
+    test/typecheck/cases/warn-rstt-reset.expect.yaml
     test/typecheck/cases/warn-tope-family-domain-non-instance.expect.yaml
     test/typecheck/cases/warn-tope-family-domain-option.expect.yaml
     test/typecheck/cases/literate-fence/expect.yaml
@@ -600,6 +656,7 @@ test-suite rzk-test
       Rzk.ParserSpec
       Rzk.PositionEncodingSpec
       Rzk.RefIndexSpec
+      Rzk.RSTTSafeSpec
       Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec
       Rzk.VersionSpec

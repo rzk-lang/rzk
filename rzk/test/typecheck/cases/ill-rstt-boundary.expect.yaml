@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - does not entail shape
+regression_for:
+  - rstt-safe-mode

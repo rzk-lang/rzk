@@ -128,7 +128,9 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
   metaPrefix <- metaPrefixOf ty
   recordMetaPrefixUses name ty mval
-  RSTT.recordFragmentUses name ty mval isAssumption
+  -- Postulates and failed definitions supply assumptions, so require ext-style types.
+  RSTT.recordFragmentUses name ty mval
+    (isAssumption || maybe True (const False) mval)
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -435,8 +437,12 @@ setOption "render-hide-term" = \case
   "no"  -> localHideTerm False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"render-hide-term\" (use \"yes\" or \"no\")"
--- The overhang hint costs a solver entailment per restriction face and recOR
--- guard, so it is off by default and opted into per module (or scope).
+setOption "rstt-safe" = \case
+  "warn" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeWarn }
+  "error" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeError }
+  "off" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeOff }
+  _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe mode (use warn, error, or off)"
+-- Opt-in: overhang checking adds a solver query per face or guard.
 setOption "warn-overhang" = \case
   "yes" -> localWarnOverhang True
   "no"  -> localWarnOverhang False
@@ -477,15 +483,16 @@ unsetOption :: Distinct n => String -> TypeCheck n a -> TypeCheck n a
 unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
+unsetOption "rstt-safe" = local $ \ctx -> ctx { ctxRSTTSafe = ctxRSTTSafe emptyContext }
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
 unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
 unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
 unsetOption "warn-free-standing-restriction" =
-  localWarnFreeStandingRestriction (ctxWarnFreeStandingRestriction emptyContext)
+  localWarnFreeStandingRestriction (ctxStandaloneWarnFreeStandingRestriction emptyContext)
 unsetOption "warn-meta-binder" =
-  localWarnMetaBinder (ctxWarnMetaBinder emptyContext)
+  localWarnMetaBinder (ctxStandaloneWarnMetaBinder emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -713,6 +720,10 @@ withDataDecls
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
   -> TypeCheck n r
 withDataDecls path used name paramVars paramDecls sortIndices consData elims k = do
+  safe <- asks rsttSafeEnabled
+  when safe $ do
+    loc <- asks ctxLocation
+    recordCheckWarning $ RSTTScopeWarning RSTTInductive "inductive declaration" loc
   -- The type former's type spells the sort as written: params → indices → U.
   let sortTerm = foldr wrapIndex (Rzk.Universe Nothing) sortIndices
       wrapIndex (SortIndex mv ty) body = case mv of
@@ -1145,6 +1156,13 @@ elaborate term = do
         Nothing -> Hole (Just (markUnresolved name))
   pure (toTerm (ctxScope ctx) env term)
 
+-- Check user syntax; generated inductive declarations are already excluded.
+elaborateChecked :: Distinct n => Rzk.Term -> TypeCheck n (Term n)
+elaborateChecked term = do
+  core <- elaborate term
+  atSurface term $ RSTT.recordSyntaxUses core
+  pure core
+
 -- | Is a surface identifier defined at the top level?
 checkDefined :: Distinct n => VarIdent -> TypeCheck n (Foil.Name n)
 checkDefined name = asks (lookupNamed name) >>= \case
@@ -1207,7 +1225,7 @@ checkCommands path i total commands k = case commands of
         typeResult <- tryCheck $ do
           used <- mapM (checkDefined . varIdentAt path) vars
           paramDecls <- concat <$> mapM paramToParamDecl params
-          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          tyTerm <- elaborateChecked (addParamDecls paramDecls ty)
           ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
           pure (used, ty')
         case typeResult of
@@ -1219,7 +1237,7 @@ checkCommands path i total commands k = case commands of
             -- against it and its own errors and holes reported, instead of the
             -- run stopping at this one.
             result <- tryCheck $ do
-              valTerm <- elaborate (addParams params term)
+              valTerm <- elaborateChecked (addParams params term)
               atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
             let (mvalue, bodyErrors) = case result of
                   Right term'  -> (Just term', [])
@@ -1257,7 +1275,7 @@ checkCommands path i total commands k = case commands of
         typeResult <- tryCheck $ do
           used <- mapM (checkDefined . varIdentAt path) vars
           paramDecls <- concat <$> mapM paramToParamDecl params
-          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          tyTerm <- elaborateChecked (addParamDecls paramDecls ty)
           ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
           pure (used, ty')
         case typeResult of
@@ -1272,7 +1290,7 @@ checkCommands path i total commands k = case commands of
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
       withCommand command k $ do
         typeResult <- tryCheck $ do
-          tyTerm <- elaborate ty
+          tyTerm <- elaborateChecked ty
           atSurface ty $ typecheck tyTerm universeT
         case typeResult of
           Left typeError -> skippingCommand typeError path i total more k
@@ -1287,9 +1305,9 @@ checkCommands path i total commands k = case commands of
         -- A #check declares nothing, so its failure costs the rest of the file
         -- nothing either.
         result <- tryCheck $ do
-          tyTerm <- elaborate ty
+          tyTerm <- elaborateChecked ty
           ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
-          termTerm <- elaborate term
+          termTerm <- elaborateChecked term
           _term' <- atSurface term $ typecheck termTerm ty'
           pure ()
         case result of
@@ -1303,7 +1321,7 @@ checkCommands path i total commands k = case commands of
     announce (" Computing NF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborate term >>= infer >>= nfT
+          term' <- atSurface term $ elaborateChecked term >>= infer >>= nfT
           ppInContext term'
         case result of
           Left err -> skippingCommand err path i total more k
@@ -1314,7 +1332,7 @@ checkCommands path i total commands k = case commands of
     announce (" Computing WHNF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborate term >>= infer >>= whnfT
+          term' <- atSurface term $ elaborateChecked term >>= infer >>= whnfT
           ppInContext term'
         case result of
           Left err -> skippingCommand err path i total more k

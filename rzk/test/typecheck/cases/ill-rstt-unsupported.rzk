@@ -1,0 +1,4 @@
+#lang rzk-1
+#set-option "rstt-safe" = "error"
+#def discard (i : 2) : Unit :=
+  (\ (j : 2) → unit) (sup i 1_2)

@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 #define my-id (X : U) (x : X) : X := x
 
 -- Passing the unsaturated schema to a local parameter whose declared type

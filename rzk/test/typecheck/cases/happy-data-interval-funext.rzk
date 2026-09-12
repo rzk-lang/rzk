@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- Function extensionality is provable from the interval higher inductive
 -- type, following Lemma 6.3.2 of the HoTT book: a pointwise identification
 -- α makes a map A → interval → B whose two ends are f and g, and ap of its

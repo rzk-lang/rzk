@@ -8,56 +8,16 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The meta-parameter layer check.
+-- | Diagnostics for unsaturated schematic parameters.
 --
--- The type theory implemented in rzk separates a /meta-theoretic parameter
--- layer/ from the object theory (RSTT proper): see §3.2 of the Rzk paper
--- (Kudasov, Sim, Ahrens, \"Rzk: a Proof Assistant for Synthetic
--- ∞-Categories\", <https://arxiv.org/abs/2607.12207 arXiv:2607.12207>),
--- where a statement is abstracted over a context of schematic cube, tope,
--- and type parameters. The checker did not enforce responsible use of
--- this layer. Per declaration, the /meta prefix/ is the
--- parameter prefix up to and including the last parameter whose type lives
--- outside RSTT proper: a universe, @CUBE@, @TOPE@, or a Π-type quantifying
--- over or landing in one of those. Interleaved object parameters are swept
--- in, which only strengthens the check.
+-- A declaration's /meta prefix/ ends at its last schematic parameter:
+-- a universe, @CUBE@, @TOPE@, or a function quantifying over or into one.
 --
--- The discipline: the meta prefix must be fully supplied wherever the
--- declaration is used at an object-level position; unsaturated use at a
--- meta-typed position is legitimate macro-level plumbing and stays allowed.
--- Then the development reads as a family of object-theory definitions, one
--- per meta instantiation.
+-- * Structural checking requires the full prefix at object-level uses.
+-- * Strict checking confines schema arguments to a top-level receiver's meta prefix.
 --
--- Positions are classified structurally, on the elaborated term:
---
--- - the root of a declaration's type and value is meta (a definition may
---   alias a schema), and a λ-body inherits its λ's position (the value's
---   leading λs are the declaration's own parameters);
--- - an application argument is meta when the function's Π-domain at that
---   position is meta-shaped (the receiver declared a schema parameter);
--- - the components of type formers are meta (types are the schema layer),
---   except the endpoints of an identity type, which are terms;
--- - everything else (pair components, projections, @recOR@ branches, a
---   @let@-bound value, …) is an object position.
---
--- The strict rule (the default, see 'MetaPrefixSensitivity') additionally
--- requires an unsaturated schema argument to sit within a /top-level/
--- receiver's meta prefix. This also polices meta-shaped domains that only
--- arise by instantiating a receiver's object parameters with large types
--- (as in composing schema-level implications with a generic @comp@); such
--- uses are emitted with the distinct code 'MetaPrefixStrictOnly', so the
--- structural sensitivity can silence them without losing the rest.
---
--- Known blind spot: under type-in-type, an impredicative instantiation can
--- forge a meta-shaped argument domain out of an object parameter — with
--- @g : (X : U) → X → X@, in @g ((X : U) → X → X) my-id@ the second
--- domain is meta-shaped only because @X@ was instantiated with a large
--- type. The structural sensitivity reads such a position as meta and stays
--- silent. The strict default flags it when the argument falls outside the
--- receiver's meta prefix (as here), but a forgery landing /within/ the
--- prefix, or behind a λ-bound receiver, still passes: deciding whether an
--- instantiation is genuinely impredicative is level inference, a separate
--- (planned) analysis, not this check.
+-- Strict checking is the default. Neither check establishes universe
+-- stratification; impredicative instantiation can escape detection.
 module Rzk.TypeCheck.MetaPrefix (
   metaPrefixOf,
   isMetaType,
@@ -84,12 +44,8 @@ import           Rzk.TypeCheck.Monad
 
 -- * Classifying types
 
--- | Does this type live outside RSTT proper — is it a universe, @CUBE@,
--- @TOPE@, or a Π-type that quantifies over or lands in one of those? This
--- covers a family into a universe (@A → U@, a tope family) and a schematic
--- type such as @(X : U) → X → X@ (predicatively both are large). A
--- parameter of such a type is a meta parameter. Never throws; an
--- unanswerable probe reads as object.
+-- | Recognise universes and functions quantifying over or into universes.
+-- Includes @CUBE@ and @TOPE@; returns 'False' if classification fails.
 isMetaType :: Distinct n => TermT n -> TypeCheck n Bool
 isMetaType t = flip catchError (\_ -> pure False) $ do
   t' <- headView t
@@ -104,9 +60,8 @@ isMetaType t = flip catchError (\_ -> pure False) $ do
         else inScope orig md param ret isMetaType
     _               -> pure False
 
--- | The length of the meta prefix of a declaration with this type: the
--- number of leading parameters up to and including the last meta one
--- (0 when there is none). Never throws.
+-- | Count parameters through the last schematic one.
+-- Returns zero if there is none or classification fails.
 metaPrefixOf :: Distinct n => TermT n -> TypeCheck n Int
 metaPrefixOf ty = flip catchError (\_ -> pure 0) $ go 1 0 ty
   where
@@ -118,10 +73,7 @@ metaPrefixOf ty = flip catchError (\_ -> pure 0) $ go 1 0 ty
         inScope orig md param ret (go (pos + 1) acc')
       _ -> pure acc
 
--- | The head of a type, for classification: syntactically if the head is
--- already informative, through WHNF otherwise (a defined name such as
--- @FunExt@ must unfold). Restrictions are stripped either way; a boundary
--- does not change which layer a type lives in.
+-- Strip restrictions and unfold only when the head needs classification.
 headView :: Distinct n => TermT n -> TypeCheck n (TermT n)
 headView t = case stripTypeRestrictions t of
   t'@UniverseT{}     -> pure t'
@@ -148,17 +100,15 @@ rootPositions   = Positions MetaPos MetaPos
 typePositions   = Positions MetaPos MetaPos
 objectPositions = Positions ObjectPos ObjectPos
 
--- | Walk a declaration's elaborated type and value, warning about every
--- use of a top-level name that supplies fewer arguments than its meta
--- prefix at an object-level position. Advisory: never throws, and runs
--- silently so WHNF probes do not trace.
+-- | Report uses that supply too few schematic arguments.
+-- Violations are errors when @rstt-safe = "error"@.
 recordMetaPrefixUses
   :: forall n. Distinct n
   => VarIdent -> TermT n -> Maybe (TermT n) -> TypeCheck n ()
 recordMetaPrefixUses defName ty mval =
-  asks ctxMetaPrefixSensitivity >>= \case
+  asks effectiveMetaPrefixSensitivity >>= \case
     MetaPrefixOff -> pure ()
-    _ -> localVerbosity Silent $ flip catchError (\_ -> pure ()) $ do
+    _ -> localVerbosity Silent $ flip catchError ignoreAdvisoryError $ do
       go rootPositions ty
       mapM_ (go rootPositions) mval
   where
@@ -236,13 +186,13 @@ recordMetaPrefixUses defName ty mval =
 
     -- An unsaturated top-level head at an object position warns; at a
     -- position only the strict rule rejects, the warning is marked so.
-    checkHead :: forall l. Positions -> Foil.Name l -> Int -> TypeCheck l ()
+    checkHead :: forall l. Distinct l => Positions -> Foil.Name l -> Int -> TypeCheck l ()
     checkHead pos v nargs = do
       ctx <- ask
       let info = lookupVarInfo v ctx
           k = varMetaPrefix info
       when (varIsTopLevel info && k > nargs) $ do
-        sensitivity <- asks ctxMetaPrefixSensitivity
+        sensitivity <- asks effectiveMetaPrefixSensitivity
         let mrule = case (posStructural pos, posStrict pos) of
               (ObjectPos, _) -> Just MetaPrefixBoth
               (MetaPos, ObjectPos)

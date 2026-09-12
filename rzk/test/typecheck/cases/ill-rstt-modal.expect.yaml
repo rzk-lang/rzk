@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - modal type
+regression_for:
+  - rstt-safe-mode

@@ -15,7 +15,7 @@
 -- @closeScope@ had to wrap the error one binder deeper and re-emit the holes.
 module Rzk.TypeCheck.Monad where
 
-import           Control.Monad            (unless)
+import           Control.Monad            (unless, when)
 import           Control.Monad.Except     (ExceptT,
                                            MonadError (catchError, throwError),
                                            runExceptT)
@@ -71,10 +71,7 @@ data HoleInfo = HoleInfo
   , holeLocation      :: Maybe LocationInfo
   } deriving (Eq, Show)
 
--- | A non-fatal finding of the checker, recorded on the writer channel
--- beside the holes and carried out of a run in @Checked@. Structured, so
--- the CLI, the LSP, and (later) safe mode each decide how to present or
--- escalate it.
+-- | A structured checker diagnostic. Safe error mode rejects fragment violations.
 data CheckWarning
   = LargeInductiveTypeWarning
       VarIdent              -- ^ the data type
@@ -86,6 +83,14 @@ data CheckWarning
       Int                   -- ^ the arguments supplied
       Int                   -- ^ the length of the meta prefix
       MetaPrefixRule
+      (Maybe LocationInfo)
+  | RSTTScopeWarning RSTTExtension String (Maybe LocationInfo)
+  | RSTTHoleWarning (Maybe LocationInfo)
+  | ExtensionBoundaryWarning VarIdent String String (Maybe LocationInfo)
+  | OverhangWarning
+      String                -- ^ restriction face or recOR branch guard
+      String                -- ^ the face or guard, rendered
+      [String]              -- ^ the local tope context, rendered
       (Maybe LocationInfo)
   | TopeFamilyDomainWarning
       String                -- ^ the family, rendered where it was checked
@@ -103,11 +108,15 @@ data CheckWarning
       (Maybe LocationInfo)
   deriving (Eq, Show)
 
+-- | Diagnostic categories for syntax outside the RSTT fragment.
+data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTUnsupported
+  deriving (Eq, Show)
+
 -- | What assumes a free-standing restriction (see "Rzk.TypeCheck.Fragment.RSTT"),
 -- which conservativity allows to be concluded but not assumed.
 data FragmentUse
   = UseBinder
-    -- ^ the type of a binder (λ, Π, Σ, let, or a declaration's parameter)
+    -- ^ the type of a binder (λ, Π, Σ, or a declaration's parameter)
   | UseMotive
     -- ^ the motive of an eliminator
   | UseData
@@ -122,6 +131,10 @@ data FragmentUse
 warningLocation :: CheckWarning -> Maybe LocationInfo
 warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
 warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
+warningLocation (RSTTScopeWarning _ _ loc)           = loc
+warningLocation (RSTTHoleWarning loc)               = loc
+warningLocation (ExtensionBoundaryWarning _ _ _ loc) = loc
+warningLocation (OverhangWarning _ _ _ loc)         = loc
 warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
 warningLocation (FreeStandingRestrictionWarning _ _ _ loc) = loc
 warningLocation (MetaBinderWarning _ _ _ loc)       = loc
@@ -228,10 +241,10 @@ localWarnTopeFamilyDomain warn = local $ \ctx -> ctx { ctxWarnTopeFamilyDomain =
 
 localWarnFreeStandingRestriction :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnFreeStandingRestriction warn =
-  local $ \ctx -> ctx { ctxWarnFreeStandingRestriction = warn }
+  local $ \ctx -> ctx { ctxStandaloneWarnFreeStandingRestriction = warn }
 
 localWarnMetaBinder :: Bool -> TypeCheck n a -> TypeCheck n a
-localWarnMetaBinder warn = local $ \ctx -> ctx { ctxWarnMetaBinder = warn }
+localWarnMetaBinder warn = local $ \ctx -> ctx { ctxStandaloneWarnMetaBinder = warn }
 
 localMetaPrefixSensitivity :: MetaPrefixSensitivity -> TypeCheck n a -> TypeCheck n a
 localMetaPrefixSensitivity sensitivity =
@@ -317,21 +330,40 @@ suppressing action = do
 
 -- * Holes
 
-recordHoleInfo :: HoleInfo -> TypeCheck n ()
-recordHoleInfo info =
+recordHoleInfo :: Distinct n => HoleInfo -> TypeCheck n ()
+recordHoleInfo info = do
   modifyLog $ \l -> l { logHolesRev = info : logHolesRev l }
+  enabled <- asks rsttSafeEnabled
+  when enabled $ recordCheckWarning (RSTTHoleWarning (holeLocation info))
 
 -- * Warnings
 
--- | Record a warning, once: a term can be elaborated twice (a definition's
--- parameter annotation is checked for the signature and again as the domain
--- of the body's λ), and the second elaboration makes the same finding at the
--- same location.
-recordCheckWarning :: CheckWarning -> TypeCheck n ()
-recordCheckWarning warning =
+-- | Record a warning once, rejecting fragment violations in safe error mode.
+recordCheckWarning :: Distinct n => CheckWarning -> TypeCheck n ()
+recordCheckWarning warning = do
+  -- Signature and body elaboration may report the same annotation twice.
   modifyLog $ \l ->
     if warning `elem` logWarningsRev l then l
     else l { logWarningsRev = warning : logWarningsRev l }
+  mode <- asks rsttSafeMode
+  when (mode == RSTTSafeError) $
+    mapM_ (issueTypeError . TypeErrorRSTT) (rsttViolation warning)
+
+-- | Describe a fragment violation; return 'Nothing' for unrelated warnings.
+rsttViolation :: CheckWarning -> Maybe String
+rsttViolation = \case
+  MetaPrefixWarning _ _ _ _ _ _ -> Just "unsaturated schematic parameters"
+  FreeStandingRestrictionWarning _ _ _ _ -> Just "free-standing restriction in an assumed position"
+  MetaBinderWarning _ _ _ _ -> Just "schematic binder inside a term"
+  ExtensionBoundaryWarning _ face shape _ -> Just ("boundary " <> face <> " does not entail shape " <> shape)
+  RSTTScopeWarning _ feature _ -> Just (feature <> " is outside RSTT")
+  RSTTHoleWarning _ -> Just "unfinished obligation"
+  _ -> Nothing
+
+-- | Ignore advisory failures while preserving safe-mode errors.
+ignoreAdvisoryError :: TypeErrorInScopedContext -> TypeCheck n ()
+ignoreAdvisoryError err@(TypeErrorInScopedContext _ TypeErrorRSTT{}) = throwError err
+ignoreAdvisoryError _ = pure ()
 
 -- * Locations
 

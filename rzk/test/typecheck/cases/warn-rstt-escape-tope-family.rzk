@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Audit S2 alone: report the introduction, not an unfolded use site.
+#set-option "rstt-safe" = "off"
+#def family (A : U) (a : A) : 2 → U := \ t → A [t === 0_2 ↦ a]

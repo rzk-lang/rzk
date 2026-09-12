@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- Audit S2 alone: report the introduction, not an unfolded use site.
+#set-option "rstt-safe" = "off"
+#def restricted (A : U) (a : A) : U := A [TOP ↦ a]
+#postulate use (A : U) (a : A) (x : restricted A a) : A

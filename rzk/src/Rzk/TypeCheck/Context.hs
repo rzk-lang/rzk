@@ -263,14 +263,12 @@ data Context n = Context
   , ctxHintLemmas          :: [VarIdent]
     -- ^ Named top-level definitions a hole's candidate list may draw on, beyond
     -- the local hypotheses (see 'withHintLemmas').
+  , ctxRSTTSafe            :: RSTTSafeMode
+  , ctxRSTTSafeOverride    :: Maybe RSTTSafeMode
+    -- ^ A CLI selection applies throughout the run, despite source options.
   , ctxWarnOverhang        :: Bool
-    -- ^ When 'True', a restriction face or @recOR@ guard that overhangs the
-    -- local tope context (is not entailed by it, while still overlapping it)
-    -- is reported with a non-fatal hint. Off by default: deciding the
-    -- overhang costs a solver entailment per face and guard, and the overhang
-    -- is legitimate (see @happy-restrict-face-not-contained@). Enabled with
-    -- @#set-option "warn-overhang" "yes"@. The /disjointness/ error next to
-    -- it is unaffected: a vacuous face is always rejected.
+    -- ^ Warn when a face or guard overlaps but does not entail the local tope
+    -- context. Off by default; disjoint faces remain errors.
   , ctxMetaPrefixSensitivity :: MetaPrefixSensitivity
     -- ^ How sensitively the meta-parameter layer check classifies use
     -- positions (see "Rzk.TypeCheck.MetaPrefix"). Strict by default; set
@@ -282,19 +280,12 @@ data Context n = Context
     -- 'typecheck'), so the family checked differs from the family written.
     -- Costs nothing beyond the entailment that decides the intersection.
     -- Disabled with @#set-option "warn-tope-family-domain" = "no"@.
-  , ctxWarnFreeStandingRestriction :: Bool
-    -- ^ When 'True' (the default), a free-standing restriction assumed at a
-    -- binder, a motive, or inside a type passed as data is reported (see
-    -- "Rzk.TypeCheck.Fragment.RSTT"). Such a declaration is outside the fragment
-    -- that conservativity over RSTT covers. Set with
-    -- @#set-option "warn-free-standing-restriction" = "yes" | "no"@.
-  , ctxWarnMetaBinder :: Bool
-    -- ^ When 'True', a λ inside a term that binds a variable at a meta type
-    -- (@U@, @CUBE@, @TOPE@, or a function into one) is reported, since
-    -- schematic parameters belong in the declaration's parameter prefix (see
-    -- "Rzk.TypeCheck.Fragment"). Off by default, as a development may
-    -- legitimately abstract over a statement it assumes. Set with
-    -- @#set-option "warn-meta-binder" = "yes" | "no"@.
+  , ctxStandaloneWarnFreeStandingRestriction :: Bool
+    -- ^ Standalone restriction check, enabled by default.
+    -- RSTT-safe mode enables the check regardless of this setting.
+  , ctxStandaloneWarnMetaBinder :: Bool
+    -- ^ Standalone schematic-binder check, disabled by default.
+    -- RSTT-safe mode enables the check regardless of this setting.
   }
 
 -- | The sensitivity levels of the meta-parameter layer check.
@@ -339,11 +330,13 @@ emptyContext = Context
   , ctxHolesAreErrors = True
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
+  , ctxRSTTSafe = RSTTSafeWarn
+  , ctxRSTTSafeOverride = Nothing
   , ctxWarnOverhang = False
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
   , ctxWarnTopeFamilyDomain = True
-  , ctxWarnFreeStandingRestriction = True
-  , ctxWarnMetaBinder = False
+  , ctxStandaloneWarnFreeStandingRestriction = True
+  , ctxStandaloneWarnMetaBinder = False
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.
@@ -585,3 +578,29 @@ withHintLemmas lemmas ctx = ctx { ctxHintLemmas = lemmas }
 -- than being deferred (see 'ctxDeferHoleMismatches').
 structuralHoleUnify :: Context n -> Context n
 structuralHoleUnify ctx = ctx { ctxDeferHoleMismatches = False }
+
+-- | Policy for reporting RSTT fragment violations.
+data RSTTSafeMode = RSTTSafeOff | RSTTSafeWarn | RSTTSafeError
+  deriving (Eq, Show, Read)
+
+rsttSafeMode :: Context n -> RSTTSafeMode
+rsttSafeMode ctx = case ctxRSTTSafeOverride ctx of
+  Just mode -> mode
+  Nothing   -> ctxRSTTSafe ctx
+
+rsttSafeEnabled :: Context n -> Bool
+rsttSafeEnabled ctx = rsttSafeMode ctx /= RSTTSafeOff
+
+-- | Whether to check free-standing restrictions, including RSTT-safe requirements.
+ctxWarnFreeStandingRestriction :: Context n -> Bool
+ctxWarnFreeStandingRestriction ctx =
+  rsttSafeEnabled ctx || ctxStandaloneWarnFreeStandingRestriction ctx
+
+-- | Whether to check schematic binders, including RSTT-safe requirements.
+ctxWarnMetaBinder :: Context n -> Bool
+ctxWarnMetaBinder ctx = rsttSafeEnabled ctx || ctxStandaloneWarnMetaBinder ctx
+
+effectiveMetaPrefixSensitivity :: Context n -> MetaPrefixSensitivity
+effectiveMetaPrefixSensitivity ctx
+  | rsttSafeEnabled ctx = MetaPrefixStrict
+  | otherwise = ctxMetaPrefixSensitivity ctx

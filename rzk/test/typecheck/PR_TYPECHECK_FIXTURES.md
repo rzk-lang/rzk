@@ -157,3 +157,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | `api` | no | Omit or `strict` (default): `typecheckModulesWithLocation` (throws on first error). `collect`: `typecheckModulesWithLocation'` — returns a list of errors without using `throwError`; note that the typechecker still stops per-module chaining when a module reports errors (see implementation in `Rzk.TypeCheck`). |
 
 Parse failures are always test failures; they are not expressed in this schema.
+
+Structured overhang diagnostics: `happy-set-option-warn-overhang` covers restriction faces; `warn-overhang-controls` covers recOR guards, containment, silent verbosity, disabling and resetting the option.
+
+RSTT-safe mode: `warn-rstt-default`, `warn-rstt-reset`, `happy-rstt-off` and `ill-rstt-option` cover the source policy. The `ill-rstt-*` fixtures cover error propagation for S1, S2, S4, extension boundaries, postulates, modalities, the auxiliary interval, and inductive declarations. `happy-rstt-awareness` keeps S3 and the whole-context overhang advisory non-fatal. `warn-rstt-escape-*` checks introductions through unfolding, beta reduction, let, pairs, tope-indexed families, inductive elimination and section assumptions. `happy-rstt-tau-flip` and `happy-rstt-tail-nested` preserve the paper's worked examples. `Rzk.RSTTSafeSpec` covers the CLI context override across modules and lenient-hole policy.

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#set-option "warn-meta-binder" = "no"
+#set-option "warn-meta-prefix" = "off"
+#def nested (A : U) (a : A) : A
+  := (\ (B : U) (b : B) → b) A a

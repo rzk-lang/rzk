@@ -8,69 +8,38 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The RSTT fragment check: which restrictions may be assumed, and where
--- schematic variables may be bound.
+-- | Diagnostics for declarations outside the RSTT fragment.
 --
--- One module per fragment: this one is for RSTT proper, the system the
--- conservativity result is about. The modal and inductive extensions of the
--- implementation are outside it and are not checked here (see
--- @rzk-paper/notes/rstt-safe-mode-design.md@).
+-- For RSTT, see Riehl and Shulman,
+-- <https://arxiv.org/abs/1705.07442 RS17> (2017).
+-- For the fragment conditions, see Kudasov, Sim and Ahrens,
+-- <https://arxiv.org/abs/2607.12207 KSA26> (2026), §5.
 --
--- Conservativity over RSTT is proved for the derivations that use
--- free-standing restrictions /positively/ only (§5 of the Rzk paper,
--- Kudasov, Sim, Ahrens, \"Rzk: a Proof Assistant for Synthetic
--- ∞-Categories\", <https://arxiv.org/abs/2607.12207 arXiv:2607.12207>). A
--- restriction is /ext-style/ when it is the codomain of a shape-Π, and a
--- type is ext-style when all of its restrictions are; a /tail type/ may
--- also carry restrictions along the spine of its codomains. A derivation
--- has /ext-style hypotheses/ when every binder binds at an ext-style type,
--- every context type is ext-style, and every concluded type is a tail type.
--- Intuitively, a free-standing restriction may be concluded but not
--- assumed. This module reports the two ways a declaration can leave the
--- fragment:
+-- * Free-standing restrictions in assumptions, motives, and types passed as data.
+-- * Restriction boundaries that exceed their immediate shape binder.
+-- * Schematic variables bound inside terms below the parameter prefix.
+-- * Modal constructs, auxiliary intervals, and involutions.
+-- * Inductive constructors and eliminators.
+-- * Any syntax outside the explicit RSTT allow-list.
 --
--- - a free-standing restriction is assumed, as the type of a binder, as an
---   eliminator motive, or inside a type passed as data
---   ('FreeStandingRestrictionWarning'); the last route matters because a
---   restricted type stored at @U@ is substituted into binder and motive
---   positions later;
--- - a variable is bound at a meta type (@U@, @CUBE@, @TOPE@, or a function
---   into one) by a λ inside a term rather than in the declaration's
---   parameter prefix ('MetaBinderWarning'), so the declaration does not
---   read as a family of object-theory statements, one per instantiation.
---   Two positions are still the parameter prefix: the branches of a case
---   split reached while peeling it, since a schema defined by recursion on a
---   schematic index has to split before binding its remaining parameters
---   (both end up in the meta prefix, so uses supply both); and an argument at
---   a schematic parameter, which is the plumbing the meta-prefix check
---   allows.
---
--- Positions are classified on the elaborated declaration. The type is
--- walked as a concluded type, except for an @#assume@, whose type enters
--- the context and must be ext-style. A type that elaboration /synthesised/
--- is concluded, not assumed, and is skipped or walked as a concluded type:
--- the type a @refl@ node stores for its element, and a @let@ annotation,
--- are @typeOf@ of a term (see the @Refl@ and @Let@ cases of 'typecheck'),
--- and a @let@ binder stands for its value. Otherwise a section of an
--- extension type applied at a point, whose type carries a restriction by
--- instantiation, would be reported wherever it is named. The walk is syntactic, as the
--- meta-prefix check is: a restriction that only appears after unfolding a
--- definition or reducing a redex is not seen. A restriction that overhangs
--- its shape tope is also not ext-style; that condition is reported
--- separately, by the overhang hint (@warn-overhang@), at every occurrence.
+-- Free-standing restrictions along concluded codomains are allowed.
+-- These checks do not establish universe stratification or translation to RSTT.
 module Rzk.TypeCheck.Fragment.RSTT (
   recordFragmentUses,
+  recordSyntaxUses,
 ) where
 
 import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM_, unless, when)
 import           Control.Monad.Except     (catchError)
-import           Control.Monad.Reader     (asks)
-import           Data.Bifoldable          (bifoldr)
+import           Control.Monad.Reader     (asks, local)
+import           Data.Bifoldable          (bifoldMap)
 import           Data.Maybe               (fromMaybe)
+import qualified Data.IntSet              as IntSet
+import qualified Control.Monad.Foil       as Foil
 
 import           Control.Monad.Foil       (Distinct)
-import           Control.Monad.Free.Foil  (AST (Node, Var))
+import           Control.Monad.Free.Foil  (AST (Node, Var), ScopedAST (..))
 
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Language.Rzk.Foil.Names  (Binder, TModality (..),
@@ -82,76 +51,76 @@ import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.MetaPrefix (isMetaType)
 import           Rzk.TypeCheck.Monad
 
--- | Where the walk is. A concluded type may carry restrictions along the
--- spine of its codomains; an assumed type may not carry any, and records
--- what assumes it; a term is walked for its binders and for the types it
--- passes as data.
-data Pos
-  = Tail
-  | Assumed FragmentUse
-  | Term Bool
-    -- ^ 'True' while still peeling the value's leading λs, which bind the
-    -- declaration's own parameters.
+-- Distinguish concluded types, assumed types, and terms (including type-valued data).
+data CheckedPosition
+  = InTail
+  | InAssumption FragmentUse
+  | InTerm PrefixPosition
 
--- | Walk a declaration's elaborated type and value, reporting assumed
--- free-standing restrictions and schematic binders inside terms.
--- Advisory: never throws, and runs silently so that WHNF probes do not
--- trace.
+-- A schematic argument may have its own parameter prefix.
+data PrefixPosition = InParameterPrefix | OutsideParameterPrefix
+  deriving (Eq)
+
+-- | Report restriction and schematic-binder violations in a declaration.
+-- Violations are errors when @rstt-safe = "error"@.
 recordFragmentUses
   :: forall n. Distinct n
   => VarIdent          -- ^ the declaration
   -> TermT n           -- ^ its type
   -> Maybe (TermT n)   -- ^ its value, for a definition
-  -> Bool              -- ^ is it an assumption (an @#assume@)?
+  -> Bool              -- ^ does it supply an assumption rather than a proof?
   -> TypeCheck n ()
 recordFragmentUses defName ty mval isAssumption = do
   restrictions <- asks ctxWarnFreeStandingRestriction
   binders <- asks ctxWarnMetaBinder
   when (restrictions || binders) $
-    localVerbosity Silent $ flip catchError (\_ -> pure ()) $ do
-      go (if isAssumption then Assumed UseBinder else Tail) ty
-      mapM_ (go (Term True)) mval
+    localVerbosity Silent $ flip catchError ignoreAdvisoryError $ do
+      go (if isAssumption then InAssumption UseBinder else InTail) ty
+      mapM_ (go (InTerm InParameterPrefix)) mval
   where
-    go :: forall l. Distinct l => Pos -> TermT l -> TypeCheck l ()
-    go (Term inPrefix) t = goTerm inPrefix t
-    go Tail t = goTail t
-    go (Assumed use) t = goAssumed use t
+    go :: forall l. Distinct l => CheckedPosition -> TermT l -> TypeCheck l ()
+    go (InTerm prefixPosition) t = goTerm prefixPosition t
+    go InTail t = goTail t
+    go (InAssumption use) t = goAssumed use t
 
-    -- A concluded type: restrictions along the spine of codomains are the
-    -- positive use that conservativity allows.
+    -- Allow restrictions along the spine of concluded codomains.
     goTail :: forall l. Distinct l => TermT l -> TypeCheck l ()
     goTail t = case t of
       TypeRestrictedT _ ty' rs -> do
         goTail ty'
-        forM_ rs $ \(_tope, term) -> goTerm False term
+        forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
       TypeFunT _ orig md param _mtope ret -> do
         goAssumed UseBinder param
         inScope orig md param ret goTail
       _ -> goAssumed UseConcluded t
 
-    -- A type that must be ext-style: a restriction here is free-standing,
-    -- except on the codomain of a shape-Π.
+    -- Assumed restrictions must sit directly under a shape-Π.
     goAssumed :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
     goAssumed use t = case t of
       TypeRestrictedT _ ty' rs -> do
         reportFreeStanding use t
         goAssumed use ty'
-        forM_ rs $ \(_tope, term) -> goTerm False term
+        forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
       TypeFunT _ orig md param mtope ret -> do
         goAssumed UseBinder param
         shape <- isShapeBinder (maybe False (const True) mtope) param
-        inScope orig md param ret $ \retIn ->
-          if shape then goExtCodomain use retIn else goAssumed use retIn
+        if shape
+          then case mtope of
+            Nothing -> inScope orig md param ret (goExtCodomain use topeTopT)
+            Just tope -> do
+              scope <- asks ctxScope
+              withScopedT2 scope tope ret $ \binder shapeTope retIn ->
+                underBinder binder orig md param Nothing $
+                  goExtCodomain use shapeTope retIn
+          else inScope orig md param ret (goAssumed use)
       TypeSigmaT _ orig md a b -> do
         goAssumed UseBinder a
         inScope orig md a b (goAssumed use)
-      -- The endpoints are terms, typed by the type argument. Def. 5.7 does
-      -- not reach a restriction there: transporting a boundary equation
-      -- along an identity is an @ap@, definitional on @refl@ only.
+      -- Identity-type arguments must be ext-style; endpoints remain terms.
       TypeIdT _ a mtA b -> do
-        goTerm False a
+        goTerm OutsideParameterPrefix a
         mapM_ (goAssumed UseIdentity) mtA
-        goTerm False b
+        goTerm OutsideParameterPrefix b
       LambdaT info orig mparam body -> do
         md <- case mparam of
           Just (LambdaParam md param _mtope) -> do
@@ -160,101 +129,103 @@ recordFragmentUses defName ty mval isAssumption = do
           Nothing -> pure Id
         dom <- binderType info mparam
         inScope orig md dom body (goAssumed use)
+      -- recordSyntaxUses reports modal syntax; descend here for restriction checks.
       TypeModalT _ _ ty' -> goAssumed use ty'
       Var{} -> pure ()
-      _ -> goTerm False t
+      _ -> goTerm OutsideParameterPrefix t
 
-    -- Directly under a shape-Π: one restriction is ext-style here.
+    -- A direct codomain restriction is ext-style if its faces imply the shape.
     goExtCodomain
-      :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
-    goExtCodomain use t = case t of
+      :: forall l. Distinct l => FragmentUse -> TermT l -> TermT l -> TypeCheck l ()
+    goExtCodomain use shape t = case t of
       TypeRestrictedT _ ty' rs -> do
         goAssumed use ty'
-        forM_ rs $ \(_tope, term) -> goTerm False term
+        enabled <- asks ctxWarnFreeStandingRestriction
+        forM_ rs $ \(face, term) -> do
+          when enabled $ do
+            -- Check face |- shape independently of ambient tope assumptions.
+            included <- local withoutTopes (checkEntails face shape)
+            unless included $ do
+              naming <- asks namingOfContext
+              loc <- asks ctxLocation
+              recordCheckWarning $ ExtensionBoundaryWarning defName
+                (ppTerm naming (untyped face)) (ppTerm naming (untyped shape)) loc
+          goTerm OutsideParameterPrefix term
       _ -> goAssumed use t
 
-    -- A term: its binders, and the types it passes as data. The body a
-    -- declaration's parameters lead to is itself data when its type is meta,
-    -- as in a definition at @U@ whose body is a type.
-    goTerm :: forall l. Distinct l => Bool -> TermT l -> TypeCheck l ()
-    goTerm True t | not (isLambda t) = goData t
-    goTerm inPrefix t = case t of
+    -- Check term binders and route type-valued bodies through goData.
+    goTerm :: forall l. Distinct l => PrefixPosition -> TermT l -> TypeCheck l ()
+    goTerm InParameterPrefix t | not (isLambda t) = goData t
+    goTerm prefixPosition t = case t of
       Var{} -> pure ()
 
-      -- The element of a @refl@; its type annotation is the concluded type
-      -- of that element, inserted by elaboration, not a type passed as data.
-      ReflT _ mx -> forM_ mx $ \(x, _mxty) -> goTerm False x
+      -- The stored type is synthesised by elaboration; it is not assumed.
+      ReflT _ mx -> forM_ mx $ \(x, _mxty) -> goTerm OutsideParameterPrefix x
 
       TypeAscT _ term' ty' -> do
-        goTerm False term'
+        goTerm OutsideParameterPrefix term'
         goTail ty'
 
       LambdaT info orig mparam body -> do
         md <- case mparam of
           Just (LambdaParam md param _mtope) -> do
             goAssumed UseBinder param
-            unless inPrefix $ reportMetaBinder orig param
+            when (prefixPosition == OutsideParameterPrefix) $ reportMetaBinder orig param
             pure md
           Nothing -> pure Id
         dom <- binderType info mparam
-        inScope orig md dom body (goTerm inPrefix)
+        inScope orig md dom body (goTerm prefixPosition)
 
       AppT{} -> do
         let (h, args) = collectSpine t []
-        goTerm False h
+        goTerm OutsideParameterPrefix h
         forM_ args $ \(fnode, arg) -> do
-          -- Supplying a schema at a schematic parameter is the plumbing that
-          -- the meta-prefix check allows, so its binders are not reported.
+          -- Schema arguments may bind their own schematic parameters.
           plumbing <- domainIsMeta fnode
-          if plumbing then goTerm True arg else goData arg
+          if plumbing then goTerm InParameterPrefix arg else goData arg
 
       -- The motive is assumed: the eliminator binds its variables at it.
       IdJT _ tA a tC d x p -> do
         goData tA
-        goTerm False a
+        goTerm OutsideParameterPrefix a
         goAssumed UseMotive tC
-        goTerm False d
-        goTerm False x
-        goTerm False p
+        goTerm OutsideParameterPrefix d
+        goTerm OutsideParameterPrefix x
+        goTerm OutsideParameterPrefix p
 
-      -- A case split reached while still in the parameter prefix is a split
-      -- on a schematic index: the declaration is a schema defined by
-      -- recursion, and the branches bind its remaining parameters, which the
-      -- recursion forces to be written after the split.
+      -- Preserve prefix status for parameters bound after a schematic split.
       MatchT _ scrut mmotive branches -> do
-        goTerm False scrut
+        goTerm OutsideParameterPrefix scrut
         mapM_ (goAssumed UseMotive) mmotive
-        forM_ branches $ \(_con, branch) -> goTerm inPrefix branch
+        forM_ branches $ \(_con, branch) -> goTerm prefixPosition branch
 
       PairT _ l r -> do
         goData l
         goData r
 
+      -- The let annotation records the value's concluded type.
       LetT _ orig manno value body -> do
         mapM_ goTail manno
         goData value
         let dom = fromMaybe universeT (manno <|> valueType value)
-        inScopeWith orig Id dom (Just value) body (goTerm False)
+        inScopeWith orig Id dom (Just value) body (goTerm OutsideParameterPrefix)
 
       LetModT _ orig _nu mu manno mmotive value body -> do
         mapM_ goTail manno
         mapM_ (goAssumed UseMotive) mmotive
         goData value
         inScope orig mu (fromMaybe universeT (manno <|> valueType value)) body
-          (goTerm False)
+          (goTerm OutsideParameterPrefix)
 
       Node (AnnSig _ f) ->
-        mapM_ (goTerm False) (bifoldr (\_ acc -> acc) (:) [] f)
+        mapM_ (goTerm OutsideParameterPrefix) (bifoldMap (const []) (:[]) f)
 
-    -- An argument or component. A /type/ passed here becomes data, and is
-    -- substituted into binder and motive positions later. A proof of a
-    -- statement quantified over a universe is not such a type, even though
-    -- its type is meta-shaped in the sense of "Rzk.TypeCheck.MetaPrefix": it
-    -- stays a term, so that its binders are checked.
+    -- Type-valued data may later become binder or motive types. A proof
+    -- quantified over a universe must still be walked as a term.
     goData :: forall l. Distinct l => TermT l -> TypeCheck l ()
     goData t = do
       isType <- landsInUniverse t
-      if isType then goAssumed UseData t else goTerm False t
+      if isType then goAssumed UseData t else goTerm OutsideParameterPrefix t
 
     isLambda :: forall l. TermT l -> Bool
     isLambda LambdaT{} = True
@@ -270,8 +241,7 @@ recordFragmentUses defName ty mval isAssumption = do
     binderType _info (Just (LambdaParam _ param _mtope)) = pure param
     binderType info Nothing = fromMaybe universeT <$> funDomain (infoType info)
 
-    -- Does this Π bind a point of a shape? Either it carries a tope, or
-    -- its domain is a cube, which is the shape with the tope ⊤.
+    -- A cube domain without a tope denotes the unrestricted shape.
     isShapeBinder :: forall l. Distinct l => Bool -> TermT l -> TypeCheck l Bool
     isShapeBinder True _ = pure True
     isShapeBinder False param = flip catchError (\_ -> pure False) $
@@ -287,8 +257,7 @@ recordFragmentUses defName ty mval isAssumption = do
         TypeFunT _ _ _ dom _ _ -> isMetaType dom
         _                      -> pure False
 
-    -- Is this term a type, or a family of types? That is, does its type land
-    -- in a universe once its Π prefix is stripped.
+    -- Recognise types and type families by their final codomain.
     landsInUniverse :: forall l. Distinct l => TermT l -> TypeCheck l Bool
     landsInUniverse t = flip catchError (\_ -> pure False) $
       typeOfUncomputed t >>= go
@@ -307,8 +276,6 @@ recordFragmentUses defName ty mval isAssumption = do
         TypeFunT _ _ _ dom _ _ -> pure (Just dom)
         _                      -> pure Nothing
 
-    -- A λ below the leading λs of the value binds a schematic variable where
-    -- the parameter prefix should.
     reportMetaBinder :: forall l. Distinct l => Binder -> TermT l -> TypeCheck l ()
     reportMetaBinder orig param = do
       enabled <- asks ctxWarnMetaBinder
@@ -323,7 +290,7 @@ recordFragmentUses defName ty mval isAssumption = do
             (ppTerm naming (untyped param))
             loc
 
-    reportFreeStanding :: forall l. FragmentUse -> TermT l -> TypeCheck l ()
+    reportFreeStanding :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
     reportFreeStanding use t = do
       enabled <- asks ctxWarnFreeStandingRestriction
       when enabled $ do
@@ -332,6 +299,113 @@ recordFragmentUses defName ty mval isAssumption = do
         recordCheckWarning $
           FreeStandingRestrictionWarning defName (ppTerm naming (untyped t)) use loc
 
+-- TODO: Share this application-spine helper with MetaPrefix in the syntax layer.
 collectSpine :: TermT n -> [(TermT n, TermT n)] -> (TermT n, [(TermT n, TermT n)])
 collectSpine (AppT _ f x) acc = collectSpine f ((f, x) : acc)
 collectSpine h acc            = (h, acc)
+
+-- | Check explicit syntax before typechecking erases source positions and sugars.
+-- Report each outermost forbidden node at its nearest available source position.
+recordSyntaxUses :: forall n. Distinct n => Term n -> TypeCheck n ()
+recordSyntaxUses term = do
+  enabled <- asks rsttSafeEnabled
+  when enabled $ do
+    roles <- mapM (\v -> (,) (Foil.nameId v) <$> infoOfVar varDataRole v)
+      (freeVarsOfTerm term)
+    let inductive = IntSet.fromList [v | (v, Just _) <- roles]
+    loc <- asks ctxLocation
+    forM_ (go inductive loc term) $ \warning ->
+      local (\ctx -> ctx { ctxLocation = warningLocation warning }) $
+        recordCheckWarning warning
+  where
+    -- Free names retain their identities under binders; bound names are fresh.
+    go :: forall l. IntSet.IntSet -> Maybe LocationInfo -> Term l -> [CheckWarning]
+    go inductive loc (Var v)
+      | Foil.nameId v `IntSet.member` inductive =
+          [RSTTScopeWarning RSTTInductive "inductive constructor or eliminator" loc]
+      | otherwise = []
+    go inductive loc t@(Node (AnnSig _ sig)) =
+      let here = case positionOfTerm t of
+            Nothing -> loc
+            Just pos -> atPosition pos <$> loc
+      in if allowedNode sig
+        then bifoldMap (\(ScopedAST _ body) -> go inductive here body)
+                       (go inductive here) sig
+        else let (extension, feature) = syntaxExtension sig
+             in [RSTTScopeWarning extension feature here]
+
+-- New constructors are forbidden until explicitly admitted here.
+allowedNode :: TermSig scope term -> Bool
+allowedNode = \case
+  UniverseF -> True
+  UniverseCubeF -> True
+  UniverseTopeF -> True
+  CubeUnitF -> True
+  CubeUnitStarF -> True
+  Cube2F -> True
+  Cube2_0F -> True
+  Cube2_1F -> True
+  CubeProductF{} -> True
+  TopeTopF -> True
+  TopeBottomF -> True
+  TopeEQF{} -> True
+  TopeLEQF{} -> True
+  TopeAndF{} -> True
+  TopeOrF{} -> True
+  RecBottomF -> True
+  RecOrF{} -> True
+  TypeFunF _ Id _ _ _ -> True
+  TypeSigmaF _ Id _ _ -> True
+  TypeIdF{} -> True
+  AppF{} -> True
+  LetF{} -> True
+  LambdaF _ Nothing _ -> True
+  LambdaF _ (Just (LambdaParam Id _ _)) _ -> True
+  PairF{} -> True
+  FirstF{} -> True
+  SecondF{} -> True
+  ReflF{} -> True
+  IdJF{} -> True
+  UnitF -> True
+  TypeUnitF -> True
+  TypeAscF{} -> True
+  TypeRestrictedF{} -> True
+  -- Hole checking also handles unresolved identifiers and unfinished obligations.
+  HoleF{} -> True
+  _ -> False
+
+-- Classification improves diagnostics; it never grants admission.
+syntaxExtension :: TermSig scope term -> (RSTTExtension, String)
+syntaxExtension = \case
+  TypeFunF{} -> modal "modal function binder"
+  TypeSigmaF{} -> modal "modal pair binder"
+  LambdaF{} -> modal "modal lambda binder"
+  TypeModalF{} -> modal "modal type"
+  ModAppF{} -> modal "modal introduction"
+  ModExtractF{} -> modal "modal extraction"
+  LetModF{} -> modal "modal let binding"
+  CubeIF -> interval "auxiliary interval II"
+  CubeI_0F -> interval "auxiliary interval endpoint 0_I"
+  CubeI_1F -> interval "auxiliary interval endpoint 1_I"
+  CubeFlipF{} -> interval "interval flip"
+  CubeUnflipF{} -> interval "interval unflip"
+  TopeInvF{} -> interval "tope involution"
+  TopeUninvF{} -> interval "inverse tope involution"
+  MatchF{} -> (RSTTInductive, "inductive match")
+  MatchArmF{} -> (RSTTInductive, "inductive match arm")
+  CubeSupF{} -> (RSTTUnsupported, "cube supremum (sup)")
+  CubeInfF{} -> (RSTTUnsupported, "cube infimum (inf)")
+  _ -> (RSTTUnsupported, "unrecognised syntax")
+  where
+    modal = (,) RSTTModal
+    interval = (,) RSTTInterval
+
+-- Clear tope assumptions and their caches together for independent entailment.
+withoutTopes :: Context n -> Context n
+withoutTopes ctx = ctx
+  { ctxTopes = []
+  , ctxTopesNF = []
+  , ctxTopesNFUnion = [[]]
+  , ctxTopesEntailBottom = Just False
+  , ctxTopesSaturated = SaturationUncached
+  }

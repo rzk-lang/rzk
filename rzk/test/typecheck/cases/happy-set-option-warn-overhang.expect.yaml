@@ -2,3 +2,5 @@ status: ok
 regression_for:
   - warn-overhang-option
   - checkTopeAgainstContext-opt-in-hint
+warnings:
+  - OverhangWarning

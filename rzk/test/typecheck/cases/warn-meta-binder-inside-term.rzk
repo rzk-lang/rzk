@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- Schematic parameters are bound in a declaration's parameter prefix, so
 -- that a declaration is a family of object-theory statements, one per
 -- instantiation. A λ inside a term that binds a universe, a cube or a tope

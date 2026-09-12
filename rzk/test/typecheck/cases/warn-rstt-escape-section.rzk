@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- Audit S2 alone: report the introduction, not an unfolded use site.
+#set-option "rstt-safe" = "off"
+#section assumptions
+#assume A : U
+#assume a : A
+#assume x : A [TOP ↦ a]
+#def use uses (a) : A := x
+#end assumptions

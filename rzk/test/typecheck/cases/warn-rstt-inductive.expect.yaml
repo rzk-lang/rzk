@@ -1,0 +1,6 @@
+status: ok
+warnings:
+  - RSTTInductiveWarning
+  - RSTTInductiveWarning
+regression_for:
+  - rstt-safe-mode

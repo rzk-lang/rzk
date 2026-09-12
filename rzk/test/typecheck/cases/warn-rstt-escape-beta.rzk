@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Audit S2 alone: report the introduction, not an unfolded use site.
+#set-option "rstt-safe" = "off"
+#def beta (A : U) (a : A) : U := (\ (X : U) → X) (A [TOP ↦ a])

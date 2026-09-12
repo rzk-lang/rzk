@@ -31,6 +31,7 @@ import           Rzk.TypeCheck.Display
 
 data TypeError n
   = TypeErrorOther String
+  | TypeErrorRSTT String
   | TypeErrorUnify (TermT n) (TermT n) (TermT n)
   | TypeErrorUnifyTerms (TermT n) (TermT n)
   | TypeErrorNotPair (TermT n) (TermT n)
@@ -99,6 +100,7 @@ namedBlock dir name lines_ = block dir $
 ppTypeError :: Naming n -> TypeError n -> String
 ppTypeError naming = \case
   TypeErrorOther msg -> msg
+  TypeErrorRSTT msg -> "RSTT-safe mode: " <> msg
   TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"
     , "  " <> ppU (untyped expected)

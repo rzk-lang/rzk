@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def sharp-pure (A : U) (a : A) : _# A := mod _# a
