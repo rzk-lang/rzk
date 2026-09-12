@@ -1650,7 +1650,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeId x Nothing y -> do     
     let xTagged = fmap Left  (inferAs universeT x)
         yTagged = fmap Right (inferAs universeT y)
-    tagged <- catchError xTagged (\_ -> yTagged)
+    tagged <- catchError xTagged (\errX -> catchError yTagged (\errY -> (issueTypeError (TypeErrorCannotInferBoth errX errY))))
     case tagged of 
       Left x' -> do
         tA <- typeOf x'

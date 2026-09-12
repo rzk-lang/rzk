@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorCannotInferBoth
+message_contains:
+  - "cannot infer the carrier type of an identity type from either endpoint"
+  - "left endpoint:"
+  - "right endpoint:"
+regression_for:
+  - https://github.com/rzk-lang/rzk/issues/130
