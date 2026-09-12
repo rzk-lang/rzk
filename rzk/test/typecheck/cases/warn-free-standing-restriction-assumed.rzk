@@ -2,6 +2,7 @@
 
 -- Exercise standalone diagnostics independently of the safe-mode bundle.
 #set-option "rstt-safe" = "off"
+#set-option "warn-free-standing-restriction" = "yes"
 
 -- A restriction is ext-style when it sits on the codomain of a shape-Π.
 -- Conservativity over RSTT covers the derivations that conclude a

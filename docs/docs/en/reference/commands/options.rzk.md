@@ -45,7 +45,7 @@ Controls the syntactic checks for the RSTT fragment:
 - `"error"` — reject a declaration when a violation is detected.
 - `"off"` — leave each standalone warning at its own setting.
 
-The bundle enables strict meta-prefix checking, checks for restrictions in assumed positions (including boundary inclusion in the immediate shape), and checks for schematic binders inside terms. It also reports modal constructs, the auxiliary interval and involutions, inductive declarations and their eliminations or constructors, and unfinished obligations. Individual warning options cannot disable these checks while the mode is active. In particular, `warn-meta-binder` remains off as a standalone default but is enabled by this bundle.
+The bundle enables strict meta-prefix checking, checks for restrictions in assumed positions (including boundary inclusion in the immediate shape), and checks for schematic binders inside terms. It also reports modal constructs, the auxiliary interval and involutions, inductive declarations and their eliminations or constructors, and unfinished obligations. Individual warning options cannot disable these checks while the mode is active. In particular, `warn-free-standing-restriction` and `warn-meta-binder` are off by default with safe mode off; the bundle enables both.
 
 Syntax is checked against an explicit allow-list before typechecking. Constructs outside it, including cube `sup` and `inf`, are reported even if computation would remove them. Known extensions receive specific diagnostic codes; other unsupported syntax receives `RSTTSyntaxWarning`. Diagnostics point to the outermost forbidden node on each branch, using its source position when available.
 
@@ -75,8 +75,8 @@ Controls the warning for a tope family that is not included in its declared doma
 
 Controls the warning for a free-standing restriction in an assumed position. A restriction is _ext-style_ when it sits on the codomain of a shape-Π and its boundary entails that shape, which is the form the encoding of RSTT extension types produces; any other restriction is _free-standing_. Conservativity over RSTT is proved for the derivations that conclude a free-standing restriction but never assume one (Section 5 of the Rzk paper[^1]), so the checker reports the assumed positions: the type of a binder, the motive of an eliminator, the type of an identity type, and a type passed as data, which includes the body of a `U`-valued definition and an argument at a universe-typed parameter. A type passed as data matters because it is substituted into binder and motive positions later. Restrictions along concluded codomains are exempt, including a restriction under an ordinary `Π`. A postulate supplies an assumption, so its type is checked as assumed.
 
-- `"yes"` — warn about an assumed free-standing restriction (default); the code is `FreeStandingRestrictionWarning`, or `ExtensionBoundaryWarning` when the boundary does not entail its shape
-- `"no"` — do not warn
+- `"yes"` — warn about an assumed free-standing restriction; the code is `FreeStandingRestrictionWarning`, or `ExtensionBoundaryWarning` when the boundary does not entail its shape
+- `"no"` — do not warn (standalone default; active RSTT-safe mode enables the check)
 
 Note that the check is syntactic: a restriction that appears in an assumed position only after a definition is unfolded or a redex is reduced is not reported.
 

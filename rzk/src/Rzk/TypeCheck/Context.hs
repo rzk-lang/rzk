@@ -281,7 +281,7 @@ data Context n = Context
     -- Costs nothing beyond the entailment that decides the intersection.
     -- Disabled with @#set-option "warn-tope-family-domain" = "no"@.
   , ctxStandaloneWarnFreeStandingRestriction :: Bool
-    -- ^ Standalone restriction check, enabled by default.
+    -- ^ Standalone restriction check, disabled by default.
     -- RSTT-safe mode enables the check regardless of this setting.
   , ctxStandaloneWarnMetaBinder :: Bool
     -- ^ Standalone schematic-binder check, disabled by default.
@@ -335,7 +335,7 @@ emptyContext = Context
   , ctxWarnOverhang = False
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
   , ctxWarnTopeFamilyDomain = True
-  , ctxStandaloneWarnFreeStandingRestriction = True
+  , ctxStandaloneWarnFreeStandingRestriction = False
   , ctxStandaloneWarnMetaBinder = False
   }
 

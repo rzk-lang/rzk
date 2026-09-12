@@ -2,6 +2,7 @@
 
 -- Audit S2 alone: report the introduction, not an unfolded use site.
 #set-option "rstt-safe" = "off"
+#set-option "warn-free-standing-restriction" = "yes"
 #data nat := zero | suc (n : nat)
 #def via-match (A : U) (a : A) (n : nat) : U
  := match n (zero ⇒ Unit | suc k ih ⇒ A [TOP ↦ a])

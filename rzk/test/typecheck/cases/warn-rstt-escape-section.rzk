@@ -2,6 +2,7 @@
 
 -- Audit S2 alone: report the introduction, not an unfolded use site.
 #set-option "rstt-safe" = "off"
+#set-option "warn-free-standing-restriction" = "yes"
 #section assumptions
 #assume A : U
 #assume a : A

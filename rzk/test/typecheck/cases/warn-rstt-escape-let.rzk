@@ -2,4 +2,5 @@
 
 -- Audit S2 alone: report the introduction, not an unfolded use site.
 #set-option "rstt-safe" = "off"
+#set-option "warn-free-standing-restriction" = "yes"
 #def via-let (A : U) (a : A) : U := let X := A [TOP ↦ a] in X
