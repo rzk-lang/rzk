@@ -1647,11 +1647,19 @@ infer tt = performing (ActionInfer tt) $ case tt of
     y' <- typecheck y tA'
     return (typeIdT x' (Just tA') y')
 
-  TypeId x Nothing y -> do
-    x' <- inferAs universeT x
-    tA <- typeOf x'
-    y' <- typecheck y tA
-    return (typeIdT x' (Just tA) y')
+  TypeId x Nothing y -> do     
+    let xTagged = fmap Left  (inferAs universeT x)
+        yTagged = fmap Right (inferAs universeT y)
+    tagged <- catchError xTagged (\_ -> yTagged)
+    case tagged of 
+      Left x' -> do
+        tA <- typeOf x'
+        y' <- typecheck y tA
+        return (typeIdT x' (Just tA) y')
+      Right y' -> do
+        tA <- typeOf y' 
+        x' <- typecheck x tA
+        return (typeIdT x' (Just tA) y')
 
   App f x -> do
     f' <- inferAs universeT f
