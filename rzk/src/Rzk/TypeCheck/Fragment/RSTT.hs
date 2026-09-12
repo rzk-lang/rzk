@@ -11,12 +11,12 @@
 -- | Diagnostics for declarations outside the RSTT fragment.
 --
 -- For RSTT, see Riehl and Shulman,
--- <https://arxiv.org/abs/1705.07442 RS17> (2017).
+-- <https://arxiv.org/abs/1705.07442 RS17> (2017), Appendix A.2 for shape independence.
 -- For the fragment conditions, see Kudasov, Sim and Ahrens,
 -- <https://arxiv.org/abs/2607.12207 KSA26> (2026), §5.
 --
 -- * Free-standing restrictions in assumptions, motives, and types passed as data.
--- * Restriction boundaries that exceed their immediate shape binder.
+-- * Extension domains and boundaries that depend on outer cube points.
 -- * Schematic variables bound inside terms below the parameter prefix.
 -- * Modal constructs, auxiliary intervals, and involutions.
 -- * Inductive constructors and eliminators.
@@ -34,6 +34,7 @@ import           Control.Monad            (forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (asks, local)
 import           Data.Bifoldable          (bifoldMap)
+import           Data.List                (intercalate)
 import           Data.Maybe               (fromMaybe)
 import qualified Data.IntSet              as IntSet
 import qualified Control.Monad.Foil       as Foil
@@ -90,6 +91,7 @@ recordFragmentUses defName ty mval isAssumption = do
         goTail ty'
         forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
       TypeFunT _ orig md param _mtope ret -> do
+        checkShapeDependencies InTail t
         goAssumed UseBinder param
         inScope orig md param ret goTail
       _ -> goAssumed UseConcluded t
@@ -102,17 +104,11 @@ recordFragmentUses defName ty mval isAssumption = do
         goAssumed use ty'
         forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
       TypeFunT _ orig md param mtope ret -> do
+        checkShapeDependencies (InAssumption use) t
         goAssumed UseBinder param
         shape <- isShapeBinder (maybe False (const True) mtope) param
-        if shape
-          then case mtope of
-            Nothing -> inScope orig md param ret (goExtCodomain use topeTopT)
-            Just tope -> do
-              scope <- asks ctxScope
-              withScopedT2 scope tope ret $ \binder shapeTope retIn ->
-                underBinder binder orig md param Nothing $
-                  goExtCodomain use shapeTope retIn
-          else inScope orig md param ret (goAssumed use)
+        inScope orig md param ret $
+          if shape then goExtCodomain use else goAssumed use
       TypeSigmaT _ orig md a b -> do
         goAssumed UseBinder a
         inScope orig md a b (goAssumed use)
@@ -134,30 +130,79 @@ recordFragmentUses defName ty mval isAssumption = do
       Var{} -> pure ()
       _ -> goTerm OutsideParameterPrefix t
 
-    -- A direct codomain restriction is ext-style if its faces imply the shape.
+    -- Direct shape codomains admit boundary clipping to the binder's domain.
     goExtCodomain
-      :: forall l. Distinct l => FragmentUse -> TermT l -> TermT l -> TypeCheck l ()
-    goExtCodomain use shape t = case t of
+      :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
+    goExtCodomain use t = case t of
       TypeRestrictedT _ ty' rs -> do
         goAssumed use ty'
-        enabled <- asks ctxWarnFreeStandingRestriction
-        forM_ rs $ \(face, term) -> do
-          when enabled $ do
-            -- Check face |- shape independently of ambient tope assumptions.
-            included <- local withoutTopes (checkEntails face shape)
-            unless included $ do
-              naming <- asks namingOfContext
-              loc <- asks ctxLocation
-              recordCheckWarning $ ExtensionBoundaryWarning defName
-                (ppTerm naming (untyped face)) (ppTerm naming (untyped shape)) loc
-          goTerm OutsideParameterPrefix term
+        forM_ rs $ \(_face, term) -> goTerm OutsideParameterPrefix term
       _ -> goAssumed use t
+
+    -- RS17 Appendix A.2 requires shapes independent of ambient cube points.
+    -- Schematic families are judgements over cube contexts, not extension types.
+    checkShapeDependencies :: forall l. Distinct l => CheckedPosition -> TermT l -> TypeCheck l ()
+    checkShapeDependencies position t = do
+      enabled <- asks rsttSafeEnabled
+      when enabled $ case t of
+        TypeFunT _ orig md param mtope ret -> do
+          schematic <- isMetaType t
+          shape <- isShapeBinder (maybe False (const True) mtope) param
+          when (shape && not schematic) $ do
+            scope <- asks ctxScope
+            let check :: forall k. Distinct k => Foil.Name k -> TermT k -> TypeCheck k ()
+                check point body = case (position, body) of
+                  (InAssumption _, TypeRestrictedT _ _ rs) ->
+                    forM_ rs $ \(face, _) -> reportShapeDependency "restriction boundary" point face
+                  _ -> pure ()
+            case mtope of
+              Nothing -> withScopedT scope ret $ \binder body ->
+                underBinder binder orig md param Nothing $ check (Foil.nameOf binder) body
+              Just tope -> withScopedT2 scope tope ret $ \binder domain body ->
+                underBinder binder orig md param Nothing $ do
+                  reportShapeDependency "shape domain" (Foil.nameOf binder) domain
+                  check (Foil.nameOf binder) body
+        _ -> pure ()
+
+    reportShapeDependency
+      :: forall l. Distinct l => String -> Foil.Name l -> TermT l -> TypeCheck l ()
+    reportShapeDependency what point tope = do
+      points <- outerPoints point tope
+      unless (null points) $ do
+        naming <- asks namingOfContext
+        loc <- asks ctxLocation
+        let render = ppTerm naming . untyped
+        recordCheckWarning $ RSTTScopeWarning RSTTShapeDependency
+          ("context-dependent " <> what <> " " <> render tope
+            <> " (outer cube points: " <> intercalate ", " (map (render . Var) points)
+            <> "; in " <> show defName <> ")") loc
+
+    -- Follow aliases and variable types without reducing away dependencies.
+    outerPoints :: forall l. Distinct l => Foil.Name l -> TermT l -> TypeCheck l [Foil.Name l]
+    outerPoints point t = go (IntSet.singleton (Foil.nameId point)) (freeVarsOfTermT t)
+      where
+        go _ [] = pure []
+        go seen (v : vs)
+          | Foil.nameId v `IntSet.member` seen = go seen vs
+          | otherwise = do
+              ty <- typeOfVar v
+              value <- valueOfVar v
+              cube <- typeOfUncomputed ty >>= whnfT
+              let here = case (value, cube) of
+                    (Nothing, UniverseCubeT{}) -> [v]
+                    _ -> []
+                  dependencies = freeVarsOfTermT ty <> foldMap freeVarsOfTermT value
+              rest <- go (IntSet.insert (Foil.nameId v) seen) (dependencies <> vs)
+              pure (here <> rest)
 
     -- Check term binders and route type-valued bodies through goData.
     goTerm :: forall l. Distinct l => PrefixPosition -> TermT l -> TypeCheck l ()
     goTerm InParameterPrefix t | not (isLambda t) = goData t
     goTerm prefixPosition t = case t of
       Var{} -> pure ()
+
+      -- Function types returned by lets or branches still introduce shapes.
+      TypeFunT{} -> goAssumed UseData t
 
       -- The stored type is synthesised by elaboration; it is not assumed.
       ReflT _ mx -> forM_ mx $ \(x, _mxty) -> goTerm OutsideParameterPrefix x
@@ -167,6 +212,7 @@ recordFragmentUses defName ty mval isAssumption = do
         goTail ty'
 
       LambdaT info orig mparam body -> do
+        checkShapeDependencies InTail (infoType info)
         md <- case mparam of
           Just (LambdaParam md param _mtope) -> do
             goAssumed UseBinder param
@@ -399,13 +445,3 @@ syntaxExtension = \case
   where
     modal = (,) RSTTModal
     interval = (,) RSTTInterval
-
--- Clear tope assumptions and their caches together for independent entailment.
-withoutTopes :: Context n -> Context n
-withoutTopes ctx = ctx
-  { ctxTopes = []
-  , ctxTopesNF = []
-  , ctxTopesNFUnion = [[]]
-  , ctxTopesEntailBottom = Just False
-  , ctxTopesSaturated = SaturationUncached
-  }

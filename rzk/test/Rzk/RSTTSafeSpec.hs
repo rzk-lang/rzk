@@ -53,6 +53,13 @@ spec = describe "RSTT-safe run policy" $ do
     errors `shouldBe` ["TypeErrorRSTT"]
     warnErrors `shouldBe` []
     warnings `shouldBe` ["FreeStandingRestrictionWarning"]
+  it "keeps outer-point dependency checks enabled by the CLI" $ do
+    let source = "#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"
+        (errors, _, _) = run (Just RSTTSafeError) [source]
+        (warnErrors, warnings, _) = run (Just RSTTSafeWarn) [source]
+    errors `shouldBe` ["TypeErrorRSTT"]
+    warnErrors `shouldBe` []
+    warnings `shouldBe` ["RSTTShapeDependencyWarning"]
   it "keeps restriction checks enabled by source safe mode" $ do
     let (errors, _, _) = run Nothing
           ["#lang rzk-1\n#set-option \"rstt-safe\" = \"error\"\n#set-option \"warn-free-standing-restriction\" = \"no\"\n#postulate restricted (A : U) (a : A) : A [TOP ↦ a]\n"]

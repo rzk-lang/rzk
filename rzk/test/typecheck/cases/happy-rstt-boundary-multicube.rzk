@@ -1,0 +1,40 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+
+-- A product cube binds all its coordinates together.
+#def clip
+  (I J : CUBE) (ψ φ : (I * J) → TOPE)
+  (A : (p : I * J | ψ p) → U)
+  (a : (p : I * J | ψ p) → A p)
+  (f : (p : I * J | ψ p) → A p [φ p ↦ a p])
+  : (p : I * J | ψ p) → A p [ψ p /\ φ p ↦ a p]
+  := \ p → f p
+
+#def unclip
+  (I J : CUBE) (ψ φ : (I * J) → TOPE)
+  (A : (p : I * J | ψ p) → U)
+  (a : (p : I * J | ψ p) → A p)
+  (f : (p : I * J | ψ p) → A p [ψ p /\ φ p ↦ a p])
+  : (p : I * J | ψ p) → A p [φ p ↦ a p]
+  := \ p → f p
+
+-- Boundary values may depend on outer points; the face must not.
+#postulate outer-value (A : U) (a : 2 → A) (s : 2)
+  (f : (t : 2 | t === 0_2) → A [TOP ↦ a s]) : Unit
+
+#postulate product-boundary (A : U) (a : A)
+  (f : ((t, u) : 2 * 2 | t <= u) → A [t === 0_2 \/ u === 1_2 ↦ a])
+  : Unit
+
+-- A concluded tail restriction can be erased in the back-translation.
+#def tail (s t : 2) : Unit [s === t ↦ unit] := unit
+
+-- Contextual tope/type families are schematic judgements, not extension types.
+#postulate families
+  (χ : (s : 2) → (t : 2 | t <= s) → TOPE)
+  (A : (s : 2) → (t : 2 | t <= s) → U) : Unit
+
+#def is-zero : 2 → TOPE := \ t → t === 0_2
+#postulate closed-alias (A : U) (a : A)
+  (f : (t : 2) → A [is-zero t ↦ a]) : Unit

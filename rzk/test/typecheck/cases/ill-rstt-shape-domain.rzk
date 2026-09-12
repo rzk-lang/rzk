@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def mixed (s : 2) : (t : 2 | t <= s) → Unit := \ t → unit

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "off"
+#set-option "warn-free-standing-restriction" = "yes"
+#postulate mixed (A : U) (a : A) (s : 2)
+  (f : (t : 2 | t <= s) → A [t === s ↦ a]) : Unit

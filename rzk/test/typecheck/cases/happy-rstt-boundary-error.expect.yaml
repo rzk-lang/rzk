@@ -1,5 +1,4 @@
 status: ok
-warnings:
-  - ExtensionBoundaryWarning
+warnings: []
 regression_for:
   - rstt-safe-mode

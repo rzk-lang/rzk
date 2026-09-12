@@ -1,0 +1,10 @@
+status: ok
+warnings:
+  - RSTTShapeDependencyWarning
+  - RSTTShapeDependencyWarning
+  - RSTTShapeDependencyWarning
+  - RSTTShapeDependencyWarning
+  - RSTTShapeDependencyWarning
+  - RSTTShapeDependencyWarning
+regression_for:
+  - rstt-safe-mode

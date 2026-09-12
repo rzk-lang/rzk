@@ -220,6 +220,7 @@ diagnoseCheckWarning (RSTTScopeWarning extension feature loc) = Diagnostic
       RSTTModal -> "RSTTModalWarning"
       RSTTInterval -> "RSTTIntervalWarning"
       RSTTInductive -> "RSTTInductiveWarning"
+      RSTTShapeDependency -> "RSTTShapeDependencyWarning"
       RSTTUnsupported -> "RSTTSyntaxWarning"
   , diagnosticLocation = loc
   , diagnosticMessage = feature <> " is outside RSTT"
@@ -232,15 +233,6 @@ diagnoseCheckWarning (RSTTHoleWarning loc) = Diagnostic
   , diagnosticMessage = "RSTT fragment check has an unfinished obligation"
   , diagnosticHole = Nothing
   }
-diagnoseCheckWarning (ExtensionBoundaryWarning name face shape loc) = Diagnostic
-  { diagnosticSeverity = SeverityWarning
-  , diagnosticCode = "ExtensionBoundaryWarning"
-  , diagnosticLocation = loc
-  , diagnosticMessage = "restriction boundary " <> face <> " does not entail its shape " <> shape
-      <> " in an assumed type (in " <> show name <> ")"
-  , diagnosticHole = Nothing
-  }
-
 diagnoseCheckWarning (OverhangWarning what tope topes loc) = Diagnostic
   { diagnosticSeverity = SeverityWarning
   , diagnosticCode     = "OverhangWarning"

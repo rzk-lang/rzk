@@ -86,7 +86,6 @@ data CheckWarning
       (Maybe LocationInfo)
   | RSTTScopeWarning RSTTExtension String (Maybe LocationInfo)
   | RSTTHoleWarning (Maybe LocationInfo)
-  | ExtensionBoundaryWarning VarIdent String String (Maybe LocationInfo)
   | OverhangWarning
       String                -- ^ restriction face or recOR branch guard
       String                -- ^ the face or guard, rendered
@@ -108,8 +107,8 @@ data CheckWarning
       (Maybe LocationInfo)
   deriving (Eq, Show)
 
--- | Diagnostic categories for syntax outside the RSTT fragment.
-data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTUnsupported
+-- | Diagnostic categories for constructs outside the RSTT fragment.
+data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTShapeDependency | RSTTUnsupported
   deriving (Eq, Show)
 
 -- | What assumes a free-standing restriction (see "Rzk.TypeCheck.Fragment.RSTT"),
@@ -133,7 +132,6 @@ warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
 warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
 warningLocation (RSTTScopeWarning _ _ loc)           = loc
 warningLocation (RSTTHoleWarning loc)               = loc
-warningLocation (ExtensionBoundaryWarning _ _ _ loc) = loc
 warningLocation (OverhangWarning _ _ _ loc)         = loc
 warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
 warningLocation (FreeStandingRestrictionWarning _ _ _ loc) = loc
@@ -355,7 +353,6 @@ rsttViolation = \case
   MetaPrefixWarning _ _ _ _ _ _ -> Just "unsaturated schematic parameters"
   FreeStandingRestrictionWarning _ _ _ _ -> Just "free-standing restriction in an assumed position"
   MetaBinderWarning _ _ _ _ -> Just "schematic binder inside a term"
-  ExtensionBoundaryWarning _ face shape _ -> Just ("boundary " <> face <> " does not entail shape " <> shape)
   RSTTScopeWarning _ feature _ -> Just (feature <> " is outside RSTT")
   RSTTHoleWarning _ -> Just "unfinished obligation"
   _ -> Nothing

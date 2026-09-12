@@ -1,4 +1,4 @@
 #lang rzk-1
 
--- The boundary must entail the immediate binder's shape.
+-- Boundary obligations are interpreted within the binder's shape.
 #postulate overhang (f : (t : 2 | t === 0_2) → Unit [TOP ↦ unit]) : Unit
