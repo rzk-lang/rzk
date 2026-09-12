@@ -241,6 +241,9 @@ localWarnFreeStandingRestriction :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnFreeStandingRestriction warn =
   local $ \ctx -> ctx { ctxStandaloneWarnFreeStandingRestriction = warn }
 
+localWarnShapeDependency :: Bool -> TypeCheck n a -> TypeCheck n a
+localWarnShapeDependency warn = local $ \ctx -> ctx { ctxStandaloneWarnShapeDependency = warn }
+
 localWarnMetaBinder :: Bool -> TypeCheck n a -> TypeCheck n a
 localWarnMetaBinder warn = local $ \ctx -> ctx { ctxStandaloneWarnMetaBinder = warn }
 

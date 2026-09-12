@@ -283,6 +283,9 @@ data Context n = Context
   , ctxStandaloneWarnFreeStandingRestriction :: Bool
     -- ^ Standalone restriction check, disabled by default.
     -- RSTT-safe mode enables the check regardless of this setting.
+  , ctxStandaloneWarnShapeDependency :: Bool
+    -- ^ Standalone shape-dependency check, enabled by default.
+    -- RSTT-safe mode enables the check regardless of this setting.
   , ctxStandaloneWarnMetaBinder :: Bool
     -- ^ Standalone schematic-binder check, disabled by default.
     -- RSTT-safe mode enables the check regardless of this setting.
@@ -336,6 +339,7 @@ emptyContext = Context
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
   , ctxWarnTopeFamilyDomain = True
   , ctxStandaloneWarnFreeStandingRestriction = False
+  , ctxStandaloneWarnShapeDependency = True
   , ctxStandaloneWarnMetaBinder = False
   }
 
@@ -595,6 +599,10 @@ rsttSafeEnabled ctx = rsttSafeMode ctx /= RSTTSafeOff
 ctxWarnFreeStandingRestriction :: Context n -> Bool
 ctxWarnFreeStandingRestriction ctx =
   rsttSafeEnabled ctx || ctxStandaloneWarnFreeStandingRestriction ctx
+
+-- | Whether to check shape dependencies, including RSTT-safe requirements.
+ctxWarnShapeDependency :: Context n -> Bool
+ctxWarnShapeDependency ctx = rsttSafeEnabled ctx || ctxStandaloneWarnShapeDependency ctx
 
 -- | Whether to check schematic binders, including RSTT-safe requirements.
 ctxWarnMetaBinder :: Context n -> Bool

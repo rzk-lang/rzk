@@ -47,7 +47,7 @@ Controls the syntactic checks for the RSTT fragment:
 
 The bundle enables strict meta-prefix checking, checks for restrictions in assumed positions, and checks for schematic binders inside terms. It also reports modal constructs, the auxiliary interval and involutions, inductive declarations and their eliminations or constructors, and unfinished obligations. Individual warning options cannot disable these checks while the mode is active. In particular, `warn-free-standing-restriction` and `warn-meta-binder` are off by default with safe mode off; the bundle enables both.
 
-Extension domains and boundaries must be independent of outer cube points (RS17, Appendix A.2[^rs17]); violations have code `RSTTShapeDependencyWarning`. Coordinates bound together in a product cube are allowed, as are boundary values that depend on outer points. The check follows aliases and variable types. Boundary inclusion itself is not required: a boundary can be intersected with the enclosing shape when translated to RSTT. This check has no standalone option.
+The bundle also enforces `warn-shape-dependency`, which remains enabled by default when safe mode is off.
 
 Syntax is checked against an explicit allow-list before typechecking. Constructs outside it, including cube `sup` and `inf`, are reported even if computation would remove them. Known extensions receive specific diagnostic codes; other unsupported syntax receives `RSTTSyntaxWarning`. Diagnostics point to the outermost forbidden node on each branch, using its source position when available.
 
@@ -81,6 +81,15 @@ Controls the warning for a free-standing restriction in an assumed position. The
 - `"no"` — do not warn (standalone default; active RSTT-safe mode enables the check)
 
 Note that the check is syntactic: a restriction that appears in an assumed position only after a definition is unfolded or a redex is reduced is not reported.
+
+### `warn-shape-dependency`
+
+Extension domains and boundaries must be independent of outer cube points (RS17, Appendix A.2[^rs17]); violations have code `RSTTShapeDependencyWarning`. Coordinates bound together in a product cube are allowed, as are boundary values that depend on outer points. The check follows aliases and variable types. Boundary inclusion itself is not required: a boundary can be intersected with the enclosing shape when translated to RSTT.
+
+- `"yes"` — warn about outer-point dependencies (standalone default).
+- `"no"` — suppress the warning when RSTT-safe mode is off.
+
+Active RSTT-safe mode forces the check on and treats violations as errors in `"error"` mode. `#unset-option "warn-shape-dependency"` restores `"yes"`.
 
 ### `warn-meta-binder`
 

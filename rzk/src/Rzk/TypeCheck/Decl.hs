@@ -471,6 +471,11 @@ setOption "warn-free-standing-restriction" = \case
   "no"  -> localWarnFreeStandingRestriction False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-free-standing-restriction\" (use \"yes\" or \"no\")"
+setOption "warn-shape-dependency" = \case
+  "yes" -> localWarnShapeDependency True
+  "no"  -> localWarnShapeDependency False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-shape-dependency\" (use \"yes\" or \"no\")"
 setOption "warn-meta-binder" = \case
   "yes" -> localWarnMetaBinder True
   "no"  -> localWarnMetaBinder False
@@ -491,6 +496,8 @@ unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
 unsetOption "warn-free-standing-restriction" =
   localWarnFreeStandingRestriction (ctxStandaloneWarnFreeStandingRestriction emptyContext)
+unsetOption "warn-shape-dependency" =
+  localWarnShapeDependency (ctxStandaloneWarnShapeDependency emptyContext)
 unsetOption "warn-meta-binder" =
   localWarnMetaBinder (ctxStandaloneWarnMetaBinder emptyContext)
 unsetOption optionName = const $

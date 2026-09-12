@@ -74,7 +74,8 @@ recordFragmentUses
 recordFragmentUses defName ty mval isAssumption = do
   restrictions <- asks ctxWarnFreeStandingRestriction
   binders <- asks ctxWarnMetaBinder
-  when (restrictions || binders) $
+  shapes <- asks ctxWarnShapeDependency
+  when (restrictions || binders || shapes) $
     localVerbosity Silent $ flip catchError ignoreAdvisoryError $ do
       go (if isAssumption then InAssumption UseBinder else InTail) ty
       mapM_ (go (InTerm InParameterPrefix)) mval
@@ -143,7 +144,7 @@ recordFragmentUses defName ty mval isAssumption = do
     -- Schematic families are judgements over cube contexts, not extension types.
     checkShapeDependencies :: forall l. Distinct l => CheckedPosition -> TermT l -> TypeCheck l ()
     checkShapeDependencies position t = do
-      enabled <- asks rsttSafeEnabled
+      enabled <- asks ctxWarnShapeDependency
       when enabled $ case t of
         TypeFunT _ orig md param mtope ret -> do
           schematic <- isMetaType t

@@ -54,12 +54,28 @@ spec = describe "RSTT-safe run policy" $ do
     warnErrors `shouldBe` []
     warnings `shouldBe` ["FreeStandingRestrictionWarning"]
   it "keeps outer-point dependency checks enabled by the CLI" $ do
-    let source = "#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"
+    let source = "#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#set-option \"warn-shape-dependency\" = \"no\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"
         (errors, _, _) = run (Just RSTTSafeError) [source]
         (warnErrors, warnings, _) = run (Just RSTTSafeWarn) [source]
     errors `shouldBe` ["TypeErrorRSTT"]
     warnErrors `shouldBe` []
     warnings `shouldBe` ["RSTTShapeDependencyWarning"]
+  it "warns about shape dependencies by default with safe mode off" $ do
+    run Nothing
+      ["#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+      `shouldBe` ([], ["RSTTShapeDependencyWarning"], 0)
+  it "restores the standalone shape-dependency default on unset" $ do
+    run Nothing
+      ["#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#set-option \"warn-shape-dependency\" = \"no\"\n#unset-option \"warn-shape-dependency\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+      `shouldBe` ([], ["RSTTShapeDependencyWarning"], 0)
+  it "restores an explicit shape-dependency opt-out after safe mode" $ do
+    run Nothing
+      ["#lang rzk-1\n#set-option \"warn-shape-dependency\" = \"no\"\n#set-option \"rstt-safe\" = \"error\"\n#set-option \"rstt-safe\" = \"off\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+      `shouldBe` ([], [], 0)
+  it "keeps shape-dependency checks enabled by source safe mode" $ do
+    let (errors, _, _) = run Nothing
+          ["#lang rzk-1\n#set-option \"rstt-safe\" = \"error\"\n#set-option \"warn-shape-dependency\" = \"no\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+    errors `shouldBe` ["TypeErrorRSTT"]
   it "keeps restriction checks enabled by source safe mode" $ do
     let (errors, _, _) = run Nothing
           ["#lang rzk-1\n#set-option \"rstt-safe\" = \"error\"\n#set-option \"warn-free-standing-restriction\" = \"no\"\n#postulate restricted (A : U) (a : A) : A [TOP ↦ a]\n"]
