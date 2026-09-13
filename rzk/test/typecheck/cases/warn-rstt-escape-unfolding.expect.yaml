@@ -1,0 +1,6 @@
+status: ok
+warnings:
+  - FreeStandingRestrictionWarning
+  - FreeStandingRestrictionWarning
+regression_for:
+  - rstt-restriction-escape-unfolding

@@ -29,6 +29,8 @@ import           Control.Monad.Except      (catchError)
 import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
+import qualified Data.IntMap.Strict as IntMap
+import qualified Data.IntSet              as IntSet
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
@@ -50,6 +52,8 @@ import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import qualified Rzk.TypeCheck.Fragment.RSTT as RSTT
+import           Rzk.TypeCheck.Schematic (recordSchematicDeclaration)
 import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
@@ -127,6 +131,10 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
   metaPrefix <- metaPrefixOf ty
   recordMetaPrefixUses name ty mval
+  -- Postulates and failed definitions supply assumptions, so require ext-style types.
+  RSTT.recordFragmentUses name ty mval
+    (isAssumption || maybe True (const False) mval)
+  schematicStatus <- recordSchematicDeclaration name ty mval
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -140,6 +148,7 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           , varDeclaredAssumptions = usedVars
           , varLocation = ctxLocation ctx
           , varDataRole = mrole
+          , varSchematicStatus = schematicStatus
           , varMetaPrefix = metaPrefix
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterBinder binder info [] ctx)
@@ -200,6 +209,8 @@ endSection errs = do
       tolerateUnused = lenient && sectionHasHole
 
   (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
+  -- Section abstraction changes dependency signatures and applications.
+  modifyLog $ \log -> log { logSchematicCache = IntSet.empty, logSchematicObjectFamilies = IntMap.empty }
 
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
@@ -372,7 +383,8 @@ abstractOver
   :: Distinct n
   => Foil.Scope n -> Foil.Name n -> VarInfo n -> VarInfo n -> VarInfo n
 abstractOver scope a aInfo info = info
-  { varType = newType
+  { varSchematicStatus = SchematicUnchecked
+  , varType = newType
   , varValue = fmap abstractValue (varValue info)
   , varModality = Id
   , varModAccum = Id
@@ -400,7 +412,8 @@ applyToAssumption
 applyToAssumption scope a (defName, defInfo) info
   | varIsAssumption info = info
   | otherwise = info
-      { varType = rewrite (varType info)
+      { varSchematicStatus = SchematicUnchecked
+      , varType = rewrite (varType info)
       , varValue = rewrite <$> varValue info
       }
   where
@@ -433,8 +446,12 @@ setOption "render-hide-term" = \case
   "no"  -> localHideTerm False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"render-hide-term\" (use \"yes\" or \"no\")"
--- The overhang hint costs a solver entailment per restriction face and recOR
--- guard, so it is off by default and opted into per module (or scope).
+setOption "rstt-safe" = \case
+  "warn" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeWarn }
+  "error" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeError }
+  "off" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeOff }
+  _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe mode (use warn, error, or off)"
+-- Opt-in: overhang checking adds a solver query per face or guard.
 setOption "warn-overhang" = \case
   "yes" -> localWarnOverhang True
   "no"  -> localWarnOverhang False
@@ -455,6 +472,22 @@ setOption "warn-tope-family-domain" = \case
   "no"  -> localWarnTopeFamilyDomain False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
+-- Standalone fragment settings; active safe mode enables these checks.
+setOption "warn-free-standing-restriction" = \case
+  "yes" -> localWarnFreeStandingRestriction True
+  "no"  -> localWarnFreeStandingRestriction False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-free-standing-restriction\" (use \"yes\" or \"no\")"
+setOption "warn-shape-dependency" = \case
+  "yes" -> localWarnShapeDependency True
+  "no"  -> localWarnShapeDependency False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-shape-dependency\" (use \"yes\" or \"no\")"
+setOption "warn-meta-binder" = \case
+  "yes" -> localWarnMetaBinder True
+  "no"  -> localWarnMetaBinder False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-binder\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -462,11 +495,18 @@ unsetOption :: Distinct n => String -> TypeCheck n a -> TypeCheck n a
 unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
+unsetOption "rstt-safe" = local $ \ctx -> ctx { ctxRSTTSafe = ctxRSTTSafe emptyContext }
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
 unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
 unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
+unsetOption "warn-free-standing-restriction" =
+  localWarnFreeStandingRestriction (ctxStandaloneWarnFreeStandingRestriction emptyContext)
+unsetOption "warn-shape-dependency" =
+  localWarnShapeDependency (ctxStandaloneWarnShapeDependency emptyContext)
+unsetOption "warn-meta-binder" =
+  localWarnMetaBinder (ctxStandaloneWarnMetaBinder emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -694,6 +734,10 @@ withDataDecls
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
   -> TypeCheck n r
 withDataDecls path used name paramVars paramDecls sortIndices consData elims k = do
+  safe <- asks rsttSafeEnabled
+  when safe $ do
+    loc <- asks ctxLocation
+    recordCheckWarning $ RSTTScopeWarning RSTTInductive "inductive declaration" loc
   -- The type former's type spells the sort as written: params → indices → U.
   let sortTerm = foldr wrapIndex (Rzk.Universe Nothing) sortIndices
       wrapIndex (SortIndex mv ty) body = case mv of
@@ -1126,6 +1170,13 @@ elaborate term = do
         Nothing -> Hole (Just (markUnresolved name))
   pure (toTerm (ctxScope ctx) env term)
 
+-- Check user syntax; generated inductive declarations are already excluded.
+elaborateChecked :: Distinct n => Rzk.Term -> TypeCheck n (Term n)
+elaborateChecked term = do
+  core <- elaborate term
+  atSurface term $ RSTT.recordSyntaxUses core
+  pure core
+
 -- | Is a surface identifier defined at the top level?
 checkDefined :: Distinct n => VarIdent -> TypeCheck n (Foil.Name n)
 checkDefined name = asks (lookupNamed name) >>= \case
@@ -1188,7 +1239,7 @@ checkCommands path i total commands k = case commands of
         typeResult <- tryCheck $ do
           used <- mapM (checkDefined . varIdentAt path) vars
           paramDecls <- concat <$> mapM paramToParamDecl params
-          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          tyTerm <- elaborateChecked (addParamDecls paramDecls ty)
           ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
           pure (used, ty')
         case typeResult of
@@ -1200,7 +1251,7 @@ checkCommands path i total commands k = case commands of
             -- against it and its own errors and holes reported, instead of the
             -- run stopping at this one.
             result <- tryCheck $ do
-              valTerm <- elaborate (addParams params term)
+              valTerm <- elaborateChecked (addParams params term)
               atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
             let (mvalue, bodyErrors) = case result of
                   Right term'  -> (Just term', [])
@@ -1238,7 +1289,7 @@ checkCommands path i total commands k = case commands of
         typeResult <- tryCheck $ do
           used <- mapM (checkDefined . varIdentAt path) vars
           paramDecls <- concat <$> mapM paramToParamDecl params
-          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          tyTerm <- elaborateChecked (addParamDecls paramDecls ty)
           ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
           pure (used, ty')
         case typeResult of
@@ -1253,7 +1304,7 @@ checkCommands path i total commands k = case commands of
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
       withCommand command k $ do
         typeResult <- tryCheck $ do
-          tyTerm <- elaborate ty
+          tyTerm <- elaborateChecked ty
           atSurface ty $ typecheck tyTerm universeT
         case typeResult of
           Left typeError -> skippingCommand typeError path i total more k
@@ -1268,10 +1319,13 @@ checkCommands path i total commands k = case commands of
         -- A #check declares nothing, so its failure costs the rest of the file
         -- nothing either.
         result <- tryCheck $ do
-          tyTerm <- elaborate ty
-          ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
-          termTerm <- elaborate term
-          _term' <- atSurface term $ typecheck termTerm ty'
+          tyTerm <- elaborateChecked ty
+          ty' <- atSurface ty $ typecheck tyTerm universeT
+          termTerm <- elaborateChecked term
+          term' <- atSurface term $ typecheck termTerm ty'
+          recordMetaPrefixUses "#check" ty' (Just term')
+          RSTT.recordFragmentUses "#check" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#check" ty' (Just term')
           pure ()
         case result of
           Left err -> skippingCommand err path i total more k
@@ -1284,8 +1338,12 @@ checkCommands path i total commands k = case commands of
     announce (" Computing NF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborate term >>= infer >>= nfT
-          ppInContext term'
+          term' <- atSurface term $ elaborateChecked term >>= infer
+          ty' <- typeOfUncomputed term'
+          recordMetaPrefixUses "#compute-nf" ty' (Just term')
+          RSTT.recordFragmentUses "#compute-nf" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#compute-nf" ty' (Just term')
+          nfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
           Right shown -> traceTypeCheck Normal ("  " <> shown) $
@@ -1295,8 +1353,12 @@ checkCommands path i total commands k = case commands of
     announce (" Computing WHNF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborate term >>= infer >>= whnfT
-          ppInContext term'
+          term' <- atSurface term $ elaborateChecked term >>= infer
+          ty' <- typeOfUncomputed term'
+          recordMetaPrefixUses "#compute" ty' (Just term')
+          RSTT.recordFragmentUses "#compute" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#compute" ty' (Just term')
+          whnfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
           Right shown -> traceTypeCheck Normal ("  " <> shown) $

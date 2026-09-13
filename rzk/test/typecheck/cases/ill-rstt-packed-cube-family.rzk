@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def pack : Σ (F : CUBE → CUBE), Unit := ((\ I → I), unit)

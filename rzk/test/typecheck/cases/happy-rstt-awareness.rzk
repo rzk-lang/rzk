@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#set-option "warn-overhang" = "yes"
+#def concluded (t : 2 | t === 0_2) : Unit [TOP ↦ unit] := unit
+#def family (I : CUBE) (φ : I → TOPE) (χ : φ → TOPE) (A : U) : U := (t : χ) → A
+#def clip (A : U) : U := family 2 (\ t → BOT) (\ t → TOP) A

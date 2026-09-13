@@ -1,0 +1,5 @@
+status: ok
+warnings:
+  - FreeStandingRestrictionWarning
+regression_for:
+  - free-standing-restriction-warning

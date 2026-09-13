@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+-- Fragment membership does not establish consistency of postulates.
+#postulate arbitrary (A : U) : A
+#def conditional (A : U) : A := arbitrary A

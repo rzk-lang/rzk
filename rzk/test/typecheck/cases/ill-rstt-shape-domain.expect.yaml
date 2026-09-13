@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - shape domain
+  - outer cube points
+regression_for:
+  - rstt-safe-mode

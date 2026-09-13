@@ -64,6 +64,7 @@ hypothesis name ty = VarInfo
   , varDeclaredAssumptions = []
   , varLocation = Nothing
   , varDataRole = Nothing
+  , varSchematicStatus = SchematicUnchecked
   , varMetaPrefix = 0
   }
 

@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 #data nat := zero | suc (n : nat)
 
 #data list

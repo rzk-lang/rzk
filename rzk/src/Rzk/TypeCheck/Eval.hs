@@ -157,6 +157,7 @@ binderInfo orig md ty mval loc = VarInfo
   , varDeclaredAssumptions = []
   , varLocation = loc
   , varDataRole = Nothing
+  , varSchematicStatus = SchematicUnchecked
   , varMetaPrefix = 0
   }
 
@@ -923,10 +924,10 @@ contextEntailsUnion topes = do
 --   * DISJOINT — the tope and a consistent context have empty overlap (their
 --     conjunction is ⊥). The face or branch is then vacuous everywhere, so this is
 --     a hard error.
---   * OVERHANG — the tope is not entailed by the context but still overlaps it.
+--   * OVERHANG — the tope does not entail the context but still overlaps it.
 --     This is allowed and often intentional (splitting or restricting with an
 --     already-defined shape, whose faces live on the whole cube rather than being
---     relativised to the context), so we only emit a non-fatal hint.
+--     relativised to the context), so we only emit a non-fatal warning.
 --   * CONTAINED — the tope entails the context: nothing to report.
 checkTopeAgainstContext :: Distinct n => String -> TermT n -> TypeCheck n ()
 checkTopeAgainstContext what tope = do
@@ -948,13 +949,10 @@ checkTopeAgainstContext what tope = do
           entailed <- checkTopeEntails tope   -- tope |- AND(accessible context)
           unless entailed $ do
             naming <- asks namingOfContext
-            traceTypeCheck Normal
-              (intercalate "\n" $
-                [ "Warning: " <> what <> " overhangs the local tope context"
-                , "  " <> ppTerm naming (untyped tope)
-                , "is not entailed by the local context (normalised)"
-                ] <> map (("  " <>) . ppTerm naming . untyped) topes)
-              (return ())
+            loc <- asks ctxLocation
+            recordCheckWarning $ OverhangWarning what
+              (ppTerm naming (untyped tope))
+              (map (ppTerm naming . untyped) topes) loc
 
 -- * Restrictions and η
 

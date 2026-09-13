@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - unknown value for "warn-shape-dependency"
+regression_for:
+  - rstt-safe-mode
