@@ -40,8 +40,20 @@ newtype SchematicStatement n = SchematicStatement (TermT n)
 data CheckedSchematicDeclaration n = CheckedSchematicDeclaration
   (SchematicStatement n) (Maybe (TermT n))
 
--- A schema is a rule, never an object type. A kind describes a parameter.
-data Sort = ObjectType | ParameterKind | SchematicRule | Shape
+-- | Roles of elaborated type and domain expressions in schematic declarations.
+-- These are not universe levels. The fragment's formation conditions are
+-- checked separately in "Rzk.TypeCheck.Fragment.RSTT".
+data Sort
+  = ObjectType
+    -- ^ Ordinary types that may instantiate @(A : U)@, e.g. @Unit@ or @A -> A@.
+  | ParameterKind
+    -- ^ Kinds of schematic data: @U@, @CUBE@, @TOPE@, family kinds such as
+    -- @A -> U@, and dependent sums containing non-object components.
+  | SchematicRule
+    -- ^ Function signatures ending in an object type and quantifying over
+    -- kinds or rules, e.g. @(A : U) -> A -> A@.
+  | Shape
+    -- ^ Cube or tope expressions, e.g. @2@ or @TOP@; these are not object types.
   deriving (Eq)
 
 -- | Validate an elaborated declaration and the definitions used by its proof.
