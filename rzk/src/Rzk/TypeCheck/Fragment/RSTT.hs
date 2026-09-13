@@ -115,12 +115,17 @@ checkFragmentUses view defName ty mval isAssumption = do
     goTail original = expose original >>= \t -> case t of
       TypeRestrictedT _ ty' rs -> do
         goTail ty'
-        forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
-      TypeFunT _ orig md param _mtope ret -> do
+        forM_ rs $ \(tope, term) -> do
+          goTerm OutsideParameterPrefix tope
+          goTerm OutsideParameterPrefix term
+      TypeFunT _ orig md param mtope ret -> do
         checkShapeDependencies InTail t
         goAssumed UseBinder param
+        checkDomain orig md param mtope
         inScope orig md param ret goTail
-      RecOrT _ rs -> mapM_ (goTail . snd) rs
+      RecOrT _ rs -> forM_ rs $ \(tope, term) -> do
+        goTerm OutsideParameterPrefix tope
+        goTail term
       _ -> goAssumed UseConcluded t
 
     -- Assumed restrictions must sit directly under a shape-Π.
@@ -129,10 +134,13 @@ checkFragmentUses view defName ty mval isAssumption = do
       TypeRestrictedT _ ty' rs -> do
         reportFreeStanding use t
         goAssumed use ty'
-        forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
+        forM_ rs $ \(tope, term) -> do
+          goTerm OutsideParameterPrefix tope
+          goTerm OutsideParameterPrefix term
       TypeFunT _ orig md param mtope ret -> do
         checkShapeDependencies (InAssumption use) t
         goAssumed UseBinder param
+        checkDomain orig md param mtope
         shape <- isShapeBinder (maybe False (const True) mtope) param
         inScope orig md param ret $
           if shape then goExtCodomain use else goAssumed use
@@ -146,15 +154,18 @@ checkFragmentUses view defName ty mval isAssumption = do
         goTerm OutsideParameterPrefix b
       LambdaT info orig mparam body -> do
         md <- case mparam of
-          Just (LambdaParam md param _mtope) -> do
+          Just (LambdaParam md param mtope) -> do
             goAssumed UseBinder param
+            checkDomain orig md param mtope
             pure md
           Nothing -> pure Id
         dom <- binderType info mparam
         inScope orig md dom body (goAssumed use)
       -- recordSyntaxUses reports modal syntax; descend here for restriction checks.
       TypeModalT _ _ ty' -> goAssumed use ty'
-      RecOrT _ rs -> mapM_ (goAssumed use . snd) rs
+      RecOrT _ rs -> forM_ rs $ \(tope, term) -> do
+        goTerm OutsideParameterPrefix tope
+        goAssumed use term
       Var{} -> pure ()
       _ -> goTerm OutsideParameterPrefix t
 
@@ -164,8 +175,17 @@ checkFragmentUses view defName ty mval isAssumption = do
     goExtCodomain use original = expose original >>= \t -> case t of
       TypeRestrictedT _ ty' rs -> do
         goAssumed use ty'
-        forM_ rs $ \(_face, term) -> goTerm OutsideParameterPrefix term
+        forM_ rs $ \(face, term) -> do
+          goTerm OutsideParameterPrefix face
+          goTerm OutsideParameterPrefix term
       _ -> goAssumed use t
+
+    -- Topes may contain applications with their own binders and assumed types.
+    checkDomain
+      :: forall l. Distinct l
+      => Binder -> TModality -> TermT l -> Maybe (ScopedTermT l) -> TypeCheck l ()
+    checkDomain orig md param =
+      mapM_ (\tope -> inScope orig md param tope (goTerm OutsideParameterPrefix))
 
     -- RS17 Appendix A.2 requires shapes independent of ambient cube points.
     -- Schematic families are judgements over cube contexts, not extension types.
@@ -242,8 +262,9 @@ checkFragmentUses view defName ty mval isAssumption = do
       LambdaT info orig mparam body -> do
         checkShapeDependencies InTail (infoType info)
         md <- case mparam of
-          Just (LambdaParam md param _mtope) -> do
+          Just (LambdaParam md param mtope) -> do
             goAssumed UseBinder param
+            checkDomain orig md param mtope
             when (prefixPosition == OutsideParameterPrefix) $ reportMetaBinder orig param
             pure md
           Nothing -> pure Id

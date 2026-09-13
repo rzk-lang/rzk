@@ -136,8 +136,9 @@ recordMetaPrefixUses defName ty mval =
 
       LambdaT info orig mparam body -> do
         (mdom, md) <- case mparam of
-          Just (LambdaParam m ty' _mtope) -> do
+          Just (LambdaParam m ty' mtope) -> do
             go typePositions ty'
+            forM_ mtope $ \tope -> inScope orig m ty' tope (go objectPositions)
             pure (Just ty', m)
           -- A bare λ: the domain of its own Π-type.
           Nothing -> do
@@ -145,8 +146,9 @@ recordMetaPrefixUses defName ty mval =
             pure (dom, Id)
         inScope orig md (fromMaybe universeT mdom) body (go pos)
 
-      TypeFunT _ orig md param _mtope ret -> do
+      TypeFunT _ orig md param mtope ret -> do
         go typePositions param
+        forM_ mtope $ \tope -> inScope orig md param tope (go objectPositions)
         inScope orig md param ret (go typePositions)
 
       TypeSigmaT _ orig md a bscope -> do
@@ -162,7 +164,9 @@ recordMetaPrefixUses defName ty mval =
 
       TypeRestrictedT _ ty' rs -> do
         go typePositions ty'
-        forM_ rs $ \(_tope, term) -> go objectPositions term
+        forM_ rs $ \(tope, term) -> do
+          go objectPositions tope
+          go objectPositions term
 
       LetT _ orig manno value body -> do
         mapM_ (go typePositions) manno
