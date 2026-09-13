@@ -77,6 +77,7 @@ extra-source-files:
     test/typecheck/cases/happy-rstt-boundary-warn.rzk
     test/typecheck/cases/happy-rstt-boundary.rzk
     test/typecheck/cases/happy-rstt-off.rzk
+    test/typecheck/cases/happy-rstt-schema-parameters.rzk
     test/typecheck/cases/happy-rstt-shape-dependency-off.rzk
     test/typecheck/cases/happy-rstt-tail-nested.rzk
     test/typecheck/cases/happy-rstt-tau-flip.rzk
@@ -185,6 +186,8 @@ extra-source-files:
     test/typecheck/cases/ill-rstt-meta-prefix.rzk
     test/typecheck/cases/ill-rstt-modal.rzk
     test/typecheck/cases/ill-rstt-option.rzk
+    test/typecheck/cases/ill-rstt-packed-cube-family.rzk
+    test/typecheck/cases/ill-rstt-packed-type-family.rzk
     test/typecheck/cases/ill-rstt-postulate.rzk
     test/typecheck/cases/ill-rstt-restriction-in-domain.rzk
     test/typecheck/cases/ill-rstt-restriction.rzk
@@ -314,6 +317,7 @@ extra-source-files:
     test/typecheck/cases/happy-rstt-boundary-warn.expect.yaml
     test/typecheck/cases/happy-rstt-boundary.expect.yaml
     test/typecheck/cases/happy-rstt-off.expect.yaml
+    test/typecheck/cases/happy-rstt-schema-parameters.expect.yaml
     test/typecheck/cases/happy-rstt-shape-dependency-off.expect.yaml
     test/typecheck/cases/happy-rstt-tail-nested.expect.yaml
     test/typecheck/cases/happy-rstt-tau-flip.expect.yaml
@@ -422,6 +426,8 @@ extra-source-files:
     test/typecheck/cases/ill-rstt-meta-prefix.expect.yaml
     test/typecheck/cases/ill-rstt-modal.expect.yaml
     test/typecheck/cases/ill-rstt-option.expect.yaml
+    test/typecheck/cases/ill-rstt-packed-cube-family.expect.yaml
+    test/typecheck/cases/ill-rstt-packed-type-family.expect.yaml
     test/typecheck/cases/ill-rstt-postulate.expect.yaml
     test/typecheck/cases/ill-rstt-restriction-in-domain.expect.yaml
     test/typecheck/cases/ill-rstt-restriction.expect.yaml

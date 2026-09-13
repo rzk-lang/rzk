@@ -130,7 +130,12 @@ checkFragmentUses view defName ty mval isAssumption = do
 
     -- Assumed restrictions must sit directly under a shape-Π.
     goAssumed :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
-    goAssumed use original = expose original >>= \t -> case t of
+    goAssumed = goAssumedAt OutsideParameterPrefix
+
+    goAssumedAt
+      :: forall l. Distinct l
+      => PrefixPosition -> FragmentUse -> TermT l -> TypeCheck l ()
+    goAssumedAt prefixPosition use original = expose original >>= \t -> case t of
       TypeRestrictedT _ ty' rs -> do
         reportFreeStanding use t
         goAssumed use ty'
@@ -157,10 +162,11 @@ checkFragmentUses view defName ty mval isAssumption = do
           Just (LambdaParam md param mtope) -> do
             goAssumed UseBinder param
             checkDomain orig md param mtope
+            when (prefixPosition == OutsideParameterPrefix) $ reportMetaBinder orig param
             pure md
           Nothing -> pure Id
         dom <- binderType info mparam
-        inScope orig md dom body (goAssumed use)
+        inScope orig md dom body (goAssumedAt prefixPosition use)
       -- recordSyntaxUses reports modal syntax; descend here for restriction checks.
       TypeModalT _ _ ty' -> goAssumed use ty'
       RecOrT _ rs -> forM_ rs $ \(tope, term) -> do
@@ -245,7 +251,7 @@ checkFragmentUses view defName ty mval isAssumption = do
 
     -- Check term binders and route type-valued bodies through goData.
     goTerm :: forall l. Distinct l => PrefixPosition -> TermT l -> TypeCheck l ()
-    goTerm InParameterPrefix t | not (isLambda t) = goData t
+    goTerm InParameterPrefix t | not (isLambda t) = goDataAt InParameterPrefix t
     goTerm prefixPosition t = case t of
       Var{} -> pure ()
 
@@ -321,9 +327,12 @@ checkFragmentUses view defName ty mval isAssumption = do
     -- Type-valued data may later become binder or motive types. A proof
     -- quantified over a universe must still be walked as a term.
     goData :: forall l. Distinct l => TermT l -> TypeCheck l ()
-    goData t = do
+    goData = goDataAt OutsideParameterPrefix
+
+    goDataAt :: forall l. Distinct l => PrefixPosition -> TermT l -> TypeCheck l ()
+    goDataAt prefixPosition t = do
       isType <- landsInUniverse t
-      if isType then goAssumed UseData t else goTerm OutsideParameterPrefix t
+      if isType then goAssumedAt prefixPosition UseData t else goTerm OutsideParameterPrefix t
 
     isLambda :: forall l. TermT l -> Bool
     isLambda LambdaT{} = True
