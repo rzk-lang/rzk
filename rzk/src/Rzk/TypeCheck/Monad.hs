@@ -23,6 +23,7 @@ import           Control.Monad.Reader     (ReaderT (..), ask, asks, local)
 import           Control.Monad.Trans      (lift)
 import           Control.Monad.Trans.State.Strict (State, get, modify', put,
                                            runState)
+import qualified Data.IntSet              as IntSet
 import           Debug.Trace              (trace)
 
 import           Control.Monad.Foil       (Distinct)
@@ -109,7 +110,7 @@ data CheckWarning
   deriving (Eq, Show)
 
 -- | Diagnostic categories for constructs outside the RSTT fragment.
-data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTShapeDependency | RSTTUnsupported
+data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTShapeDependency | RSTTUnsupported | RSTTSchematic
   deriving (Eq, Show)
 
 -- | What assumes a free-standing restriction (see "Rzk.TypeCheck.Fragment.RSTT"),
@@ -154,14 +155,15 @@ data MetaPrefixRule
 data CheckLog = CheckLog
   { logHolesRev    :: [HoleInfo]
   , logWarningsRev :: [CheckWarning]
+  , logSchematicCache :: IntSet.IntSet
   }
 
 emptyCheckLog :: CheckLog
-emptyCheckLog = CheckLog [] []
+emptyCheckLog = CheckLog [] [] IntSet.empty
 
 -- | What a run recorded, in the order it was recorded.
 checkLog :: CheckLog -> ([HoleInfo], [CheckWarning])
-checkLog (CheckLog holes warnings) = (reverse holes, reverse warnings)
+checkLog (CheckLog holes warnings _) = (reverse holes, reverse warnings)
 
 -- | The record of a run is kept in the /state/, beneath the error channel,
 -- rather than on a writer channel above it.

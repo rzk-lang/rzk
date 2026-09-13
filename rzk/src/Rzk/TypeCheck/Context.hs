@@ -90,9 +90,14 @@ atPosition pos loc = case rzkLineCol pos of
   Nothing          -> loc
   Just (line, col) -> loc { locationLine = Just line, locationColumn = Just col }
 
+-- | Schematic validation is cached separately from ordinary typechecking.
+data SchematicStatus = SchematicUnchecked | SchematicChecked | SchematicRejected
+  deriving (Eq)
+
 -- | What is known about a hypothesis, local or top-level.
 data VarInfo n = VarInfo
-  { varType                :: TermT n
+  { varSchematicStatus     :: SchematicStatus
+  , varType                :: TermT n
   , varValue               :: Maybe (TermT n)
   , varModality            :: TModality
   , varModAccum            :: TModality

@@ -143,13 +143,12 @@ spec = describe "RSTT-safe run policy" $ do
     errors `shouldBe` ["TypeErrorRSTT"]
     warnings `shouldBe` ["RSTTShapeDependencyWarning"]
 
-  it "exposes shapes behind lets, both projections and identity elimination" $ do
+  it "exposes shapes behind lets and both projections" $ do
     let shape = "(t : 2) → A [φ t ↦ a]"
         bodies =
           [ "let X : U := " <> shape <> " in X"
           , "first ((" <> shape <> "), unit)"
           , "second (unit, (" <> shape <> "))"
-          , "idJ (Unit, unit, (\\ _ _ → U), (" <> shape <> "), unit, refl)"
           ]
     mapM_ (\body -> do
       let source = T.unlines

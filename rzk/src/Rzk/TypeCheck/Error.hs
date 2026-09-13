@@ -29,9 +29,13 @@ import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 
+data SchematicProblem = SchematicKindMismatch | SchematicUnsupported | SchematicDependency
+  deriving (Eq)
+
 data TypeError n
   = TypeErrorOther String
   | TypeErrorRSTT String
+  | TypeErrorSchematic SchematicProblem String
   | TypeErrorUnify (TermT n) (TermT n) (TermT n)
   | TypeErrorUnifyTerms (TermT n) (TermT n)
   | TypeErrorNotPair (TermT n) (TermT n)
@@ -100,6 +104,7 @@ namedBlock dir name lines_ = block dir $
 ppTypeError :: Naming n -> TypeError n -> String
 ppTypeError naming = \case
   TypeErrorOther msg -> msg
+  TypeErrorSchematic _ msg -> "schematic declaration: " <> msg
   TypeErrorRSTT msg -> "RSTT-safe mode: " <> msg
   TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"

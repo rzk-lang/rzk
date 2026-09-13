@@ -11,7 +11,7 @@
 -- | Diagnostics for declarations outside the RSTT fragment.
 --
 -- For RSTT, see Riehl and Shulman,
--- <https://arxiv.org/abs/1705.07442 RS17> (2017), Appendix A.2 for shape independence.
+-- <https://arxiv.org/abs/1705.07442 RS17> (2017), Figure 4 and Appendix A.2 for extension types.
 -- For the fragment conditions, see Kudasov, Sim and Ahrens,
 -- <https://arxiv.org/abs/2607.12207 KSA26> (2026), §5.
 --
@@ -25,6 +25,7 @@
 -- Free-standing restrictions along concluded codomains are allowed.
 -- Assumptions and postulates remain trusted; universe levels are not checked.
 module Rzk.TypeCheck.Fragment.RSTT (
+  fragmentHead,
   recordFragmentUses,
   recordSyntaxUses,
 ) where

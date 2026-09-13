@@ -127,6 +127,7 @@ typeErrorTag :: TypeError n -> String
 typeErrorTag = \case
   TypeErrorOther{}                 -> "TypeErrorOther"
   TypeErrorRSTT{}                  -> "TypeErrorRSTT"
+  TypeErrorSchematic{}             -> "TypeErrorSchematic"
   TypeErrorUnify{}                 -> "TypeErrorUnify"
   TypeErrorUnifyTerms{}            -> "TypeErrorUnifyTerms"
   TypeErrorNotPair{}               -> "TypeErrorNotPair"
@@ -222,6 +223,7 @@ diagnoseCheckWarning (RSTTScopeWarning extension feature loc) = Diagnostic
       RSTTInductive -> "RSTTInductiveWarning"
       RSTTShapeDependency -> "RSTTShapeDependencyWarning"
       RSTTUnsupported -> "RSTTSyntaxWarning"
+      RSTTSchematic -> "RSTTSchematicWarning"
   , diagnosticLocation = loc
   , diagnosticMessage = feature <> " is outside RSTT"
   , diagnosticHole = Nothing

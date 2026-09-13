@@ -157,6 +157,7 @@ binderInfo orig md ty mval loc = VarInfo
   , varDeclaredAssumptions = []
   , varLocation = loc
   , varDataRole = Nothing
+  , varSchematicStatus = SchematicUnchecked
   , varMetaPrefix = 0
   }
 

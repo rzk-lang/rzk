@@ -29,6 +29,7 @@ import           Control.Monad.Except      (catchError)
 import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
+import qualified Data.IntSet              as IntSet
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
@@ -51,6 +52,7 @@ import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
 import qualified Rzk.TypeCheck.Fragment.RSTT as RSTT
+import           Rzk.TypeCheck.Schematic (recordSchematicDeclaration)
 import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
@@ -131,6 +133,7 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
   -- Postulates and failed definitions supply assumptions, so require ext-style types.
   RSTT.recordFragmentUses name ty mval
     (isAssumption || maybe True (const False) mval)
+  schematicStatus <- recordSchematicDeclaration name ty mval
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -144,6 +147,7 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           , varDeclaredAssumptions = usedVars
           , varLocation = ctxLocation ctx
           , varDataRole = mrole
+          , varSchematicStatus = schematicStatus
           , varMetaPrefix = metaPrefix
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterBinder binder info [] ctx)
@@ -204,6 +208,8 @@ endSection errs = do
       tolerateUnused = lenient && sectionHasHole
 
   (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
+  -- Section abstraction changes dependency signatures and applications.
+  modifyLog $ \log -> log { logSchematicCache = IntSet.empty }
 
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
@@ -376,7 +382,8 @@ abstractOver
   :: Distinct n
   => Foil.Scope n -> Foil.Name n -> VarInfo n -> VarInfo n -> VarInfo n
 abstractOver scope a aInfo info = info
-  { varType = newType
+  { varSchematicStatus = SchematicUnchecked
+  , varType = newType
   , varValue = fmap abstractValue (varValue info)
   , varModality = Id
   , varModAccum = Id
@@ -404,7 +411,8 @@ applyToAssumption
 applyToAssumption scope a (defName, defInfo) info
   | varIsAssumption info = info
   | otherwise = info
-      { varType = rewrite (varType info)
+      { varSchematicStatus = SchematicUnchecked
+      , varType = rewrite (varType info)
       , varValue = rewrite <$> varValue info
       }
   where
@@ -1316,6 +1324,8 @@ checkCommands path i total commands k = case commands of
           term' <- atSurface term $ typecheck termTerm ty'
           recordMetaPrefixUses "#check" ty' (Just term')
           RSTT.recordFragmentUses "#check" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#check" ty' (Just term')
+          pure ()
         case result of
           Left err -> skippingCommand err path i total more k
           Right () -> checkCommands path (i + 1) total more k
@@ -1331,6 +1341,7 @@ checkCommands path i total commands k = case commands of
           ty' <- typeOfUncomputed term'
           recordMetaPrefixUses "#compute-nf" ty' (Just term')
           RSTT.recordFragmentUses "#compute-nf" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#compute-nf" ty' (Just term')
           nfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
@@ -1345,6 +1356,7 @@ checkCommands path i total commands k = case commands of
           ty' <- typeOfUncomputed term'
           recordMetaPrefixUses "#compute" ty' (Just term')
           RSTT.recordFragmentUses "#compute" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#compute" ty' (Just term')
           whnfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k

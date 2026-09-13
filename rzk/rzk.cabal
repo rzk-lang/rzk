@@ -561,6 +561,7 @@ library
       Rzk.TypeCheck.Monad
       Rzk.TypeCheck.NbE
       Rzk.TypeCheck.Render
+      Rzk.TypeCheck.Schematic
       Rzk.TypeCheck.Unify
       Rzk.Version
   other-modules:
@@ -699,6 +700,7 @@ test-suite rzk-test
       Rzk.PositionEncodingSpec
       Rzk.RefIndexSpec
       Rzk.RSTTSafeSpec
+      Rzk.SchematicSpec
       Rzk.SemanticTokensSpec
       Rzk.TypeCheckSpec
       Rzk.VersionSpec
