@@ -55,6 +55,8 @@ This is known to make the type system unsound (due to Russell and Curry-style pa
 it is sometimes considered acceptable in proof assistants.
 And, since it simplifies implementation, `rzk-1` embraces this assumption, at least for now.
 
+The [Hurkens counterexample](limitations/hurkens.rzk.md) gives a complete Rzk term of `(A : U) → A` that passes even the current RSTT-safe error mode.
+
 Moreover, `rzk-1` does not prevent cubes or topes to depend on types and terms. For example, the following definition typechecks:
 
 ```rzk

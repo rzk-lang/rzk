@@ -57,7 +57,7 @@ Use `rzk typecheck --rstt-safe=warn` or `--rstt-safe=error` to enforce the selec
 
 Types are also inspected after unfolding definitions and reducing applications, lets, projections and identity elimination. This includes argument domains instantiated by earlier arguments. Restriction guards are preserved, so simplification cannot erase an outer-point dependency. An inspection failure or the limit of 256 nested head-reduction steps produces `RSTTIncompleteWarning`, which is an error in safe error mode.
 
-A source `#set-option` affects only its scope. Enabling it after definitions were checked with the mode off does not check those dependencies retrospectively. These checks assume consistent use of the meta-theoretic parameter layer; they do not verify that assumption or constitute a formal proof of translation to RSTT.
+A source `#set-option` affects only its scope. Enabling it after definitions were checked with the mode off does not check those dependencies retrospectively. These checks do not enforce a consistent universe discipline for the meta-theoretic parameter layer. Rzk accepts `U : U`, and the [Hurkens counterexample](../limitations/hurkens.rzk.md) proves `(A : U) → A` while passing even safe error mode.
 
 ### `warn-overhang`
 
