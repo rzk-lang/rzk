@@ -463,9 +463,7 @@ setOption "warn-tope-family-domain" = \case
   "no"  -> localWarnTopeFamilyDomain False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
--- The RSTT fragment checks (see "Rzk.TypeCheck.Fragment.RSTT"). A free-standing
--- restriction may be concluded but not assumed; a schematic binder inside a
--- term is off by default, pending a measurement on larger developments.
+-- Standalone fragment settings; active safe mode enables these checks.
 setOption "warn-free-standing-restriction" = \case
   "yes" -> localWarnFreeStandingRestriction True
   "no"  -> localWarnFreeStandingRestriction False

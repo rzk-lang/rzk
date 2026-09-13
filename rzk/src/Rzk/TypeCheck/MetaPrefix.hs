@@ -17,7 +17,7 @@
 -- * Strict checking confines schema arguments to a top-level receiver's meta prefix.
 --
 -- Strict checking is the default. Neither check establishes universe
--- stratification; impredicative instantiation can escape detection.
+-- levels; the Hurkens construction still passes these checks.
 module Rzk.TypeCheck.MetaPrefix (
   metaPrefixOf,
   isMetaType,
@@ -112,9 +112,10 @@ recordMetaPrefixUses
 recordMetaPrefixUses defName ty mval =
   asks effectiveMetaPrefixSensitivity >>= \case
     MetaPrefixOff -> pure ()
-    _ -> localVerbosity Silent $ flip catchError (reportIncompleteRSTTCheck ("RSTT meta-parameter check incomplete in " <> show defName)) $ do
-      go rootPositions ty
-      mapM_ (go rootPositions) mval
+    _ -> localVerbosity Silent $
+      flip catchError (reportIncompleteRSTTCheck ("RSTT meta-parameter check incomplete in " <> show defName)) $ do
+        go rootPositions ty
+        mapM_ (go rootPositions) mval
   where
     go :: forall l. Distinct l => Positions -> TermT l -> TypeCheck l ()
     go pos t = case t of

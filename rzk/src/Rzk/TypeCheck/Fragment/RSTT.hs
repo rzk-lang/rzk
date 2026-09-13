@@ -16,14 +16,14 @@
 -- <https://arxiv.org/abs/2607.12207 KSA26> (2026), §5.
 --
 -- * Free-standing restrictions in assumptions, motives, and types passed as data.
--- * Extension domains and boundaries that depend on outer cube points.
+-- * Cube domains, shape conditions, and assumed boundaries depending on outer points.
 -- * Schematic variables bound inside terms below the parameter prefix.
 -- * Modal constructs, auxiliary intervals, and involutions.
 -- * Inductive constructors and eliminators.
 -- * Any syntax outside the explicit RSTT allow-list.
 --
 -- Free-standing restrictions along concluded codomains are allowed.
--- The meta-theoretic parameter layer is assumed to be used consistently.
+-- Assumptions and postulates remain trusted; universe levels are not checked.
 module Rzk.TypeCheck.Fragment.RSTT (
   recordFragmentUses,
   recordSyntaxUses,

@@ -16,7 +16,7 @@ In the current version, the command exits successfully with no diagnostics:
 []
 ```
 
-CI runs this command to track the limitation. If the proof stops passing RSTT-safe error mode, the CI failure prompts us to update this example and its expected result. Typechecking is enough to reproduce the limitation. There is no need to evaluate an application of `absurd`.
+CI runs this command and fails if the proof stops passing error mode. Typechecking is enough to reproduce the limitation; evaluating `absurd` is unnecessary.
 
 ## The construction
 

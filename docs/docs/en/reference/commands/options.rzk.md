@@ -9,7 +9,7 @@ The `#set-option` and `#unset-option` commands control typechecker options.
 #unset-option "<option-name>"
 ```
 
-## Available Options
+## Available options
 
 ### `verbosity`
 
@@ -29,44 +29,47 @@ Controls the rendering backend for diagrams.
 
 ### `warn-meta-prefix`
 
-Controls the sensitivity of the meta-parameter layer check. The type theory implemented in rzk separates a _meta-theoretic parameter layer_ from the object theory (see Section 3.2 of the Rzk paper[^1]), where a statement is abstracted over a context of schematic cube, tope, and type parameters. Per declaration, the _meta prefix_ is the parameter prefix up to and including the last parameter whose type lives outside the object theory proper: a universe, `CUBE`, `TOPE`, or a function type quantifying over or landing in one of those. The check warns when a declaration is used with fewer arguments than its meta prefix at an object-level position (for example, storing it in a pair component); unsaturated use at a meta-typed position, such as aliasing a definition or passing it to a parameter with a matching schematic type, stays allowed. Thus a development reads as a family of object-theory definitions, one per meta instantiation.
+A declaration's _meta prefix_ ends at its last schematic parameter: a universe, `CUBE`, `TOPE`, or a function quantifying over or into one of them. These parameters represent a family of object-theory statements (Section 3.2 of the Rzk paper[^1]). The check reports uses that supply too few schematic arguments, for example when storing a declaration in a pair.
 
-- `"strict"` — additionally require an unsaturated argument to sit within a top-level receiver's meta prefix (default); the extra warnings carry the distinct code `MetaPrefixWarningStrictOnly`
-- `"structural"` — warn only at structurally object-level positions
-- `"off"` — disable the check
+- `"strict"` — also require unsaturated schematic arguments to occur within another declaration's meta prefix (default).
+- `"structural"` — allow unsaturated arguments at any schematic parameter.
+- `"off"` — disable the check when RSTT-safe mode is off.
 
-Note that the check is syntactic and has a known blind spot: with type-in-type, instantiating an ordinary object parameter with a large type can make a position look meta-typed (for example, `g ((X : U) → X → X) h` where `g` expects `(X : U) (x : X)`). The strict sensitivity flags such a use when it falls outside the receiver's meta prefix, but a forgery landing within the prefix, or behind a λ-bound receiver, is not detected; recognising genuinely impredicative instantiations requires universe level inference, which rzk does not implement at the moment.
+The diagnostic codes are `MetaPrefixWarning` and `MetaPrefixWarningStrictOnly`. Aliases and arguments supplied to schematic parameters remain allowed. Saturation does not enforce universe levels; see the [consistency limitation](#rstt-safe).
 
 ### `rstt-safe`
 
-Controls the checks for the RSTT fragment:
+Checks declarations against the RSTT fragment used in the conservativity result.[^1]
 
 - `"warn"` — report detected violations (default).
-- `"error"` — reject a declaration when a violation is detected.
-- `"off"` — leave each standalone warning at its own setting.
+- `"error"` — reject declarations with violations or incomplete checks.
+- `"off"` — use the standalone warning settings.
 
-The bundle enables strict meta-prefix checking, checks for restrictions in assumed positions, and checks for schematic binders inside terms. It also reports modal constructs, the auxiliary interval and involutions, inductive declarations and their eliminations or constructors, and unfinished obligations. Individual warning options cannot disable these checks while the mode is active. In particular, `warn-free-standing-restriction` and `warn-meta-binder` are off by default with safe mode off; the bundle enables both.
+Active RSTT-safe mode enforces these settings:
 
-The bundle also enforces `warn-shape-dependency`, which remains enabled by default when safe mode is off.
+| Option | RSTT-safe `"warn"` / `"error"` | Standalone default |
+|---|---|---|
+| `warn-meta-prefix` | `"strict"` | `"strict"` |
+| `warn-free-standing-restriction` | `"yes"` | `"no"` |
+| `warn-meta-binder` | `"yes"` | `"no"` |
+| `warn-shape-dependency` | `"yes"` | `"yes"` |
 
-Syntax is checked against an explicit allow-list before typechecking. Constructs outside it, including cube `sup` and `inf`, are reported even if computation would remove them. Known extensions receive specific diagnostic codes; other unsupported syntax receives `RSTTSyntaxWarning`. Diagnostics point to the outermost forbidden node on each branch, using its source position when available.
+The mode also reports unfinished obligations and unsupported constructs, including modal and inductive extensions, auxiliary intervals, involutions, and cube `sup` and `inf`. These checks have no standalone option. Violations in source expressions are reported even when computation would remove them. Types exposed by computation are also checked; an unfinished inspection produces `RSTTIncompleteWarning`.
 
-The whole-context `warn-overhang` advisory and the family-clipping warning `warn-tope-family-domain` are separate. They do not fail `rstt-safe = "error"`. A free-standing restriction along a concluded codomain remains allowed.
+`warn-overhang` and `warn-tope-family-domain` remain independent advisories. They do not cause errors in RSTT-safe error mode.
 
-Use `rzk typecheck --rstt-safe=warn` or `--rstt-safe=error` to enforce the selected mode throughout the run, including all input modules. Source options cannot override this CLI selection. `--rstt-safe=off` instead selects standalone warnings throughout. Warning mode preserves a successful exit status for a well-typed input; error mode exits unsuccessfully on a fragment violation, including with `--json` or `--allow-holes`.
+Use `rzk typecheck --rstt-safe=warn`, `--rstt-safe=error`, or `--rstt-safe=off` to fix the mode for the whole run, including all input modules. Source options cannot override that selection. Error mode gives an unsuccessful exit status on violations, including with `--json` or `--allow-holes`. A source `#set-option` affects only its scope and does not recheck earlier declarations.
 
-Types are also inspected after unfolding definitions and reducing applications, lets, projections and identity elimination. This includes argument domains instantiated by earlier arguments. Restriction guards are preserved, so simplification cannot erase an outer-point dependency. An inspection failure or the limit of 256 nested head-reduction steps produces `RSTTIncompleteWarning`, which is an error in safe error mode.
-
-A source `#set-option` affects only its scope. Enabling it after definitions were checked with the mode off does not check those dependencies retrospectively. These checks do not enforce a consistent universe discipline for the meta-theoretic parameter layer. Rzk accepts `U : U`, and the [Hurkens counterexample](../limitations/hurkens.rzk.md) proves `(A : U) → A` while passing even safe error mode.
+Assumptions and postulates remain trusted: their types are checked, but their consistency is not. The mode also does not enforce universe levels for the meta-theoretic parameter layer. Rzk accepts `U : U`, and the [Hurkens counterexample](../limitations/hurkens.rzk.md) proves `(A : U) → A` without postulates while passing error mode.
 
 ### `warn-overhang`
 
-Controls the non-fatal hint printed when a restriction face or a `recOR` guard overhangs the local tope context (is not entailed by it, while still overlapping it). Overhang is legitimate — for example, restricting with an already-defined shape whose faces live on the whole cube — so the hint is informational only. Deciding whether a face overhangs costs a solver query per face, so the hint is off by default.
+Warns when a restriction face or `recOR` guard overlaps the local tope context but is not contained in it. The check asks whether the face or guard entails the whole context. Such overhang is allowed.
 
-- `"yes"` — print the hint for overhanging faces and guards
-- `"no"` — do not check for overhang (default)
+- `"yes"` — report overhang as `OverhangWarning`.
+- `"no"` — do not check for overhang (default).
 
-The warning has diagnostic code `OverhangWarning` and is also reported in JSON and by the language server, including at silent verbosity. It tests whether the face or guard entails the whole local tope context. This advisory is independent of RSTT-safe mode.
+The warning appears in text, JSON, and language-server diagnostics, including at silent verbosity. It remains an advisory in RSTT-safe error mode.
 
 ### `warn-tope-family-domain`
 
@@ -77,34 +80,34 @@ Controls the warning for a tope family that is not included in its declared doma
 
 ### `warn-free-standing-restriction`
 
-Controls the warning for a free-standing restriction in an assumed position. The check accepts restrictions directly on the codomain of a shape-Π, including boundaries that exceed its domain: boundary obligations are checked under the domain assumption. Other restrictions are treated as _free-standing_. Conservativity over RSTT is proved for the derivations that conclude a free-standing restriction but never assume one (Section 5 of the Rzk paper[^1]), so the checker reports the assumed positions: the type of a binder, the motive of an eliminator, the type of an identity type, and a type passed as data, which includes the body of a `U`-valued definition and an argument at a universe-typed parameter. A type passed as data matters because it is substituted into binder and motive positions later. Restrictions along concluded codomains are exempt, including a restriction under an ordinary `Π`. A postulate supplies an assumption, so its type is checked as assumed.
+Warns about assumed free-standing restrictions, which are outside the proved conservative fragment.[^1] A restriction is _free-standing_ unless it occurs directly on the codomain of a shape-Π. Boundary obligations are checked within that shape, so a boundary may extend beyond its domain.
 
-- `"yes"` — warn about an assumed free-standing restriction; the code is `FreeStandingRestrictionWarning`
-- `"no"` — do not warn (standalone default; active RSTT-safe mode enables the check)
+The check covers binder types, eliminator motives, the underlying types of identity types, and types passed as data. It also checks types exposed by computation. Restrictions along concluded codomains remain allowed, including under an ordinary `Π`. A postulate supplies an assumption, so its type must satisfy the same restriction check as other assumptions.
 
-The check also inspects computed types and instantiated argument domains, so unfolding a definition or reducing an application does not hide an assumed restriction.
+- `"yes"` — report assumed free-standing restrictions as `FreeStandingRestrictionWarning`.
+- `"no"` — suppress the warning (standalone default).
+
+Active RSTT-safe mode enables the check.
 
 ### `warn-shape-dependency`
 
-Extension domains and boundaries must be independent of outer cube points (RS17, Appendix A.2[^rs17]); violations have code `RSTTShapeDependencyWarning`. Coordinates bound together in a product cube are allowed, as are boundary values that depend on outer points. The check follows aliases and variable types. Boundary inclusion itself is not required: a boundary can be intersected with the enclosing shape when translated to RSTT.
+Warns about outer cube points in cube domains, shape conditions, and assumed extension boundaries, following RS17, Appendix A.2.[^rs17] This includes dependencies revealed by aliases and computation. Coordinates bound together in a product cube are allowed, as are boundary values that depend on outer points. A boundary may extend beyond its domain: it can be intersected with that domain when translated to RSTT.
 
-- `"yes"` — warn about outer-point dependencies (standalone default).
+- `"yes"` — report dependencies as `RSTTShapeDependencyWarning` (standalone default).
 - `"no"` — suppress the warning when RSTT-safe mode is off.
 
-Active RSTT-safe mode forces the check on and treats violations as errors in `"error"` mode. `#unset-option "warn-shape-dependency"` restores `"yes"`.
-
-This check enforces RS17’s requirement that extension domains and boundaries be independent of outer cube points. It does not determine whether a declaration admits an equivalent reformulation within RSTT.
+Active RSTT-safe mode enables the check; `#unset-option` restores `"yes"`. A warning does not rule out an equivalent reformulation within RSTT.
 
 ### `warn-meta-binder`
 
-Controls the warning for a schematic variable bound inside a term. A declaration's parameter prefix is its meta-theoretic parameter context, so that the declaration is a family of object-theory statements, one per instantiation (see `warn-meta-prefix`). A λ _inside_ a term that binds a variable at a universe, `CUBE`, `TOPE`, or a function into one of those is outside that reading. The leading λs of a definition's body are its own parameters and stay silent.
+Warns about schematic parameters bound inside terms, including type-valued terms. For example, storing `\ (A : U) → A` in a pair reports `MetaBinderWarning`. A schematic parameter has type `U`, `CUBE`, `TOPE`, or a function quantifying over or into one of them.
 
-Two positions still count as the parameter prefix. The branches of a case split reached while peeling the prefix, because a schema defined by recursion on a schematic index has to split before binding its remaining parameters, and both the index and those parameters end up in the meta prefix, so every use supplies them. And an argument at a schematic parameter, which is the plumbing `warn-meta-prefix` already allows.
+The leading parameters of a definition and schematic arguments supplied to other declarations remain allowed (see `warn-meta-prefix`).
 
-- `"yes"` — warn about a schematic binder inside a term; the code is `MetaBinderWarning`
-- `"no"` — do not warn (default)
+- `"yes"` — report schematic binders inside terms.
+- `"no"` — suppress the warning (standalone default).
 
-The check is off by default because a development may package a statement quantified over a universe as a type and then prove it by a λ, which is idiomatic although it is outside the correspondence with the parameter layer.
+Active RSTT-safe mode enables the check.
 
 ## Examples
 
