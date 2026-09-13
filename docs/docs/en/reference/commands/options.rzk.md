@@ -82,7 +82,7 @@ Controls the warning for a free-standing restriction in an assumed position. The
 - `"yes"` — warn about an assumed free-standing restriction; the code is `FreeStandingRestrictionWarning`
 - `"no"` — do not warn (standalone default; active RSTT-safe mode enables the check)
 
-Note that the check is syntactic: a restriction that appears in an assumed position only after a definition is unfolded or a redex is reduced is not reported.
+The check also inspects computed types and instantiated argument domains, so unfolding a definition or reducing an application does not hide an assumed restriction.
 
 ### `warn-shape-dependency`
 
@@ -92,6 +92,8 @@ Extension domains and boundaries must be independent of outer cube points (RS17,
 - `"no"` — suppress the warning when RSTT-safe mode is off.
 
 Active RSTT-safe mode forces the check on and treats violations as errors in `"error"` mode. `#unset-option "warn-shape-dependency"` restores `"yes"`.
+
+This check enforces RS17’s requirement that extension domains and boundaries be independent of outer cube points. It does not determine whether a declaration admits an equivalent reformulation within RSTT.
 
 ### `warn-meta-binder`
 
