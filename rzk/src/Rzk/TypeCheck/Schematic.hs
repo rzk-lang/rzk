@@ -101,8 +101,12 @@ budget fuel = when (fuel <= 0) $
 declaration :: Distinct n => Int -> IntSet.IntSet -> TermT n -> Maybe (TermT n) -> TypeCheck n ()
 declaration fuel seen ty value = do
   budget fuel
+  -- Check dependencies before reduction can obscure their failures.
+  dependencies ty
   signature fuel seen ty
-  mapM_ (term fuel seen) value
+  mapM_ (\t -> dependencies t >> term fuel seen t) value
+  where
+    dependencies = mapM_ (uses fuel seen . Var) . freeVarsOfTermT
 
 signature :: Distinct n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
 signature fuel seen ty = do
@@ -118,8 +122,9 @@ signature fuel seen ty = do
 
 -- Check each dependency before using its signature, even if safe mode was off
 -- when it was declared. Successful earlier checks are cached in the context.
+-- Check variables during traversal instead of rescanning every subtree.
 uses :: Distinct n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
-uses fuel seen t = forM_ (freeVarsOfTermT t) $ \v -> do
+uses fuel seen (Var v) = do
   info <- infoOfVar id v
   cached <- gets (IntSet.member (Foil.nameId v) . logSchematicCache)
   when (varIsTopLevel info && varSchematicStatus info /= SchematicChecked && not cached) $ do
@@ -135,6 +140,7 @@ uses fuel seen t = forM_ (freeVarsOfTermT t) $ \v -> do
       (varType info) (varValue info)
     modifyLog $ \checkLog' -> checkLog'
       { logSchematicCache = IntSet.insert (Foil.nameId v) (logSchematicCache checkLog') }
+uses _ _ _ = pure ()
 
 withoutCallerTopes :: Context n -> Context n
 withoutCallerTopes ctx = ctx

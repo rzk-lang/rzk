@@ -160,3 +160,15 @@ spec = describe "Schematic declarations" $ do
   it "checks the kinds of boundary values on a universe" $ do
     rejects ["#def bad : U [TOP ↦ U] := U"]
     accepts ["#def good : U [TOP ↦ Unit] := Unit"]
+
+  it "checks dependencies in arguments erased by reduction" $ do
+    let ds =
+          [ "#set-option \"rstt-safe\" = \"off\"", identity
+          , "#def bad : Unit := id (U → Unit) (\\ _ → unit) Unit"
+          , "#set-option \"rstt-safe\" = \"error\""
+          , "#def discard (x : Unit) : Unit := unit"
+          , "#def use : Unit := discard bad"
+          ]
+        (errors, warnings) = check Nothing [source ds]
+    errors `shouldBe` ["TypeErrorRSTT"]
+    warnings `shouldSatisfy` elem "RSTTSchematicWarning"
