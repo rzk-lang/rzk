@@ -23,7 +23,7 @@
 -- * Any syntax outside the explicit RSTT allow-list.
 --
 -- Free-standing restrictions along concluded codomains are allowed.
--- These checks do not establish universe stratification or translation to RSTT.
+-- The meta-theoretic parameter layer is assumed to be used consistently.
 module Rzk.TypeCheck.Fragment.RSTT (
   recordFragmentUses,
   recordSyntaxUses,
@@ -31,7 +31,7 @@ module Rzk.TypeCheck.Fragment.RSTT (
 
 import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM_, unless, when)
-import           Control.Monad.Except     (catchError)
+import           Control.Monad.Except     (catchError, throwError)
 import           Control.Monad.Reader     (asks, local)
 import           Data.Bifoldable          (bifoldMap)
 import           Data.List                (intercalate)
@@ -49,6 +49,7 @@ import           Language.Rzk.Foil.Syntax
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Eval
+import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.MetaPrefix (isMetaType)
 import           Rzk.TypeCheck.Monad
 
@@ -76,18 +77,42 @@ recordFragmentUses defName ty mval isAssumption = do
   binders <- asks ctxWarnMetaBinder
   shapes <- asks ctxWarnShapeDependency
   when (restrictions || binders || shapes) $
-    localVerbosity Silent $ flip catchError ignoreAdvisoryError $ do
-      go (if isAssumption then InAssumption UseBinder else InTail) ty
-      mapM_ (go (InTerm InParameterPrefix)) mval
+    localVerbosity Silent $
+      forM_ [SourceTypes, ComputedTypes] $ \view ->
+        checkFragmentUses view defName ty mval isAssumption `catchError` \case
+          err@(TypeErrorInScopedContext _ TypeErrorRSTT{}) -> throwError err
+          TypeErrorInScopedContext _ err -> do
+            loc <- asks ctxLocation
+            let reason = case err of
+                  TypeErrorOther message -> message
+                  _ -> "could not inspect a type"
+            recordCheckWarning $ RSTTIncompleteWarning
+              ("RSTT fragment check incomplete in " <> show defName <> ": " <> reason) loc
+
+-- Keep source checks even when reduction discards an argument or annotation.
+data FragmentView = SourceTypes | ComputedTypes
+  deriving (Eq)
+
+checkFragmentUses
+  :: forall n. Distinct n
+  => FragmentView -> VarIdent -> TermT n -> Maybe (TermT n) -> Bool -> TypeCheck n ()
+checkFragmentUses view defName ty mval isAssumption = do
+  go (if isAssumption then InAssumption UseBinder else InTail) ty
+  mapM_ (go (InTerm InParameterPrefix)) mval
   where
     go :: forall l. Distinct l => CheckedPosition -> TermT l -> TypeCheck l ()
     go (InTerm prefixPosition) t = goTerm prefixPosition t
     go InTail t = goTail t
     go (InAssumption use) t = goAssumed use t
 
+    expose :: forall l. Distinct l => TermT l -> TypeCheck l (TermT l)
+    expose = case view of
+      SourceTypes -> pure
+      ComputedTypes -> fragmentHead 256
+
     -- Allow restrictions along the spine of concluded codomains.
     goTail :: forall l. Distinct l => TermT l -> TypeCheck l ()
-    goTail t = case t of
+    goTail original = expose original >>= \t -> case t of
       TypeRestrictedT _ ty' rs -> do
         goTail ty'
         forM_ rs $ \(_tope, term) -> goTerm OutsideParameterPrefix term
@@ -95,11 +120,12 @@ recordFragmentUses defName ty mval isAssumption = do
         checkShapeDependencies InTail t
         goAssumed UseBinder param
         inScope orig md param ret goTail
+      RecOrT _ rs -> mapM_ (goTail . snd) rs
       _ -> goAssumed UseConcluded t
 
     -- Assumed restrictions must sit directly under a shape-Π.
     goAssumed :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
-    goAssumed use t = case t of
+    goAssumed use original = expose original >>= \t -> case t of
       TypeRestrictedT _ ty' rs -> do
         reportFreeStanding use t
         goAssumed use ty'
@@ -128,13 +154,14 @@ recordFragmentUses defName ty mval isAssumption = do
         inScope orig md dom body (goAssumed use)
       -- recordSyntaxUses reports modal syntax; descend here for restriction checks.
       TypeModalT _ _ ty' -> goAssumed use ty'
+      RecOrT _ rs -> mapM_ (goAssumed use . snd) rs
       Var{} -> pure ()
       _ -> goTerm OutsideParameterPrefix t
 
     -- Direct shape codomains admit boundary clipping to the binder's domain.
     goExtCodomain
       :: forall l. Distinct l => FragmentUse -> TermT l -> TypeCheck l ()
-    goExtCodomain use t = case t of
+    goExtCodomain use original = expose original >>= \t -> case t of
       TypeRestrictedT _ ty' rs -> do
         goAssumed use ty'
         forM_ rs $ \(_face, term) -> goTerm OutsideParameterPrefix term
@@ -152,7 +179,7 @@ recordFragmentUses defName ty mval isAssumption = do
           when (shape && not schematic) $ do
             scope <- asks ctxScope
             let check :: forall k. Distinct k => Foil.Name k -> TermT k -> TypeCheck k ()
-                check point body = case (position, body) of
+                check point original = expose original >>= \body -> case (position, body) of
                   (InAssumption _, TypeRestrictedT _ _ rs) ->
                     forM_ rs $ \(face, _) -> reportShapeDependency "restriction boundary" point face
                   _ -> pure ()
@@ -227,6 +254,9 @@ recordFragmentUses defName ty mval isAssumption = do
         let (h, args) = collectSpine t []
         goTerm OutsideParameterPrefix h
         forM_ args $ \(fnode, arg) -> do
+          -- Substitution can create a forbidden type in a later argument domain.
+          when (view == ComputedTypes) $
+            typeOfUncomputed fnode >>= funDomain >>= mapM_ (goAssumed UseBinder)
           -- Schema arguments may bind their own schematic parameters.
           plumbing <- domainIsMeta fnode
           if plumbing then goTerm InParameterPrefix arg else goData arg
@@ -291,14 +321,14 @@ recordFragmentUses defName ty mval isAssumption = do
     -- A cube domain without a tope denotes the unrestricted shape.
     isShapeBinder :: forall l. Distinct l => Bool -> TermT l -> TypeCheck l Bool
     isShapeBinder True _ = pure True
-    isShapeBinder False param = flip catchError (\_ -> pure False) $
+    isShapeBinder False param =
       typeOfUncomputed param >>= whnfT >>= \case
         UniverseCubeT{} -> pure True
         _               -> pure False
 
     -- Is the Π-domain of this function node schematic?
     domainIsMeta :: forall l. Distinct l => TermT l -> TypeCheck l Bool
-    domainIsMeta f = flip catchError (\_ -> pure False) $ do
+    domainIsMeta f = do
       tf <- typeOfUncomputed f
       whnfT (stripTypeRestrictions tf) >>= \case
         TypeFunT _ _ _ dom _ _ -> isMetaType dom
@@ -306,7 +336,7 @@ recordFragmentUses defName ty mval isAssumption = do
 
     -- Recognise types and type families by their final codomain.
     landsInUniverse :: forall l. Distinct l => TermT l -> TypeCheck l Bool
-    landsInUniverse t = flip catchError (\_ -> pure False) $
+    landsInUniverse t =
       typeOfUncomputed t >>= go
       where
         go :: forall k. Distinct k => TermT k -> TypeCheck k Bool
@@ -318,7 +348,7 @@ recordFragmentUses defName ty mval isAssumption = do
           _               -> pure False
 
     funDomain :: forall l. Distinct l => TermT l -> TypeCheck l (Maybe (TermT l))
-    funDomain tf = flip catchError (\_ -> pure Nothing) $
+    funDomain tf =
       whnfT (stripTypeRestrictions tf) >>= \case
         TypeFunT _ _ _ dom _ _ -> pure (Just dom)
         _                      -> pure Nothing
@@ -327,7 +357,7 @@ recordFragmentUses defName ty mval isAssumption = do
     reportMetaBinder orig param = do
       enabled <- asks ctxWarnMetaBinder
       when enabled $ do
-        meta <- flip catchError (\_ -> pure False) (isMetaType param)
+        meta <- isMetaType param
         when meta $ do
           naming <- asks namingOfContext
           loc <- asks ctxLocation
@@ -345,6 +375,36 @@ recordFragmentUses defName ty mval isAssumption = do
         loc <- asks ctxLocation
         recordCheckWarning $
           FreeStandingRestrictionWarning defName (ppTerm naming (untyped t)) use loc
+
+-- Expose type constructors without consulting cached normal forms or simplifying
+-- their guards. Keep this reducer in step with the object-level rules in Eval.
+fragmentHead :: Distinct n => Int -> TermT n -> TypeCheck n (TermT n)
+fragmentHead fuel t
+  | fuel <= 0 = issueTypeError (TypeErrorOther "RSTT fragment reduction limit reached")
+  | otherwise = case t of
+      Var v -> valueOfVar v >>= maybe (neutral t) step
+      AppT info f x -> step f >>= \case
+        LambdaT _ _ _ body -> instantiate body x >>= step
+        f' -> neutral (AppT info f' x)
+      LetT _ _ _ value body -> instantiate body value >>= step
+      TypeAscT _ value _ -> step value
+      FirstT info pair -> step pair >>= \case
+        PairT _ a _ -> step a
+        pair' -> neutral (FirstT info pair')
+      SecondT info pair -> step pair >>= \case
+        PairT _ _ b -> step b
+        pair' -> neutral (SecondT info pair')
+      IdJT info a x motive d y proof -> step proof >>= \case
+        ReflT{} -> step d
+        proof' -> neutral (IdJT info a x motive d y proof')
+      RecOrT _ rs -> firstMatching rs >>= maybe (pure t) step
+      -- In particular, stop at TypeRestrictedT before reducing its topes.
+      _ -> pure t
+  where
+    step = fragmentHead (fuel - 1)
+    neutral term = do
+      ty <- typeOfUncomputed term >>= step
+      tryRestriction ty >>= maybe (pure term) step
 
 -- TODO: Share this application-spine helper with MetaPrefix in the syntax layer.
 collectSpine :: TermT n -> [(TermT n, TermT n)] -> (TermT n, [(TermT n, TermT n)])

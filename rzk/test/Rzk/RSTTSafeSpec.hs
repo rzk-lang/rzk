@@ -98,6 +98,117 @@ spec = describe "RSTT-safe run policy" $ do
     run (Just RSTTSafeWarn) ["#lang rzk-1\n#def unfinished : Unit := ?\n"]
       `shouldBe` ([], ["RSTTHoleWarning"], 1)
 
+  it "rejects outer-point capture introduced by an instantiated type family" $ do
+    let source = T.unlines
+          [ "#lang rzk-1"
+          , "#def extension (φ : 2 → TOPE) (A : U) (a : A) : U :="
+          , "  (t : 2) → A [φ t ↦ a]"
+          , "#def at-point (A : U) (a : A) (s : 2)"
+          , "  (f : extension (\\ t → t === s) A a) : A := f s"
+          ]
+        (errors, warnings, _) = run (Just RSTTSafeError) [source]
+    errors `shouldBe` ["TypeErrorRSTT"]
+    warnings `shouldBe` ["RSTTShapeDependencyWarning"]
+
+  it "exposes shapes behind lets, both projections and identity elimination" $ do
+    let shape = "(t : 2) → A [φ t ↦ a]"
+        bodies =
+          [ "let X : U := " <> shape <> " in X"
+          , "first ((" <> shape <> "), unit)"
+          , "second (unit, (" <> shape <> "))"
+          , "idJ (Unit, unit, (\\ _ _ → U), (" <> shape <> "), unit, refl)"
+          ]
+    mapM_ (\body -> do
+      let source = T.unlines
+            [ "#lang rzk-1"
+            , "#def extension (φ : 2 → TOPE) (A : U) (a : A) : U := " <> body
+            , "#postulate bad (A : U) (a : A) (s : 2)"
+            , "  (f : extension (\\ t → t === s) A a) : Unit"
+            ]
+          (errors, warnings, _) = run (Just RSTTSafeError) [source]
+      errors `shouldBe` ["TypeErrorRSTT"]
+      warnings `shouldBe` ["RSTTShapeDependencyWarning"]) bodies
+
+  it "checks argument domains created by earlier schematic arguments" $ do
+    let source = T.unlines
+          [ "#lang rzk-1"
+          , "#postulate schema (φ : 2 → TOPE) (A : U) (a : A)"
+          , "  (f : (t : 2) → A [φ t ↦ a]) : Unit"
+          , "#def bad (A : U) (a : A) (s : 2) : Unit :="
+          , "  schema (\\ t → t === s) A a (\\ t → a)"
+          ]
+        (errors, warnings, _) = run (Just RSTTSafeError) [source]
+    errors `shouldBe` ["TypeErrorRSTT"]
+    warnings `shouldBe` ["RSTTShapeDependencyWarning"]
+
+  it "allows independent shapes after unfolding and beta reduction" $ do
+    run (Just RSTTSafeError) [T.unlines
+      [ "#lang rzk-1"
+      , "#def extension (φ : 2 → TOPE) (A : U) (a : A) : U :="
+      , "  (t : 2) → A [φ t ↦ a]"
+      , "#def at-point (A : U) (a : A) (s : 2)"
+      , "  (f : extension (\\ t → t === 0_2) A a) : A := f s"
+      ]] `shouldBe` ([], [], 0)
+
+  it "finds contextual domains after instantiation, let reduction and projection" $ do
+    let source = T.unlines
+          [ "#lang rzk-1"
+          , "#def shape (φ : 2 → TOPE) (A : U) : U := (t : 2 | φ t) → A"
+          , "#postulate bad (A : U) (s : 2)"
+          , "  (f : first ((let X := shape (\\ t → t <= s) A in X), unit)) : Unit"
+          ]
+        (errors, warnings, _) = run (Just RSTTSafeWarn) [source]
+    errors `shouldBe` []
+    warnings `shouldSatisfy` elem "RSTTShapeDependencyWarning"
+
+  it "preserves dependencies even when a guard simplifies to top" $ do
+    let source = T.unlines
+          [ "#lang rzk-1"
+          , "#def extension (φ : 2 → TOPE) (A : U) (a : A) : U :="
+          , "  (t : 2) → A [φ t ↦ a]"
+          , "#postulate bad (A : U) (a : A) (s : 2)"
+          , "  (f : extension (\\ t → s === s) A a) : Unit"
+          ]
+        (errors, warnings, _) = run (Just RSTTSafeError) [source]
+    errors `shouldBe` ["TypeErrorRSTT"]
+    warnings `shouldBe` ["RSTTShapeDependencyWarning"]
+
+  it "preserves concluded tails after unfolding" $ do
+    let source = T.unlines
+          [ "#lang rzk-1"
+          , "#set-option \"rstt-safe\" = \"off\""
+          , "#def restricted (A : U) (a : A) : U := A [TOP ↦ a]"
+          , "#set-option \"rstt-safe\" = \"error\""
+          , "#def good (A : U) (a : A) : restricted A a := a"
+          ]
+    run Nothing [source] `shouldBe` ([], [], 0)
+
+  it "reports an incomplete audit instead of silently accepting a reduction limit" $ do
+    let source = T.unlines $ ["#lang rzk-1", "#def T0 : U := Unit"] <>
+          [ "#def T" <> T.pack (show i) <> " : U := T" <> T.pack (show (i - 1))
+          | i <- [1 .. 260 :: Int] ]
+        (errors, warnings, _) = run (Just RSTTSafeWarn) [source]
+        (strictErrors, _, _) = run (Just RSTTSafeError) [source]
+    errors `shouldBe` []
+    warnings `shouldSatisfy` elem "RSTTIncompleteWarning"
+    strictErrors `shouldSatisfy` elem "TypeErrorRSTT"
+
+  it "audits computed argument types in standalone commands" $ do
+    let declarations = T.unlines
+          [ "#lang rzk-1"
+          , "#postulate schema (φ : 2 → TOPE) (A : U) (a : A)"
+          , "  (f : (t : 2) → A [φ t ↦ a]) : Unit"
+          ]
+        application = "(\\ (s : 2) → schema (\\ t → t === s) Unit unit (\\ t → unit))"
+    mapM_ (\command -> do
+      let (errors, warnings, _) = run (Just RSTTSafeError) [declarations <> command]
+      errors `shouldBe` ["TypeErrorRSTT"]
+      warnings `shouldBe` ["RSTTShapeDependencyWarning"])
+      [ "#check " <> application <> " : 2 → Unit"
+      , "#compute " <> application
+      , "#compute-nf " <> application
+      ]
+
   it "locates unsupported syntax below binders before it can reduce away" $ do
     let source = "#lang rzk-1\n#def discard (i : 2) : Unit :=\n  (\\ (j : 2) → unit) (sup i 1_2)\n"
         (errors, warnings, _) = runDetails (Just RSTTSafeWarn) [source]

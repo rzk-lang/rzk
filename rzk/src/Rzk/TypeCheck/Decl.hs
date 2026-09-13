@@ -1313,10 +1313,11 @@ checkCommands path i total commands k = case commands of
         -- nothing either.
         result <- tryCheck $ do
           tyTerm <- elaborateChecked ty
-          ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
+          ty' <- atSurface ty $ typecheck tyTerm universeT
           termTerm <- elaborateChecked term
-          _term' <- atSurface term $ typecheck termTerm ty'
-          pure ()
+          term' <- atSurface term $ typecheck termTerm ty'
+          recordMetaPrefixUses "#check" ty' (Just term')
+          RSTT.recordFragmentUses "#check" ty' (Just term') False
         case result of
           Left err -> skippingCommand err path i total more k
           Right () -> checkCommands path (i + 1) total more k
@@ -1328,8 +1329,11 @@ checkCommands path i total commands k = case commands of
     announce (" Computing NF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborateChecked term >>= infer >>= nfT
-          ppInContext term'
+          term' <- atSurface term $ elaborateChecked term >>= infer
+          ty' <- typeOfUncomputed term'
+          recordMetaPrefixUses "#compute-nf" ty' (Just term')
+          RSTT.recordFragmentUses "#compute-nf" ty' (Just term') False
+          nfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
           Right shown -> traceTypeCheck Normal ("  " <> shown) $
@@ -1339,8 +1343,11 @@ checkCommands path i total commands k = case commands of
     announce (" Computing WHNF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborateChecked term >>= infer >>= whnfT
-          ppInContext term'
+          term' <- atSurface term $ elaborateChecked term >>= infer
+          ty' <- typeOfUncomputed term'
+          recordMetaPrefixUses "#compute" ty' (Just term')
+          RSTT.recordFragmentUses "#compute" ty' (Just term') False
+          whnfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
           Right shown -> traceTypeCheck Normal ("  " <> shown) $

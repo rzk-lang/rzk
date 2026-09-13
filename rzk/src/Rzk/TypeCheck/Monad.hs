@@ -86,6 +86,7 @@ data CheckWarning
       (Maybe LocationInfo)
   | RSTTScopeWarning RSTTExtension String (Maybe LocationInfo)
   | RSTTHoleWarning (Maybe LocationInfo)
+  | RSTTIncompleteWarning String (Maybe LocationInfo)
   | OverhangWarning
       String                -- ^ restriction face or recOR branch guard
       String                -- ^ the face or guard, rendered
@@ -131,6 +132,7 @@ warningLocation :: CheckWarning -> Maybe LocationInfo
 warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
 warningLocation (MetaPrefixWarning _ _ _ _ _ loc)    = loc
 warningLocation (RSTTScopeWarning _ _ loc)           = loc
+warningLocation (RSTTIncompleteWarning _ loc)       = loc
 warningLocation (RSTTHoleWarning loc)               = loc
 warningLocation (OverhangWarning _ _ _ loc)         = loc
 warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
@@ -358,6 +360,7 @@ rsttViolation = \case
   MetaBinderWarning _ _ _ _ -> Just "schematic binder inside a term"
   RSTTScopeWarning _ feature _ -> Just (feature <> " is outside RSTT")
   RSTTHoleWarning _ -> Just "unfinished obligation"
+  RSTTIncompleteWarning reason _ -> Just reason
   _ -> Nothing
 
 -- | Ignore advisory failures while preserving safe-mode errors.

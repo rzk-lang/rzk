@@ -1,6 +1,6 @@
 #lang rzk-1
 
--- Audit S2 alone: report the introduction, not an unfolded use site.
+-- Audit S2 alone: report both the introduction and its unfolded use.
 #set-option "rstt-safe" = "off"
 #set-option "warn-free-standing-restriction" = "yes"
 #def restricted (A : U) (a : A) : U := A [TOP ↦ a]

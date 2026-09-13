@@ -39,7 +39,7 @@ Note that the check is syntactic and has a known blind spot: with type-in-type, 
 
 ### `rstt-safe`
 
-Controls the syntactic checks for the RSTT fragment:
+Controls the checks for the RSTT fragment:
 
 - `"warn"` — report detected violations (default).
 - `"error"` — reject a declaration when a violation is detected.
@@ -55,7 +55,9 @@ The whole-context `warn-overhang` advisory and the family-clipping warning `warn
 
 Use `rzk typecheck --rstt-safe=warn` or `--rstt-safe=error` to enforce the selected mode throughout the run, including all input modules. Source options cannot override this CLI selection. `--rstt-safe=off` instead selects standalone warnings throughout. Warning mode preserves a successful exit status for a well-typed input; error mode exits unsuccessfully on a fragment violation, including with `--json` or `--allow-holes`.
 
-A source `#set-option` affects only its scope. Enabling it after definitions were checked with the mode off does not check those dependencies retrospectively. A clean run means that these checks found no violation; it does not establish universe stratification or prove that an arbitrary development translates to RSTT. The syntactic traversal does not report restrictions that appear only after computation at a use site. The library must be checked from its introductions, and the impredicative instantiation gap remains open.
+Types are also inspected after unfolding definitions and reducing applications, lets, projections and identity elimination. This includes argument domains instantiated by earlier arguments. Restriction guards are preserved, so simplification cannot erase an outer-point dependency. An inspection failure or the limit of 256 nested head-reduction steps produces `RSTTIncompleteWarning`, which is an error in safe error mode.
+
+A source `#set-option` affects only its scope. Enabling it after definitions were checked with the mode off does not check those dependencies retrospectively. These checks assume consistent use of the meta-theoretic parameter layer; they do not verify that assumption or constitute a formal proof of translation to RSTT.
 
 ### `warn-overhang`
 

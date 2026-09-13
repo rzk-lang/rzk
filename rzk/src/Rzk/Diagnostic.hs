@@ -226,6 +226,13 @@ diagnoseCheckWarning (RSTTScopeWarning extension feature loc) = Diagnostic
   , diagnosticMessage = feature <> " is outside RSTT"
   , diagnosticHole = Nothing
   }
+diagnoseCheckWarning (RSTTIncompleteWarning reason loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = "RSTTIncompleteWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = reason
+  , diagnosticHole = Nothing
+  }
 diagnoseCheckWarning (RSTTHoleWarning loc) = Diagnostic
   { diagnosticSeverity = SeverityWarning
   , diagnosticCode = "RSTTHoleWarning"

@@ -6,5 +6,6 @@ warnings:
   - RSTTShapeDependencyWarning
   - RSTTShapeDependencyWarning
   - RSTTShapeDependencyWarning
+  - RSTTShapeDependencyWarning
 regression_for:
   - rstt-safe-mode
