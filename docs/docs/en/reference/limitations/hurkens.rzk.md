@@ -16,7 +16,7 @@ In the current version, the command exits successfully with no diagnostics:
 []
 ```
 
-RSTT-safe error mode rejects `V`: in `P (P X)`, the outer `P` expects an ordinary type, while `P X` is a family kind. CI checks both ordinary-mode acceptance and safe-mode rejection. Typechecking is enough to reproduce the limitation; evaluating `absurd` is unnecessary.
+With `--rstt-safe=error`, the command instead rejects `V` with `RSTTSchematicWarning`. CI checks both outcomes. Typechecking is enough to reproduce the limitation; evaluating `absurd` is unnecessary.
 
 ## The construction
 
@@ -72,11 +72,11 @@ The first lemma supplies the common argument used to construct `lemma2 : Not D` 
 #def absurd (A : U) : A := lemma2 lemma3 A
 ```
 
-## Why the fragment checks accept it
+## Why RSTT-safe mode rejects it
 
-The construction uses only universes and dependent functions. There are no shape dependencies, free-standing restrictions, or excluded extensions. Eta-expanding the schematic uses of `tau`, `omega` and `delta` satisfies the saturation check.
+The construction uses only universes and dependent functions, and eta-expansion satisfies the saturation check. Shape, restriction and saturation checks alone do not exclude it.
 
-The remaining problem is the universe discipline of the meta-theoretic parameter layer. Type-in-type permits the self-instantiation used by the construction, while the fragment checks do not enforce universe levels. Passing [RSTT-safe checks](../commands/options.rzk.md#rstt-safe) therefore does not establish consistency.
+[RSTT-safe mode](../commands/options.rzk.md#rstt-safe) also checks schematic kinds. In `P (P X)`, `P X` is a family kind, while the outer `P` requires an ordinary type. This rejects `V` without introducing universe levels.
 
 [^hurkens]: Antonius J. C. Hurkens. *A simplification of Girard's paradox.* TLCA 1995, LNCS 902, pp. 266–278. 1995. <https://doi.org/10.1007/BFb0014058> — §3 gives the proof term; §7 analyses its reduction behaviour.
 [^agda]: The Agda developers. *Hurkens.agda*. <https://github.com/agda/agda/blob/cf715b08903b750e4bd13ba272a1aa5ab4747af8/test/Succeed/Hurkens.agda> — source of this adaptation; the applicable [Agda licence notice](hurkens-agda-LICENSE.txt) is retained alongside this file.
