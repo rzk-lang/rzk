@@ -202,20 +202,23 @@ checkFragmentUses view defName ty mval isAssumption = do
         TypeFunT _ orig md param mtope ret -> do
           schematic <- isMetaType t
           shape <- isShapeBinder (maybe False (const True) mtope) param
-          when (shape && not schematic) $ do
+          when shape $ do
             scope <- asks ctxScope
-            let check :: forall k. Distinct k => Foil.Name k -> TermT k -> TypeCheck k ()
-                check point original = expose original >>= \body -> case (position, body) of
-                  (InAssumption _, TypeRestrictedT _ _ rs) ->
-                    forM_ rs $ \(face, _) -> reportShapeDependency "restriction boundary" point face
-                  _ -> pure ()
+            let check :: forall k. Distinct k => Foil.Name k -> TermT k -> TermT k -> TypeCheck k ()
+                check point cube original = do
+                  reportShapeDependency "cube domain" point cube
+                  unless schematic $ expose original >>= \body -> case (position, body) of
+                    (InAssumption _, TypeRestrictedT _ _ rs) ->
+                      forM_ rs $ \(face, _) -> reportShapeDependency "restriction boundary" point face
+                    _ -> pure ()
             case mtope of
               Nothing -> withScopedT scope ret $ \binder body ->
-                underBinder binder orig md param Nothing $ check (Foil.nameOf binder) body
+                underBinder binder orig md param Nothing $ check (Foil.nameOf binder) (Foil.sink param) body
               Just tope -> withScopedT2 scope tope ret $ \binder domain body ->
                 underBinder binder orig md param Nothing $ do
-                  reportShapeDependency "shape domain" (Foil.nameOf binder) domain
-                  check (Foil.nameOf binder) body
+                  unless schematic $
+                    reportShapeDependency "shape domain" (Foil.nameOf binder) domain
+                  check (Foil.nameOf binder) (Foil.sink param) body
         _ -> pure ()
 
     reportShapeDependency
