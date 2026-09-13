@@ -7,7 +7,7 @@ This example documents a known consistency limitation of Rzk. It constructs a te
 Run this file explicitly from the repository root:
 
 ```sh
-rzk typecheck --rstt-safe=error --json docs/docs/en/reference/limitations/hurkens.rzk.md
+rzk typecheck --rstt-safe=off --json docs/docs/en/reference/limitations/hurkens.rzk.md
 ```
 
 In the current version, the command exits successfully with no diagnostics:
@@ -16,7 +16,7 @@ In the current version, the command exits successfully with no diagnostics:
 []
 ```
 
-CI runs this command and fails if the proof stops passing error mode. Typechecking is enough to reproduce the limitation; evaluating `absurd` is unnecessary.
+RSTT-safe error mode rejects `V`: in `P (P X)`, the outer `P` expects an ordinary type, while `P X` is a family kind. CI checks both ordinary-mode acceptance and safe-mode rejection. Typechecking is enough to reproduce the limitation; evaluating `absurd` is unnecessary.
 
 ## The construction
 

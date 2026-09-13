@@ -130,7 +130,13 @@ jobs:
         shell: bash
 
       - name: Check the documented Hurkens limitation
-        run: ./bin/rzk typecheck --rstt-safe=error --json docs/docs/en/reference/limitations/hurkens.rzk.md
+        run: |
+          ./bin/rzk typecheck --rstt-safe=off --json docs/docs/en/reference/limitations/hurkens.rzk.md
+          if ./bin/rzk typecheck --rstt-safe=error --json docs/docs/en/reference/limitations/hurkens.rzk.md > "$RUNNER_TEMP/hurkens-rejection.json"; then
+            echo "Expected RSTT-safe mode to reject Hurkens's proof"
+            exit 1
+          fi
+          grep -q '"code":"RSTTSchematicWarning"' "$RUNNER_TEMP/hurkens-rejection.json"
         shell: bash
 
       # The playground bundles this file as its initial snippet (via a raw

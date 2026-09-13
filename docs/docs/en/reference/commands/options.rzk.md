@@ -58,9 +58,11 @@ The mode also reports unfinished obligations and unsupported constructs, includi
 
 `warn-overhang` and `warn-tope-family-domain` remain independent advisories. They do not cause errors in RSTT-safe error mode.
 
-Use `rzk typecheck --rstt-safe=warn`, `--rstt-safe=error`, or `--rstt-safe=off` to fix the mode for the whole run, including all input modules. Source options cannot override that selection. Error mode gives an unsuccessful exit status on violations, including with `--json` or `--allow-holes`. A source `#set-option` affects only its scope and does not recheck earlier declarations.
+Use `rzk typecheck --rstt-safe=warn`, `--rstt-safe=error`, or `--rstt-safe=off` to fix the mode for the whole run, including all input modules. Source options cannot override that selection. Error mode gives an unsuccessful exit status on violations, including with `--json` or `--allow-holes`. A source `#set-option` affects only its scope; enabling safe mode does not audit all earlier declarations.
 
-Assumptions and postulates remain trusted: their types are checked, but their consistency is not. The mode also does not enforce universe levels for the meta-theoretic parameter layer. Rzk accepts `U : U`, and the [Hurkens counterexample](../limitations/hurkens.rzk.md) proves `(A : U) → A` without postulates while passing error mode.
+Schematic parameters are checked separately from ordinary types. An `(A : U)` parameter requires an ordinary type; passing `U`, a family kind such as `X → U`, or a schematic rule produces `RSTTSchematicWarning`. The check follows aliases, computations and proof dependencies, including used definitions checked with safe mode off. Such a dependency must pass independently of the caller’s tope assumptions.
+
+Assumptions and postulates remain trusted: their statements are checked, but their consistency is not. This check rejects the [Hurkens counterexample](../limitations/hurkens.rzk.md) without introducing universe levels. It supplements Rzk’s typechecker; it is not an independent RSTT kernel. The check is conservative: using ordinary polymorphic combinators on schematic data may require a direct schematic definition instead.
 
 ### `warn-overhang`
 
