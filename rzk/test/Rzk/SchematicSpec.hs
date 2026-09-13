@@ -161,6 +161,45 @@ spec = describe "Schematic declarations" $ do
     rejects ["#def bad : U [TOP ↦ U] := U"]
     accepts ["#def good : U [TOP ↦ Unit] := Unit"]
 
+  it "checks actual type arguments after reusing an object family" $ do
+    let ds =
+          [ identity
+          , "#def Family (A : U) : U := A → A"
+          , "#def good : Family Unit := id (Family Unit) (\\ x → x)"
+          ]
+    accepts ds
+    rejects (ds <> ["#def bad : Family U := id (Family U) (\\ x → x)"])
+
+  it "checks actual family arguments after reusing an object family" $ do
+    let ds =
+          [ identity
+          , "#def at (F : Unit → U) : U := F unit"
+          , "#def good : at (\\ _ → Unit) := id (at (\\ _ → Unit)) unit"
+          ]
+    accepts ds
+    rejects (ds <> ["#def bad : at (\\ _ → U) := id (at (\\ _ → U)) Unit"])
+
+  it "does not generalise an object instance of a mixed-kind family" $ do
+    let ds =
+          [ "#def mixed (i : 2 | i === 0_2 ∨ i === 1_2) : U :="
+          , "  recOR (i === 0_2 ↦ Unit, i === 1_2 ↦ U)"
+          , "#postulate receive (A : U) : Unit"
+          , "#def good : Unit := receive (mixed 0_2)"
+          ]
+    accepts ds
+    rejects (ds <> ["#def bad : Unit := receive (mixed 1_2)"])
+
+  it "preserves family checks when section telescopes change" $ do
+    let ds =
+          [ identity, "#section S", "#assume A : U", "#assume a : A"
+          , "#def Family : U := A"
+          , "#def first-use uses (A) : Family := id Family a"
+          , "#end S"
+          , "#def good : Family Unit := id (Family Unit) unit"
+          ]
+    accepts ds
+    rejects (ds <> ["#def bad : Family U := id (Family U) Unit"])
+
   it "checks dependencies in arguments erased by reduction" $ do
     let ds =
           [ "#set-option \"rstt-safe\" = \"off\"", identity
@@ -172,3 +211,17 @@ spec = describe "Schematic declarations" $ do
         (errors, warnings) = check Nothing [source ds]
     errors `shouldBe` ["TypeErrorRSTT"]
     warnings `shouldSatisfy` elem "RSTTSchematicWarning"
+
+  it "does not cache a family classification justified by a caller's tope" $ do
+    let ds =
+          [ "#def mixed (i : 2 | i === 0_2 ∨ i === 1_2) : U :="
+          , "  recOR (i === 0_2 ↦ Unit, i === 1_2 ↦ U)"
+          , "#postulate receive (A : U) : Unit"
+          , "#def good (i : 2 | i === 0_2 ∨ i === 1_2) : Unit :="
+          , "  receive (recOR (i === 0_2 ↦ mixed i, i === 1_2 ↦ Unit))"
+          ]
+    accepts ds
+    rejects (ds <>
+      [ "#def bad (i : 2 | i === 0_2 ∨ i === 1_2) : Unit :="
+      , "  receive (recOR (i === 0_2 ↦ Unit, i === 1_2 ↦ mixed i))"
+      ])

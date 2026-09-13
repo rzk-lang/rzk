@@ -23,6 +23,7 @@ import           Control.Monad.Reader     (ReaderT (..), ask, asks, local)
 import           Control.Monad.Trans      (lift)
 import           Control.Monad.Trans.State.Strict (State, get, modify', put,
                                            runState)
+import qualified Data.IntMap.Strict       as IntMap
 import qualified Data.IntSet              as IntSet
 import           Debug.Trace              (trace)
 
@@ -156,14 +157,16 @@ data CheckLog = CheckLog
   { logHolesRev    :: [HoleInfo]
   , logWarningsRev :: [CheckWarning]
   , logSchematicCache :: IntSet.IntSet
+  -- Nothing records an unsuccessful or ongoing object-family probe.
+  , logSchematicObjectFamilies :: IntMap.IntMap (Maybe Int)
   }
 
 emptyCheckLog :: CheckLog
-emptyCheckLog = CheckLog [] [] IntSet.empty
+emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty
 
 -- | What a run recorded, in the order it was recorded.
 checkLog :: CheckLog -> ([HoleInfo], [CheckWarning])
-checkLog (CheckLog holes warnings _) = (reverse holes, reverse warnings)
+checkLog (CheckLog holes warnings _ _) = (reverse holes, reverse warnings)
 
 -- | The record of a run is kept in the /state/, beneath the error channel,
 -- rather than on a writer channel above it.

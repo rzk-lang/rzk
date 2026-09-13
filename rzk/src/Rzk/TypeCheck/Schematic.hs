@@ -19,6 +19,7 @@ import Control.Monad.Except (catchError)
 import Control.Monad.Reader (asks, local)
 import Control.Monad.State.Strict (gets)
 import Data.Bifoldable (bifoldMap)
+import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
 import Data.Maybe (isJust)
 import Control.Monad.Foil (Distinct)
@@ -165,6 +166,12 @@ classify fuel seen original = do
   budget fuel
   uses fuel seen original
   inspectRedex fuel seen original
+  knownObjectFamily fuel seen original >>= \case
+    True -> pure ObjectType
+    False -> classifyHead fuel seen original
+
+classifyHead :: Distinct n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n Sort
+classifyHead fuel seen original =
   fragmentHead fuel original >>= \case
     UniverseT{} -> pure ParameterKind
     UniverseCubeT{} -> pure ParameterKind
@@ -210,6 +217,48 @@ classify fuel seen original = do
         UniverseCubeT{} -> pure Shape
         UniverseTopeT{} -> pure Shape
         _ -> invalid "expected an object type, parameter kind, or schematic rule" t
+
+-- Reuse only universally object-valued families, after checking actual arguments.
+-- Other families retain reduction-based classification in the caller's context.
+knownObjectFamily :: Distinct n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n Bool
+knownObjectFamily fuel seen = spine 0
+  where
+    spine arity (AppT _ f _) = spine (arity + 1) f
+    spine arity (Var v) = do
+      info <- infoOfVar id v
+      if not (varIsTopLevel info) then pure False else do
+        let key = Foil.nameId v
+        cached <- gets (IntMap.lookup key . logSchematicObjectFamilies)
+        summary <- case cached of
+          Just result -> pure result
+          Nothing -> do
+            cache key Nothing
+            result <- (local withoutCallerTopes $
+              objectFamilyArity fuel seen 0 (varType info) (Var v))
+              `catchError` \_ -> pure Nothing
+            cache key result
+            pure result
+        pure (summary == Just arity)
+    spine _ _ = pure False
+    cache key result = modifyLog $ \checkLog' -> checkLog'
+      { logSchematicObjectFamilies = IntMap.insert key result (logSchematicObjectFamilies checkLog') }
+
+-- Probe at fresh parameters; never generalise a concrete instance.
+objectFamilyArity :: Distinct n => Int -> IntSet.IntSet -> Int -> TermT n -> TermT n -> TypeCheck n (Maybe Int)
+objectFamilyArity fuel seen arity ty value = do
+  budget fuel
+  fragmentHead fuel ty >>= \case
+    TypeFunT _ orig md dom _ body ->
+      inScope orig md dom body $ \cod -> do
+        bound <- asks ctxBound
+        case bound of
+          v : _ -> objectFamilyArity (fuel - 1) seen (arity + 1) cod
+            (appT cod (Foil.sink value) (Var v))
+          [] -> issueTypeError (TypeErrorOther "missing schematic index")
+    UniverseT{} -> do
+      s <- classify (fuel - 1) seen value
+      pure (if s == ObjectType then Just arity else Nothing)
+    _ -> pure Nothing
 
 object :: Distinct n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
 object fuel seen t = do

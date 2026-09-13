@@ -29,6 +29,7 @@ import           Control.Monad.Except      (catchError)
 import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
+import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet              as IntSet
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
@@ -209,7 +210,7 @@ endSection errs = do
 
   (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
   -- Section abstraction changes dependency signatures and applications.
-  modifyLog $ \log -> log { logSchematicCache = IntSet.empty }
+  modifyLog $ \log -> log { logSchematicCache = IntSet.empty, logSchematicObjectFamilies = IntMap.empty }
 
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
