@@ -129,6 +129,10 @@ jobs:
         run: ./bin/rzk typecheck
         shell: bash
 
+      - name: Check the documented Hurkens limitation
+        run: ./bin/rzk typecheck --rstt-safe=error --json docs/docs/en/reference/limitations/hurkens.rzk.md
+        shell: bash
+
       # The playground bundles this file as its initial snippet (via a raw
       # import); checking it standalone keeps it from rotting when syntax
       # changes. It cannot join rzk.yaml: its definitions clash with

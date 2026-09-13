@@ -10,13 +10,13 @@ Run this file explicitly from the repository root:
 rzk typecheck --rstt-safe=error --json docs/docs/en/reference/limitations/hurkens.rzk.md
 ```
 
-At [revision `e7190253`](https://github.com/rzk-lang/rzk/commit/e7190253), the command exits successfully with no diagnostics:
+In the current version, the command exits successfully with no diagnostics:
 
 ```json
 []
 ```
 
-The file is excluded from the default `rzk.yaml` include lists. Its successful checking records a limitation of that revision; future versions may reject the proof as their consistency checks improve. Typechecking is enough to reproduce the limitation. There is no need to evaluate an application of `absurd`.
+CI runs this command to track the limitation. If the proof stops passing RSTT-safe error mode, the CI failure prompts us to update this example and its expected result. Typechecking is enough to reproduce the limitation. There is no need to evaluate an application of `absurd`.
 
 ## The construction
 
