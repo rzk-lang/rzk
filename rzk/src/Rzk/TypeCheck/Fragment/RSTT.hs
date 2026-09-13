@@ -31,7 +31,7 @@ module Rzk.TypeCheck.Fragment.RSTT (
 
 import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM_, unless, when)
-import           Control.Monad.Except     (catchError, throwError)
+import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (asks, local)
 import           Data.Bifoldable          (bifoldMap)
 import           Data.List                (intercalate)
@@ -79,15 +79,8 @@ recordFragmentUses defName ty mval isAssumption = do
   when (restrictions || binders || shapes) $
     localVerbosity Silent $
       forM_ [SourceTypes, ComputedTypes] $ \view ->
-        checkFragmentUses view defName ty mval isAssumption `catchError` \case
-          err@(TypeErrorInScopedContext _ TypeErrorRSTT{}) -> throwError err
-          TypeErrorInScopedContext _ err -> do
-            loc <- asks ctxLocation
-            let reason = case err of
-                  TypeErrorOther message -> message
-                  _ -> "could not inspect a type"
-            recordCheckWarning $ RSTTIncompleteWarning
-              ("RSTT fragment check incomplete in " <> show defName <> ": " <> reason) loc
+        checkFragmentUses view defName ty mval isAssumption `catchError`
+          reportIncompleteRSTTCheck ("RSTT fragment check incomplete in " <> show defName)
 
 -- Keep source checks even when reduction discards an argument or annotation.
 data FragmentView = SourceTypes | ComputedTypes

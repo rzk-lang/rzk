@@ -45,9 +45,9 @@ import           Rzk.TypeCheck.Monad
 -- * Classifying types
 
 -- | Recognise universes and functions quantifying over or into universes.
--- Includes @CUBE@ and @TOPE@; returns 'False' if classification fails.
+-- Includes @CUBE@ and @TOPE@; propagates classification failures.
 isMetaType :: Distinct n => TermT n -> TypeCheck n Bool
-isMetaType t = flip catchError (\_ -> pure False) $ do
+isMetaType t = do
   t' <- headView t
   case t' of
     UniverseT{}     -> pure True
@@ -61,9 +61,13 @@ isMetaType t = flip catchError (\_ -> pure False) $ do
     _               -> pure False
 
 -- | Count parameters through the last schematic one.
--- Returns zero if there is none or classification fails.
+-- An incomplete classification is reported when meta-prefix checking is enabled.
 metaPrefixOf :: Distinct n => TermT n -> TypeCheck n Int
-metaPrefixOf ty = flip catchError (\_ -> pure 0) $ go 1 0 ty
+metaPrefixOf ty = go 1 0 ty `catchError` \err -> do
+  sensitivity <- asks effectiveMetaPrefixSensitivity
+  when (sensitivity /= MetaPrefixOff) $
+    reportIncompleteRSTTCheck "RSTT meta-prefix classification incomplete" err
+  pure 0
   where
     go :: Distinct l => Int -> Int -> TermT l -> TypeCheck l Int
     go pos acc t = headView t >>= \case
@@ -108,7 +112,7 @@ recordMetaPrefixUses
 recordMetaPrefixUses defName ty mval =
   asks effectiveMetaPrefixSensitivity >>= \case
     MetaPrefixOff -> pure ()
-    _ -> localVerbosity Silent $ flip catchError ignoreAdvisoryError $ do
+    _ -> localVerbosity Silent $ flip catchError (reportIncompleteRSTTCheck ("RSTT meta-parameter check incomplete in " <> show defName)) $ do
       go rootPositions ty
       mapM_ (go rootPositions) mval
   where
@@ -214,20 +218,20 @@ recordMetaPrefixUses defName ty mval =
 
     -- Is the Π-domain of this function node meta-shaped?
     domainIsMeta :: forall l. Distinct l => TermT l -> TypeCheck l Bool
-    domainIsMeta f = flip catchError (\_ -> pure False) $ do
+    domainIsMeta f = do
       tf <- typeOfUncomputed f
       headView tf >>= \case
         TypeFunT _ _ _ dom _ _ -> isMetaType dom
         _                      -> pure False
 
     funDomain :: forall l. Distinct l => TermT l -> TypeCheck l (Maybe (TermT l))
-    funDomain tf = flip catchError (\_ -> pure Nothing) $
+    funDomain tf =
       headView tf >>= \case
         TypeFunT _ _ _ dom _ _ -> pure (Just dom)
         _                      -> pure Nothing
 
     modalDomain :: forall l. TermT l -> TypeCheck l (Maybe (TermT l))
-    modalDomain tv = flip catchError (\_ -> pure Nothing) $
+    modalDomain tv =
       pure $ case stripTypeRestrictions tv of
         TypeModalT _ _ a -> Just a
         _                -> Nothing

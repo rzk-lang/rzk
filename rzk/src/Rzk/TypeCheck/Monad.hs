@@ -363,10 +363,15 @@ rsttViolation = \case
   RSTTIncompleteWarning reason _ -> Just reason
   _ -> Nothing
 
--- | Ignore advisory failures while preserving safe-mode errors.
-ignoreAdvisoryError :: TypeErrorInScopedContext -> TypeCheck n ()
-ignoreAdvisoryError err@(TypeErrorInScopedContext _ TypeErrorRSTT{}) = throwError err
-ignoreAdvisoryError _ = pure ()
+-- | Report an unfinished fragment check without masking a safe-mode error.
+reportIncompleteRSTTCheck :: Distinct n => String -> TypeErrorInScopedContext -> TypeCheck n ()
+reportIncompleteRSTTCheck _ err@(TypeErrorInScopedContext _ TypeErrorRSTT{}) = throwError err
+reportIncompleteRSTTCheck what (TypeErrorInScopedContext _ err) = do
+  loc <- asks ctxLocation
+  let reason = case err of
+        TypeErrorOther message -> message
+        _ -> "could not inspect a type"
+  recordCheckWarning $ RSTTIncompleteWarning (what <> ": " <> reason) loc
 
 -- * Locations
 

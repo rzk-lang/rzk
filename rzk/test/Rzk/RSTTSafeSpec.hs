@@ -5,6 +5,8 @@ import qualified Data.Text as T
 import qualified Language.Rzk.Syntax as Syntax
 import Rzk.Diagnostic (checkWarningTag, typeErrorTagInScopedContext)
 import Rzk.TypeCheck
+import Rzk.TypeCheck.MetaPrefix (isMetaType, metaPrefixOf)
+import Language.Rzk.Foil.Syntax (typeAscT, universeT)
 import Test.Hspec
 
 -- Exercise the public driver used by the CLI and incremental editor clients.
@@ -32,6 +34,37 @@ nested = "#def nested (A : U) (a : A) : A := (\\ (B : U) (b : B) → b) A a\n"
 
 spec :: Spec
 spec = describe "RSTT-safe run policy" $ do
+  it "reports exhausted meta-prefix classification in warn and error modes" $ do
+    -- A valid type ascription needs a head reduction; force that inspection
+    -- to reach the judgement limit without an enormous source fixture.
+    let inspect mode = runTypeCheckWith
+          (emptyContext { ctxRSTTSafeOverride = Just mode
+                        , ctxVerbosity = Silent
+                        , ctxActionStackDepth = maxActionStackDepth })
+          (metaPrefixOf (typeAscT universeT universeT))
+        (warnResult, (_, warnWarnings)) = inspect RSTTSafeWarn
+        (errorResult, (_, errorWarnings)) = inspect RSTTSafeError
+    either (const Nothing) Just warnResult `shouldBe` Just 0
+    map checkWarningTag warnWarnings `shouldBe` ["RSTTIncompleteWarning"]
+    either (Just . typeErrorTagInScopedContext) (const Nothing) errorResult
+      `shouldBe` Just "TypeErrorRSTT"
+    map checkWarningTag errorWarnings `shouldBe` ["RSTTIncompleteWarning"]
+
+  it "does not classify an inspection failure as an object type" $ do
+    let (result, _) = runTypeCheckWith
+          (emptyContext { ctxVerbosity = Silent
+                        , ctxActionStackDepth = maxActionStackDepth })
+          (isMetaType (typeAscT universeT universeT))
+    either (Just . typeErrorTagInScopedContext) (const Nothing) result
+      `shouldBe` Just "TypeErrorOther"
+
+  it "classifies a reducible universe when inspection succeeds" $ do
+    let (result, (_, warnings)) = runTypeCheckWith
+          (emptyContext { ctxVerbosity = Silent })
+          (isMetaType (typeAscT universeT universeT))
+    either (const Nothing) Just result `shouldBe` Just True
+    map checkWarningTag warnings `shouldBe` []
+
   it "keeps a CLI error selection despite source attempts to disable checks" $ do
     let (errors, _, _) = run (Just RSTTSafeError)
           ["#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#set-option \"warn-meta-binder\" = \"no\"\n" <> nested]
