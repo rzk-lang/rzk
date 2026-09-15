@@ -307,7 +307,7 @@ ppTypeError naming = \case
       , namedBlock TopDown "right endpoint:"
         [ ppTypeError (namingOfContext ctxY) errY ]
       ]
-  
+
   where
     ppU = ppTerm naming
     ppTyped = ppTermT naming

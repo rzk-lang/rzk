@@ -1647,17 +1647,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
     y' <- typecheck y tA'
     return (typeIdT x' (Just tA') y')
 
-  TypeId x Nothing y -> do     
+  TypeId x Nothing y -> do
     let xTagged = fmap Left  (inferAs universeT x)
         yTagged = fmap Right (inferAs universeT y)
     tagged <- catchError xTagged (\errX -> catchError yTagged (\errY -> (issueTypeError (TypeErrorCannotInferBoth errX errY))))
-    case tagged of 
+    case tagged of
       Left x' -> do
         tA <- typeOf x'
         y' <- typecheck y tA
         return (typeIdT x' (Just tA) y')
       Right y' -> do
-        tA <- typeOf y' 
+        tA <- typeOf y'
         x' <- typecheck x tA
         return (typeIdT x' (Just tA) y')
 
