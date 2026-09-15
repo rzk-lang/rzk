@@ -64,6 +64,7 @@ data TypeError n
   | TypeErrorMatchUnknownBranch VarIdent [VarIdent]
   | TypeErrorMatchBranchArity VarIdent Int Int
   | TypeErrorReascribedTypeMismatch VarIdent (TermT n) (TermT n)
+  | TypeErrorCannotInferBoth TypeErrorInScopedContext TypeErrorInScopedContext
 
 -- | An error, together with the context it was raised in.
 --
@@ -297,6 +298,16 @@ ppTypeError naming = \case
     , "is not definitionally equal to its canonical type"
     , "  " <> ppU (untyped canonical)
     ]
+  TypeErrorCannotInferBoth
+    (TypeErrorInScopedContext ctxX errX)
+    (TypeErrorInScopedContext ctxY errY) -> block TopDown
+      [ "cannot infer the carrier type of an identity type from either endpoint"
+      , namedBlock TopDown "left endpoint:"
+        [ ppTypeError (namingOfContext ctxX) errX ]
+      , namedBlock TopDown "right endpoint:"
+        [ ppTypeError (namingOfContext ctxY) errY ]
+      ]
+
   where
     ppU = ppTerm naming
     ppTyped = ppTermT naming
