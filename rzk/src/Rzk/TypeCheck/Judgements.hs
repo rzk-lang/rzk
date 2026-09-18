@@ -1386,6 +1386,41 @@ inferAs expectedKind term = do
   unifyTypes ty expectedKind kind
   return term'
 
+-- | Infer a cube point used by @≡@. A bare hole in this position does not
+-- determine its cube, so ordinary inference rejects it. In lenient mode,
+-- record it instead with an as-yet-unknown cube as its goal.
+inferPoint :: Distinct n => Term n -> TypeCheck n (TermT n)
+inferPoint term@(Hole (Just name))
+  | Just x <- unmarkUnresolved name =
+      performing (ActionInfer term) $
+        issueTypeError (TypeErrorUndefined x)
+inferPoint term@(Hole mname) = performing (ActionInfer term) $ do
+  reject <- asks ctxHolesAreErrors
+  if reject
+    then issueTypeError (TypeErrorCannotInferHole term)
+    else do
+      let cube = holeT cubeT Nothing
+      recordHole mname cube
+      pure (holeT cube mname)
+inferPoint term = inferAs cubeT term
+
+-- | Infer a point of one of the directed cubes, @2@ or @𝕀@, for use by
+-- @≤@. A point hole in lenient mode is retained with an unknown cube; a known
+-- point of any other cube is rejected here rather than after both endpoints
+-- have been inferred.
+inferDirectedPoint :: Distinct n => Term n -> TypeCheck n (TermT n)
+inferDirectedPoint term = performing (ActionInfer term) $ do
+  point <- inferPoint term
+  typeOf point >>= \case
+    HoleT{}  -> pure point
+    Cube2T{} -> pure point
+    CubeIT{} -> pure point
+    ty -> do
+      tyStr <- ppInContext ty
+      issueTypeError $ TypeErrorOther $
+        "the (t ≤ s) tope expects a point in a directed cube (2 or 𝕀); got "
+          <> tyStr
+
 infer :: Distinct n => Term n -> TypeCheck n (TermT n)
 infer tt = performing (ActionInfer tt) $ case tt of
   Hole (Just name) | Just x <- unmarkUnresolved name ->
@@ -1522,17 +1557,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TopeBottom -> pure topeBottomT
 
   TopeEQ l r -> do
-    l' <- inferAs cubeT l
+    l' <- inferPoint l
     lt <- typeOf l'
     r' <- typecheck r lt
     return (topeEQT l' r')
 
   TopeLEQ l r -> do
-    l' <- inferAs cubeT l
-    r' <- inferAs cubeT r
+    l' <- inferDirectedPoint l
+    r' <- inferDirectedPoint r
     lTy <- typeOf l'
     rTy <- typeOf r'
     case (lTy, rTy) of
+      -- A point hole in lenient mode has an unknown directed cube. Keep the
+      -- relation as an incomplete sketch until that cube is known.
+      (HoleT{}, HoleT{})  -> return (topeLEQT l' r')
+      (HoleT{}, Cube2T{}) -> return (topeLEQT l' r')
+      (HoleT{}, CubeIT{}) -> return (topeLEQT l' r')
+      (Cube2T{}, HoleT{}) -> return (topeLEQT l' r')
+      (CubeIT{}, HoleT{}) -> return (topeLEQT l' r')
       (Cube2T{}, Cube2T{}) -> return (topeLEQT l' r')
       (CubeIT{}, CubeIT{}) -> return (topeLEQT l' r')
       (CubeIT{}, Cube2T{}) -> do

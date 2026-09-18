@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- The points in a tope relation are in inference position. Strict mode cannot
+-- guess their cube and therefore rejects a bare hole. Lenient mode records the
+-- same term as an incomplete sketch; this is covered by Rzk.HolesSpec.
+#define square (A : U) (a : A)
+  : ( 2 × 2) → A
+  := \ (t , s) → recOR (? ≤ ? ↦ a , ? ↦ a)

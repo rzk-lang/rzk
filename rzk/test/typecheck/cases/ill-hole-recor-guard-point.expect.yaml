@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorCannotInferHole
+message_contains:
+  - "cannot infer the type of a hole"
+regression_for:
+  - holes-point-inference-position
