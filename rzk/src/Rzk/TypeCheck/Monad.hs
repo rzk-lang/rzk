@@ -48,6 +48,11 @@ data HoleModalInfo = HoleModalInfo
   , holeItemAccessible :: Bool
   } deriving (Eq, Show)
 
+data HoleTopeEntry = HoleTopeEntry
+  { holeTopeValue :: Rendered
+  , holeTopeMode  :: HoleModalInfo
+  } deriving (Eq, Show)
+
 -- | The structured goal and context at a hole, recorded in lenient mode (see
 -- 'allowHoles'). Everything is rendered to user-facing names at record time, so
 -- 'HoleInfo' is independent of the scope it came from. Local hypotheses are split
@@ -65,8 +70,7 @@ data HoleInfo = HoleInfo
     -- restricted type in 'holeGoal'.)
   , holeTermVars      :: [HoleEntry]    -- ^ local hypotheses whose type is not a cube
   , holeCubeVars      :: [HoleEntry]    -- ^ local cube variables (type is a cube)
-  , holeTopes         :: [Rendered]     -- ^ local tope assumptions (excluding ⊤)
-  , holeTopeModes     :: [HoleModalInfo]
+  , holeTopes         :: [HoleTopeEntry] -- ^ local tope assumptions (excluding ⊤)
   , holeCandidates    :: [Rendered]
     -- ^ elimination spines over the local hypotheses whose type fits the goal,
     -- with applied arguments left as holes. Already rendered, like the rest.

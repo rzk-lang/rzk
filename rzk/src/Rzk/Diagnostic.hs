@@ -79,12 +79,20 @@ data HoleData = HoleData
   { holeDataName     :: Maybe String           -- ^ the @?name@, if named
   , holeDataGoal     :: String                 -- ^ the goal (expected type)
   , holeDataShape    :: Maybe (String, String) -- ^ (binder, tope) for a shape-argument goal
-  , holeDataTermVars :: [(String, String)]     -- ^ local hypotheses: (name, type)
-  , holeDataCubeVars :: [(String, String)]     -- ^ local cube variables: (name, type)
-  , holeDataTopes    :: [String]               -- ^ local tope assumptions (excluding ⊤)
-  , holeDataTermModes :: [HoleModalData]
-  , holeDataCubeModes :: [HoleModalData]
-  , holeDataTopeModes :: [HoleModalData]
+  , holeDataTermVars :: [HoleDataEntry]
+  , holeDataCubeVars :: [HoleDataEntry]
+  , holeDataTopes    :: [HoleDataTope]
+  } deriving (Eq, Show)
+
+data HoleDataEntry = HoleDataEntry
+  { holeDataEntryName :: String
+  , holeDataEntryType :: String
+  , holeDataEntryMode :: HoleModalData
+  } deriving (Eq, Show)
+
+data HoleDataTope = HoleDataTope
+  { holeDataTopeValue :: String
+  , holeDataTopeMode  :: HoleModalData
   } deriving (Eq, Show)
 
 data HoleModalData = HoleModalData
@@ -123,24 +131,23 @@ instance ToJSON HoleData where
     [ "name"     .= holeDataName
     , "goal"     .= holeDataGoal
     , "shape"    .= fmap shapeToJSON holeDataShape
-    , "termVars" .= zipWith entryToJSON holeDataTermVars holeDataTermModes
-    , "cubeVars" .= zipWith entryToJSON holeDataCubeVars holeDataCubeModes
-    , "topes"    .= holeDataTopes
-    , "topeInfo" .= zipWith topeToJSON holeDataTopes holeDataTopeModes
+    , "termVars" .= map entryToJSON holeDataTermVars
+    , "cubeVars" .= map entryToJSON holeDataCubeVars
+    , "topes"    .= map topeToJSON holeDataTopes
     ]
     where
       shapeToJSON (binder, tope) = object [ "binder" .= binder, "tope" .= tope ]
-      entryToJSON (name, ty) mode = object
-        [ "name" .= name, "type" .= ty
-        , "modality" .= holeModalModality mode
-        , "locks" .= holeModalLocks mode
-        , "accessible" .= holeModalAccessible mode
+      entryToJSON HoleDataEntry{..} = object
+        [ "name" .= holeDataEntryName, "type" .= holeDataEntryType
+        , "modality" .= holeModalModality holeDataEntryMode
+        , "locks" .= holeModalLocks holeDataEntryMode
+        , "accessible" .= holeModalAccessible holeDataEntryMode
         ]
-      topeToJSON tope mode = object
-        [ "tope" .= tope
-        , "modality" .= holeModalModality mode
-        , "locks" .= holeModalLocks mode
-        , "accessible" .= holeModalAccessible mode
+      topeToJSON HoleDataTope{..} = object
+        [ "tope" .= holeDataTopeValue
+        , "modality" .= holeModalModality holeDataTopeMode
+        , "locks" .= holeModalLocks holeDataTopeMode
+        , "accessible" .= holeModalAccessible holeDataTopeMode
         ]
 
 -- | A stable tag for a type error, used as its diagnostic code. Independent of
@@ -270,13 +277,18 @@ holeData HoleInfo{..} = HoleData
   , holeDataShape    = fmap (\(s, tope) -> (show s, show tope)) holeGoalShape
   , holeDataTermVars = map entry holeTermVars
   , holeDataCubeVars = map entry holeCubeVars
-  , holeDataTopes    = map show holeTopes
-  , holeDataTermModes = map (modalData . holeEntryMode) holeTermVars
-  , holeDataCubeModes = map (modalData . holeEntryMode) holeCubeVars
-  , holeDataTopeModes = map modalData holeTopeModes
+  , holeDataTopes    = map topeEntry holeTopes
   }
   where
-    entry e = (show (holeEntryName e), show (holeEntryType e))
+    entry e = HoleDataEntry
+      { holeDataEntryName = show (holeEntryName e)
+      , holeDataEntryType = show (holeEntryType e)
+      , holeDataEntryMode = modalData (holeEntryMode e)
+      }
+    topeEntry e = HoleDataTope
+      { holeDataTopeValue = show (holeTopeValue e)
+      , holeDataTopeMode = modalData (holeTopeMode e)
+      }
     modalData mode = HoleModalData
       { holeModalModality = ppModality (holeItemModality mode)
       , holeModalLocks = ppModality (holeItemLocks mode)
@@ -297,9 +309,9 @@ ppHoleInfo HoleInfo{..} = unlines $
   <> (if null holeTopes
         then []
         else "  tope context:"
-          : [ "    " <> availability (holeItemAccessible mode)
-                <> show t <> modalSuffix mode
-            | (t, mode) <- zip holeTopes holeTopeModes ])
+          : [ "    " <> availability (holeItemAccessible (holeTopeMode entry))
+                <> show (holeTopeValue entry) <> modalSuffix (holeTopeMode entry)
+            | entry <- holeTopes ])
   where
     -- a shape goal reads (binder : cube | tope); otherwise just the type
     goalStr = case holeGoalShape of

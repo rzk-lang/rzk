@@ -482,7 +482,7 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
     | action <- ctxActionStack ]
   , namedBlock TopDown "Definitions in context:"
     [ block dir
-      [ availability (isVarAccessible info)
+      [ availability  (isVarAccessible info)
           <> ppName naming name <> " : " <> ppU (untyped (varType info))
           <> modalSuffix (varModality info) (varModAccum info)
       | (name, info) <- reverse (varsInScope ctx) ] ]

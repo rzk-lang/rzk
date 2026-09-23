@@ -135,8 +135,8 @@ spec = do
         [h1, h2] -> do
           show (holeGoal h1) `shouldBe` "A"
           show (holeGoal h2) `shouldBe` "A"
-          map show (holeTopes h1) `shouldContain` ["t ≤ s"]
-          map show (holeTopes h2) `shouldContain` ["s ≤ t"]
+          map (show . holeTopeValue) (holeTopes h1) `shouldContain` ["t ≤ s"]
+          map (show . holeTopeValue) (holeTopes h2) `shouldContain` ["s ≤ t"]
         hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
 
     -- When the recOR is checked against an /extension type/, each branch hole
@@ -151,9 +151,9 @@ spec = do
           ("A [" `isInfixOf` goal1) `shouldBe` True   -- a restricted type, not bare A
           ("↦ f t" `isInfixOf` goal1) `shouldBe` True -- the s ≡ 0₂ face is shown
           ("↦ a" `isInfixOf` goal1) `shouldBe` True   -- the s ≡ 1₂ face is shown
-          map show (holeTopes h1) `shouldContain` ["s ≤ t"]
+          map (show . holeTopeValue) (holeTopes h1) `shouldContain` ["s ≤ t"]
           show (holeGoal h2) `shouldBe` goal1          -- both branches carry the same boundary
-          map show (holeTopes h2) `shouldContain` ["t ≤ s"]
+          map (show . holeTopeValue) (holeTopes h2) `shouldContain` ["t ≤ s"]
         hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
 
     -- A hole nested inside a larger term (`f ?`) checked against an
@@ -249,7 +249,7 @@ spec = do
           let goal = show (holeGoal h)
           ("t ≡ s" `isInfixOf` goal) `shouldBe` True
           ('π' `elem` goal) `shouldBe` False
-          map show (holeTopes h) `shouldContain` ["s ≤ t"]
+          map (show . holeTopeValue) (holeTopes h) `shouldContain` ["s ≤ t"]
           -- the cube variable is shown as the pattern, not a fresh variable
           names (holeCubeVars h) `shouldBe` ["(t, s)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
@@ -262,7 +262,7 @@ spec = do
           let goal = show (holeGoal h)
           ("r ≡ t" `isInfixOf` goal) `shouldBe` True
           ('π' `elem` goal) `shouldBe` False
-          map show (holeTopes h) `shouldContain` ["r ≤ s"]
+          map (show . holeTopeValue) (holeTopes h) `shouldContain` ["r ≤ s"]
           names (holeCubeVars h) `shouldBe` ["((t, s), r)"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
@@ -284,7 +284,7 @@ spec = do
         [h] -> do
           let goal = show (holeGoal h)
           ("π₁ p ≡ π₂ p" `isInfixOf` goal) `shouldBe` True
-          map show (holeTopes h) `shouldContain` ["π₂ p ≤ π₁ p"]
+          map (show . holeTopeValue) (holeTopes h) `shouldContain` ["π₂ p ≤ π₁ p"]
         hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
   describe "holeCandidates (type-directed elimination candidates)" $ do

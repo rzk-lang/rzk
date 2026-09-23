@@ -95,8 +95,8 @@ spec = do
             holeDataName hd `shouldBe` Nothing
             holeDataShape hd `shouldBe` Nothing
             ("t \8801 s" `isInfixOf` holeDataGoal hd) `shouldBe` True   -- t ≡ s
-            map fst (holeDataCubeVars hd) `shouldContain` ["(t, s)"]
-            holeDataTopes hd `shouldContain` ["s \8804 t"]              -- s ≤ t
+            map holeDataEntryName (holeDataCubeVars hd) `shouldContain` ["(t, s)"]
+            map holeDataTopeValue (holeDataTopes hd) `shouldContain` ["s \8804 t"] -- s ≤ t
           Nothing -> expectationFailure "expected a structured hole payload"
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
@@ -109,7 +109,7 @@ spec = do
           ("\"goal\":" `isInfixOf` json) `shouldBe` True
           ("\"cubeVars\":" `isInfixOf` json) `shouldBe` True
           ("\"topes\":" `isInfixOf` json) `shouldBe` True
-          ("\"topeInfo\":" `isInfixOf` json) `shouldBe` True
+          ("\"tope\":" `isInfixOf` json) `shouldBe` True
           ("\"modality\":" `isInfixOf` json) `shouldBe` True
           ("\"locks\":" `isInfixOf` json) `shouldBe` True
           ("\"accessible\":" `isInfixOf` json) `shouldBe` True

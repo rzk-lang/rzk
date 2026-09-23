@@ -888,9 +888,9 @@ recordHoleShape mname goalTy mshape = do
     , holeGoalShape     = goalShape
     , holeTermVars      = [ e | (False, e) <- flagged ]
     , holeCubeVars      = [ e | (True,  e) <- flagged ]
-    , holeTopes         = map (render . tTope) topes
-    , holeTopeModes     =
-        [ HoleModalInfo (tModVar tope) (tModAccum tope) (isAccessible tope)
+    , holeTopes         =
+        [ HoleTopeEntry (render (tTope tope))
+            (HoleModalInfo (tModVar tope) (tModAccum tope) (isAccessible tope))
         | tope <- topes
         ]
     , holeCandidates    = candidateMoves
