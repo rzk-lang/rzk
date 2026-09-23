@@ -15,6 +15,7 @@ module Rzk.Diagnostic where
 import           Data.Aeson           (ToJSON (..), Value (String), object,
                                        (.=))
 
+import           Language.Rzk.Foil.Names (TModality (Id))
 import           Rzk.TypeCheck
 
 -- | Diagnostic severity, mirroring the usual LSP levels.
@@ -81,6 +82,15 @@ data HoleData = HoleData
   , holeDataTermVars :: [(String, String)]     -- ^ local hypotheses: (name, type)
   , holeDataCubeVars :: [(String, String)]     -- ^ local cube variables: (name, type)
   , holeDataTopes    :: [String]               -- ^ local tope assumptions (excluding ⊤)
+  , holeDataTermModes :: [HoleModalData]
+  , holeDataCubeModes :: [HoleModalData]
+  , holeDataTopeModes :: [HoleModalData]
+  } deriving (Eq, Show)
+
+data HoleModalData = HoleModalData
+  { holeModalModality   :: String
+  , holeModalLocks      :: String
+  , holeModalAccessible :: Bool
   } deriving (Eq, Show)
 
 instance ToJSON Severity where
@@ -113,13 +123,25 @@ instance ToJSON HoleData where
     [ "name"     .= holeDataName
     , "goal"     .= holeDataGoal
     , "shape"    .= fmap shapeToJSON holeDataShape
-    , "termVars" .= map entryToJSON holeDataTermVars
-    , "cubeVars" .= map entryToJSON holeDataCubeVars
+    , "termVars" .= zipWith entryToJSON holeDataTermVars holeDataTermModes
+    , "cubeVars" .= zipWith entryToJSON holeDataCubeVars holeDataCubeModes
     , "topes"    .= holeDataTopes
+    , "topeInfo" .= zipWith topeToJSON holeDataTopes holeDataTopeModes
     ]
     where
       shapeToJSON (binder, tope) = object [ "binder" .= binder, "tope" .= tope ]
-      entryToJSON (name, ty)     = object [ "name" .= name, "type" .= ty ]
+      entryToJSON (name, ty) mode = object
+        [ "name" .= name, "type" .= ty
+        , "modality" .= holeModalModality mode
+        , "locks" .= holeModalLocks mode
+        , "accessible" .= holeModalAccessible mode
+        ]
+      topeToJSON tope mode = object
+        [ "tope" .= tope
+        , "modality" .= holeModalModality mode
+        , "locks" .= holeModalLocks mode
+        , "accessible" .= holeModalAccessible mode
+        ]
 
 -- | A stable tag for a type error, used as its diagnostic code. Independent of
 -- the variable type, so it survives the scoped-error unfolding.
@@ -249,9 +271,17 @@ holeData HoleInfo{..} = HoleData
   , holeDataTermVars = map entry holeTermVars
   , holeDataCubeVars = map entry holeCubeVars
   , holeDataTopes    = map show holeTopes
+  , holeDataTermModes = map (modalData . holeEntryMode) holeTermVars
+  , holeDataCubeModes = map (modalData . holeEntryMode) holeCubeVars
+  , holeDataTopeModes = map modalData holeTopeModes
   }
   where
     entry e = (show (holeEntryName e), show (holeEntryType e))
+    modalData mode = HoleModalData
+      { holeModalModality = ppModality (holeItemModality mode)
+      , holeModalLocks = ppModality (holeItemLocks mode)
+      , holeModalAccessible = holeItemAccessible mode
+      }
 
 -- | Render a hole's goal and local context (the structured query) for display,
 -- separating term variables, cube variables, and tope assumptions.
@@ -266,7 +296,10 @@ ppHoleInfo HoleInfo{..} = unlines $
   <> section "cube variables" holeCubeVars
   <> (if null holeTopes
         then []
-        else "  tope context:" : [ "    " <> show t | t <- holeTopes ])
+        else "  tope context:"
+          : [ "    " <> availability (holeItemAccessible mode)
+                <> show t <> modalSuffix mode
+            | (t, mode) <- zip holeTopes holeTopeModes ])
   where
     -- a shape goal reads (binder : cube | tope); otherwise just the type
     goalStr = case holeGoalShape of
@@ -275,8 +308,17 @@ ppHoleInfo HoleInfo{..} = unlines $
     section title entries
       | null entries = []
       | otherwise = ("  " <> title <> ":")
-          : [ "    " <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
+          : [ "    " <> availability (holeItemAccessible (holeEntryMode e))
+                <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
+                <> modalSuffix (holeEntryMode e)
             | e <- entries ]
+    availability True  = "+ "
+    availability False = "- "
+    modalSuffix mode
+      | holeItemModality mode == Id && holeItemLocks mode == Id = ""
+      | otherwise =
+          "  [modality: " <> ppModality (holeItemModality mode)
+            <> ", locks: " <> ppModality (holeItemLocks mode) <> "]"
 
 ppLocationInfo :: LocationInfo -> String
 ppLocationInfo (LocationInfo mpath mline mcol) =

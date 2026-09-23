@@ -530,6 +530,10 @@ insertVarInfo name info ctx = ctx { ctxVars = replace (ctxVars ctx) }
 isAccessible :: ModalTope n -> Bool
 isAccessible mt = coe (tModVar mt) (tModAccum mt)
 
+isVarAccessible :: VarInfo n -> Bool
+isVarAccessible info =
+  varIsTopLevel info || coe (varModality info) (varModAccum info)
+
 filterAccessible :: [ModalTope n] -> [ModalTope n]
 filterAccessible = filter isAccessible
 

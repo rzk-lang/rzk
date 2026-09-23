@@ -782,7 +782,7 @@ recordHoleShape mname goalTy mshape = do
       isUnitBinder BinderUnit = True
       isUnitBinder _          = False
   cubeFlags <- mapM (fmap isCubeType . whnfT . varType . snd) shownLocals
-  topes     <- asks (filter (not . eqT topeTopT) . availableTopes)
+  topes     <- asks (filter (not . eqT topeTopT . tTope) . ctxTopes)
   loc       <- asks ctxLocation
   naming    <- asks namingOfContext
 
@@ -848,7 +848,14 @@ recordHoleShape mname goalTy mshape = do
       entryName v = case displayOf naming v of
         (_, binder) | binderIsCompound binder -> binderDisplayName binder
         (x, _)                                -> x
-      entries = [ HoleEntry (entryName v) (render (varType info)) | (v, info) <- shownLocals ]
+      entries =
+        [ HoleEntry (entryName v) (render (varType info))
+            (HoleModalInfo
+              (varModality info)
+              (varModAccum info)
+              (isVarAccessible info))
+        | (v, info) <- shownLocals
+        ]
       flagged = zip cubeFlags entries
 
   -- The goal shape, rendered under the shape's own binder. The name is read back
@@ -881,7 +888,11 @@ recordHoleShape mname goalTy mshape = do
     , holeGoalShape     = goalShape
     , holeTermVars      = [ e | (False, e) <- flagged ]
     , holeCubeVars      = [ e | (True,  e) <- flagged ]
-    , holeTopes         = map render topes
+    , holeTopes         = map (render . tTope) topes
+    , holeTopeModes     =
+        [ HoleModalInfo (tModVar tope) (tModAccum tope) (isAccessible tope)
+        | tope <- topes
+        ]
     , holeCandidates    = candidateMoves
     , holeIntroductions = introductionMoves
     , holeDiagram       = diagram
@@ -1000,7 +1011,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
 
               Just (LambdaParam md param Nothing) -> do
                 when (md /= md') $
-                  issueTypeError (TypeErrorModalityMismatch md' md term)
+                  issueTypeError (TypeErrorModalityMismatch
+                    (MismatchLambdaParameter orig) md' md (Just term))
                 paramType <- enterModality md $ infer param
                 -- an argument can be a shape, which is a function into TOPE; the
                 -- domain is then its cube, and its tope is the λ's shape tope.
@@ -1023,7 +1035,8 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
 
               Just (LambdaParam md param (Just tope)) -> do
                 when (md /= md') $
-                  issueTypeError (TypeErrorModalityMismatch md' md term)
+                  issueTypeError (TypeErrorModalityMismatch
+                    (MismatchLambdaParameter orig) md' md (Just term))
                 param'' <- enterModality md $ typecheck param =<< typeOf param'
                 unifyTerms param' param''
                 mapM_ checkNameShadowing (binderLeaves orig)
@@ -1065,9 +1078,13 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             bindUniv <- typeOf bindType'
             enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
         valTy <- typeOf val'
-        bindTy <- case typeUnderModal inn valTy of
-          Just t  -> pure t
-          Nothing -> issueTypeError $ TypeErrorNotModal (untyped valTy) inn val'
+        bindTy <- case stripTypeRestrictions valTy of
+          TypeModalT _ty md t
+            | md == inn -> pure t
+            | otherwise -> issueTypeError $ TypeErrorModalityMismatch
+                MismatchModalElimination inn md (Just val)
+          _ -> issueTypeError $
+            TypeErrorNotModal ModalTypeForElimination val inn valTy
         o <- whnfT val'
         bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
@@ -1111,10 +1128,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
       ModApp md body -> case ty' of
         TypeModalT _ty md' tpe -> do
           when (md /= md') $ issueTypeError $
-            TypeErrorModalityMismatch md' md term
+            TypeErrorModalityMismatch
+              MismatchModalIntroduction md' md (Just term)
           body' <- enterModality md $ typecheck body tpe
           return $ modAppT ty' md body'
-        _ -> issueTypeError $ TypeErrorNotModal term md ty'
+        _ -> issueTypeError $
+          TypeErrorNotModal ModalTypeForIntroduction term md ty'
 
       -- In checking position the common type is already known, so we push it into
       -- every branch instead of inferring each one and unifying. This is what lets a
@@ -1754,9 +1773,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
         bindUniv <- typeOf bindType'
         enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
     valTy <- typeOf val'
-    bindTy <- case typeUnderModal inn valTy of
-      Just t  -> pure t
-      Nothing -> issueTypeError $ TypeErrorNotModal (untyped valTy) inn val'
+    bindTy <- case stripTypeRestrictions valTy of
+      TypeModalT _ty md t
+        | md == inn -> pure t
+        | otherwise -> issueTypeError $ TypeErrorModalityMismatch
+            MismatchModalElimination inn md (Just val)
+      _ -> issueTypeError $
+        TypeErrorNotModal ModalTypeForElimination val inn valTy
     o <- whnfT val'
     bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
     -- The motive is a family over the modal value, @(z :^app ⟨inn|A⟩) → U@, so its
@@ -1834,7 +1857,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
       UniverseT{}     -> pure universeTy
       UniverseCubeT{} -> pure universeTy
       UniverseTopeT{} -> pure universeTy
-      _               -> issueTypeError $ TypeErrorNotTypeInModal universeTy
+      _               -> issueTypeError $
+        TypeErrorNotTypeInModal md ty universeTy
     return (typeModalT universeTy md ty')
 
   ModApp md term -> do

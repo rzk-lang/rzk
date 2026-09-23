@@ -23,7 +23,8 @@ import qualified Control.Monad.Foil       as Foil
 import           Data.List                (intercalate)
 
 import           Language.Rzk.Foil.Syntax
-import           Language.Rzk.Foil.Names (TModality (..), VarIdent, getVarIdent,
+import           Language.Rzk.Foil.Names (Binder, TModality (..), VarIdent,
+                                           binderDisplayName, getVarIdent,
                                            ppVarIdentWithLocation)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.TypeCheck.Context
@@ -34,10 +35,10 @@ data TypeError n
   | TypeErrorUnify (TermT n) (TermT n) (TermT n)
   | TypeErrorUnifyTerms (TermT n) (TermT n)
   | TypeErrorNotPair (TermT n) (TermT n)
-  | TypeErrorNotModal (Term n) TModality (TermT n)
-  | TypeErrorModalityMismatch TModality TModality (Term n)
+  | TypeErrorNotModal ModalTypeExpectation (Term n) TModality (TermT n)
+  | TypeErrorModalityMismatch ModalityMismatchSite TModality TModality (Maybe (Term n))
   | TypeErrorUnaccessibleVar (Foil.Name n) TModality TModality
-  | TypeErrorNotTypeInModal (TermT n)
+  | TypeErrorNotTypeInModal TModality (Term n) (TermT n)
   | TypeErrorNotFunction (TermT n) (TermT n)
   | TypeErrorUnexpectedLambda (Term n) (TermT n)
   | TypeErrorUnexpectedPair (Term n) (TermT n)
@@ -64,6 +65,18 @@ data TypeError n
   | TypeErrorMatchUnknownBranch VarIdent [VarIdent]
   | TypeErrorMatchBranchArity VarIdent Int Int
   | TypeErrorReascribedTypeMismatch VarIdent (TermT n) (TermT n)
+
+data ModalTypeExpectation
+  = ModalTypeForIntroduction
+  | ModalTypeForElimination
+
+data ModalityMismatchSite
+  = MismatchLambdaParameter Binder
+  | MismatchModalIntroduction
+  | MismatchModalElimination
+  | MismatchFunctionType
+  | MismatchSigmaType
+  | MismatchLambda
 
 -- | An error, together with the context it was raised in.
 --
@@ -121,28 +134,35 @@ ppTypeError naming = \case
         TypeFunT{} -> "\nPerhaps the term is applied to too few arguments?"
         _          -> ""
     ]
-  TypeErrorNotModal term m ty -> block TopDown
-    [ "expected modal type " <> ppModality m <> " ?"
-    , "but got type"
-    , "  " <> ppU (untyped ty)
-    , "for term"
+  TypeErrorNotModal expectation term modality ty -> block TopDown $
+    case expectation of
+      ModalTypeForIntroduction ->
+        [ "cannot check modal introduction against a non-modal type"
+        , "  term: " <> ppU term
+        , "  expected type: " <> ppU (untyped ty)
+        , "the expected type must have the form " <> ppModality modality <> " T"
+        ]
+      ModalTypeForElimination ->
+        [ "cannot eliminate a non-modal value with `let mod " <> ppModality modality <> "`"
+        , "  value: " <> ppU term
+        , "  type:  " <> ppU (untyped ty)
+        , "the value's type must have the form " <> ppModality modality <> " T"
+        ]
+  TypeErrorModalityMismatch site expected actual mterm -> block TopDown $
+    mismatchLines site expected actual
+      <> maybe [] (\term -> ["in term", "  " <> ppU term]) mterm
+  TypeErrorUnaccessibleVar var varMod locks -> block TopDown
+    [ "variable " <> ppVar var <> " is inaccessible in the current modal context"
+    , "  declared modality: " <> ppModality varMod
+    , "  current locks:      " <> ppModality locks
+    ]
+  TypeErrorNotTypeInModal modality term ty -> block TopDown
+    [ "cannot form modal type " <> ppModality modality <> " " <> ppU term
+    , "the expression"
     , "  " <> ppU term
-    ]
-  TypeErrorModalityMismatch expected actual term -> block TopDown
-    [ "modality mismatch"
-    , "  expected " <> ppModality expected
-    , "  but got  " <> ppModality actual
-    , "for term"
-    , "  " <> ppU term
-    ]
-  TypeErrorUnaccessibleVar _var varMod locks -> block TopDown
-    [ "unaccessible var with modality " <> ppModality varMod
-    , "  under locks " <> ppModality locks
-    ]
-  TypeErrorNotTypeInModal ty -> block TopDown
-    [ "expected a type inside modal type"
-    , "but got"
+    , "has type"
     , "  " <> ppU (untyped ty)
+    , "but its type must be U, CUBE, or TOPE"
     ]
 
   TypeErrorUnexpectedLambda term ty -> block TopDown
@@ -301,6 +321,37 @@ ppTypeError naming = \case
     ppU = ppTerm naming
     ppTyped = ppTermT naming
     ppVar = ppName naming
+    mismatchLines site expected actual = case site of
+      MismatchLambdaParameter binder ->
+        [ "modality mismatch in lambda parameter " <> show (binderDisplayName binder)
+        , "  expected from function type: " <> ppModality expected
+        , "  written on parameter:        " <> ppModality actual
+        ]
+      MismatchModalIntroduction ->
+        [ "modality mismatch in modal introduction"
+        , "  expected by result type: " <> ppModality expected
+        , "  written after `mod`:     " <> ppModality actual
+        ]
+      MismatchModalElimination ->
+        [ "modality mismatch in modal elimination"
+        , "  expected by `let mod`: " <> ppModality expected
+        , "  value's modality:     " <> ppModality actual
+        ]
+      MismatchFunctionType ->
+        [ "cannot unify function types with different parameter modalities"
+        , "  expected: " <> ppModality expected
+        , "  actual:   " <> ppModality actual
+        ]
+      MismatchSigmaType ->
+        [ "cannot unify dependent pair types with different parameter modalities"
+        , "  expected: " <> ppModality expected
+        , "  actual:   " <> ppModality actual
+        ]
+      MismatchLambda ->
+        [ "cannot unify lambda abstractions with different parameter modalities"
+        , "  expected: " <> ppModality expected
+        , "  actual:   " <> ppModality actual
+        ]
 
 ppAction :: Naming n -> Int -> Action n -> String
 ppAction naming n = unlines . map (replicate (2 * n) ' ' <>) . \case
@@ -418,10 +469,12 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
         Nothing -> "  Error occurred outside of any command!"
     ]
   , ""
-  , case filter (not . isTopeTop) (availableTopes ctx) of
+  , case filter (not . isTopeTop . tTope) ctxTopes of
       [] -> "Local tope context is unrestricted (⊤)."
       topes -> namedBlock TopDown "Local tope context:"
-        [ "  " <> ppU (untyped tope)
+        [ "  " <> availability (isAccessible tope)
+            <> ppU (untyped (tTope tope))
+            <> modalSuffix (tModVar tope) (tModAccum tope)
         | tope <- topes ]
   , ""
   , block dir
@@ -429,12 +482,20 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
     | action <- ctxActionStack ]
   , namedBlock TopDown "Definitions in context:"
     [ block dir
-      [ ppName naming name <> " : " <> ppU (untyped (varType info))
+      [ availability (isVarAccessible info)
+          <> ppName naming name <> " : " <> ppU (untyped (varType info))
+          <> modalSuffix (varModality info) (varModAccum info)
       | (name, info) <- reverse (varsInScope ctx) ] ]
   ]
   where
     naming = namingOfContext ctx
     ppU = ppTerm naming
+    availability True  = "+ "
+    availability False = "- "
+    modalSuffix Id Id = ""
+    modalSuffix modality locks =
+      "  [modality: " <> ppModality modality
+        <> ", locks: " <> ppModality locks <> "]"
     isTopeTop TopeTopT{} = True
     isTopeTop _          = False
 

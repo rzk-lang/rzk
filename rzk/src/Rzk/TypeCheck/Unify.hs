@@ -299,7 +299,8 @@ unifyInCurrentContext mterm expected actual = performing action $ do
           case actual' of
             TypeFunT _ty' orig' md' cube' mtope' ret' -> do
               when (md /= md') $
-                issueTypeError (TypeErrorOther $ "modality mismatch in function type: expected " <> show md <> " but got " <> show md')
+                issueTypeError (TypeErrorModalityMismatch
+                  MismatchFunctionType md md' Nothing)
               switchVariance $  -- unifying in the negative position!
                 unifyTerms cube cube' -- FIXME: unifyCubes
               inScope2 orig' md cube' ret ret' $ \binder retBody retBody' -> do
@@ -340,7 +341,8 @@ unifyInCurrentContext mterm expected actual = performing action $ do
           case actual' of
             TypeSigmaT _ty' orig' md' a' b' -> do
               when (md /= md') $
-                issueTypeError (TypeErrorOther $ "modality mismatch in sigma type: expected " <> show md <> " but got " <> show md')
+                issueTypeError (TypeErrorModalityMismatch
+                  MismatchSigmaType md md' Nothing)
               unify Nothing a a'
               inScope2 orig' md a' b b' $ \_binder bBody bBody' ->
                 unify Nothing bBody bBody'
@@ -377,7 +379,8 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                   case stripTypeRestrictions (infoType ty') of
                     TypeFunT _ty' _origF' md' param' mtope' _ret' -> do
                       when (md /= md') $
-                        issueTypeError (TypeErrorOther $ "modality mismatch in lambda: expected " <> show md <> " but got " <> show md')
+                        issueTypeError (TypeErrorModalityMismatch
+                          MismatchLambda md md' Nothing)
                       unify Nothing param param' -- we (should) have already checked this in types!
                       inScope2 orig' md param body body' $ \binder bodyIn bodyIn' -> do
                         scope <- asks ctxScope
