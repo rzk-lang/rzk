@@ -157,7 +157,16 @@ unifyInCurrentContext mterm expected actual = performing action $ do
         -- A hole (in lenient mode) stands for a term of the expected type, so it
         -- unifies with anything; accept it rather than falling through to the
         -- dispatch below (which would panic on an unexpected term).
-        Just (expected', actual') | isHoleT expected' || isHoleT actual' -> return ()
+        --
+        -- The same goes for a term /headed/ by a hole (@?f t@, @π₁ ?@): filling
+        -- the head decides its shape, so it has none to mismatch with yet (see
+        -- 'unifyStructurally'). It must be accepted here, before the spine is
+        -- decomposed: comparing @?f t@ with @α t 0₂@ argument-wise would unify
+        -- @t@ with @0₂@ in the cube layer and fail, although @?f := \\ t → α t 0₂@
+        -- is a solution. This is what the η-expanded hole of a hole candidate
+        -- meets when the goal's argument is a λ into an extension type, e.g. an
+        -- edge @\\ t → α t 0₂@ of a square.
+        Just (expected', actual') | isHoleHeadedT expected' || isHoleHeadedT actual' -> return ()
         Just (expected', actual') -> do
           same <- alphaEq expected' actual'
           unless same $ dispatch expected' actual'
