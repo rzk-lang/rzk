@@ -6,7 +6,7 @@
 -- between term variables and cube variables).
 module Rzk.HolesSpec (spec) where
 
-import           Data.List           (isInfixOf)
+import           Data.List           (isInfixOf, isPrefixOf)
 import           Data.Maybe          (fromMaybe)
 import qualified Data.Text           as T
 import qualified Data.Text.IO        as T (readFile)
@@ -496,6 +496,114 @@ spec = do
                 <> "#define goal (A : U) (x y : A) (p : x = y) : y = x := ?\n"
       in flip oneHole (holesWithLemmas [] indSrc) $ \h ->
            filter (isInfixOf "ind-path") (cands h) `shouldBe` []
+
+  -- Emily Riehl's report on the Yoneda game's square-gives-an-equality level
+  -- (2026-09-22): the square lemma was not offered at exactly the holes that
+  -- need it. The candidate's type is `comp-is-segal ?A ?is ?x ?y ?z ?f ?g = ?h`
+  -- and the goal's two edges are λs whose bodies are applications of the
+  -- square, `\ t → α t 0₂`. Matching η-expands the hole to `\ t → ?f t` and
+  -- compared the bodies `?f t` and `α t 0₂` spine-wise, so `t` was unified
+  -- against `0₂` and failed. A hole-headed application is flexible (filling
+  -- the head decides its shape), so it fits any term, as the shaped unifier
+  -- already says for a bare mismatch. The rows below are the probe table of
+  -- the report: the corners (`α 0₂ 0₂`) are not the obstacle, nor is a λ that
+  -- η-reduces to a variable or a constant λ; only a λ whose body is an
+  -- application of something other than the bound variable failed.
+  describe "holeCandidates against λ arguments into extension types" $ do
+    let cands = map show . holeCandidates
+        prelude = "#lang rzk-1\n\
+          \#def Δ¹ : 2 → TOPE := \\ t → TOP\n\
+          \#def Δ² : (2 × 2) → TOPE := \\ (t , s) → s ≤ t\n\
+          \#def hom (A : U) (x y : A) : U\n\
+          \  := (t : Δ¹) → A [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ]\n\
+          \#def hom2 (A : U) (x y z : A) (f : hom A x y) (g : hom A y z) (h : hom A x z) : U\n\
+          \  := ((t , s) : Δ²) → A [ s ≡ 0₂ ↦ f t , t ≡ 1₂ ↦ g s , s ≡ t ↦ h s ]\n\
+          \#def is-contr (A : U) : U := Σ (x : A) , (y : A) → x = y\n\
+          \#def is-segal (A : U) : U\n\
+          \  := (x : A) → (y : A) → (z : A) → (f : hom A x y) → (g : hom A y z)\n\
+          \  → is-contr (Σ (h : hom A x z) , (hom2 A x y z f g h))\n\
+          \#def comp-is-segal (A : U) (is-segal-A : is-segal A) (x y z : A)\n\
+          \  (f : hom A x y) (g : hom A y z) : hom A x z\n\
+          \  := first (first (is-segal-A x y z f g))\n\
+          \#postulate uniqueness-comp-is-segal (A : U) (is-segal-A : is-segal A) (x y z : A)\n\
+          \  (f : hom A x y) (g : hom A y z) (h : hom A x z) (alpha : hom2 A x y z f g h)\n\
+          \  : comp-is-segal A is-segal-A x y z f g = h\n"
+        -- the lemma's own spine; the idJ spine over it is a separate move
+        uniqueness = filter (isPrefixOf "uniqueness-comp-is-segal ") . cands
+        offered src = case holesWithLemmas ["uniqueness-comp-is-segal"] (prelude <> src) of
+          [h] -> uniqueness h `shouldBe`
+                   ["uniqueness-comp-is-segal ?A ?is-segal-A ?x ?y ?z ?f ?g ?h ?alpha"]
+          hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+
+    it "offers the lemma when corners and edges are variables" $
+      offered "#def goal (A : U) (is-segal-A : is-segal A) (x y z : A)\n\
+              \  (f : hom A x y) (g : hom A y z) (h : hom A x z)\n\
+              \  : comp-is-segal A is-segal-A x y z f g = h := ?\n"
+
+    it "offers the lemma when the corners are applications of a square" $
+      offered "#def goal (A : U) (is-segal-A : is-segal A) (α : Δ¹ → Δ¹ → A)\n\
+              \  (f : hom A (α 0₂ 0₂) (α 1₂ 0₂)) (g : hom A (α 1₂ 0₂) (α 1₂ 1₂))\n\
+              \  (h : hom A (α 0₂ 0₂) (α 1₂ 1₂))\n\
+              \  : comp-is-segal A is-segal-A (α 0₂ 0₂) (α 1₂ 0₂) (α 1₂ 1₂) f g = h := ?\n"
+
+    it "offers the lemma when an edge is an η-expansion" $
+      offered "#def goal (A : U) (is-segal-A : is-segal A) (f' : Δ¹ → A) (z : A)\n\
+              \  (g : hom A (f' 1₂) z) (h : hom A (f' 0₂) z)\n\
+              \  : comp-is-segal A is-segal-A (f' 0₂) (f' 1₂) z (\\ t → f' t) g = h := ?\n"
+
+    it "offers the lemma when the edges are constant λs" $
+      offered "#def goal (A : U) (is-segal-A : is-segal A) (x : A) (h : hom A x x)\n\
+              \  : comp-is-segal A is-segal-A x x x (\\ t → x) (\\ t → x) = h := ?\n"
+
+    -- The reported case: both edges are λs whose bodies apply the square to
+    -- the bound variable and a constant, so neither η-reduces.
+    it "offers the lemma when the edges are λs applying a square" $
+      offered "#def goal (A : U) (is-segal-A : is-segal A) (α : Δ¹ → Δ¹ → A)\n\
+              \  (h : hom A (α 0₂ 0₂) (α 1₂ 1₂))\n\
+              \  : comp-is-segal A is-segal-A (α 0₂ 0₂) (α 1₂ 0₂) (α 1₂ 1₂)\n\
+              \      (\\ t → α t 0₂) (\\ s → α 1₂ s) = h := ?\n"
+
+    -- The same with a λ on the right-hand side (the level's actual goal).
+    it "offers the lemma when the right-hand side is a λ too" $
+      offered "#def goal (A : U) (is-segal-A : is-segal A) (α : Δ¹ → Δ¹ → A)\n\
+              \  : comp-is-segal A is-segal-A (α 0₂ 0₂) (α 1₂ 0₂) (α 1₂ 1₂)\n\
+              \      (\\ t → α t 0₂) (\\ s → α 1₂ s) = (\\ t → α t t) := ?\n"
+
+    -- Accepting the move means the inserted term, with every argument a
+    -- hole, must still check in lenient mode: the move is useless otherwise.
+    it "tolerates the lemma applied to holes at the reported goal" $
+      errTagsOf (prelude
+        <> "#def goal (A : U) (is-segal-A : is-segal A) (α : Δ¹ → Δ¹ → A)\n\
+           \  (h : hom A (α 0₂ 0₂) (α 1₂ 1₂))\n\
+           \  : comp-is-segal A is-segal-A (α 0₂ 0₂) (α 1₂ 0₂) (α 1₂ 1₂)\n\
+           \      (\\ t → α t 0₂) (\\ s → α 1₂ s) = h\n\
+           \  := uniqueness-comp-is-segal A ? ? ? ? ? ? ? ?\n")
+        `shouldBe` []
+
+    -- Flexibility is the hole's, not the λ's: a λ body that mismatches
+    -- rigidly (no hole at its head) still rejects the candidate.
+    it "does not offer a lemma whose λ argument mismatches rigidly" $ do
+      let src = "#postulate Q (A : U) (e : Δ¹ → A) : U\n\
+                \#postulate B : U\n\
+                \#postulate c : Δ¹ → Δ¹ → B\n\
+                \#postulate lem : Q B (\\ t → c 0₂ t)\n"
+          goalAt e = prelude <> src <> "#def goal : Q B (\\ t → " <> e <> ") := ?\n"
+          lemAt f e = case holesWithLemmas ["lem"] (goalAt e) of
+            [h] -> f (filter (isPrefixOf "lem") (cands h))
+            hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
+      lemAt (`shouldBe` ["lem"]) "c 0₂ t"
+      lemAt (`shouldBe` [])      "c t 0₂"
+      lemAt (`shouldBe` [])      "c t 1₂"
+
+    -- The flexible side may be on either side of the comparison: here the
+    -- goal's edge is a variable and the lemma's is the λ.
+    it "offers a lemma whose own λ argument meets a variable edge" $ do
+      let src = "#postulate Q (A : U) (e : Δ¹ → A) : U\n\
+                \#postulate lem (A : U) (α : Δ¹ → Δ¹ → A) : Q A (\\ t → α t 0₂)\n\
+                \#def goal (A : U) (e : Δ¹ → A) : Q A e := ?\n"
+      case holesWithLemmas ["lem"] (prelude <> src) of
+        [h] -> filter (isPrefixOf "lem") (cands h) `shouldBe` ["lem ?A ?α"]
+        hs  -> expectationFailure ("expected exactly one hole, got " <> show (length hs))
 
   describe "holeCandidates under shadowing" $ do
     let cands = map show . holeCandidates
