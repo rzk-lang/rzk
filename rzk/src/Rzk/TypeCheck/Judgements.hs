@@ -474,15 +474,18 @@ destructuringBinder orig param = case orig of
 --   * an identity type by @refl@, but only when its two endpoints already agree
 --     (otherwise @refl@ would not typecheck);
 --   * the unit type by @unit@;
+--   * the directed interval by either endpoint, and the unit cube by its point;
+--   * the type universe by type formers and declared datatypes;
+--   * a datatype by constructors whose result type fits the goal;
 --   * the tope universe by each tope constructor — @TOP@, @BOT@, @? ≡ ?@, @? ≤ ?@,
 --     @? ∧ ?@, @? ∨ ?@ — so a shape (a hole of type @TOPE@) can be built up by
 --     tapping.
 --
--- Unlike 'allEliminationsInto' this does not search: a type has at most one
--- introduction form (the tope universe is the one exception), read off its head
--- constructor. Outer restrictions are stripped first, so an extension type is
--- introduced by the form of its underlying type (its boundary is met by later
--- refinement of the holes, not by the choice of constructor).
+-- The goal's head determines the forms offered: usually one for an ordinary
+-- type former, but several for the directed interval, universes, and datatypes.
+-- Datatype constructors are filtered by whether their result type fits the goal.
+-- Outer restrictions are stripped; their boundaries are met when the holes
+-- are filled.
 --
 -- The λ binder of a Π-introduction is freshened against the names already visible
 -- at the hole, so introducing over a type whose own definition reuses an in-scope
