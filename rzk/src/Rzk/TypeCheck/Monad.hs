@@ -60,8 +60,8 @@ data HoleInfo = HoleInfo
   , holeCubeVars      :: [HoleEntry]    -- ^ local cube variables (type is a cube)
   , holeTopes         :: [Rendered]     -- ^ local tope assumptions (excluding ⊤)
   , holeCandidates    :: [Rendered]
-    -- ^ elimination spines over the local hypotheses whose type fits the goal,
-    -- with applied arguments left as holes. Already rendered, like the rest.
+    -- ^ Rendered moves from local hypotheses, allow-listed top-level lemmas,
+    -- and tope-context elimination; missing subterms remain holes.
   , holeIntroductions :: [Rendered]
     -- ^ introduction forms for the goal type, built from its head constructor
     -- with the constituents left as holes. Already rendered, like the rest.
