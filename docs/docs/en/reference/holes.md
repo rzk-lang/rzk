@@ -43,8 +43,9 @@ rejected. For example, a hole used as a function has no known type:
 ```
 
 Rzk does not introduce metavariables, so it never guesses the type of a hole.
-This keeps the meaning of a partial term predictable. A hole stands for a term
-of exactly the expected type, and nothing more.
+Each hole is annotated with its expected type. With `#!sh --allow-holes`, some
+unification and tope obligations involving holes are deferred; filling the holes
+may reveal further errors.
 
 ## Holes are errors by default
 
