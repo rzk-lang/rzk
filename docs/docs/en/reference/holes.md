@@ -98,9 +98,9 @@ Only _local_ hypotheses are shown. The global environment, that is every
 previous definition, is deliberately excluded, so that the goal stays readable
 even inside a large development.
 
-The goal is kept symbolic. Composite definitions are shown as written, not
-unfolded. For an extension type the goal carries its boundary, so the conditions
-the term must satisfy are visible.
+Rzk displays the goal in weak head normal form, so definitions at its head may
+unfold. Extension-type boundaries are shown after simplification in the local
+tope context.
 
 When a binder uses a pair pattern, for example `#!rzk \ (t , s) -> ...`, the
 hypothesis is shown by its pattern, as `#!rzk (t, s) : ...`, rather than through
