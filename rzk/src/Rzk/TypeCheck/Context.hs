@@ -265,7 +265,7 @@ data Context n = Context
     -- the local hypotheses (see 'withHintLemmas').
   , ctxWarnOverhang        :: Bool
     -- ^ When 'True', a restriction face or @recOR@ guard that overhangs the
-    -- local tope context (is not entailed by it, while still overlapping it)
+    -- local tope context (does not entail it, while still overlapping it)
     -- is reported with a non-fatal hint. Off by default: deciding the
     -- overhang costs a solver entailment per face and guard, and the overhang
     -- is legitimate (see @happy-restrict-face-not-contained@). Enabled with
