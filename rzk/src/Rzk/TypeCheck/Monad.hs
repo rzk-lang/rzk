@@ -71,10 +71,8 @@ data HoleInfo = HoleInfo
   , holeLocation      :: Maybe LocationInfo
   } deriving (Eq, Show)
 
--- | A non-fatal finding of the checker, recorded on the writer channel
--- beside the holes and carried out of a run in @Checked@. Structured, so
--- the CLI, the LSP, and (later) safe mode each decide how to present or
--- escalate it.
+-- | A non-fatal finding recorded alongside holes in 'CheckLog' and returned
+-- in @Checked@. The CLI and LSP decide how to present it.
 data CheckWarning
   = LargeInductiveTypeWarning
       VarIdent              -- ^ the data type
