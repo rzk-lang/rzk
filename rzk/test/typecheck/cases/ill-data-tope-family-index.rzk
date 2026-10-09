@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- A family indexed by tope families is internal quantification over the
+-- tope layer; families over shapes are what extension types are for.
+#data X : (2 -> TOPE) -> U

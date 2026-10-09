@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- A bare tope assumption is refused: section closure would manufacture the
+-- Π over TOPE that the binder rule forbids. The tope-family spelling stays.
+#section s
+#assume psi : TOPE
+#end s

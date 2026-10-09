@@ -1,5 +1,0 @@
-#lang rzk-1
-
--- A constructor with a cube or shape argument would declare a directed
--- cell over rzk's simplicial interval; rejected in all M3 stages.
-#data d := arrow (t : 2 | TOP)

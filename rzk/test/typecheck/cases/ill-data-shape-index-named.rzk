@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- The named spelling of a shape index is rejected on the elaborated sort:
+-- (Delta1 used as an index type) elaborates to a restricted binder, the same
+-- form the inline spelling (see ill-data-shape-index) would produce, so both
+-- spellings meet the same rule.
+#define Delta1 : 2 -> TOPE := \ t -> ⊤
+
+#data Fam : Delta1 -> U := at (t : Delta1) : Fam t

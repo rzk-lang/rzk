@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- A #data cannot be parametrised by a cube point, in any spelling: the
+-- inline shape spelling is rejected on the surface form, and the bare-cube
+-- and named-shape spellings are rejected on the elaborated sort, so the rule
+-- does not depend on how the binder is written. Parameters of type CUBE or
+-- I → TOPE range over cubes and shapes themselves and remain accepted (see
+-- happy-data-shape-realisation).
+#data P (t : 2) := c

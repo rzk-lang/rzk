@@ -4,6 +4,7 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
 
 - **Well-typed tests:** `happy-check`, `happy-refl-path`, `happy-shott-simplicial-subcomplexes`, tope/cubes (`happy-tope-shapes`, `happy-tope-high-dim-cubes`), `recOR`/restrictions (`happy-tope-rec-and-restrict`, `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `happy-recor-split-simplex-overhang`), nested `recOR` (`happy-tope-nested-rec-or`, `happy-tope-nested-rec-or-d{4,5,6}`), recBOT body well-formedness (`happy-recbot-term-wellformed`).
 - **Ill—typed tests:** unify (`ill-unify*`), pairs/projections/functions (`ill-not-*`, `ill-unexpected-*`, `ill-bare-*`), env (`ill-implicit`, `ill-duplicate`, `ill-undefined`, `ill-unused-assumption`, `ill-param-untyped-pattern`), invalid domains (`ill-invalid-arg-type-bot`, `ill-tope-param-*`).
+- **Layer discipline (direct guards):** `ill-kind-sigma-{tope,cube-universe,tope-family,body-tope}` (no universe kind as a Σ component, either component), `ill-kind-id-carrier-tope` (no identity types over the tope universe), `ill-kind-define-tope` (no universe-kind synonyms at type `U`), `ill-kind-app-argument-tope` (a kind cannot be passed where a type is expected; guards fire at the application, since a `U`-parameter is opaque at formation), `ill-tope-assume` (a bare tope assumption would let section closure manufacture the Π over `TOPE` the binder rule forbids). All guards check up to whnf, so synonyms meet the same rules. The modal fixtures (`happy-flip-unflip`, `happy-modal-inv`, `happy-modal-tope-unwrap`) state the inv/flip laws as definitional equality of shapes over the unit cube, since tope identities are closed.
 - **Bad commands/sections/render:** options (`ill-set-option-*`, `ill-unset-option-unknown`), sections (`ill-section-*`), LaTeX define (`ill-render-latex-define`).
 - **Options:** `happy-set-option-warn-overhang` (the opt-in overhang hint: the option name is recognised by `#set-option`/`#unset-option`, and an overhanging face still typechecks with it on).
 - **UNSAT topes/shapes/`recOR`:** `ill-tope-not-satisfied-*`, `ill-tope-subtle-*`, `ill-rec-or-overlap-incoherent`, `ill-recor-coverage-required`, `ill-restrict-face-disjoint`, `ill-recor-guard-disjoint`, nested `recOR` (`ill-tope-nested-rec-or-inner-singleton`; `*-inner-singleton-d{4,5,6}`) (exhibit exponential slowdown).
@@ -27,8 +28,28 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-fun-field` for function-typed recursive fields,
   `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
-  `ill-data-shape-field`) and name clashes
+  `ill-data-shape-index` and `ill-data-shape-index-named` for the two
+  spellings of a shape index, `ill-data-cube-index` for a cube index,
+  `ill-data-shape-param` and `ill-data-cube-param` for shape and cube
+  parameters — the last four enforced on the elaborated sort, so the
+  named spelling meets the same rule as the inline one;
+  `ill-data-cube-universe-{field,index}`,
+  `ill-data-tope-family-{field,index}`, and `ill-data-modal-tope-{field,param,index}`
+  for the B′ layer rules — no position stores or is indexed by a cube-
+  or tope-layer citizen, and modal tope kinds are closed everywhere;
+  `ill-data-modal-type-field` for a modal type field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
+  shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,
+  its recursor as the representability rule, strict β on a syntactic
+  point, and the cube-generic form; `happy-data-shape-tope` — the tope
+  reaching a `match` branch, a field mentioning the cube variable an
+  earlier shape field binds, and a subshape of a product cube;
+  `happy-data-modal-shape-field` — cube and shape fields under a
+  modality in all three spellings, with strict β through the lock,
+  and `ill-data-modal-shape-field-lock` — the lock discipline enforced
+  on the bound cube variable; `happy-data-path-shape-field` — path
+  constructors with a shape field: undirected Φ-indexed cells and the
+  cone whose endpoints mention the shape variable);
   re-ascription clauses (`eliminate with`:
   `happy-data-eliminator-reascription` — a definitionally equal
   spelling is stored and stays interchangeable with the canonical type,

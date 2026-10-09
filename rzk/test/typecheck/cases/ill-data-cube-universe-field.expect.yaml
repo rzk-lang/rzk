@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "a field of constructor c must be a type, a cube point, or a shape, got the cube universe: CUBE"
+regression_for:
+  - data-shape-fields-b-prime-layer-rules
