@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Hom-type - rzk: an experimental proof assistant for syntheric ∞-categories</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" rel="stylesheet" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/rzk/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/rzk/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/rzk/favicon-16x16.png">
+    <link rel="manifest" href="/rzk/site.webmanifest">
+<!-- <link rel="stylesheet" href="../../css/highlightjs-11.7.0.min.css" /> -->
+    <link rel="stylesheet" href="../../css/highlightjs-copy.css" />
+    <script src="../../js/highlight-11.7.0.min.js"></script>
+    <script src="../../js/rzk.js"></script>
+    <link rel="stylesheet" href="../../css/gruvbox-light.css" />
+    <!-- <link rel="stylesheet" href="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.css" /> -->
+    <script src="../../js/highlightjs-copy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script>
+      hljs.addPlugin(new CopyButtonPlugin());
+      hljs.highlightAll();
+    </script>
+    
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Hom-type";
+        var mkdocs_page_input_path = "examples/hom.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+ 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> rzk: an experimental proof assistant for syntheric ∞-categories
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">General</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../..">About</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">rzk-1 Language</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../rzk-1/introduction/">Introduction</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../rzk-1/sections/">Sections and Variables</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../rzk-1/render/">Rendering Diagrams</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../rzk-1/recId/">Weak tope disjunction elimination</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tools</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/ide/">IDE support</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/continuous/">Continuous Verification</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Related Projects</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/sHoTT/">sHoTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/simple-topes/">simple-topes</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">rzk: an experimental proof assistant for syntheric ∞-categories</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Hom-type</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="hom-type">Hom-type</h1>
+<pre><code class="language-rzk">hom : (A : U) -&gt; (x : A) -&gt; (y : A) -&gt; U
+  := \A -&gt; \x -&gt; \y -&gt; &lt;{t : 2 | TOP} -&gt; A [ t === 0_2 \/ t === 1_2 |-&gt; recOR(t === 0_2, t === 1_2, x, y) ]&gt;
+</code></pre>
+<pre><code class="language-rzk">RS17:Prop:3.5a : (A : U) -&gt; (f : &lt;{t : 2 | TOP} -&gt; A[BOT |-&gt; recBOT]&gt;) -&gt; &lt;{ts : 2 * 2 | TOP} -&gt; A [BOT |-&gt; recBOT]&gt;
+  := \(A : U) -&gt; \(f : &lt;{t : 2 | TOP} -&gt; A[BOT |-&gt; recBOT]&gt;) -&gt; \{ts : 2 * 2 | TOP} -&gt; recOR ((first ts) &lt;= (second ts), (second ts) &lt;= (first ts), f (second ts), f (first ts))
+
+RS17:Prop:3.5b : (A : U) -&gt; (f : &lt;{t : 2 | TOP} -&gt; A[BOT |-&gt; recBOT]&gt;) -&gt; &lt;{ts : 2 * 2 | TOP} -&gt; A [BOT |-&gt; recBOT]&gt;
+  := \(A : U) -&gt; \(f : &lt;{t : 2 | TOP} -&gt; A[BOT |-&gt; recBOT]&gt;) -&gt; \{ts : 2 * 2 | TOP} -&gt; recOR ((first ts) &lt;= (second ts), (second ts) &lt;= (first ts), f (first ts), f (second ts))
+</code></pre>
+<pre><code class="language-rzk">isShapeRetraction : (I : CUBE) -&gt; (A : U) -&gt; (phi : (t : I) -&gt; TOPE) -&gt; (psi : (t : I) -&gt; TOPE) -&gt; (f : (k : &lt;{t : I | psi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; &lt;{t : I | phi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; U
+  := \(I : CUBE) -&gt; \(A : U) -&gt; \(phi : (t : I) -&gt; TOPE) -&gt; \(psi : (t : I) -&gt; TOPE) -&gt; \(f : (k : &lt;{t : I | psi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; &lt;{t : I | phi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; ∑ (g : (k : &lt;{t : I | phi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; &lt;{t : I | psi t} -&gt; A [BOT |-&gt; recBOT]&gt;), (k : &lt;{t : I | phi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; f (g k) =_{&lt;{t : I | phi t} -&gt; A [BOT |-&gt; recBOT]&gt;} k
+
+shapeRetract : (I : CUBE) -&gt; (phi : (t : I) -&gt; TOPE) -&gt; (psi : (t : I) -&gt; TOPE) -&gt; U
+  := \(I : CUBE) -&gt; \(phi : (t : I) -&gt; TOPE) -&gt; \(psi : (t : I) -&gt; TOPE) -&gt; (A : U) -&gt; ∑ (f : (k : &lt;{t : I | psi t} -&gt; A [BOT |-&gt; recBOT]&gt;) -&gt; &lt;{t : I | phi t} -&gt; A [BOT |-&gt; recBOT]&gt;), isShapeRetraction I A phi psi f
+</code></pre>
+<pre><code class="language-rzk">Δ¹ : (t : 2) -&gt; TOPE
+  := \(t : 2) -&gt; TOP
+
+Δ² : (t : 2 * 2) -&gt; TOPE
+  := \(t, s) -&gt; s &lt;= t
+
+Δ³ : (t : 2 * 2 * 2) -&gt; TOPE
+  := \((t1, t2), t3) -&gt; t3 &lt;= t2 /\ t2 &lt;= t1
+
+shapeProd : (I : CUBE) -&gt; (J : CUBE) -&gt; (psi : (t : I) -&gt; TOPE) -&gt; (chi : (s : J) -&gt; TOPE) -&gt; (ts : I * J) -&gt; TOPE
+  := \I -&gt; \J -&gt; \psi -&gt; \chi -&gt; \(t, s) -&gt; psi t /\ chi s
+
+Δ¹×Δ¹ : (t : 2 * 2) -&gt; TOPE
+  := shapeProd 2 2 Δ¹ Δ¹
+
+Δ²×Δ¹ : (t : 2 * 2 * 2) -&gt; TOPE
+  := shapeProd (2 * 2) 2 Δ² Δ¹
+</code></pre>
+<pre><code class="language-rzk">Δ²-is-retract-of-Δ¹×Δ¹ : shapeRetract (2 * 2) Δ² Δ¹×Δ¹
+  := \A -&gt; (\k -&gt; \ts -&gt; k ts, (\k -&gt; \(t, s) -&gt; recOR(t &lt;= s, s &lt;= t, k (t, s), k (t, s)), \k -&gt; refl_{k}))
+</code></pre>
+<pre><code class="language-rzk">Δ³-is-retract-of-Δ²×Δ¹ : shapeRetract (2 * 2 * 2) Δ³ Δ²×Δ¹
+  := \A -&gt; (\k -&gt; \ts -&gt; k ((first (first ts), second ts), second (first ts)), (\k -&gt; \ts -&gt; recOR((second ts) &lt;= (second (first ts)), (second (first ts)) &lt;= (second ts) /\ (second ts) &lt;= (first (first ts)) \/ (first (first ts)) &lt;= second ts, k ((first (first ts), second ts), second (first ts)), recOR((second (first ts)) &lt;= (second ts) /\ (second ts) &lt;= (first (first ts)), (first (first ts)) &lt;= second ts, k ((first (first ts), second ts), second (first ts)), k ((first (first ts), first (first ts)), second (first ts)))), \k -&gt; refl_{k}))
+</code></pre>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

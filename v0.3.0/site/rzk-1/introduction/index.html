@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Introduction - rzk: an experimental proof assistant for syntheric ∞-categories</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" rel="stylesheet" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/rzk/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/rzk/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/rzk/favicon-16x16.png">
+    <link rel="manifest" href="/rzk/site.webmanifest">
+<!-- <link rel="stylesheet" href="../../css/highlightjs-11.7.0.min.css" /> -->
+    <link rel="stylesheet" href="../../css/highlightjs-copy.css" />
+    <script src="../../js/highlight-11.7.0.min.js"></script>
+    <script src="../../js/rzk.js"></script>
+    <link rel="stylesheet" href="../../css/gruvbox-light.css" />
+    <!-- <link rel="stylesheet" href="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.css" /> -->
+    <script src="../../js/highlightjs-copy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script>
+      hljs.addPlugin(new CopyButtonPlugin());
+      hljs.highlightAll();
+    </script>
+    
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Introduction";
+        var mkdocs_page_input_path = "rzk-1/introduction.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+ 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> rzk: an experimental proof assistant for syntheric ∞-categories
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">General</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../..">About</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">rzk-1 Language</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Introduction</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#syntax">Syntax</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#cube-layer">Cube layer</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tope-layer">Tope layer</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#types-and-terms">Types and terms</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tope-disjuction-elimination">Tope disjuction elimination</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#soundness">Soundness</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render/">Rendering Diagrams</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../recId/">Weak tope disjunction elimination</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tools</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/ide/">IDE support</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/continuous/">Continuous Verification</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Related Projects</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/sHoTT/">sHoTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/simple-topes/">simple-topes</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">rzk: an experimental proof assistant for syntheric ∞-categories</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>rzk-1 Language &raquo;</li>
+      <li>Introduction</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="introduction-to-rzk-1">Introduction to <code>rzk-1</code></h1>
+<div class="admonition warning">
+<p class="admonition-title">Work-in-progress</p>
+<p>The documentation is not yet up-to-date with all
+the changes introduced in <code>rzk-0.2.0</code>. <br>
+See <a href="https://github.com/fizruk/rzk/blob/release-v0.3.0/rzk/ChangeLog.md#v020---2022-04-20"><code>rzk</code> changelog</a> for more details.</p>
+</div>
+<p><code>rzk</code> is an experimental proof assistant for synthetic ∞-categories.
+<code>rzk-1</code> is an early version of the language supported by <code>rzk</code>.
+The language is based on Riehl and Shulman's «Type Theory for Synthetic ∞-categories» (<a href="https://arxiv.org/abs/1705.07442">https://arxiv.org/abs/1705.07442</a>). We will refer to Riehl and Shulman's Type Theory as RSTT. In this section, we introduce syntax, discuss features and some of the current limitations of the proof assistant.</p>
+<p>Overall, a program in <code>rzk-1</code> consists of a language pragma (specifying that we use <code>rzk-1</code> and not one of the other languages) followed by a sequence of commands. For now, we will only use <code>#def</code> command.</p>
+<p>Here is a small formalisation in an MLTT subset of <code>rzk-1</code>:</p>
+<pre><code class="language-rzk">#lang rzk-1
+
+-- Flipping the arguments of a function.
+#def flip
+    (A B : U)                         -- For any types A and B
+    (C : (x : A) -&gt; (y : B) -&gt; U)     -- and a type family C
+    (f : (x : A) -&gt; (y : B) -&gt; C x y) -- given a function f : A -&gt; B -&gt; C
+  : (y : B) -&gt; (x : A) -&gt; C x y       -- we construct a function of type B -&gt; A -&gt; C
+  := \y x -&gt; f x y    -- by swapping the arguments
+
+-- Flipping a function twice is the same as not doing anything
+#def flip-flip-is-id
+    (A B : U)                         -- For any types A and B
+    (C : (x : A) -&gt; (y : B) -&gt; U)     -- and a type family C
+    (f : (x : A) -&gt; (y : B) -&gt; C x y) -- given a function f : A -&gt; B -&gt; C
+  : f = flip B A (\y x -&gt; C x y)
+          (flip A B C f)              -- flipping f twice is the same as f
+  := refl                             -- proof by reflexivity
+</code></pre>
+<p>Let us explain parts of this code:</p>
+<ol>
+<li><code>#lang rzk-1</code> specifies that we are in using <code>rzk-1</code> language;</li>
+<li><code>--</code> starts a comment line (until the end of the line);</li>
+<li><code>#def &lt;name&gt; : &lt;type&gt; := &lt;term&gt;</code> defines a name <code>&lt;name&gt;</code> to be equal to <code>&lt;term&gt;</code>; the proof assistant will typecheck <code>&lt;term&gt;</code> against type <code>&lt;type&gt;</code>;</li>
+<li>We define two terms here — <code>flip</code> and <code>flip-flip-is-id</code>;</li>
+<li><code>flip</code> is a function that takes 4 arguments and returns a function of two arguments.</li>
+<li><code>flip-flip-is-id</code> is a function that takes two types, a type family, and a function <code>f</code> and returns a value of an identity type <code>flip ... (flip ... f) = f</code>, indicating that flipping a function <code>f</code> twice gets us back to <code>f</code>.</li>
+</ol>
+<h2 id="syntax">Syntax</h2>
+<p>Similarly to the three layers in RSTT, <code>rzk-1</code> has 3 universes:</p>
+<ul>
+<li><code>CUBE</code> is the universe of cubes, corresponding to the cube layer;</li>
+<li><code>TOPE</code> is the universe of topes, corresponding to the tope layer;</li>
+<li><code>U</code> is the universe of types, corresponding to the types and terms layer.</li>
+</ul>
+<h3 id="cube-layer">Cube layer</h3>
+<p>All cubes live in <code>CUBE</code> universe.</p>
+<p>There are two built-in cubes:</p>
+<ol>
+<li><code>1</code> cube is a unit cube with a single point <code>*_1</code></li>
+<li><code>2</code> cube is a directed interval cube with points <code>0_2</code> and <code>1_2</code></li>
+</ol>
+<p>It is also possible to have <code>CUBE</code> variables and make products of cubes:</p>
+<ol>
+<li><code>I * J</code>  is a product of cubes <code>I</code> and <code>J</code></li>
+<li><code>(t, s)</code> is a point in <code>I * J</code> if <code>t : I</code> and <code>s : J</code></li>
+<li>if <code>ts : I * J</code>, then <code>first ts : I</code> and <code>second ts : J</code></li>
+</ol>
+<p>You can usually use <code>(t, s)</code> both as a pattern, and a construction of a pair of points:</p>
+<pre><code class="language-rzk">-- Swap point components of a point in a cube I × I
+#def swap
+    (I : CUBE)
+  : (I * I) -&gt; I * I
+  := \(t, s) -&gt; (s, t)
+</code></pre>
+<h3 id="tope-layer">Tope layer</h3>
+<p>All topes live in <code>TOPE</code> universe.</p>
+<p>Here are all the ways to build a tope:</p>
+<ol>
+<li>
+<p>Introduce a variable, e.g. <code>(psi : TOPE) -&gt; ...</code>;</p>
+<ul>
+<li>Usually, topes depend on point variables from some cube(s). To indicate that, we usually introduce topes as "functions" from some cube to <code>TOPE</code>. For example, <code>(psi : I -&gt; TOPE) -&gt; ...</code>.</li>
+</ul>
+</li>
+<li>
+<p>Use a constant:</p>
+<ul>
+<li>top tope <script type="math/tex">\top</script> is written <code>TOP</code>;</li>
+<li>bottom tope <script type="math/tex">\bot</script> is written <code>BOT</code>;</li>
+<li>tope conjunction <script type="math/tex">\psi \land \phi</script> is written <code>psi /\ phi</code>;</li>
+<li>tope disjunction <script type="math/tex">\psi \lor \phi</script> is written <code>psi \/ phi</code>;</li>
+<li>equality tope <script type="math/tex">t \equiv s</script> is written <code>t === s</code>, whenever <code>t</code> and <code>s</code> are points of the same cube;</li>
+<li>inequality tope <script type="math/tex">t \leq s</script> is written <code>t &lt;= s</code> whenever <code>t : 2</code> and <code>s : 2</code>.</li>
+</ul>
+</li>
+</ol>
+<h3 id="types-and-terms">Types and terms</h3>
+<ol>
+<li>
+<p>Function (dependent product) types <script type="math/tex">\prod_{x : A} B</script> are written <code>(x : A) -&gt; B x</code></p>
+<ul>
+<li>values of function types are <script type="math/tex">\lambda</script>-abstractions written in one of the following ways:<ul>
+<li><code>\x -&gt; &lt;body&gt;</code> — this is usually fine;</li>
+<li><code>\(x : A) -&gt; &lt;body&gt;</code> — this sometimes helps the typechecker.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Dependent sum type <script type="math/tex">\sum_{x : A} B</script> is written <code>∑ (x : A), B</code> or <code>Sigma (x : A), B</code></p>
+<ul>
+<li>values of dependent sum types are pairs written as <code>(x, y)</code>;</li>
+<li>to access components of a dependent pair <code>p</code>, use <code>first p</code> and <code>second p</code>;</li>
+<li><code>first</code> and <code>second</code> are not valid syntax without an argument!</li>
+</ul>
+</li>
+<li>
+<p>Identity (path) type <script type="math/tex">x =_A y</script> is written <code>x =_{A} y</code></p>
+<ul>
+<li>specifying the type <code>A</code> is optional: <code>x = y</code> is valid syntax!</li>
+<li>the only value of an identity type is <code>refl_{x : A}</code> whose type is <code>x =_{A} x</code> whenever <code>x : A</code></li>
+<li>specifying term and type is optional: <code>refl_{x}</code> and <code>refl</code> are both valid syntax;</li>
+<li>path induction is done using <script type="math/tex">J</script> path eliminator; for any type <script type="math/tex">A</script> and <script type="math/tex">a : A</script>, type family
+  <script type="math/tex">C : \prod_{x : A} ((a =_A x) \to \mathcal{U})</script>
+  and <script type="math/tex">d : C(a,\mathsf{refl}_a)</script>
+  and <script type="math/tex">x : A</script>
+  and <script type="math/tex">p : a =_A x</script>
+  we have <script type="math/tex">\mathcal{J}(A, a, C, d, x, p) : C(x, p)</script>; in <code>rzk-1</code> we write
+  <code>idJ(A, a, C, d, x, p)</code>;</li>
+<li><code>idJ</code> is not valid syntax without exactly 6-tuple provided as an argument!</li>
+</ul>
+</li>
+<li>
+<p>Extension types <script type="math/tex">\left\langle \prod_{t : I \mid \psi} A \vert ^{\phi} _{a} \right\rangle</script> are written as <code>{t : I | psi t} -&gt; A [ phi |-&gt; a ]</code></p>
+<ul>
+<li>specifying <code>[ phi |-&gt; a ]</code> is optional, semantically defaults to <code>[ BOT |-&gt; recBOT ]</code> (like in RSTT);</li>
+<li>specifying <code>psi</code> in <code>{t : I | psi}</code> is mandatory;</li>
+<li>values of function types are <script type="math/tex">\lambda</script>-abstractions written in one of the following ways:<ul>
+<li><code>\t -&gt; &lt;body&gt;</code> or <code>λt → &lt;body&gt;</code> — this is usually fine;</li>
+<li><code>\{t : I | psi} -&gt; &lt;body&gt;</code> or <code>λ{t : I | psi} -&gt; &lt;body&gt;</code> — this sometimes helps the typechecker;</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Types of functions from a shape <script type="math/tex">\prod_{t : I \mid \psi} A</script> are a specialised variant of extension types and are written <code>{t : I | psi} -&gt; A</code></p>
+<ul>
+<li>specifying the name of the argument is mandatory; i.e. <code>{I | psi} -&gt; A</code> is invalid syntax!</li>
+<li>values of function types are <script type="math/tex">\lambda</script>-abstractions written in one of the following ways:<ul>
+<li><code>\t -&gt; &lt;body&gt;</code> or <code>λt → &lt;body&gt;</code> — this is usually fine;</li>
+<li><code>\{t : I | psi} -&gt; &lt;body&gt;</code> or <code>λ{t : I | psi} -&gt; &lt;body&gt;</code> — this sometimes helps the typechecker;</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="tope-disjuction-elimination">Tope disjuction elimination</h3>
+<p>Following RSTT, <code>rzk-1</code> introduces two primitive terms for disjunction elimination:</p>
+<ol>
+<li><code>recBOT</code> (also written <code>rec⊥</code>) corresponds to <script type="math/tex">\mathsf{rec}_\bot</script>, has any type, and is valid whenever tope context is included in <code>BOT</code>;</li>
+<li><code>recOR(psi, phi, a_psi, a_phi)</code> (also written <code>rec∨(psi, phi, a_psi, a_phi)</code>) corresponds to <script type="math/tex">\mathsf{rec}_\lor^{\psi, \phi}(a_\psi, a_\phi)</script>, is well-typed when <code>a_psi</code> is definitionally equal to <code>a_phi</code> under <code>psi /\ phi</code>.</li>
+</ol>
+<h2 id="soundness">Soundness</h2>
+<p>First of all, in <code>rzk-1</code> we have "type-in-type", that is <code>U</code> has type <code>U</code>.
+This is known to make the type system unsound, however,
+it is usually considered acceptable in proof assistants.
+And, since it simplifies implementation, <code>rzk-1</code> follows this convention.</p>
+<p>Additionally, unlike RSTT, <code>rzk-1</code> does not prevent cubes or topes to depend on types and terms. For example, the following definition typechecks:</p>
+<pre><code class="language-rzk">#def weird
+      (A : U)
+    (I : A -&gt; CUBE)
+    (x y : A)
+  : CUBE
+  := I x * I y
+</code></pre>
+<p>This likely leads to another inconsistency, but it will hardly lead to bugs in actual proofs of interest,
+so current version embraces this treatment of universes.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../.." class="btn btn-neutral float-left" title="About"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../render/" class="btn btn-neutral float-right" title="Rendering Diagrams">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../.." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../render/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
