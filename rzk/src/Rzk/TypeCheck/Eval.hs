@@ -923,7 +923,7 @@ contextEntailsUnion topes = do
 --   * DISJOINT — the tope and a consistent context have empty overlap (their
 --     conjunction is ⊥). The face or branch is then vacuous everywhere, so this is
 --     a hard error.
---   * OVERHANG — the tope is not entailed by the context but still overlaps it.
+--   * OVERHANG — the tope does not entail the context but still overlaps it.
 --     This is allowed and often intentional (splitting or restricting with an
 --     already-defined shape, whose faces live on the whole cube rather than being
 --     relativised to the context), so we only emit a non-fatal hint.
@@ -952,7 +952,7 @@ checkTopeAgainstContext what tope = do
               (intercalate "\n" $
                 [ "Warning: " <> what <> " overhangs the local tope context"
                 , "  " <> ppTerm naming (untyped tope)
-                , "is not entailed by the local context (normalised)"
+                , "does not entail the local context (normalised)"
                 ] <> map (("  " <>) . ppTerm naming . untyped) topes)
               (return ())
 

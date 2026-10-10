@@ -295,16 +295,15 @@ collectSectionDecls tolerate errs recent (entry@(name, info) : rest)
   | otherwise =
       collectSectionDecls tolerate errs (entry : recent) rest
 
--- | Abstract one assumption out of the definitions that come after it.
---
--- A definition that mentions the assumption gains it as an explicit parameter, and
--- every later definition that mentions /that/ definition is rewritten to apply it
--- to the assumption. A definition that mentions it without declaring it in its
--- @uses@ clause is an implicit assumption, and an error.
 -- | Whether an assumption was taken up by (abstracted into) any definition
 -- that followed it in its section.
 data AssumptionUse = AssumptionUsed | AssumptionUnused
 
+-- | Abstract an assumption out of the definitions that depend on it, and
+-- rewrite later uses of those definitions to supply the assumption.
+-- Dependencies present only through other names' types need @uses@;
+-- explicit occurrences in the written type or body need no such clause.
+-- Datatype formers abstracted with their family are exempt from this check.
 makeAssumptionExplicit
   :: forall n. Distinct n
   => (Foil.Name n, VarInfo n)

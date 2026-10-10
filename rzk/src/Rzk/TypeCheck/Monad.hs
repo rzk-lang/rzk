@@ -60,8 +60,8 @@ data HoleInfo = HoleInfo
   , holeCubeVars      :: [HoleEntry]    -- ^ local cube variables (type is a cube)
   , holeTopes         :: [Rendered]     -- ^ local tope assumptions (excluding ⊤)
   , holeCandidates    :: [Rendered]
-    -- ^ elimination spines over the local hypotheses whose type fits the goal,
-    -- with applied arguments left as holes. Already rendered, like the rest.
+    -- ^ Rendered moves from local hypotheses, allow-listed top-level lemmas,
+    -- and tope-context elimination; missing subterms remain holes.
   , holeIntroductions :: [Rendered]
     -- ^ introduction forms for the goal type, built from its head constructor
     -- with the constituents left as holes. Already rendered, like the rest.
@@ -71,10 +71,8 @@ data HoleInfo = HoleInfo
   , holeLocation      :: Maybe LocationInfo
   } deriving (Eq, Show)
 
--- | A non-fatal finding of the checker, recorded on the writer channel
--- beside the holes and carried out of a run in @Checked@. Structured, so
--- the CLI, the LSP, and (later) safe mode each decide how to present or
--- escalate it.
+-- | A non-fatal finding recorded alongside holes in 'CheckLog' and returned
+-- in @Checked@. The CLI and LSP decide how to present it.
 data CheckWarning
   = LargeInductiveTypeWarning
       VarIdent              -- ^ the data type
