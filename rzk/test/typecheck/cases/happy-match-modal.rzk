@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A modal match checks the scrutinee under its modality. Every constructor
 -- argument is then bound under the composition of that modality and the
 -- argument's own modality: Flat ∘ Id = Flat and Flat ∘ Op = Flat here.
