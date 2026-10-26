@@ -3,8 +3,8 @@ These tests do not cover everything, but
 Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeCheckSpec` runs checks at **Silent** verbosity so traces do not fill `stack test` output.
 
 - **Well-typed tests:** `happy-check`, `happy-refl-path`, `happy-shott-simplicial-subcomplexes`, tope/cubes (`happy-tope-shapes`, `happy-tope-high-dim-cubes`), `recOR`/restrictions (`happy-tope-rec-and-restrict`, `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `happy-recor-split-simplex-overhang`), nested `recOR` (`happy-tope-nested-rec-or`, `happy-tope-nested-rec-or-d{4,5,6}`), recBOT body well-formedness (`happy-recbot-term-wellformed`).
-- **Ill—typed tests:** unify (`ill-unify*`), pairs/projections/functions (`ill-not-*`, `ill-unexpected-*`, `ill-bare-*`), env (`ill-implicit`, `ill-duplicate`, `ill-undefined`, `ill-unused-assumption`, `ill-param-untyped-pattern`), invalid domains (`ill-invalid-arg-type-bot`, `ill-tope-param-*`).
-- **Layer discipline (direct guards):** `ill-kind-sigma-{tope,cube-universe,tope-family,body-tope}` (no universe kind as a Σ component, either component), `ill-kind-id-carrier-tope` (no identity types over the tope universe), `ill-kind-define-tope` (no universe-kind synonyms at type `U`), `ill-kind-app-argument-tope` (a kind cannot be passed where a type is expected; guards fire at the application, since a `U`-parameter is opaque at formation), `ill-tope-assume` (a bare tope assumption would let section closure manufacture the Π over `TOPE` the binder rule forbids). All guards check up to whnf, so synonyms meet the same rules. The modal fixtures (`happy-flip-unflip`, `happy-modal-inv`, `happy-modal-tope-unwrap`) state the inv/flip laws as definitional equality of shapes over the unit cube, since tope identities are closed.
+- **Ill—typed tests:** unify (`ill-unify*`), pairs/projections/functions (`ill-not-*`, `ill-unexpected-*`, `ill-bare-*`), env (`ill-implicit`, `ill-duplicate`, `ill-undefined`, `ill-unused-assumption`, `ill-param-untyped-pattern`), invalid domains (`ill-invalid-arg-type-bot`).
+- **Layer discipline (direct guards):** `ill-kind-sigma-{tope,cube-universe,tope-family,body-tope}` (no universe kind as a Σ component, either component), `ill-kind-id-carrier-tope` (no identity types over the tope universe), `ill-kind-define-tope` (no universe-kind synonyms at type `U`), `ill-kind-app-argument-tope` (a kind cannot be passed where a type is expected; guards fire at the application, since a `U`-parameter is opaque at formation), `ill-data-tope-{field,index}` (`TOPE` is a parameter kind only). Bare tope parameters: `happy-tope-param`, `happy-tope-assume` and `happy-data-tope-param` (`(ψ : TOPE)` in a binder, an assumption and a `#data` parameter means the same as `(ψ : 1 → TOPE)`), with `ill-tope-param-entailment` (a bare tope is opaque) and `ill-tope-param-instance` (instantiating it keeps the restriction). All guards check up to whnf, so synonyms meet the same rules. The modal fixtures (`happy-flip-unflip`, `happy-modal-inv`, `happy-modal-tope-unwrap`) state the inv/flip laws as definitional equality of shapes over the unit cube, since tope identities are closed.
 - **Bad commands/sections/render:** options (`ill-set-option-*`, `ill-unset-option-unknown`), sections (`ill-section-*`), LaTeX define (`ill-render-latex-define`).
 - **Options:** `happy-set-option-warn-overhang` (the opt-in overhang hint: the option name is recognised by `#set-option`/`#unset-option`, and an overhanging face still typechecks with it on).
 - **UNSAT topes/shapes/`recOR`:** `ill-tope-not-satisfied-*`, `ill-tope-subtle-*`, `ill-rec-or-overlap-incoherent`, `ill-recor-coverage-required`, `ill-restrict-face-disjoint`, `ill-recor-guard-disjoint`, nested `recOR` (`ill-tope-nested-rec-or-inner-singleton`; `*-inner-singleton-d{4,5,6}`) (exhibit exponential slowdown).
@@ -34,9 +34,12 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   parameters — the last four enforced on the elaborated sort, so the
   named spelling meets the same rule as the inline one;
   `ill-data-cube-universe-{field,index}`,
-  `ill-data-tope-family-{field,index}`, and `ill-data-modal-tope-{field,param,index}`
-  for the B′ layer rules — no position stores or is indexed by a cube-
-  or tope-layer citizen, and modal tope kinds are closed everywhere;
+  `ill-data-tope-family-{field,index}`, `ill-data-modal-tope-{field,index}`
+  and `ill-data-modal-cube-field` for the B′ layer rules — no position
+  stores or is indexed by a cube- or tope-layer citizen, and the modal
+  kinds are parameters only (`happy-data-modal-kind-param`, with
+  `ill-data-modal-kind-param-lock` and `ill-data-modal-kind-param-point`
+  for the lock and the shape field of an instance);
   `ill-data-modal-type-field` for a modal type field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
   shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,
