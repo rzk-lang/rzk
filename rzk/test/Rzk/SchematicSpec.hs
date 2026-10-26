@@ -52,8 +52,14 @@ spec = describe "Schematic declarations" $ do
     ]
 
   it "checks every universe instantiation before beta reduction" $
-    mapM_ (\(arg, value) -> rejects [identity, "#def bad : " <> arg <> " := id " <> arg <> " " <> value])
-      [("U", "Unit"), ("CUBE", "2"), ("TOPE", "TOP")]
+    rejects [identity, "#def bad : U := id U Unit"]
+
+  it "leaves CUBE and TOPE type arguments to the layer discipline" $
+    mapM_ (\(arg, value) ->
+      fst (check (Just RSTTSafeError)
+             [source [identity, "#def bad : " <> arg <> " := id " <> arg <> " " <> value]])
+        `shouldBe` ["TypeErrorOther"])
+      [("CUBE", "2"), ("TOPE", "TOP")]
 
   it "rejects families and rules passed as ordinary types" $
     mapM_ (\(ty, value) -> rejects [identity, "#def bad : " <> ty <> " := id (" <> ty <> ") (" <> value <> ")"])

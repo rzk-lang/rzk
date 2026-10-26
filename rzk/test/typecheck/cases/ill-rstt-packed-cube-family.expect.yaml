@@ -1,6 +1,7 @@
 status: error
-error_tag: TypeErrorRSTT
+error_tag: TypeErrorOther
 message_contains:
-  - schematic binder
+  - "a Σ component must be a type, got a cube family"
 regression_for:
   - rstt-safe-mode
+  - layer-discipline-direct-guards

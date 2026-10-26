@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A path constructor may take a cube or shape field: a Φ-indexed family of
 -- *undirected* cells, i.e. identity paths. This cannot express a directed
 -- cell: the return type of a path constructor is an identity type, not a

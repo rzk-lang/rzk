@@ -1,4 +1,6 @@
 #lang rzk-1
 
 #set-option "rstt-safe" = "error"
+-- The layer discipline rejects a cube family as a Σ component in every mode,
+-- before RSTT-safe mode sees the binder.
 #def pack : Σ (F : CUBE → CUBE), Unit := ((\ I → I), unit)

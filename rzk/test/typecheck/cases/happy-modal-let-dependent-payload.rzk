@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A motive-free let mod in inference position whose body type depends on the
 -- bound variable: the inferred type is instantiated with the payload of x,
 -- not with x itself, for the right adjoints _#, _op and _id. The projection
