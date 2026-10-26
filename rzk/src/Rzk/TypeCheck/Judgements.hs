@@ -474,15 +474,18 @@ destructuringBinder orig param = case orig of
 --   * an identity type by @refl@, but only when its two endpoints already agree
 --     (otherwise @refl@ would not typecheck);
 --   * the unit type by @unit@;
+--   * the directed interval by either endpoint, and the unit cube by its point;
+--   * the type universe by type formers and declared datatypes;
+--   * a datatype by constructors whose result type fits the goal;
 --   * the tope universe by each tope constructor — @TOP@, @BOT@, @? ≡ ?@, @? ≤ ?@,
 --     @? ∧ ?@, @? ∨ ?@ — so a shape (a hole of type @TOPE@) can be built up by
 --     tapping.
 --
--- Unlike 'allEliminationsInto' this does not search: a type has at most one
--- introduction form (the tope universe is the one exception), read off its head
--- constructor. Outer restrictions are stripped first, so an extension type is
--- introduced by the form of its underlying type (its boundary is met by later
--- refinement of the holes, not by the choice of constructor).
+-- The goal's head determines the forms offered: usually one for an ordinary
+-- type former, but several for the directed interval, universes, and datatypes.
+-- Datatype constructors are filtered by whether their result type fits the goal.
+-- Outer restrictions are stripped; their boundaries are met when the holes
+-- are filled.
 --
 -- The λ binder of a Π-introduction is freshened against the names already visible
 -- at the hole, so introducing over a type whose own definition reuses an in-scope
@@ -1085,16 +1088,12 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             bindType' <- infer bindType
             bindUniv <- typeOf bindType'
             enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
-        bindTy <- typeOf val' >>= \case
-          o@(TypeModalT _ty md t) ->
-            if md == inn
-              then return t
-              else issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-          o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-        bindVal <- whnfT val' >>= \case
-          ModAppT _ty _m t -> pure (Just t)
-          o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
-          _ -> pure Nothing
+        valTy <- typeOf val'
+        bindTy <- case typeUnderModal inn valTy of
+          Just t  -> pure t
+          Nothing -> issueTypeError $ TypeErrorNotModal (untyped val') inn valTy
+        o <- whnfT val'
+        bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
           typecheck bodyTerm (Foil.sink ty')
         return (letModT ty' orig app inn (Just bindTy) Nothing val' body')
@@ -1107,6 +1106,9 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             return (pairT ty' l' r')
           TypeSigmaT _ty _orig md a b -> do
             l' <- enterModality md $ typecheck l a
+            whnfT a >>= \case
+              UniverseT{} -> ensureTypeAtU "a pair component at type U" l'
+              _           -> pure ()
             bAt <- instantiate b l'
             r' <- typecheck r bAt
             return (pairT ty' l' r')
@@ -1386,6 +1388,41 @@ inferAs expectedKind term = do
   unifyTypes ty expectedKind kind
   return term'
 
+-- | Infer a cube point used by @≡@. A bare hole in this position does not
+-- determine its cube, so ordinary inference rejects it. In lenient mode,
+-- record it instead with an as-yet-unknown cube as its goal.
+inferPoint :: Distinct n => Term n -> TypeCheck n (TermT n)
+inferPoint term@(Hole (Just name))
+  | Just x <- unmarkUnresolved name =
+      performing (ActionInfer term) $
+        issueTypeError (TypeErrorUndefined x)
+inferPoint term@(Hole mname) = performing (ActionInfer term) $ do
+  reject <- asks ctxHolesAreErrors
+  if reject
+    then issueTypeError (TypeErrorCannotInferHole term)
+    else do
+      let cube = holeT cubeT Nothing
+      recordHole mname cube
+      pure (holeT cube mname)
+inferPoint term = inferAs cubeT term
+
+-- | Infer a point of one of the directed cubes, @2@ or @𝕀@, for use by
+-- @≤@. A point hole in lenient mode is retained with an unknown cube; a known
+-- point of any other cube is rejected here rather than after both endpoints
+-- have been inferred.
+inferDirectedPoint :: Distinct n => Term n -> TypeCheck n (TermT n)
+inferDirectedPoint term = performing (ActionInfer term) $ do
+  point <- inferPoint term
+  typeOf point >>= \case
+    HoleT{}  -> pure point
+    Cube2T{} -> pure point
+    CubeIT{} -> pure point
+    ty -> do
+      tyStr <- ppInContext ty
+      issueTypeError $ TypeErrorOther $
+        "the (t ≤ s) tope expects a point in a directed cube (2 or 𝕀); got "
+          <> tyStr
+
 infer :: Distinct n => Term n -> TypeCheck n (TermT n)
 infer tt = performing (ActionInfer tt) $ case tt of
   Hole (Just name) | Just x <- unmarkUnresolved name ->
@@ -1522,17 +1559,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TopeBottom -> pure topeBottomT
 
   TopeEQ l r -> do
-    l' <- inferAs cubeT l
+    l' <- inferPoint l
     lt <- typeOf l'
     r' <- typecheck r lt
     return (topeEQT l' r')
 
   TopeLEQ l r -> do
-    l' <- inferAs cubeT l
-    r' <- inferAs cubeT r
+    l' <- inferDirectedPoint l
+    r' <- inferDirectedPoint r
     lTy <- typeOf l'
     rTy <- typeOf r'
     case (lTy, rTy) of
+      -- A point hole in lenient mode has an unknown directed cube. Keep the
+      -- relation as an incomplete sketch until that cube is known.
+      (HoleT{}, HoleT{})  -> return (topeLEQT l' r')
+      (HoleT{}, Cube2T{}) -> return (topeLEQT l' r')
+      (HoleT{}, CubeIT{}) -> return (topeLEQT l' r')
+      (Cube2T{}, HoleT{}) -> return (topeLEQT l' r')
+      (CubeIT{}, HoleT{}) -> return (topeLEQT l' r')
       (Cube2T{}, Cube2T{}) -> return (topeLEQT l' r')
       (CubeIT{}, CubeIT{}) -> return (topeLEQT l' r')
       (CubeIT{}, Cube2T{}) -> do
@@ -1591,17 +1635,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeFun orig md a Nothing b -> do
     a' <- enterModality md $ infer a
     typeOf a' >>= \case
-      -- an argument can be a type
-      UniverseT{} ->
-        case a' of
-          -- except if it is the TOPE universe
-          UniverseTopeT{} ->
-            issueTypeError $ TypeErrorOther "tope params are illegal"
-          _ -> do
-            mapM_ checkNameShadowing (binderLeaves orig)
-            b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
-              typecheck bTerm universeT
-            return (typeFunT orig md a' Nothing b')
+      -- an argument can be a type, including TOPE: a bare tope parameter
+      -- (phi : TOPE) means the same as the tope family (phi : 1 -> TOPE)
+      UniverseT{} -> do
+        mapM_ checkNameShadowing (binderLeaves orig)
+        b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
+          typecheck bTerm universeT
+        return (typeFunT orig md a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         mapM_ checkNameShadowing (binderLeaves orig)
@@ -1636,13 +1676,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeSigma orig md a b -> do
     a' <- enterModality md $ typecheck a universeT
+    ensureTypeAtU "a Σ component" a'
     mapM_ checkNameShadowing (binderLeaves orig)
-    b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
-      typecheck bTerm universeT
+    b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm -> do
+      bTyped <- typecheck bTerm universeT
+      ensureTypeAtU "a Σ component" bTyped
+      pure bTyped
     return (typeSigmaT orig md a' b')
 
   TypeId x (Just tA) y -> do
     tA' <- typecheck tA universeT
+    ensureTypeAtU "the carrier of an identity type" tA'
     x' <- typecheck x tA'
     y' <- typecheck y tA'
     return (typeIdT x' (Just tA') y')
@@ -1650,6 +1694,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeId x Nothing y -> do
     x' <- inferAs universeT x
     tA <- typeOf x'
+    ensureTypeAtU "the carrier of an identity type" tA
     y' <- typecheck y tA
     return (typeIdT x' (Just tA) y')
 
@@ -1662,6 +1707,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
         x' <- enterModality md $ case (x, mtope) of
           (Hole mname, Just tope) -> checkHoleAgainstShape mname orig a tope
           _                       -> typecheck x a
+        whnfT a >>= \case
+          UniverseT{} -> ensureTypeAtU "a type argument" x'
+          _           -> pure ()
         bAt <- instantiate b x'
         let result = appT bAt f' x'
         case b of
@@ -1685,13 +1733,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
   Lambda orig (Just (LambdaParam md ty Nothing)) body -> do
     ty' <- enterModality md $ infer ty
     mcube <- typeOf ty' >>= \case
-      -- an argument can be a type
-      UniverseT{} ->
-        case ty' of
-          -- except if it is the TOPE universe
-          UniverseTopeT{} ->
-            issueTypeError $ TypeErrorOther "tope params are illegal"
-          _ -> return Nothing
+      -- an argument can be a type, including TOPE (a bare tope parameter)
+      UniverseT{} -> return Nothing
       -- an argument can be a cube
       UniverseCubeT{} -> return Nothing
       -- an argument can be a shape
@@ -1753,34 +1796,35 @@ infer tt = performing (ActionInfer tt) $ case tt of
         bindUniv <- typeOf bindType'
         enterModality app $ typecheck val (typeModalT bindUniv inn bindType')
     valTy <- typeOf val'
-    bindTy <- case valTy of
-      TypeModalT _ty md t | md == inn -> return t
-      o -> issueTypeError $ TypeErrorNotModal (untyped o) inn val'
-    bindVal <- whnfT val' >>= \case
-      ModAppT _ty _m t -> pure (Just t)
-      o | isRA inn -> pure (Just (modExtractT bindTy app inn o))
-      _ -> pure Nothing
+    bindTy <- case typeUnderModal inn valTy of
+      Just t  -> pure t
+      Nothing -> issueTypeError $ TypeErrorNotModal (untyped val') inn valTy
+    o <- whnfT val'
+    bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
     -- The motive is a family over the modal value, @(z :^app ⟨inn|A⟩) → U@, so its
     -- binder stands for the whole @val@ and not for the let-bound @orig : A@; it is
     -- left anonymous rather than reusing @orig@, which would show the wrong role in
     -- goals and hovers. Only @U@ is supported as the codomain for now: a motive
-    -- landing in @CUBE@ or @TOPE@ cannot be written.
+    -- landing in @CUBE@ or @TOPE@ cannot be written. The motive ranges over the
+    -- modal type without the restrictions of @val@'s type, because the body is
+    -- checked at a generic @mod inn y@, which need not satisfy them.
+    let modalTy = stripTypeRestrictions valTy
     univScope <- constScope universeT
     mmotive' <- forM mmotive $ \motive ->
-      typecheck motive (typeFunT (BinderVar Nothing) app valTy Nothing univScope)
+      typecheck motive (typeFunT (BinderVar Nothing) app modalTy Nothing univScope)
     case mmotive' of
       Just motive' -> do
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \binder bodyTerm ->
           typecheck bodyTerm
             (appT universeT (Foil.sink motive')
-              (modAppT (Foil.sink valTy) inn (Var (Foil.nameOf binder))))
+              (modAppT (Foil.sink modalTy) inn (Var (Foil.nameOf binder))))
         return (letModT (appT universeT motive' val') orig app inn (Just bindTy) mmotive' val' body')
       Nothing -> do
         (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
           body' <- infer bodyTerm
           ret <- typeOf body'
           pure (ScopedAST binder body', ScopedAST binder ret)
-        retAt <- instantiate ret val'
+        retAt <- instantiate ret (maybe val' id bindVal)
         return (letModT retAt orig app inn (Just bindTy) Nothing val' body')
 
   Refl Nothing -> issueTypeError $ TypeErrorCannotInferBareRefl tt

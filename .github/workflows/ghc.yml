@@ -48,11 +48,14 @@ jobs:
         # restore caches created on its own ref or on the base branch, so
         # without develop-side builds the Windows/macOS stack caches are
         # never shared and every new PR starts those jobs cold.
+        # macos-15 rather than macos-latest: the macos-26 image of 2026-10-13
+        # ships the MacOSX 27.0 SDK, whose library stubs its linker rejects
+        # ("unknown architecture arm64e.x1-macos"), so GHC cannot link.
         os: >-
           ${{ (github.ref_name == 'main'
                || startsWith(github.ref, 'refs/tags/'))
-              && fromJSON('["ubuntu-latest","windows-latest","macos-15-intel","macos-latest"]')
-              || fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') }}
+              && fromJSON('["ubuntu-latest","windows-latest","macos-15-intel","macos-15"]')
+              || fromJSON('["ubuntu-latest","windows-latest","macos-15"]') }}
 
     steps:
       - name: 📥 Checkout repository

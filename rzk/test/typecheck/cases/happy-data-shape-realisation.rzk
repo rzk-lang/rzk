@@ -1,0 +1,54 @@
+#lang rzk-1
+
+-- A constructor may take a shape point. The declared type is then the shape
+-- realisation of that shape, and the generated recursor is the
+-- representability rule: mapping out of it is giving an extension-type
+-- section. See Kudasov 2021, "Booleans, coproducts and shape types in type
+-- theory for synthetic ∞-categories", §4 "Shapes as types":
+-- https://fizruk.github.io/files/%5Bnotes%5D%20N.Kudasov.%20Booleans%2C%20coproducts%20and%20shape%20types%20in%20type%20theory%20for%20synthetic%20%E2%88%9E-categories.pdf
+
+-- The general realisation ⌈Φ⌉, generic in the cube and in the tope. A shape
+-- is a predicate on a cube, so it is a parameter of type `I → TOPE`, exactly
+-- as `Δ¹` and `Λ²₁` are written.
+#data Shape (I : CUBE) (phi : I -> TOPE) := point (t : phi)
+
+#define rec-Shape-type
+  : (I : CUBE) -> (phi : I -> TOPE) -> (C : U)
+      -> ((t : I | phi t) -> C) -> Shape I phi -> C
+  := rec-Shape
+
+#define ind-Shape-type
+  : (I : CUBE) -> (phi : I -> TOPE) -> (C : Shape I phi -> U)
+      -> ((t : I | phi t) -> C (point I phi t)) -> (x : Shape I phi) -> C x
+  := ind-Shape
+
+-- Strict computation on a syntactic point: rec(Point p) ≡ a[p/t].
+#define shape-beta
+  ( I : CUBE) (phi : I -> TOPE)
+  ( C : U)
+  ( m : (t : I | phi t) -> C)
+  ( p : I | phi p)
+  : rec-Shape I phi C m (point I phi p) = m p
+  := refl
+
+-- Instances: the walking arrow and the (2,1)-horn.
+#define Delta1 : 2 -> TOPE := \ t -> ⊤
+#define Lambda21 : (2 * 2) -> TOPE := \ (t, s) -> (s === 0_2) \/ (t === 1_2)
+
+#define arr : U := Shape 2 Delta1
+#define horn : U := Shape (2 * 2) Lambda21
+
+#define arr-0 : arr := point 2 Delta1 0_2
+
+-- The three spellings of a shape field agree. The first two were already
+-- accepted; the inline one is what this change adds.
+#data ByCube := byCube (t : 2)
+#data ByName := byName (t : Delta1)
+#data Inline := inline (t : 2 | ⊤)
+
+#define rec-ByCube-type : (C : U) -> ((t : 2 | ⊤) -> C) -> ByCube -> C
+  := rec-ByCube
+#define rec-ByName-type : (C : U) -> ((t : 2 | ⊤) -> C) -> ByName -> C
+  := rec-ByName
+#define rec-Inline-type : (C : U) -> ((t : 2 | ⊤) -> C) -> Inline -> C
+  := rec-Inline

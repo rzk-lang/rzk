@@ -9,32 +9,14 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The typing context on free-foil.
+-- | The typing context for the free-foil core. Local hypotheses and top-level
+-- entries are keyed by 'Foil.Name'; separate fields retain surface identifiers
+-- and binding order for elaboration and display.
 --
--- The successor of @Rzk.TypeCheck@'s @Context var@. Two things change, and they
--- are the point of the migration.
---
--- [A variable is a name, and so is a top-level entry.] A free-foil term refers to
--- a variable by 'Foil.Name' (an @Int@), and by nothing else: there is no way to
--- put a 'VarIdent' inside a term. So a top-level definition is a name too, bound
--- in the outermost scope with no binder above it, and the hypotheses — global and
--- local alike — are one 'Foil.NameMap', looked up in constant time. The old
--- context was an association list keyed by a @var@ whose equality walked an
--- @S@-chain; @lookupVarInfo@ alone was 11.5% of the checker's time. The surface
--- name of an entry is resolved through 'ctxNamed'.
---
--- This also gives sections their natural shape. A @#assume@d assumption is an
--- ordinary binder, so the definitions of a section are checked in its scope, and
--- closing the section abstracts the assumption by pairing its binder with the
--- body — no rewrite of the elaborated terms (see @Rzk.TypeCheck.Decl@).
---
--- [Entering a binder rebuilds nothing.] 'enterBinder' extends the scope and
--- sinks the rest of the context by coercion, so it costs O(1) rather than a walk
--- of the context. The old @enterScopeContext@ mapped @S \<$\>@ over the whole
--- context, rebuilding every elaborated term it held; the heap profile showed
--- those forced copies retaining most of the live heap, and @GlobalScopeInfo@ /
--- @globalEmbed@ (PR #277) exist only to keep that shift off the ~1500 top-level
--- entries. All of that machinery is gone.
+-- Entering a binder carries scoped terms into the extended scope by coercion
+-- and records the new entry. Section assumptions are ordinary bindings;
+-- closing a section abstracts dependencies and rewrites uses of the resulting
+-- parameterised definitions (see "Rzk.TypeCheck.Decl").
 module Rzk.TypeCheck.Context where
 
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder,

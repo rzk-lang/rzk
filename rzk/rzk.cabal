@@ -33,11 +33,17 @@ extra-source-files:
     test/typecheck/cases/happy-data-interval-funext.rzk
     test/typecheck/cases/happy-data-large-warning.rzk
     test/typecheck/cases/happy-data-list.rzk
+    test/typecheck/cases/happy-data-modal-kind-param.rzk
+    test/typecheck/cases/happy-data-modal-shape-field.rzk
     test/typecheck/cases/happy-data-nat.rzk
+    test/typecheck/cases/happy-data-path-shape-field.rzk
     test/typecheck/cases/happy-data-prop-trunc.rzk
     test/typecheck/cases/happy-data-pushout.rzk
     test/typecheck/cases/happy-data-rec-section.rzk
     test/typecheck/cases/happy-data-section.rzk
+    test/typecheck/cases/happy-data-shape-realisation.rzk
+    test/typecheck/cases/happy-data-shape-tope.rzk
+    test/typecheck/cases/happy-data-tope-param.rzk
     test/typecheck/cases/happy-data-vec.rzk
     test/typecheck/cases/happy-ext-style-restrictions.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
@@ -58,9 +64,12 @@ extra-source-files:
     test/typecheck/cases/happy-modal-flat-recOR-under-op.rzk
     test/typecheck/cases/happy-modal-flat-under-op.rzk
     test/typecheck/cases/happy-modal-inv.rzk
+    test/typecheck/cases/happy-modal-let-dependent-payload.rzk
     test/typecheck/cases/happy-modal-let-into.rzk
+    test/typecheck/cases/happy-modal-let-restricted.rzk
     test/typecheck/cases/happy-modal-tope-unwrap.rzk
     test/typecheck/cases/happy-modal-topes.rzk
+    test/typecheck/cases/happy-modal-uninv-shape-restricted.rzk
     test/typecheck/cases/happy-multivar-binder.rzk
     test/typecheck/cases/happy-nbe-church-conversion.rzk
     test/typecheck/cases/happy-nbe-transport-refl-spine.rzk
@@ -90,12 +99,14 @@ extra-source-files:
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.rzk
     test/typecheck/cases/happy-subtype-variance-restriction-faces.rzk
     test/typecheck/cases/happy-subtype-variance-tope-family.rzk
+    test/typecheck/cases/happy-tope-assume.rzk
     test/typecheck/cases/happy-tope-family-domain-instance.rzk
     test/typecheck/cases/happy-tope-high-dim-cubes.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d4.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d5.rzk
     test/typecheck/cases/happy-tope-nested-rec-or-d6.rzk
     test/typecheck/cases/happy-tope-nested-rec-or.rzk
+    test/typecheck/cases/happy-tope-param.rzk
     test/typecheck/cases/happy-tope-rec-and-restrict.rzk
     test/typecheck/cases/happy-tope-shapes.rzk
     test/typecheck/cases/ill-bare-lambda-compute.rzk
@@ -104,6 +115,10 @@ extra-source-files:
     test/typecheck/cases/ill-data-compute-kind.rzk
     test/typecheck/cases/ill-data-compute-mismatch.rzk
     test/typecheck/cases/ill-data-compute-unknown.rzk
+    test/typecheck/cases/ill-data-cube-index.rzk
+    test/typecheck/cases/ill-data-cube-param.rzk
+    test/typecheck/cases/ill-data-cube-universe-field.rzk
+    test/typecheck/cases/ill-data-cube-universe-index.rzk
     test/typecheck/cases/ill-data-duplicate-constructor.rzk
     test/typecheck/cases/ill-data-eliminator-duplicate.rzk
     test/typecheck/cases/ill-data-eliminator-mismatch.rzk
@@ -111,6 +126,13 @@ extra-source-files:
     test/typecheck/cases/ill-data-fun-field.rzk
     test/typecheck/cases/ill-data-index-mismatch.rzk
     test/typecheck/cases/ill-data-missing-return.rzk
+    test/typecheck/cases/ill-data-modal-cube-field.rzk
+    test/typecheck/cases/ill-data-modal-kind-param-lock.rzk
+    test/typecheck/cases/ill-data-modal-kind-param-point.rzk
+    test/typecheck/cases/ill-data-modal-shape-field-lock.rzk
+    test/typecheck/cases/ill-data-modal-tope-field.rzk
+    test/typecheck/cases/ill-data-modal-tope-index.rzk
+    test/typecheck/cases/ill-data-modal-type-field.rzk
     test/typecheck/cases/ill-data-negative.rzk
     test/typecheck/cases/ill-data-non-u-sort.rzk
     test/typecheck/cases/ill-data-path-endpoint.rzk
@@ -119,11 +141,18 @@ extra-source-files:
     test/typecheck/cases/ill-data-path-indexed.rzk
     test/typecheck/cases/ill-data-path-unannotated.rzk
     test/typecheck/cases/ill-data-return-type.rzk
-    test/typecheck/cases/ill-data-shape-field.rzk
+    test/typecheck/cases/ill-data-shape-index-named.rzk
+    test/typecheck/cases/ill-data-shape-index.rzk
+    test/typecheck/cases/ill-data-shape-param.rzk
+    test/typecheck/cases/ill-data-tope-family-field.rzk
+    test/typecheck/cases/ill-data-tope-family-index.rzk
+    test/typecheck/cases/ill-data-tope-field.rzk
+    test/typecheck/cases/ill-data-tope-index.rzk
     test/typecheck/cases/ill-duplicate.rzk
     test/typecheck/cases/ill-hole-infer.rzk
     test/typecheck/cases/ill-hole-pattern-binder-names.rzk
     test/typecheck/cases/ill-hole-recor-branch.rzk
+    test/typecheck/cases/ill-hole-recor-guard-point.rzk
     test/typecheck/cases/ill-hole-unsolved.rzk
     test/typecheck/cases/ill-implicit.rzk
     test/typecheck/cases/ill-interval-no-totality.rzk
@@ -132,6 +161,13 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.rzk
     test/typecheck/cases/ill-issue-206-families-of-extension.rzk
     test/typecheck/cases/ill-issue-33-restriction-coherence.rzk
+    test/typecheck/cases/ill-kind-app-argument-tope.rzk
+    test/typecheck/cases/ill-kind-define-tope.rzk
+    test/typecheck/cases/ill-kind-id-carrier-tope.rzk
+    test/typecheck/cases/ill-kind-sigma-body-tope.rzk
+    test/typecheck/cases/ill-kind-sigma-cube-universe.rzk
+    test/typecheck/cases/ill-kind-sigma-tope-family.rzk
+    test/typecheck/cases/ill-kind-sigma-tope.rzk
     test/typecheck/cases/ill-lattice-endpoints-distinct.rzk
     test/typecheck/cases/ill-lattice-eq-no-leak.rzk
     test/typecheck/cases/ill-lattice-non-law.rzk
@@ -223,8 +259,8 @@ extra-source-files:
     test/typecheck/cases/ill-tope-not-satisfied-rec-or-boundary-equiv.rzk
     test/typecheck/cases/ill-tope-not-satisfied-rec-or-open-singleton.rzk
     test/typecheck/cases/ill-tope-not-satisfied-tope-family-subtyping.rzk
-    test/typecheck/cases/ill-tope-param-lambda.rzk
-    test/typecheck/cases/ill-tope-param-typefun.rzk
+    test/typecheck/cases/ill-tope-param-entailment.rzk
+    test/typecheck/cases/ill-tope-param-instance.rzk
     test/typecheck/cases/ill-tope-pattern-binder-bare.rzk
     test/typecheck/cases/ill-tope-recOR-non-discrete.rzk
     test/typecheck/cases/ill-tope-subtle-app-shape-5d.rzk
@@ -281,11 +317,17 @@ extra-source-files:
     test/typecheck/cases/happy-data-interval-funext.expect.yaml
     test/typecheck/cases/happy-data-large-warning.expect.yaml
     test/typecheck/cases/happy-data-list.expect.yaml
+    test/typecheck/cases/happy-data-modal-kind-param.expect.yaml
+    test/typecheck/cases/happy-data-modal-shape-field.expect.yaml
     test/typecheck/cases/happy-data-nat.expect.yaml
+    test/typecheck/cases/happy-data-path-shape-field.expect.yaml
     test/typecheck/cases/happy-data-prop-trunc.expect.yaml
     test/typecheck/cases/happy-data-pushout.expect.yaml
     test/typecheck/cases/happy-data-rec-section.expect.yaml
     test/typecheck/cases/happy-data-section.expect.yaml
+    test/typecheck/cases/happy-data-shape-realisation.expect.yaml
+    test/typecheck/cases/happy-data-shape-tope.expect.yaml
+    test/typecheck/cases/happy-data-tope-param.expect.yaml
     test/typecheck/cases/happy-data-vec.expect.yaml
     test/typecheck/cases/happy-ext-style-restrictions.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
@@ -306,9 +348,12 @@ extra-source-files:
     test/typecheck/cases/happy-modal-flat-recOR-under-op.expect.yaml
     test/typecheck/cases/happy-modal-flat-under-op.expect.yaml
     test/typecheck/cases/happy-modal-inv.expect.yaml
+    test/typecheck/cases/happy-modal-let-dependent-payload.expect.yaml
     test/typecheck/cases/happy-modal-let-into.expect.yaml
+    test/typecheck/cases/happy-modal-let-restricted.expect.yaml
     test/typecheck/cases/happy-modal-tope-unwrap.expect.yaml
     test/typecheck/cases/happy-modal-topes.expect.yaml
+    test/typecheck/cases/happy-modal-uninv-shape-restricted.expect.yaml
     test/typecheck/cases/happy-multivar-binder.expect.yaml
     test/typecheck/cases/happy-nbe-church-conversion.expect.yaml
     test/typecheck/cases/happy-nbe-transport-refl-spine.expect.yaml
@@ -338,12 +383,14 @@ extra-source-files:
     test/typecheck/cases/happy-subtype-variance-pi-shape-domain.expect.yaml
     test/typecheck/cases/happy-subtype-variance-restriction-faces.expect.yaml
     test/typecheck/cases/happy-subtype-variance-tope-family.expect.yaml
+    test/typecheck/cases/happy-tope-assume.expect.yaml
     test/typecheck/cases/happy-tope-family-domain-instance.expect.yaml
     test/typecheck/cases/happy-tope-high-dim-cubes.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d4.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d5.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or-d6.expect.yaml
     test/typecheck/cases/happy-tope-nested-rec-or.expect.yaml
+    test/typecheck/cases/happy-tope-param.expect.yaml
     test/typecheck/cases/happy-tope-rec-and-restrict.expect.yaml
     test/typecheck/cases/happy-tope-shapes.expect.yaml
     test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
@@ -352,6 +399,10 @@ extra-source-files:
     test/typecheck/cases/ill-data-compute-kind.expect.yaml
     test/typecheck/cases/ill-data-compute-mismatch.expect.yaml
     test/typecheck/cases/ill-data-compute-unknown.expect.yaml
+    test/typecheck/cases/ill-data-cube-index.expect.yaml
+    test/typecheck/cases/ill-data-cube-param.expect.yaml
+    test/typecheck/cases/ill-data-cube-universe-field.expect.yaml
+    test/typecheck/cases/ill-data-cube-universe-index.expect.yaml
     test/typecheck/cases/ill-data-duplicate-constructor.expect.yaml
     test/typecheck/cases/ill-data-eliminator-duplicate.expect.yaml
     test/typecheck/cases/ill-data-eliminator-mismatch.expect.yaml
@@ -359,6 +410,13 @@ extra-source-files:
     test/typecheck/cases/ill-data-fun-field.expect.yaml
     test/typecheck/cases/ill-data-index-mismatch.expect.yaml
     test/typecheck/cases/ill-data-missing-return.expect.yaml
+    test/typecheck/cases/ill-data-modal-cube-field.expect.yaml
+    test/typecheck/cases/ill-data-modal-kind-param-lock.expect.yaml
+    test/typecheck/cases/ill-data-modal-kind-param-point.expect.yaml
+    test/typecheck/cases/ill-data-modal-shape-field-lock.expect.yaml
+    test/typecheck/cases/ill-data-modal-tope-field.expect.yaml
+    test/typecheck/cases/ill-data-modal-tope-index.expect.yaml
+    test/typecheck/cases/ill-data-modal-type-field.expect.yaml
     test/typecheck/cases/ill-data-negative.expect.yaml
     test/typecheck/cases/ill-data-non-u-sort.expect.yaml
     test/typecheck/cases/ill-data-path-endpoint.expect.yaml
@@ -367,11 +425,18 @@ extra-source-files:
     test/typecheck/cases/ill-data-path-indexed.expect.yaml
     test/typecheck/cases/ill-data-path-unannotated.expect.yaml
     test/typecheck/cases/ill-data-return-type.expect.yaml
-    test/typecheck/cases/ill-data-shape-field.expect.yaml
+    test/typecheck/cases/ill-data-shape-index-named.expect.yaml
+    test/typecheck/cases/ill-data-shape-index.expect.yaml
+    test/typecheck/cases/ill-data-shape-param.expect.yaml
+    test/typecheck/cases/ill-data-tope-family-field.expect.yaml
+    test/typecheck/cases/ill-data-tope-family-index.expect.yaml
+    test/typecheck/cases/ill-data-tope-field.expect.yaml
+    test/typecheck/cases/ill-data-tope-index.expect.yaml
     test/typecheck/cases/ill-duplicate.expect.yaml
     test/typecheck/cases/ill-hole-infer.expect.yaml
     test/typecheck/cases/ill-hole-pattern-binder-names.expect.yaml
     test/typecheck/cases/ill-hole-recor-branch.expect.yaml
+    test/typecheck/cases/ill-hole-recor-guard-point.expect.yaml
     test/typecheck/cases/ill-hole-unsolved.expect.yaml
     test/typecheck/cases/ill-implicit.expect.yaml
     test/typecheck/cases/ill-interval-no-totality.expect.yaml
@@ -380,6 +445,13 @@ extra-source-files:
     test/typecheck/cases/ill-issue-13-flip-flip-wrong.expect.yaml
     test/typecheck/cases/ill-issue-206-families-of-extension.expect.yaml
     test/typecheck/cases/ill-issue-33-restriction-coherence.expect.yaml
+    test/typecheck/cases/ill-kind-app-argument-tope.expect.yaml
+    test/typecheck/cases/ill-kind-define-tope.expect.yaml
+    test/typecheck/cases/ill-kind-id-carrier-tope.expect.yaml
+    test/typecheck/cases/ill-kind-sigma-body-tope.expect.yaml
+    test/typecheck/cases/ill-kind-sigma-cube-universe.expect.yaml
+    test/typecheck/cases/ill-kind-sigma-tope-family.expect.yaml
+    test/typecheck/cases/ill-kind-sigma-tope.expect.yaml
     test/typecheck/cases/ill-lattice-endpoints-distinct.expect.yaml
     test/typecheck/cases/ill-lattice-eq-no-leak.expect.yaml
     test/typecheck/cases/ill-lattice-non-law.expect.yaml
@@ -471,8 +543,8 @@ extra-source-files:
     test/typecheck/cases/ill-tope-not-satisfied-rec-or-boundary-equiv.expect.yaml
     test/typecheck/cases/ill-tope-not-satisfied-rec-or-open-singleton.expect.yaml
     test/typecheck/cases/ill-tope-not-satisfied-tope-family-subtyping.expect.yaml
-    test/typecheck/cases/ill-tope-param-lambda.expect.yaml
-    test/typecheck/cases/ill-tope-param-typefun.expect.yaml
+    test/typecheck/cases/ill-tope-param-entailment.expect.yaml
+    test/typecheck/cases/ill-tope-param-instance.expect.yaml
     test/typecheck/cases/ill-tope-pattern-binder-bare.expect.yaml
     test/typecheck/cases/ill-tope-recOR-non-discrete.expect.yaml
     test/typecheck/cases/ill-tope-subtle-app-shape-5d.expect.yaml
@@ -582,7 +654,7 @@ library
     , bytestring >=0.10.8.2 && <1
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
-    , free-foil ==0.4.*
+    , free-foil >=0.4 && <0.6
     , gitrev >=1.3.1 && <2
     , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
@@ -636,7 +708,7 @@ executable rzk
     , bytestring >=0.10.8.2 && <1
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
-    , free-foil ==0.4.*
+    , free-foil >=0.4 && <0.6
     , gitrev >=1.3.1 && <2
     , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
@@ -673,7 +745,7 @@ test-suite doctests
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
     , doctest-parallel >=0.3 && <1
-    , free-foil ==0.4.*
+    , free-foil >=0.4 && <0.6
     , gitrev >=1.3.1 && <2
     , kind-generics >=0.5 && <1
     , kind-generics-th >=0.2 && <1
@@ -724,7 +796,7 @@ test-suite rzk-test
     , containers >=0.6 && <1
     , directory >=1.2.7.0 && <2
     , filepath >=1.4 && <2
-    , free-foil ==0.4.*
+    , free-foil >=0.4 && <0.6
     , gitrev >=1.3.1 && <2
     , hspec >=2.7 && <3
     , hspec-discover >=2.7 && <3

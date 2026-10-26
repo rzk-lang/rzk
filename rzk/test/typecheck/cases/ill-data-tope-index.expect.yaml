@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "an index of a #data sort must be a type, got the tope universe"
+regression_for:
+  - layer-discipline-tope-universe

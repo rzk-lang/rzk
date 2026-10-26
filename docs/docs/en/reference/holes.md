@@ -43,8 +43,9 @@ rejected. For example, a hole used as a function has no known type:
 ```
 
 Rzk does not introduce metavariables, so it never guesses the type of a hole.
-This keeps the meaning of a partial term predictable. A hole stands for a term
-of exactly the expected type, and nothing more.
+Each hole is annotated with its expected type. With `#!sh --allow-holes`, some
+unification and tope obligations involving holes are deferred; filling the holes
+may reveal further errors.
 
 ## Holes are errors by default
 
@@ -98,9 +99,9 @@ Only _local_ hypotheses are shown. The global environment, that is every
 previous definition, is deliberately excluded, so that the goal stays readable
 even inside a large development.
 
-The goal is kept symbolic. Composite definitions are shown as written, not
-unfolded. For an extension type the goal carries its boundary, so the conditions
-the term must satisfy are visible.
+Rzk displays the goal in weak head normal form, so definitions at its head may
+unfold. Extension-type boundaries are shown after simplification in the local
+tope context.
 
 When a binder uses a pair pattern, for example `#!rzk \ (t , s) -> ...`, the
 hypothesis is shown by its pattern, as `#!rzk (t, s) : ...`, rather than through

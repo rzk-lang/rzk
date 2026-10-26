@@ -2,55 +2,146 @@
 
 #compute-nf inv_op (0_2 === 0_2)
 
+-- The inv/uninv laws are observed as definitional equality of the extension
+-- types the topes carve out of the unit cube, over an arbitrary type A:
+-- TOPE is not a type, so the topes themselves cannot be compared by an
+-- identity type. Under an _op lock the type is op-bound (A :_op U).
+
 -- inv flips endpoint: inv_op(i === 0) = mod _op (flip(i) === 1)
 #def test-lt-mod-inv
+  (A :_op U)
   ( i : 2)
-  : let mod _op q := invᵒᵖ (i ≡ 0₂) in let mod _op fi := flip_op i in _op (q = (fi === 1_2))
+  : let mod _op q := invᵒᵖ (i ≡ 0₂) in let mod _op fi := flip_op i in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1_2) -> A))
   := mod _op refl
 
 #def test-inv-endpoint-one
+  (A :_op U)
   (i : 2)
   : let mod _op q := inv_op (i === 1_2) in
     let mod _op fi := flip_op i in
-    _op (q = (fi === 0_2))
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 0_2) -> A))
   := mod _op refl
 
 -- uninv(inv(phi)) = phi
 #def test-inv-uninv-cancel
+  (A : U)
   (i : 2)
-  : uninv_op (inv_op (i === 0_2)) = (i === 0_2)
+  : ((t : 1 | uninv_op (inv_op (i === 0_2))) -> A) = ((t : 1 | i === 0_2) -> A)
   := refl
 
 -- inv(uninv(mod _op phi)) = mod _op phi
 #def test-uninv-inv-cancel
+  (A :_op U)
   (i : 2)
   : let mod _op fi := flip_op i in
-    inv_op (uninv_op (mod _op (fi === 0_2))) = mod _op (fi === 0_2)
-  := refl
+    let mod _op a := inv_op (uninv_op (mod _op (fi === 0_2))) in
+    _op (((t : 1 | a) -> A) = ((t : 1 | fi === 0_2) -> A))
+  := mod _op refl
 
 -- inv distributes over conjunction
 #def test-inv-distributes-and
+  (A :_op U)
   (i j : 2)
   : let mod _op q := inv_op ((i === 0_2) /\ (j === 1_2)) in
     let mod _op fi := flip_op i in
     let mod _op fj := flip_op j in
-    _op (q = ((fi === 1_2) /\ (fj === 0_2)))
+    _op (((t : 1 | q) -> A) = ((t : 1 | (fi === 1_2) /\ (fj === 0_2)) -> A))
   := mod _op refl
 
 -- inv/uninv on TOP and BOT (bug catchers: stuck without nfTope fix)
 
 #def test-inv-top
-  : let mod _op q := (inv_op TOP) in _op (q = TOP)
+  (A :_op U)
+  : let mod _op q := (inv_op TOP) in
+    _op (((t : 1 | q) -> A) = ((t : 1 | TOP) -> A))
   := mod _op refl
 
 #def test-inv-bot
-  : let mod _op q := inv_op BOT in _op (q = BOT)
+  (A :_op U)
+  : let mod _op q := inv_op BOT in
+    _op (((t : 1 | q) -> A) = ((t : 1 | BOT) -> A))
   := mod _op refl
 
 #def test-uninv-top
-  : uninv_op (mod _op TOP) = TOP
+  (A : U)
+  : ((t : 1 | uninv_op (mod _op TOP)) -> A) = ((t : 1 | TOP) -> A)
   := refl
 
 #def test-uninv-bot
-  : uninv_op (mod _op BOT) = BOT
+  (A : U)
+  : ((t : 1 | uninv_op (mod _op BOT)) -> A) = ((t : 1 | BOT) -> A)
   := refl
+
+-- inv is precomposition with the order-reversing flip, so it commutes with
+-- /\, \/, TOP and BOT, and reverses <=.
+
+-- inv distributes over disjunction
+#define test-inv-distributes-or
+  (A :_op U)
+  (i j : 2)
+  : let mod _op q := inv_op ((i === 0_2) \/ (j === 1_2)) in
+    let mod _op fi := flip_op i in
+    let mod _op fj := flip_op j in
+    _op (((t : 1 | q) -> A) = ((t : 1 | (fi === 1_2) \/ (fj === 0_2)) -> A))
+  := mod _op refl
+
+-- inv reverses an inequality: inv(i <= j) = (fj <= fi)
+#define test-inv-leq
+  (A :_op U)
+  (i j : 2)
+  : let mod _op q := inv_op (i <= j) in
+    let mod _op fi := flip_op i in
+    let mod _op fj := flip_op j in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fj <= fi) -> A))
+  := mod _op refl
+
+-- uninv distributes over disjunction, via cancellation
+#define test-uninv-or
+  (A : U)
+  (i j : 2)
+  : ((t : 1 | uninv_op (inv_op ((i === 0_2) \/ (j === 1_2)))) -> A)
+  = ((t : 1 | (i === 0_2) \/ (j === 1_2)) -> A)
+  := refl
+
+-- uninv over conjunction, with a nested stuck conjunct
+#define test-uninv-and-mixed
+  (A : U)
+  (i j : 2)
+  : ((t : 1 | uninv_op (inv_op ((i <= j) /\ (j === 1_2)))) -> A)
+  = ((t : 1 | (i <= j) /\ (j === 1_2)) -> A)
+  := refl
+
+-- BOT absorbs under uninv (i must be op-bound to be used under mod _op)
+#define test-uninv-and-bot
+  (A : U)
+  (i :_op 2)
+  : ((t : 1 | uninv_op (mod _op ((i === 0_2) /\ BOT))) -> A)
+  = ((t : 1 | BOT) -> A)
+  := refl
+
+-- inv on the lattice interval endpoints (I_0 / I_1)
+#define test-inv-I-endpoint
+  (A :_op U)
+  (i : 𝕀)
+  : let mod _op q := inv_op (i === 0ᵢ) in
+    let mod _op fi := flip_op i in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1ᵢ) -> A))
+  := mod _op refl
+
+-- inv of a conjunction with BOT first normalises to mod _op BOT
+#define test-inv-and-bot
+  (A :_op U)
+  (i : 2)
+  : let mod _op q := inv_op (BOT /\ (i === 0_2)) in
+    _op (((t : 1 | q) -> A) = ((t : 1 | BOT) -> A))
+  := mod _op refl
+
+-- inv of a let-bound tope variable normalises through the variable
+#define test-inv-through-let
+  (A :_op U)
+  (i : 2)
+  : let mod _op q := inv_op (let phi := (i === 0_2) in phi) in
+    let mod _op fi := flip_op i in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1_2) -> A))
+  := mod _op refl

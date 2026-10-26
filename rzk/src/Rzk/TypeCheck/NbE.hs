@@ -4,9 +4,42 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Normalisation by evaluation, used as an all-or-nothing fast path for
--- conversion checking.
+-- | A conversion fast path using normalisation by evaluation. Evaluation keeps
+-- neutral spines with lazy unfoldings and compares them with one-step η for
+-- functions and pairs. 'Convertible' accepts the comparison; 'DontKnow' leaves
+-- it to ordinary unification.
 --
+-- Constructs whose reduction depends on the tope context or modalities, and
+-- holes, abort this fast path. Extension types and @recBOT@ are compared
+-- structurally. See the conversion, soundness and attribution notes below.
+module Rzk.TypeCheck.NbE
+  ( Conversion (..)
+  , nbeConvertible
+    -- * Conversion notes
+    -- $conversion
+    -- * Soundness
+    -- $soundness
+    -- * Attribution
+    -- $attribution
+  ) where
+
+import           Control.Monad.Reader              (asks)
+import           Data.Bifoldable                   (bifoldMap)
+import           Data.Bifunctor                    (bimap)
+import           Data.Monoid                       (All (..))
+import           Data.ZipMatchK                    (zipMatch2)
+
+import           Control.Monad.Foil                (NameBinder)
+import qualified Control.Monad.Foil                as Foil
+import           Control.Monad.Free.Foil           (AST (Node, Var),
+                                                    ScopedAST (..))
+import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
+
+import           Language.Rzk.Foil.Syntax
+import           Rzk.TypeCheck.Context
+import           Rzk.TypeCheck.Monad
+
+-- $conversion
 -- 'nbeConvertible' evaluates both sides into a value domain with closures
 -- (sharing by construction: a definition's value is evaluated once per
 -- occurrence, not once per copy, and Haskell's laziness makes the evaluation
@@ -19,13 +52,17 @@
 --
 -- It answers only 'Convertible' or 'DontKnow', never a definite inequality,
 -- so a caller falls back to the ordinary unification on 'DontKnow'. The two
--- cases are not opposites, which is why the answer is not a 'Bool'. The fast
--- path can therefore accept more
--- than the unification below it, but never less. Note that it does accept
--- more. The ordinary path decomposes an application pairwise, which invents
--- subgoals that a βδ-equal but structurally different pair need not meet
+-- cases are not opposites, which is why the answer is not a 'Bool'. NbE can
+-- accept comparisons that ordinary unification rejects: pairwise application
+-- decomposition can create subgoals that βδ-equal applications need not meet
 -- (see 'Rzk.TypeCheck.Unify.unifyViaDecompose').
 --
+-- The evaluator is a pure function of the 'Context': 'valueOfVar' is a plain
+-- reader-only lookup, and fresh variables for comparing closures are de
+-- Bruijn levels ('HFresh'), so the foil scope machinery is never extended and
+-- no quote function is needed.
+--
+-- $soundness
 -- Soundness is a subset argument: 'Convertible' is answered only for terms that are
 -- βδ-convertible up to α and the one-step η above, with every construct whose
 -- /reduction/ consults the context — @recOR@ guard selection, holes, the
@@ -34,16 +71,10 @@
 -- structurally (see the note at their 'eval' case): a structurally identical
 -- pair of restricted types is also accepted by the ordinary unification,
 -- through reflexive coverage and the cross-face coherences already proved at
--- formation. Every 'Convertible' is therefore also a success of the old
--- unification.
+-- formation. The soundness claim concerns definitional equality, rather than
+-- the comparisons accepted by the previous unification algorithm.
 --
--- The evaluator is a pure function of the 'Context': 'valueOfVar' is a plain
--- reader-only lookup, and fresh variables for comparing closures are de
--- Bruijn levels ('HFresh'), so the foil scope machinery is never extended and
--- no quote function is needed.
---
--- == Attribution
---
+-- $attribution
 -- None of the underlying techniques are ours. Semantic conversion checking —
 -- evaluate both sides into a value domain with closures and compare the
 -- values, applying functions to fresh generic values — is the algorithm of
@@ -81,23 +112,6 @@
 -- ('Convertible' or 'DontKnow', never refute), and 'VAbort' poisoning of the
 -- context-sensitive fragment so that the fast path stays sound by a subset
 -- argument.
-module Rzk.TypeCheck.NbE (Conversion (..), nbeConvertible) where
-
-import           Control.Monad.Reader              (asks)
-import           Data.Bifoldable                   (bifoldMap)
-import           Data.Bifunctor                    (bimap)
-import           Data.Monoid                       (All (..))
-import           Data.ZipMatchK                    (zipMatch2)
-
-import           Control.Monad.Foil                (NameBinder)
-import qualified Control.Monad.Foil                as Foil
-import           Control.Monad.Free.Foil           (AST (Node, Var),
-                                                    ScopedAST (..))
-import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
-
-import           Language.Rzk.Foil.Syntax
-import           Rzk.TypeCheck.Context
-import           Rzk.TypeCheck.Monad
 
 -- * The value domain
 

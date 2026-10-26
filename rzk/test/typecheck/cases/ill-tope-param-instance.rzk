@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Instantiating a bare tope parameter keeps the restriction: a function on
+-- the shape t === 0_2 cannot be applied at an arbitrary point.
+#define const-on (psi : TOPE) (A : U) (a : A) : (t : 2 | psi) -> A := \ _ -> a
+
+#define bad (A : U) (a : A) (t : 2) : A := const-on (t === 0_2) A a t

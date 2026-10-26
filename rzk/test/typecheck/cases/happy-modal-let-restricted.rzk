@@ -1,0 +1,68 @@
+#lang rzk-1
+
+-- A restriction is a refinement of the whole modal type, not an obstacle to
+-- modal elimination. `let mod` must look through the outer restriction when
+-- finding the modal payload type.
+#define unwrap-restricted-modal
+  (A :_b U)
+  (a :_b A)
+  (i : 2)
+  (x : (_b A) [ i === 0_2 |-> mod _b a ])
+  : _b A
+  := let mod _b y := x in mod _b y
+
+-- An explicit motive takes the inference path through the elaborator.
+#define unwrap-restricted-modal-into
+  (A :_b U)
+  (a :_b A)
+  (i : 2)
+  (x : (_b A) [ i === 0_2 |-> mod _b a ])
+  : _b A
+  := let mod _b y := x into (\ _ -> _b A) in mod _b y
+
+-- On the face, the let computes to the boundary value.
+#define restricted-flat-boundary
+  (A :_b U)
+  (a :_b A)
+  (i : 2)
+  (x : (_b A) [ i === 0_2 |-> mod _b a ])
+  : (_b A) [ i === 0_2 |-> mod _b a ]
+  := let mod _b y := x in mod _b y
+
+-- For a right adjoint, η identifies the let with x.
+#define restricted-op-eta
+  (A :_op U)
+  (a :_op A)
+  (i : 2)
+  (x : (_op A) [ i === 0_2 |-> mod _op a ])
+  : (let mod _op y := x in mod _op y) = x
+  := refl
+
+-- A restriction with two faces.
+#define restricted-sharp-two-faces
+  (A : U)
+  (a b : A)
+  (i : 2)
+  (x : (_# A) [ i === 0_2 |-> mod _# a , i === 1_2 |-> mod _# b ])
+  : (_# A) [ i === 0_2 |-> mod _# a , i === 1_2 |-> mod _# b ]
+  := let mod _# y := x in mod _# y
+
+-- A restriction nested twice around the modal type.
+#define restricted-twice
+  (A :_b U)
+  (a :_b A)
+  (i j : 2)
+  (x : ((_b A) [ i === 0_2 |-> mod _b a ]) [ j === 0_2 |-> mod _b a ])
+  : _b A
+  := let mod _b y := x in mod _b y
+
+-- Dependent motive on a restricted value, outside any face.
+#define into-restricted-dependent
+  (A :_b U)
+  (a :_b A)
+  (C : (_b A) -> U)
+  (c : (y :_b A) -> C (mod _b y))
+  (i : 2)
+  (x : (_b A) [ i === 0_2 |-> mod _b a ])
+  : C x
+  := let mod _b y := x into C in c y

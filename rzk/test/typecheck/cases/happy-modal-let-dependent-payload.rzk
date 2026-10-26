@@ -1,0 +1,24 @@
+#lang rzk-1
+
+-- A motive-free let mod in inference position whose body type depends on the
+-- bound variable: the inferred type is instantiated with the payload of x,
+-- not with x itself, for the right adjoints _#, _op and _id. The projection
+-- forces the let through inference.
+
+#define dep-sharp
+  (A : U)
+  (x : _# A)
+  : x = x
+  := first (let mod _# a := x in (refl_{mod _# a}, unit))
+
+#define dep-op
+  (A :_op U)
+  (x : _op A)
+  : x = x
+  := first (let mod _op a := x in (refl_{mod _op a}, unit))
+
+#define dep-id
+  (A : U)
+  (x : _id A)
+  : x = x
+  := first (let mod _id a := x in (refl_{mod _id a}, unit))

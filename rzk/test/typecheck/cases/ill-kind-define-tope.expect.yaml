@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "a definition at type U must be a type, got the tope universe"
+regression_for:
+  - layer-discipline-direct-guards

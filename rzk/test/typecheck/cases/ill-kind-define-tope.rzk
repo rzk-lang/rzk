@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- A definition at type U must define a type; a universe-kind body would be
+-- a synonym smuggling the kind into every position that accepts U.
+#define A : U := TOPE
