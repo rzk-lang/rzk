@@ -95,6 +95,12 @@ following the layers of the type theory:
   `#!rzk t : 2`);
 - **tope context** lists the tope assumptions in force at the hole.
 
+Under a [modality](modalities.rzk.md), an entry that cannot be used at the hole
+is still listed, marked with `×` and followed by its declared modality and the
+locks accumulated since, for example `× B : U  [modality: ᵒᵖ, locks: _id]`. The
+same applies to a tope assumption that is not in force. A usable entry with a
+modality other than `_id` shows the suffix without the mark.
+
 Only _local_ hypotheses are shown. The global environment, that is every
 previous definition, is deliberately excluded, so that the goal stays readable
 even inside a large development.
@@ -136,13 +142,21 @@ carries its structured goal and context under `#!json "hole"`:
   "hole": {
     "name": "b",
     "goal": "B",
-    "termVars": [ { "name": "p", "type": "Σ (x₁ : A), B" }, ... ],
+    "termVars": [ { "name": "p", "type": "Σ (x₁ : A), B",
+                    "modality": "_id", "locks": "_id", "accessible": true }, ... ],
     "cubeVars": [],
     "topes": [],
+    "topeInfo": [],
     "shape": null
   }
 }
 ```
+
+Each term and cube variable carries its declared `#!json "modality"`, the
+`#!json "locks"` accumulated since, and whether it is `#!json "accessible"` at
+the hole. `#!json "topes"` lists the tope assumptions in force, as strings.
+`#!json "topeInfo"` lists all tope assumptions, each as an object with
+`#!json "tope"` and the same three fields.
 
 ## Tooling
 
