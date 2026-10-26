@@ -65,14 +65,6 @@
   -> C n
 #check rec-b-Nat
   : (C : U) -> C -> ((pred :_b Nat) -> C -> C) -> (n :_b Nat) -> C
-#check ind-sharp-Nat
-  : (C : (n :_# Nat) -> U)
-  -> C zero
-  -> ((pred :_# Nat) -> (ih : C pred) -> C (suc pred))
-  -> (n :_# Nat)
-  -> C n
-#check rec-sharp-Nat
-  : (C : U) -> C -> ((pred :_# Nat) -> C -> C) -> (n :_# Nat) -> C
 
 #define modal-predecessor-generated
   (n :_b Nat)

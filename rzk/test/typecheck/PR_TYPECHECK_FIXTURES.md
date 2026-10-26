@@ -97,7 +97,7 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
   labelled goals) are covered by `Rzk.HolesSpec`.
 - **Modal `match`:** `happy-match-modal` covers both motive spellings,
-  the generated `ind`/`rec` declarations for every modality, direct use of
+  the generated `ind`/`rec` declarations for `ᵒᵖ` and `♭`, direct use of
   `rec-b-Nat`, scrutinee accessibility, left composition with plain and modal
   fields, the order-sensitive equation `Op · Op = Id`, an unmodified induction
   hypothesis, and the modality inherited by the motive's scrutinee binder;
@@ -106,7 +106,8 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   plain scrutinee binder in a Flat match motive, and
   `ill-match-modal-ih-remodalized` rejects using an induction hypothesis as
   though it inherited the match modality. `ill-match-modal-hit` checks the
-  explicit rejection for a higher inductive type. The shape fixtures above
+  explicit rejection for a higher inductive type, and `ill-match-modal-sharp`
+  and `ill-data-no-sharp-eliminator` that there are no `♯` eliminators. The shape fixtures above
   exercise generated modal eliminators for inline and named shape fields.
   Surface/core round trips,
   including the parenthesised ordinary match of a `mod` expression, are

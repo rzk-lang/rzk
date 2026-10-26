@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "modal match is not supported for ♯"
+regression_for:
+  - modal-data-no-sharp-eliminators

@@ -24,7 +24,7 @@ compute with <name> : <type>
 
 ## Description
 
-The declaration introduces the type former, one ordinary top-level name per constructor, and two generated eliminators: the induction principle `ind-<name>` and its non-dependent version `rec-<name>`. All of them live in the same namespace as every other top-level name, so a clash with an existing name is an error. The second form (no `:=`) declares the empty family.
+The declaration introduces the type former, one ordinary top-level name per constructor, and the generated eliminators: the induction principle `ind-<name>` and its non-dependent version `rec-<name>`, and, for a declaration without path constructors, their [modal variants](../match.rzk.md#modal-matching) `ind-op-<name>`, `rec-op-<name>`, `ind-b-<name>` and `rec-b-<name>`. All of them live in the same namespace as every other top-level name, so a clash with an existing name is an error. The second form (no `:=`) declares the empty family.
 
 For example:
 
@@ -128,7 +128,7 @@ An endpoint must be built from the declaration's constructors and the constructo
 
 ## The re-ascription clauses
 
-A declaration may end with re-ascription clauses: `eliminate with` names one of the two generated eliminators, `compute with` names a generated computation rule, and either gives the entry's type in the user's own spelling. The checker verifies that the spelling is definitionally equal to the canonical generated type, with the type former and the constructors in scope. Since definitionally equal types are interchangeable, the values and the computation rules are untouched; only the stored spelling changes, and it propagates wherever the type is displayed, e.g. to hover and to goals. If the given spelling is not definitionally equal to the canonical type, the error prints the canonical type.
+A declaration may end with re-ascription clauses: `eliminate with` names one of the generated eliminators, `compute with` names a generated computation rule, and either gives the entry's type in the user's own spelling. The checker verifies that the spelling is definitionally equal to the canonical generated type, with the type former and the constructors in scope. Since definitionally equal types are interchangeable, the values and the computation rules are untouched; only the stored spelling changes, and it propagates wherever the type is displayed, e.g. to hover and to goals. If the given spelling is not definitionally equal to the canonical type, the error prints the canonical type.
 
 This matters most for path constructors, whose canonical types inline transport and `ap`/`apd` through `#!rzk idJ`. With a library `transport`, `ap` and `apd` (each definable from `#!rzk idJ` before any declaration), the circle reads:
 

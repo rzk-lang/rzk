@@ -1117,7 +1117,11 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
             , esScrutV = scrutV, esIhNames = ihNames, esMethodVars = methodVars
             , esEndpointV = endpointV, esPathV = pathV, esTransportV = transportV
             , esConsData = consData, esPathData = pathData }
-          modalities = if hasPaths then [Id] else [Id, Op, Flat, Sharp]
+          -- Modal eliminators are crisp induction (Shulman 2018, §5), valid
+          -- for the left adjoints ♭ and ᵒᵖ. There is none for ♯: a right
+          -- adjoint does not preserve coproducts or initial algebras (MTT,
+          -- §10.5), and rec-sharp-Bool would retract ♯ Bool onto Bool.
+          modalities = if hasPaths then [Id] else [Id, Op, Flat]
           modalTerms = [ (md, elimTerms (spec md)) | md <- modalities ]
           generated = concat
             [ [ (md, ElimInd, elimIdent "ind" md name, indTypeTerm et)

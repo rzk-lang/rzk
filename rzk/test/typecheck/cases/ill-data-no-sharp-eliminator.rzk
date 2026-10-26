@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A #data generates no ♯ eliminators (see ill-match-modal-sharp).
+#data Bool := false | true
+
+#define retract : (z :_# Bool) -> Bool := rec-sharp-Bool Bool false true

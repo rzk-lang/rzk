@@ -1240,6 +1240,9 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
       , md == matchMd
       , ek == wantedKind ] of
     (e, DataRole _ numParams _) : _ -> pure (e, numParams)
+    [] | matchMd == Sharp ->
+      issueTypeError $ TypeErrorOther
+        "modal match is not supported for ♯: ♯ does not preserve coproducts or recursion"
     [] | matchMd /= Id && hasPathConstructor ->
       issueTypeError $ TypeErrorOther
         "modal match is not supported for higher inductive types"

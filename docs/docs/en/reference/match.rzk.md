@@ -34,8 +34,10 @@ Branches must be in bijection with the constructors: every constructor appears e
 The form `match μ x (...)` checks the scrutinee `x` under modality `μ` and
 uses the eliminator generated for that modality. A datatype `D` without path
 constructors generates `ind-D` and `rec-D` for the identity modality, together
-with `ind-op-D`/`rec-op-D`, `ind-b-D`/`rec-b-D`, and
-`ind-sharp-D`/`rec-sharp-D`.
+with `ind-op-D`/`rec-op-D` and `ind-b-D`/`rec-b-D`. These are crisp
+induction principles, valid for the left adjoints `ᵒᵖ` and `♭`. There are none
+for `♯`: as a right adjoint, `♯` does not preserve coproducts or recursion, so
+`match _# x (...)` is rejected.
 
 ```rzk
 #data Nat := zero | suc (pred : Nat)
