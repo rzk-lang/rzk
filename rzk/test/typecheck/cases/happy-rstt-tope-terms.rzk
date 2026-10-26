@@ -1,0 +1,15 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def ordinary (A : U) (a : A)
+  : (t : 2 | ((\ (x : A) → 0_2) a) === 0_2) → A
+  := \ t → a
+
+#def face (A : U) (a : A)
+  : (t : 2) → A [t === ((\ (x : A) → 0_2) a) ↦ a]
+  := \ t → a
+
+#def tope-id (φ : 2 → TOPE) : 2 → TOPE := φ
+#def schema (A : U) (a : A)
+  : (t : 2 | tope-id (\ u → u === 0_2) t) → A
+  := \ t → a

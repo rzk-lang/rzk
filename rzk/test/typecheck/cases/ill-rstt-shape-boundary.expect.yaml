@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - restriction boundary
+  - outer cube points
+regression_for:
+  - rstt-safe-mode

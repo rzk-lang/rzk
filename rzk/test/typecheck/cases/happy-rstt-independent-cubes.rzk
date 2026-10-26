@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def independent (I : CUBE) (s : 2) (f : (t : I) → Unit) : Unit := unit
+#def at-endpoint (I : 2 → CUBE) (s : 2)
+  (f : (t : I 0_2) → Unit) : Unit := unit
+#def product (I J : CUBE) ((s, t) : I × J) : Unit := unit
+#def functions (I : CUBE) : U := (t : I) → Unit
+#def instance (I : CUBE) (s : 2) (f : functions I) : Unit := unit

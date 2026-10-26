@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#postulate overhang (f : (t : 2 | t === 0_2) → Unit [TOP ↦ unit]) : Unit

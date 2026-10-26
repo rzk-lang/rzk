@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- The simplest inductive type: booleans, with computation through the
 -- generated eliminators.
 #data bool := false | true

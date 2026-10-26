@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - unknown rstt-safe mode
+regression_for:
+  - rstt-safe-mode

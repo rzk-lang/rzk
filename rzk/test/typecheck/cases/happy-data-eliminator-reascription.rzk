@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- An "eliminate with" re-ascription clause stores the user's spelling of a
 -- generated eliminator's type, after checking that it is definitionally
 -- equal to the canonical one (with the type former and constructors in

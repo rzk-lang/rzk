@@ -1,0 +1,8 @@
+status: ok
+warnings:
+  - RSTTModalWarning
+  - RSTTModalWarning
+  - RSTTModalWarning
+  - RSTTModalWarning
+regression_for:
+  - rstt-safe-mode

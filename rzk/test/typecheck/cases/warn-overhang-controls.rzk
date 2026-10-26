@@ -1,0 +1,13 @@
+#lang rzk-1
+
+-- Disabling and unsetting restore silence; a contained face stays silent.
+#set-option "warn-overhang" = "yes"
+#set-option "verbosity" = "silent"
+#def contained (t : 2 | t === 0_2) : Unit [t === 0_2 |-> unit] := unit
+#def split (t : 2 | t === 0_2) : Unit
+  := recOR ((t === 0_2) \/ (t === 1_2) |-> unit)
+#set-option "warn-overhang" = "no"
+#def disabled (t : 2 | t === 0_2) : Unit [TOP |-> unit] := unit
+#set-option "warn-overhang" = "yes"
+#unset-option "warn-overhang"
+#def reset (t : 2 | t === 0_2) : Unit [TOP |-> unit] := unit

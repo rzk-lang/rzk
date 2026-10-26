@@ -1,0 +1,7 @@
+status: ok
+warnings:
+  - OverhangWarning
+regression_for:
+  - structured-overhang-recOR-silent-verbosity
+  - warn-overhang-disable-and-reset
+  - overhang-entailment-direction

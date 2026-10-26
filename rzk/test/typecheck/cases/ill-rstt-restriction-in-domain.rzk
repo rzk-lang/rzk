@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def missed (A : U) (a : A)
+  : (t : 2 | ((\ (x : A [TOP ↦ a]) → 0_2) a) === 0_2) → A
+  := \ t → a

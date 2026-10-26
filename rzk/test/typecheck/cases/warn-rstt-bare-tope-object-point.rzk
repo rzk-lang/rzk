@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- A bare tope parameter is a meta parameter, like (psi : 1 -> TOPE): an
+-- instance that mentions an object-level point is outside RSTT.
+#set-option "rstt-safe" = "warn"
+
+#define const-on (psi : TOPE) (A : U) (a : A) : (t : 2 | psi) -> A := \ _ -> a
+
+#define at-point (s : 2) (A : U) (a : A) : (t : 2 | s === 0_2) -> A
+  := const-on (s === 0_2) A a

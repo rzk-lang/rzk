@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#data bool := false | true
+#def choose (b : bool) : bool := match b (false ⇒ true | true ⇒ false)

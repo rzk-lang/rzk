@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - free-standing restriction
+regression_for:
+  - rstt-safe-mode

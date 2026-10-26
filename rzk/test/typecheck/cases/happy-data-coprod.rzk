@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A parameterised inductive type, with an explicit return type on one
 -- constructor (it must be the declared type applied to the parameters).
 #data coprod

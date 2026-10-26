@@ -1,0 +1,4 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def false-path (A : U) (a b : A) : a = b := refl

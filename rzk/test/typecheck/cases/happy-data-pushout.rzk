@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- The pushout: the path constructor's endpoints apply point constructors
 -- to datatype-free terms (f c and g c), which the endpoint images leave
 -- untouched.

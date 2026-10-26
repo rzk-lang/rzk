@@ -1,0 +1,25 @@
+#lang rzk-1
+
+-- A mixed face fails even when the inner domain is the whole cube.
+#postulate mixed-boundary (A : U) (a : A) (s : 2)
+  (f : (t : 2) → A [t === s ↦ a]) : Unit
+
+-- An outer point in the domain is forbidden even without a restriction.
+#postulate mixed-domain (A : U) (s : 2)
+  (f : (t : 2 | t <= s) → A) : Unit
+
+-- Different cubes can be related by a schematic tope family.
+#postulate distinct-cubes (I J : CUBE) (φ : I → J → TOPE)
+  (s : I) (f : (t : J) → Unit [φ s t ↦ unit]) : Unit
+
+-- A product-pattern binder does not hide its dependency from an inner binder.
+#postulate outer-product (A : U) (a : A) ((s, u) : 2 * 2)
+  (f : (t : 2) → A [t === s ↦ a]) : Unit
+
+-- A domain may occur only in a nested lambda's inferred type.
+#def nested (s : 2) : Unit := (\ (t : 2 | t <= s) → unit) 0_2
+
+-- A local tope-family alias must not hide an outer cube point.
+#def alias (s : 2) : U :=
+  let face : 2 → TOPE := \ t → t === s in
+  (t : 2) → Unit [face t ↦ unit]

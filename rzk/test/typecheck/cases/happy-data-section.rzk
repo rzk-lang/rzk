@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A #data inside a #section closes over the used assumptions uniformly:
 -- the type former, the constructors, and the eliminators all gain the
 -- section parameter, and the ι-rule keeps computing afterwards.

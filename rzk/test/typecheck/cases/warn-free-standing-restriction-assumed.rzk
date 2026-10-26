@@ -1,0 +1,41 @@
+#lang rzk-1
+
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+#set-option "warn-free-standing-restriction" = "yes"
+
+-- A restriction is ext-style when it sits on the codomain of a shape-Π.
+-- Conservativity over RSTT covers the derivations that conclude a
+-- free-standing restriction but never assume one, so the checker reports the
+-- assumed positions: a binder, an eliminator motive, a type passed as data.
+
+#def at-binder (A : U) (x : A) (f : (A [TOP ↦ x]) → A) : A
+  := f x
+
+-- The motive of idJ: the eliminator binds its variables at it.
+#def at-motive (A : U) (x : A) (p : x =_{A} x) : A [TOP ↦ x]
+  := idJ (A , x , (\ _ _ → A [TOP ↦ x]) , x , x , p)
+
+-- Passed as data at a U-valued parameter, then substituted into a motive.
+#def generic-J (A : U) (x : A) (C : (z : A) → (x =_{A} z) → U) (d : C x refl)
+  ( y : A) (p : x =_{A} y)
+  : C y p
+  := idJ (A , x , C , d , y , p)
+
+#def at-data (A : U) (x : A) (p : x =_{A} x) : A [TOP ↦ x]
+  := generic-J A x (\ _ _ → A [TOP ↦ x]) x x p
+
+-- A definition at U whose body is a type: data as well.
+#def at-universe (A : U) (x : A) : U
+  := A [TOP ↦ x]
+
+-- The type of an identity type, which types its endpoints: Def. 5.7 of the
+-- paper does not reach a restriction there.
+#def at-identity (A : U) (x : A) (y : A [TOP ↦ x]) : U
+  := y =_{A [TOP ↦ x]} y
+
+-- The motive of a generated eliminator, passed at its U-valued parameter.
+#data bool := false | true
+
+#def at-eliminator (A : U) (x : A) (b : bool) : A [TOP ↦ x]
+  := ind-bool (\ _ → A [TOP ↦ x]) x x b

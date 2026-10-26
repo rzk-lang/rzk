@@ -1,0 +1,8 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def family (A : U) : U := A
+#def alias : U → U := family
+#def receive (F : U → U) (A : U) : U := F A
+#def supply (A : U) : U := receive (\ B → B) A
+#def ordinary (A : U) : Σ (f : A → A), Unit := ((\ a → a), unit)

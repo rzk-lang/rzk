@@ -1,0 +1,10 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+-- Overhang along a concluded codomain remains a tail type.
+#def concluded (t : 2 | t === 0_2) : Unit [TOP ↦ unit] := unit
+-- An ambient constraint is not part of the immediate shape binder.
+#postulate ambient (s : 2 | s === 0_2)
+  (f : (t : 2) → Unit [t === 0_2 ↦ unit]) : Unit
+-- A boundary included in its own shape is ext-style.
+#postulate contained (f : (t : 2 | t === 0_2) → Unit [t === 0_2 ↦ unit]) : Unit

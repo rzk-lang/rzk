@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A restriction is a refinement of the whole modal type, not an obstacle to
 -- modal elimination. `let mod` must look through the outer restriction when
 -- finding the modal payload type.

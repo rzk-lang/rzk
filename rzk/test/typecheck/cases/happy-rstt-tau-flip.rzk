@@ -1,0 +1,56 @@
+#lang rzk-1
+#set-option "rstt-safe" = "error"
+
+-- Paper example: src/context-hott.rzk
+
+
+-- Non-displayed context for the code snippets included in the paper.
+-- These definitions mirror the sHoTT library (hott/* modules).
+
+#define product
+  ( A B : U)
+  : U
+  := Σ (a : A) , B
+
+#define has-section
+  ( A B : U)
+  ( f : A → B)
+  : U
+  := Σ (s : B → A) , ((b : B) → f (s b) = b)
+
+#define has-retraction
+  ( A B : U)
+  ( f : A → B)
+  : U
+  := Σ (r : B → A) , ((a : A) → r (f a) = a)
+
+#define is-equiv
+  ( A B : U)
+  ( f : A → B)
+  : U
+  := product (has-retraction A B f) (has-section A B f)
+
+#define Equiv
+  ( A B : U)
+  : U
+  := Σ (f : A → B) , is-equiv A B f
+
+-- Paper example: src/flip-ext-fun.rzk
+
+
+#define flip-ext-fun
+  ( I : CUBE)
+  ( ψ : I → TOPE)
+  ( φ : ψ → TOPE)
+  ( X : U)
+  ( Y : ψ → X → U)
+  ( f : (t : φ) → (x : X) → Y t x)
+  : Equiv
+      ( (t : ψ) → ((x : X) → Y t x) [φ t ↦ f t])
+      ( (x : X) → (t : ψ) → Y t x [φ t ↦ f t x])
+  :=
+    ( \ g x t → g t x ,
+      ( ( \ h t x → (h x) t ,
+          \ g → refl) ,
+        ( \ h t x → (h x) t ,
+          \ h → refl)))

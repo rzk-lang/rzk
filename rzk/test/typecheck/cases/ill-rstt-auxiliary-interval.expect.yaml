@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - auxiliary interval
+regression_for:
+  - rstt-excludes-auxiliary-interval
