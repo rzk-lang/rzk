@@ -291,6 +291,8 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-section.rzk
     test/typecheck/cases/warn-meta-prefix-strict-only.rzk
     test/typecheck/cases/warn-overhang-controls.rzk
+    test/typecheck/cases/warn-rstt-bare-tope-binder-in-term.rzk
+    test/typecheck/cases/warn-rstt-bare-tope-object-point.rzk
     test/typecheck/cases/warn-rstt-default.rzk
     test/typecheck/cases/warn-rstt-escape-beta.rzk
     test/typecheck/cases/warn-rstt-escape-iota.rzk
@@ -572,6 +574,8 @@ extra-source-files:
     test/typecheck/cases/warn-meta-prefix-section.expect.yaml
     test/typecheck/cases/warn-meta-prefix-strict-only.expect.yaml
     test/typecheck/cases/warn-overhang-controls.expect.yaml
+    test/typecheck/cases/warn-rstt-bare-tope-binder-in-term.expect.yaml
+    test/typecheck/cases/warn-rstt-bare-tope-object-point.expect.yaml
     test/typecheck/cases/warn-rstt-default.expect.yaml
     test/typecheck/cases/warn-rstt-escape-beta.expect.yaml
     test/typecheck/cases/warn-rstt-escape-iota.expect.yaml
