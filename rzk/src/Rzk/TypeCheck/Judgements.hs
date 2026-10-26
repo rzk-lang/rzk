@@ -1110,6 +1110,9 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
             return (pairT ty' l' r')
           TypeSigmaT _ty _orig md a b -> do
             l' <- enterModality md $ typecheck l a
+            whnfT a >>= \case
+              UniverseT{} -> ensureTypeAtU "a pair component at type U" l'
+              _           -> pure ()
             bAt <- instantiate b l'
             r' <- typecheck r bAt
             return (pairT ty' l' r')
@@ -1594,17 +1597,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeFun orig md a Nothing b -> do
     a' <- enterModality md $ infer a
     typeOf a' >>= \case
-      -- an argument can be a type
-      UniverseT{} ->
-        case a' of
-          -- except if it is the TOPE universe
-          UniverseTopeT{} ->
-            issueTypeError $ TypeErrorOther "tope params are illegal"
-          _ -> do
-            mapM_ checkNameShadowing (binderLeaves orig)
-            b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
-              typecheck bTerm universeT
-            return (typeFunT orig md a' Nothing b')
+      -- an argument can be a type, including TOPE: a bare tope parameter
+      -- (phi : TOPE) means the same as the tope family (phi : 1 -> TOPE)
+      UniverseT{} -> do
+        mapM_ checkNameShadowing (binderLeaves orig)
+        b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
+          typecheck bTerm universeT
+        return (typeFunT orig md a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         mapM_ checkNameShadowing (binderLeaves orig)
@@ -1639,13 +1638,17 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   TypeSigma orig md a b -> do
     a' <- enterModality md $ typecheck a universeT
+    ensureTypeAtU "a Σ component" a'
     mapM_ checkNameShadowing (binderLeaves orig)
-    b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
-      typecheck bTerm universeT
+    b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm -> do
+      bTyped <- typecheck bTerm universeT
+      ensureTypeAtU "a Σ component" bTyped
+      pure bTyped
     return (typeSigmaT orig md a' b')
 
   TypeId x (Just tA) y -> do
     tA' <- typecheck tA universeT
+    ensureTypeAtU "the carrier of an identity type" tA'
     x' <- typecheck x tA'
     y' <- typecheck y tA'
     return (typeIdT x' (Just tA') y')
@@ -1653,6 +1656,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeId x Nothing y -> do
     x' <- inferAs universeT x
     tA <- typeOf x'
+    ensureTypeAtU "the carrier of an identity type" tA
     y' <- typecheck y tA
     return (typeIdT x' (Just tA) y')
 
@@ -1665,6 +1669,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
         x' <- enterModality md $ case (x, mtope) of
           (Hole mname, Just tope) -> checkHoleAgainstShape mname orig a tope
           _                       -> typecheck x a
+        whnfT a >>= \case
+          UniverseT{} -> ensureTypeAtU "a type argument" x'
+          _           -> pure ()
         bAt <- instantiate b x'
         let result = appT bAt f' x'
         case b of
@@ -1688,13 +1695,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
   Lambda orig (Just (LambdaParam md ty Nothing)) body -> do
     ty' <- enterModality md $ infer ty
     mcube <- typeOf ty' >>= \case
-      -- an argument can be a type
-      UniverseT{} ->
-        case ty' of
-          -- except if it is the TOPE universe
-          UniverseTopeT{} ->
-            issueTypeError $ TypeErrorOther "tope params are illegal"
-          _ -> return Nothing
+      -- an argument can be a type, including TOPE (a bare tope parameter)
+      UniverseT{} -> return Nothing
       -- an argument can be a cube
       UniverseCubeT{} -> return Nothing
       -- an argument can be a shape

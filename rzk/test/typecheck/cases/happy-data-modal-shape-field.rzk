@@ -1,0 +1,30 @@
+#lang rzk-1
+
+-- A modal shape field: an ordinary shape point sitting under a lock. The
+-- eliminator binds it with the field's modality, so the lock discipline of
+-- the modal layer applies inside a branch exactly as it does for a modal
+-- Π-binder; no crisp induction is involved (that is the separate principle
+-- of eliminating a crisp x :_b D by cases, which #data does not provide).
+#data FlatArr := fa (t :_b 2 | ⊤)
+
+#define f0 : FlatArr := fa 0_2
+
+#define fam (A :_b (t : 2) -> U) (x : FlatArr) : U
+  := match x (fa t ⇒ A t)
+
+-- Strict β through the lock: the match computes on a syntactic point.
+#define beta (A :_b (t : 2) -> U) (s :_b 2) : fam A (fa s) = A s
+  := refl
+
+-- The other two spellings of a modal shape field agree with the inline one:
+-- a bare modal cube and a named modal shape are decided by the elaborated
+-- domain, not the surface form.
+#define Delta1 : 2 -> TOPE := \ t -> ⊤
+
+#data FlatCube := fc (t :_b 2)
+#data FlatByName := fn (t :_b Delta1)
+
+#define fc0 : FlatCube := fc 0_2
+#define fam-fc (A :_b (t : 2) -> U) (x : FlatCube) : U := match x (fc t ⇒ A t)
+#define beta-fc (A :_b (t : 2) -> U) (s :_b 2) : fam-fc A (fc s) = A s := refl
+#define fam-fn (A :_b (t : 2) -> U) (x : FlatByName) : U := match x (fn t ⇒ A t)

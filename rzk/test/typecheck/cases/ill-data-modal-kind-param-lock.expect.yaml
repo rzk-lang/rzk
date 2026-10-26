@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorUnaccessibleVar
+message_contains:
+  - "under locks"
+regression_for:
+  - data-modal-kind-parameter

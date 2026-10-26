@@ -1,0 +1,29 @@
+#lang rzk-1
+
+-- The modal kinds are #data parameters, as they are #define parameters.
+-- Parameters are uniform, so the eliminators only abstract over them.
+#data P-op (psi : _op TOPE) (A : U) := c-op (a : A)
+#data P-op-family (psi : 2 -> _op TOPE) := c-op-family
+#data P-flat-cube (I : _b CUBE) := c-flat-cube
+#data P-flat (psi : _b TOPE) := c-flat
+#data P-sharp-family (psi : _# (2 -> TOPE)) := c-sharp-family
+
+#define iota-rec-P-op
+  ( psi : _op TOPE) (A : U) (C : U) (f : A -> C) (a : A)
+  : rec-P-op psi A C f (c-op psi A a) = f a
+  := refl
+
+#define iota-ind-P-op
+  ( psi : _op TOPE) (A : U) (C : P-op psi A -> U)
+  ( f : (a : A) -> C (c-op psi A a)) (a : A)
+  : ind-P-op psi A C f (c-op psi A a) = f a
+  := refl
+
+#define inst-P-op (A : U) (a : A) : P-op (mod _op TOP) A := c-op (mod _op TOP) A a
+
+#define inst-P-flat-cube : P-flat-cube (mod _b 2) := c-flat-cube (mod _b 2)
+
+-- A shape field whose tope comes from a modal-tope parameter.
+#data R (psi : _op TOPE) := pt (t : 2 | uninv_op psi)
+
+#define pt-top (t : 2) : R (mod _op TOP) := pt (mod _op TOP) t

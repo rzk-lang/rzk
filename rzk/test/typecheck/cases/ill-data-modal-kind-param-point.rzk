@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#data R (psi : _op TOPE) := pt (t : 2 | uninv_op psi)
+
+-- The shape field keeps its tope: there is no point of R (mod _op BOT).
+#define bad : R (mod _op BOT) := pt (mod _op BOT) 0_2

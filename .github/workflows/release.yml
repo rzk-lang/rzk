@@ -37,7 +37,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-latest]
+        # macos-15 rather than macos-latest: see the note in ghc.yml.
+        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-15]
 
     steps:
       - name: 📥 Checkout repository
