@@ -1763,16 +1763,19 @@ infer tt = performing (ActionInfer tt) $ case tt of
     -- binder stands for the whole @val@ and not for the let-bound @orig : A@; it is
     -- left anonymous rather than reusing @orig@, which would show the wrong role in
     -- goals and hovers. Only @U@ is supported as the codomain for now: a motive
-    -- landing in @CUBE@ or @TOPE@ cannot be written.
+    -- landing in @CUBE@ or @TOPE@ cannot be written. The motive ranges over the
+    -- modal type without the restrictions of @val@'s type, because the body is
+    -- checked at a generic @mod inn y@, which need not satisfy them.
+    let modalTy = stripTypeRestrictions valTy
     univScope <- constScope universeT
     mmotive' <- forM mmotive $ \motive ->
-      typecheck motive (typeFunT (BinderVar Nothing) app valTy Nothing univScope)
+      typecheck motive (typeFunT (BinderVar Nothing) app modalTy Nothing univScope)
     case mmotive' of
       Just motive' -> do
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \binder bodyTerm ->
           typecheck bodyTerm
             (appT universeT (Foil.sink motive')
-              (modAppT (Foil.sink valTy) inn (Var (Foil.nameOf binder))))
+              (modAppT (Foil.sink modalTy) inn (Var (Foil.nameOf binder))))
         return (letModT (appT universeT motive' val') orig app inn (Just bindTy) mmotive' val' body')
       Nothing -> do
         (body', ret) <- checkUnderWith orig (comp app inn) bindTy bindVal body $ \binder bodyTerm -> do
