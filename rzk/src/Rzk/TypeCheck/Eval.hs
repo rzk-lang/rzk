@@ -1115,7 +1115,7 @@ domainKindName = \case
   DomainTopeUniverse    -> "the tope universe"
   DomainTopeFamily      -> "a tope family"
   DomainOtherTopeFamily -> "a tope family over a non-cube domain"
-  DomainModalTope       -> "a modal tope"
+  DomainModalTope       -> "a modal cube or tope kind"
 
 -- | Reject a universe kind standing where an ordinary type is required.
 -- The check is on the weak head normal form, so a synonym

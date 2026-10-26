@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "got a modal cube or tope kind: _b CUBE"
+regression_for:
+  - layer-discipline-kind-names

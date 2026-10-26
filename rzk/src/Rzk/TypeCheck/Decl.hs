@@ -691,7 +691,7 @@ modalFieldError cname = issueTypeError $ TypeErrorOther $
 -- type, a cube point, or a shape. That is the realisation fragment of
 -- Kudasov's 2021 note — points go /into/ constructors and the eliminator
 -- maps out into types — and nothing beyond it: a field of the cube universe,
--- of a tope-family kind, or of a modal tope kind would /store/ a cube- or
+-- of a tope-family kind, or of a modal cube or tope kind would /store/ a cube- or
 -- tope-layer citizen inside type-layer data, which no written metatheory
 -- covers ('DomainKind' names the rejected kinds).
 --
