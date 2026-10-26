@@ -537,9 +537,12 @@ dataSortIndices = \case
 -- generic realisation @#data Shape (I : CUBE) (phi : I → TOPE)@ depends
 -- on; /indices/ must be types, full stop. A family indexed by the cube
 -- universe or by tope families is internal quantification over the
--- cube\/tope layers, which no written metatheory covers, and the modal
--- tope kinds (@ᵒᵖ TOPE@ and families into it) are closed everywhere in
--- @#data@ pending a modal extension of the parameter layer.
+-- cube\/tope layers, which no written metatheory covers. The modal kinds
+-- (@ᵒᵖ TOPE@, @♭ CUBE@, @♯ (I → TOPE)@, families into them, …) are
+-- parameters too, as in a @#define@. This is part of the experimental
+-- modal layer: the parameter layer has no modal account yet, but the
+-- parameters are uniform, so the generated eliminators only abstract over
+-- them, as a @#define@ with the same parameters would.
 --
 -- Rejecting is deliberate, not an accident of implementation. The generated
 -- eliminators for a cube parameter or index are pointwise and look
@@ -574,6 +577,7 @@ checkDataSortLayers paramDecls sortIndices = go positions
             DomainCubeUniverse | isParam -> pure ()
             DomainTopeUniverse | isParam -> pure ()
             DomainTopeFamily   | isParam -> pure ()
+            DomainModalTope    | isParam -> pure ()
             kind               -> reject (domainKindName kind)
         inScope orig md param ret (go rest)
       _ -> panicImpossible "#data sort has fewer Π binders than parameters and indices"

@@ -1068,8 +1068,9 @@ data DomainKind
     -- ^ a function into @TOPE@ over a non-cube domain — not the paper's kind
   | DomainModalTope
     -- ^ a modal type over @TOPE@ or a family into one (@ᵒᵖ TOPE@,
-    -- @I → ᵒᵖ TOPE@, …) — the modal tope reflection, closed pending a
-    -- modal extension of the parameter layer
+    -- @I → ᵒᵖ TOPE@, …) or over @CUBE@ (@♭ CUBE@): a parameter kind of the
+    -- experimental modal layer (Π binders, @#assume@, @#data@ parameters),
+    -- closed in every other position
 
 -- | Classify an elaborated binder domain. Restricted binders (shapes) never
 -- reach this: callers dispatch on the binder's tope first.
