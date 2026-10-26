@@ -139,6 +139,39 @@ spec = do
           map show (holeTopes h2) `shouldContain` ["s ≤ t"]
         hs  -> expectationFailure ("expected exactly two holes, got " <> show (length hs))
 
+    it "records holes in point positions of a recOR guard" $ do
+      let src = "#lang rzk-1\n#define square (A : U) (a : A)\n  : (2 × 2) → A\n  := \\ (t , s) → recOR ( ? ≤ ? ↦ a , ? ↦ a )\n"
+          holes = holesOf src
+      length (filter ((== "?") . show . holeGoal) holes) `shouldBe` 2
+      map (show . holeGoal) holes `shouldContain` ["TOPE"]
+      length holes `shouldBe` 3
+      let pointLocations =
+            [ loc
+            | h <- holes
+            , show (holeGoal h) == "?"
+            , Just loc <- [holeLocation h]
+            ]
+      case pointLocations of
+        [l, r] -> l `shouldNotBe` r
+        ls     -> expectationFailure ("expected two point-hole locations, got " <> show ls)
+
+    it "does not treat an undefined point name as a hole" $ do
+      let src = "#lang rzk-1\n#define bad : TOPE := missing ≤ 0₂\n"
+      holesOf src `shouldBe` []
+      errTagsOf src `shouldContain` ["TypeErrorUndefined"]
+
+    it "records holes in equality point positions" $ do
+      let holes = holesOf "#lang rzk-1\n#define face : TOPE := ? ≡ ?\n"
+      map (show . holeGoal) holes `shouldBe` ["?", "?"]
+
+    it "rejects a general cube point on either side of an order tope" $ do
+      let invalidRight = "#lang rzk-1\n#define bad (p : 2 × 2) : TOPE := ? ≤ p\n"
+          invalidLeft = "#lang rzk-1\n#define bad (p : 2 × 2) : TOPE := p ≤ ?\n"
+      length (holesOf invalidRight) `shouldBe` 1
+      errTagsOf invalidRight `shouldContain` ["TypeErrorOther"]
+      holesOf invalidLeft `shouldBe` []
+      errTagsOf invalidLeft `shouldContain` ["TypeErrorOther"]
+
     -- When the recOR is checked against an /extension type/, each branch hole
     -- reports the boundary it must meet under its tope (the restriction is
     -- pushed into the branches), rather than the bare underlying type. So the
