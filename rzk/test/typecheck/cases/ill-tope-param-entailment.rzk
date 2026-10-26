@@ -1,0 +1,7 @@
+#lang rzk-1
+
+-- Bare tope parameters are opaque: psi does not entail an unrelated chi.
+#define bad
+  ( psi chi : TOPE) (A : U) (f : (t : 2 | chi) -> A)
+  : (t : 2 | psi) -> A
+  := \ t -> f t

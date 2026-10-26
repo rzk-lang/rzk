@@ -1582,18 +1582,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
   TypeFun orig md a Nothing b -> do
     a' <- enterModality md $ infer a
     typeOf a' >>= \case
-      -- an argument can be a type
-      UniverseT{} ->
-        whnfT a' >>= \case
-          -- except if it is the TOPE universe (checked up to whnf, so a
-          -- synonym meets the same rule as the spelled-out universe)
-          UniverseTopeT{} ->
-            issueTypeError $ TypeErrorOther "tope params are illegal"
-          _ -> do
-            mapM_ checkNameShadowing (binderLeaves orig)
-            b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
-              typecheck bTerm universeT
-            return (typeFunT orig md a' Nothing b')
+      -- an argument can be a type, including TOPE: a bare tope parameter
+      -- (phi : TOPE) means the same as the tope family (phi : 1 -> TOPE)
+      UniverseT{} -> do
+        mapM_ checkNameShadowing (binderLeaves orig)
+        b' <- elaborateUnder orig md a' Nothing b $ \_binder bTerm ->
+          typecheck bTerm universeT
+        return (typeFunT orig md a' Nothing b')
       -- an argument can be a cube
       UniverseCubeT{} -> do
         mapM_ checkNameShadowing (binderLeaves orig)
@@ -1685,14 +1680,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
   Lambda orig (Just (LambdaParam md ty Nothing)) body -> do
     ty' <- enterModality md $ infer ty
     mcube <- typeOf ty' >>= \case
-      -- an argument can be a type
-      UniverseT{} ->
-        whnfT ty' >>= \case
-          -- except if it is the TOPE universe (checked up to whnf, so a
-          -- synonym meets the same rule as the spelled-out universe)
-          UniverseTopeT{} ->
-            issueTypeError $ TypeErrorOther "tope params are illegal"
-          _ -> return Nothing
+      -- an argument can be a type, including TOPE (a bare tope parameter)
+      UniverseT{} -> return Nothing
       -- an argument can be a cube
       UniverseCubeT{} -> return Nothing
       -- an argument can be a shape

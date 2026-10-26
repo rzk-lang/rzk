@@ -1060,8 +1060,7 @@ data DomainKind
     -- ^ a function into @CUBE@, which is no parameter kind of the
     -- meta-theoretic parameter layer
   | DomainTopeUniverse
-    -- ^ @TOPE@ itself, which the general binder and assumption rules
-    -- reject before most positions see it
+    -- ^ @TOPE@ itself, a bare tope parameter, as in @(phi : TOPE)@
   | DomainTopeFamily
     -- ^ a tope family @{I | ψ} → TOPE@ (every Π-binder a cube or shape),
     -- the Rzk paper's parameter kind

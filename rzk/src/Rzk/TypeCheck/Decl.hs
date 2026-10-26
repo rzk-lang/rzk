@@ -531,8 +531,9 @@ dataSortIndices = \case
 -- @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on both.
 --
 -- The rule per position ('DomainKind' has the fine classification):
--- /parameters/ may be types, @CUBE@, or plain tope families — exactly the
--- kinds of the meta-theoretic parameter layer of the Rzk paper, which the
+-- /parameters/ may be types, @CUBE@, @TOPE@, or plain tope families —
+-- exactly the kinds of the meta-theoretic parameter layer of the Rzk paper
+-- (a bare tope @(phi : TOPE)@ means the family @(phi : 1 → TOPE)@), which the
 -- generic realisation @#data Shape (I : CUBE) (phi : I → TOPE)@ depends
 -- on; /indices/ must be types, full stop. A family indexed by the cube
 -- universe or by tope families is internal quantification over the
@@ -546,8 +547,7 @@ dataSortIndices = \case
 -- a shape — unlike shape /fields/, which are the representability rule of
 -- Kudasov's 2021 note — and a family over a shape is what extension types
 -- are for. A rejection can be relaxed later; an acceptance cannot be
--- revoked. Bare tope binders never reach this check: they are rejected by
--- the general rule in "Rzk.TypeCheck.Judgements" while the sort is checked.
+-- revoked.
 checkDataSortLayers
   :: Distinct n => [Rzk.ParamDecl] -> [SortIndex] -> TermT n -> TypeCheck n ()
 checkDataSortLayers paramDecls sortIndices = go positions
@@ -563,7 +563,7 @@ checkDataSortLayers paramDecls sortIndices = go positions
     go ((isParam, spelled) : rest) ty = whnfT ty >>= \case
       TypeFunT _ty orig md param mtope ret -> do
         let position
-              | isParam   = "a parameter of a #data must be a type, CUBE, or a tope family, got "
+              | isParam   = "a parameter of a #data must be a type, CUBE, TOPE, or a tope family, got "
               | otherwise = "an index of a #data sort must be a type, got "
             reject kind = issueTypeError $ TypeErrorOther $
               position <> kind <> ": " <> spelled
@@ -572,6 +572,7 @@ checkDataSortLayers paramDecls sortIndices = go positions
           Nothing -> classifyDomain param >>= \case
             DomainType         -> pure ()
             DomainCubeUniverse | isParam -> pure ()
+            DomainTopeUniverse | isParam -> pure ()
             DomainTopeFamily   | isParam -> pure ()
             kind               -> reject (domainKindName kind)
         inScope orig md param ret (go rest)
@@ -1441,16 +1442,7 @@ checkCommands path i total commands k = case commands of
       withCommand command k $ do
         typeResult <- tryCheck $ do
           tyTerm <- elaborate ty
-          ty' <- atSurface ty $ typecheck tyTerm universeT
-          -- A bare tope assumption would let section closure manufacture the
-          -- Π over TOPE that the binder rule forbids; the tope-family
-          -- spelling (psi : 1 -> TOPE) is the supported form of a bare tope
-          -- parameter.
-          whnfT ty' >>= \case
-            UniverseTopeT{} -> issueTypeError $ TypeErrorOther
-              "tope assumptions are illegal; assume a tope family instead, e.g. (psi : 1 -> TOPE)"
-            _ -> pure ()
-          pure ty'
+          atSurface ty $ typecheck tyTerm universeT
         case typeResult of
           Left typeError -> skippingCommand typeError path i total more k
           Right ty' ->

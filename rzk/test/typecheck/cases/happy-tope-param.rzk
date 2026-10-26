@@ -1,0 +1,39 @@
+#lang rzk-1
+
+-- A bare tope parameter (psi : TOPE) means the same as the tope family
+-- (psi : 1 -> TOPE): it can restrict a shape or an extension type, it is
+-- instantiated with any tope in scope, and the two spellings convert.
+
+#define const-on
+  ( psi : TOPE) (A : U) (a : A)
+  : (t : 2 | psi) -> A
+  := \ _ -> a
+
+#define ext-at
+  ( psi : TOPE) (A : U) (a : A)
+  : (t : 2) -> A [psi |-> a]
+  := \ _ -> a
+
+#define use-top (A : U) (a : A) : (t : 2 | TOP) -> A := const-on TOP A a
+
+#define use-point
+  ( s : 2) (A : U) (a : A)
+  : (t : 2 | s === 0_2) -> A
+  := const-on (s === 0_2) A a
+
+#define weaken
+  ( psi chi : TOPE) (A : U) (f : (t : 2 | psi \/ chi) -> A)
+  : (t : 2 | psi) -> A
+  := \ t -> f t
+
+#define to-family
+  ( f : (psi : TOPE) -> (A : U) -> (a : A) -> (t : 2 | psi) -> A)
+  : (psi : 1 -> TOPE) -> (A : U) -> (a : A) -> (t : 2 | psi *_1) -> A
+  := \ psi -> f (psi *_1)
+
+#define from-family
+  ( g : (psi : 1 -> TOPE) -> (A : U) -> (a : A) -> (t : 2 | psi *_1) -> A)
+  : (psi : TOPE) -> (A : U) -> (a : A) -> (t : 2 | psi) -> A
+  := \ psi -> g (\ _ -> psi)
+
+#define lam : (psi : TOPE) -> U := \ (psi : TOPE) -> (t : 2 | psi) -> Unit

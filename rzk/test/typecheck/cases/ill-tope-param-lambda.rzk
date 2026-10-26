@@ -1,3 +1,0 @@
-#lang rzk-1
-
-#define bad : (p : TOPE) -> U := \ p -> U
