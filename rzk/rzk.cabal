@@ -81,6 +81,7 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
     test/typecheck/cases/happy-rstt-awareness.rzk
+    test/typecheck/cases/happy-rstt-bare-tope-param.rzk
     test/typecheck/cases/happy-rstt-boundary-error.rzk
     test/typecheck/cases/happy-rstt-boundary-multicube.rzk
     test/typecheck/cases/happy-rstt-boundary-warn.rzk
@@ -365,6 +366,7 @@ extra-source-files:
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
     test/typecheck/cases/happy-rstt-awareness.expect.yaml
+    test/typecheck/cases/happy-rstt-bare-tope-param.expect.yaml
     test/typecheck/cases/happy-rstt-boundary-error.expect.yaml
     test/typecheck/cases/happy-rstt-boundary-multicube.expect.yaml
     test/typecheck/cases/happy-rstt-boundary-warn.expect.yaml

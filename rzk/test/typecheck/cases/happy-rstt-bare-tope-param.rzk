@@ -1,0 +1,18 @@
+#lang rzk-1
+
+-- A bare tope parameter is a tope parameter of the meta-theoretic parameter
+-- layer, like the family (psi : 1 -> TOPE): RSTT-safe mode accepts both.
+#set-option "rstt-safe" = "error"
+
+#define const-on
+  ( psi : TOPE) (A : U) (a : A)
+  : (t : 2 | psi) -> A
+  := \ _ -> a
+
+#define use (A : U) (a : A) : (t : 2 | TOP) -> A := const-on TOP A a
+
+#section s
+#assume chi : TOPE
+#variable B : U
+#define r (b : B) : (t : 2) -> B [chi |-> b] := \ _ -> b
+#end s
