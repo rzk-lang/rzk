@@ -1091,7 +1091,7 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
         valTy <- typeOf val'
         bindTy <- case typeUnderModal inn valTy of
           Just t  -> pure t
-          Nothing -> issueTypeError $ TypeErrorNotModal (untyped valTy) inn val'
+          Nothing -> issueTypeError $ TypeErrorNotModal (untyped val') inn valTy
         o <- whnfT val'
         bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
         body' <- elaborateUnder orig (comp app inn) bindTy bindVal body $ \_binder bodyTerm ->
@@ -1756,7 +1756,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     valTy <- typeOf val'
     bindTy <- case typeUnderModal inn valTy of
       Just t  -> pure t
-      Nothing -> issueTypeError $ TypeErrorNotModal (untyped valTy) inn val'
+      Nothing -> issueTypeError $ TypeErrorNotModal (untyped val') inn valTy
     o <- whnfT val'
     bindVal <- maybe (extractModal app inn o) (pure . Just) (valueUnderModal inn o)
     -- The motive is a family over the modal value, @(z :^app ⟨inn|A⟩) → U@, so its

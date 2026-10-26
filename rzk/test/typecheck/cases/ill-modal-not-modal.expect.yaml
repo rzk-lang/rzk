@@ -2,3 +2,4 @@ status: error
 error_tag: TypeErrorNotModal
 message_contains:
   - "expected modal type"
+  - "but got type\n  A\nfor term\n  x"
