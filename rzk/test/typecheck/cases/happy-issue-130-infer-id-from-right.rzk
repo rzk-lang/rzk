@@ -1,0 +1,16 @@
+#lang rzk-1
+
+#define control
+  (A : U)
+  (x : A)
+  (th : Σ (z : A), z =_{A} x)
+  : U
+  := (x, refl) =_{Σ (z : A), z =_{A} x} th
+
+
+#define regression
+  (A : U)
+  (x : A)
+  (th : Σ (z : A), z =_{A} x)
+  : U
+  := (x, refl) = th

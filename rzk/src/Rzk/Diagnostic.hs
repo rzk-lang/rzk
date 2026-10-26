@@ -159,6 +159,7 @@ typeErrorTag = \case
   TypeErrorMatchUnknownBranch{}    -> "TypeErrorMatchUnknownBranch"
   TypeErrorMatchBranchArity{}      -> "TypeErrorMatchBranchArity"
   TypeErrorReascribedTypeMismatch{} -> "TypeErrorReascribedTypeMismatch"
+  TypeErrorCannotInferBoth{} -> "TypeErrorCannotInferBoth"
 
 -- | The tag of a type error.
 --

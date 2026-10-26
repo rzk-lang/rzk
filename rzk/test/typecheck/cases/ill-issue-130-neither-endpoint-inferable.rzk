@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#define both-uninferable
+  (A : U)
+  (x : A)
+  : U
+  := (x, refl) = (x, refl)
