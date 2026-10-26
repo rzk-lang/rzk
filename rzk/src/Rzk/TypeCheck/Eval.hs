@@ -1503,9 +1503,12 @@ applyNeutral scope h ((ty, x) : rest) = do
 applyWhnfFun :: Distinct n => TypeInfo (TermT n) -> TermT n -> TermT n -> TypeCheck n (TermT n)
 applyWhnfFun ty f' x = typeOf f' >>= \case
   TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
+    -- The application is marked as a normal form, so that normalising it again
+    -- does not insert the side condition again; its head must then be normal too.
+    f'' <- nfT f'
     x' <- enterModality md $ nfT x
     sideCondition <- instantiate tope x' >>= nfT
-    pure (topeAndT (termIsNF (AppT ty f' x')) sideCondition)
+    pure (topeAndT (termIsNF (AppT ty f'' x')) sideCondition)
   -- FIXME: this seems to be a hack, and will not work in all
   -- situations! FIXME: for now, it seems to add ~2x slowdown
   TypeFunT info _orig md _param _mtope ret@(ScopedAST _ TypeRestrictedT{})
@@ -1833,9 +1836,12 @@ nfT tt = performing (ActionNF tt) $ case tt of
               instantiate body x >>= nfT
             f' -> typeOf f' >>= \case
               TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
+                -- marked as a normal form, as in 'applyWhnfFun', so the head is
+                -- normalised too
+                f'' <- nfT f'
                 x' <- enterModality md $ nfT x
                 sideCondition <- instantiate tope x' >>= nfT
-                pure (topeAndT (termIsNF (AppT ty f' x')) sideCondition)
+                pure (topeAndT (termIsNF (AppT ty f'' x')) sideCondition)
               _ -> do
                 -- The ι-redex of a generated eliminator only exists at the
                 -- node holding the full spine, which the recursion above
