@@ -1,4 +1,3 @@
 status: ok
 regression_for:
-  - "saturateInv: an uninv assumption must survive the shape side condition of a restricted application"
-  - "saturateForEntailment: topes derived after simplifyLHSwithDisjunctions are never split into atoms"
+  - "nfTope: uninv distributes over the conjunction that a shape-restricted application normalises to, so each conjunct reaches the tope context"
