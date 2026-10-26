@@ -46,11 +46,12 @@ spec = do
           ("goal" `isInfixOf` diagnosticMessage d) `shouldBe` True
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
-    it "marks ordinary identity context entries as available without modal noise" $ do
+    it "leaves ordinary identity context entries unmarked" $ do
       case diagnose "#lang rzk-1\n#define g : (A : U) -> A -> A\n  := \\ A a -> ?\n" of
         [d] -> do
-          diagnosticMessage d `shouldSatisfy` isInfixOf "    + A : U"
-          diagnosticMessage d `shouldSatisfy` isInfixOf "    + a : A"
+          diagnosticMessage d `shouldSatisfy` isInfixOf "    A : U"
+          diagnosticMessage d `shouldSatisfy` isInfixOf "    a : A"
+          diagnosticMessage d `shouldNotSatisfy` isInfixOf "× "
           diagnosticMessage d `shouldNotSatisfy` isInfixOf "[modality:"
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
@@ -59,11 +60,12 @@ spec = do
                 \#def g (A : U) (B :_op U) (i :_op 2) : U := ?\n"
       case diagnose src of
         [d] -> do
-          diagnosticMessage d `shouldSatisfy` isInfixOf "    + A : U"
+          diagnosticMessage d `shouldSatisfy` isInfixOf "    A : U"
+          diagnosticMessage d `shouldNotSatisfy` isInfixOf "× A : U"
           diagnosticMessage d `shouldSatisfy`
-            isInfixOf "    - B : U  [modality: ᵒᵖ, locks: _id]"
+            isInfixOf "    × B : U  [modality: ᵒᵖ, locks: _id]"
           diagnosticMessage d `shouldSatisfy`
-            isInfixOf "    - i : 2  [modality: ᵒᵖ, locks: _id]"
+            isInfixOf "    × i : 2  [modality: ᵒᵖ, locks: _id]"
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
     it "keeps and marks a tope that is unavailable under a modal lock" $ do
@@ -73,9 +75,9 @@ spec = do
       case diagnose src of
         [d] -> do
           diagnosticMessage d `shouldSatisfy`
-            isInfixOf "    - i : 2  [modality: _id, locks: ᵒᵖ]"
+            isInfixOf "    × i : 2  [modality: _id, locks: ᵒᵖ]"
           diagnosticMessage d `shouldSatisfy`
-            isInfixOf "    - i ≡ 0₂  [modality: _id, locks: ᵒᵖ]"
+            isInfixOf "    × i ≡ 0₂  [modality: _id, locks: ᵒᵖ]"
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
   -- The structured hole payload (Rzk.Diagnostic.HoleData) exposes the goal and
@@ -123,9 +125,10 @@ spec = do
                 \#def bad (A : U) (B :_op U) : U := B\n"
       case diagnose src of
         [d] -> do
-          diagnosticMessage d `shouldSatisfy` isInfixOf "+ A : U"
+          diagnosticMessage d `shouldSatisfy` isInfixOf "  A : U"
+          diagnosticMessage d `shouldNotSatisfy` isInfixOf "× A : U"
           diagnosticMessage d `shouldSatisfy`
-            isInfixOf "- B : U  [modality: ᵒᵖ, locks: _id]"
+            isInfixOf "× B : U  [modality: ᵒᵖ, locks: _id]"
           diagnosticMessage d `shouldSatisfy`
             isInfixOf "variable B is inaccessible in the current modal context"
           diagnosticMessage d `shouldSatisfy`

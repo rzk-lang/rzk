@@ -497,8 +497,8 @@ ppContext dir ctx@Context{..} = block dir $ dropWhile null
   where
     naming = namingOfContext ctx
     ppU = ppTerm naming
-    availability True  = "+ "
-    availability False = "- "
+    availability True  = ""
+    availability False = "× "
     modalSuffix Id Id = ""
     modalSuffix modality locks =
       "  [modality: " <> ppModality modality

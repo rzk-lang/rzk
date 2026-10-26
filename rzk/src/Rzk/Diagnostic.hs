@@ -400,8 +400,8 @@ ppHoleInfo HoleInfo{..} = unlines $
                 <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
                 <> modalSuffix (holeEntryMode e)
             | e <- entries ]
-    availability True  = "+ "
-    availability False = "- "
+    availability True  = ""
+    availability False = "× "
     modalSuffix mode
       | holeItemModality mode == Id && holeItemLocks mode == Id = ""
       | otherwise =
