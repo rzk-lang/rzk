@@ -1,0 +1,4 @@
+status: ok
+warnings: []
+regression_for:
+  - let-mod-infers-a-dependent-type-at-the-payload

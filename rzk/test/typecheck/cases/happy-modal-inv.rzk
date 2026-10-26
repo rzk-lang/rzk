@@ -72,3 +72,76 @@
   (A : U)
   : ((t : 1 | uninv_op (mod _op BOT)) -> A) = ((t : 1 | BOT) -> A)
   := refl
+
+-- inv is precomposition with the order-reversing flip, so it commutes with
+-- /\, \/, TOP and BOT, and reverses <=.
+
+-- inv distributes over disjunction
+#define test-inv-distributes-or
+  (A :_op U)
+  (i j : 2)
+  : let mod _op q := inv_op ((i === 0_2) \/ (j === 1_2)) in
+    let mod _op fi := flip_op i in
+    let mod _op fj := flip_op j in
+    _op (((t : 1 | q) -> A) = ((t : 1 | (fi === 1_2) \/ (fj === 0_2)) -> A))
+  := mod _op refl
+
+-- inv reverses an inequality: inv(i <= j) = (fj <= fi)
+#define test-inv-leq
+  (A :_op U)
+  (i j : 2)
+  : let mod _op q := inv_op (i <= j) in
+    let mod _op fi := flip_op i in
+    let mod _op fj := flip_op j in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fj <= fi) -> A))
+  := mod _op refl
+
+-- uninv distributes over disjunction, via cancellation
+#define test-uninv-or
+  (A : U)
+  (i j : 2)
+  : ((t : 1 | uninv_op (inv_op ((i === 0_2) \/ (j === 1_2)))) -> A)
+  = ((t : 1 | (i === 0_2) \/ (j === 1_2)) -> A)
+  := refl
+
+-- uninv over conjunction, with a nested stuck conjunct
+#define test-uninv-and-mixed
+  (A : U)
+  (i j : 2)
+  : ((t : 1 | uninv_op (inv_op ((i <= j) /\ (j === 1_2)))) -> A)
+  = ((t : 1 | (i <= j) /\ (j === 1_2)) -> A)
+  := refl
+
+-- BOT absorbs under uninv (i must be op-bound to be used under mod _op)
+#define test-uninv-and-bot
+  (A : U)
+  (i :_op 2)
+  : ((t : 1 | uninv_op (mod _op ((i === 0_2) /\ BOT))) -> A)
+  = ((t : 1 | BOT) -> A)
+  := refl
+
+-- inv on the lattice interval endpoints (I_0 / I_1)
+#define test-inv-I-endpoint
+  (A :_op U)
+  (i : 𝕀)
+  : let mod _op q := inv_op (i === 0ᵢ) in
+    let mod _op fi := flip_op i in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1ᵢ) -> A))
+  := mod _op refl
+
+-- inv of a conjunction with BOT first normalises to mod _op BOT
+#define test-inv-and-bot
+  (A :_op U)
+  (i : 2)
+  : let mod _op q := inv_op (BOT /\ (i === 0_2)) in
+    _op (((t : 1 | q) -> A) = ((t : 1 | BOT) -> A))
+  := mod _op refl
+
+-- inv of a let-bound tope variable normalises through the variable
+#define test-inv-through-let
+  (A :_op U)
+  (i : 2)
+  : let mod _op q := inv_op (let phi := (i === 0_2) in phi) in
+    let mod _op fi := flip_op i in
+    _op (((t : 1 | q) -> A) = ((t : 1 | fi === 1_2) -> A))
+  := mod _op refl

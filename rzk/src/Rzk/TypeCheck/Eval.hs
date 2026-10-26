@@ -78,6 +78,40 @@ typeOfUncomputed = \case
 typeOf :: Distinct n => TermT n -> TypeCheck n (TermT n)
 typeOf t = typeOfUncomputed t >>= whnfT
 
+typeUnderModal :: TModality -> TermT n -> Maybe (TermT n)
+typeUnderModal m ty = case stripTypeRestrictions ty of
+  TypeModalT _ m' inner | m' == m -> Just inner
+  _                               -> Nothing
+
+valueUnderModal :: TModality -> TermT n -> Maybe (TermT n)
+valueUnderModal m = \case
+  ModAppT _ m' t | m' == m -> Just t
+  _                        -> Nothing
+
+requireTypeUnderModal :: Distinct n => TModality -> TermT n -> TypeCheck n (TermT n)
+requireTypeUnderModal m t = do
+  ty <- typeOf t
+  case typeUnderModal m ty of
+    Just inner -> pure inner
+    Nothing    -> do
+      ctx <- ask
+      let naming = namingOfContext ctx
+      panicImpossible $ unlines
+        [ "not modal in letmod"
+        , "term: " <> ppTermT naming t
+        , "type: " <> ppTermT naming ty
+        , "expected modality: " <> show m
+        , "action stack:"
+        , concatMap (ppAction naming 0) (take 16 (ctxActionStack ctx))
+        ]
+
+extractModal :: Distinct n => TModality -> TModality -> TermT n -> TypeCheck n (Maybe (TermT n))
+extractModal app inn t
+  | isRA inn = do
+      bty <- requireTypeUnderModal inn t
+      pure (Just (modExtractT bty app inn t))
+  | otherwise = pure Nothing
+
 -- | The free variables of a typed term, including those that occur only in the
 -- /types/ of the variables it mentions.
 --
@@ -1272,17 +1306,15 @@ whnfT tt = performing (ActionWHNF tt) $ case tt of
 
             LetT _ty _orig _mparam val body ->
               instantiate body val >>= whnfT
-            LetModT ty orig app inn mparam mmotive val body ->
-              (enterModality app $ whnfT val) >>= \case
-                ModAppT _ md t | md == inn -> do
-                  val' <- enterModality md $ whnfT t
+            LetModT ty orig app inn mparam mmotive val body -> do
+              b' <- enterModality app (whnfT val)
+              case valueUnderModal inn b' of
+                Just t -> do
+                  val' <- enterModality inn (whnfT t)
                   instantiate body val' >>= whnfT
-                b' | isRA inn -> do
-                  bty <- typeOf b' >>= \case
-                    TypeModalT _ _ t -> pure t
-                    _ -> panicImpossible "not modal in letmod"
-                  instantiate body (modExtractT bty app inn b') >>= whnfT
-                _ -> pure (LetModT ty orig app inn mparam mmotive val body)
+                Nothing -> extractModal app inn b' >>= \case
+                  Just v  -> instantiate body v >>= whnfT
+                  Nothing -> pure (LetModT ty orig app inn mparam mmotive val body)
             FirstT ty t ->
               whnfT t >>= \case
                 PairT _ l _r -> whnfT l
@@ -1471,9 +1503,12 @@ applyNeutral scope h ((ty, x) : rest) = do
 applyWhnfFun :: Distinct n => TypeInfo (TermT n) -> TermT n -> TermT n -> TypeCheck n (TermT n)
 applyWhnfFun ty f' x = typeOf f' >>= \case
   TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
+    -- The application is marked as a normal form, so that normalising it again
+    -- does not insert the side condition again; its head must then be normal too.
+    f'' <- nfT f'
     x' <- enterModality md $ nfT x
     sideCondition <- instantiate tope x' >>= nfT
-    pure (topeAndT (AppT ty f' x') sideCondition)
+    pure (topeAndT (termIsNF (AppT ty f'' x')) sideCondition)
   -- FIXME: this seems to be a hack, and will not work in all
   -- situations! FIXME: for now, it seems to add ~2x slowdown
   TypeFunT info _orig md _param _mtope ret@(ScopedAST _ TypeRestrictedT{})
@@ -1599,69 +1634,52 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
   TopeLEQT ty l r -> TopeLEQT ty <$> nfTope l <*> nfTope r
 
   TopeInvT ty t ->
-    -- Match And/Or on the *unnormalised* input: nfTope of a shape-restricted App
-    -- produces a TopeAnd via shape-side-condition propagation, and distributing
-    -- inv over that synthetic conjunction loops forever, because the recursive
-    -- topeInvT renormalises the same App back into a TopeAnd.
-    case t of
-      TopeTopT _ -> pure $ modAppT topeT Op topeTopT
-      TopeBottomT _ -> pure $ modAppT topeT Op topeBottomT
+    nfTope t >>= \case
+      TopeUninvT _ phi -> pure phi
+      TopeTopT _ -> pure (underOp topeTopT)
+      TopeBottomT _ -> pure (underOp topeBottomT)
       TopeLEQT _ x y -> invOf topeLEQT x y
       TopeEQT _ x y -> invOf topeEQT x y
-      TopeAndT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeAndT
-            (modExtractT topeT Id Op (topeInvT phi))
-            (modExtractT topeT Id Op (topeInvT psi)))
-      TopeOrT _ phi psi -> nfTope $
-        modAppT (typeModalT universeT Op topeT) Op
-          (topeOrT
-            (modExtractT topeT Id Op (topeInvT phi))
-            (modExtractT topeT Id Op (topeInvT psi)))
-      _ ->
-        nfTope t >>= \case
-          TopeTopT _       -> pure topeTopT
-          TopeBottomT _    -> pure topeBottomT
-          TopeUninvT _ phi -> pure phi
-          TopeLEQT _ x y   -> invOf topeLEQT x y
-          TopeEQT _ x y    -> invOf topeEQT x y
-          t'               -> pure (TopeInvT ty t')
+      TopeAndT _ phi psi -> distribute topeAndT phi psi
+      TopeOrT _ phi psi -> distribute topeOrT phi psi
+      t' -> pure (TopeInvT ty t')
     where
+      underOp phi = modAppT (typeModalT universeT Op topeT) Op phi
+      extractInv phi = modExtractT topeT Id Op (topeInvT phi)
+      distribute mk phi psi =
+        nfTope (underOp (mk (extractInv phi) (extractInv psi)))
+
       invOf mk x y = do
         xTy <- typeOf x
         yTy <- typeOf y
-        nfTope $
-          modAppT (typeModalT universeT Op topeT) Op
-            (mk (modExtractT topeT Id Op (cubeFlipT xTy y))
-                (modExtractT topeT Id Op (cubeFlipT yTy x)))
+        nfTope $ underOp $
+          mk (modExtractT topeT Id Op (cubeFlipT xTy y))
+             (modExtractT topeT Id Op (cubeFlipT yTy x))
 
   TopeUninvT ty t ->
-    case t of
-      ModAppT _ Op inner -> case inner of
+    nfTope t >>= \case
+      TopeInvT _ phi -> pure phi
+      ModAppT _ Op inner -> uninvNF inner
+      t' -> pure (TopeUninvT ty t')
+    where
+      underOp phi = modAppT (typeModalT universeT Op topeT) Op phi
+
+      uninvNF inner = case inner of
         TopeTopT _ -> pure topeTopT
         TopeBottomT _ -> pure topeBottomT
-        TopeAndT _ phi psi ->
-          nfTope (topeAndT (topeUninvT phi) (topeUninvT psi))
-        TopeOrT _ phi psi ->
-          nfTope (topeOrT (topeUninvT phi) (topeUninvT psi))
-        _ ->
-          nfTope t >>= \case
-            TopeTopT _ -> pure topeTopT
-            TopeBottomT _ -> pure topeBottomT
-            TopeInvT _ phi -> pure phi
-            ModAppT _ Op inner'' -> case inner'' of
-              TopeLEQT _ x y -> uninvOf topeLEQT x y
-              TopeEQT _ x y -> uninvOf topeEQT x y
-              inner' ->
-                pure $ TopeUninvT ty
-                  (modAppT (typeModalT universeT Op topeT) Op inner')
-            t' -> pure (TopeUninvT ty t')
-      _ ->
-        nfTope t >>= \case
-          TopeInvT _ phi -> pure phi
-          t'@(ModAppT _ Op _) -> nfTope (TopeUninvT ty t')
-          t' -> pure (TopeUninvT ty t')
-    where
+        TopeAndT _ phi psi -> andNF <$> uninvNF phi <*> uninvNF psi
+        TopeOrT _ phi psi -> orNF <$> uninvNF phi <*> uninvNF psi
+        TopeLEQT _ x y -> uninvOf topeLEQT x y
+        TopeEQT _ x y -> uninvOf topeEQT x y
+        _ -> pure (TopeUninvT ty (underOp inner))
+
+      andNF TopeBottomT{} _ = topeBottomT
+      andNF _ TopeBottomT{} = topeBottomT
+      andNF l r             = topeAndT l r
+      orNF TopeBottomT{} r  = r
+      orNF l TopeBottomT{}  = l
+      orNF l r              = topeOrT l r
+
       uninvOf mk x y = do
         xTy <- typeOf x
         yTy <- typeOf y
@@ -1682,7 +1700,7 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
         TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
           x' <- enterModality md $ nfTope x
           sideCondition <- instantiate tope x' >>= nfTope
-          pure (topeAndT (AppT ty f' x') sideCondition)
+          pure (topeAndT (termIsNF (AppT ty f' x')) sideCondition)
         _ -> AppT ty f' <$> nfTope x
 
   FirstT ty t ->
@@ -1711,22 +1729,17 @@ nfTope tt = performing (ActionNF tt) $ fmap termIsNF $ case tt of
     (enterModality app $ nfTope b) >>= \case
       ModAppT _ md t | inn == md -> pure t
       b' -> pure $ ModExtractT ty app inn b'
-  LetModT ty orig app inn mparam mmotive val body ->
-    (enterModality app $ nfTope val) >>= \case
-      ModAppT _ md t | md == inn ->
-        instantiate body t >>= nfTope
-      b' | isRA inn -> do
-        bty <- typeOf b' >>= \case
-          TypeModalT _ _ t -> pure t
-          _ -> panicImpossible "not modal in letmod"
-        instantiate body (modExtractT bty app inn b') >>= nfTope
-      b' -> do
-        bty <- typeOf b' >>= \case
-          TypeModalT _ _ t -> pure t
-          _ -> panicImpossible "not modal in letmod"
-        val' <- enterModality app $ nfTope b'
-        body' <- underScope orig (comp app inn) bty Nothing body nfTope
-        pure (LetModT ty orig app inn mparam mmotive val' body')
+  LetModT ty orig app inn mparam mmotive val body -> do
+    b' <- enterModality app (nfTope val)
+    case valueUnderModal inn b' of
+      Just t -> instantiate body t >>= nfTope
+      Nothing -> extractModal app inn b' >>= \case
+        Just v -> instantiate body v >>= nfTope
+        Nothing -> do
+          bty <- requireTypeUnderModal inn b'
+          val' <- enterModality app (nfTope b')
+          body' <- underScope orig (comp app inn) bty Nothing body nfTope
+          pure (LetModT ty orig app inn mparam mmotive val' body')
 
   TypeModalT ty md inner -> TypeModalT ty md <$> (enterModality md $ nfTope inner)
   LetT _ty _orig _mparam val body -> instantiate body val >>= nfTope
@@ -1823,9 +1836,12 @@ nfT tt = performing (ActionNF tt) $ case tt of
               instantiate body x >>= nfT
             f' -> typeOf f' >>= \case
               TypeFunT _ty _orig md _param (Just tope) (ScopedAST _ UniverseTopeT{}) -> do
+                -- marked as a normal form, as in 'applyWhnfFun', so the head is
+                -- normalised too
+                f'' <- nfT f'
                 x' <- enterModality md $ nfT x
                 sideCondition <- instantiate tope x' >>= nfT
-                pure (topeAndT (AppT ty f' x') sideCondition)
+                pure (topeAndT (termIsNF (AppT ty f'' x')) sideCondition)
               _ -> do
                 -- The ι-redex of a generated eliminator only exists at the
                 -- node holding the full spine, which the recursion above
@@ -1836,23 +1852,19 @@ nfT tt = performing (ActionNF tt) $ case tt of
                   Nothing      -> AppT ty <$> nfT f' <*> nfT x
         LetT _ty _orig _mparam val body ->
           instantiate body val >>= nfT
-        LetModT ty orig app inn mparam mmotive val body ->
-          (enterModality app $ whnfT val) >>= \case
-            ModAppT _ md t | md == inn -> do
-              val' <- enterModality md $ nfT t
+        LetModT ty orig app inn mparam mmotive val body -> do
+          b' <- enterModality app (whnfT val)
+          case valueUnderModal inn b' of
+            Just t -> do
+              val' <- enterModality inn (nfT t)
               instantiate body val' >>= nfT
-            b' | isRA inn -> do
-              bty <- typeOf b' >>= \case
-                TypeModalT _ _ t -> pure t
-                _ -> panicImpossible "not modal in letmod"
-              instantiate body (modExtractT bty app inn b') >>= nfT
-            b' -> do
-              bty <- typeOf b' >>= \case
-                TypeModalT _ _ t -> pure t
-                _ -> panicImpossible "not modal in letmod"
-              val' <- enterModality app $ nfT b'
-              body' <- underScope orig (comp app inn) bty Nothing body nfT
-              pure (LetModT ty orig app inn mparam mmotive val' body')
+            Nothing -> extractModal app inn b' >>= \case
+              Just v -> instantiate body v >>= nfT
+              Nothing -> do
+                bty <- requireTypeUnderModal inn b'
+                val' <- enterModality app (nfT b')
+                body' <- underScope orig (comp app inn) bty Nothing body nfT
+                pure (LetModT ty orig app inn mparam mmotive val' body')
         LambdaT ty orig _mparam body ->
           case stripTypeRestrictions (infoType ty) of
             TypeFunT _ty _orig md param mtope _ret -> do
