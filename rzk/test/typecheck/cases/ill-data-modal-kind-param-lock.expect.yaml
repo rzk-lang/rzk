@@ -1,6 +1,6 @@
 status: error
 error_tag: TypeErrorUnaccessibleVar
 message_contains:
-  - "under locks"
+  - "variable J is inaccessible in the current modal context"
 regression_for:
   - data-modal-kind-parameter
