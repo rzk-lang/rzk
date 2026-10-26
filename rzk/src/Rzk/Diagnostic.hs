@@ -62,10 +62,17 @@ data Diagnostic = Diagnostic
 -- > { "name":     <string|null>                 -- the ?name, if the hole was named
 -- > , "goal":     <string>                       -- the expected type (the goal)
 -- > , "shape":    { "binder": <string>, "tope": <string> } | null
--- > , "termVars": [ { "name": <string>, "type": <string> }, ... ]
--- > , "cubeVars": [ { "name": <string>, "type": <string> }, ... ]
--- > , "topes":    [ <string>, ... ]              -- local tope assumptions (excludes ⊤)
+-- > , "termVars": [ <entry>, ... ]
+-- > , "cubeVars": [ <entry>, ... ]
+-- > , "topes":    [ <string>, ... ]              -- tope assumptions in force (excludes ⊤)
+-- > , "topeInfo": [ { "tope": <string>, <modal> }, ... ]  -- all tope assumptions
 -- > }
+--
+-- where an @<entry>@ is @{ "name": <string>, "type": <string>, <modal> }@ and
+-- @<modal>@ is @"modality": <string>, "locks": <string>, "accessible": <bool>@:
+-- the declared modality, the locks accumulated since, and whether the entry
+-- can be used at the hole. An inaccessible tope is not in force, so it appears
+-- in @topeInfo@ but not in @topes@.
 --
 -- Notes for consumers:
 --
@@ -133,7 +140,9 @@ instance ToJSON HoleData where
     , "shape"    .= fmap shapeToJSON holeDataShape
     , "termVars" .= map entryToJSON holeDataTermVars
     , "cubeVars" .= map entryToJSON holeDataCubeVars
-    , "topes"    .= map topeToJSON holeDataTopes
+    , "topes"    .= [ holeDataTopeValue t | t <- holeDataTopes
+                    , holeModalAccessible (holeDataTopeMode t) ]
+    , "topeInfo" .= map topeToJSON holeDataTopes
     ]
     where
       shapeToJSON (binder, tope) = object [ "binder" .= binder, "tope" .= tope ]

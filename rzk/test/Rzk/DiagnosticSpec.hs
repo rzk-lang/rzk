@@ -78,6 +78,10 @@ spec = do
             isInfixOf "    × i : 2  [modality: _id, locks: ᵒᵖ]"
           diagnosticMessage d `shouldSatisfy`
             isInfixOf "    × i ≡ 0₂  [modality: _id, locks: ᵒᵖ]"
+          -- the tope is not in force, so it is in topeInfo but not in topes
+          let json = BL8.unpack (encode d)
+          ("\"topes\":[]" `isInfixOf` json) `shouldBe` True
+          ("\"accessible\":false" `isInfixOf` json) `shouldBe` True
         ds  -> expectationFailure ("expected one diagnostic, got " <> show (length ds))
 
   -- The structured hole payload (Rzk.Diagnostic.HoleData) exposes the goal and
@@ -110,7 +114,8 @@ spec = do
           ("\"hole\":{" `isInfixOf` json) `shouldBe` True
           ("\"goal\":" `isInfixOf` json) `shouldBe` True
           ("\"cubeVars\":" `isInfixOf` json) `shouldBe` True
-          ("\"topes\":" `isInfixOf` json) `shouldBe` True
+          ("\"topes\":[\"" `isInfixOf` json) `shouldBe` True   -- topes stay strings
+          ("\"topeInfo\":[{" `isInfixOf` json) `shouldBe` True
           ("\"tope\":" `isInfixOf` json) `shouldBe` True
           ("\"modality\":" `isInfixOf` json) `shouldBe` True
           ("\"locks\":" `isInfixOf` json) `shouldBe` True
