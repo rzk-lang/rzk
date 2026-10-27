@@ -30,7 +30,7 @@ import           Debug.Trace              (trace)
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 
-import           Language.Rzk.Foil.Names (VarIdent)
+import           Language.Rzk.Foil.Names (TModality, VarIdent)
 import           Language.Rzk.Foil.Syntax (positionOfTerm)
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
@@ -41,6 +41,18 @@ import           Rzk.TypeCheck.Error
 data HoleEntry = HoleEntry
   { holeEntryName :: VarIdent
   , holeEntryType :: Rendered
+  , holeEntryMode :: HoleModalInfo
+  } deriving (Eq, Show)
+
+data HoleModalInfo = HoleModalInfo
+  { holeItemModality   :: TModality
+  , holeItemLocks      :: TModality
+  , holeItemAccessible :: Bool
+  } deriving (Eq, Show)
+
+data HoleTopeEntry = HoleTopeEntry
+  { holeTopeValue :: Rendered
+  , holeTopeMode  :: HoleModalInfo
   } deriving (Eq, Show)
 
 -- | The structured goal and context at a hole, recorded in lenient mode (see
@@ -60,7 +72,7 @@ data HoleInfo = HoleInfo
     -- restricted type in 'holeGoal'.)
   , holeTermVars      :: [HoleEntry]    -- ^ local hypotheses whose type is not a cube
   , holeCubeVars      :: [HoleEntry]    -- ^ local cube variables (type is a cube)
-  , holeTopes         :: [Rendered]     -- ^ local tope assumptions (excluding ⊤)
+  , holeTopes         :: [HoleTopeEntry] -- ^ local tope assumptions (excluding ⊤)
   , holeCandidates    :: [Rendered]
     -- ^ Rendered moves from local hypotheses, allow-listed top-level lemmas,
     -- and tope-context elimination; missing subterms remain holes.

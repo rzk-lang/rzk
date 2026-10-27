@@ -1,6 +1,8 @@
 status: error
 error_tag: TypeErrorUnaccessibleVar
 message_contains:
-  - "unaccessible var"
+  - "variable s is inaccessible"
+  - "declared modality: _id"
+  - "current locks:      ♭"
 regression_for:
   - data-shape-fields-modal-shape-field-lock
