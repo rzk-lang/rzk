@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "modal match is not supported for higher inductive types"
+regression_for:
+  - modal-match-rejects-higher-inductive-types

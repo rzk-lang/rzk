@@ -57,6 +57,7 @@ extra-source-files:
     test/typecheck/cases/happy-match-basics.rzk
     test/typecheck/cases/happy-match-case-vec.rzk
     test/typecheck/cases/happy-match-indexed.rzk
+    test/typecheck/cases/happy-match-modal.rzk
     test/typecheck/cases/happy-meta-prefix-option-off.rzk
     test/typecheck/cases/happy-meta-prefix-plumbing.rzk
     test/typecheck/cases/happy-modal-basics.rzk
@@ -135,6 +136,7 @@ extra-source-files:
     test/typecheck/cases/ill-data-modal-tope-index.rzk
     test/typecheck/cases/ill-data-modal-type-field.rzk
     test/typecheck/cases/ill-data-negative.rzk
+    test/typecheck/cases/ill-data-no-sharp-eliminator.rzk
     test/typecheck/cases/ill-data-non-u-sort.rzk
     test/typecheck/cases/ill-data-path-endpoint.rzk
     test/typecheck/cases/ill-data-path-higher-field.rzk
@@ -182,6 +184,11 @@ extra-source-files:
     test/typecheck/cases/ill-match-duplicate-branch.rzk
     test/typecheck/cases/ill-match-missing-branch.rzk
     test/typecheck/cases/ill-match-missing-path-branch.rzk
+    test/typecheck/cases/ill-match-modal-hit.rzk
+    test/typecheck/cases/ill-match-modal-ih-remodalized.rzk
+    test/typecheck/cases/ill-match-modal-inaccessible.rzk
+    test/typecheck/cases/ill-match-modal-motive.rzk
+    test/typecheck/cases/ill-match-modal-sharp.rzk
     test/typecheck/cases/ill-match-not-data.rzk
     test/typecheck/cases/ill-match-unknown-branch.rzk
     test/typecheck/cases/ill-modal-b-no-dist.rzk
@@ -344,6 +351,7 @@ extra-source-files:
     test/typecheck/cases/happy-match-basics.expect.yaml
     test/typecheck/cases/happy-match-case-vec.expect.yaml
     test/typecheck/cases/happy-match-indexed.expect.yaml
+    test/typecheck/cases/happy-match-modal.expect.yaml
     test/typecheck/cases/happy-meta-prefix-option-off.expect.yaml
     test/typecheck/cases/happy-meta-prefix-plumbing.expect.yaml
     test/typecheck/cases/happy-modal-basics.expect.yaml
@@ -422,6 +430,7 @@ extra-source-files:
     test/typecheck/cases/ill-data-modal-tope-index.expect.yaml
     test/typecheck/cases/ill-data-modal-type-field.expect.yaml
     test/typecheck/cases/ill-data-negative.expect.yaml
+    test/typecheck/cases/ill-data-no-sharp-eliminator.expect.yaml
     test/typecheck/cases/ill-data-non-u-sort.expect.yaml
     test/typecheck/cases/ill-data-path-endpoint.expect.yaml
     test/typecheck/cases/ill-data-path-higher-field.expect.yaml
@@ -469,6 +478,11 @@ extra-source-files:
     test/typecheck/cases/ill-match-duplicate-branch.expect.yaml
     test/typecheck/cases/ill-match-missing-branch.expect.yaml
     test/typecheck/cases/ill-match-missing-path-branch.expect.yaml
+    test/typecheck/cases/ill-match-modal-hit.expect.yaml
+    test/typecheck/cases/ill-match-modal-ih-remodalized.expect.yaml
+    test/typecheck/cases/ill-match-modal-inaccessible.expect.yaml
+    test/typecheck/cases/ill-match-modal-motive.expect.yaml
+    test/typecheck/cases/ill-match-modal-sharp.expect.yaml
     test/typecheck/cases/ill-match-not-data.expect.yaml
     test/typecheck/cases/ill-match-unknown-branch.expect.yaml
     test/typecheck/cases/ill-modal-b-no-dist.expect.yaml

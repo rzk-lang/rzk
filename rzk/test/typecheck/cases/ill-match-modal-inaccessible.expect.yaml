@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorUnaccessibleVar
+message_contains:
+  - "unaccessible var with modality _id"
+  - "under locks ♭"
+regression_for:
+  - modal-match-scrutinee-accessibility

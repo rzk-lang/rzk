@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- There is no modal match for ♯: as a right adjoint it does not preserve
+-- coproducts, and an eliminator rec-sharp-Bool would retract ♯ Bool onto Bool.
+#data Bool := false | true
+
+#define retract (b :_# Bool) : Bool
+  := match _# b (false => false | true => true)
