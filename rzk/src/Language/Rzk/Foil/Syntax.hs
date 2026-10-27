@@ -45,6 +45,7 @@ import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
                                                  alphaEquiv,
                                                  substitute, unsafeEqAST)
 import           Data.ZipMatchK                 (Mappings (..),
+                                                 ZipMatchFoldK,
                                                  ZipMatchK (..),
                                                  zipMatchViaChooseLeft,
                                                  zipMatchViaEq)
@@ -169,6 +170,7 @@ instance ZipMatchK (Maybe VarIdent) where
   zipMatchWithK = zipMatchViaEq
 
 instance ZipMatchK LambdaParam
+instance ZipMatchFoldK LambdaParam
 
 -- | The node matcher, TH-derived: an explicit instance, so no @Generics.Kind@
 -- view is rebuilt per comparison. It drives 'Control.Monad.Free.Foil.alphaEquiv'
