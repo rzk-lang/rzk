@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.11.4 — 2026-10-27
+
+This release closes a soundness gap in tope families, adds an RSTT-safe mode that reports what lies outside Riehl–Shulman type theory, makes one rule decide which kinds may appear where (the layer discipline), and adds a modal `#!rzk match`. Some programs that were accepted before are now rejected; each such change is marked **Breaking** below. sHoTT still typechecks, now with warnings from the RSTT-safe mode.
+
+Added:
+
+- **RSTT-safe mode** (see [#364](https://github.com/rzk-lang/rzk/pull/364)). By default (`rstt-safe = "warn"`), rzk reports declarations outside Riehl–Shulman type theory and outside the fragment in which conservativity is proved: assumed free-standing restrictions, restriction boundaries that depend on outer cube points, a universe used as an ordinary type (as in Hurkens's paradox), holes, and syntax outside RSTT (the modal layer, auxiliary intervals, inductive types). `rstt-safe = "error"` rejects such declarations, `rstt-safe = "off"` turns the checks off, and `--rstt-safe` on the command line overrides the source settings. With the warnings on, checking sHoTT takes about 18% longer.
+
+- **Modal `#!rzk match`**, by [Islam Talipov](https://github.com/LIshy2) (see [#358](https://github.com/rzk-lang/rzk/pull/358)). `#!rzk match ♭ n (…)` eliminates a scrutinee available under `♭` or `ᵒᵖ`, and the constructor fields inherit the modality. These are the crisp induction principles of Shulman; there are none for `♯`. A `#!rzk #data` without path constructors now also generates `ind-op-D`, `rec-op-D`, `ind-b-D` and `rec-b-D`. **Breaking**: `#!rzk match mod μ x (…)` is a syntax error (write `#!rzk match (mod μ x) (…)`), and an earlier definition with one of the four new names clashes with the declaration.
+
+- **A warning for a tope family not included in its domain** (see [#362](https://github.com/rzk-lang/rzk/pull/362)). Such a family is read as its intersection with the domain, which is convenient to write (sHoTT writes the faces of a horn on the whole cube) but can confuse a reader, since the family that is checked is not the one written.
+
+Changed:
+
+- **The layer discipline** (see [#354](https://github.com/rzk-lang/rzk/pull/354)). The checks on `#!rzk #data` were syntactic; one rule per position now decides on the elaborated form. A parameter may be a type, `#!rzk CUBE`, a tope family, a modal kind, or (following a suggestion by Islam Talipov) a bare tope `#!rzk (ψ : TOPE)`. An index must be a type. A field may be a type, a cube point, or a shape point, now in every spelling, such as `#!rzk (t : 2 | ⊤)` and `#!rzk (t :♭ Δ¹)`. **Breaking**: cubes, topes and tope families are no longer accepted as fields or indices, points not as parameters, and no universe kind (`#!rzk TOPE`, `#!rzk CUBE`, tope families, modal forms) as a Σ component, an identity carrier, a definition at type `#!rzk U`, or an argument at type `#!rzk U`. sHoTT and the documentation use none of these.
+
+- **Modal diagnostics name what went wrong**, by Islam Talipov (see [#365](https://github.com/rzk-lang/rzk/pull/365)). Contexts in errors and hole goals mark an inaccessible entry with `×`, followed by its modality and the locks accumulated since, and the JSON output of holes carries the same fields. Modal errors name the site and both sides.
+
+Fixed:
+
+- **A tope family is elaborated with its declared domain** (see [#359](https://github.com/rzk-lang/rzk/pull/359)). A concrete family that is not included in its domain, such as `#!rzk \ t → TOP` over the empty shape, was read with the domain where a family variable is applied and without it once the family was substituted. Playing the two readings against each other gave a closed term of every type. Such a family now elaborates to its intersection with the domain.
+
+- **The interval order at the cubical endpoints**, by Islam Talipov (see [#361](https://github.com/rzk-lang/rzk/pull/361), fixing [#360](https://github.com/rzk-lang/rzk/issues/360)). The tope solver now derives `s ≤ t` from `t ≡ 1ᵢ` or `s ≡ 0ᵢ`.
+
+- **Modal fixes**, by Islam Talipov (see [#357](https://github.com/rzk-lang/rzk/pull/357)). `#!rzk let mod` eliminates a modal value whose type carries a boundary restriction, a motive-free `#!rzk let mod` instantiates a dependent result type with the payload (so `#!rzk (let mod ᵒᵖ a := x in mod ᵒᵖ a) = x` checks), and topes under `ᵒᵖ` are normalised symmetrically.
+
+- **A lemma is offered as a hole candidate when its edge body is headed by a hole** (see [#367](https://github.com/rzk-lang/rzk/pull/367)). The candidate's spine was compared argument by argument before the hole-headed term could be accepted, so such lemmas were never offered.
+
+- **Holes in the point arguments of `≡` and `≤`** (see [#260](https://github.com/rzk-lang/rzk/pull/260)). In lenient mode, an incomplete guard such as `#!rzk recOR (? ≤ ? ↦ a , ? ↦ a)` records its holes instead of failing.
+
+Performance:
+
+- **free-foil 0.5.0 and 0.6.1** (see [#369](https://github.com/rzk-lang/rzk/pull/369), [#370](https://github.com/rzk-lang/rzk/pull/370)). With 0.6.1, substitution and α-equivalence specialise at rzk's signature: on sHoTT, 4% less wall clock and 10% less allocation.
+
+Documentation:
+
+- The hole guide and the direction of the overhang warning's entailment are corrected (see [#368](https://github.com/rzk-lang/rzk/pull/368)).
+
 ## v0.11.3 — 2026-08-31
 
 A maintenance release. The conversion fast path now compares stuck applications spine to spine, the modal `#!rzk let` gets a clearer surface syntax, and `rzk version --full` describes the build.
