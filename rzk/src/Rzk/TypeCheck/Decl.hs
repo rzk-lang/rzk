@@ -30,7 +30,6 @@ import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
 import qualified Data.IntMap.Strict as IntMap
-import qualified Data.IntSet              as IntSet
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
@@ -217,13 +216,16 @@ endSection errs = do
       tolerateUnused = lenient && sectionHasHole
 
   (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
-  -- Section abstraction changes dependency signatures and applications. It
-  -- rewrites the section's own entries, so their schematic checks go; those
-  -- of earlier entries still hold.
-  let sectionIds = IntSet.fromList (map Foil.nameId entries)
+  -- The schematic checks of the section's entries hold for their abstracted
+  -- forms. An object family abstracted over k assumptions is one at k more
+  -- arguments.
+  let added = IntMap.fromList
+        [ (Foil.nameId name, leadingParams (varType info) - leadingParams (varType old))
+        | (name, info) <- kept0, Just old <- [lookup name infos] ]
   modifyLog $ \log -> log
-    { logSchematicCache = logSchematicCache log `IntSet.difference` sectionIds
-    , logSchematicObjectFamilies = logSchematicObjectFamilies log `IntMap.withoutKeys` sectionIds
+    { logSchematicObjectFamilies = IntMap.mapWithKey
+        (\key -> fmap (+ IntMap.findWithDefault 0 key added))
+        (logSchematicObjectFamilies log)
     }
 
   -- Abstracting over the section's assumptions rewrote the entries' types,
@@ -395,7 +397,7 @@ makeAssumptionExplicit (a, aInfo) entries = do
           when implicit $
             issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
           let xInfo' = abstractOver scope a aInfo xInfo
-              xs' = map (fmap (applyToAssumption scope a aInfo (x, xInfo'))) xs
+              xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
           (_use, xs'') <- go forced xs'
           return (AssumptionUsed, (x, xInfo') : xs'')
         else do
@@ -407,8 +409,7 @@ abstractOver
   :: Distinct n
   => Foil.Scope n -> Foil.Name n -> VarInfo n -> VarInfo n -> VarInfo n
 abstractOver scope a aInfo info = info
-  { varSchematicStatus = abstractedStatus aInfo info
-  , varType = newType
+  { varType = newType
   , varValue = fmap abstractValue (varValue info)
   , varModality = Id
   , varModAccum = Id
@@ -428,33 +429,25 @@ abstractOver scope a aInfo info = info
       abstractName scope a value $ \binder body ->
         lambdaT newType orig Nothing (ScopedAST binder body)
 
--- | The schematic status of a section entry once it is abstracted over an
--- assumption. The entry was checked with the assumption as a variable of its
--- type, so it stays checked when the assumption becomes its parameter (and
--- its uses of other entries applications to it), provided the assumption's
--- own statement was checked. Otherwise it is checked again when used.
-abstractedStatus :: VarInfo n -> VarInfo n -> SchematicStatus
-abstractedStatus aInfo info
-  | varSchematicStatus aInfo == SchematicChecked
-  , varSchematicStatus info == SchematicChecked = SchematicChecked
-  | otherwise = SchematicUnchecked
-
 -- | Rewrite every use of a definition into an application of it to the assumption
 -- it has just been abstracted over.
 applyToAssumption
   :: Distinct n
-  => Foil.Scope n -> Foil.Name n -> VarInfo n -> (Foil.Name n, VarInfo n) -> VarInfo n
-  -> VarInfo n
-applyToAssumption scope a aInfo (defName, defInfo) info
+  => Foil.Scope n -> Foil.Name n -> (Foil.Name n, VarInfo n) -> VarInfo n -> VarInfo n
+applyToAssumption scope a (defName, defInfo) info
   | varIsAssumption info = info
   | otherwise = info
-      { varSchematicStatus = abstractedStatus aInfo info
-      , varType = rewrite (varType info)
+      { varType = rewrite (varType info)
       , varValue = rewrite <$> varValue info
       }
   where
     applied = appT (varType defInfo) (Var defName) (Var a)
     rewrite = substituteName scope defName applied
+
+-- | The number of parameters a type takes before anything is unfolded.
+leadingParams :: TermT n -> Int
+leadingParams (TypeFunT _ _ _ _ _ (ScopedAST _ body)) = 1 + leadingParams body
+leadingParams _ = 0
 
 -- * Commands
 
