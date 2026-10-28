@@ -91,6 +91,7 @@ extra-source-files:
     test/typecheck/cases/happy-rstt-off.rzk
     test/typecheck/cases/happy-rstt-schema-parameters.rzk
     test/typecheck/cases/happy-rstt-shape-dependency-off.rzk
+    test/typecheck/cases/happy-rstt-subtype-argument.rzk
     test/typecheck/cases/happy-rstt-tail-nested.rzk
     test/typecheck/cases/happy-rstt-tau-flip.rzk
     test/typecheck/cases/happy-rstt-tope-terms.rzk
@@ -385,6 +386,7 @@ extra-source-files:
     test/typecheck/cases/happy-rstt-off.expect.yaml
     test/typecheck/cases/happy-rstt-schema-parameters.expect.yaml
     test/typecheck/cases/happy-rstt-shape-dependency-off.expect.yaml
+    test/typecheck/cases/happy-rstt-subtype-argument.expect.yaml
     test/typecheck/cases/happy-rstt-tail-nested.expect.yaml
     test/typecheck/cases/happy-rstt-tau-flip.expect.yaml
     test/typecheck/cases/happy-rstt-tope-terms.expect.yaml

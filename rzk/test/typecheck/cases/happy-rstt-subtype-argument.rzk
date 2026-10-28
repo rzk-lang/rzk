@@ -1,0 +1,41 @@
+#lang rzk-1
+
+-- Extension types passed for plain function types. Where the standalone walk
+-- unfolds a definition, it sees the argument's own type; the certificate uses
+-- the parameter's declared type. Both checkers must agree.
+
+#set-option "rstt-safe" = "error"
+
+#def Δ¹ : 2 → TOPE := \ t → TOP
+
+#def ends-equal (A : U) (f : Δ¹ → A) : U := f 0₂ = f 1₂
+
+#postulate fixed-start-ends-equal
+  (A : U) (a : A) (g : (t : Δ¹) → A [t ≡ 0₂ ↦ a])
+  : ends-equal A g
+
+#def ends-equal-fixed-start
+  (A : U) (a : A) (g : (t : Δ¹) → A [t ≡ 0₂ ↦ a])
+  : U
+  := ends-equal A g
+
+#def family-ends-equal (A : U) (B : A → U) (f : (x : A) → Δ¹ → B x) (x : A) : U
+  := ends-equal (B x) (f x)
+
+#postulate fixed-family-ends-equal
+  (A : U) (B : A → U) (b : (x : A) → B x)
+  (g : (x : A) → (t : Δ¹) → B x [t ≡ 0₂ ↦ b x]) (x : A)
+  : family-ends-equal A B g x
+
+-- The codomain of the argument's type, through an application and a projection.
+#def family-at-start (X : U) (f : Δ¹ → X → U) (x : X) : U := f 0₂ x
+
+#postulate fixed-family-at-start
+  (X : U) (P : X → U) (g : (t : Δ¹) → (X → U) [t ≡ 0₂ ↦ P]) (x : X)
+  : family-at-start X g x
+
+#def first-at-start (f : Δ¹ → Σ (A : U), A → U) : U := first (f 0₂)
+
+#postulate fixed-first-at-start
+  (p : Σ (A : U), A → U) (g : (t : Δ¹) → (Σ (A : U), A → U) [t ≡ 0₂ ↦ p])
+  : first-at-start g

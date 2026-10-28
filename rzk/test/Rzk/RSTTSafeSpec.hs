@@ -16,12 +16,24 @@ run override sources =
   let (errors, warnings, holes) = runDetails override sources
   in (errors, map checkWarningTag warnings, holes)
 
+-- Both RSTT fragment checkers must give the same result.
 runDetails :: Maybe RSTTSafeMode -> [T.Text] -> ([String], [CheckWarning], Int)
-runDetails override sources =
+runDetails override sources
+  | integrated == standalone = integrated
+  | otherwise = error $ "the integrated and the standalone RSTT checkers disagree: "
+      <> show integrated <> " and " <> show standalone
+  where
+    integrated = runDetailsWith RSTTCheckerIntegrated override sources
+    standalone = runDetailsWith RSTTCheckerStandalone override sources
+
+runDetailsWith :: RSTTChecker -> Maybe RSTTSafeMode -> [T.Text] -> ([String], [CheckWarning], Int)
+runDetailsWith checker override sources =
   case traverse Syntax.parseModule sources of
     Left err -> error (T.unpack err)
     Right modules -> case checkedModules (zip (map show [1 :: Int ..]) modules)
-      ((allowHoles emptyContext) { ctxRSTTSafeOverride = override, ctxVerbosity = Silent }) of
+      ((allowHoles emptyContext) { ctxRSTTSafeOverride = override
+                                 , ctxRSTTCheckerOverride = Just checker
+                                 , ctxVerbosity = Silent }) of
         Left err -> ([typeErrorTagInScopedContext err], [], 0)
         Right (checked, holes) ->
           ( map typeErrorTagInScopedContext (checkedErrors checked)
@@ -224,6 +236,13 @@ spec = describe "RSTT-safe run policy" $ do
     errors `shouldBe` []
     warnings `shouldSatisfy` elem "RSTTIncompleteWarning"
     strictErrors `shouldSatisfy` elem "TypeErrorRSTT"
+
+  it "raises the reduction limit with the rstt-safe-fuel option" $ do
+    let source = T.unlines $
+          ["#lang rzk-1", "#set-option \"rstt-safe-fuel\" = \"512\"", "#def T0 : U := Unit"] <>
+          [ "#def T" <> T.pack (show i) <> " : U := T" <> T.pack (show (i - 1))
+          | i <- [1 .. 260 :: Int] ]
+    run (Just RSTTSafeError) [source] `shouldBe` ([], [], 0)
 
   it "audits computed argument types in standalone commands" $ do
     let declarations = T.unlines

@@ -24,8 +24,10 @@ import           Rzk.Diagnostic           (checkWarningTag,
                                            locationOfTypeError,
                                            typeErrorTagInScopedContext)
 import           Rzk.TypeCheck            (Checked, Context (..),
+                                           FragmentShadow (..),
                                            LocationInfo (..),
                                            OutputDirection (..),
+                                           RSTTChecker (..),
                                            TypeErrorInScopedContext,
                                            Verbosity (..), checkedErrors,
                                            checkedModules, checkedWarnings,
@@ -323,6 +325,40 @@ runCase DirCase{..} = do
     Just "collect" -> assertExpectCollect dcRelTitle expect (runCollect mods)
     _              -> assertExpect dcRelTitle expect (runStrict mods)
 
+-- | The modules of a case, for 'agreeCase'.
+caseModules :: CaseKind -> IO (Either String [(FilePath, Rzk.Module)])
+caseModules k = do
+  root <- resolveRoot
+  case k of
+    PairedCase{..} -> loadModules [(relTitleFrom root pcRzkPath, pcRzkPath)]
+    DirCase{..} -> do
+      e <- readExpect dcExpectPath
+      case e of
+        Left err -> pure (Left err)
+        Right expect -> loadModules $ case expectModules expect of
+          Nothing    -> [(relTitleFrom root (dcDir </> "input.rzk"), dcDir </> "input.rzk")]
+          Just names -> [(relTitleFrom root (dcDir </> n), dcDir </> n) | n <- names]
+
+-- | The integrated and the standalone RSTT fragment checkers report the same
+-- errors and warnings. The integrated checker runs in shadow mode, so a
+-- declaration it certifies wrongly is an error even where its warnings would
+-- agree.
+agreeCase :: CaseKind -> IO ()
+agreeCase k = caseModules k >>= \case
+  Left err -> expectationFailure err
+  Right mods ->
+    outcome RSTTCheckerIntegrated ShadowCheck mods
+      `shouldBe` outcome RSTTCheckerStandalone ShadowOff mods
+  where
+    outcome checker shadow mods =
+      case checkedModules mods (silently emptyContext)
+             { ctxRSTTCheckerOverride = Just checker, ctxFragmentShadow = shadow } of
+        Left err -> (Just (typeErrorConstructorName err), [], [])
+        Right (checked, _holes) ->
+          ( Nothing
+          , map typeErrorConstructorName (checkedErrors checked)
+          , map show (checkedWarnings checked) )
+
 spec :: Spec
 spec = describe "Typecheck fixtures" $ do
   it "discovers at least one case" $ do
@@ -333,6 +369,10 @@ spec = describe "Typecheck fixtures" $ do
     root <- runIO resolveRoot
     ks <- runIO (discoverCases root)
     mapM_ (\k -> it (caseTitle k) (runCase k)) ks
+  describe "agree with the standalone RSTT checker" $ do
+    root <- runIO resolveRoot
+    ks <- runIO (discoverCases root)
+    mapM_ (\k -> it (caseTitle k) (agreeCase k)) ks
 
 caseTitle :: CaseKind -> String
 caseTitle = \case
