@@ -64,6 +64,23 @@ Schematic parameters are checked separately from ordinary types. An `(A : U)` pa
 
 Assumptions and postulates remain trusted: their statements are checked, but their consistency is not. This check rejects the [Hurkens counterexample](../limitations/hurkens.rzk.md) without introducing universe levels. It supplements Rzk’s typechecker; it is not an independent RSTT kernel. The check is conservative: using ordinary polymorphic combinators on schematic data may require a direct schematic definition instead.
 
+### `rstt-safe-checker`
+
+Selects how the RSTT-safe checks run. Both checkers report the same warnings and errors.
+
+- `"integrated"` — skip the checks of a declaration when facts collected from its terms show that they would report nothing (default).
+- `"standalone"` — check every declaration separately. This is slower and serves as the reference for the integrated checker.
+
+Use `rzk typecheck --rstt-safe-checker=integrated` or `--rstt-safe-checker=standalone` to fix the checker for the whole run.
+
+### `rstt-safe-fuel`
+
+Sets how many steps the RSTT-safe checks may spend: the reduction steps that expose one type, and the nesting depth of the schematic check. The default is `"256"`. A declaration that needs more produces `RSTTIncompleteWarning` (an error in RSTT-safe error mode); a larger value lets the check finish.
+
+- `"<n>"` — a positive integer.
+
+Below the default, the integrated checker checks every declaration as the standalone one does.
+
 ### `warn-overhang`
 
 Warns when a restriction face or `recOR` guard overlaps the local tope context but is not contained in it. The check asks whether the face or guard entails the whole context. Such overhang is allowed.
