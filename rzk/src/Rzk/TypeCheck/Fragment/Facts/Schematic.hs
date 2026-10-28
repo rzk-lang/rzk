@@ -120,7 +120,9 @@ inspectRedex f = case fShape f of
 knownObjectFamily :: Facts -> Maybe SVerdict
 knownObjectFamily f = case fShape h of
   SVar v
-    | Just tl <- vfTop v, Just (arity, probe) <- tlObjectFamily tl, arity == length args -> Just probe
+    | Just tl <- vfTop v
+    , Just (arity, probe) <- tlObjectFamily tl
+    , arity == length args -> Just probe
   _ -> Nothing
   where
     (h, args) = spine f
@@ -151,7 +153,7 @@ exposedSort attrs = \case
     | otherwise -> Unsorted "near the reduction limit"
   Exposed _ _ (ToFacts _ _) -> Unsorted "a type exposed under conditions"
   Exposed steps [] (ToTable frame)
-    | steps <= schematicDepthLimit -> scoped frame (headSortM (tbBody (frameTable frame)))
+    | steps <= schematicDepthLimit -> scoped frame (headSortM (tableBody frame))
     | otherwise -> Unsorted "near the reduction limit"
   Exposed steps [] (InTable frame g)
     | steps <= schematicDepthLimit -> scoped frame (headSortM g)
@@ -211,7 +213,8 @@ classifyExposed g = case fShape g of
     (_, Unsorted r) -> Unsorted r
   SId i ->
     Sorted SObjectType $
-      sobject (fromMaybe (schemTypeM (idLeft i)) (idType i)) <> termM (idLeft i) <> termM (idRight i)
+      sobject (fromMaybe (schemTypeM (idLeft i)) (idType i))
+        <> termM (idLeft i) <> termM (idRight i)
   SLeaf LTypeUnit -> Sorted SObjectType mempty
   SLeaf LRecBottom -> Sorted SObjectType mempty
   SRecOr faces -> case map (classifyM . faceTerm) faces of
@@ -244,7 +247,8 @@ stuckSort g = withV (termNeutral g) $ case fExpose (schemTypeM g) of
 sobject :: Facts -> SVerdict
 sobject t = case classifyM t of
   Sorted SObjectType v -> v
-  Sorted s _ -> SFail ("expected an object type, found " <> show s <> " for " <> shapeName (fShape t))
+  Sorted s _ ->
+    SFail ("expected an object type, found " <> show s <> " for " <> shapeName (fShape t))
   Unsorted r -> SFail r
 
 -- | @argument@: a type-family argument is checked pointwise.
@@ -272,7 +276,8 @@ applications f = case fShape f of
     Right (frames, h)
       | SPi p <- fShape h -> resolveScopes frames (sargument (piDomain p) x)
       | otherwise ->
-          SFail ("application without a schematic or object function type: " <> shapeName (fShape h))
+          SFail $ "application without a schematic or object function type: "
+            <> shapeName (fShape h)
     Left r -> SFail r
   _ -> mempty
 
@@ -338,7 +343,7 @@ signatureOf f = usesOf f <> inspectRedex f <> case fExpose f of
     | otherwise -> sortV (classifyM g)
   Exposed _ _ (ToFacts _ _) -> SFail "a signature exposed under conditions"
   Exposed steps [] (ToTable frame)
-    | steps <= schematicDepthLimit -> resolveS frame (signatureM (tbBody (frameTable frame)))
+    | steps <= schematicDepthLimit -> resolveS frame (signatureM (tableBody frame))
     | otherwise -> SFail "near the reduction limit"
   Exposed steps [] (InTable frame g)
     | steps <= schematicDepthLimit -> resolveS frame (signatureM g)
@@ -367,7 +372,8 @@ schemTypeOf f = case fShape f of
   SSecond p -> case functionHeadOf (schemTypeM p) of
     Right (frames, h)
       | SSigma s <- fShape h ->
-          underFrames frames (sigmaOpen s (mkFacts attrs (SFirst p) (underFrames frames (sigmaFirst s))))
+          let first = mkFacts attrs (SFirst p) (underFrames frames (sigmaFirst s))
+          in underFrames frames (sigmaOpen s first)
       | SCubeOrTope Admitted [_, b] <- fShape h -> underFrames frames b
       | otherwise -> unknownFacts attrs ("a product type that is " <> shapeName (fShape h))
     Left r -> unknownFacts attrs r

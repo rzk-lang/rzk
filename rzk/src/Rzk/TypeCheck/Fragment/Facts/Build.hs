@@ -1,6 +1,5 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -317,10 +316,12 @@ facts env = go
           Just (LambdaParam _ written (Just tope)) ->
             withScopedT2 scope tope body $ \binder tope' body' ->
               let env' = extend env binder x
-              in (keyFor env binder, Just (LamParam (go written) (Just (facts env' tope'))), facts env' body')
+                  param' = LamParam (go written) (Just (facts env' tope'))
+              in (keyFor env binder, Just param', facts env' body')
           Just (LambdaParam _ written Nothing) ->
             withScopedT scope body $ \binder body' ->
-              (keyFor env binder, Just (LamParam (go written) Nothing), facts (extend env binder x) body')
+              let param' = LamParam (go written) Nothing
+              in (keyFor env binder, Just param', facts (extend env binder x) body')
           Nothing ->
             withScopedT scope body $ \binder body' ->
               (keyFor env binder, Nothing, facts (extend env binder x) body')

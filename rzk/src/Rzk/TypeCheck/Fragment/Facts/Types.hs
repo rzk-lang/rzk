@@ -17,6 +17,7 @@ module Rzk.TypeCheck.Fragment.Facts.Types (
   Param (..),
   sameTable,
   Frame (..),
+  tableBody,
   Need (..),
   Req (..),
   CheckReq (..),
@@ -96,6 +97,7 @@ module Rzk.TypeCheck.Fragment.Facts.Types (
   unknownFacts,
 ) where
 
+import           Control.Applicative     ((<|>))
 import qualified Data.IntSet             as IntSet
 
 import           Language.Rzk.Foil.Names (Binder, TModality)
@@ -163,6 +165,10 @@ data Frame = Frame
   , frameArgs  :: [Facts]
     -- ^ one for each parameter
   }
+
+-- | The body of the table at a use.
+tableBody :: Frame -> Facts
+tableBody = tbBody . frameTable
 
 -- | What a table asks of the argument for one of its parameters.
 data Need = Need
@@ -368,7 +374,7 @@ data Points = Points
 
 instance Semigroup Points where
   Points a b c d e <> Points a' b' c' d' e' =
-    Points (IntSet.union a a') (b <> b') (c <> c') (d <> d') (maybe e' Just e)
+    Points (IntSet.union a a') (b <> b') (c <> c') (d <> d') (e <|> e')
 
 instance Monoid Points where
   mempty = Points IntSet.empty [] [] [] Nothing

@@ -102,11 +102,12 @@ exposeOf f = case fShape f of
   where
     projection component op p = case fExpose p of
       Exposed k ns (ToFacts _ pair)
-        | SPair a b <- fShape pair -> underConditions ns (later (k + 1) (fExpose (component (a, b))))
+        | SPair a b <- fShape pair ->
+            underConditions ns (later (k + 1) (fExpose (component (a, b))))
       Exposed k ns (ToFacts Itself _) -> underConditions ns (neutralOf k f)
       Exposed _ _ (ToFacts Reduced _) -> ExposedUnknown "a projection of a reducible pair"
       -- A pair-valued definition: the component lives in its body.
-      Exposed k ns (ToTable frame) -> inBody k ns frame (fExpose (tbBody (frameTable frame)))
+      Exposed k ns (ToTable frame) -> inBody k ns frame (fExpose (tableBody frame))
       Exposed k ns (InTable frame pair) -> inBody k ns frame (fExpose pair)
       -- A projection of an argument: the use settles it.
       Exposed k ns (ToParam prm) -> Exposed (k + 1) ns (ToParamApp prm [op])
@@ -126,7 +127,8 @@ neutralOf k f = case fExpose (fType f) of
   Exposed k' ns (ToFacts _ ty)
     | isRestrictedShape ty -> ExposedUnknown "a restricted type to try"
     | otherwise -> itself k' ns
-  Exposed k' ns (ToTable frame) -> restricted k' ns (resolveSym frame (restrictedOf (tbBody (frameTable frame))))
+  Exposed k' ns (ToTable frame) ->
+    restricted k' ns (resolveSym frame (restrictedOf (tableBody frame)))
   Exposed k' ns (InTable frame ty) -> restricted k' ns (resolveSym frame (restrictedOf ty))
   Exposed k' ns (ToParam p) -> itself k' (ns <> [Need p (ReqAnswer [] QRestricted False)])
   Exposed k' ns (ToParamApp p ops) -> itself k' (ns <> [Need p (ReqAnswer ops QRestricted False)])
@@ -162,7 +164,7 @@ exposeApp f = case fShape h of
     args = map snd pairs
     n = length args
 
-    saturated frame = case fExpose (tbBody (frameTable frame)) of
+    saturated frame = case fExpose (tableBody frame) of
       -- An alias of a parameter exposes to the argument, under the body's
       -- conditions, which the arguments settle.
       Exposed k ns (ToParam p) -> case frameArg frame (paramIndex p) of
@@ -216,7 +218,7 @@ ofExposure
   :: (Query, Query) -> Exposed -> (Facts -> SymBool) -> (Facts -> SymBool) -> SymBool
 ofExposure (q, qType) e onBody onShape = case e of
   Exposed _ ns (ToFacts _ g) -> withConditions ns (onShape g)
-  Exposed _ ns (ToTable frame) -> withConditions ns (resolveSym frame (onBody (tbBody (frameTable frame))))
+  Exposed _ ns (ToTable frame) -> withConditions ns (resolveSym frame (onBody (tableBody frame)))
   Exposed _ ns (InTable frame g) -> withConditions ns (resolveSym frame (onShape g))
   Exposed _ ns (ToParam p) -> SymBool ns (AnyOf [ParamQuery p [] q []])
   Exposed _ ns (ToParamType p) -> SymBool ns (AnyOf [ParamQuery p [] qType []])
@@ -251,7 +253,8 @@ cubeOf f = ofExposure (QCube, QTypeCube) (fHeadView f) cubeOf $ \g -> case fShap
 restrictedOf :: Facts -> SymBool
 restrictedOf f = case fExpose f of
   Exposed _ ns (ToFacts _ g) -> SymBool ns (Known (isRestrictedShape g))
-  Exposed _ ns (ToTable frame) -> withConditions ns (resolveSym frame (restrictedOf (tbBody (frameTable frame))))
+  Exposed _ ns (ToTable frame) ->
+    withConditions ns (resolveSym frame (restrictedOf (tableBody frame)))
   Exposed _ ns (InTable frame g) -> withConditions ns (resolveSym frame (restrictedOf g))
   Exposed _ ns (ToParam p) -> SymBool ns (AnyOf [ParamQuery p [] QRestricted []])
   Exposed _ ns (ToParamApp p ops) -> SymBool ns (AnyOf [ParamQuery p ops QRestricted []])
@@ -278,8 +281,9 @@ pointsOf f = case fShape f of
   SRecOr faces -> foldMap facePoints faces
   SApp g x -> fPoints g <> fPoints x
   SLam l ->
-    foldMap (\p -> fPoints (lamDomain p) <> without (lamVar l) (foldMap fPoints (lamTope p))) (lamParam l)
-      <> without (lamVar l) (fPoints (lamBody l))
+    foldMap paramPoints (lamParam l) <> without (lamVar l) (fPoints (lamBody l))
+    where
+      paramPoints p = fPoints (lamDomain p) <> without (lamVar l) (foldMap fPoints (lamTope p))
   SLet l ->
     foldMap fPoints (letAnnotation l) <> fPoints (letValue l)
       <> without (letVar l) (fPoints (letBody l))
@@ -413,7 +417,8 @@ scopedExposure frame = \case
     mine p = sameTable (frameTable frame) (paramTable p)
     scoped = scopeOp (scopedFacts frame)
     scopedFrame inner = inner { frameArgs = map (scopedFacts frame) (frameArgs inner) }
-    argument p k = maybe (ExposedUnknown "an argument out of range") k (frameArg frame (paramIndex p))
+    argument p k =
+      maybe (ExposedUnknown "an argument out of range") k (frameArg frame (paramIndex p))
     settled ns e = case resolveAnswers frame (needs ns) of
       Clean -> e
       Needs ns' -> underConditions ns' e
@@ -455,7 +460,7 @@ functionHeadOf = go [] . fExpose
         | otherwise -> Right (frames, g)
       Exposed _ _ (ToFacts _ _) -> Left "a type exposed under conditions"
       Exposed steps [] (ToTable frame)
-        | steps <= schematicDepthLimit -> go (frame : frames) (fExpose (tbBody (frameTable frame)))
+        | steps <= schematicDepthLimit -> go (frame : frames) (fExpose (tableBody frame))
         | otherwise -> Left "near the reduction limit"
       Exposed steps [] (InTable frame g)
         | steps <= schematicDepthLimit -> go (frame : frames) (fExpose g)
@@ -507,12 +512,14 @@ domainOf = go [] [] . fHeadView
       Exposed _ ns' (ToFacts _ g) -> DomainOf frames (ns <> ns') $ Domain $ case fShape g of
         SPi p -> Just (piDomain p)
         _     -> Nothing
-      Exposed _ ns' (ToTable frame) -> go (frame : frames) (ns <> ns') (fHeadView (tbBody (frameTable frame)))
+      Exposed _ ns' (ToTable frame) -> go (frame : frames) (ns <> ns') (fHeadView (tableBody frame))
       Exposed _ ns' (InTable frame g) -> go (frame : frames) (ns <> ns') (fHeadView g)
       Exposed _ ns' (ToParam p) -> DomainOf frames ns (DomainOfParam p ns')
-      Exposed _ _ (ToParamApp _ _) -> DomainOf frames ns (NoDomain "a domain behind an applied argument")
-      Exposed _ _ (ToParamType _) -> DomainOf frames ns (NoDomain "a domain behind an argument's type")
-      ExposedUnknown r -> DomainOf frames ns (NoDomain r)
+      Exposed _ _ (ToParamApp _ _) -> none "a domain behind an applied argument"
+      Exposed _ _ (ToParamType _) -> none "a domain behind an argument's type"
+      ExposedUnknown r -> none r
+      where
+        none = DomainOf frames ns . NoDomain
 
 -- | Settle a symbolic fact found in the bodies of tables at uses (innermost
 -- first).
@@ -542,7 +549,9 @@ decide (SymBool ns a) = case a of
 
 -- | The need that a query answers so.
 guardOf :: ParamQuery -> Bool -> Need
-guardOf q b = Need (pqParam q) (foldl' (flip ReqUnder) (ReqAnswer (pqOps q) (pqQuery q) b) (pqFrames q))
+guardOf q b = Need (pqParam q) (foldl' (flip ReqUnder) answer (pqFrames q))
+  where
+    answer = ReqAnswer (pqOps q) (pqQuery q) b
 
 -- | The answer must be this one. A single query that must answer 'True'
 -- becomes a need; a disjunction cannot.
@@ -628,7 +637,7 @@ resolveSym frame = loop
       v -> case a of
         AnyOf qs | (own@(_ : _), others) <- partition mine qs ->
           loop $ withConditions (needsOf v) $
-            foldr orSym (SymBool [] (AnyOf others)) (map answer own)
+            foldr (orSym . answer) (SymBool [] (AnyOf others)) own
         AnyOf qs -> SymBool (needsOf v) (AnyOf (map leaving qs))
         _ -> SymBool (needsOf v) a
     needsOf (Needs ns) = ns

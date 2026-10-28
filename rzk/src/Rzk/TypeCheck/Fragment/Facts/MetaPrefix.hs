@@ -36,9 +36,7 @@ metaPrefixVerdict strict decl =
       SParamType _ _ -> Unclean "the type of an argument"
       SScoped _ _ -> Unclean "facts from a definition's body"
       SApp{} -> application pos f
-      SLam l ->
-        foldMap (\(LamParam dom mtope) -> go typePositions dom <> foldMap (go objectPositions) mtope) (lamParam l)
-          <> go pos (lamBody l)
+      SLam l -> foldMap lambdaParam (lamParam l) <> go pos (lamBody l)
       SPi p ->
         go typePositions (piDomain p) <> foldMap (go objectPositions) (piTope p)
           <> go typePositions (piCodomain p)
@@ -65,11 +63,14 @@ metaPrefixVerdict strict decl =
       SSecond p -> go objectPositions p
       SRefl me ->
         foldMap (\(Endpoint x mty) -> go objectPositions x <> foldMap (go objectPositions) mty) me
-      SIdJ j -> foldMap (go objectPositions) [jType j, jStart j, jMotive j, jBase j, jEnd j, jProof j]
+      SIdJ j ->
+        foldMap (go objectPositions) [jType j, jStart j, jMotive j, jBase j, jEnd j, jProof j]
       STypeAsc v ty -> go objectPositions v <> go objectPositions ty
       STypeModal ty -> go objectPositions ty
 
     objectFace (Face a b) = go objectPositions a <> go objectPositions b
+
+    lambdaParam (LamParam dom mtope) = go typePositions dom <> foldMap (go objectPositions) mtope
 
     -- The head, then each argument at the position its function's domain
     -- gives it: under the strict rule, a schematic argument must also sit in

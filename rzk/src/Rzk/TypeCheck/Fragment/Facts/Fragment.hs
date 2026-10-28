@@ -74,6 +74,9 @@ fragmentAt fl = \case
 
     out = OutsideParameterPrefix
 
+    -- The faces of a restriction are terms.
+    faceTerms = foldMap (\(Face tope term) -> goTerm out tope <> goTerm out term)
+
     -- The source view takes the term as it is; the computed view exposes it:
     -- a definition's application is answered by its table, a parameter by
     -- its argument.
@@ -81,16 +84,17 @@ fragmentAt fl = \case
     exposedAt e f k = case fExpose f of
       Exposed steps ns (ToFacts origin g)
         | steps >= exposeLimit -> computed nearLimit
-        | origin == Itself -> let r = k f in Verdicts (sourceVerdict r) (needs ns <> computedVerdict r)
+        | origin == Itself ->
+            let r = k f in Verdicts (sourceVerdict r) (needs ns <> computedVerdict r)
         | otherwise -> computed (needs ns <> computedVerdict (k g))
       Exposed steps ns (ToTable frame)
-        | steps < exposeLimit ->
-            computed (needs ns <> resolveTable fl frame (fragment fl ComputedTypes e (tbBody (frameTable frame))))
+        | steps < exposeLimit -> computed (needs ns <> inBody frame (tableBody frame))
         | otherwise -> computed nearLimit
       Exposed steps ns (InTable frame g)
-        | steps < exposeLimit -> computed (needs ns <> resolveTable fl frame (fragment fl ComputedTypes e g))
+        | steps < exposeLimit -> computed (needs ns <> inBody frame g)
         | otherwise -> computed nearLimit
-      Exposed _ ns (ToParam p) -> computed (needs (ns <> [Need p (ReqCheck (ReqClean ComputedTypes e))]))
+      Exposed _ ns (ToParam p) ->
+        computed (needs (ns <> [Need p (ReqCheck (ReqClean ComputedTypes e))]))
       Exposed _ ns (ToParamApp p ops) ->
         computed (needs (ns <> [Need p (ReqCheck (ReqApplied ComputedTypes e ops))]))
       Exposed _ _ (ToParamType _) -> computed (Unclean "the type of an argument, exposed")
@@ -98,11 +102,12 @@ fragmentAt fl = \case
       where
         computed = Verdicts (sourceVerdict (k f))
         nearLimit = Unclean "near the reduction limit"
+        inBody frame g = resolveTable fl frame (fragment fl ComputedTypes e g)
 
     -- Allow restrictions along the spine of concluded codomains.
     tailAt :: Facts -> Verdicts
     tailAt f = exposedAt ETail f $ \t -> case fShape t of
-      SRestricted ty faces -> goTail ty <> foldMap (\(Face tope term) -> goTerm out tope <> goTerm out term) faces
+      SRestricted ty faces -> goTail ty <> faceTerms faces
       SPi p ->
         shapeDependencies False t <> goAssumed out UseBinder (piDomain p)
           <> foldMap (goTerm out) (piTope p) <> goTail (piCodomain p)
@@ -112,17 +117,17 @@ fragmentAt fl = \case
     -- Assumed restrictions must sit directly under a shape-Π.
     assumedAt :: PrefixPosition -> FragmentUse -> Facts -> Verdicts
     assumedAt pos u f = exposedAt (EAssumed pos u) f $ \t -> case fShape t of
-      SRestricted ty faces ->
-        both freeStanding <> goAssumed out u ty
-          <> foldMap (\(Face tope term) -> goTerm out tope <> goTerm out term) faces
+      SRestricted ty faces -> both freeStanding <> goAssumed out u ty <> faceTerms faces
       SPi p ->
         let (shape, vs) = isShapeBinder (piTope p) (piDomain p)
         in shapeDependencies True t <> goAssumed out UseBinder (piDomain p)
              <> foldMap (goTerm out) (piTope p) <> both vs
-             <> (if shape then goExtCodomain u (piCodomain p) else goAssumed out u (piCodomain p))
+             <> (if shape then goExtCodomain u else goAssumed out u) (piCodomain p)
       SSigma s -> goAssumed out UseBinder (sigmaFirst s) <> goAssumed out u (sigmaSecond s)
       -- Identity-type arguments must be ext-style; endpoints remain terms.
-      SId i -> goTerm out (idLeft i) <> foldMap (goAssumed out UseIdentity) (idType i) <> goTerm out (idRight i)
+      SId i ->
+        goTerm out (idLeft i) <> foldMap (goAssumed out UseIdentity) (idType i)
+          <> goTerm out (idRight i)
       SLam l -> lambdaBinder pos (lamParam l) <> goAssumed pos u (lamBody l)
       STypeModal ty -> goAssumed out u ty
       SRecOr faces -> foldMap (\(Face tope term) -> goTerm out tope <> goAssumed out u term) faces
@@ -132,8 +137,7 @@ fragmentAt fl = \case
     -- Direct shape codomains admit boundary clipping to the binder's domain.
     extCodomainAt :: FragmentUse -> Facts -> Verdicts
     extCodomainAt u f = exposedAt (EExtCodomain u) f $ \t -> case fShape t of
-      SRestricted ty faces ->
-        goAssumed out u ty <> foldMap (\(Face tope term) -> goTerm out tope <> goTerm out term) faces
+      SRestricted ty faces -> goAssumed out u ty <> faceTerms faces
       _ -> goAssumed out u t
 
     -- The binder of a λ: its domain is assumed, its tope is a term, and
@@ -202,7 +206,8 @@ fragmentAt fl = \case
       SPair l r -> goData out l <> goData out r
 
       -- The let annotation records the value's concluded type.
-      SLet l -> foldMap goTail (letAnnotation l) <> goData out (letValue l) <> goTerm out (letBody l)
+      SLet l ->
+        foldMap goTail (letAnnotation l) <> goData out (letValue l) <> goTerm out (letBody l)
 
       -- Every other node: its unscoped children are terms.
       SUniverse -> mempty
@@ -212,8 +217,8 @@ fragmentAt fl = \case
       SCubeOrTope _ cs -> foldMap (goTerm out) cs
       SSigma s -> goTerm out (sigmaFirst s)
       SId i -> goTerm out (idLeft i) <> foldMap (goTerm out) (idType i) <> goTerm out (idRight i)
-      SRestricted ty faces -> goTerm out ty <> foldMap (\(Face a b) -> goTerm out a <> goTerm out b) faces
-      SRecOr faces -> foldMap (\(Face a b) -> goTerm out a <> goTerm out b) faces
+      SRestricted ty faces -> goTerm out ty <> faceTerms faces
+      SRecOr faces -> faceTerms faces
       SFirst t -> goTerm out t
       SSecond t -> goTerm out t
       STypeModal ty -> goTerm out ty
@@ -273,7 +278,7 @@ argumentAt fl ty arg = case domainOf ty of
   DomainOf frames ns (Domain mdom) ->
     Verdicts
       (settledIn frames (needs ns))
-      (settledIn frames (needs ns <> foldMap (fragment fl ComputedTypes (EAssumed OutsideParameterPrefix UseBinder)) mdom))
+      (settledIn frames (needs ns <> foldMap (fragment fl ComputedTypes assumedBinder) mdom))
       -- Schema arguments may bind their own schematic parameters.
       <> let (plumbing, vs) = decide (scopedSym frames (maybe (known False) fMeta mdom))
              route
@@ -282,6 +287,7 @@ argumentAt fl ty arg = case domainOf ty of
          in both vs <> route
   where
     settledIn frames v = foldl' (flip (resolveTable fl)) v frames
+    assumedBinder = EAssumed OutsideParameterPrefix UseBinder
 
 -- | The boundary of an assumed extension type must not mention outer points:
 -- the codomain, exposed, is either not a restricted type or one whose faces
@@ -294,10 +300,10 @@ boundaryAt fl view bound cod = case view of
       | steps < exposeLimit -> needs ns <> faces body
       | otherwise -> nearLimit
     Exposed steps ns (ToTable frame)
-      | steps < exposeLimit -> needs ns <> resolveTable fl frame (boundaryAt fl view Nothing (tbBody (frameTable frame)))
+      | steps < exposeLimit -> needs ns <> inBody frame (tableBody frame)
       | otherwise -> nearLimit
     Exposed steps ns (InTable frame g)
-      | steps < exposeLimit -> needs ns <> resolveTable fl frame (boundaryAt fl view Nothing g)
+      | steps < exposeLimit -> needs ns <> inBody frame g
       | otherwise -> nearLimit
     Exposed _ ns (ToParam p) -> needs (ns <> [Need p (ReqCheck (ReqBoundary []))])
     Exposed _ ns (ToParamApp p ops) -> needs (ns <> [Need p (ReqCheck (ReqBoundary ops))])
@@ -305,6 +311,7 @@ boundaryAt fl view bound cod = case view of
     ExposedUnknown r -> Unclean r
   where
     nearLimit = Unclean "near the reduction limit"
+    inBody frame g = resolveTable fl frame (boundaryAt fl view Nothing g)
     faces body = case fShape body of
       SRestricted _ fs -> foldMap (noPointsBut bound . fPoints . faceTope) fs
       _                -> Clean
