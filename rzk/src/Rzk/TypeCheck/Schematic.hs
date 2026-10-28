@@ -33,8 +33,10 @@ import Rzk.TypeCheck.Context
 import Rzk.TypeCheck.Display (namingOfContext, ppTerm)
 import Rzk.TypeCheck.Error
 import Rzk.TypeCheck.Eval
-import Rzk.TypeCheck.Fragment.Facts (DeclFacts, SVerdict (..), schematicDepthLimit,
-                                     schematicVerdict, schematicVerdictOf)
+import Rzk.TypeCheck.Fragment.Facts (DeclFacts, SVerdict (..),
+                                     SchematicCertificate (..),
+                                     declarationCertificate, entryCertificate,
+                                     schematicDepthLimit)
 import Rzk.TypeCheck.Fragment.RSTT (fragmentHead)
 import Rzk.TypeCheck.Monad
 
@@ -109,7 +111,7 @@ certifiedSchematic declFacts name ty value = case declFacts of
   Nothing -> pure (Left Nothing)
   Just facts -> do
     ctx <- ask
-    let (sigVerdict, termVerdict, depth) = schematicVerdict facts
+    let SchematicCertificate sigVerdict termVerdict depth = declarationCertificate facts
         (tyDeps, valueDeps) = (freeVarsOfTermT ty, foldMap freeVarsOfTermT value)
         verdict = sigVerdict <> termVerdict
     -- The walk meets every free variable of the terms, so when all it meets
@@ -182,7 +184,7 @@ certifiedSchematic declFacts name ty value = case declFacts of
                 case IntMap.lookup (Foil.nameId v) outer of
                   Nothing -> pure (Left Nothing)
                   Just vf -> do
-                    let (sig', term', depth') = schematicVerdictOf vf
+                    let SchematicCertificate sig' term' depth' = entryCertificate vf
                         tyDeps' = freeVarsOfTermT (varType info)
                         valueDeps' = foldMap freeVarsOfTermT (varValue info)
                     r <- settleDeclaration fuel tyDeps' sig' valueDeps' term' depth'
@@ -207,11 +209,12 @@ certifiedSchematic declFacts name ty value = case declFacts of
             SchematicRejected -> "rejected"
             SchematicUnchecked -> "unchecked: " <> case IntMap.lookup i outer of
               Nothing -> "no facts"
-              Just vf -> case schematicVerdictOf vf of
-                (SOk a, SOk b, d) -> "certified, depth " <> show d <> ", meets unrecorded "
+              Just vf -> case entryCertificate vf of
+                SchematicCertificate (SOk a) (SOk b) d -> "certified, depth " <> show d
+                  <> ", meets unrecorded "
                   <> unwords (map nameOf (filter unrecorded (IntSet.toList (IntSet.union a b))))
-                (SFail r, _, _) -> "signature: " <> r
-                (_, SFail r, _) -> "value: " <> r
+                SchematicCertificate (SFail r) _ _ -> "signature: " <> r
+                SchematicCertificate _ (SFail r) _ -> "value: " <> r
                 _ -> "an unsettled need"
       pure (maybe "_" show (binderName (varOrig info)) <> "(" <> status <> ")")
     -- What 'uses' finds settled: not a top-level entry, or one checked.

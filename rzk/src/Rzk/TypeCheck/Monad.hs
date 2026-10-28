@@ -33,9 +33,8 @@ import qualified Control.Monad.Foil       as Foil
 import           Language.Rzk.Foil.Names (TModality, VarIdent)
 import           Language.Rzk.Foil.Syntax (TermT, positionOfTerm)
 import           Rzk.TypeCheck.Context
-import           Rzk.TypeCheck.Fragment.Facts (DeclFacts, Env (..),
-                                               FragmentUse (..), VarFacts,
-                                               declarationFactsIn)
+import           Rzk.TypeCheck.Fragment.Facts (DeclFacts, FragmentUse (..),
+                                               VarFacts, declarationFactsIn)
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 
@@ -360,7 +359,7 @@ declarationFacts ty mval = ask >>= \ctx -> case rsttChecker ctx of
   RSTTCheckerIntegrated -> do
     owner <- nextFactsOwner
     outer <- getsLog logFacts
-    pure (Just (declarationFactsIn (Env (ctxScope ctx) IntMap.empty outer owner) ty mval))
+    pure (Just (declarationFactsIn (ctxScope ctx) outer owner ty mval))
 
 -- | Run a probe for its answer alone, discarding whatever it records.
 --

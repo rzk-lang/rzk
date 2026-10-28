@@ -650,6 +650,12 @@ library
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
       Rzk.TypeCheck.Fragment.Facts
+      Rzk.TypeCheck.Fragment.Facts.Build
+      Rzk.TypeCheck.Fragment.Facts.Expose
+      Rzk.TypeCheck.Fragment.Facts.Fragment
+      Rzk.TypeCheck.Fragment.Facts.MetaPrefix
+      Rzk.TypeCheck.Fragment.Facts.Schematic
+      Rzk.TypeCheck.Fragment.Facts.Types
       Rzk.TypeCheck.Fragment.RSTT
       Rzk.TypeCheck.Judgements
       Rzk.TypeCheck.MetaPrefix
