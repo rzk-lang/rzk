@@ -647,6 +647,7 @@ library
       Rzk.TypeCheck.Display
       Rzk.TypeCheck.Error
       Rzk.TypeCheck.Eval
+      Rzk.TypeCheck.Fragment.Facts
       Rzk.TypeCheck.Fragment.RSTT
       Rzk.TypeCheck.Judgements
       Rzk.TypeCheck.MetaPrefix

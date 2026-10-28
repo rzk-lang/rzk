@@ -14,24 +14,27 @@ module Rzk.TypeCheck.Schematic
   , recordSchematicDeclaration
   ) where
 
-import Control.Monad (forM_, unless, void, when)
+import Control.Monad (filterM, forM_, unless, void, when)
 import Control.Monad.Except (catchError)
-import Control.Monad.Reader (asks, local)
+import Control.Monad.Reader (ask, asks, local)
 import Control.Monad.State.Strict (gets)
 import Data.Bifoldable (bifoldMap)
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Control.Monad.Foil (Distinct)
 import qualified Control.Monad.Foil as Foil
+import Control.Monad.Foil.Internal (Name (UnsafeName))
 import Control.Monad.Free.Foil (AST (..))
 import Control.Monad.Free.Foil.Annotated (AnnSig (..))
-import Language.Rzk.Foil.Names (TModality (..), TypeInfo (..), VarIdent)
+import Language.Rzk.Foil.Names (TModality (..), TypeInfo (..), VarIdent, binderName)
 import Language.Rzk.Foil.Syntax
 import Rzk.TypeCheck.Context
 import Rzk.TypeCheck.Display (namingOfContext, ppTerm)
 import Rzk.TypeCheck.Error
 import Rzk.TypeCheck.Eval
+import Rzk.TypeCheck.Fragment.Facts (DeclFacts, SVerdict (..), schematicDepthLimit,
+                                     schematicVerdict, schematicVerdictOf)
 import Rzk.TypeCheck.Fragment.RSTT (fragmentHead)
 import Rzk.TypeCheck.Monad
 
@@ -62,16 +65,24 @@ checkSchematicDeclaration
   :: Distinct n => TermT n -> Maybe (TermT n)
   -> TypeCheck n (CheckedSchematicDeclaration n)
 checkSchematicDeclaration ty value = do
-  declaration 256 IntSet.empty ty value
+  fuel <- asks ctxRSTTFuel
+  declaration fuel IntSet.empty ty value
   pure (CheckedSchematicDeclaration (SchematicStatement ty) value)
 
 -- | Apply the selected safe-mode policy and return whether validation succeeded.
+--
+-- With the integrated checker, a declaration whose facts certify it
+-- ("Rzk.TypeCheck.Fragment.Facts") is not walked: the walk would succeed. The
+-- standalone checker walks every declaration.
 recordSchematicDeclaration
-  :: Distinct n => VarIdent -> TermT n -> Maybe (TermT n) -> TypeCheck n SchematicStatus
-recordSchematicDeclaration name ty value = do
+  :: Distinct n => Maybe DeclFacts -> VarIdent -> TermT n -> Maybe (TermT n) -> TypeCheck n SchematicStatus
+recordSchematicDeclaration declFacts name ty value = do
   enabled <- asks rsttSafeEnabled
-  if not enabled then pure SchematicUnchecked else
-    (checkSchematicDeclaration ty value >> pure SchematicChecked) `catchError` \err -> do
+  certified <- if enabled then certifiedSchematic declFacts name ty value else pure (Left Nothing)
+  if not enabled then pure SchematicUnchecked else case certified of
+   Right () -> pure SchematicChecked
+   Left outcome ->
+    (fromMaybe (void (checkSchematicDeclaration ty value)) outcome >> pure SchematicChecked) `catchError` \err -> do
       case err of
         TypeErrorInScopedContext _ (TypeErrorSchematic problem reason) -> do
           loc <- asks ctxLocation
@@ -82,6 +93,132 @@ recordSchematicDeclaration name ty value = do
             (reason <> " (in " <> show name <> ")") loc)
         _ -> reportIncompleteRSTTCheck ("schematic check incomplete in " <> show name) err
       pure SchematicRejected
+
+-- | Do the declaration's facts certify what the walk finds? 'Right' when the
+-- walk would succeed. The walk also checks the top-level entries it meets
+-- whose check is not recorded; the certificate names them instead, and holds
+-- only if every one of them is recorded as checked. When the first of the
+-- type's or the value's own dependencies that is not recorded has failed, the
+-- walk stops at it with that failure, which is given back as the action to
+-- run ('Left (Just _)'); otherwise the walk runs ('Left Nothing'). Under
+-- 'ctxFragmentShadow', the walk runs anyway and a disagreement is an error.
+certifiedSchematic
+  :: Distinct n => Maybe DeclFacts -> VarIdent -> TermT n -> Maybe (TermT n)
+  -> TypeCheck n (Either (Maybe (TypeCheck n ())) ())
+certifiedSchematic declFacts name ty value = case declFacts of
+  Nothing -> pure (Left Nothing)
+  Just facts -> do
+    ctx <- ask
+    let (sigVerdict, termVerdict, depth) = schematicVerdict facts
+        (tyDeps, valueDeps) = (freeVarsOfTermT ty, foldMap freeVarsOfTermT value)
+        verdict = sigVerdict <> termVerdict
+    -- The walk meets every free variable of the terms, so when all it meets
+    -- is recorded there is nothing to settle; the order of the dependencies
+    -- matters only when one is not.
+    allRecorded <- case verdict of
+      SOk met | depth <= schematicDepthLimit -> and <$> mapM dependencyRecorded (IntSet.toList met)
+      _ -> pure False
+    -- The walk's fuel is spent by nesting: at most twice the depth of a
+    -- term by its walk, with a margin for what it unfolds, and one unit by
+    -- each dependency the walk checks on the way.
+    result <- if allRecorded then pure (Right ()) else
+      settleDeclaration (ctxRSTTFuel ctx - 1) tyDeps sigVerdict valueDeps termVerdict depth
+    when (ctxFragmentShadow ctx /= ShadowOff) $ case result of
+      Right () -> do
+        ok <- suppressing ((checkSchematicDeclaration ty value >> pure True) `catchError` \_ -> pure False)
+        unless ok $ shadowMismatch ("schematic certificate mismatch in " <> show name <> ": the walk fails")
+      Left (Just _) -> pure ()
+      Left Nothing -> do
+        reason <- case verdict of
+          SOk met
+            | depth > schematicDepthLimit -> pure "a deep declaration"
+            | otherwise -> do
+                unrecorded <- filterM (fmap not . dependencyRecorded)
+                  (map Foil.nameId (tyDeps <> valueDeps) <> IntSet.toList met)
+                names <- mapM describeDependency (take 3 unrecorded)
+                pure ("a dependency whose check is not recorded: " <> unwords names)
+          SFail r -> pure r
+          SNeeds _ _ -> pure "an unsettled need"
+        shadowTrace ("schematic certificate: " <> show name <> " walked: " <> reason)
+    pure result
+  where
+    -- The walk of a declaration: the type's dependencies in order, the
+    -- signature (which meets further entries), the value's dependencies in
+    -- order, the value. The outcome is that of the first step that is not
+    -- settled: a failure the walk would raise, or a walk.
+    settleDeclaration fuel tyDeps sigVerdict valueDeps termVerdict termDepth
+      | termDepth > schematicDepthLimit || 2 * termDepth + schematicDepthLimit > fuel = pure (Left Nothing)
+      | otherwise = do
+          let fuel' = fuel - 1
+          ty' <- settleDependencies fuel' tyDeps
+          case (ty', sigVerdict) of
+            (Left outcome, _) -> pure (Left outcome)
+            (Right (), SOk sigUses) -> do
+              settledSig <- and <$> mapM dependencyRecorded (IntSet.toList sigUses)
+              if not settledSig then pure (Left Nothing) else do
+                value' <- settleDependencies fuel' valueDeps
+                case (value', termVerdict) of
+                  (Left outcome, _) -> pure (Left outcome)
+                  (Right (), SOk termUses) -> do
+                    settledTerm <- and <$> mapM dependencyRecorded (IntSet.toList termUses)
+                    pure (if settledTerm then Right () else Left Nothing)
+                  _ -> pure (Left Nothing)
+            _ -> pure (Left Nothing)
+    -- What 'uses' finds, dependency by dependency: a recorded one is settled;
+    -- a rejected one is the failure; an unchecked one is checked as a
+    -- declaration of its own (and recorded on success, as the walk records it).
+    settleDependencies _ [] = pure (Right ())
+    settleDependencies fuel (v : vs) = do
+      recorded <- dependencyRecorded (Foil.nameId v)
+      if recorded then settleDependencies fuel vs else do
+        info <- asks (lookupVarInfo v)
+        outcome <- case varSchematicStatus info of
+          SchematicRejected ->
+            pure (Left (Just (schematicError SchematicDependency "dependency failed schematic validation" (Var v))))
+          _ | isJust (varDataRole info) ->
+                pure (Left (Just (schematicError SchematicUnsupported "inductive dependency" (Var v))))
+            | otherwise -> do
+                outer <- getsLog logFacts
+                case IntMap.lookup (Foil.nameId v) outer of
+                  Nothing -> pure (Left Nothing)
+                  Just vf -> do
+                    let (sig', term', depth') = schematicVerdictOf vf
+                        tyDeps' = freeVarsOfTermT (varType info)
+                        valueDeps' = foldMap freeVarsOfTermT (varValue info)
+                    r <- settleDeclaration fuel tyDeps' sig' valueDeps' term' depth'
+                    case r of
+                      Right () -> do
+                        modifyLog $ \l -> l { logSchematicCache = IntSet.insert (Foil.nameId v) (logSchematicCache l) }
+                        pure (Right ())
+                      Left o -> pure (Left o)
+        case outcome of
+          Right () -> settleDependencies fuel vs
+          Left o -> pure (Left o)
+    describeDependency i = do
+      ctx <- ask
+      outer <- getsLog logFacts
+      cache <- gets logSchematicCache
+      let info = lookupVarInfo (UnsafeName i) ctx
+          nameOf j = maybe "_" show (binderName (varOrig (lookupVarInfo (UnsafeName j) ctx)))
+          unrecorded j = let inf = lookupVarInfo (UnsafeName j) ctx
+                         in varIsTopLevel inf && varSchematicStatus inf /= SchematicChecked && not (IntSet.member j cache)
+          status = case varSchematicStatus info of
+            SchematicChecked -> "checked"
+            SchematicRejected -> "rejected"
+            SchematicUnchecked -> "unchecked: " <> case IntMap.lookup i outer of
+              Nothing -> "no facts"
+              Just vf -> case schematicVerdictOf vf of
+                (SOk a, SOk b, d) -> "certified, depth " <> show d <> ", meets unrecorded "
+                  <> unwords (map nameOf (filter unrecorded (IntSet.toList (IntSet.union a b))))
+                (SFail r, _, _) -> "signature: " <> r
+                (_, SFail r, _) -> "value: " <> r
+                _ -> "an unsettled need"
+      pure (maybe "_" show (binderName (varOrig info)) <> "(" <> status <> ")")
+    -- What 'uses' finds settled: not a top-level entry, or one checked.
+    dependencyRecorded i = do
+      info <- asks (lookupVarInfo (UnsafeName i))
+      cached <- gets (IntSet.member i . logSchematicCache)
+      pure (not (varIsTopLevel info) || varSchematicStatus info == SchematicChecked || cached)
 
 sameDeclaration :: Maybe LocationInfo -> CheckWarning -> Bool
 sameDeclaration loc warning = withinDeclaration && case warning of

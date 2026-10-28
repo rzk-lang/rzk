@@ -25,14 +25,17 @@ import           Control.Monad.Trans.State.Strict (State, get, modify', put,
                                            runState)
 import qualified Data.IntMap.Strict       as IntMap
 import qualified Data.IntSet              as IntSet
-import           Debug.Trace              (trace)
+import           Debug.Trace              (trace, traceM)
 
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 
 import           Language.Rzk.Foil.Names (TModality, VarIdent)
-import           Language.Rzk.Foil.Syntax (positionOfTerm)
+import           Language.Rzk.Foil.Syntax (TermT, positionOfTerm)
 import           Rzk.TypeCheck.Context
+import           Rzk.TypeCheck.Fragment.Facts (DeclFacts, Env (..),
+                                               FragmentUse (..), VarFacts,
+                                               declarationFactsIn)
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 
@@ -126,21 +129,6 @@ data CheckWarning
 data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTShapeDependency | RSTTUnsupported | RSTTSchematic
   deriving (Eq, Show)
 
--- | What assumes a free-standing restriction (see "Rzk.TypeCheck.Fragment.RSTT"),
--- which conservativity allows to be concluded but not assumed.
-data FragmentUse
-  = UseBinder
-    -- ^ the type of a binder (λ, Π, Σ, or a declaration's parameter)
-  | UseMotive
-    -- ^ the motive of an eliminator
-  | UseData
-    -- ^ inside a type passed as data, at a meta-typed argument or component
-  | UseIdentity
-    -- ^ the type of an identity type, whose endpoints it types
-  | UseConcluded
-    -- ^ a concluded type, off the spine of codomains (a Σ component, say)
-  deriving (Eq, Show)
-
 -- | Where a warning points, for per-file attribution.
 warningLocation :: CheckWarning -> Maybe LocationInfo
 warningLocation (LargeInductiveTypeWarning _ _ loc)  = loc
@@ -171,14 +159,19 @@ data CheckLog = CheckLog
   , logSchematicCache :: IntSet.IntSet
   -- Nothing records an unsuccessful or ongoing object-family probe.
   , logSchematicObjectFamilies :: IntMap.IntMap (Maybe Int)
+  , logFacts :: IntMap.IntMap VarFacts
+    -- ^ the facts of the top-level entries in scope, by name identifier
+    -- (see "Rzk.TypeCheck.Fragment.Facts"); each is computed on first use
+  , logFactsOwners :: Int
+    -- ^ how many declarations have had their facts built
   }
 
 emptyCheckLog :: CheckLog
-emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty
+emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty IntMap.empty 0
 
 -- | What a run recorded, in the order it was recorded.
 checkLog :: CheckLog -> ([HoleInfo], [CheckWarning])
-checkLog (CheckLog holes warnings _ _) = (reverse holes, reverse warnings)
+checkLog l = (reverse (logHolesRev l), reverse (logWarningsRev l))
 
 -- | The record of a run is kept in the /state/, beneath the error channel,
 -- rather than on a writer channel above it.
@@ -221,6 +214,19 @@ inContext ctx = lift . flip runReaderT ctx
 -- * Errors
 
 -- | Raise a type error, capturing the context it happened in.
+-- | A certificate that the standalone check disagrees with, found in shadow
+-- mode: reported on stderr and raised as an error.
+shadowMismatch :: Distinct n => String -> TypeCheck n a
+shadowMismatch message = do
+  traceM message
+  issueTypeError (TypeErrorOther message)
+
+-- | Report on stderr why a declaration was not certified, in tracing shadow mode.
+shadowTrace :: String -> TypeCheck n ()
+shadowTrace message = do
+  shadow <- asks ctxFragmentShadow
+  when (shadow == ShadowTrace) $ traceM message
+
 issueTypeError :: Distinct n => TypeError n -> TypeCheck n a
 issueTypeError err = do
   ctx <- ask
@@ -332,6 +338,29 @@ narrowLocation action loc = case termOf action of
 
 modifyLog :: (CheckLog -> CheckLog) -> TypeCheck n ()
 modifyLog f = lift (lift (modify' f))
+
+getsLog :: (CheckLog -> a) -> TypeCheck n a
+getsLog f = f <$> lift (lift get)
+
+-- | A key owner for the variables bound in a declaration under check, so that
+-- its facts never share a key with a top-level entry's (see 'Env').
+nextFactsOwner :: TypeCheck n Int
+nextFactsOwner = do
+  n <- getsLog logFactsOwners
+  modifyLog $ \l -> l { logFactsOwners = n + 1 }
+  pure (negate (n + 1))
+
+-- | The facts of a declaration under check, for the integrated RSTT checker
+-- ('Nothing' for the standalone one, and below the default fuel, which the
+-- certificates' bounds assume): built once, shared by its checks.
+declarationFacts :: Distinct n => TermT n -> Maybe (TermT n) -> TypeCheck n (Maybe DeclFacts)
+declarationFacts ty mval = ask >>= \ctx -> case rsttChecker ctx of
+  RSTTCheckerStandalone -> pure Nothing
+  RSTTCheckerIntegrated | ctxRSTTFuel ctx < defaultRSTTFuel -> pure Nothing
+  RSTTCheckerIntegrated -> do
+    owner <- nextFactsOwner
+    outer <- getsLog logFacts
+    pure (Just (declarationFactsIn (Env (ctxScope ctx) IntMap.empty outer owner) ty mval))
 
 -- | Run a probe for its answer alone, discarding whatever it records.
 --

@@ -17,6 +17,7 @@ import           Data.Aeson           (ToJSON (..), Value (String), object,
 
 import           Language.Rzk.Foil.Names (TModality (Id))
 import           Rzk.TypeCheck
+import           Rzk.TypeCheck.Fragment.Facts (FragmentUse (..))
 
 -- | Diagnostic severity, mirroring the usual LSP levels.
 data Severity

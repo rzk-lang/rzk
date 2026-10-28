@@ -34,6 +34,7 @@ import qualified Data.IntSet              as IntSet
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
+import           Text.Read                 (readMaybe)
 import           Unsafe.Coerce             (unsafeCoerce)
 
 import           Control.Monad.Foil        (DExt, Distinct, NameBinder)
@@ -52,6 +53,7 @@ import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import           Rzk.TypeCheck.Fragment.Facts (topLevelFacts)
 import qualified Rzk.TypeCheck.Fragment.RSTT as RSTT
 import           Rzk.TypeCheck.Schematic (recordSchematicDeclaration)
 import           Rzk.TypeCheck.MetaPrefix
@@ -130,11 +132,13 @@ withTopLevel
 withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
   metaPrefix <- metaPrefixOf ty
-  recordMetaPrefixUses name ty mval
+  -- The facts of the declaration, shared by the three checks.
+  declFacts <- declarationFacts ty mval
+  recordMetaPrefixUses declFacts name ty mval
   -- Postulates and failed definitions supply assumptions, so require ext-style types.
-  RSTT.recordFragmentUses name ty mval
+  RSTT.recordFragmentUses declFacts name ty mval
     (isAssumption || maybe True (const False) mval)
-  schematicStatus <- recordSchematicDeclaration name ty mval
+  schematicStatus <- recordSchematicDeclaration declFacts name ty mval
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -161,6 +165,10 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           , declUsedVars = Foil.sink1 usedVars
           , declLocation = ctxLocation ctx
           }
+        entryId = Foil.nameId (Foil.nameOf binder)
+    -- The entry's facts, for the declarations that use it; computed when first asked.
+    modifyLog $ \l -> l
+      { logFacts = IntMap.insert entryId (topLevelFacts (logFacts l) (ctxScope ctx) entryId info) (logFacts l) }
     inContext ctx' (k binder decl)
 
 -- | Record a new entry in the innermost open section.
@@ -209,8 +217,14 @@ endSection errs = do
       tolerateUnused = lenient && sectionHasHole
 
   (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
-  -- Section abstraction changes dependency signatures and applications.
-  modifyLog $ \log -> log { logSchematicCache = IntSet.empty, logSchematicObjectFamilies = IntMap.empty }
+  -- Section abstraction changes dependency signatures and applications. It
+  -- rewrites the section's own entries, so their schematic checks go; those
+  -- of earlier entries still hold.
+  let sectionIds = IntSet.fromList (map Foil.nameId entries)
+  modifyLog $ \log -> log
+    { logSchematicCache = logSchematicCache log `IntSet.difference` sectionIds
+    , logSchematicObjectFamilies = logSchematicObjectFamilies log `IntMap.withoutKeys` sectionIds
+    }
 
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
@@ -218,6 +232,17 @@ endSection errs = do
   kept <- forM kept0 $ \(name, info) -> do
     metaPrefix <- metaPrefixOf (varType info)
     pure (name, info { varMetaPrefix = metaPrefix })
+
+  -- The rewritten entries' facts are built again, from the rewritten entries
+  -- (which mention each other, hence the knot); those of earlier entries
+  -- hold, as do all of them when the section had no assumption to abstract.
+  scope <- asks ctxScope
+  when (any (varIsAssumption . snd) infos) $ modifyLog $ \log ->
+    let rebuilt = IntMap.fromList
+          [ (Foil.nameId name, topLevelFacts facts' scope (Foil.nameId name) info)
+          | (name, info) <- kept ]
+        facts' = IntMap.union rebuilt (logFacts log)
+    in log { logFacts = facts' }
 
   loc <- asks ctxLocation
   let decls = map (toDecl loc) kept
@@ -370,7 +395,7 @@ makeAssumptionExplicit (a, aInfo) entries = do
           when implicit $
             issueTypeError $ TypeErrorImplicitAssumption (a, varType aInfo) x
           let xInfo' = abstractOver scope a aInfo xInfo
-              xs' = map (fmap (applyToAssumption scope a (x, xInfo'))) xs
+              xs' = map (fmap (applyToAssumption scope a aInfo (x, xInfo'))) xs
           (_use, xs'') <- go forced xs'
           return (AssumptionUsed, (x, xInfo') : xs'')
         else do
@@ -382,7 +407,7 @@ abstractOver
   :: Distinct n
   => Foil.Scope n -> Foil.Name n -> VarInfo n -> VarInfo n -> VarInfo n
 abstractOver scope a aInfo info = info
-  { varSchematicStatus = SchematicUnchecked
+  { varSchematicStatus = abstractedStatus aInfo info
   , varType = newType
   , varValue = fmap abstractValue (varValue info)
   , varModality = Id
@@ -403,15 +428,27 @@ abstractOver scope a aInfo info = info
       abstractName scope a value $ \binder body ->
         lambdaT newType orig Nothing (ScopedAST binder body)
 
+-- | The schematic status of a section entry once it is abstracted over an
+-- assumption. The entry was checked with the assumption as a variable of its
+-- type, so it stays checked when the assumption becomes its parameter (and
+-- its uses of other entries applications to it), provided the assumption's
+-- own statement was checked. Otherwise it is checked again when used.
+abstractedStatus :: VarInfo n -> VarInfo n -> SchematicStatus
+abstractedStatus aInfo info
+  | varSchematicStatus aInfo == SchematicChecked
+  , varSchematicStatus info == SchematicChecked = SchematicChecked
+  | otherwise = SchematicUnchecked
+
 -- | Rewrite every use of a definition into an application of it to the assumption
 -- it has just been abstracted over.
 applyToAssumption
   :: Distinct n
-  => Foil.Scope n -> Foil.Name n -> (Foil.Name n, VarInfo n) -> VarInfo n -> VarInfo n
-applyToAssumption scope a (defName, defInfo) info
+  => Foil.Scope n -> Foil.Name n -> VarInfo n -> (Foil.Name n, VarInfo n) -> VarInfo n
+  -> VarInfo n
+applyToAssumption scope a aInfo (defName, defInfo) info
   | varIsAssumption info = info
   | otherwise = info
-      { varSchematicStatus = SchematicUnchecked
+      { varSchematicStatus = abstractedStatus aInfo info
       , varType = rewrite (varType info)
       , varValue = rewrite <$> varValue info
       }
@@ -450,6 +487,13 @@ setOption "rstt-safe" = \case
   "error" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeError }
   "off" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeOff }
   _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe mode (use warn, error, or off)"
+setOption "rstt-safe-checker" = \case
+  "integrated" -> local $ \ctx -> ctx { ctxRSTTChecker = RSTTCheckerIntegrated }
+  "standalone" -> local $ \ctx -> ctx { ctxRSTTChecker = RSTTCheckerStandalone }
+  _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe-checker (use integrated or standalone)"
+setOption "rstt-safe-fuel" = \value -> case readMaybe value of
+  Just fuel | fuel > 0 -> local $ \ctx -> ctx { ctxRSTTFuel = fuel }
+  _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe-fuel (use a positive integer)"
 -- Opt-in: overhang checking adds a solver query per face or guard.
 setOption "warn-overhang" = \case
   "yes" -> localWarnOverhang True
@@ -495,6 +539,8 @@ unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
 unsetOption "rstt-safe" = local $ \ctx -> ctx { ctxRSTTSafe = ctxRSTTSafe emptyContext }
+unsetOption "rstt-safe-checker" = local $ \ctx -> ctx { ctxRSTTChecker = ctxRSTTChecker emptyContext }
+unsetOption "rstt-safe-fuel" = local $ \ctx -> ctx { ctxRSTTFuel = ctxRSTTFuel emptyContext }
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
 unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
@@ -1529,9 +1575,10 @@ checkCommands path i total commands k = case commands of
           ty' <- atSurface ty $ typecheck tyTerm universeT
           termTerm <- elaborateChecked term
           term' <- atSurface term $ typecheck termTerm ty'
-          recordMetaPrefixUses "#check" ty' (Just term')
-          RSTT.recordFragmentUses "#check" ty' (Just term') False
-          _ <- recordSchematicDeclaration "#check" ty' (Just term')
+          declFacts <- declarationFacts ty' (Just term')
+          recordMetaPrefixUses declFacts "#check" ty' (Just term')
+          RSTT.recordFragmentUses declFacts "#check" ty' (Just term') False
+          _ <- recordSchematicDeclaration declFacts "#check" ty' (Just term')
           pure ()
         case result of
           Left err -> skippingCommand err path i total more k
@@ -1546,9 +1593,10 @@ checkCommands path i total commands k = case commands of
         result <- tryCheck $ do
           term' <- atSurface term $ elaborateChecked term >>= infer
           ty' <- typeOfUncomputed term'
-          recordMetaPrefixUses "#compute-nf" ty' (Just term')
-          RSTT.recordFragmentUses "#compute-nf" ty' (Just term') False
-          _ <- recordSchematicDeclaration "#compute-nf" ty' (Just term')
+          declFacts <- declarationFacts ty' (Just term')
+          recordMetaPrefixUses declFacts "#compute-nf" ty' (Just term')
+          RSTT.recordFragmentUses declFacts "#compute-nf" ty' (Just term') False
+          _ <- recordSchematicDeclaration declFacts "#compute-nf" ty' (Just term')
           nfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
@@ -1561,9 +1609,10 @@ checkCommands path i total commands k = case commands of
         result <- tryCheck $ do
           term' <- atSurface term $ elaborateChecked term >>= infer
           ty' <- typeOfUncomputed term'
-          recordMetaPrefixUses "#compute" ty' (Just term')
-          RSTT.recordFragmentUses "#compute" ty' (Just term') False
-          _ <- recordSchematicDeclaration "#compute" ty' (Just term')
+          declFacts <- declarationFacts ty' (Just term')
+          recordMetaPrefixUses declFacts "#compute" ty' (Just term')
+          RSTT.recordFragmentUses declFacts "#compute" ty' (Just term') False
+          _ <- recordSchematicDeclaration declFacts "#compute" ty' (Just term')
           whnfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k

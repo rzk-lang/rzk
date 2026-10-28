@@ -276,6 +276,15 @@ data Context n = Context
   , ctxStandaloneWarnMetaBinder :: Bool
     -- ^ Standalone schematic-binder check, disabled by default.
     -- RSTT-safe mode enables the check regardless of this setting.
+  , ctxFragmentShadow :: FragmentShadow
+    -- ^ Whether to run the standalone RSTT checks also on the declarations
+    -- the integrated checker certifies (a test and a development aid).
+  , ctxRSTTChecker :: RSTTChecker
+  , ctxRSTTCheckerOverride :: Maybe RSTTChecker
+    -- ^ A CLI selection applies throughout the run, despite source options.
+  , ctxRSTTFuel :: Int
+    -- ^ The fuel of the standalone RSTT walks: reduction steps per exposure
+    -- in the fragment check, nesting levels in the schematic check.
   }
 
 -- | The sensitivity levels of the meta-parameter layer check.
@@ -328,6 +337,10 @@ emptyContext = Context
   , ctxStandaloneWarnFreeStandingRestriction = False
   , ctxStandaloneWarnShapeDependency = True
   , ctxStandaloneWarnMetaBinder = False
+  , ctxFragmentShadow = ShadowOff
+  , ctxRSTTChecker = RSTTCheckerIntegrated
+  , ctxRSTTCheckerOverride = Nothing
+  , ctxRSTTFuel = defaultRSTTFuel
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.
@@ -586,6 +599,34 @@ rsttSafeMode ctx = case ctxRSTTSafeOverride ctx of
 rsttSafeEnabled :: Context n -> Bool
 rsttSafeEnabled ctx = rsttSafeMode ctx /= RSTTSafeOff
 
+-- | How the RSTT fragment check runs. Integrated: a declaration whose facts
+-- certify it clean ("Rzk.TypeCheck.Fragment.Facts") is not walked.
+-- Standalone: every declaration is walked ("Rzk.TypeCheck.Fragment.RSTT").
+-- Both must report the same warnings.
+data RSTTChecker = RSTTCheckerIntegrated | RSTTCheckerStandalone
+  deriving (Eq, Show)
+
+-- | The shadow mode of the integrated RSTT checker.
+data FragmentShadow
+  = ShadowOff
+  | ShadowCheck
+    -- ^ run the standalone checks on certified declarations, and fail on a
+    -- disagreement
+  | ShadowTrace
+    -- ^ also report on stderr why a declaration was not certified
+  deriving (Eq, Show)
+
+-- | The default fuel of the standalone RSTT walks. The certificates of the
+-- integrated checker keep their bounds below it, so they are used only when
+-- the fuel is at least this.
+defaultRSTTFuel :: Int
+defaultRSTTFuel = 256
+
+rsttChecker :: Context n -> RSTTChecker
+rsttChecker ctx = case ctxRSTTCheckerOverride ctx of
+  Just checker -> checker
+  Nothing      -> ctxRSTTChecker ctx
+
 -- | Whether to check free-standing restrictions, including RSTT-safe requirements.
 ctxWarnFreeStandingRestriction :: Context n -> Bool
 ctxWarnFreeStandingRestriction ctx =
@@ -598,6 +639,17 @@ ctxWarnShapeDependency ctx = rsttSafeEnabled ctx || ctxStandaloneWarnShapeDepend
 -- | Whether to check schematic binders, including RSTT-safe requirements.
 ctxWarnMetaBinder :: Context n -> Bool
 ctxWarnMetaBinder ctx = rsttSafeEnabled ctx || ctxStandaloneWarnMetaBinder ctx
+
+-- | The RSTT fragment checks that are on.
+data FragmentFlags = FragmentFlags
+  { flagFreeStandingRestriction :: Bool
+  , flagMetaBinder              :: Bool
+  , flagShapeDependency         :: Bool
+  } deriving (Eq, Ord)
+
+ctxFragmentFlags :: Context n -> FragmentFlags
+ctxFragmentFlags ctx = FragmentFlags
+  (ctxWarnFreeStandingRestriction ctx) (ctxWarnMetaBinder ctx) (ctxWarnShapeDependency ctx)
 
 effectiveMetaPrefixSensitivity :: Context n -> MetaPrefixSensitivity
 effectiveMetaPrefixSensitivity ctx

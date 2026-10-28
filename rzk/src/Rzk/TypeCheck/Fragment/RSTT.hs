@@ -33,7 +33,7 @@ module Rzk.TypeCheck.Fragment.RSTT (
 import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM_, unless, when)
 import           Control.Monad.Except     (catchError)
-import           Control.Monad.Reader     (asks, local)
+import           Control.Monad.Reader     (ask, asks, local)
 import           Data.Bifoldable          (bifoldMap)
 import           Data.List                (intercalate)
 import           Data.Maybe               (fromMaybe)
@@ -51,6 +51,10 @@ import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Error
+import           Rzk.TypeCheck.Fragment.Facts (DeclFacts, FragmentUse (..),
+                                               PrefixPosition (..),
+                                               Verdict (..), fragmentVerdict,
+                                               isClean, verdictReason)
 import           Rzk.TypeCheck.MetaPrefix (isMetaType)
 import           Rzk.TypeCheck.Monad
 
@@ -60,28 +64,62 @@ data CheckedPosition
   | InAssumption FragmentUse
   | InTerm PrefixPosition
 
--- A schematic argument may have its own parameter prefix.
-data PrefixPosition = InParameterPrefix | OutsideParameterPrefix
-  deriving (Eq)
-
 -- | Report restriction and schematic-binder violations in a declaration.
 -- Violations are errors when @rstt-safe = "error"@.
+--
+-- With the integrated checker, a declaration whose facts certify it clean
+-- ("Rzk.TypeCheck.Fragment.Facts") is not walked: the walk would report
+-- nothing. The standalone checker walks every declaration.
 recordFragmentUses
   :: forall n. Distinct n
-  => VarIdent          -- ^ the declaration
+  => Maybe DeclFacts   -- ^ the declaration's facts, with the integrated checker
+  -> VarIdent          -- ^ the declaration
   -> TermT n           -- ^ its type
   -> Maybe (TermT n)   -- ^ its value, for a definition
   -> Bool              -- ^ does it supply an assumption rather than a proof?
   -> TypeCheck n ()
-recordFragmentUses defName ty mval isAssumption = do
+recordFragmentUses declFacts defName ty mval isAssumption = do
   restrictions <- asks ctxWarnFreeStandingRestriction
   binders <- asks ctxWarnMetaBinder
   shapes <- asks ctxWarnShapeDependency
-  when (restrictions || binders || shapes) $
-    localVerbosity Silent $
-      forM_ [SourceTypes, ComputedTypes] $ \view ->
-        checkFragmentUses view defName ty mval isAssumption `catchError`
-          reportIncompleteRSTTCheck ("RSTT fragment check incomplete in " <> show defName)
+  when (restrictions || binders || shapes) $ do
+    certified <- certifiedClean declFacts defName ty mval isAssumption
+    unless certified $
+      localVerbosity Silent $
+        forM_ [SourceTypes, ComputedTypes] $ \view ->
+          checkFragmentUses view defName ty mval isAssumption `catchError`
+            reportIncompleteRSTTCheck ("RSTT fragment check incomplete in " <> show defName)
+
+-- | Do the declaration's facts certify that the walk reports nothing?
+-- Under 'ctxFragmentShadow', the walk runs anyway and a disagreement is an
+-- error.
+certifiedClean
+  :: forall n. Distinct n
+  => Maybe DeclFacts -> VarIdent -> TermT n -> Maybe (TermT n) -> Bool -> TypeCheck n Bool
+certifiedClean declFacts defName ty mval isAssumption = case declFacts of
+  Nothing -> pure False
+  Just facts -> do
+    ctx <- ask
+    let verdict = fragmentVerdict (ctxFragmentFlags ctx) facts isAssumption
+    when (ctxFragmentShadow ctx /= ShadowOff) $ case verdict of
+      Clean -> do
+        (ok, found) <- probeWarnings $ localVerbosity Silent $
+          forM_ [SourceTypes, ComputedTypes] $ \view ->
+            checkFragmentUses view defName ty mval isAssumption
+        unless (ok && null found) $
+          shadowMismatch ("RSTT certificate mismatch in " <> show defName <> ": the walk "
+            <> (if ok then "reports " <> show found else "fails"))
+      _ -> shadowTrace ("RSTT certificate: " <> show defName <> " walked: " <> verdictReason verdict)
+    pure (isClean verdict)
+
+-- | The warnings an action would add, with whether it succeeds, leaving no trace.
+probeWarnings :: TypeCheck n () -> TypeCheck n (Bool, [CheckWarning])
+probeWarnings action = do
+  before <- getsLog logWarningsRev
+  suppressing $ do
+    ok <- (action >> pure True) `catchError` \_ -> pure False
+    after <- getsLog logWarningsRev
+    pure (ok, reverse (take (length after - length before) after))
 
 -- Keep source checks even when reduction discards an argument or annotation.
 data FragmentView = SourceTypes | ComputedTypes
@@ -102,7 +140,7 @@ checkFragmentUses view defName ty mval isAssumption = do
     expose :: forall l. Distinct l => TermT l -> TypeCheck l (TermT l)
     expose = case view of
       SourceTypes -> pure
-      ComputedTypes -> fragmentHead 256
+      ComputedTypes -> \t -> asks ctxRSTTFuel >>= \fuel -> fragmentHead fuel t
 
     -- Allow restrictions along the spine of concluded codomains.
     goTail :: forall l. Distinct l => TermT l -> TypeCheck l ()

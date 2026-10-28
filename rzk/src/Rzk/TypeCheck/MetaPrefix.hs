@@ -20,11 +20,12 @@
 -- levels; the Hurkens construction still passes these checks.
 module Rzk.TypeCheck.MetaPrefix (
   metaPrefixOf,
+  headView,
   isMetaType,
   recordMetaPrefixUses,
 ) where
 
-import           Control.Monad            (forM_, when)
+import           Control.Monad            (forM_, unless, when)
 import           Control.Monad.Except     (catchError)
 import           Control.Monad.Reader     (ask, asks)
 import           Data.Bifoldable          (bifoldr)
@@ -40,6 +41,9 @@ import           Language.Rzk.Foil.Names  (TModality (..), TypeInfo (..),
 import           Language.Rzk.Foil.Syntax
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Eval
+import           Rzk.TypeCheck.Fragment.Facts (DeclFacts, Verdict (..),
+                                               isClean, metaPrefixVerdict,
+                                               verdictReason)
 import           Rzk.TypeCheck.Monad
 
 -- * Classifying types
@@ -106,17 +110,40 @@ objectPositions = Positions ObjectPos ObjectPos
 
 -- | Report uses that supply too few schematic arguments.
 -- Violations are errors when @rstt-safe = "error"@.
+--
+-- With the integrated checker, a declaration whose facts certify it clean
+-- ("Rzk.TypeCheck.Fragment.Facts") is not walked.
 recordMetaPrefixUses
   :: forall n. Distinct n
-  => VarIdent -> TermT n -> Maybe (TermT n) -> TypeCheck n ()
-recordMetaPrefixUses defName ty mval =
+  => Maybe DeclFacts -> VarIdent -> TermT n -> Maybe (TermT n) -> TypeCheck n ()
+recordMetaPrefixUses declFacts defName ty mval =
   asks effectiveMetaPrefixSensitivity >>= \case
     MetaPrefixOff -> pure ()
-    _ -> localVerbosity Silent $
-      flip catchError (reportIncompleteRSTTCheck ("RSTT meta-parameter check incomplete in " <> show defName)) $ do
-        go rootPositions ty
-        mapM_ (go rootPositions) mval
+    sensitivity -> do
+      certified <- certifiedClean sensitivity
+      unless certified $ localVerbosity Silent $
+        flip catchError (reportIncompleteRSTTCheck ("RSTT meta-parameter check incomplete in " <> show defName)) $ do
+          go rootPositions ty
+          mapM_ (go rootPositions) mval
   where
+    certifiedClean sensitivity = case declFacts of
+      Nothing -> pure False
+      Just facts -> do
+        ctx <- ask
+        let verdict = metaPrefixVerdict (sensitivity == MetaPrefixStrict) facts
+        when (ctxFragmentShadow ctx /= ShadowOff) $ case verdict of
+          Clean -> do
+            before <- getsLog logWarningsRev
+            (ok, found) <- suppressing $ do
+              ok <- ((go rootPositions ty >> mapM_ (go rootPositions) mval) >> pure True) `catchError` \_ -> pure False
+              after <- getsLog logWarningsRev
+              pure (ok, take (length after - length before) after)
+            unless (ok && null found) $
+              shadowMismatch ("meta-prefix certificate mismatch in " <> show defName <> ": the walk "
+                <> (if ok then "reports " <> show found else "fails"))
+          _ -> shadowTrace ("meta-prefix certificate: " <> show defName <> " walked: " <> verdictReason verdict)
+        pure (isClean verdict)
+
     go :: forall l. Distinct l => Positions -> TermT l -> TypeCheck l ()
     go pos t = case t of
       Var v -> checkHead pos v 0

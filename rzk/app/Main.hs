@@ -19,6 +19,7 @@ import           Language.Rzk.VSCode.Lsp (runLsp)
 #endif
 
 import           Options.Generic
+import           System.Environment      (lookupEnv)
 import           System.Exit             (exitFailure, exitSuccess)
 
 import           Data.Aeson              (encode)
@@ -51,6 +52,7 @@ data TypecheckOptions = TypecheckOptions
   { typecheckAllowHoles :: Bool
   , typecheckJson       :: Bool
   , typecheckRSTTSafe   :: Maybe String
+  , typecheckRSTTSafeChecker :: Maybe String
   } deriving (Generic, Show, ParseRecord, Read, ParseField)
 
 instance ParseFields TypecheckOptions where
@@ -58,6 +60,7 @@ instance ParseFields TypecheckOptions where
     <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
     <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
     <*> parseFields (Just "Enforce RSTT fragment checks throughout the run: warn, error, or off") (Just "rstt-safe") Nothing Nothing
+    <*> parseFields (Just "Run RSTT fragment checks in the typechecker (integrated) or as separate passes (standalone)") (Just "rstt-safe-checker") Nothing Nothing
 
 data VersionOptions = VersionOptions
   { versionFull :: Bool
@@ -82,7 +85,7 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag}) paths -> do
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag, typecheckRSTTSafeChecker = checkerFlag}) paths -> do
       safeOverride <- case safeFlag of
         Nothing -> pure Nothing
         Just "warn" -> pure (Just RSTTSafeWarn)
@@ -91,9 +94,23 @@ main = do
         Just _ -> do
           putStrLn "Unknown --rstt-safe mode (use warn, error, or off)"
           exitFailure
+      checkerOverride <- case checkerFlag of
+        Nothing -> pure Nothing
+        Just "integrated" -> pure (Just RSTTCheckerIntegrated)
+        Just "standalone" -> pure (Just RSTTCheckerStandalone)
+        Just _ -> do
+          putStrLn "Unknown --rstt-safe-checker (use integrated or standalone)"
+          exitFailure
       modules <- parseRzkFilesOrStdin paths
+      -- A development aid: check every RSTT certificate against the standalone
+      -- checks, and say why a declaration was not certified.
+      shadow <- maybe ShadowOff (const ShadowTrace) <$> lookupEnv "RZK_RSTT_SHADOW"
       let baseContext = if jsonFlag || allowHolesFlag then allowHoles emptyContext else emptyContext
-          result = checkedModules modules (baseContext { ctxRSTTSafeOverride = safeOverride })
+          result = checkedModules modules
+            (baseContext
+              { ctxRSTTSafeOverride = safeOverride
+              , ctxRSTTCheckerOverride = checkerOverride
+              , ctxFragmentShadow = shadow })
           reportError err = do
             putStrLn "An error occurred when typechecking!"
             putStrLn $ unlines
