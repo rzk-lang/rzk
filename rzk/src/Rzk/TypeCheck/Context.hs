@@ -649,7 +649,10 @@ data FragmentFlags = FragmentFlags
 
 ctxFragmentFlags :: Context n -> FragmentFlags
 ctxFragmentFlags ctx = FragmentFlags
-  (ctxWarnFreeStandingRestriction ctx) (ctxWarnMetaBinder ctx) (ctxWarnShapeDependency ctx)
+  { flagFreeStandingRestriction = ctxWarnFreeStandingRestriction ctx
+  , flagMetaBinder              = ctxWarnMetaBinder ctx
+  , flagShapeDependency         = ctxWarnShapeDependency ctx
+  }
 
 effectiveMetaPrefixSensitivity :: Context n -> MetaPrefixSensitivity
 effectiveMetaPrefixSensitivity ctx

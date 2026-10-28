@@ -118,7 +118,9 @@ data Entry
   deriving (Eq, Ord, Show)
 
 allFlags :: [FragmentFlags]
-allFlags = [FragmentFlags a b c | a <- bools, b <- bools, c <- bools]
+allFlags =
+  [ FragmentFlags { flagFreeStandingRestriction = a, flagMetaBinder = b, flagShapeDependency = c }
+  | a <- bools, b <- bools, c <- bools ]
   where bools = [False, True]
 
 -- * Verdicts
@@ -375,7 +377,8 @@ byFlags f = ByFlags (g 0) (g 1) (g 2) (g 3) (g 4) (g 5) (g 6) (g 7)
   where g i = f (allFlags !! i)
 
 atFlags :: FragmentFlags -> ByFlags a -> a
-atFlags (FragmentFlags a b c) (ByFlags x0 x1 x2 x3 x4 x5 x6 x7) = case (a, b, c) of
+atFlags flags (ByFlags x0 x1 x2 x3 x4 x5 x6 x7) =
+  case (flagFreeStandingRestriction flags, flagMetaBinder flags, flagShapeDependency flags) of
   (False, False, False) -> x0
   (False, False, True)  -> x1
   (False, True, False)  -> x2
