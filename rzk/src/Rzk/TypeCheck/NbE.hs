@@ -169,6 +169,11 @@ instance HasDefinitions Ctx Foil.NameBinder Sig where
     VarInfo { varValue = Just body } -> case ctxDistinct ctx of
       Foil.Distinct -> NbE.vglued x (NbE.eval scope ctx Foil.identitySubst body)
     _ -> NbE.vvar x
+  -- Readback keeps a defined name folded, as the checker's own terms do: a
+  -- type read back for an annotation, a hole or an error is spelled with
+  -- the names the user wrote, not their unfoldings.
+  {-# INLINE contextUnfolding #-}
+  contextUnfolding _ _ folded _ = folded
   {-# INLINE contextGlueSpeculation #-}
   contextGlueSpeculation _ ctx x _ y _ = case ctxApproximation ctx of
     Rigid
