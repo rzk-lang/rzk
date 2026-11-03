@@ -11,6 +11,7 @@ resolver); it needs only `stack`, `git`, and a built `rzk`.
 bench/bench.hs run                  # 3 timed full-sHoTT runs, appended to the CSV
 bench/bench.hs run --quick          # prefix subset up to 05-segal-types
 bench/bench.hs run --runs 5 --rts "-N1" --label my-experiment
+bench/bench.hs run --args "--nbe=off" --label no-fast-path   # extra rzk typecheck arguments
 bench/bench.hs profile              # profiled build + run, .prof summary
 bench/bench.hs summary FILE.prof    # summarise an existing profile
 bench/bench.hs setup                # just clone/pin the corpus
