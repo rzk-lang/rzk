@@ -11,4 +11,4 @@ extra-deps:
   # free-foil-NBE is not on Hackage yet. The branch rzk-integration is its PR
   # stack (glue-speculation) with main merged in; only the main library is used.
   - git: https://github.com/p50000/free-foil-NBE.git
-    commit: 003d6688ccfa8088f2d75365057d80330d50f49f
+    commit: 8d923f8c87012a13ddc13b6289e2d0a613973866
