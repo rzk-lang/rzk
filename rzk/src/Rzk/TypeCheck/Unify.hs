@@ -29,7 +29,7 @@ import           Rzk.TypeCheck.Display (panicImpossible)
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Monad
-import           Rzk.TypeCheck.NbE.Spine (Conversion (..), nbeConvertible)
+import           Rzk.TypeCheck.NbE       (Conversion (..), nbeConvertible)
 
 -- | Open two scoped terms under /one/ binder, so that the two sides of a
 -- comparison are compared as functions of the same variable.
