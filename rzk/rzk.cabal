@@ -652,6 +652,7 @@ library
       Rzk.TypeCheck.MetaPrefix
       Rzk.TypeCheck.Monad
       Rzk.TypeCheck.NbE
+      Rzk.TypeCheck.NbE.Spine
       Rzk.TypeCheck.Render
       Rzk.TypeCheck.Schematic
       Rzk.TypeCheck.Unify
