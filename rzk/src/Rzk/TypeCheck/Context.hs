@@ -65,6 +65,17 @@ data FastPath
     -- unification rejects is reported.
   deriving (Eq, Show)
 
+-- | Which judgements a run uses (see "Rzk.TypeCheck.Checker").
+data Checker
+  = CheckerTerms
+    -- ^ The judgements on terms, "Rzk.TypeCheck.Judgements": the default.
+  | CheckerValues
+    -- ^ The judgements over values, "Rzk.TypeCheck.Judgements.Values".
+  | CheckerCheck
+    -- ^ The differential test: both judgements run on every declaration,
+    -- the ones on terms decide it, and a disagreement is reported.
+  deriving (Eq, Show)
+
 data RenderBackend
   = RenderSVG
   | RenderLaTeX
@@ -261,6 +272,7 @@ data Context n = Context
   , ctxVerbosity           :: Verbosity
   , ctxCovariance          :: Covariance
   , ctxFastPath            :: FastPath
+  , ctxChecker             :: Checker
   , ctxRenderBackend       :: Maybe RenderBackend
   , ctxRenderHideTerm      :: Bool
     -- ^ When rendering a diagram, hide the proof term: drop the @\<title\>@ (which
@@ -346,6 +358,7 @@ emptyContext = Context
   , ctxVerbosity = Normal
   , ctxCovariance = Covariant
   , ctxFastPath = FastPathGeneric
+  , ctxChecker = CheckerTerms
   , ctxRenderBackend = Nothing
   , ctxRenderHideTerm = False
   , ctxHolesAreErrors = True

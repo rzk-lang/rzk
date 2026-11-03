@@ -641,6 +641,7 @@ library
       Rzk.Render.Geometry
       Rzk.TypeCheck
       Rzk.TypeCheck.BinderTypes
+      Rzk.TypeCheck.Checker
       Rzk.TypeCheck.Context
       Rzk.TypeCheck.Decl
       Rzk.TypeCheck.Decl.Data
@@ -649,6 +650,7 @@ library
       Rzk.TypeCheck.Eval
       Rzk.TypeCheck.Fragment.RSTT
       Rzk.TypeCheck.Judgements
+      Rzk.TypeCheck.Judgements.Values
       Rzk.TypeCheck.MetaPrefix
       Rzk.TypeCheck.Monad
       Rzk.TypeCheck.NbE

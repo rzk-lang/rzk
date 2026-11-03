@@ -51,7 +51,9 @@ import           Rzk.TypeCheck.Decl.Data
 import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
-import           Rzk.TypeCheck.Judgements
+import           Rzk.TypeCheck.Checker    (infer, reportCheckerDifferential,
+                                           typecheck)
+import           Rzk.TypeCheck.Judgements hiding (infer, typecheck)
 import           Rzk.TypeCheck.NbE        (evalTerm)
 import qualified Rzk.TypeCheck.Fragment.RSTT as RSTT
 import           Rzk.TypeCheck.Schematic (recordSchematicDeclaration)
@@ -1677,6 +1679,7 @@ checkedModules modules ctx =
     checkModules modules $ \decls errs -> do
       ctx' <- ask
       reportDifferential
+      reportCheckerDifferential
       pure (Checked ctx' decls errs [])
   where
     package (Left err, _) = Left err

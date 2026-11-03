@@ -129,7 +129,26 @@ data CheckWarning
   | NbEDifferentialReport NbEStats
     -- ^ The tallies of the differential test, reported once at the end of
     -- a run.
+  | CheckerDisagreementWarning
+      String                -- ^ what was checked, rendered
+      String                -- ^ how the judgements disagree
+      (Maybe LocationInfo)
+    -- ^ The differential test of the judgements ('CheckerCheck'): the
+    -- judgements over values and the ones on terms disagree.
+  | CheckerDifferentialReport CheckerStats
+    -- ^ The tallies of that test, reported once at the end of a run.
   deriving (Eq, Show)
+
+-- | What the differential test of the judgements counted.
+data CheckerStats = CheckerStats
+  { checkerQueries       :: !Int   -- ^ declarations and commands judged
+  , checkerAgreements    :: !Int   -- ^ both succeeded with convertible results
+  , checkerBothFailed    :: !Int   -- ^ both failed
+  , checkerDisagreements :: !Int   -- ^ one succeeded, or the results differ
+  } deriving (Eq, Show)
+
+emptyCheckerStats :: CheckerStats
+emptyCheckerStats = CheckerStats 0 0 0 0
 
 -- | What the differential test of the fast paths counted: the queries, and
 -- the @Convertible@ answers of each path.
@@ -176,6 +195,8 @@ warningLocation (FreeStandingRestrictionWarning _ _ _ loc) = loc
 warningLocation (MetaBinderWarning _ _ _ loc)       = loc
 warningLocation (NbEUnsoundWarning _ _ loc)         = loc
 warningLocation (NbEDifferentialReport _)           = Nothing
+warningLocation (CheckerDisagreementWarning _ _ loc) = loc
+warningLocation (CheckerDifferentialReport _)       = Nothing
 
 -- | Which candidate rule of the meta-parameter layer check flags a
 -- 'MetaPrefixWarning' (see "Rzk.TypeCheck.MetaPrefix"): the structural
@@ -196,14 +217,15 @@ data CheckLog = CheckLog
   -- Nothing records an unsuccessful or ongoing object-family probe.
   , logSchematicObjectFamilies :: IntMap.IntMap (Maybe Int)
   , logNbEStats :: NbEStats
+  , logCheckerStats :: CheckerStats
   }
 
 emptyCheckLog :: CheckLog
-emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty emptyNbEStats
+emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty emptyNbEStats emptyCheckerStats
 
 -- | What a run recorded, in the order it was recorded.
 checkLog :: CheckLog -> ([HoleInfo], [CheckWarning])
-checkLog (CheckLog holes warnings _ _ _) = (reverse holes, reverse warnings)
+checkLog (CheckLog holes warnings _ _ _ _) = (reverse holes, reverse warnings)
 
 -- | The record of a run is kept in the /state/, beneath the error channel,
 -- rather than on a writer channel above it.

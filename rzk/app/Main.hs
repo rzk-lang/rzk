@@ -52,6 +52,7 @@ data TypecheckOptions = TypecheckOptions
   , typecheckJson       :: Bool
   , typecheckRSTTSafe   :: Maybe String
   , typecheckNbe        :: Maybe String
+  , typecheckChecker    :: Maybe String
   } deriving (Generic, Show, ParseRecord, Read, ParseField)
 
 instance ParseFields TypecheckOptions where
@@ -60,6 +61,7 @@ instance ParseFields TypecheckOptions where
     <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
     <*> parseFields (Just "Enforce RSTT fragment checks throughout the run: warn, error, or off") (Just "rstt-safe") Nothing Nothing
     <*> parseFields (Just "The conversion fast path: generic (the default), spine, off, or check (run both and report a generic answer the unification rejects)") (Just "nbe") Nothing Nothing
+    <*> parseFields (Just "The judgements: terms (the default), values, or check (run both and report a disagreement)") (Just "checker") Nothing Nothing
 
 data VersionOptions = VersionOptions
   { versionFull :: Bool
@@ -84,7 +86,15 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag, typecheckNbe = nbeFlag}) paths -> do
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag, typecheckNbe = nbeFlag, typecheckChecker = checkerFlag}) paths -> do
+      checker <- case checkerFlag of
+        Nothing -> pure CheckerTerms
+        Just "terms" -> pure CheckerTerms
+        Just "values" -> pure CheckerValues
+        Just "check" -> pure CheckerCheck
+        Just _ -> do
+          putStrLn "Unknown --checker mode (use terms, values, or check)"
+          exitFailure
       fastPath <- case nbeFlag of
         Nothing -> pure FastPathGeneric
         Just "generic" -> pure FastPathGeneric
@@ -104,7 +114,7 @@ main = do
           exitFailure
       modules <- parseRzkFilesOrStdin paths
       let baseContext = if jsonFlag || allowHolesFlag then allowHoles emptyContext else emptyContext
-          result = checkedModules modules (baseContext { ctxRSTTSafeOverride = safeOverride, ctxFastPath = fastPath })
+          result = checkedModules modules (baseContext { ctxRSTTSafeOverride = safeOverride, ctxFastPath = fastPath, ctxChecker = checker })
           reportError err = do
             putStrLn "An error occurred when typechecking!"
             putStrLn $ unlines

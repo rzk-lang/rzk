@@ -257,6 +257,26 @@ diagnoseCheckWarning (NbEDifferentialReport stats) = Diagnostic
       , "spine only " <> show (nbeSpineOnly stats) ]
   , diagnosticHole     = Nothing
   }
+diagnoseCheckWarning (CheckerDisagreementWarning what how loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "CheckerDisagreementWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "the judgements over values and the judgements on terms disagree on "
+        <> what <> ":\n  " <> how
+  , diagnosticHole     = Nothing
+  }
+diagnoseCheckWarning (CheckerDifferentialReport stats) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "CheckerDifferentialReport"
+  , diagnosticLocation = Nothing
+  , diagnosticMessage  = intercalate ", "
+      [ "judgements compared on " <> show (checkerQueries stats) <> " declarations"
+      , "agree " <> show (checkerAgreements stats)
+      , "both fail " <> show (checkerBothFailed stats)
+      , "disagree " <> show (checkerDisagreements stats) ]
+  , diagnosticHole     = Nothing
+  }
 diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule loc) = Diagnostic
   { diagnosticSeverity = SeverityWarning
   , diagnosticCode     = case rule of
