@@ -29,6 +29,8 @@ module Rzk.TypeCheck.NbE
     -- * The evaluation context
   , Ctx (..)
   , Approximation (..)
+  , rootCtx
+  , evalTerm
     -- * Soundness
     -- $soundness
     -- * Attribution
@@ -98,8 +100,6 @@ import qualified Rzk.TypeCheck.NbE.Spine           as Spine
 
 type Sig = AnnSig TypeInfo TermSig
 
-type Value n = NbE.Value Foil.NameBinder Sig n
-
 type Env i n = Foil.Substitution (NbE.Value Foil.NameBinder Sig) i n
 
 -- | The annotation of a value node: the type as a value, and the memoised
@@ -159,15 +159,16 @@ opposite = \case
   Contravariant -> Covariant
   Invariant     -> Invariant
 
--- | A defined name is glued to its value, evaluated in the ambient scope
--- when first needed; any other name is a neutral.
+-- | A defined name is glued to its value: the one the entry holds, or else
+-- its definition evaluated in the ambient scope when first needed; any other
+-- name is a neutral.
 instance HasDefinitions Ctx Foil.NameBinder Sig where
   {-# INLINE contextDefinition #-}
-  contextDefinition scope ctx x =
-    case varValue (lookupVarInfo x (ctxContext ctx)) of
-      Nothing   -> NbE.vvar x
-      Just body -> case ctxDistinct ctx of
-        Foil.Distinct -> NbE.vglued x (NbE.eval scope ctx Foil.identitySubst body)
+  contextDefinition scope ctx x = case lookupVarInfo x (ctxContext ctx) of
+    VarInfo { varDefinition = Just value } -> NbE.vglued x value
+    VarInfo { varValue = Just body } -> case ctxDistinct ctx of
+      Foil.Distinct -> NbE.vglued x (NbE.eval scope ctx Foil.identitySubst body)
+    _ -> NbE.vvar x
   {-# INLINE contextGlueSpeculation #-}
   contextGlueSpeculation _ ctx x _ y _ = case ctxApproximation ctx of
     Rigid
@@ -237,11 +238,14 @@ allOf = fmap mconcat . sequence
 
 -- * Values and their types
 
--- | The type of a value: of a variable from the context, of a node from its
--- annotation. A glued value has the type of its unfolded head.
+-- | The type of a value: of a variable from the context (the value its entry
+-- holds, or else its type evaluated), of a node from its annotation. A glued
+-- value has the type of its unfolded head.
 typeOfValue :: Foil.Distinct n => Foil.Scope n -> Ctx n -> Value n -> Value n
 typeOfValue scope ctx v = case NbE.force v of
-  NbE.VVar x -> NbE.eval scope ctx Foil.identitySubst (varType (lookupVarInfo x (ctxContext ctx)))
+  NbE.VVar x -> case lookupVarInfo x (ctxContext ctx) of
+    VarInfo { varTypeValue = Just ty } -> ty
+    info -> NbE.eval scope ctx Foil.identitySubst (varType info)
   NbE.VNode (AnnSig info _) -> infoType info
   NbE.VSuspended _ (AnnSig info _) -> infoType info
 
@@ -300,6 +304,11 @@ endpointsOf :: Info n -> Maybe (Value n, Value n)
 endpointsOf info = case NbE.force (stripRestrictions (infoType info)) of
   NbE.VNode (AnnSig _ (TypeIdF x _ y)) -> Just (x, y)
   _                                    -> Nothing
+
+-- | A typed term as a value, in the context it was checked in: what a
+-- top-level entry holds for its type and its definition.
+evalTerm :: Foil.Distinct n => Context n -> TermT n -> Value n
+evalTerm context = NbE.eval (ctxScope context) (rootCtx context) Foil.identitySubst
 
 -- * Rules
 

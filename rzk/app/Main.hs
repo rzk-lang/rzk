@@ -33,7 +33,7 @@ import           Rzk.Diagnostic          (Diagnostic (..), Severity (..),
 import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
 import           Rzk.Main
-import           Rzk.TypeCheck
+import           Rzk.TypeCheck        hiding (Value)
 import           Rzk.Version             (ppVersionInfo, versionInfo,
                                           versionString)
 

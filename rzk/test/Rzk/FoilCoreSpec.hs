@@ -56,6 +56,8 @@ hypothesis :: VarIdent -> TermT n -> VarInfo n
 hypothesis name ty = VarInfo
   { varType = ty
   , varValue = Nothing
+  , varTypeValue = Nothing
+  , varDefinition = Nothing
   , varModality = Id
   , varModAccum = Id
   , varOrig = BinderVar (Just name)

@@ -25,6 +25,7 @@ import qualified Control.Monad.Foil          as Foil
 -- NOTE: free-foil 0.2.0 gives 'NameMap' no 'Functor' instance (it has one on the
 -- unreleased main), so 'mapNameMap' goes through the underlying 'IntMap'.
 import           Control.Monad.Foil.Internal (NameMap (..))
+import           Control.Monad.Free.Foil.Annotated (AnnSig)
 import qualified Data.IntMap                 as IntMap
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
@@ -32,9 +33,15 @@ import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names    (Binder (..), RzkPosition (..),
-                                              TModality (..), VarIdent,
-                                              binderName)
+                                              TModality (..), TypeInfo,
+                                              VarIdent, binderName)
 import qualified Language.Rzk.Syntax         as Rzk
+import qualified FreeFoil.NbE                as NbE
+
+-- | A typed term as a free-foil-NBE value: a closure over 'TermT', evaluated
+-- under the context ("Rzk.TypeCheck.NbE" gives the rules). The judgements
+-- over values ("Rzk.TypeCheck.Judgements.Values") keep types in this form.
+type Value n = NbE.Value NameBinder (AnnSig TypeInfo TermSig) n
 
 -- * The pieces of a context
 
@@ -96,6 +103,13 @@ data VarInfo n = VarInfo
   { varSchematicStatus     :: SchematicStatus
   , varType                :: TermT n
   , varValue               :: Maybe (TermT n)
+  , varTypeValue           :: Maybe (Value n)
+    -- ^ the type as a value, when whoever entered the binder had it (a
+    -- top-level entry, a binder of the judgements over values); otherwise
+    -- evaluation reads 'varType'
+  , varDefinition          :: Maybe (Value n)
+    -- ^ the value of a definition, evaluated once, when known; otherwise
+    -- evaluation reads 'varValue'
   , varModality            :: TModality
   , varModAccum            :: TModality
   , varOrig                :: Binder
@@ -432,6 +446,8 @@ instance Foil.Sinkable VarInfo where
   sinkabilityProof rename info = info
     { varType = Foil.sinkabilityProof rename (varType info)
     , varValue = Foil.sinkabilityProof rename <$> varValue info
+    , varTypeValue = Foil.sinkabilityProof rename <$> varTypeValue info
+    , varDefinition = Foil.sinkabilityProof rename <$> varDefinition info
     , varDeclaredAssumptions = rename <$> varDeclaredAssumptions info
     , varDataRole = renameRole <$> varDataRole info
     }

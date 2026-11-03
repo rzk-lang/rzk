@@ -52,6 +52,7 @@ import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import           Rzk.TypeCheck.NbE        (evalTerm)
 import qualified Rzk.TypeCheck.Fragment.RSTT as RSTT
 import           Rzk.TypeCheck.Schematic (recordSchematicDeclaration)
 import           Rzk.TypeCheck.MetaPrefix
@@ -140,6 +141,8 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
     let info = VarInfo
           { varType = ty
           , varValue = mval
+          , varTypeValue = Just (evalTerm ctx ty)
+          , varDefinition = evalTerm ctx <$> mval
           , varModality = Id
           , varModAccum = Id
           , varOrig = BinderVar (Just name)
@@ -385,6 +388,8 @@ abstractOver scope a aInfo info = info
   { varSchematicStatus = SchematicUnchecked
   , varType = newType
   , varValue = fmap abstractValue (varValue info)
+  , varTypeValue = Nothing
+  , varDefinition = Nothing
   , varModality = Id
   , varModAccum = Id
   , varDeclaredAssumptions =
@@ -414,6 +419,8 @@ applyToAssumption scope a (defName, defInfo) info
       { varSchematicStatus = SchematicUnchecked
       , varType = rewrite (varType info)
       , varValue = rewrite <$> varValue info
+      , varTypeValue = Nothing
+      , varDefinition = Nothing
       }
   where
     applied = appT (varType defInfo) (Var defName) (Var a)

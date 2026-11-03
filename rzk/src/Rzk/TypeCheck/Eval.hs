@@ -183,6 +183,8 @@ binderInfo
 binderInfo orig md ty mval loc = VarInfo
   { varType = ty
   , varValue = mval
+  , varTypeValue = Nothing
+  , varDefinition = Nothing
   , varModality = md
   , varModAccum = Id
   , varOrig = orig
@@ -202,9 +204,17 @@ underBinder
   -> TypeCheck l a -> TypeCheck n a
 underBinder binder orig md ty mval action = do
   ctx <- ask
-  discrete <- discreteAxiomOf md ty mval binder
-  let info = binderInfo orig md ty mval (ctxLocation ctx)
-      ctx' = enterBinder binder info discrete ctx
+  underBinderInfo binder (binderInfo orig md ty mval (ctxLocation ctx)) action
+
+-- | Run an action under a binder whose entry is already made up (by
+-- 'binderInfo', possibly with the values the judgements over values hold).
+underBinderInfo
+  :: (Distinct n, DExt n l)
+  => NameBinder n l -> VarInfo n -> TypeCheck l a -> TypeCheck n a
+underBinderInfo binder info action = do
+  ctx <- ask
+  discrete <- discreteAxiomOf (varModality info) (varType info) (varValue info) binder
+  let ctx' = enterBinder binder info discrete ctx
   -- A new discreteness axiom changes the saturation input; an ordinary binder
   -- carries the cached value in with the rest of the context (saturation
   -- commutes with renaming).
