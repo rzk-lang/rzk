@@ -125,8 +125,7 @@ data CheckWarning
       String                -- ^ the actual term, rendered
       (Maybe LocationInfo)
     -- ^ The differential test ('FastPathCheck'): the generic fast path
-    -- answered @Convertible@ where neither the hand-written one nor the
-    -- unification accepts the comparison.
+    -- answered @Convertible@ where the unification rejects the comparison.
   | NbEDifferentialReport NbEStats
     -- ^ The tallies of the differential test, reported once at the end of
     -- a run.

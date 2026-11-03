@@ -84,12 +84,11 @@ unify
   => Maybe (TermT n) -> TermT n -> TermT n -> TypeCheck n ()
 unify mterm expected actual = asks ctxFastPath >>= \case
   -- The differential test: both fast paths answer, the unification decides,
-  -- and a generic answer the unification and the hand-written path both
-  -- reject is reported.
+  -- and a generic answer the unification rejects is reported.
   FastPathCheck -> do
-    (generic, spine) <- nbeDifferential expected actual
+    (generic, _spine) <- nbeDifferential expected actual
     search `catchError` \typeError -> do
-      when (generic == Convertible && spine == DontKnow) $ do
+      when (generic == Convertible) $ do
         naming <- asks namingOfContext
         loc <- asks ctxLocation
         recordCheckWarning $ NbEUnsoundWarning

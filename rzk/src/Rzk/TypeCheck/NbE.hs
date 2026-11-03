@@ -115,7 +115,17 @@ data Ctx n = Ctx
   { ctxContext       :: Context n
   , ctxApproximation :: Approximation
   , ctxDistinct      :: Foil.DistinctEvidence n
+  , ctxEtaLambda     :: Maybe (Value n)
+    -- ^ Under the binder of a λ compared by η: the λ's type, for the
+    -- observer to compare with the other value's type ('appliedTo').
+  , ctxPiDomainsOnly :: Bool
+    -- ^ Compare two Π types by their domains and topes alone, as the
+    -- unification compares the types of two lambdas.
   }
+
+-- | The context a comparison starts in.
+rootCtx :: Foil.Distinct n => Context n -> Ctx n
+rootCtx context = Ctx context Rigid Foil.Distinct Nothing False
 
 -- | The state of a conversion check, after smalltt's approximate conversion
 -- checking. A check starts 'Rigid'. Two glued values of one defined name
@@ -132,6 +142,16 @@ withVariance v ctx = ctx { ctxContext = (ctxContext ctx) { ctxCovariance = v } }
 
 withContext :: Context n -> Ctx n -> Ctx n
 withContext context ctx = ctx { ctxContext = context }
+
+-- | The context for comparing two Π types by their domains and topes alone,
+-- invariantly.
+piDomainsOnly :: Ctx n -> Ctx n
+piDomainsOnly ctx = (withVariance Invariant ctx) { ctxPiDomainsOnly = True }
+
+-- | A value that matches nothing: what an observer answers when the types
+-- of the values it compares rule the comparison out.
+unmatched :: Value n
+unmatched = NbE.vnode (AnnSig (infoOf universeValue) (HoleF Nothing))
 
 opposite :: Covariance -> Covariance
 opposite = \case
@@ -203,7 +223,7 @@ enterContext
   -> Ctx n -> Ctx l
 enterContext binder orig md ty mval ctx =
   case runTypeCheckIn (ctxContext ctx) (underBinder binder orig md ty mval ask) of
-    Right context -> Ctx context (ctxApproximation ctx) Foil.Distinct
+    Right context -> Ctx context (ctxApproximation ctx) Foil.Distinct Nothing False
     Left _        -> error "Rzk.TypeCheck.NbE: impossible: entering a binder failed"
 
 -- | A node matches on a condition: 'mempty' if it holds, no match otherwise.
@@ -411,12 +431,13 @@ instance Eval Ctx Foil.NameBinder Sig where
       (Just (xL, yL), Just (xR, yR)) -> Just (term xL xR ctx <> term yL yR ctx)
       _                              -> Nothing
 
-    -- two lambdas: the same modality, the parameter types, and the bodies
-    -- where both are defined
+    -- two lambdas: their types by domain and tope (the modality, the
+    -- parameter types, and the topes, as the unification compares them),
+    -- and the bodies where both are defined
     (LambdaF _ _ bodyL, LambdaF _ _ bodyR) -> case (piOf (infoType infoL), piOf (infoType infoR)) of
-      (Just piL@(Pi _ mdL paramL mtopeL _), Just piR@(Pi _ mdR paramR mtopeR _))
-        | mdL == mdR, sameShape mtopeL mtopeR ->
-            Just (term paramL paramR ctx <> scoped bodyL bodyR (lambdasBinder piL piR))
+      (Just piL, Just piR) -> Just $
+        term (stripRestrictions (infoType infoL)) (stripRestrictions (infoType infoR)) (piDomainsOnly ctx)
+          <> scoped bodyL bodyR (lambdasBinder piL piR)
       _ -> Nothing
 
     -- Π: the domain in the opposite variance, the topes as topes, the
@@ -424,10 +445,13 @@ instance Eval Ctx Foil.NameBinder Sig where
     (TypeFunF _ md cubeL mtopeL retL, TypeFunF _ md' cubeR mtopeR retR)
       | md == md' ->
           let under = assumeVar (BinderVar Nothing) md cubeR
-              domain = term cubeL cubeR (withVariance (opposite (variance ctx)) ctx)
+              domain = term cubeL cubeR (withVariance (opposite (variance ctx)) ctx { ctxPiDomainsOnly = False })
+              codomain
+                | ctxPiDomainsOnly ctx = mempty
+                | otherwise = scoped retL retR under
           in case (mtopeL, mtopeR) of
-               (Nothing, Nothing) -> Just (domain <> scoped retL retR under)
-               (Just tL, Just tR) -> Just (domain <> scoped tL tR under <> scoped retL retR under)
+               (Nothing, Nothing) -> Just (domain <> codomain)
+               (Just tL, Just tR) -> Just (domain <> scoped tL tR under <> codomain)
                _ -> Nothing
     (TypeSigmaF _ md aL bL, TypeSigmaF _ md' aR bR)
       | md == md' -> Just (term aL aR ctx <> scoped bL bR (assumeVar (BinderVar Nothing) md aR))
@@ -450,10 +474,6 @@ instance Eval Ctx Foil.NameBinder Sig where
            (\a a' extend -> scoped a a' (invariantly extend)) term hd l r
     where
       quoteIn = NbE.quote scope ctx
-
-      sameShape Nothing Nothing   = True
-      sameShape (Just _) (Just _) = True
-      sameShape _ _               = False
 
       -- The faces of the supertype must be covered by the faces of the
       -- subtype: under each face of the supertype, the subtype's face topes
@@ -551,13 +571,23 @@ sigmaSecond scope ctx p = case NbE.force (stripRestrictions (typeOfValue scope c
   _ -> error "Rzk.TypeCheck.NbE: impossible: η for a pair against a value whose type is not a Σ"
 
 -- | The observer of a λ's body: the other value applied to the bound name,
--- annotated with the codomain of its type there.
+-- annotated with the codomain of its type there. First the λ's type (left
+-- in the context by 'lambdaBinder') and the other value's are compared by
+-- domain and tope, as the unification compares the types of the λ and of
+-- the η-expansion of the other value; if they differ, the observation
+-- matches nothing.
 appliedTo :: Foil.Distinct l => Foil.Scope l -> Ctx l -> Foil.NameBinder n l -> Value l -> Value l
 {-# INLINE appliedTo #-}
-appliedTo scope ctx binder f = appValue (infoOf codomain) scope ctx f x
+appliedTo scope ctx binder f
+  | typesAgree = appValue (infoOf codomain) scope ctx f x
+  | otherwise  = unmatched
   where
     x = NbE.vvar (Foil.nameOf binder)
-    codomain = case piOf (typeOfValue scope ctx f) of
+    fType = typeOfValue scope ctx f
+    typesAgree = case ctxEtaLambda ctx of
+      Just lambdaType -> Conv.conv scope (piDomainsOnly ctx) (stripRestrictions lambdaType) (stripRestrictions fType)
+      Nothing -> error "Rzk.TypeCheck.NbE: impossible: η under a binder that is not a λ's"
+    codomain = case piOf fType of
       Just (Pi env _ _ _ ret) -> codomainAt scope ctx env ret x
       Nothing -> error "Rzk.TypeCheck.NbE: impossible: η for a λ against a value whose type is not a Π"
 
@@ -581,7 +611,8 @@ lambdaBinder :: Binder -> Value n -> Extend Ctx Foil.NameBinder Sig n
 {-# INLINE lambdaBinder #-}
 lambdaBinder orig ty = Extend $ \scope binder scope' ctx -> case piOf ty of
   Just (Pi env md param mtope _) ->
-    let ctx' = enterContext binder orig md (NbE.quote scope ctx param) Nothing ctx
+    let ctx' = (enterContext binder orig md (NbE.quote scope ctx param) Nothing ctx)
+                 { ctxEtaLambda = Just (Foil.sink ty) }
     in case mtope of
          Nothing   -> ctx'
          Just tope -> underTope scope' ctx' (openScoped scope' ctx' env binder tope)
@@ -643,7 +674,7 @@ nbeConvertible t1 t2 = asks $ \ctx -> case ctxFastPath ctx of
   FastPathCheck   -> DontKnow
   where
     generic ctx
-      | Conv.convertible (ctxScope ctx) (Ctx ctx Rigid Foil.Distinct) t1 t2 = Convertible
+      | Conv.convertible (ctxScope ctx) (rootCtx ctx) t1 t2 = Convertible
       | otherwise = DontKnow
     spine ctx = case Spine.nbeConvertible' ctx t1 t2 of
       Spine.Convertible -> Convertible
@@ -655,7 +686,7 @@ nbeDifferential :: Foil.Distinct n => TermT n -> TermT n -> TypeCheck n (Convers
 nbeDifferential t1 t2 = do
   ctx <- ask
   let generic
-        | Conv.convertible (ctxScope ctx) (Ctx ctx Rigid Foil.Distinct) t1 t2 = Convertible
+        | Conv.convertible (ctxScope ctx) (rootCtx ctx) t1 t2 = Convertible
         | otherwise = DontKnow
       spine = case Spine.nbeConvertible' ctx t1 t2 of
         Spine.Convertible -> Convertible
