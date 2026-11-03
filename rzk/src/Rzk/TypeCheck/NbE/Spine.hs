@@ -15,6 +15,7 @@
 module Rzk.TypeCheck.NbE.Spine
   ( Conversion (..)
   , nbeConvertible
+  , nbeConvertible'
     -- * Conversion notes
     -- $conversion
     -- * Soundness
@@ -501,7 +502,11 @@ data Conversion
 
 -- | Are the two terms definitely convertible?
 nbeConvertible :: TermT n -> TermT n -> TypeCheck n Conversion
-nbeConvertible t1 t2 = asks $ \ctx ->
+nbeConvertible t1 t2 = asks $ \ctx -> nbeConvertible' ctx t1 t2
+
+-- | The same, as a function of the context.
+nbeConvertible' :: Context n -> TermT n -> TermT n -> Conversion
+nbeConvertible' ctx t1 t2 =
   if conv ctx (DeBruijnLevel 0) (eval ctx Foil.identitySubst t1) (eval ctx Foil.identitySubst t2)
     then Convertible
     else DontKnow

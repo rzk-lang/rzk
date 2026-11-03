@@ -21,7 +21,7 @@ import           Control.Monad.Except     (ExceptT,
                                            runExceptT)
 import           Control.Monad.Reader     (ReaderT (..), ask, asks, local)
 import           Control.Monad.Trans      (lift)
-import           Control.Monad.Trans.State.Strict (State, get, modify', put,
+import           Control.Monad.Trans.State.Strict (State, get, gets, modify', put,
                                            runState)
 import qualified Data.IntMap.Strict       as IntMap
 import qualified Data.IntSet              as IntSet
@@ -120,7 +120,30 @@ data CheckWarning
       VarIdent              -- ^ the variable bound inside a term
       String                -- ^ its type, rendered
       (Maybe LocationInfo)
+  | NbEUnsoundWarning
+      String                -- ^ the expected term, rendered
+      String                -- ^ the actual term, rendered
+      (Maybe LocationInfo)
+    -- ^ The differential test ('FastPathCheck'): the generic fast path
+    -- answered @Convertible@ where neither the hand-written one nor the
+    -- unification accepts the comparison.
+  | NbEDifferentialReport NbEStats
+    -- ^ The tallies of the differential test, reported once at the end of
+    -- a run.
   deriving (Eq, Show)
+
+-- | What the differential test of the fast paths counted: the queries, and
+-- the @Convertible@ answers of each path.
+data NbEStats = NbEStats
+  { nbeQueries     :: !Int
+  , nbeGenericHits :: !Int
+  , nbeSpineHits   :: !Int
+  , nbeGenericOnly :: !Int   -- ^ generic @Convertible@, spine @DontKnow@
+  , nbeSpineOnly   :: !Int   -- ^ spine @Convertible@, generic @DontKnow@
+  } deriving (Eq, Show)
+
+emptyNbEStats :: NbEStats
+emptyNbEStats = NbEStats 0 0 0 0 0
 
 -- | Diagnostic categories for constructs outside the RSTT fragment.
 data RSTTExtension = RSTTModal | RSTTInterval | RSTTInductive | RSTTShapeDependency | RSTTUnsupported | RSTTSchematic
@@ -152,6 +175,8 @@ warningLocation (OverhangWarning _ _ _ loc)         = loc
 warningLocation (TopeFamilyDomainWarning _ _ loc)    = loc
 warningLocation (FreeStandingRestrictionWarning _ _ _ loc) = loc
 warningLocation (MetaBinderWarning _ _ _ loc)       = loc
+warningLocation (NbEUnsoundWarning _ _ loc)         = loc
+warningLocation (NbEDifferentialReport _)           = Nothing
 
 -- | Which candidate rule of the meta-parameter layer check flags a
 -- 'MetaPrefixWarning' (see "Rzk.TypeCheck.MetaPrefix"): the structural
@@ -171,14 +196,15 @@ data CheckLog = CheckLog
   , logSchematicCache :: IntSet.IntSet
   -- Nothing records an unsuccessful or ongoing object-family probe.
   , logSchematicObjectFamilies :: IntMap.IntMap (Maybe Int)
+  , logNbEStats :: NbEStats
   }
 
 emptyCheckLog :: CheckLog
-emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty
+emptyCheckLog = CheckLog [] [] IntSet.empty IntMap.empty emptyNbEStats
 
 -- | What a run recorded, in the order it was recorded.
 checkLog :: CheckLog -> ([HoleInfo], [CheckWarning])
-checkLog (CheckLog holes warnings _ _) = (reverse holes, reverse warnings)
+checkLog (CheckLog holes warnings _ _ _) = (reverse holes, reverse warnings)
 
 -- | The record of a run is kept in the /state/, beneath the error channel,
 -- rather than on a writer channel above it.
@@ -332,6 +358,9 @@ narrowLocation action loc = case termOf action of
 
 modifyLog :: (CheckLog -> CheckLog) -> TypeCheck n ()
 modifyLog f = lift (lift (modify' f))
+
+getsLog :: (CheckLog -> a) -> TypeCheck n a
+getsLog f = lift (lift (gets f))
 
 -- | Run a probe for its answer alone, discarding whatever it records.
 --

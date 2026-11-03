@@ -25,6 +25,7 @@
 module Rzk.TypeCheck.NbE
   ( Conversion (..)
   , nbeConvertible
+  , nbeDifferential
     -- * The evaluation context
   , Ctx (..)
   , Approximation (..)
@@ -59,6 +60,7 @@ import           Rzk.TypeCheck.Eval                (checkTope, entailM,
                                                     localTope, nfTope,
                                                     underBinder)
 import           Rzk.TypeCheck.Monad
+import qualified Rzk.TypeCheck.NbE.Spine           as Spine
 
 -- $soundness
 -- Soundness is a subset argument, as for the hand-written fast path this
@@ -629,9 +631,41 @@ data Conversion
   deriving (Eq, Show)
 
 -- | Are the two terms definitely convertible (or, in the context's
--- variance, in the subtyping relation)?
+-- variance, in the subtyping relation)? Which fast path answers is the
+-- context's 'ctxFastPath'; under 'FastPathCheck' the answer is 'DontKnow',
+-- since the unification decides every query and 'nbeDifferential' records
+-- the fast paths' answers.
 nbeConvertible :: Foil.Distinct n => TermT n -> TermT n -> TypeCheck n Conversion
-nbeConvertible t1 t2 = asks $ \ctx ->
-  if Conv.convertible (ctxScope ctx) (Ctx ctx Rigid Foil.Distinct) t1 t2
-    then Convertible
-    else DontKnow
+nbeConvertible t1 t2 = asks $ \ctx -> case ctxFastPath ctx of
+  FastPathOff     -> DontKnow
+  FastPathSpine   -> spine ctx
+  FastPathGeneric -> generic ctx
+  FastPathCheck   -> DontKnow
+  where
+    generic ctx
+      | Conv.convertible (ctxScope ctx) (Ctx ctx Rigid Foil.Distinct) t1 t2 = Convertible
+      | otherwise = DontKnow
+    spine ctx = case Spine.nbeConvertible' ctx t1 t2 of
+      Spine.Convertible -> Convertible
+      Spine.DontKnow    -> DontKnow
+
+-- | The answers of the generic and of the hand-written fast path, tallied
+-- in the check log (the differential test, 'FastPathCheck').
+nbeDifferential :: Foil.Distinct n => TermT n -> TermT n -> TypeCheck n (Conversion, Conversion)
+nbeDifferential t1 t2 = do
+  ctx <- ask
+  let generic
+        | Conv.convertible (ctxScope ctx) (Ctx ctx Rigid Foil.Distinct) t1 t2 = Convertible
+        | otherwise = DontKnow
+      spine = case Spine.nbeConvertible' ctx t1 t2 of
+        Spine.Convertible -> Convertible
+        Spine.DontKnow    -> DontKnow
+      hit answer = if answer == Convertible then 1 else 0
+  modifyLog $ \l -> l { logNbEStats = (logNbEStats l)
+    { nbeQueries = nbeQueries (logNbEStats l) + 1
+    , nbeGenericHits = nbeGenericHits (logNbEStats l) + hit generic
+    , nbeSpineHits = nbeSpineHits (logNbEStats l) + hit spine
+    , nbeGenericOnly = nbeGenericOnly (logNbEStats l) + hit generic * (1 - hit spine)
+    , nbeSpineOnly = nbeSpineOnly (logNbEStats l) + hit spine * (1 - hit generic)
+    } }
+  pure (generic, spine)
