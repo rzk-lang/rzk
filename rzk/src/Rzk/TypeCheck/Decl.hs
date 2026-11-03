@@ -425,7 +425,15 @@ applyToAssumption scope a (defName, defInfo) info
       , varDefinition = Nothing
       }
   where
-    applied = appT (varType defInfo) (Var defName) (Var a)
+    -- The use has the type the definition had before the assumption was
+    -- abstracted: the codomain of its new type at the assumption. (A use
+    -- annotated with the whole Π type instead passes the judgements on
+    -- terms, which read a type's annotation only after unfolding it, but
+    -- not the judgements over values, which read it off the folded head.)
+    applied = appT codomain (Var defName) (Var a)
+    codomain = case varType defInfo of
+      TypeFunT _ _ _ _ _ ret -> instantiateT scope ret (Var a)
+      ty                     -> ty
     rewrite = substituteName scope defName applied
 
 -- * Commands
