@@ -1,5 +1,11 @@
 packages: rzk rzk-js
 
+-- free-foil-NBE is not on Hackage yet; the same commit as in stack.yaml.
+source-repository-package
+  type: git
+  location: https://github.com/p50000/free-foil-NBE.git
+  tag: a1d0fb6f0e65ada14ad0d02e8bbcfa54624a6a95
+
 -- Required by doctest-parallel: it spawns GHCi to test examples, and needs
 -- cabal to emit a package environment file so the spawned GHCi sees the
 -- project library (rzk) and its dependencies.
