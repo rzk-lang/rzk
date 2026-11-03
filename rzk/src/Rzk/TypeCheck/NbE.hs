@@ -57,7 +57,7 @@ import           Language.Rzk.Foil.Syntax
 import           Rzk.TypeCheck.Context
 import           Rzk.TypeCheck.Display             (namingOfContext, ppTerm)
 import           Rzk.TypeCheck.Eval                (checkTope, entailM,
-                                                    localTope, nfTope,
+                                                    localTopeLazily, nfTope,
                                                     underBinder)
 import           Rzk.TypeCheck.Monad
 import qualified Rzk.TypeCheck.NbE.Spine           as Spine
@@ -205,16 +205,17 @@ entails ctx tope = purely ctx (checkTope tope) == Just True
 -- | Are the two topes equivalent, on their own (as
 -- 'Rzk.TypeCheck.Unify.unifyTopes' decides two topes at a term position)?
 topesEquivalent :: Foil.Distinct n => Context n -> TermT n -> TermT n -> Bool
-topesEquivalent ctx l r = purely ctx check == Just True
+topesEquivalent ctx l r = eqT l r || purely ctx check == Just True
   where
     check = do
       l' <- nfTope l
       r' <- nfTope r
       (&&) <$> [plainTope l'] `entailM` r' <*> [plainTope r'] `entailM` l'
 
--- | The context with a tope assumed.
+-- | The context with a tope assumed. Whether the context became
+-- contradictory is decided only if a judgement under it asks.
 assumeTope :: Foil.Distinct n => TermT n -> Context n -> Maybe (Context n)
-assumeTope tope ctx = purely ctx (localTope tope ask)
+assumeTope tope ctx = purely ctx (localTopeLazily tope ask)
 
 -- | The context under a binder, as the checker enters one.
 enterContext
@@ -463,7 +464,15 @@ instance Eval Ctx Foil.NameBinder Sig where
     (AppF fL xL, AppF fR xR) -> Just (hd fL fR ctx <> term xL xR (withVariance Invariant ctx))
 
     -- extension types: the underlying types, and the faces of the supertype
-    -- covered by the faces of the subtype, agreeing where they overlap
+    -- covered by the faces of the subtype, agreeing where they overlap.
+    -- Two face lists with the same topes, written the same, cover each
+    -- other, so only the boundary terms are compared, without assuming the
+    -- faces (which is stricter than comparing them under the faces).
+    (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR)
+      | length rsL == length rsR
+      , and (zipWith (\(tL, _) (tR, _) -> eqT (quoteIn tL) (quoteIn tR)) rsL rsR)
+      , Just same <- allOf (zipWith (\(_, bL) (_, bR) -> Just (term bL bR ctx)) rsL rsR) ->
+          Just (term tyL tyR ctx <> same)
     (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR) -> allOf $
       Just (term tyL tyR ctx) : case variance ctx of
         Covariant     -> [facesCovered rsL rsR]
