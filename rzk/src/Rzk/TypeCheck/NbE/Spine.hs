@@ -12,7 +12,7 @@
 -- Constructs whose reduction depends on the tope context or modalities, and
 -- holes, abort this fast path. Extension types and @recBOT@ are compared
 -- structurally. See the conversion, soundness and attribution notes below.
-module Rzk.TypeCheck.NbE
+module Rzk.TypeCheck.NbE.Spine
   ( Conversion (..)
   , nbeConvertible
     -- * Conversion notes
