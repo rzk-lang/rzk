@@ -31,6 +31,20 @@ module Rzk.TypeCheck.NbE
   , Approximation (..)
   , rootCtx
   , evalTerm
+    -- * Values for the judgements
+  , Sig
+  , Env
+  , Info
+  , Pi (..)
+  , piOf
+  , openScoped
+  , codomainAt
+  , typeOfValue
+  , stripRestrictions
+  , infoOf
+  , universeValue
+  , topeUniverseValue
+  , withVariance
     -- * Soundness
     -- $soundness
     -- * Attribution
@@ -346,9 +360,6 @@ instance Eval Ctx Foil.NameBinder Sig where
         [] -> case nubT (map snd rs) of
           [branch] -> ev branch
           _        -> NbE.evalNode scope ctx env (AnnSig info node)
-    -- The domain annotation of a λ is not part of its value: the unification
-    -- compares two lambdas by their types, and η cannot observe it.
-    LambdaF orig _mparam body -> NbE.evalNode scope ctx env (AnnSig info (LambdaF orig Nothing body))
     _ -> NbE.evalNode scope ctx env (AnnSig info node)
     where
       ev = NbE.eval scope ctx env
@@ -365,7 +376,7 @@ instance Eval Ctx Foil.NameBinder Sig where
     _ -> Nothing
     where
       -- Conversion never compares the annotation, nor the domain annotation
-      -- of a λ, which 'evalSig' drops from values.
+      -- of a λ (the unification compares two lambdas by their types).
       unobserved = fmap (`term` EtaTerm (\_ _ other -> other))
       paramObserved (LambdaParam md ty mtope) =
         LambdaParam md (term ty (EtaTerm (\_ _ other -> other)))
