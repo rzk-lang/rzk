@@ -23,8 +23,8 @@ import qualified Language.Rzk.Syntax        as Rzk
 import           Rzk.Diagnostic           (checkWarningTag,
                                            locationOfTypeError,
                                            typeErrorTagInScopedContext)
-import           Rzk.TypeCheck            (Checked, Context (..),
-                                           LocationInfo (..),
+import           Rzk.TypeCheck            (Checked, Checker (..),
+                                           Context (..), LocationInfo (..),
                                            OutputDirection (..),
                                            TypeErrorInScopedContext,
                                            Verbosity (..), checkedErrors,
@@ -115,17 +115,21 @@ loadModules ((relPath, absPath) : rest) = do
 silently :: Context n -> Context n
 silently ctx = ctx { ctxVerbosity = Silent }
 
+-- | The context a fixture runs in: silent, with the judgements under test.
+fixtureContext :: Checker -> Context n -> Context n
+fixtureContext checker ctx = (silently ctx) { ctxChecker = checker }
+
 -- | Strict: the first error stops the run and is returned.
-runStrict :: [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
-runStrict ms = case checkedModules ms (silently emptyContext) of
+runStrict :: Checker -> [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
+runStrict checker ms = case checkedModules ms (fixtureContext checker emptyContext) of
   Left err -> Left err
   Right (checked, _holes) -> case checkedErrors checked of
     err : _ -> Left err
     []      -> Right checked
 
 -- | Collect: every error is returned, and the run continues past them.
-runCollect :: [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
-runCollect ms = fst <$> checkedModules ms (silently emptyContext)
+runCollect :: Checker -> [(FilePath, Rzk.Module)] -> Either TypeErrorInScopedContext Checked
+runCollect checker ms = fst <$> checkedModules ms (fixtureContext checker emptyContext)
 
 assertExpect :: String -> Expect -> Either TypeErrorInScopedContext Checked -> IO ()
 assertExpect _label Expect{..} (Right _) | expectStatus /= "ok" =
@@ -286,8 +290,8 @@ discoverCases root = do
       }
   pure (pairedKinds ++ dirKinds)
 
-runCase :: CaseKind -> IO ()
-runCase PairedCase{..} = do
+runCase :: Checker -> CaseKind -> IO ()
+runCase checker PairedCase{..} = do
   e <- readExpect pcExpectPath
   expect <- case e of
     Left err -> expectationFailure ("YAML " <> pcExpectPath <> ": " <> err) >> undefined
@@ -301,9 +305,9 @@ runCase PairedCase{..} = do
       let relModPath = relTitleFrom root pcRzkPath
           mods       = [(relModPath, m)]
       case expectApi expect of
-        Just "collect" -> assertExpectCollect pcRelTitle expect (runCollect mods)
-        _              -> assertExpect pcRelTitle expect (runStrict mods)
-runCase DirCase{..} = do
+        Just "collect" -> assertExpectCollect pcRelTitle expect (runCollect checker mods)
+        _              -> assertExpect pcRelTitle expect (runStrict checker mods)
+runCase checker DirCase{..} = do
   e <- readExpect dcExpectPath
   expect <- case e of
     Left err -> expectationFailure ("YAML " <> dcExpectPath <> ": " <> err) >> undefined
@@ -320,8 +324,8 @@ runCase DirCase{..} = do
   modsE <- loadModules modRelAbs
   mods <- either (\msg -> expectationFailure ("load/parse in " <> dcRelTitle <> ": " <> msg) >> undefined) pure modsE
   case expectApi expect of
-    Just "collect" -> assertExpectCollect dcRelTitle expect (runCollect mods)
-    _              -> assertExpect dcRelTitle expect (runStrict mods)
+    Just "collect" -> assertExpectCollect dcRelTitle expect (runCollect checker mods)
+    _              -> assertExpect dcRelTitle expect (runStrict checker mods)
 
 spec :: Spec
 spec = describe "Typecheck fixtures" $ do
@@ -329,10 +333,15 @@ spec = describe "Typecheck fixtures" $ do
     root <- resolveRoot
     ks <- discoverCases root
     (length ks > 0) `shouldBe` True
+  -- Every fixture runs under both judgements (see "Rzk.TypeCheck.Checker").
   describe "cases" $ do
     root <- runIO resolveRoot
     ks <- runIO (discoverCases root)
-    mapM_ (\k -> it (caseTitle k) (runCase k)) ks
+    mapM_ (\k -> it (caseTitle k) (runCase CheckerTerms k)) ks
+  describe "cases over values" $ do
+    root <- runIO resolveRoot
+    ks <- runIO (discoverCases root)
+    mapM_ (\k -> it (caseTitle k) (runCase CheckerValues k)) ks
 
 caseTitle :: CaseKind -> String
 caseTitle = \case
