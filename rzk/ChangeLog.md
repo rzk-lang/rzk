@@ -6,13 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## v0.11.4 — 2026-10-27
+## v0.11.4 — 2026-11-04
 
-This release closes a soundness gap in tope families, adds an RSTT-safe mode that reports what lies outside Riehl–Shulman type theory, makes one rule decide which kinds may appear where (the layer discipline), and adds a modal `#!rzk match`. Some programs that were accepted before are now rejected; each such change is marked **Breaking** below. sHoTT still typechecks, now with warnings from the RSTT-safe mode.
+This release closes a soundness gap in tope families, adds an RSTT-safe mode that reports what lies outside Riehl–Shulman type theory, makes one rule decide which kinds may appear where (the layer discipline), and adds a modal `#!rzk match`. Some programs that were accepted before are now rejected; each such change is marked **Breaking** below. sHoTT still typechecks; the RSTT-safe mode reports what lies outside the fragment, and is off by default.
 
 Added:
 
-- **RSTT-safe mode** (see [#364](https://github.com/rzk-lang/rzk/pull/364)). By default (`rstt-safe = "warn"`), rzk reports declarations outside Riehl–Shulman type theory and outside the fragment in which conservativity is proved: assumed free-standing restrictions, restriction boundaries that depend on outer cube points, a universe used as an ordinary type (as in Hurkens's paradox), holes, and syntax outside RSTT (the modal layer, auxiliary intervals, inductive types). `rstt-safe = "error"` rejects such declarations, `rstt-safe = "off"` turns the checks off, and `--rstt-safe` on the command line overrides the source settings. With the warnings on, checking sHoTT takes about 18% longer.
+- **RSTT-safe mode** (see [#364](https://github.com/rzk-lang/rzk/pull/364)). With `rstt-safe = "warn"`, rzk reports declarations outside Riehl–Shulman type theory and outside the fragment in which conservativity is proved: assumed free-standing restrictions, restriction boundaries that depend on outer cube points, a universe used as an ordinary type (as in Hurkens's paradox), holes, and syntax outside RSTT (the modal layer, auxiliary intervals, inductive types). `rstt-safe = "error"` rejects such declarations, and `--rstt-safe` on the command line overrides the source settings. The mode is off by default (see [#372](https://github.com/rzk-lang/rzk/pull/372)): its checks multiply the checking time several times over (sHoTT takes 5.9 s with them against 1.6 s without), so the standalone `warn-shape-dependency` check is off by default too, until the checks are made cheap.
 
 - **Modal `#!rzk match`**, by [Islam Talipov](https://github.com/LIshy2) (see [#358](https://github.com/rzk-lang/rzk/pull/358)). `#!rzk match ♭ n (…)` eliminates a scrutinee available under `♭` or `ᵒᵖ`, and the constructor fields inherit the modality. These are the crisp induction principles of Shulman; there are none for `♯`. A `#!rzk #data` without path constructors now also generates `ind-op-D`, `rec-op-D`, `ind-b-D` and `rec-b-D`. **Breaking**: `#!rzk match mod μ x (…)` is a syntax error (write `#!rzk match (mod μ x) (…)`), and an earlier definition with one of the four new names clashes with the declaration.
 
