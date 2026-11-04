@@ -16,18 +16,25 @@ import           Data.List                         (sortOn, (\\))
 
 import           Control.Monad.Foil                (Distinct)
 import qualified Control.Monad.Foil                as Foil
-import           Control.Monad.Free.Foil           (AST (Var))
+import           Control.Monad.Free.Foil           (AST (Node, Var),
+                                                    ScopedAST (..))
+import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
+import           Data.Bifoldable                   (bifold)
+import           Data.Bitraversable                (bitraverse)
+import           Data.Bifunctor                    (first)
+import qualified FreeFoil.NbE.Conversion           as Conv
 
 import           Language.Rzk.Foil.Syntax
 import           Rzk.TypeCheck.Context
-import           Rzk.TypeCheck.Eval                (freeVarsDeep, nubNames,
-                                                    typeOfUncomputed)
+import           Rzk.TypeCheck.Eval                (freeVarsDeep, inScope,
+                                                    nubNames, typeOfUncomputed)
 import qualified Rzk.TypeCheck.Judgements          as Terms
 import qualified Rzk.TypeCheck.Judgements.Values   as Values
 import           Rzk.TypeCheck.Monad
-import           Rzk.TypeCheck.NbE                 (evalTerm)
+import           Rzk.TypeCheck.NbE                 (evalTerm, rootCtx)
 import           Rzk.TypeCheck.Render              (ppInContext)
-import           Rzk.TypeCheck.Unify               (unifyTerms)
+import           Language.Rzk.Foil.Names           (Binder (..), TModality (..),
+                                                    TypeInfo (..))
 
 -- | Check a term against a type, by the judgements the context names.
 typecheck :: Distinct n => Term n -> TermT n -> TypeCheck n (TermT n)
@@ -50,41 +57,50 @@ infer term = asks ctxChecker >>= \case
 -- | The differential test on one judgement: the judgements on terms decide
 -- it, and what they recorded stands; the judgements over values run on the
 -- side, recording nothing, and a disagreement is a warning. Two results
--- agree when they are α-equal without their annotations, or else
--- convertible, and so are their types, and when they depend on the same
--- names (through their annotations, as a declaration's assumptions are
--- found).
+-- agree when they are α-equal without their annotations (and without the
+-- domain annotations of their lambdas, which the two judgements spell
+-- differently), or else convertible by the library's conversion, and so
+-- are their types, and when they depend on the same names (through their
+-- annotations, as a declaration's assumptions are found).
 compared :: Distinct n => TypeCheck n (TermT n) -> TypeCheck n (TermT n) -> TypeCheck n (TermT n)
 compared reference candidate = do
   outcome <- attempt reference
   outcome' <- suppressing (attempt candidate)
   verdict <- case (outcome, outcome') of
     (Right r, Right c) -> do
-      scope <- asks ctxScope
-      let alike l r' = alphaEqT scope l r'
-      same <- if alike r c then pure (Right ()) else
-        suppressing (attempt (unifyTerms r c >> unifyTerms c r))
-      sameType <- suppressing $ attempt $ do
-        rTy <- typeOfUncomputed r
-        cTy <- typeOfUncomputed c
-        if alike rTy cTy then pure () else unifyTerms rTy cTy >> unifyTerms cTy rTy
+      ctx <- asks id
+      let scope = ctxScope ctx
+          alike l r' = alphaEqT scope (withoutLambdaDomains l) (withoutLambdaDomains r')
+            || Conv.convertible scope (rootCtx ctx) l r'
+      rTy <- typeOfUncomputed r
+      cTy <- typeOfUncomputed c
+      let same = alike r c
+          sameType = alike rTy cTy
       depsR <- nubNames <$> freeVarsDeep r
       depsC <- nubNames <$> freeVarsDeep c
       let byId = sortOn Foil.nameId
           extraC = byId depsC \\ byId depsR
           extraR = byId depsR \\ byId depsC
       case (same, sameType) of
-        (Right (), Right ())
+        (True, True)
           | null extraC && null extraR -> pure Agreement
           | otherwise -> do
               extraCStr <- mapM (ppInContext . Var) extraC
               extraRStr <- mapM (ppInContext . Var) extraR
+              throughC <- annotationsMentioning extraC c
+              throughR <- annotationsMentioning extraR r
+              rStr <- ppInContext r
+              cStr <- ppInContext c
               pure $ Disagreement $ "dependencies: only over values " <> show extraCStr
                 <> ", only on terms " <> show extraRStr
+                <> concat [ "\n  over values, " <> d | d <- throughC ]
+                <> concat [ "\n  on terms, " <> d | d <- throughR ]
+                <> "\n  on terms: " <> rStr <> "\n  over values: " <> cStr
         _ -> do
-          rStr <- ppInContext r
-          cStr <- ppInContext c
-          pure $ Disagreement $ "on terms " <> rStr <> ", over values " <> cStr
+          rStr <- ppInContext (if same then rTy else r)
+          cStr <- ppInContext (if same then cTy else c)
+          pure $ Disagreement $ (if same then "the types: " else "the terms: ")
+            <> "on terms " <> rStr <> ", over values " <> cStr
     (Left _, Left _) -> pure BothFailed
     (Right r, Left _) -> do
       rStr <- ppInContext r
@@ -99,13 +115,44 @@ compared reference candidate = do
 
 data Verdict = Agreement | BothFailed | Disagreement String
 
+-- | The nodes of a term whose annotation mentions one of the names, with
+-- the annotation, each printed in its own scope.
+annotationsMentioning :: Distinct n => [Foil.Name n] -> TermT n -> TypeCheck n [String]
+annotationsMentioning names = go
+  where
+    ids = map Foil.nameId names
+    go :: Distinct l => TermT l -> TypeCheck l [String]
+    go (Var _) = pure []
+    go t@(Node (AnnSig info node)) = do
+      here <- if any ((`elem` ids) . Foil.nameId) (freeVarsOfTermT (infoType info))
+        then do
+          nodeStr <- ppInContext t
+          annStr <- ppInContext (infoType info)
+          pure ["the annotation of " <> nodeStr <> " is " <> annStr]
+        else pure []
+      below <- bitraverse (\scoped -> inScope (BinderVar Nothing) Id universeT scoped go) go node
+      pure (here <> bifold below)
+
+-- | A term with the domain annotations of its lambdas dropped.
+withoutLambdaDomains :: TermT n -> TermT n
+withoutLambdaDomains = \case
+  Var x -> Var x
+  Node (AnnSig info node) -> Node $ AnnSig info $ case node of
+    LambdaF orig _ body -> LambdaF orig Nothing (scoped body)
+    _ -> bimapNode node
+  where
+    scoped (ScopedAST b body) = ScopedAST b (withoutLambdaDomains body)
+    bimapNode = first scoped . fmap withoutLambdaDomains
+
+
 tally :: Distinct n => Verdict -> TypeCheck n ()
 tally verdict = do
   modifyLog $ \l -> l { logCheckerStats = count (logCheckerStats l) }
   case verdict of
     Disagreement how -> do
       loc <- asks ctxLocation
-      recordCheckWarning (CheckerDisagreementWarning "a declaration" how loc)
+      let what = "a declaration" <> maybe "" (\l -> " at " <> show (locationLine l)) loc
+      recordCheckWarning (CheckerDisagreementWarning what how loc)
     _ -> pure ()
   where
     count stats = (stats { checkerQueries = checkerQueries stats + 1 }) `with` verdict
