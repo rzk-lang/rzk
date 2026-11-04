@@ -259,9 +259,11 @@ allOf = fmap mconcat . sequence
 
 -- | The type of a value: of a variable from the context (the value its entry
 -- holds, or else its type evaluated), of a node from its annotation. A glued
--- value has the type of its unfolded head.
+-- value has the type of its folded head, the one its declaration gives,
+-- and not the one its unfolding computes, which the judgements on terms
+-- never see.
 typeOfValue :: Foil.Distinct n => Foil.Scope n -> Ctx n -> Value n -> Value n
-typeOfValue scope ctx v = case NbE.force v of
+typeOfValue scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> case lookupVarInfo x (ctxContext ctx) of
     VarInfo { varTypeValue = Just ty } -> ty
     info -> NbE.eval scope ctx Foil.identitySubst (varType info)
