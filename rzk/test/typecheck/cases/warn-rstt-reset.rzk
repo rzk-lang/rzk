@@ -1,6 +1,6 @@
 #lang rzk-1
 
-#set-option "rstt-safe" = "off"
+#set-option "rstt-safe" = "error"
 #unset-option "rstt-safe"
 #def nested (A : U) (a : A) : A
   := (\ (B : U) (b : B) → b) A a

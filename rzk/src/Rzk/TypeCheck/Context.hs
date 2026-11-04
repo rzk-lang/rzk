@@ -251,6 +251,9 @@ data Context n = Context
     -- ^ Named top-level definitions a hole's candidate list may draw on, beyond
     -- the local hypotheses (see 'withHintLemmas').
   , ctxRSTTSafe            :: RSTTSafeMode
+    -- ^ Off by default: the fragment checks multiply the checking time of a
+    -- large development several times over. Set with
+    -- @#set-option "rstt-safe" = "warn" | "error" | "off"@ or @--rstt-safe@.
   , ctxRSTTSafeOverride    :: Maybe RSTTSafeMode
     -- ^ A CLI selection applies throughout the run, despite source options.
   , ctxWarnOverhang        :: Bool
@@ -271,7 +274,8 @@ data Context n = Context
     -- ^ Standalone restriction check, disabled by default.
     -- RSTT-safe mode enables the check regardless of this setting.
   , ctxStandaloneWarnShapeDependency :: Bool
-    -- ^ Standalone shape-dependency check, enabled by default.
+    -- ^ Standalone shape-dependency check, disabled by default: it is the
+    -- costly part of the fragment checks.
     -- RSTT-safe mode enables the check regardless of this setting.
   , ctxStandaloneWarnMetaBinder :: Bool
     -- ^ Standalone schematic-binder check, disabled by default.
@@ -320,13 +324,13 @@ emptyContext = Context
   , ctxHolesAreErrors = True
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
-  , ctxRSTTSafe = RSTTSafeWarn
+  , ctxRSTTSafe = RSTTSafeOff
   , ctxRSTTSafeOverride = Nothing
   , ctxWarnOverhang = False
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
   , ctxWarnTopeFamilyDomain = True
   , ctxStandaloneWarnFreeStandingRestriction = False
-  , ctxStandaloneWarnShapeDependency = True
+  , ctxStandaloneWarnShapeDependency = False
   , ctxStandaloneWarnMetaBinder = False
   }
 

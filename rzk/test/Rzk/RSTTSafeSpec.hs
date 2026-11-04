@@ -93,14 +93,18 @@ spec = describe "RSTT-safe run policy" $ do
     errors `shouldBe` ["TypeErrorRSTT"]
     warnErrors `shouldBe` []
     warnings `shouldBe` ["RSTTShapeDependencyWarning"]
-  it "warns about shape dependencies by default with safe mode off" $ do
+  it "does not check shape dependencies by default" $ do
     run Nothing
-      ["#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+      ["#lang rzk-1\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+      `shouldBe` ([], [], 0)
+  it "warns about shape dependencies when the standalone option is on" $ do
+    run Nothing
+      ["#lang rzk-1\n#set-option \"warn-shape-dependency\" = \"yes\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
       `shouldBe` ([], ["RSTTShapeDependencyWarning"], 0)
   it "restores the standalone shape-dependency default on unset" $ do
     run Nothing
-      ["#lang rzk-1\n#set-option \"rstt-safe\" = \"off\"\n#set-option \"warn-shape-dependency\" = \"no\"\n#unset-option \"warn-shape-dependency\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
-      `shouldBe` ([], ["RSTTShapeDependencyWarning"], 0)
+      ["#lang rzk-1\n#set-option \"warn-shape-dependency\" = \"yes\"\n#unset-option \"warn-shape-dependency\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
+      `shouldBe` ([], [], 0)
   it "restores an explicit shape-dependency opt-out after safe mode" $ do
     run Nothing
       ["#lang rzk-1\n#set-option \"warn-shape-dependency\" = \"no\"\n#set-option \"rstt-safe\" = \"error\"\n#set-option \"rstt-safe\" = \"off\"\n#postulate mixed (A : U) (a : A) (s : 2) (f : (t : 2) → A [t === s ↦ a]) : Unit\n"]
@@ -254,14 +258,14 @@ spec = describe "RSTT-safe run policy" $ do
     errors `shouldBe` ["TypeErrorRSTT"]
     warnings `shouldBe` ["RSTTSyntaxWarning"]
   it "locates modal syntax inside an otherwise allowed term" $ do
-    let (errors, warnings, _) = runDetails Nothing
+    let (errors, warnings, _) = runDetails (Just RSTTSafeWarn)
           ["#lang rzk-1\n#def modal : U :=\n  (_# Unit)\n"]
     errors `shouldBe` []
     map checkWarningTag warnings `shouldBe` ["RSTTModalWarning"]
     map warningLocation warnings `shouldBe`
       [Just (LocationInfo (Just "1") (Just 3) (Just 4))]
   it "locates match before elaboration turns it into an eliminator" $ do
-    let (errors, warnings, _) = runDetails Nothing
+    let (errors, warnings, _) = runDetails (Just RSTTSafeWarn)
           ["#lang rzk-1\n#data bool := false | true\n#def choose (b : bool) : bool :=\n  match b (false ⇒ true | true ⇒ false)\n"]
     errors `shouldBe` []
     map checkWarningTag warnings `shouldBe`
