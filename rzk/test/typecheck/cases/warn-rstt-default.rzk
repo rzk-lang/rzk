@@ -1,5 +1,7 @@
 #lang rzk-1
 
+-- RSTT-safe mode is off by default: the schematic binder inside the body
+-- passes silently.
 #set-option "warn-meta-binder" = "no"
 #set-option "warn-meta-prefix" = "off"
 #def nested (A : U) (a : A) : A
