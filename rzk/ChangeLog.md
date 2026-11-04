@@ -36,7 +36,7 @@ Fixed:
 
 Performance:
 
-- **free-foil 0.5.0 and 0.6.1** (see [#369](https://github.com/rzk-lang/rzk/pull/369), [#370](https://github.com/rzk-lang/rzk/pull/370)). Substitution and α-equivalence specialise at rzk's signature: on sHoTT, 4% less wall clock and 10% less allocation.
+- **sHoTT checks 8–10% faster than with v0.11.3.** Part of the gain comes from the upgrade to free-foil 0.6.1 (see [#370](https://github.com/rzk-lang/rzk/pull/370)), whose substitution and α-equivalence specialise at rzk's signature.
 
 Documentation:
 
