@@ -1,5 +1,7 @@
 #lang rzk-1
 
+#set-option "rstt-safe" = "warn"
+
 -- A mixed face fails even when the inner domain is the whole cube.
 #postulate mixed-boundary (A : U) (a : A) (s : 2)
   (f : (t : 2) → A [t === s ↦ a]) : Unit

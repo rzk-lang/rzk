@@ -41,9 +41,11 @@ The diagnostic codes are `MetaPrefixWarning` and `MetaPrefixWarningStrictOnly`. 
 
 Checks declarations against the RSTT fragment used in the conservativity result.[^1]
 
-- `"warn"` — report detected violations (default).
+- `"warn"` — report detected violations.
 - `"error"` — reject declarations with violations or incomplete checks.
-- `"off"` — use the standalone warning settings.
+- `"off"` — use the standalone warning settings (default).
+
+The mode is off by default, since its checks multiply the checking time of a large development several times over. Turn it on for a run with `--rstt-safe=warn` or `--rstt-safe=error`, or for a scope with `#set-option`.
 
 Active RSTT-safe mode enforces these settings:
 
@@ -52,7 +54,7 @@ Active RSTT-safe mode enforces these settings:
 | `warn-meta-prefix` | `"strict"` | `"strict"` |
 | `warn-free-standing-restriction` | `"yes"` | `"no"` |
 | `warn-meta-binder` | `"yes"` | `"no"` |
-| `warn-shape-dependency` | `"yes"` | `"yes"` |
+| `warn-shape-dependency` | `"yes"` | `"no"` |
 
 The mode also reports unfinished obligations and unsupported constructs, including modal and inductive extensions, auxiliary intervals, involutions, and cube `sup` and `inf`. These checks have no standalone option. Violations in source expressions are reported even when computation would remove them. Types exposed by computation are also checked; an unfinished inspection produces `RSTTIncompleteWarning`.
 
@@ -95,10 +97,10 @@ Active RSTT-safe mode enables the check.
 
 Warns about outer cube points in cube domains, shape conditions, and assumed extension boundaries, following RS17, Appendix A.2.[^rs17] This includes dependencies revealed by aliases and computation. Coordinates bound together in a product cube are allowed, as are boundary values that depend on outer points. A boundary may extend beyond its domain: it can be intersected with that domain when translated to RSTT.
 
-- `"yes"` — report dependencies as `RSTTShapeDependencyWarning` (standalone default).
-- `"no"` — suppress the warning when RSTT-safe mode is off.
+- `"yes"` — report dependencies as `RSTTShapeDependencyWarning`.
+- `"no"` — suppress the warning when RSTT-safe mode is off (standalone default).
 
-Active RSTT-safe mode enables the check; `#unset-option` restores `"yes"`. A warning does not rule out an equivalent reformulation within RSTT.
+Active RSTT-safe mode enables the check; `#unset-option` restores `"no"`. A warning does not rule out an equivalent reformulation within RSTT.
 
 ### `warn-meta-binder`
 

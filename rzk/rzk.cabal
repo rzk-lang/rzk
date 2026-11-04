@@ -312,6 +312,7 @@ extra-source-files:
     test/typecheck/cases/warn-rstt-modal.rzk
     test/typecheck/cases/warn-rstt-reset.rzk
     test/typecheck/cases/warn-rstt-shape-dependency.rzk
+    test/typecheck/cases/warn-rstt-warn-overrides-standalone.rzk
     test/typecheck/cases/warn-tope-family-domain-non-instance.rzk
     test/typecheck/cases/warn-tope-family-domain-option.rzk
     test/typecheck/cases/happy-check.expect.yaml
@@ -602,6 +603,7 @@ extra-source-files:
     test/typecheck/cases/warn-rstt-modal.expect.yaml
     test/typecheck/cases/warn-rstt-reset.expect.yaml
     test/typecheck/cases/warn-rstt-shape-dependency.expect.yaml
+    test/typecheck/cases/warn-rstt-warn-overrides-standalone.expect.yaml
     test/typecheck/cases/warn-tope-family-domain-non-instance.expect.yaml
     test/typecheck/cases/warn-tope-family-domain-option.expect.yaml
     test/typecheck/cases/literate-fence/expect.yaml

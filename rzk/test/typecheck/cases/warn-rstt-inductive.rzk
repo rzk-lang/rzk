@@ -1,4 +1,6 @@
 #lang rzk-1
 
+#set-option "rstt-safe" = "warn"
+
 #data bool := false | true
 #def choose (b : bool) : bool := match b (false ⇒ true | true ⇒ false)
