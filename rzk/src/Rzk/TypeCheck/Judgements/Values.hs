@@ -33,7 +33,7 @@ module Rzk.TypeCheck.Judgements.Values
 
 import           Control.Monad                     (forM, forM_, unless, when)
 import           Control.Monad.Except              (catchError)
-import           Control.Monad.Reader              (ask, asks)
+import           Control.Monad.Reader              (ask, asks, local)
 import           Data.List                         (tails)
 import           Data.Maybe                        (fromMaybe, isNothing)
 
@@ -168,7 +168,12 @@ subtypeV term expected actual = do
   unless (Conv.conv (ctxScope ctx) (rootCtx ctx) expected actual) $ do
     expected' <- quoteV expected
     actual' <- quoteV actual
-    unifyTypes term expected' actual'
+    withoutFastPath (unifyTypes term expected' actual')
+
+-- | The unification without its conversion fast path, which has just
+-- answered no on the same comparison.
+withoutFastPath :: TypeCheck n a -> TypeCheck n a
+withoutFastPath = local $ \ctx -> ctx { ctxFastPath = FastPathOff }
 
 -- | Two values agree as terms (invariantly), by the library's conversion,
 -- and otherwise by 'unifyTerms' on the read-back terms, in the direction
@@ -179,7 +184,7 @@ convV expected actual = do
   unless (Conv.conv (ctxScope ctx) (withVariance Invariant (rootCtx ctx)) expected actual) $ do
     expected' <- quoteV expected
     actual' <- quoteV actual
-    unifyTerms expected' actual'
+    withoutFastPath (unifyTerms expected' actual')
 
 -- * Binders
 
