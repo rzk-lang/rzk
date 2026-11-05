@@ -17,11 +17,15 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The tag of the release, not the default branch the release targets.
+          ref: ${{ github.event.release.tag_name }}
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v5
         with:
-          fast: false
+          # The action's default is "--fast --pedantic", an unoptimised build.
+          stack-build-arguments: --pedantic
 
       - name: 🔨 Generate package dist tarball
         run: stack sdist --tar-dir packages/
@@ -43,11 +47,15 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The tag of the release, not the default branch the release targets.
+          ref: ${{ github.event.release.tag_name }}
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v5
         with:
-          fast: false
+          # The action's default is "--fast --pedantic", an unoptimised build.
+          stack-build-arguments: --pedantic
 
       - name: Tar and strip the binary
         run: |
