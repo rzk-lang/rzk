@@ -1,0 +1,27 @@
+#lang rzk-1
+#set-option "rstt-safe" = "error"
+
+-- Paper example: src/nested-restriction.rzk
+
+
+#def nested-lemma
+  ( I : CUBE)
+  ( ψ : I → TOPE)
+  ( ϕ : ψ → TOPE)
+  ( X : U)
+  ( Y : ψ → X → U)
+  ( f : (t : ϕ) → (x : X) → Y t x)
+  ( g : (x : X) → (t : ψ) → (Y t x) [ϕ t ↦ f t x])
+  : (t : ψ) → (x : X) → (Y t x) [ϕ t ↦ f t x]
+  := \ t x → g x t
+
+#def flip-via-nested
+  ( I : CUBE)
+  ( ψ : I → TOPE)
+  ( ϕ : ψ → TOPE)
+  ( X : U)
+  ( Y : ψ → X → U)
+  ( f : (t : ϕ) → (x : X) → Y t x)
+  ( g : (x : X) → (t : ψ) → (Y t x) [ϕ t ↦ f t x])
+  : (t : ψ) → ((x : X) → Y t x) [ϕ t ↦ f t]
+  := \ t x → nested-lemma I ψ ϕ X Y f g t x

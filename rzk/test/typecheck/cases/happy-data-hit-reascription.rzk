@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- The re-ascription clauses give the generated eliminators and
 -- computation rules readable spellings through a library transport/ap/apd
 -- (each definable from idJ before any declaration).

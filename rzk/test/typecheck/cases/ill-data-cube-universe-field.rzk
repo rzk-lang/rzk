@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A field may not store a cube itself: a CUBE-valued field puts a cube-layer
+-- citizen inside type-layer data, which no written metatheory covers. (A
+-- CUBE *parameter* stays legal: the generic Shape realisation depends on it.)
+#data F := c (I : CUBE)

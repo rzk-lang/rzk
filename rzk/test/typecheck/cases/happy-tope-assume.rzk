@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- A bare tope assumption closes to a bare tope parameter.
+#section bare-tope
+#assume psi : TOPE
+#variable A : U
+#define restrict-const (a : A) : (t : 2) -> A [psi |-> a] := \ _ -> a
+#end bare-tope
+
+#define closed
+  : (psi : TOPE) -> (A : U) -> (a : A) -> (t : 2) -> A [psi |-> a]
+  := restrict-const

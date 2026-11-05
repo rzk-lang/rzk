@@ -29,6 +29,8 @@ import           Control.Monad.Except      (catchError)
 import           Data.Data                 (Data, cast, gmapQ)
 import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
+import qualified Data.IntMap.Strict as IntMap
+import qualified Data.IntSet              as IntSet
 import qualified Data.Map                  as Map
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
@@ -50,6 +52,8 @@ import           Rzk.TypeCheck.Display
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Judgements
+import qualified Rzk.TypeCheck.Fragment.RSTT as RSTT
+import           Rzk.TypeCheck.Schematic (recordSchematicDeclaration)
 import           Rzk.TypeCheck.MetaPrefix
 import           Rzk.TypeCheck.Monad
 import           Rzk.TypeCheck.Render
@@ -127,6 +131,10 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
   checkTopLevelDuplicate name
   metaPrefix <- metaPrefixOf ty
   recordMetaPrefixUses name ty mval
+  -- Postulates and failed definitions supply assumptions, so require ext-style types.
+  RSTT.recordFragmentUses name ty mval
+    (isAssumption || maybe True (const False) mval)
+  schematicStatus <- recordSchematicDeclaration name ty mval
   ctx <- ask
   Foil.withFresh (ctxScope ctx) $ \binder -> do
     let info = VarInfo
@@ -140,6 +148,7 @@ withTopLevel name ty mval isAssumption usedVars mrole k = do
           , varDeclaredAssumptions = usedVars
           , varLocation = ctxLocation ctx
           , varDataRole = mrole
+          , varSchematicStatus = schematicStatus
           , varMetaPrefix = metaPrefix
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterBinder binder info [] ctx)
@@ -200,6 +209,8 @@ endSection errs = do
       tolerateUnused = lenient && sectionHasHole
 
   (kept0, errs') <- collectSectionDecls tolerateUnused errs [] infos
+  -- Section abstraction changes dependency signatures and applications.
+  modifyLog $ \log -> log { logSchematicCache = IntSet.empty, logSchematicObjectFamilies = IntMap.empty }
 
   -- Abstracting over the section's assumptions rewrote the entries' types,
   -- which can change their meta-parameter prefix (an assumption such as
@@ -295,16 +306,15 @@ collectSectionDecls tolerate errs recent (entry@(name, info) : rest)
   | otherwise =
       collectSectionDecls tolerate errs (entry : recent) rest
 
--- | Abstract one assumption out of the definitions that come after it.
---
--- A definition that mentions the assumption gains it as an explicit parameter, and
--- every later definition that mentions /that/ definition is rewritten to apply it
--- to the assumption. A definition that mentions it without declaring it in its
--- @uses@ clause is an implicit assumption, and an error.
 -- | Whether an assumption was taken up by (abstracted into) any definition
 -- that followed it in its section.
 data AssumptionUse = AssumptionUsed | AssumptionUnused
 
+-- | Abstract an assumption out of the definitions that depend on it, and
+-- rewrite later uses of those definitions to supply the assumption.
+-- Dependencies present only through other names' types need @uses@;
+-- explicit occurrences in the written type or body need no such clause.
+-- Datatype formers abstracted with their family are exempt from this check.
 makeAssumptionExplicit
   :: forall n. Distinct n
   => (Foil.Name n, VarInfo n)
@@ -372,7 +382,8 @@ abstractOver
   :: Distinct n
   => Foil.Scope n -> Foil.Name n -> VarInfo n -> VarInfo n -> VarInfo n
 abstractOver scope a aInfo info = info
-  { varType = newType
+  { varSchematicStatus = SchematicUnchecked
+  , varType = newType
   , varValue = fmap abstractValue (varValue info)
   , varModality = Id
   , varModAccum = Id
@@ -400,7 +411,8 @@ applyToAssumption
 applyToAssumption scope a (defName, defInfo) info
   | varIsAssumption info = info
   | otherwise = info
-      { varType = rewrite (varType info)
+      { varSchematicStatus = SchematicUnchecked
+      , varType = rewrite (varType info)
       , varValue = rewrite <$> varValue info
       }
   where
@@ -433,8 +445,12 @@ setOption "render-hide-term" = \case
   "no"  -> localHideTerm False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"render-hide-term\" (use \"yes\" or \"no\")"
--- The overhang hint costs a solver entailment per restriction face and recOR
--- guard, so it is off by default and opted into per module (or scope).
+setOption "rstt-safe" = \case
+  "warn" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeWarn }
+  "error" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeError }
+  "off" -> local $ \ctx -> ctx { ctxRSTTSafe = RSTTSafeOff }
+  _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe mode (use warn, error, or off)"
+-- Opt-in: overhang checking adds a solver query per face or guard.
 setOption "warn-overhang" = \case
   "yes" -> localWarnOverhang True
   "no"  -> localWarnOverhang False
@@ -448,6 +464,29 @@ setOption "warn-meta-prefix" = \case
   "strict"     -> localMetaPrefixSensitivity MetaPrefixStrict
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-prefix\" (use \"off\", \"structural\", or \"strict\")"
+-- A tope family not included in its declared domain is read as the
+-- intersection with the domain; the warning says so. On by default.
+setOption "warn-tope-family-domain" = \case
+  "yes" -> localWarnTopeFamilyDomain True
+  "no"  -> localWarnTopeFamilyDomain False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
+-- Standalone fragment settings; active safe mode enables these checks.
+setOption "warn-free-standing-restriction" = \case
+  "yes" -> localWarnFreeStandingRestriction True
+  "no"  -> localWarnFreeStandingRestriction False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-free-standing-restriction\" (use \"yes\" or \"no\")"
+setOption "warn-shape-dependency" = \case
+  "yes" -> localWarnShapeDependency True
+  "no"  -> localWarnShapeDependency False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-shape-dependency\" (use \"yes\" or \"no\")"
+setOption "warn-meta-binder" = \case
+  "yes" -> localWarnMetaBinder True
+  "no"  -> localWarnMetaBinder False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-binder\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -455,9 +494,18 @@ unsetOption :: Distinct n => String -> TypeCheck n a -> TypeCheck n a
 unsetOption "verbosity" = localVerbosity (ctxVerbosity emptyContext)
 unsetOption "render" = localRenderBackend (ctxRenderBackend emptyContext)
 unsetOption "render-hide-term" = localHideTerm (ctxRenderHideTerm emptyContext)
+unsetOption "rstt-safe" = local $ \ctx -> ctx { ctxRSTTSafe = ctxRSTTSafe emptyContext }
 unsetOption "warn-overhang" = localWarnOverhang (ctxWarnOverhang emptyContext)
 unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (ctxMetaPrefixSensitivity emptyContext)
+unsetOption "warn-tope-family-domain" =
+  localWarnTopeFamilyDomain (ctxWarnTopeFamilyDomain emptyContext)
+unsetOption "warn-free-standing-restriction" =
+  localWarnFreeStandingRestriction (ctxStandaloneWarnFreeStandingRestriction emptyContext)
+unsetOption "warn-shape-dependency" =
+  localWarnShapeDependency (ctxStandaloneWarnShapeDependency emptyContext)
+unsetOption "warn-meta-binder" =
+  localWarnMetaBinder (ctxStandaloneWarnMetaBinder emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -488,8 +536,8 @@ addParams params = Rzk.Lambda Nothing params
 -- terms by hand.
 --
 -- The declaration grammar already covers the later stages; this checker
--- rejects what it does not support (cube/shape and modal constructor
--- fields, function-typed recursive fields).
+-- rejects what it does not support (cube and shape parameters and indices,
+-- modal type fields, function-typed recursive fields).
 
 -- | The index telescope of the sort. The sort must be @U@ (no indices) or a
 -- Π-telescope of plain types ending in @U@.
@@ -514,6 +562,74 @@ dataSortIndices = \case
       p -> issueTypeError $ TypeErrorOther $
         "an index of a #data sort must be a plain type, got " <> Rzk.printTree p
 
+-- | The layer rule for the sort, on the elaborated form: every parameter and
+-- index of a @#data@ must be a type. A cube point @(t : I)@ and a shape
+-- point, in either spelling — named @(t : Φ)@ or inline @(t : I | φ)@ — are
+-- rejected.
+--
+-- The surface checks in 'dataParamVars' and 'dataSortIndices' reject the
+-- inline spelling only, because the other two are not recognisable
+-- syntactically: @(t : Φ)@ looks exactly like a type-valued binder until @Φ@
+-- is resolved. This check therefore walks the elaborated Π-telescope of the
+-- sort, where a named shape has become the restricted binder @(t : I | Φ t)@
+-- and a cube domain is recognisable by its sort, so the rule does not depend
+-- on the spelling. The cube and tope /universes/ pass: a parameter of type
+-- @CUBE@ or @I → TOPE@ ranges over cubes or shapes themselves, not over
+-- their points, and the generic realisation
+-- @#data Shape (I : CUBE) (phi : I → TOPE)@ depends on both.
+--
+-- The rule per position ('DomainKind' has the fine classification):
+-- /parameters/ may be types, @CUBE@, @TOPE@, or plain tope families —
+-- exactly the kinds of the meta-theoretic parameter layer of the Rzk paper
+-- (a bare tope @(phi : TOPE)@ means the family @(phi : 1 → TOPE)@), which the
+-- generic realisation @#data Shape (I : CUBE) (phi : I → TOPE)@ depends
+-- on; /indices/ must be types, full stop. A family indexed by the cube
+-- universe or by tope families is internal quantification over the
+-- cube\/tope layers, which no written metatheory covers. The modal kinds
+-- (@ᵒᵖ TOPE@, @♭ CUBE@, @♯ (I → TOPE)@, families into them, …) are
+-- parameters too, as in a @#define@. This is part of the experimental
+-- modal layer: the parameter layer has no modal account yet, but the
+-- parameters are uniform, so the generated eliminators only abstract over
+-- them, as a @#define@ with the same parameters would.
+--
+-- Rejecting is deliberate, not an accident of implementation. The generated
+-- eliminators for a cube parameter or index are pointwise and look
+-- plausible, but no metatheory is written down for an inductive family over
+-- a shape — unlike shape /fields/, which are the representability rule of
+-- Kudasov's 2021 note — and a family over a shape is what extension types
+-- are for. A rejection can be relaxed later; an acceptance cannot be
+-- revoked.
+checkDataSortLayers
+  :: Distinct n => [Rzk.ParamDecl] -> [SortIndex] -> TermT n -> TypeCheck n ()
+checkDataSortLayers paramDecls sortIndices = go positions
+  where
+    positions =
+      [ (True, spelledParam p) | p <- paramDecls ]
+        <> [ (False, Rzk.printTree (sortIndexType si)) | si <- sortIndices ]
+    spelledParam = \case
+      Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
+      p                        -> Rzk.printTree p
+    go :: Distinct m => [(Bool, String)] -> TermT m -> TypeCheck m ()
+    go [] _ = pure ()
+    go ((isParam, spelled) : rest) ty = whnfT ty >>= \case
+      TypeFunT _ty orig md param mtope ret -> do
+        let position
+              | isParam   = "a parameter of a #data must be a type, CUBE, TOPE, or a tope family, got "
+              | otherwise = "an index of a #data sort must be a type, got "
+            reject kind = issueTypeError $ TypeErrorOther $
+              position <> kind <> ": " <> spelled
+        case mtope of
+          Just _  -> reject "a shape"
+          Nothing -> classifyDomain param >>= \case
+            DomainType         -> pure ()
+            DomainCubeUniverse | isParam -> pure ()
+            DomainTopeUniverse | isParam -> pure ()
+            DomainTopeFamily   | isParam -> pure ()
+            DomainModalTope    | isParam -> pure ()
+            kind               -> reject (domainKindName kind)
+        inScope orig md param ret (go rest)
+      _ -> panicImpossible "#data sort has fewer Π binders than parameters and indices"
+
 dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
 dataBodyParts = \case
   Rzk.NoDataBody _              -> ([], [])
@@ -534,23 +650,137 @@ dataParamVars = fmap concat . mapM paramVarsOf
         "a parameter of a #data must be a typed variable (x : A), got "
           <> Rzk.printTree p
 
--- | A constructor field: a typed parameter, with cube/shape fields rejected
--- (over a directed interval they would declare directed cells, out of scope
--- for M3) and modal fields deferred (crisp induction).
+-- | A constructor field.
+--
+-- Plain typed fields @(x : A)@ and cube and shape fields are accepted, in
+-- every spelling and also under a modality (@(t :♭ I | φ)@, @(t :♭ I)@,
+-- @(t :♭ Φ)@); modal /type/ fields are not, and since that distinction is
+-- not recognisable on the surface it is decided by
+-- 'checkDataConFieldLayers' after elaboration. What a shape field means,
+-- and why it is sound, is worth stating precisely, because the
+-- neighbouring constructions are not.
+--
+-- A shape is a predicate on a cube, spelled @I -> TOPE@ as @Δ¹@ and @Λ²₁@ are,
+-- and a field may name one (@(t : Φ)@), give a bare cube (@(t : I)@, the shape
+-- whose tope is @⊤@), or write the shape inline (@(t : I | φ)@). The first two
+-- were already accepted here; the third was rejected, with a message claiming
+-- it would declare a directed cell. It does not: a cell needs face equations,
+-- and the @#data@ grammar has no syntax for them. All three are the same
+-- thing, so all three are accepted.
+--
+-- A shape field makes the declared type the /shape realisation/ @⌈{t : I | φ}⌉@:
+-- @#data D := c (t : I | φ)@ is freely generated by a Φ-indexed family of
+-- points with no identifications between them, and the generated recursor
+--
+-- > rec-D : (C : U) → ((t : I | φ) → C) → D → C
+--
+-- is exactly the representability rule of Kudasov's 2021 note, §4 "Shapes as
+-- types" (<https://fizruk.github.io/files/%5Bnotes%5D%20N.Kudasov.%20Booleans%2C%20coproducts%20and%20shape%20types%20in%20type%20theory%20for%20synthetic%20%E2%88%9E-categories.pdf Booleans, coproducts and shape types in type theory for synthetic ∞-categories>):
+-- elimination into an /extension type/, with strict computation
+-- @rec-D C m (c p) ≡ m p@ on a syntactic point. Nothing is asked of @C@, so
+-- no Segal or covariance condition appears, and nothing here produces a cube
+-- term from type-layer data: a point goes /into/ a constructor and the
+-- eliminator maps only /out/ into types. 'Rzk.Match' on such a constructor
+-- binds the cube variable and brings φ into the branch's context, which is
+-- where a tope belongs.
+--
+-- Three neighbouring things are deliberately /not/ enabled by this, and each
+-- is blocked somewhere else rather than here:
+--
+-- * __Face equations__ on a field, which would declare a directed cell (the
+--   directed circle and friends). Their eliminator needs a Segal or covariant
+--   target and the metatheory is open. They are unreachable because the
+--   @#data@ grammar has no syntax for them, not because of a check.
+-- * __Modal type fields__, below.
+--
+-- Cube and shape /parameters/ and /indices/ go the other way: rejected in
+-- every spelling. The inline spelling falls to the surface checks in
+-- 'dataParamVars' and 'dataSortIndices'; the named and bare-cube spellings
+-- look like type-valued binders on the surface and are caught by
+-- 'checkDataSortLayers' on the elaborated sort, so the rule does not depend
+-- on the spelling.
 dataFieldToParamDecl :: Distinct n => Rzk.VarIdent -> Rzk.Param -> TypeCheck n [Rzk.ParamDecl]
 dataFieldToParamDecl cname = \case
   p@Rzk.ParamPatternType{} -> paramToParamDecl p
+  p@Rzk.ParamPatternShape{} -> paramToParamDecl p
+  p@Rzk.ParamPatternModalShape{} -> paramToParamDecl p
+  -- Not rejected here: whether a modal binder is a (fine) cube or shape
+  -- field or a (rejected) modal type field is not recognisable on the
+  -- surface — @(t :♭ Δ¹)@ looks exactly like @(x :♭ A)@ — so the decision
+  -- is made by 'checkDataConFieldLayers' on the elaborated constructor type.
+  p@Rzk.ParamPatternModalType{} -> paramToParamDecl p
   Rzk.ParamPattern _ pat -> issueTypeError $ TypeErrorOther $
     "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
-  Rzk.ParamPatternShape{} -> issueTypeError $ TypeErrorOther $
-    "constructor " <> Rzk.printTree cname
-      <> " takes a cube or shape argument; over the directed interval this would declare a directed cell, which is not supported"
-  Rzk.ParamPatternModalType{} -> modalFieldError cname
-  Rzk.ParamPatternModalShape{} -> modalFieldError cname
 
+-- | Modal /type/ fields are deferred; modal /cube/ and /shape/ fields are
+-- accepted. The line between them is drawn by recursion, not by \"crisp
+-- induction\".
+--
+-- A modal field of any kind is an ordinary constructor argument sitting
+-- under a lock; the ordinary eliminator suffices for it, binding the field
+-- with its modality so the lock discipline applies inside a branch, and no
+-- new principle is involved. /Crisp induction/ — eliminating a crisp
+-- @x :♭ D@ by cases — is a separate principle that @#data@ does not
+-- provide either way.
+--
+-- What does distinguish the kinds is that a type field can be /recursive/,
+-- and the recursion and positivity bookkeeping ('dataConSurface' collects
+-- @fieldTypes@ and the probe from plain 'Rzk.ParamTermType' declarations
+-- only) does not see through a modal binder: a modal recursive field would
+-- silently evade the positivity probe and the induction-hypothesis
+-- machinery. A cube or shape field cannot be recursive — its domain is not
+-- a type — so nothing is evaded, and the modal form is as safe as the
+-- plain one.
 modalFieldError :: Distinct n => Rzk.VarIdent -> TypeCheck n a
 modalFieldError cname = issueTypeError $ TypeErrorOther $
-  "modal fields are not supported yet in constructor " <> Rzk.printTree cname
+  "modal type fields are not supported yet in constructor " <> Rzk.printTree cname
+
+-- | The field rule, on the elaborated form: a constructor field must be a
+-- type, a cube point, or a shape. That is the realisation fragment of
+-- Kudasov's 2021 note — points go /into/ constructors and the eliminator
+-- maps out into types — and nothing beyond it: a field of the cube universe,
+-- of a tope-family kind, or of a modal cube or tope kind would /store/ a cube- or
+-- tope-layer citizen inside type-layer data, which no written metatheory
+-- covers ('DomainKind' names the rejected kinds).
+--
+-- The modal spelling adds one distinction the surface cannot make:
+-- @(t :♭ Δ¹)@ and @(x :♭ A)@ are the same surface form
+-- ('Rzk.ParamPatternModalType'), and only elaboration tells a named shape
+-- from a type. A modal binder with a cube or shape domain is an ordinary
+-- (modal) cube or shape field; with a type domain it is rejected
+-- ('modalFieldError'). The check walks the elaborated constructor
+-- Π-telescope past the parameters, exactly as 'checkDataSortLayers' does
+-- for the sort.
+checkDataConFieldLayers
+  :: Distinct n
+  => Rzk.VarIdent -> Int -> [Rzk.ParamDecl] -> TermT n -> TypeCheck n ()
+checkDataConFieldLayers cname numParams fieldDecls =
+  go (replicate numParams Nothing <> map fieldInfo fieldDecls)
+  where
+    fieldInfo d = Just (isModalTypeSpelling d, spelledField d)
+    isModalTypeSpelling = \case
+      Rzk.ParamTermModalType{} -> True
+      _                        -> False
+    spelledField = \case
+      Rzk.ParamTermType _ _ ty -> Rzk.printTree ty
+      d                        -> Rzk.printTree d
+    go :: Distinct m => [Maybe (Bool, String)] -> TermT m -> TypeCheck m ()
+    go [] _ = pure ()
+    go (checkInfo : rest) ty = whnfT ty >>= \case
+      TypeFunT _ty orig md param mtope ret -> do
+        forM_ checkInfo $ \(modalSpelled, spelled) -> case mtope of
+          Just _  -> pure ()   -- a shape field, in any spelling and modality
+          Nothing -> classifyDomain param >>= \case
+            DomainCubePoint -> pure ()
+            DomainType
+              | modalSpelled -> modalFieldError cname
+              | otherwise    -> pure ()
+            kind -> issueTypeError $ TypeErrorOther $
+              "a field of constructor " <> Rzk.printTree cname
+                <> " must be a type, a cube point, or a shape, got "
+                <> domainKindName kind <> ": " <> spelled
+        inScope orig md param ret (go rest)
+      _ -> panicImpossible "constructor type has fewer Π binders than parameters and fields"
 
 dataConSurface
   :: Distinct n
@@ -616,12 +846,22 @@ dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cn
     , dataConSort = sort
     }
   where
+    -- A shape field binds a cube variable, so it contributes a field variable
+    -- and a field pattern exactly as a plain typed field does. Without these
+    -- cases the field's type reaches the constructor but its binder does not,
+    -- and 'conApplied' applies the constructor to too few arguments.
     fieldVars = \case
-      Rzk.ParamPatternType _ pats _ -> concatMap surfacePatternVars pats
-      _                             -> []
+      Rzk.ParamPatternType _ pats _           -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternShape _ pats _ _        -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalType _ pats _ _    -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap surfacePatternVars pats
+      _                                       -> []
     fieldPats = \case
-      Rzk.ParamPatternType _ pats _ -> map patternToTerm pats
-      _                             -> []
+      Rzk.ParamPatternType _ pats _           -> map patternToTerm pats
+      Rzk.ParamPatternShape _ pats _ _        -> map patternToTerm pats
+      Rzk.ParamPatternModalType _ pats _ _    -> map patternToTerm pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> map patternToTerm pats
+      _                                       -> []
     isIdentity = \case
       Rzk.TypeId{}       -> True
       Rzk.TypeIdSimple{} -> True
@@ -685,6 +925,10 @@ withDataDecls
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> TypeCheck l r)
   -> TypeCheck n r
 withDataDecls path used name paramVars paramDecls sortIndices consData elims k = do
+  safe <- asks rsttSafeEnabled
+  when safe $ do
+    loc <- asks ctxLocation
+    recordCheckWarning $ RSTTScopeWarning RSTTInductive "inductive declaration" loc
   -- The type former's type spells the sort as written: params → indices → U.
   let sortTerm = foldr wrapIndex (Rzk.Universe Nothing) sortIndices
       wrapIndex (SortIndex mv ty) body = case mv of
@@ -692,6 +936,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
         Nothing -> surfaceArrow ty body
   dTyTerm <- elaborate (addParamDecls paramDecls sortTerm)
   dTy <- memoizeWHNF =<< typecheck dTyTerm universeT
+  checkDataSortLayers paramDecls sortIndices dTy
   dDeps <- assumptionDepsOf dTy
   withTopLevel (varIdentAt path name) dTy Nothing False
     (nubNames (used <> dDeps)) Nothing $ \dBinder dDecl ->
@@ -741,6 +986,7 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           loc
       conTyTerm <- elaborate (dataConType con)
       conTy <- memoizeWHNF =<< typecheck conTyTerm universeT
+      checkDataConFieldLayers (dataConName con) numParams (dataConFields con) conTy
       conDeps <- assumptionDepsOf conTy
       let conSort = case dataConSort con of
             DataConPoint  -> PointCon
@@ -864,36 +1110,50 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
       -- The surface types of the eliminators and the path computation rules
       -- (see "Rzk.TypeCheck.Decl.Data"), pushed through the ordinary
       -- elaborator below just like any user-written type.
-      let spec = ElimSpec
-            { esName = name, esParamVars = paramVars, esParamDecls = paramDecls
+      let spec md = ElimSpec
+            { esName = name, esModality = md
+            , esParamVars = paramVars, esParamDecls = paramDecls
             , esIndexVars = indexVars, esIndexDecls = indexDecls, esMotiveV = motiveV
             , esScrutV = scrutV, esIhNames = ihNames, esMethodVars = methodVars
             , esEndpointV = endpointV, esPathV = pathV, esTransportV = transportV
             , esConsData = consData, esPathData = pathData }
-          et = elimTerms spec
-          indName = prefixedIdent "ind-" name
-          recName = prefixedIdent "rec-" name
-      (mindTy, mrecTy, computeReasc) <- splitClauses indName recName (map fst (computeRules et))
-      indTyT <- elaborate (indTypeTerm et)
-      indCanonical <- memoizeWHNF =<< typecheck indTyT universeT
-      indTy' <- reascribe indName indCanonical mindTy
-      indDeps <- assumptionDepsOf indTy'
-      withTopLevel (varIdentAt path indName) indTy' Nothing False
-        (nubNames (usedHere <> indDeps))
-        (Just (DataRole dName numParams (DataElimKind numMethods indexArity ElimInd))) $ \_ indDecl -> do
-          recTyT <- elaborate (recTypeTerm et)
-          recCanonical <- memoizeWHNF =<< typecheck recTyT universeT
-          recTy' <- reascribe recName recCanonical mrecTy
-          recDeps <- assumptionDepsOf recTy'
-          let usedAtInd = Foil.sink1 usedHere
-          withTopLevel (varIdentAt path recName) recTy' Nothing False
-            (nubNames (usedAtInd <> recDeps))
-            (Just (DataRole (Foil.sink dName) numParams (DataElimKind numMethods indexArity ElimRec))) $ \_ recDecl ->
-              bindComputes
-                (Foil.sink1 usedAtInd)
-                computeReasc
-                (computeRules et)
-                (sinkDecls (sinkDecls declsAcc <> [indDecl]) <> [recDecl])
+          -- Modal eliminators are crisp induction (Shulman 2018, §5), valid
+          -- for the left adjoints ♭ and ᵒᵖ. There is none for ♯: a right
+          -- adjoint does not preserve coproducts or initial algebras (MTT,
+          -- §10.5), and rec-sharp-Bool would retract ♯ Bool onto Bool.
+          modalities = if hasPaths then [Id] else [Id, Op, Flat]
+          modalTerms = [ (md, elimTerms (spec md)) | md <- modalities ]
+          generated = concat
+            [ [ (md, ElimInd, elimIdent "ind" md name, indTypeTerm et)
+              , (md, ElimRec, elimIdent "rec" md name, recTypeTerm et) ]
+            | (md, et) <- modalTerms ]
+          computes = concatMap (computeRules . snd) modalTerms
+      (elimReasc, computeReasc) <- splitClauses
+        [ n | (_, _, n, _) <- generated ] (map fst computes)
+      bindEliminators dName usedHere elimReasc computeReasc computes generated declsAcc
+
+    bindEliminators
+      :: forall m. DExt n m
+      => Foil.Name m -> [Foil.Name m]
+      -> [(Rzk.VarIdentToken, Rzk.Term)]
+      -> [(Rzk.VarIdentToken, Rzk.Term)]
+      -> [(Rzk.VarIdent, Rzk.Term)]
+      -> [(TModality, ElimKind, Rzk.VarIdent, Rzk.Term)]
+      -> [Decl m]
+      -> TypeCheck m r
+    bindEliminators _dName usedHere _elimReasc computeReasc computes [] acc =
+      bindComputes usedHere computeReasc computes acc
+    bindEliminators dName usedHere elimReasc computeReasc computes
+        ((md, kind, elimName, elimTy) : rest) acc = do
+      tyT <- elaborate elimTy
+      canonical <- memoizeWHNF =<< typecheck tyT universeT
+      ty' <- reascribe elimName canonical (lookup (identTokenOf elimName) elimReasc)
+      deps <- assumptionDepsOf ty'
+      withTopLevel (varIdentAt path elimName) ty' Nothing False
+        (nubNames (usedHere <> deps))
+        (Just (DataRole dName numParams (DataElimKind md numMethods indexArity kind))) $ \_ decl ->
+          bindEliminators (Foil.sink dName) (Foil.sink1 usedHere)
+            elimReasc computeReasc computes rest (sinkDecls acc <> [decl])
 
     -- | Bind the generated @compute-@ lemmas (one @ind@/@rec@ pair per
     -- path constructor), re-ascribing the ones a @compute with@ clause
@@ -915,37 +1175,29 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
           bindComputes (Foil.sink1 usedHere) reasc rest
             (sinkDecls acc <> [decl])
 
-    -- | Split the re-ascription clauses among the generated entries: the
-    -- two eliminators (@eliminate with@) and the computation rules of the
-    -- path constructors (@compute with@). A clause must name an entry of
-    -- the matching kind, at most once each.
     splitClauses
       :: Distinct m
-      => Rzk.VarIdent -> Rzk.VarIdent -> [Rzk.VarIdent]
+      => [Rzk.VarIdent] -> [Rzk.VarIdent]
       -> TypeCheck m
-           (Maybe Rzk.Term, Maybe Rzk.Term, [(Rzk.VarIdentToken, Rzk.Term)])
-    splitClauses indName recName computeNames = go (Nothing, Nothing, []) elims
+           ([(Rzk.VarIdentToken, Rzk.Term)], [(Rzk.VarIdentToken, Rzk.Term)])
+    splitClauses elimNames computeNames = go ([], []) elims
       where
         go acc [] = pure acc
-        go (mind, mrec, mcomp) (Rzk.DataElim _loc elimName ty : rest)
-          | sameIdent elimName indName =
-              case mind of
-                Nothing -> go (Just ty, mrec, mcomp) rest
-                Just _  -> duplicate elimName
-          | sameIdent elimName recName =
-              case mrec of
-                Nothing -> go (mind, Just ty, mcomp) rest
-                Just _  -> duplicate elimName
+        go (melims, mcomp) (Rzk.DataElim _loc elimName ty : rest)
+          | any (sameIdent elimName) elimNames =
+              if identTokenOf elimName `elem` map fst melims
+                then duplicate elimName
+                else go (melims <> [(identTokenOf elimName, ty)], mcomp) rest
           | otherwise = issueTypeError $ TypeErrorOther $
               "eliminate with clause for " <> Rzk.printTree elimName
                 <> ", which is not an eliminator of " <> Rzk.printTree name
-                <> " (the eliminators are " <> Rzk.printTree indName
-                <> " and " <> Rzk.printTree recName <> ")"
-        go (mind, mrec, mcomp) (Rzk.DataCompute _loc ruleName ty : rest)
+                <> " (the eliminators are "
+                <> intercalate ", " (map Rzk.printTree elimNames) <> ")"
+        go (melims, mcomp) (Rzk.DataCompute _loc ruleName ty : rest)
           | any (sameIdent ruleName) computeNames =
               if identTokenOf ruleName `elem` map fst mcomp
                 then duplicate ruleName
-                else go (mind, mrec, mcomp <> [(identTokenOf ruleName, ty)]) rest
+                else go (melims, mcomp <> [(identTokenOf ruleName, ty)]) rest
           | otherwise = issueTypeError $ TypeErrorOther $
               "compute with clause for " <> Rzk.printTree ruleName
                 <> ", which is not a computation rule of " <> Rzk.printTree name
@@ -1117,6 +1369,13 @@ elaborate term = do
         Nothing -> Hole (Just (markUnresolved name))
   pure (toTerm (ctxScope ctx) env term)
 
+-- Check user syntax; generated inductive declarations are already excluded.
+elaborateChecked :: Distinct n => Rzk.Term -> TypeCheck n (Term n)
+elaborateChecked term = do
+  core <- elaborate term
+  atSurface term $ RSTT.recordSyntaxUses core
+  pure core
+
 -- | Is a surface identifier defined at the top level?
 checkDefined :: Distinct n => VarIdent -> TypeCheck n (Foil.Name n)
 checkDefined name = asks (lookupNamed name) >>= \case
@@ -1179,7 +1438,7 @@ checkCommands path i total commands k = case commands of
         typeResult <- tryCheck $ do
           used <- mapM (checkDefined . varIdentAt path) vars
           paramDecls <- concat <$> mapM paramToParamDecl params
-          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          tyTerm <- elaborateChecked (addParamDecls paramDecls ty)
           ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
           pure (used, ty')
         case typeResult of
@@ -1191,8 +1450,15 @@ checkCommands path i total commands k = case commands of
             -- against it and its own errors and holes reported, instead of the
             -- run stopping at this one.
             result <- tryCheck $ do
-              valTerm <- elaborate (addParams params term)
-              atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+              valTerm <- elaborateChecked (addParams params term)
+              val' <- atSurface term $ memoizeWHNF =<< typecheck valTerm ty'
+              -- A definition at type U must define a type: a body that is a
+              -- universe kind would be a synonym smuggling the kind into
+              -- every position that accepts U.
+              whnfT ty' >>= \case
+                UniverseT{} -> ensureTypeAtU "a definition at type U" val'
+                _           -> pure ()
+              pure val'
             let (mvalue, bodyErrors) = case result of
                   Right term'  -> (Just term', [])
                   Left bodyErr -> (Nothing, [bodyErr])
@@ -1229,7 +1495,7 @@ checkCommands path i total commands k = case commands of
         typeResult <- tryCheck $ do
           used <- mapM (checkDefined . varIdentAt path) vars
           paramDecls <- concat <$> mapM paramToParamDecl params
-          tyTerm <- elaborate (addParamDecls paramDecls ty)
+          tyTerm <- elaborateChecked (addParamDecls paramDecls ty)
           ty' <- atSurface ty $ memoizeWHNF =<< typecheck tyTerm universeT
           pure (used, ty')
         case typeResult of
@@ -1244,7 +1510,7 @@ checkCommands path i total commands k = case commands of
         <> intercalate " " [ Rzk.printTree name | name <- names ]) $
       withCommand command k $ do
         typeResult <- tryCheck $ do
-          tyTerm <- elaborate ty
+          tyTerm <- elaborateChecked ty
           atSurface ty $ typecheck tyTerm universeT
         case typeResult of
           Left typeError -> skippingCommand typeError path i total more k
@@ -1259,10 +1525,13 @@ checkCommands path i total commands k = case commands of
         -- A #check declares nothing, so its failure costs the rest of the file
         -- nothing either.
         result <- tryCheck $ do
-          tyTerm <- elaborate ty
-          ty' <- atSurface ty $ typecheck tyTerm universeT >>= whnfT
-          termTerm <- elaborate term
-          _term' <- atSurface term $ typecheck termTerm ty'
+          tyTerm <- elaborateChecked ty
+          ty' <- atSurface ty $ typecheck tyTerm universeT
+          termTerm <- elaborateChecked term
+          term' <- atSurface term $ typecheck termTerm ty'
+          recordMetaPrefixUses "#check" ty' (Just term')
+          RSTT.recordFragmentUses "#check" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#check" ty' (Just term')
           pure ()
         case result of
           Left err -> skippingCommand err path i total more k
@@ -1275,8 +1544,12 @@ checkCommands path i total commands k = case commands of
     announce (" Computing NF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborate term >>= infer >>= nfT
-          ppInContext term'
+          term' <- atSurface term $ elaborateChecked term >>= infer
+          ty' <- typeOfUncomputed term'
+          recordMetaPrefixUses "#compute-nf" ty' (Just term')
+          RSTT.recordFragmentUses "#compute-nf" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#compute-nf" ty' (Just term')
+          nfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
           Right shown -> traceTypeCheck Normal ("  " <> shown) $
@@ -1286,8 +1559,12 @@ checkCommands path i total commands k = case commands of
     announce (" Computing WHNF for " <> Rzk.printTree term) $
       withCommand command k $ do
         result <- tryCheck $ do
-          term' <- atSurface term $ elaborate term >>= infer >>= whnfT
-          ppInContext term'
+          term' <- atSurface term $ elaborateChecked term >>= infer
+          ty' <- typeOfUncomputed term'
+          recordMetaPrefixUses "#compute" ty' (Just term')
+          RSTT.recordFragmentUses "#compute" ty' (Just term') False
+          _ <- recordSchematicDeclaration "#compute" ty' (Just term')
+          whnfT term' >>= ppInContext
         case result of
           Left err -> skippingCommand err path i total more k
           Right shown -> traceTypeCheck Normal ("  " <> shown) $

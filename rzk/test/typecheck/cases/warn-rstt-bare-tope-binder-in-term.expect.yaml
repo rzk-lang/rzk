@@ -1,0 +1,7 @@
+status: ok
+warnings:
+  - MetaBinderWarning
+  - MetaBinderWarning
+regression_for:
+  - rstt-safe-mode
+  - bare-tope-parameter

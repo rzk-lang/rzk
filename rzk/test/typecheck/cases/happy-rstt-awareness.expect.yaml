@@ -1,0 +1,6 @@
+status: ok
+warnings:
+  - OverhangWarning
+  - TopeFamilyDomainWarning
+regression_for:
+  - rstt-safe-mode

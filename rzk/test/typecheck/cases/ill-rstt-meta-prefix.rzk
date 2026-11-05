@@ -1,0 +1,5 @@
+#lang rzk-1
+#set-option "rstt-safe" = "error"
+#set-option "warn-meta-prefix" = "off"
+#def my-id (X : U) (x : X) : X := x
+#def stash : Σ (h : (X : U) → X → X), Unit := (my-id, unit)

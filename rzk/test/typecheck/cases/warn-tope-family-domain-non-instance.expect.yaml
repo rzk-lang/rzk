@@ -1,0 +1,6 @@
+status: ok
+warnings:
+  - TopeFamilyDomainWarning
+  - TopeFamilyDomainWarning
+regression_for:
+  - tope-family-domain-warning

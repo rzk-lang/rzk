@@ -3,12 +3,13 @@ These tests do not cover everything, but
 Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeCheckSpec` runs checks at **Silent** verbosity so traces do not fill `stack test` output.
 
 - **Well-typed tests:** `happy-check`, `happy-refl-path`, `happy-shott-simplicial-subcomplexes`, tope/cubes (`happy-tope-shapes`, `happy-tope-high-dim-cubes`), `recOR`/restrictions (`happy-tope-rec-and-restrict`, `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `happy-recor-split-simplex-overhang`), nested `recOR` (`happy-tope-nested-rec-or`, `happy-tope-nested-rec-or-d{4,5,6}`), recBOT body well-formedness (`happy-recbot-term-wellformed`).
-- **Ill—typed tests:** unify (`ill-unify*`), pairs/projections/functions (`ill-not-*`, `ill-unexpected-*`, `ill-bare-*`), env (`ill-implicit`, `ill-duplicate`, `ill-undefined`, `ill-unused-assumption`, `ill-param-untyped-pattern`), invalid domains (`ill-invalid-arg-type-bot`, `ill-tope-param-*`).
+- **Ill—typed tests:** unify (`ill-unify*`), pairs/projections/functions (`ill-not-*`, `ill-unexpected-*`, `ill-bare-*`), env (`ill-implicit`, `ill-duplicate`, `ill-undefined`, `ill-unused-assumption`, `ill-param-untyped-pattern`), invalid domains (`ill-invalid-arg-type-bot`).
+- **Layer discipline (direct guards):** `ill-kind-sigma-{tope,cube-universe,tope-family,body-tope}` (no universe kind as a Σ component, either component), `ill-kind-id-carrier-tope` (no identity types over the tope universe), `ill-kind-define-tope` (no universe-kind synonyms at type `U`), `ill-kind-app-argument-tope` (a kind cannot be passed where a type is expected; guards fire at the application, since a `U`-parameter is opaque at formation), `ill-data-tope-{field,index}` (`TOPE` is a parameter kind only). Bare tope parameters: `happy-tope-param`, `happy-tope-assume` and `happy-data-tope-param` (`(ψ : TOPE)` in a binder, an assumption and a `#data` parameter means the same as `(ψ : 1 → TOPE)`), with `ill-tope-param-entailment` (a bare tope is opaque) and `ill-tope-param-instance` (instantiating it keeps the restriction). All guards check up to whnf, so synonyms meet the same rules. The modal fixtures (`happy-flip-unflip`, `happy-modal-inv`, `happy-modal-tope-unwrap`) state the inv/flip laws as definitional equality of shapes over the unit cube, since tope identities are closed.
 - **Bad commands/sections/render:** options (`ill-set-option-*`, `ill-unset-option-unknown`), sections (`ill-section-*`), LaTeX define (`ill-render-latex-define`).
 - **Options:** `happy-set-option-warn-overhang` (the opt-in overhang hint: the option name is recognised by `#set-option`/`#unset-option`, and an overhanging face still typechecks with it on).
 - **UNSAT topes/shapes/`recOR`:** `ill-tope-not-satisfied-*`, `ill-tope-subtle-*`, `ill-rec-or-overlap-incoherent`, `ill-recor-coverage-required`, `ill-restrict-face-disjoint`, `ill-recor-guard-disjoint`, nested `recOR` (`ill-tope-nested-rec-or-inner-singleton`; `*-inner-singleton-d{4,5,6}`) (exhibit exponential slowdown).
 - **recBOT body well-formedness:** `ill-recbot-term-not-function`, `ill-recbot-term-undefined` (ill-typed bodies must not be admitted under an absurd hypothesis).
-- **Holes (strict mode):** `ill-hole-unsolved` (a hole is an error by default), `ill-hole-infer` (a hole in inference position cannot be guessed). The lenient mode and the structured goal/context query are covered by `Rzk.HolesSpec`, not by YAML fixtures.
+- **Holes (strict mode):** `ill-hole-unsolved` (a hole is an error by default), `ill-hole-infer` (a hole in inference position cannot be guessed), `ill-hole-recor-guard-point` (the same rule for a tope point in a `recOR` guard). The lenient mode and the structured goal/context query are covered by `Rzk.HolesSpec`, not by YAML fixtures.
 - **NbE conversion fast path:** `happy-nbe-church-conversion` (βδ-equal but structurally different Church-numeral applications, including inline endpoints that must not decompose into false subgoals), `ill-nbe-church-unequal` (a wrong equation still fails through the ordinary unification — the fast path never refutes).
 - **NbE shared-head alignment:** `happy-nbe-wrapper-alignment` (a term against itself under a thin alias, with the alias on the left, on the right, and on both sides) and `happy-nbe-transport-refl-spine` (`transport … refl t` against `t`, the shape that made a definition in Benno Lossin's sHoTT fork take five minutes). Both carry a term whose normal form has 2^22 applications. They are therefore cheap only if the fast path answers from the two spines rather than normalising. Each takes about 0.05 s with the alignment search, and about 12 s without it. The runner has no timing field, so that gap is the assertion: a regression shows up as a suite that takes half a minute, rather than as a failing example. The sizes are chosen so that a regression is unmistakable while the run still terminates.
 - **Inductive types (`#data`, stages 1–2):** well-typed declarations and
@@ -27,8 +28,31 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   `ill-data-fun-field` for function-typed recursive fields,
   `ill-data-non-u-sort` for a malformed sort, `ill-data-missing-return`
   and `ill-data-index-mismatch` for index errors, `ill-data-return-type`,
-  `ill-data-shape-field`) and name clashes
+  `ill-data-shape-index` and `ill-data-shape-index-named` for the two
+  spellings of a shape index, `ill-data-cube-index` for a cube index,
+  `ill-data-shape-param` and `ill-data-cube-param` for shape and cube
+  parameters — the last four enforced on the elaborated sort, so the
+  named spelling meets the same rule as the inline one;
+  `ill-data-cube-universe-{field,index}`,
+  `ill-data-tope-family-{field,index}`, `ill-data-modal-tope-{field,index}`
+  and `ill-data-modal-cube-field` for the B′ layer rules — no position
+  stores or is indexed by a cube- or tope-layer citizen, and the modal
+  kinds are parameters only (`happy-data-modal-kind-param`, with
+  `ill-data-modal-kind-param-lock` and `ill-data-modal-kind-param-point`
+  for the lock and the shape field of an instance);
+  `ill-data-modal-type-field` for a modal type field) and name clashes
   (`ill-data-duplicate-constructor`, `ill-data-clash-generated`);
+  shape fields (`happy-data-shape-realisation` — the realisation ⌈Φ⌉,
+  its recursor as the representability rule, strict β on a syntactic
+  point, and the cube-generic form; `happy-data-shape-tope` — the tope
+  reaching a `match` branch, a field mentioning the cube variable an
+  earlier shape field binds, and a subshape of a product cube;
+  `happy-data-modal-shape-field` — cube and shape fields under a
+  modality in all three spellings, with strict β through the lock,
+  and `ill-data-modal-shape-field-lock` — the lock discipline enforced
+  on the bound cube variable; `happy-data-path-shape-field` — path
+  constructors with a shape field: undirected Φ-indexed cells and the
+  cone whose endpoints mention the shape variable);
   re-ascription clauses (`eliminate with`:
   `happy-data-eliminator-reascription` — a definitionally equal
   spelling is stored and stays interchangeable with the canonical type,
@@ -72,12 +96,37 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   (`ill-match-not-data`), and a motive-less match in inference position
   (`ill-match-cannot-infer`). Holes in branches (binder hypotheses,
   labelled goals) are covered by `Rzk.HolesSpec`.
-- **Modal `let mod` with an explicit motive:** `happy-modal-let-into`
+- **Modal `match`:** `happy-match-modal` covers both motive spellings,
+  the generated `ind`/`rec` declarations for `ᵒᵖ` and `♭`, direct use of
+  `rec-b-Nat`, scrutinee accessibility, left composition with plain and modal
+  fields, the order-sensitive equation `Op · Op = Id`, an unmodified induction
+  hypothesis, and the modality inherited by the motive's scrutinee binder;
+  `ill-match-modal-inaccessible` rejects a plain
+  scrutinee under a Flat lock, while `ill-match-modal-motive` rejects a
+  plain scrutinee binder in a Flat match motive, and
+  `ill-match-modal-ih-remodalized` rejects using an induction hypothesis as
+  though it inherited the match modality. `ill-match-modal-hit` checks the
+  explicit rejection for a higher inductive type, and `ill-match-modal-sharp`
+  and `ill-data-no-sharp-eliminator` that there are no `♯` eliminators. The shape fixtures above
+  exercise generated modal eliminators for inline and named shape fields.
+  Surface/core round trips,
+  including the parenthesised ordinary match of a `mod` expression, are
+  covered by `Rzk.FoilCoreSpec`.
+- **Modal `let mod`:** `happy-modal-let-into`
   (constant motives agreeing with the motive-free form, and the
   dependent elimination the motive exists for: the goal is `C x` while
   the body only proves `C (mod ♭ a)`, which flat admits only through
   the motive since it has no η-rule), `ill-modal-let-into-body` (a body
-  that misses the motive at the introduction form).
+  that misses the motive at the introduction form),
+  `happy-modal-let-restricted` (elimination through an outer
+  restriction, with and without a motive, on and off its faces),
+  `happy-modal-let-dependent-payload` (a motive-free let in inference
+  position gets its type at the payload, for the right adjoints), and
+  `ill-modal-not-modal` (the error names the value and its type).
+- **Modal topes:** `happy-modal-inv` (inv/uninv commute with `∧`, `∨`,
+  `TOP` and `BOT`, swap endpoints and reverse `≤`) and
+  `happy-modal-uninv-shape-restricted` (uninv of a shape-restricted
+  application keeps its domain conjunct).
 - **Meta-parameter layer check:** the object-position
   warning (`warn-meta-prefix-object-position`), the strict-only marking
   (`warn-meta-prefix-strict-only`), warning-free plumbing — aliasing,
@@ -86,6 +135,15 @@ Paired `*.rzk` / `*.rzk.md` + `*.expect.yaml` (or dir `expect.yaml`). `Rzk.TypeC
   section close (`warn-meta-prefix-section`), and the sensitivity option
   (`happy-meta-prefix-option-off`, `warn-meta-prefix-option-structural`);
   all asserted via the `warnings` field.
+- **Tope-family domain conjunct:** a concrete family checked against a
+  domain type carries its domain (`\ t → TOP` at `{t : I | ⊥} → TOPE`
+  elaborates to `\ t → ⊥ ∧ ⊤`): the inconsistency that the missing
+  conjunct allowed (`ill-tope-family-domain-non-instance`, an inhabitant
+  of every type from the two readings of a family that violates its
+  declared domain), the same-domain control that was rejected all along
+  (`ill-tope-family-domain-same-domain`), and the intersected reading of
+  such a family through a wider parameter, plus a family that respects
+  its domain (`happy-tope-family-domain-instance`).
 - **Other layouts:** `multimodule-*`, `literate-fence/`.
 
 # Regression tests
@@ -99,7 +157,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Issue [#13](https://github.com/rzk-lang/rzk/issues/13) insufficient `flip` checking | `ill-issue-13-flip-flip-wrong` | Wrong `flip A B (flip A B f)` vs `f` path type |
 | Issue [#33](https://github.com/rzk-lang/rzk/issues/33) restriction coherence | `ill-issue-33-restriction-coherence` | Overlapping restriction faces on `2 × 2` |
 | Tope context folding: faces/guards need not be contained in the context | `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `ill-recor-coverage-required` | `recOR` requires only *coverage* (`context ⊢ ⋁ guards`, via `contextEntailsUnion`); restriction faces need no containment. The removed `contextEntailedBy` guard and the dropped reverse check of the former `contextEquiv` (now `contextEntailsUnion`) both tested `tope ⊢ ⋁ context`, which is vacuous (`⊤ ∈ localTopesNF`, so `⋁ context` reduces to `⊤`). |
-| Overhang vs disjoint faces/guards | `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `ill-restrict-face-disjoint`, `ill-recor-guard-disjoint` | A face/guard that *overhangs* a consistent context (not entailed by it, but overlapping) is allowed and only warned about (`checkTopeAgainstContext`, gated at `Normal`); one *disjoint* from the context (overlap `⊥`) is vacuous and is a hard error (`TypeErrorTopeContextDisjoint`). |
+| Overhang vs disjoint faces/guards | `happy-restrict-face-not-contained`, `happy-recor-guard-exceeds-context`, `ill-restrict-face-disjoint`, `ill-recor-guard-disjoint` | A face/guard that *overhangs* a consistent context (does not entail it, but overlaps it) is allowed and only warned about (`checkTopeAgainstContext`, gated at `Normal`); one *disjoint* from the context (overlap `⊥`) is vacuous and is a hard error (`TypeErrorTopeContextDisjoint`). |
 | Useful overhang: reusing named shapes | `happy-recor-split-simplex-overhang` | Splitting the 2-simplex `Δ²` by the global total-order topes `t ≤ s` / `s ≤ t` (à la RS17 Prop 3.5); the `t ≤ s` guard overhangs `Δ²` yet the split is well-typed. Motivates why overhang must be allowed. |
 | recBOT term well-formedness | `ill-recbot-term-not-function`, `ill-recbot-term-undefined`, `happy-recbot-term-wellformed` | A term checked against recBOT (expected type collapsed under an absurd context) must still be well-formed in its own right: `typecheck` runs `infer term` before returning `recBottomT`, so `a a` and undefined variables are rejected while valid bodies still pass. |
 | PR [#167](https://github.com/rzk-lang/rzk/pull/167) multi-file / cache | `multimodule-first-error/`, `multimodule-two-ok/` | Strict pipeline: error in module B stops after failing file |
@@ -108,13 +166,18 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | Commit ac9b6d89 refl / check | `happy-refl-path` | `refl_{x}` and identity `#check` |
 | Docs: sections / implicit | `ill-implicit` | `TypeErrorImplicitAssumption` |
 | Coverage matrix | `ill-unify`, `ill-undefined`, `ill-duplicate`, `ill-not-function`, `happy-check` | Core `TypeError` constructors |
-| Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
+| Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer`, `ill-hole-recor-guard-point` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position, including a tope point, is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
 | Pattern-binder name restoration | `ill-hole-pattern-binder-names` | A pair-pattern lambda `\ (a , b) -> ?` renders its components by name in the strict-mode error: the goal `B (first p)` folds to `B a` and the binder shows as `(a , b)`, not `π₁ x` of a fresh variable. Lenient-mode goals/context covered by `Rzk.HolesSpec`. |
 | Bare pattern point in tope | `ill-tope-pattern-binder-bare` | A pattern-bound point used bare (not projected) in a shape's membership tope renders as the pattern: a type error's local tope context shows `Δ² (t , s)`, not `Δ² x₁`. Complements the projection-folding restoration above. |
 | `#data` stage 1 (M3, design/inductive-types.md) | `happy-data-*`, `ill-data-*` | The declaration registers the type former before checking constructors (the prototype's ordering bug); the ι-rule fires in WHNF and NF (refl on computed equalities); section closure abstracts the whole family uniformly (`makeAssumptionExplicit` forces the type former). Stage-1 rejections are `TypeErrorOther` with distinguishing `message_contains`. |
 | `match` elaboration (M3 PR 3) | `happy-match-*`, `ill-match-*` | A match elaborates into `ind-D params motive methods indices scrutinee` (`checkMatch`); branches are checked against the method Π-types one arm at a time (`checkMatchArms`, the λ rule's mirror); the motive comes from `into` or from goal abstraction (`motiveFromGoal`); administrative motive redexes are β-reduced before branch goals and hypothesis types are shown (`betaMotiveApps`). |
 | PR [#327](https://github.com/rzk-lang/rzk/pull/327) `let mod` motive | `happy-modal-let-into`, `ill-modal-let-into-body` | MTT's dependent modal elimination: the `into` motive is checked at `(z :^ν ⟨μ\|A⟩) → U`, the body against `C (mod_μ x)`, and the let itself gets `C M`. Without a motive the body is checked against the goal as written, which suffices only when the goal need not vary with the scrutinee. |
 | Meta-parameter layer check | `warn-meta-prefix-*`, `happy-meta-prefix-plumbing` | An unsaturated use of a declaration below its meta prefix warns at object-level positions (`Rzk.TypeCheck.MetaPrefix`); aliasing at a definition root and meta-shaped argument domains stay silent (the sHoTT `weakextext-extext` composition pattern); `endSection` recomputes `varMetaPrefix` after abstracting assumptions. |
+| Tope-family domain conjunct | `ill-tope-family-domain-non-instance`, `ill-tope-family-domain-same-domain`, `happy-tope-family-domain-instance` | A λ-family checked against `{t : I | ψ} → TOPE` is elaborated with the domain conjoined into its body (`typecheck`, the λ case), so every family value satisfies its declared domain; the checker already reads an applied family *variable* together with its domain (`applyWhnfFun`), and without the conjunct a concrete family violating its domain was read with the domain at its own binders and without it after being passed to a parameter with a wider domain. |
+| Tope-family domain warning | `warn-tope-family-domain-non-instance`, `warn-tope-family-domain-option` | Where the domain conjunct is inserted (`typecheck`, the λ case), the family checked differs from the family written, and `TopeFamilyDomainWarning` is recorded; `#set-option "warn-tope-family-domain" = "no"` silences it. A warning identical in code, message and location is recorded once (`recordCheckWarning`): a parameter annotation is elaborated for the signature and again as the domain of the body's λ. |
+
+| Free-standing restrictions | `warn-free-standing-restriction-assumed`, `warn-free-standing-restriction-option`, `happy-ext-style-restrictions` | A restriction off a shape-Π codomain is reported where it is assumed, not concluded (`Rzk.TypeCheck.Fragment.RSTT`): a binder type, an eliminator motive, the type of an identity type, a type passed as data (a `U`-valued body, an argument at a universe-typed parameter). Ext-style restrictions, and free-standing ones in a concluded tail type, stay silent, as do the types elaboration synthesises for a `let` annotation and for a `refl`'s element, which are types of terms rather than assumed positions. |
+| Schematic binders inside terms | `warn-meta-binder-inside-term` | A λ below the leading λs of a definition's body that binds a universe, a cube or a tope family is reported under `#set-option "warn-meta-binder" = "yes"` (off by default). The leading λs are the declaration's own parameters and stay silent, as do the branches of a case split on a schematic index (a schema defined by recursion binds its remaining parameters there) and an argument at a schematic parameter (the plumbing `warn-meta-prefix` allows). |
 
 # Test schema
 
@@ -143,3 +206,13 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | `api` | no | Omit or `strict` (default): `typecheckModulesWithLocation` (throws on first error). `collect`: `typecheckModulesWithLocation'` — returns a list of errors without using `throwError`; note that the typechecker still stops per-module chaining when a module reports errors (see implementation in `Rzk.TypeCheck`). |
 
 Parse failures are always test failures; they are not expressed in this schema.
+
+Structured overhang diagnostics: `happy-set-option-warn-overhang` covers restriction faces; `warn-overhang-controls` covers recOR guards, containment, silent verbosity, disabling and resetting the option.
+
+RSTT-safe mode: `warn-rstt-default` (off by default), `warn-rstt-warn-overrides-standalone`, `warn-rstt-reset`, `happy-rstt-off` and `ill-rstt-option` cover the source policy. The `ill-rstt-*` fixtures cover error propagation for S1, S2, S4, postulates, modalities, the auxiliary interval, and inductive declarations. `happy-rstt-awareness` keeps S3 and the whole-context overhang advisory non-fatal. `warn-rstt-escape-*` checks introductions through unfolding, beta reduction, let, pairs, tope-indexed families, inductive elimination and section assumptions. `happy-rstt-tau-flip` and `happy-rstt-tail-nested` preserve the paper's worked examples. `Rzk.RSTTSafeSpec` covers the CLI context override across modules and lenient-hole policy.
+
+`happy-rstt-boundary-warn` and `happy-rstt-boundary-error` accept overhanging boundaries in both safe modes. `happy-rstt-boundary-multicube` covers product cubes, clipping in both directions, and boundary values depending on outer points. `ill-rstt-boundary-obligation` preserves ordinary boundary checking.
+
+`warn-rstt-shape-dependency` covers outer points in domains and boundaries, distinct cubes, product projections, nested lambdas and local aliases. `ill-rstt-shape-boundary` and `ill-rstt-shape-domain` cover error mode; `happy-rstt-shape-dependency-off` explicitly disables it independently of standalone restriction warnings. `Rzk.RSTTSafeSpec` covers its standalone default, reset, restored opt-out and source/CLI enforcement; `ill-shape-dependency-option` rejects invalid settings.
+
+The review regressions cover restrictions and schematic binders inside topes (`ill-rstt-restriction-in-domain`, `ill-rstt-meta-binder-in-face`), packed type/cube families (`ill-rstt-packed-*`), and dependent cubes (`ill-rstt-dependent-cube*`). Their `happy-rstt-*` controls preserve ordinary guards, schematic arguments, fixed cubes and endpoint instances. `Rzk.RSTTSafeSpec` forces classification to reach the judgement limit and checks incomplete diagnostics in warn/error modes. `ill-rstt-false-*` and `ill-rstt-uncovered-endpoints` reject invalid proofs; `happy-rstt-trusted-postulate` records that postulates remain trusted.

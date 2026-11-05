@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- A definition whose value is an under-applied eliminator (no binder):
 -- the ι-rule must fire through the neutral-application head.
 #data bool := false | true

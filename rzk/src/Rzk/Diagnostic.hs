@@ -7,14 +7,15 @@
 -- pre-formatted string. The core library produces these; the LSP maps them to
 -- LSP diagnostics, and the CLI can emit them as JSON (@rzk typecheck --json@).
 --
--- Locations are line-level: rzk currently retains only file + line at the point
--- an error is produced (the column is discarded, and core terms keep no
--- per-node position), so diagnostics point at the enclosing command's line.
+-- Locations give the source node's line and column when available, otherwise
+-- the nearest enclosing position retained by the checker.
 module Rzk.Diagnostic where
 
+import           Data.List                (intercalate)
 import           Data.Aeson           (ToJSON (..), Value (String), object,
                                        (.=))
 
+import           Language.Rzk.Foil.Names (TModality (Id))
 import           Rzk.TypeCheck
 
 -- | Diagnostic severity, mirroring the usual LSP levels.
@@ -35,7 +36,7 @@ data Severity
 --
 -- > { "severity": "error" | "warning" | "information" | "hint"
 -- > , "code":     <string>           -- "hole", or a TypeError tag (e.g. "TypeErrorUnify")
--- > , "location": { "file": <string|null>, "line": <int|null> } | null
+-- > , "location": { "file": <string|null>, "line": <int|null>, "column": <int|null> } | null
 -- > , "message":  <string>           -- human-facing prose (the CLI/LSP display text)
 -- > , "hole":     <HoleData> | null  -- present only for hole diagnostics (see 'HoleData')
 -- > }
@@ -46,7 +47,7 @@ data Severity
 data Diagnostic = Diagnostic
   { diagnosticSeverity :: Severity
   , diagnosticCode     :: String            -- ^ stable category, e.g. @\"TypeErrorUnify\"@ or @\"hole\"@
-  , diagnosticLocation :: Maybe LocationInfo -- ^ file + line (line-level granularity)
+  , diagnosticLocation :: Maybe LocationInfo -- ^ file, line and column when available
   , diagnosticMessage  :: String
   , diagnosticHole     :: Maybe HoleData     -- ^ structured hole payload ('Nothing' for type errors)
   } deriving (Eq, Show)
@@ -61,10 +62,17 @@ data Diagnostic = Diagnostic
 -- > { "name":     <string|null>                 -- the ?name, if the hole was named
 -- > , "goal":     <string>                       -- the expected type (the goal)
 -- > , "shape":    { "binder": <string>, "tope": <string> } | null
--- > , "termVars": [ { "name": <string>, "type": <string> }, ... ]
--- > , "cubeVars": [ { "name": <string>, "type": <string> }, ... ]
--- > , "topes":    [ <string>, ... ]              -- local tope assumptions (excludes ⊤)
+-- > , "termVars": [ <entry>, ... ]
+-- > , "cubeVars": [ <entry>, ... ]
+-- > , "topes":    [ <string>, ... ]              -- tope assumptions in force (excludes ⊤)
+-- > , "topeInfo": [ { "tope": <string>, <modal> }, ... ]  -- all tope assumptions
 -- > }
+--
+-- where an @<entry>@ is @{ "name": <string>, "type": <string>, <modal> }@ and
+-- @<modal>@ is @"modality": <string>, "locks": <string>, "accessible": <bool>@:
+-- the declared modality, the locks accumulated since, and whether the entry
+-- can be used at the hole. An inaccessible tope is not in force, so it appears
+-- in @topeInfo@ but not in @topes@.
 --
 -- Notes for consumers:
 --
@@ -78,9 +86,26 @@ data HoleData = HoleData
   { holeDataName     :: Maybe String           -- ^ the @?name@, if named
   , holeDataGoal     :: String                 -- ^ the goal (expected type)
   , holeDataShape    :: Maybe (String, String) -- ^ (binder, tope) for a shape-argument goal
-  , holeDataTermVars :: [(String, String)]     -- ^ local hypotheses: (name, type)
-  , holeDataCubeVars :: [(String, String)]     -- ^ local cube variables: (name, type)
-  , holeDataTopes    :: [String]               -- ^ local tope assumptions (excluding ⊤)
+  , holeDataTermVars :: [HoleDataEntry]
+  , holeDataCubeVars :: [HoleDataEntry]
+  , holeDataTopes    :: [HoleDataTope]
+  } deriving (Eq, Show)
+
+data HoleDataEntry = HoleDataEntry
+  { holeDataEntryName :: String
+  , holeDataEntryType :: String
+  , holeDataEntryMode :: HoleModalData
+  } deriving (Eq, Show)
+
+data HoleDataTope = HoleDataTope
+  { holeDataTopeValue :: String
+  , holeDataTopeMode  :: HoleModalData
+  } deriving (Eq, Show)
+
+data HoleModalData = HoleModalData
+  { holeModalModality   :: String
+  , holeModalLocks      :: String
+  , holeModalAccessible :: Bool
   } deriving (Eq, Show)
 
 instance ToJSON Severity where
@@ -115,17 +140,32 @@ instance ToJSON HoleData where
     , "shape"    .= fmap shapeToJSON holeDataShape
     , "termVars" .= map entryToJSON holeDataTermVars
     , "cubeVars" .= map entryToJSON holeDataCubeVars
-    , "topes"    .= holeDataTopes
+    , "topes"    .= [ holeDataTopeValue t | t <- holeDataTopes
+                    , holeModalAccessible (holeDataTopeMode t) ]
+    , "topeInfo" .= map topeToJSON holeDataTopes
     ]
     where
       shapeToJSON (binder, tope) = object [ "binder" .= binder, "tope" .= tope ]
-      entryToJSON (name, ty)     = object [ "name" .= name, "type" .= ty ]
+      entryToJSON HoleDataEntry{..} = object
+        [ "name" .= holeDataEntryName, "type" .= holeDataEntryType
+        , "modality" .= holeModalModality holeDataEntryMode
+        , "locks" .= holeModalLocks holeDataEntryMode
+        , "accessible" .= holeModalAccessible holeDataEntryMode
+        ]
+      topeToJSON HoleDataTope{..} = object
+        [ "tope" .= holeDataTopeValue
+        , "modality" .= holeModalModality holeDataTopeMode
+        , "locks" .= holeModalLocks holeDataTopeMode
+        , "accessible" .= holeModalAccessible holeDataTopeMode
+        ]
 
 -- | A stable tag for a type error, used as its diagnostic code. Independent of
 -- the variable type, so it survives the scoped-error unfolding.
 typeErrorTag :: TypeError n -> String
 typeErrorTag = \case
   TypeErrorOther{}                 -> "TypeErrorOther"
+  TypeErrorRSTT{}                  -> "TypeErrorRSTT"
+  TypeErrorSchematic{}             -> "TypeErrorSchematic"
   TypeErrorUnify{}                 -> "TypeErrorUnify"
   TypeErrorUnifyTerms{}            -> "TypeErrorUnifyTerms"
   TypeErrorNotPair{}               -> "TypeErrorNotPair"
@@ -213,6 +253,80 @@ diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule 
   , diagnosticHole     = Nothing
   }
 
+diagnoseCheckWarning (RSTTScopeWarning extension feature loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = case extension of
+      RSTTModal -> "RSTTModalWarning"
+      RSTTInterval -> "RSTTIntervalWarning"
+      RSTTInductive -> "RSTTInductiveWarning"
+      RSTTShapeDependency -> "RSTTShapeDependencyWarning"
+      RSTTUnsupported -> "RSTTSyntaxWarning"
+      RSTTSchematic -> "RSTTSchematicWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = feature <> " is outside RSTT"
+  , diagnosticHole = Nothing
+  }
+diagnoseCheckWarning (RSTTIncompleteWarning reason loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = "RSTTIncompleteWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = reason
+  , diagnosticHole = Nothing
+  }
+diagnoseCheckWarning (RSTTHoleWarning loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode = "RSTTHoleWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage = "RSTT fragment check has an unfinished obligation"
+  , diagnosticHole = Nothing
+  }
+diagnoseCheckWarning (OverhangWarning what tope topes loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "OverhangWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      what <> " overhangs the local tope context: " <> tope
+        <> " does not entail " <> intercalate " ∧ " topes
+  , diagnosticHole     = Nothing
+  }
+
+diagnoseCheckWarning (TopeFamilyDomainWarning family domain loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "TopeFamilyDomainWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "tope family " <> family
+        <> " is not included in its declared domain " <> domain
+        <> "; it is read as its intersection with the domain"
+  , diagnosticHole     = Nothing
+  }
+
+diagnoseCheckWarning (FreeStandingRestrictionWarning defName ty use loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "FreeStandingRestrictionWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "free-standing restriction assumed at " <> place <> ": " <> ty
+        <> " (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
+  where
+    place = case use of
+      UseBinder    -> "a binder"
+      UseMotive    -> "an eliminator motive"
+      UseData      -> "a type passed as data"
+      UseIdentity  -> "the type of an identity type"
+      UseConcluded -> "a concluded type, off the spine of codomains"
+diagnoseCheckWarning (MetaBinderWarning defName varName ty loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "MetaBinderWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "schematic binder inside a term: " <> show varName <> " : " <> ty
+        <> " is bound below the parameter prefix (in " <> show defName <> ")"
+  , diagnosticHole     = Nothing
+  }
+
 -- | A checker warning as a human-readable line (the CLI).
 ppCheckWarning :: CheckWarning -> String
 ppCheckWarning = ("Warning: " <>) . diagnosticMessage . diagnoseCheckWarning
@@ -248,10 +362,23 @@ holeData HoleInfo{..} = HoleData
   , holeDataShape    = fmap (\(s, tope) -> (show s, show tope)) holeGoalShape
   , holeDataTermVars = map entry holeTermVars
   , holeDataCubeVars = map entry holeCubeVars
-  , holeDataTopes    = map show holeTopes
+  , holeDataTopes    = map topeEntry holeTopes
   }
   where
-    entry e = (show (holeEntryName e), show (holeEntryType e))
+    entry e = HoleDataEntry
+      { holeDataEntryName = show (holeEntryName e)
+      , holeDataEntryType = show (holeEntryType e)
+      , holeDataEntryMode = modalData (holeEntryMode e)
+      }
+    topeEntry e = HoleDataTope
+      { holeDataTopeValue = show (holeTopeValue e)
+      , holeDataTopeMode = modalData (holeTopeMode e)
+      }
+    modalData mode = HoleModalData
+      { holeModalModality = ppModality (holeItemModality mode)
+      , holeModalLocks = ppModality (holeItemLocks mode)
+      , holeModalAccessible = holeItemAccessible mode
+      }
 
 -- | Render a hole's goal and local context (the structured query) for display,
 -- separating term variables, cube variables, and tope assumptions.
@@ -266,7 +393,10 @@ ppHoleInfo HoleInfo{..} = unlines $
   <> section "cube variables" holeCubeVars
   <> (if null holeTopes
         then []
-        else "  tope context:" : [ "    " <> show t | t <- holeTopes ])
+        else "  tope context:"
+          : [ "    " <> availability (holeItemAccessible (holeTopeMode entry))
+                <> show (holeTopeValue entry) <> modalSuffix (holeTopeMode entry)
+            | entry <- holeTopes ])
   where
     -- a shape goal reads (binder : cube | tope); otherwise just the type
     goalStr = case holeGoalShape of
@@ -275,8 +405,17 @@ ppHoleInfo HoleInfo{..} = unlines $
     section title entries
       | null entries = []
       | otherwise = ("  " <> title <> ":")
-          : [ "    " <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
+          : [ "    " <> availability (holeItemAccessible (holeEntryMode e))
+                <> show (holeEntryName e) <> " : " <> show (holeEntryType e)
+                <> modalSuffix (holeEntryMode e)
             | e <- entries ]
+    availability True  = ""
+    availability False = "× "
+    modalSuffix mode
+      | holeItemModality mode == Id && holeItemLocks mode == Id = ""
+      | otherwise =
+          "  [modality: " <> ppModality (holeItemModality mode)
+            <> ", locks: " <> ppModality (holeItemLocks mode) <> "]"
 
 ppLocationInfo :: LocationInfo -> String
 ppLocationInfo (LocationInfo mpath mline mcol) =

@@ -9,32 +9,14 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The typing context on free-foil.
+-- | The typing context for the free-foil core. Local hypotheses and top-level
+-- entries are keyed by 'Foil.Name'; separate fields retain surface identifiers
+-- and binding order for elaboration and display.
 --
--- The successor of @Rzk.TypeCheck@'s @Context var@. Two things change, and they
--- are the point of the migration.
---
--- [A variable is a name, and so is a top-level entry.] A free-foil term refers to
--- a variable by 'Foil.Name' (an @Int@), and by nothing else: there is no way to
--- put a 'VarIdent' inside a term. So a top-level definition is a name too, bound
--- in the outermost scope with no binder above it, and the hypotheses — global and
--- local alike — are one 'Foil.NameMap', looked up in constant time. The old
--- context was an association list keyed by a @var@ whose equality walked an
--- @S@-chain; @lookupVarInfo@ alone was 11.5% of the checker's time. The surface
--- name of an entry is resolved through 'ctxNamed'.
---
--- This also gives sections their natural shape. A @#assume@d assumption is an
--- ordinary binder, so the definitions of a section are checked in its scope, and
--- closing the section abstracts the assumption by pairing its binder with the
--- body — no rewrite of the elaborated terms (see @Rzk.TypeCheck.Decl@).
---
--- [Entering a binder rebuilds nothing.] 'enterBinder' extends the scope and
--- sinks the rest of the context by coercion, so it costs O(1) rather than a walk
--- of the context. The old @enterScopeContext@ mapped @S \<$\>@ over the whole
--- context, rebuilding every elaborated term it held; the heap profile showed
--- those forced copies retaining most of the live heap, and @GlobalScopeInfo@ /
--- @globalEmbed@ (PR #277) exist only to keep that shift off the ~1500 top-level
--- entries. All of that machinery is gone.
+-- Entering a binder carries scoped terms into the extended scope by coercion
+-- and records the new entry. Section assumptions are ordinary bindings;
+-- closing a section abstracts dependencies and rewrites uses of the resulting
+-- parameterised definitions (see "Rzk.TypeCheck.Decl").
 module Rzk.TypeCheck.Context where
 
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder,
@@ -90,9 +72,14 @@ atPosition pos loc = case rzkLineCol pos of
   Nothing          -> loc
   Just (line, col) -> loc { locationLine = Just line, locationColumn = Just col }
 
+-- | Schematic validation is cached separately from ordinary typechecking.
+data SchematicStatus = SchematicUnchecked | SchematicChecked | SchematicRejected
+  deriving (Eq)
+
 -- | What is known about a hypothesis, local or top-level.
 data VarInfo n = VarInfo
-  { varType                :: TermT n
+  { varSchematicStatus     :: SchematicStatus
+  , varType                :: TermT n
   , varValue               :: Maybe (TermT n)
   , varModality            :: TModality
   , varModAccum            :: TModality
@@ -137,7 +124,7 @@ data DataRoleKind
     -- after the parameters, and the 0-based positions of its recursive
     -- fields (each contributes an induction hypothesis right after the
     -- field in the method)
-  | DataElimKind Int Int ElimKind
+  | DataElimKind TModality Int Int ElimKind
     -- ^ an eliminator: the number of methods (one per constructor, in
     -- declaration order) and the number of indices of the family; the
     -- spine is parameters, motive, methods, indices, scrutinee
@@ -263,18 +250,36 @@ data Context n = Context
   , ctxHintLemmas          :: [VarIdent]
     -- ^ Named top-level definitions a hole's candidate list may draw on, beyond
     -- the local hypotheses (see 'withHintLemmas').
+  , ctxRSTTSafe            :: RSTTSafeMode
+    -- ^ Off by default: the fragment checks multiply the checking time of a
+    -- large development several times over. Set with
+    -- @#set-option "rstt-safe" = "warn" | "error" | "off"@ or @--rstt-safe@.
+  , ctxRSTTSafeOverride    :: Maybe RSTTSafeMode
+    -- ^ A CLI selection applies throughout the run, despite source options.
   , ctxWarnOverhang        :: Bool
-    -- ^ When 'True', a restriction face or @recOR@ guard that overhangs the
-    -- local tope context (is not entailed by it, while still overlapping it)
-    -- is reported with a non-fatal hint. Off by default: deciding the
-    -- overhang costs a solver entailment per face and guard, and the overhang
-    -- is legitimate (see @happy-restrict-face-not-contained@). Enabled with
-    -- @#set-option "warn-overhang" "yes"@. The /disjointness/ error next to
-    -- it is unaffected: a vacuous face is always rejected.
+    -- ^ Warn when a face or guard overlaps but does not entail the local tope
+    -- context. Off by default; disjoint faces remain errors.
   , ctxMetaPrefixSensitivity :: MetaPrefixSensitivity
     -- ^ How sensitively the meta-parameter layer check classifies use
     -- positions (see "Rzk.TypeCheck.MetaPrefix"). Strict by default; set
     -- with @#set-option "warn-meta-prefix" = "off" | "structural" | "strict"@.
+  , ctxWarnTopeFamilyDomain :: Bool
+    -- ^ When 'True' (the default), a tope family checked against a domain
+    -- type that it is not included in is reported with a warning: the
+    -- checker reads it as its intersection with the domain (see the λ case of
+    -- 'typecheck'), so the family checked differs from the family written.
+    -- Costs nothing beyond the entailment that decides the intersection.
+    -- Disabled with @#set-option "warn-tope-family-domain" = "no"@.
+  , ctxStandaloneWarnFreeStandingRestriction :: Bool
+    -- ^ Standalone restriction check, disabled by default.
+    -- RSTT-safe mode enables the check regardless of this setting.
+  , ctxStandaloneWarnShapeDependency :: Bool
+    -- ^ Standalone shape-dependency check, disabled by default: it is the
+    -- costly part of the fragment checks.
+    -- RSTT-safe mode enables the check regardless of this setting.
+  , ctxStandaloneWarnMetaBinder :: Bool
+    -- ^ Standalone schematic-binder check, disabled by default.
+    -- RSTT-safe mode enables the check regardless of this setting.
   }
 
 -- | The sensitivity levels of the meta-parameter layer check.
@@ -319,8 +324,14 @@ emptyContext = Context
   , ctxHolesAreErrors = True
   , ctxDeferHoleMismatches = True
   , ctxHintLemmas = []
+  , ctxRSTTSafe = RSTTSafeOff
+  , ctxRSTTSafeOverride = Nothing
   , ctxWarnOverhang = False
   , ctxMetaPrefixSensitivity = MetaPrefixStrict
+  , ctxWarnTopeFamilyDomain = True
+  , ctxStandaloneWarnFreeStandingRestriction = False
+  , ctxStandaloneWarnShapeDependency = False
+  , ctxStandaloneWarnMetaBinder = False
   }
 
 -- | The tope context of an empty context: @⊤@ holds under every modality.
@@ -530,6 +541,10 @@ insertVarInfo name info ctx = ctx { ctxVars = replace (ctxVars ctx) }
 isAccessible :: ModalTope n -> Bool
 isAccessible mt = coe (tModVar mt) (tModAccum mt)
 
+isVarAccessible :: VarInfo n -> Bool
+isVarAccessible info =
+  varIsTopLevel info || coe (varModality info) (varModAccum info)
+
 filterAccessible :: [ModalTope n] -> [ModalTope n]
 filterAccessible = filter isAccessible
 
@@ -562,3 +577,33 @@ withHintLemmas lemmas ctx = ctx { ctxHintLemmas = lemmas }
 -- than being deferred (see 'ctxDeferHoleMismatches').
 structuralHoleUnify :: Context n -> Context n
 structuralHoleUnify ctx = ctx { ctxDeferHoleMismatches = False }
+
+-- | Policy for reporting RSTT fragment violations.
+data RSTTSafeMode = RSTTSafeOff | RSTTSafeWarn | RSTTSafeError
+  deriving (Eq, Show, Read)
+
+rsttSafeMode :: Context n -> RSTTSafeMode
+rsttSafeMode ctx = case ctxRSTTSafeOverride ctx of
+  Just mode -> mode
+  Nothing   -> ctxRSTTSafe ctx
+
+rsttSafeEnabled :: Context n -> Bool
+rsttSafeEnabled ctx = rsttSafeMode ctx /= RSTTSafeOff
+
+-- | Whether to check free-standing restrictions, including RSTT-safe requirements.
+ctxWarnFreeStandingRestriction :: Context n -> Bool
+ctxWarnFreeStandingRestriction ctx =
+  rsttSafeEnabled ctx || ctxStandaloneWarnFreeStandingRestriction ctx
+
+-- | Whether to check shape dependencies, including RSTT-safe requirements.
+ctxWarnShapeDependency :: Context n -> Bool
+ctxWarnShapeDependency ctx = rsttSafeEnabled ctx || ctxStandaloneWarnShapeDependency ctx
+
+-- | Whether to check schematic binders, including RSTT-safe requirements.
+ctxWarnMetaBinder :: Context n -> Bool
+ctxWarnMetaBinder ctx = rsttSafeEnabled ctx || ctxStandaloneWarnMetaBinder ctx
+
+effectiveMetaPrefixSensitivity :: Context n -> MetaPrefixSensitivity
+effectiveMetaPrefixSensitivity ctx
+  | rsttSafeEnabled ctx = MetaPrefixStrict
+  | otherwise = ctxMetaPrefixSensitivity ctx

@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - unsaturated schematic parameters
+regression_for:
+  - rstt-error-propagates-through-meta-prefix-traversal

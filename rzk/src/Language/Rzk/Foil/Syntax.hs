@@ -45,6 +45,7 @@ import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
                                                  alphaEquiv,
                                                  substitute, unsafeEqAST)
 import           Data.ZipMatchK                 (Mappings (..),
+                                                 ZipMatchFoldK,
                                                  ZipMatchK (..),
                                                  zipMatchViaChooseLeft,
                                                  zipMatchViaEq)
@@ -120,7 +121,7 @@ data TermSig scope term
     -- branch per constructor (constructor name, arm chain). The node is
     -- elaborated into the generated eliminator during typechecking, so a
     -- /typed/ match never exists.
-    | MatchF term (Maybe term) [(VarIdent, term)]
+    | MatchF TModality term (Maybe term) [(VarIdent, term)]
     -- | One branch binder of a match; the body is the next arm, or the branch
     -- body once the binders run out. Valid only inside a 'MatchF' branch; the
     -- parser cannot produce it anywhere else.
@@ -169,6 +170,7 @@ instance ZipMatchK (Maybe VarIdent) where
   zipMatchWithK = zipMatchViaEq
 
 instance ZipMatchK LambdaParam
+instance ZipMatchFoldK LambdaParam
 
 -- | The node matcher, TH-derived: an explicit instance, so no @Generics.Kind@
 -- view is rebuilt per comparison. It drives 'Control.Monad.Free.Foil.alphaEquiv'
@@ -568,7 +570,7 @@ pattern FirstT info t = Node (AnnSig info (FirstF t))
 pattern SecondT info t = Node (AnnSig info (SecondF t))
 pattern ReflT info mx = Node (AnnSig info (ReflF mx))
 pattern IdJT info a b c d e f = Node (AnnSig info (IdJF a b c d e f))
-pattern MatchT info scrut mmotive branches = Node (AnnSig info (MatchF scrut mmotive branches))
+pattern MatchT info md scrut mmotive branches = Node (AnnSig info (MatchF md scrut mmotive branches))
 pattern MatchArmT info orig arm = Node (AnnSig info (MatchArmF orig arm))
 pattern UnitT info = Node (AnnSig info UnitF)
 pattern TypeUnitT info = Node (AnnSig info TypeUnitF)
@@ -641,7 +643,7 @@ pattern First t = UntypedNode (FirstF t)
 pattern Second t = UntypedNode (SecondF t)
 pattern Refl mx = UntypedNode (ReflF mx)
 pattern IdJ a b c d e f = UntypedNode (IdJF a b c d e f)
-pattern Match scrut mmotive branches = UntypedNode (MatchF scrut mmotive branches)
+pattern Match md scrut mmotive branches = UntypedNode (MatchF md scrut mmotive branches)
 pattern MatchArm orig arm = UntypedNode (MatchArmF orig arm)
 pattern Unit = UntypedNode UnitF
 pattern TypeUnit = UntypedNode TypeUnitF

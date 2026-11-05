@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- TOPE is a parameter kind, not a field: a field would store a tope as data.
+#data Boxed := box (psi : TOPE)

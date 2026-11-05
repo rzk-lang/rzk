@@ -1,4 +1,6 @@
 status: error
 error_tag: TypeErrorNotModal
 message_contains:
-  - "expected modal type"
+  - "cannot eliminate a non-modal value"
+  - "value: x"
+  - "type:  A"

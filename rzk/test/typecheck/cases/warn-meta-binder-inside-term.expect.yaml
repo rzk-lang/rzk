@@ -1,0 +1,7 @@
+status: ok
+warnings:
+  - MetaBinderWarning
+  - MetaBinderWarning
+  - MetaBinderWarning
+regression_for:
+  - meta-binder-warning

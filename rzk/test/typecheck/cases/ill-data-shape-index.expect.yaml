@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "index of a #data sort must be a plain type"
+line: 7
+regression_for:
+  - data-shape-fields-reject-shape-index

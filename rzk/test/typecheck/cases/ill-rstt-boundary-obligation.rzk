@@ -1,0 +1,5 @@
+#lang rzk-1
+#set-option "rstt-safe" = "error"
+#def boundary-obligation (A : U) (a b : A)
+  ((s, t) : 2 * 2 | s === 0_2 /\ t === 0_2)
+  : A [s === t ↦ a] := b

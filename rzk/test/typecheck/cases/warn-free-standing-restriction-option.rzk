@@ -1,0 +1,20 @@
+#lang rzk-1
+
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
+-- The report is controlled by warn-free-standing-restriction; what the
+-- checker accepts does not change.
+
+#def quietly (A : U) (x : A) : U
+  := A [TOP ↦ x]
+
+#set-option "warn-free-standing-restriction" = "yes"
+
+#def reported (A : U) (x : A) : U
+  := A [TOP ↦ x]
+
+#unset-option "warn-free-standing-restriction"
+
+#def reset-quietly (A : U) (x : A) : U
+  := A [TOP ↦ x]

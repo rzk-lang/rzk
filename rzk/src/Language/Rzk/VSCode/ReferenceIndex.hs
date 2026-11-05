@@ -453,6 +453,10 @@ goTerm file env = \case
   Rzk.Match _ scrut bs          -> goTerm file env scrut ++ concatMap (matchBranchScope file env) bs
   Rzk.MatchInto _ scrut motive bs ->
     goTerm file env scrut ++ goTerm file env motive ++ concatMap (matchBranchScope file env) bs
+  Rzk.MatchModal _ _ scrut bs ->
+    goTerm file env scrut ++ concatMap (matchBranchScope file env) bs
+  Rzk.MatchModalInto _ _ scrut motive bs ->
+    goTerm file env scrut ++ goTerm file env motive ++ concatMap (matchBranchScope file env) bs
   Rzk.TypeAsc _ a b             -> goTerm file env a ++ goTerm file env b
 
   Rzk.Universe{}           -> []

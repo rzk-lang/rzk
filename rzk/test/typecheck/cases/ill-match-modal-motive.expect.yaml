@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorModalityMismatch
+message_contains:
+  - "modality mismatch"
+regression_for:
+  - modal-match-motive-binder-modality

@@ -1,0 +1,22 @@
+#lang rzk-1
+
+-- A concrete family not included in its declared domain is read as its
+-- intersection with the domain (happy-tope-family-domain-instance), so the
+-- family checked differs from the family written, and the checker says so.
+
+#def over-domain (I : CUBE) (ψ : I → TOPE) (χ : ψ → TOPE) (A : U) : U
+  := (t : χ) → A
+
+-- ⊤ over the domain ⊥ is read as ⊥ ∧ ⊤.
+#def instantiate (I : CUBE) (A : U) : U
+  := over-domain I (\ t → BOT) (\ t → TOP) A
+
+-- In a parameter type, the family is elaborated twice and reported once.
+#def from-instantiated (I : CUBE) (A : U) (f : over-domain I (\ t → BOT) (\ t → TOP) A)
+  : (t : I | BOT) → A
+  := f
+
+-- t ≡ 0₂ over the domain t ≡ 0₂ ∨ t ≡ 1₂ is included; silent.
+#def endpoint (A : U) (a : A)
+  : over-domain 2 (\ t → t ≡ 0₂ ∨ t ≡ 1₂) (\ t → t ≡ 0₂) A
+  := \ t → a

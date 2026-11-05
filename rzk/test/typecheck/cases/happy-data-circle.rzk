@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- The circle: one point constructor and one path constructor. The path
 -- methods refer to the point methods, so the generated eliminator types
 -- bind their methods by name (m-base, m-loop); transport is spelled

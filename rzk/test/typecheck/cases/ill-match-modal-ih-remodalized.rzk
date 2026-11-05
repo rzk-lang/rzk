@@ -1,0 +1,10 @@
+#lang rzk-1
+
+#data Nat := zero | suc (pred : Nat)
+
+#define modal-match-ih-remodalized
+  (x :_b Nat)
+  : Unit
+  := match _b x
+       ( zero => unit
+       | suc pred ih => let _b copy := ih in unit)

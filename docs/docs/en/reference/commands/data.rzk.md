@@ -24,7 +24,7 @@ compute with <name> : <type>
 
 ## Description
 
-The declaration introduces the type former, one ordinary top-level name per constructor, and two generated eliminators: the induction principle `ind-<name>` and its non-dependent version `rec-<name>`. All of them live in the same namespace as every other top-level name, so a clash with an existing name is an error. The second form (no `:=`) declares the empty family.
+The declaration introduces the type former, one ordinary top-level name per constructor, and the generated eliminators: the induction principle `ind-<name>` and its non-dependent version `rec-<name>`, and, for a declaration without path constructors, their [modal variants](../match.rzk.md#modal-matching) `ind-op-<name>`, `rec-op-<name>`, `ind-b-<name>` and `rec-b-<name>`. All of them live in the same namespace as every other top-level name, so a clash with an existing name is an error. The second form (no `:=`) declares the empty family.
 
 For example:
 
@@ -128,7 +128,7 @@ An endpoint must be built from the declaration's constructors and the constructo
 
 ## The re-ascription clauses
 
-A declaration may end with re-ascription clauses: `eliminate with` names one of the two generated eliminators, `compute with` names a generated computation rule, and either gives the entry's type in the user's own spelling. The checker verifies that the spelling is definitionally equal to the canonical generated type, with the type former and the constructors in scope. Since definitionally equal types are interchangeable, the values and the computation rules are untouched; only the stored spelling changes, and it propagates wherever the type is displayed, e.g. to hover and to goals. If the given spelling is not definitionally equal to the canonical type, the error prints the canonical type.
+A declaration may end with re-ascription clauses: `eliminate with` names one of the generated eliminators, `compute with` names a generated computation rule, and either gives the entry's type in the user's own spelling. The checker verifies that the spelling is definitionally equal to the canonical generated type, with the type former and the constructors in scope. Since definitionally equal types are interchangeable, the values and the computation rules are untouched; only the stored spelling changes, and it propagates wherever the type is displayed, e.g. to hover and to goals. If the given spelling is not definitionally equal to the canonical type, the error prints the canonical type.
 
 This matters most for path constructors, whose canonical types inline transport and `ap`/`apd` through `#!rzk idJ`. With a library `transport`, `ap` and `apd` (each definable from `#!rzk idJ` before any declaration), the circle reads:
 
@@ -177,7 +177,45 @@ The clauses are equally available on declarations without path constructors, e.g
 At the moment:
 
 - recursive fields must be direct: a positive function-typed field such as `#!rzk node (f : A → tree)` (the W-type shape) is not supported yet;
-- indices must be plain types (no cube or shape indices), and constructors may not take cube or shape arguments (over the directed interval they would declare directed cells);
+- every binder of a `#data` is checked against its layer, on the elaborated form, so the rule does not depend on the spelling. A *parameter* may be a type, `#!rzk CUBE`, `#!rzk TOPE`, or a tope family `#!rzk I → TOPE` — the parameter kinds of the meta-theoretic parameter layer, which the generic realisation below depends on. An *index* must be a type, full stop: cube points, shape points, `#!rzk CUBE`, and tope families are all rejected (a family varying over a shape is what extension types are for). A *field* may be a type, a cube point, or a shape point, and nothing else: a field of `#!rzk CUBE` or of a tope family would store a cube- or tope-layer citizen inside type-layer data. The modal kinds (`#!rzk _op TOPE`, `#!rzk _b CUBE`, `#!rzk _# (I → TOPE)`, families into them) may be parameters, as an experimental part of the [modal layer](../modalities.rzk.md), and are rejected as indices and fields;
+- a modal *type* field (`#!rzk (x :_b A)`) is not supported yet: a type field can be recursive, and the recursion and positivity bookkeeping does not see through a modal binder. A modal *cube* or *shape* field (`#!rzk (t :_b I)`, `#!rzk (t :_b Φ)`, `#!rzk (t :_b I | φ)`) is fine — such a field cannot be recursive — and the eliminator binds it with its modality, so the lock discipline of [modalities](../modalities.rzk.md) applies inside a branch. The distinction is made after elaboration, so it does not depend on the spelling;
 - path constructors are not supported in indexed families, and only paths between points are supported: an identity carrier or an identity-typed field (a higher path, as in the 0-truncation) is rejected.
+
+## Shape fields
+
+A constructor may take a *shape* point. The declared type is then the shape realisation of that shape: it is freely generated by a Φ-indexed family of points, with no identifications between them.
+
+A shape is a predicate on a cube, so it is spelled `#!rzk I → TOPE`, just as `#!rzk Δ¹` and `#!rzk Λ²₁` are. The general realisation is therefore
+
+```rzk
+#data Shape (I : CUBE) (phi : I → TOPE) := point (t : phi)
+```
+
+and mapping out of it is giving an extension-type section:
+
+```{.rzk}
+rec-Shape : (I : CUBE) → (phi : I → TOPE) → (C : U)
+          → ((t : I | phi t) → C) → Shape I phi → C
+```
+
+Computation is strict on a syntactic point, `#!rzk rec-Shape I phi C m (point I phi p) ≡ m p`.
+
+A field may equally be written with the shape inline, `#!rzk (t : I | φ)`, or with a bare cube, `#!rzk (t : I)`, which is the shape whose tope is `#!rzk ⊤`:
+
+```rzk
+#data Arr := seg (t : 2 | ⊤)
+```
+
+Matching binds the cube variable and brings the tope into the branch, so a shape field may be followed by fields that mention it:
+
+```rzk
+#data Total (A : (t : 2) → U) := tot (t : 2 | ⊤) (a : A t)
+```
+
+which is the total space of a family over the shape, and has no other spelling.
+
+The construction and its metatheory are due to Kudasov, [*Booleans, coproducts and shape types in type theory for synthetic ∞-categories*](https://fizruk.github.io/files/%5Bnotes%5D%20N.Kudasov.%20Booleans%2C%20coproducts%20and%20shape%20types%20in%20type%20theory%20for%20synthetic%20%E2%88%9E-categories.pdf), §4 "Shapes as types".
+
+One thing this deliberately does **not** provide: there is no way to give a field *face equations*, which is what would declare a directed cell such as the directed circle. The eliminator for those needs a Segal or covariant target, and the metatheory is open.
 
 Note also that an inductive type comes with exactly its induction principle; how the type interacts with the simplicial structure is a separate matter. See the discreteness caveat in [Dependent types](../../getting-started/dependent-types.rzk.md#booleans).

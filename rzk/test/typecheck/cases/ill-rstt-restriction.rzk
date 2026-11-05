@@ -1,0 +1,5 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#set-option "warn-free-standing-restriction" = "no"
+#def assumed (A : U) (a : A) (f : (A [TOP ↦ a]) → A) : A := f a

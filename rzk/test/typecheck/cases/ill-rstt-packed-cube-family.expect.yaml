@@ -1,0 +1,7 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "a Σ component must be a type, got a cube family"
+regression_for:
+  - rstt-safe-mode
+  - layer-discipline-direct-guards

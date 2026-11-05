@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- TOPE is a parameter kind of #data, like CUBE and tope families.
+#data Real (I : CUBE) (psi : TOPE) := pt (t : I | psi)
+
+#define pt-top (I : CUBE) (t : I) : Real I TOP := pt I TOP t

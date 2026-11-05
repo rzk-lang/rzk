@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A field may not store a tope family. Cube and shape *points* are the
+-- realisation fragment and stay; the family itself is a parameter kind, not
+-- data.
+#data F := c (phi : 2 -> TOPE)

@@ -1,0 +1,6 @@
+status: ok
+warnings:
+  - RSTTShapeDependencyWarning
+regression_for:
+  - rstt-safe-mode
+  - bare-tope-parameter

@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- A field of a modal cube kind is rejected like one of a modal tope kind,
+-- and the error names the kind.
+#data F := c (I : _b CUBE)

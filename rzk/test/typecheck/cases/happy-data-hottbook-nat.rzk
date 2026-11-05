@@ -1,5 +1,8 @@
 #lang rzk-1
 
+-- Exercise standalone diagnostics independently of the safe-mode bundle.
+#set-option "rstt-safe" = "off"
+
 -- HoTT book §2.13 (natural numbers), drafted against #data stage 2.
 
 #data empty

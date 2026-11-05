@@ -1,0 +1,8 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - cube supremum (sup)
+line: 4
+column: 23
+regression_for:
+  - rstt-safe-syntax-allow-list

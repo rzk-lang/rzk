@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "a Σ component must be a type, got a tope family"
+regression_for:
+  - layer-discipline-direct-guards

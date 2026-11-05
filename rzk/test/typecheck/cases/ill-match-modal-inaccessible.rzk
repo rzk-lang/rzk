@@ -1,0 +1,8 @@
+#lang rzk-1
+
+#data ModalMatch := mm (point : 2)
+
+-- A plain variable is not available under Flat, so it cannot be the
+-- scrutinee of `match _b`.
+#define modal-match-inaccessible (x : ModalMatch) : Unit
+  := match _b x (mm point => unit)

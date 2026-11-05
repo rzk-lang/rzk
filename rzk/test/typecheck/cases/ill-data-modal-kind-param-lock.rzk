@@ -1,0 +1,7 @@
+#lang rzk-1
+
+#data P-flat-cube (I : _b CUBE) := c-flat-cube
+
+-- A modal parameter is instantiated under its lock: a plain cube variable is
+-- not available under _b.
+#define bad (J : CUBE) : U := P-flat-cube (mod _b J)

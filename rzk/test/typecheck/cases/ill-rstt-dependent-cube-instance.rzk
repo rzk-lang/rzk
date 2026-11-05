@@ -1,0 +1,6 @@
+#lang rzk-1
+
+#set-option "rstt-safe" = "error"
+#def functions (I : CUBE) : U := (t : I) → Unit
+#def dependent (I : 2 → CUBE) (s : 2)
+  (f : functions (I s)) : Unit := unit

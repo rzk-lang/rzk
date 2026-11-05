@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorRSTT
+message_contains:
+  - schematic binder
+regression_for:
+  - rstt-safe-mode

@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- An index of a #data sort must be a type.
+#data OverTopes : TOPE -> U := at-top : OverTopes TOP

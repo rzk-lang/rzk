@@ -19,7 +19,12 @@ module Rzk.TypeCheck.Decl.Data where
 import           Data.Data          (Data, cast, gmapQ)
 import qualified Data.Text          as T
 
+import           Language.Rzk.Foil.Names (TModality (..),
+                                           fromMod,
+                                           fromTModalityToModalColon,
+                                           modalColonToTModality)
 import qualified Language.Rzk.Syntax as Rzk
+import           Rzk.TypeCheck.Context (ModeTheory (comp))
 import           Rzk.TypeCheck.Display (panicImpossible)
 
 -- * Surface-syntax builders and preprocessed forms
@@ -166,6 +171,46 @@ prefixedIdent :: T.Text -> Rzk.VarIdent -> Rzk.VarIdent
 prefixedIdent p (Rzk.VarIdent pos (Rzk.VarIdentToken t)) =
   Rzk.VarIdent pos (Rzk.VarIdentToken (p <> t))
 
+modalityPrefix :: TModality -> T.Text
+modalityPrefix = \case
+  Id    -> ""
+  Op    -> "op-"
+  Flat  -> "b-"
+  Sharp -> "sharp-"
+
+elimIdent :: T.Text -> TModality -> Rzk.VarIdent -> Rzk.VarIdent
+elimIdent kind md = prefixedIdent (kind <> "-" <> modalityPrefix md)
+
+modalizeParamDecl :: TModality -> Rzk.ParamDecl -> Rzk.ParamDecl
+modalizeParamDecl Id param = param
+modalizeParamDecl md param = case param of
+  Rzk.ParamType loc ty ->
+    Rzk.ParamTermModalType loc (surfaceVar underscoreIdent)
+      (fromTModalityToModalColon md) ty
+  Rzk.ParamTermType loc pat ty ->
+    Rzk.ParamTermModalType loc pat (fromTModalityToModalColon md) ty
+  Rzk.ParamTermShape loc pat cube tope ->
+    Rzk.ParamTermModalShape loc pat (fromTModalityToModalColon md) cube
+      (Rzk.ModType Nothing (fromMod md) tope)
+  Rzk.ParamTermModalType loc pat mc ty ->
+    Rzk.ParamTermModalType loc pat
+      (fromTModalityToModalColon (comp md (modalColonToTModality mc))) ty
+  Rzk.ParamTermModalShape loc pat mc cube tope ->
+    Rzk.ParamTermModalShape loc pat
+      (fromTModalityToModalColon (comp md (modalColonToTModality mc))) cube
+      (Rzk.ModType Nothing (fromMod md) tope)
+
+surfaceArrowModal :: TModality -> Rzk.Term -> Rzk.Term -> Rzk.Term
+surfaceArrowModal Id = surfaceArrow
+surfaceArrowModal md = surfacePiModal md underscoreIdent
+
+surfacePiModal :: TModality -> Rzk.VarIdent -> Rzk.Term -> Rzk.Term -> Rzk.Term
+surfacePiModal Id v ty ret = surfacePi v ty ret
+surfacePiModal md v ty ret =
+  Rzk.TypeFun Nothing
+    (Rzk.ParamTermModalType Nothing (surfaceVar v)
+      (fromTModalityToModalColon md) ty) ret
+
 -- | Index into a list that is long enough by construction, panicking with a
 -- label instead of the opaque @Prelude.!!@ message if that invariant is ever
 -- broken. Used where an index is derived from the same data as the list (the
@@ -191,6 +236,7 @@ recPositionsOf = map fst . dataConRecursive
 -- validated.
 data ElimSpec = ElimSpec
   { esName       :: Rzk.VarIdent
+  , esModality   :: TModality
   , esParamVars  :: [Rzk.VarIdent]
   , esParamDecls :: [Rzk.ParamDecl]
   , esIndexVars  :: [Rzk.VarIdent]
@@ -225,7 +271,8 @@ elimTerms spec = ElimTerms
     }
   where
     ElimSpec
-      { esName = name, esParamVars = paramVars, esParamDecls = paramDecls
+      { esName = name, esModality = elimMd
+      , esParamVars = paramVars, esParamDecls = paramDecls
       , esIndexVars = indexVars, esIndexDecls = indexDecls, esMotiveV = motiveV
       , esScrutV = scrutV, esIhNames = ihNames, esMethodVars = methodVars
       , esEndpointV = endpointV, esPathV = pathV, esTransportV = transportV
@@ -236,9 +283,9 @@ elimTerms spec = ElimTerms
     -- The motive abstracts over the indices (and, dependently, the
     -- scrutinee); a method's hypotheses and codomain instantiate it
     -- at the relevant index terms.
-    motiveSort dependent = addParamDecls indexDecls $
+    motiveSort dependent = addParamDecls (map (modalizeParamDecl elimMd) indexDecls) $
       if dependent
-        then surfaceArrow dAppliedIx (Rzk.Universe Nothing)
+        then surfaceArrowModal elimMd dAppliedIx (Rzk.Universe Nothing)
         else Rzk.Universe Nothing
     -- The constructor applied to the parameters and its own fields
     -- (for a path constructor, this is the declared identification).
@@ -277,17 +324,17 @@ elimTerms spec = ElimTerms
             | otherwise -> Rzk.TypeIdSimple Nothing iL iR
         wrapFields nRec ((j, (fieldDecl, fpat)) : more)
           | Just fieldIxs <- lookup j (dataConRecursive con) =
-              Rzk.TypeFun Nothing fieldDecl $
+              Rzk.TypeFun Nothing (modalizeParamDecl elimMd fieldDecl) $
                 surfacePi (nthByConstruction "induction hypotheses" ihNames nRec)
                   (surfaceApps motive (fieldIxs <> [ fpat | dependent ]))
                   (wrapFields (nRec + 1) more)
           | otherwise =
-              Rzk.TypeFun Nothing fieldDecl (wrapFields nRec more)
-    elimTail dependent = addParamDecls indexDecls $
+              Rzk.TypeFun Nothing (modalizeParamDecl elimMd fieldDecl) (wrapFields nRec more)
+    elimTail dependent = addParamDecls (map (modalizeParamDecl elimMd) indexDecls) $
       if dependent
-        then surfacePi scrutV dAppliedIx $
+        then surfacePiModal elimMd scrutV dAppliedIx $
           surfaceApps motive (map surfaceVar indexVars <> [surfaceVar scrutV])
-        else surfaceArrow dAppliedIx $
+        else surfaceArrowModal elimMd dAppliedIx $
           surfaceApps motive (map surfaceVar indexVars)
     conWithPath = zip consData pathData
     methodsPis dependent inner = case methodVars of
@@ -295,11 +342,11 @@ elimTerms spec = ElimTerms
       Just ms -> foldr
         (\(m, cp) rest -> surfacePi m (methodTy dependent cp) rest)
         inner (zip ms conWithPath)
-    elimTy dependent = addParamDecls paramDecls $
+    elimTy dependent = addParamDecls (map (modalizeParamDecl elimMd) paramDecls) $
       surfacePi motiveV (motiveSort dependent) $
         methodsPis dependent (elimTail dependent)
-    indName = prefixedIdent "ind-" name
-    recName = prefixedIdent "rec-" name
+    indName = elimIdent "ind" elimMd name
+    recName = elimIdent "rec" elimMd name
     -- The propositional β-lemma per path constructor and eliminator:
     -- the section's action on the constructor's path (ap/apd, spelled
     -- through idJ) equals the path method at the fields, with the
@@ -312,10 +359,10 @@ elimTerms spec = ElimTerms
       [ fpat : [ Rzk.App Nothing f fpat | j `elem` recPositionsOf con ]
       | (j, fpat) <- zip [0 :: Int ..] (dataConFieldPats con) ]
     computeTy dependent elimIdent m con l r =
-      addParamDecls paramDecls $
+      addParamDecls (map (modalizeParamDecl elimMd) paramDecls) $
         surfacePi motiveV (motiveSort dependent) $
           methodsPis dependent $
-            addParamDecls (dataConFields con) $
+            addParamDecls (map (modalizeParamDecl elimMd) (dataConFields con)) $
               let f = sectionOf elimIdent
                   fAt = Rzk.App Nothing f
                   -- apd (dependent) or ap: the motive of the outer
@@ -332,17 +379,18 @@ elimTerms spec = ElimTerms
                     (Rzk.Refl Nothing) r (conApplied con)
                   rhs = surfaceApps (surfaceVar m) (methodArgs f con)
                in Rzk.TypeIdSimple Nothing lhs rhs
-    computeNameFor pfx con =
+    computeNameFor kind con =
       let Rzk.VarIdent pos (Rzk.VarIdentToken d) = name
           Rzk.VarIdentToken c = identTokenOf (dataConName con)
-       in Rzk.VarIdent pos (Rzk.VarIdentToken (pfx <> d <> "-" <> c))
+       in Rzk.VarIdent pos
+            (Rzk.VarIdentToken ("compute-" <> kind <> "-" <> modalityPrefix elimMd <> d <> "-" <> c))
     computes = case methodVars of
       Nothing -> []
       Just ms ->
         [ entry
         | (m, (con, Just ((l, r), _))) <- zip ms conWithPath
         , entry <-
-            [ ( computeNameFor "compute-ind-" con
+            [ ( computeNameFor "ind" con
               , computeTy True indName m con l r )
-            , ( computeNameFor "compute-rec-" con
+            , ( computeNameFor "rec" con
               , computeTy False recName m con l r ) ] ]

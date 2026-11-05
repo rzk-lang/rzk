@@ -43,8 +43,9 @@ rejected. For example, a hole used as a function has no known type:
 ```
 
 Rzk does not introduce metavariables, so it never guesses the type of a hole.
-This keeps the meaning of a partial term predictable. A hole stands for a term
-of exactly the expected type, and nothing more.
+Each hole is annotated with its expected type. With `#!sh --allow-holes`, some
+unification and tope obligations involving holes are deferred; filling the holes
+may reveal further errors.
 
 ## Holes are errors by default
 
@@ -94,13 +95,19 @@ following the layers of the type theory:
   `#!rzk t : 2`);
 - **tope context** lists the tope assumptions in force at the hole.
 
+Under a [modality](modalities.rzk.md), an entry that cannot be used at the hole
+is still listed, marked with `×` and followed by its declared modality and the
+locks accumulated since, for example `× B : U  [modality: ᵒᵖ, locks: _id]`. The
+same applies to a tope assumption that is not in force. A usable entry with a
+modality other than `_id` shows the suffix without the mark.
+
 Only _local_ hypotheses are shown. The global environment, that is every
 previous definition, is deliberately excluded, so that the goal stays readable
 even inside a large development.
 
-The goal is kept symbolic. Composite definitions are shown as written, not
-unfolded. For an extension type the goal carries its boundary, so the conditions
-the term must satisfy are visible.
+Rzk displays the goal in weak head normal form, so definitions at its head may
+unfold. Extension-type boundaries are shown after simplification in the local
+tope context.
 
 When a binder uses a pair pattern, for example `#!rzk \ (t , s) -> ...`, the
 hypothesis is shown by its pattern, as `#!rzk (t, s) : ...`, rather than through
@@ -135,13 +142,21 @@ carries its structured goal and context under `#!json "hole"`:
   "hole": {
     "name": "b",
     "goal": "B",
-    "termVars": [ { "name": "p", "type": "Σ (x₁ : A), B" }, ... ],
+    "termVars": [ { "name": "p", "type": "Σ (x₁ : A), B",
+                    "modality": "_id", "locks": "_id", "accessible": true }, ... ],
     "cubeVars": [],
     "topes": [],
+    "topeInfo": [],
     "shape": null
   }
 }
 ```
+
+Each term and cube variable carries its declared `#!json "modality"`, the
+`#!json "locks"` accumulated since, and whether it is `#!json "accessible"` at
+the hole. `#!json "topes"` lists the tope assumptions in force, as strings.
+`#!json "topeInfo"` lists all tope assumptions, each as an object with
+`#!json "tope"` and the same three fields.
 
 ## Tooling
 

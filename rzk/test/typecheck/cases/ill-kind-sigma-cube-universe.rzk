@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- The cube universe cannot be a Σ component.
+#define A : U := Σ (I : CUBE) , Unit

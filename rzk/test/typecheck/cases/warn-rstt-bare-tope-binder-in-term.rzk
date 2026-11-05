@@ -1,0 +1,11 @@
+#lang rzk-1
+
+-- A TOPE binder inside a term is a meta binder in an object position, as
+-- for a tope family: once inside data, once in a redex.
+#set-option "rstt-safe" = "warn"
+
+#define in-pair (A : U) (a : A) : A
+  := first ((a , \ psi -> a) as Σ (x : A) , ((psi : TOPE) -> A))
+
+#define in-redex (A : U) (a : A) : A
+  := (\ (psi : TOPE) -> a) TOP

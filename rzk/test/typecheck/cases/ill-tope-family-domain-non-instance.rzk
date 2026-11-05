@@ -1,0 +1,17 @@
+#lang rzk-1
+
+-- A family χ : ψ → TOPE is read together with its domain where it is applied:
+-- the binder (t : χ) carries ψ t ∧ χ t. Passed to `wider`, it is read without
+-- the domain. For a family variable the two readings agree, so `coerce` is
+-- accepted. The instantiation ψ := ⊥, χ := ⊤ violates the inclusion, and
+-- without the domain conjunct on the concrete family `bad` inhabited every
+-- type. It must be rejected.
+
+#def wider (I : CUBE) (φ : I → TOPE) (A : U) : U := (t : φ) → A
+
+#def coerce (I : CUBE) (ψ : I → TOPE) (χ : ψ → TOPE) (A : U) (f : (t : χ) → A)
+  : wider I χ A
+  := f
+
+#def bad (A : U) : A
+  := coerce 2 (\ t → BOT) (\ t → TOP) A (\ t → recBOT) 0₂

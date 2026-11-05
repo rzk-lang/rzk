@@ -31,6 +31,8 @@ nav:
       - Tope disjunction elimination: reference/tope-disjunction-elimination.rzk.md
       - Extension types: reference/extension-types.rzk.md
       - Holes: reference/holes.md
+      - Known limitations:
+          - Hurkens's paradox: reference/limitations/hurkens.rzk.md
       - Organizational features:
           - Sections and Variables: reference/sections.rzk.md
       - Builtins:
