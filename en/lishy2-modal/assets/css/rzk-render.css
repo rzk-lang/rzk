@@ -1,0 +1,6 @@
+.rzk-render {
+  float: right;
+  clear: both;
+  position: relative;
+  z-index: 1;
+}

@@ -1,0 +1,2019 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An experimental proof assistant for simplicial type theory and synthetic ∞-categories.">
+      
+      
+        <meta name="author" content="Nikolai Kudasov">
+      
+      
+        <link rel="canonical" href="https://rzk-lang.github.io/rzk/en/v0.8/reference/modalities.rzk/">
+      
+      
+        <link rel="prev" href="../type-layer.rzk/">
+      
+      
+        <link rel="next" href="../tope-disjunction-elimination.rzk/">
+      
+      
+        
+          <link rel="alternate" href="/rzk/en/" hreflang="en">
+        
+          <link rel="alternate" href="/rzk/ru/" hreflang="ru">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Modalities (experimental) - Rzk proof assistant</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inria+Sans:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inria Sans";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    
+      <link rel="stylesheet" href="../../assets/css/rzk-render.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#modalities-experimental" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Rzk proof assistant" class="md-header__button md-logo" aria-label="Rzk proof assistant" data-md-component="logo">
+      
+  <img src="../../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Rzk proof assistant
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Modalities (experimental)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="/rzk/en/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="/rzk/ru/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/rzk-lang/rzk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../introduction.rzk/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../playground/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Playground
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../blog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Blog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Rzk proof assistant" class="md-nav__button md-logo" aria-label="Rzk proof assistant" data-md-component="logo">
+      
+  <img src="../../assets/images/logo-1000x1000.png" alt="logo">
+
+    </a>
+    Rzk proof assistant
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/rzk-lang/rzk" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rzk-lang/rzk
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../getting-started/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../introduction.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cube-layer.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cube layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tope-layer.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tope layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../type-layer.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dependent types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modalities (experimental)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modalities (experimental)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#modalities-in-rzk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modalities in Rzk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modal-types-and-introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modal types and introduction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modal-let-mod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modal let mod
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modal-bindings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modal bindings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#s4-like-combinators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        S4-like combinators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-typechecker-uses-modalities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the typechecker uses modalities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modalities-at-tope-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modalities at tope level
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Modalities at tope level">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inversion-of-arrows-with-op" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inversion of arrows with op
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discrete-interval-elimination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discrete interval elimination
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-unsoundness-footgun-dont-postulate-on-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known unsoundness footgun: don't postulate √ on 2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#axioms-and-larger-formalizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Axioms and larger formalizations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related reading
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tope-disjunction-elimination.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tope disjunction elimination
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extension-types.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extension types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Organizational features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Organizational features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sections.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sections and Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_9" id="__nav_3_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Builtins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Builtins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../builtins/directed-interval.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Directed interval
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../builtins/unit.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit type
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_10" id="__nav_3_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Commands
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../commands/define-postulate.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Define and Postulate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../commands/compute.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compute
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../commands/check.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../commands/options.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_11" id="__nav_3_11_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Other
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Other
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../render.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rendering Diagrams
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_12" id="__nav_3_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/recId.rzk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weak tope disjunction elimination
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../playground/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Playground
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../blog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/rzk-lang/rzk/edit/develop/docs/docs/en/reference/modalities.rzk.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="modalities-experimental">Modalities (experimental)<a class="headerlink" href="#modalities-experimental" title="Permanent link">&para;</a></h1>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">#lang</span><span class="p"> </span><span class="s">rzk-1</span>
+</span></code></pre></div>
+<p>Rzk's <strong>modal extension</strong> supports reasoning in the style of <strong>Triangulated Type Theory</strong> (TTT), introduced by Gratzer, Weinberger, and Buchholtz<sup id="fnref:ttt"><a class="footnote-ref" href="#fn:ttt">1</a></sup> as an enrichment of simplicial type theory with modalities <span class="arithmatex">\(\flat\)</span>, <span class="arithmatex">\(\sharp\)</span>, and <span class="arithmatex">\(op\)</span>. The extension was implemented by Islam Talipov<sup id="fnref:hottuf26"><a class="footnote-ref" href="#fn:hottuf26">2</a></sup>, using a <strong>parameterized mode theory</strong> (composition and coercion of modes) layered on top of Rzk’s existing cube, tope, and type layers. It ships with Rzk v0.8 and remains experimental.</p>
+<p>Formalizations that use this syntax include the <a href="https://github.com/LIshy2/sHoTT/tree/diruniv">sHoTT <code>diruniv</code> branch</a>, in particular <a href="https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/15-modalities.rzk">modal API examples</a> and a development of directed univalence (<a href="https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/17-diruniv.rzk"><code>17-diruniv.rzk</code></a>).</p>
+<div class="admonition warning">
+<p class="admonition-title">Experimental</p>
+<p>Modalities are an experimental extension shipped in Rzk v0.8. The surface syntax and the mode theory may still change in future releases.</p>
+</div>
+<h2 id="modalities-in-rzk">Modalities in Rzk<a class="headerlink" href="#modalities-in-rzk" title="Permanent link">&para;</a></h2>
+<p>Currently Rzk supports 3 modalities:</p>
+<table>
+<thead>
+<tr>
+<th>Description</th>
+<th>ASCII syntax</th>
+<th>Unicode syntax</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Discretization</strong></td>
+<td><code class="language-rzk highlight"><span class="nd">_b</span></code></td>
+<td><code class="language-rzk highlight"><span class="nd">♭</span></code></td>
+</tr>
+<tr>
+<td><strong>Codiscretization</strong></td>
+<td><code class="language-rzk highlight"><span class="nd">_#</span></code></td>
+<td><code class="language-rzk highlight"><span class="nd">♯</span></code></td>
+</tr>
+<tr>
+<td><strong>Reverses orientation of arrows</strong></td>
+<td><code class="language-rzk highlight"><span class="nd">_op</span></code></td>
+<td><code class="language-rzk highlight"><span class="nd">ᵒᵖ</span></code></td>
+</tr>
+<tr>
+<td><strong>Identity</strong></td>
+<td><code class="language-rzk highlight"><span class="nd">_id</span></code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Modalities compose according to a fixed mode theory (for example, <code class="language-rzk highlight">_op/_op</code> reduces to <code class="language-rzk highlight"><span class="nd">_id</span></code>). Not every pair of modalities coerces into one another; the typechecker tracks which variables are accessible under the current modal context.</p>
+<div class="grid">
+<div style="text-align:center;">
+<pre class="mermaid"><code>graph TB
+  flat["♭  flat"]
+  id["𝑖𝑑  identity"]
+  sharp["♯  sharp"]
+  op["ᵒᵖ  opposite"]
+
+  flat --&gt;|"coe"| id
+  id  --&gt;|"coe"| sharp
+  id ~~~ op</code></pre>
+</div>
+<div style="text-align:center;">
+<p><strong>♭ is idempotent and absorbing</strong></p>
+<p><span class="arithmatex">\({\flat} \cdot {\flat} = {\flat}\)</span> &emsp; <span class="arithmatex">\({\flat} \cdot {\sharp} = {\flat}\)</span></p>
+<p><span class="arithmatex">\({op} \cdot {\flat} = {\flat}\)</span> &emsp; <span class="arithmatex">\({\flat} \cdot {op} = {\flat}\)</span></p>
+<p><strong>♯ is idempotent and absorbing</strong></p>
+<p><span class="arithmatex">\({\sharp} \cdot {\sharp} = {\sharp}\)</span> &emsp; <span class="arithmatex">\({\sharp} \cdot {\flat} = {\sharp}\)</span></p>
+<p><span class="arithmatex">\({\sharp} \cdot {op} = {\sharp}\)</span> &emsp; <span class="arithmatex">\({op} \cdot {\sharp} = {\sharp}\)</span></p>
+<p><strong>op is involutive</strong></p>
+<p><span class="arithmatex">\({op} \cdot {op} = {id}\)</span></p>
+</div>
+</div>
+<h2 id="modal-types-and-introduction">Modal types and introduction<a class="headerlink" href="#modal-types-and-introduction" title="Permanent link">&para;</a></h2>
+<p>A type in modality <code class="language-rzk highlight">µ</code> is written <code class="language-rzk highlight"><span class="p">&lt;|</span> µ | A <span class="p">|&gt;</span></code>, where <code class="language-rzk highlight">A</code> is checked under <code class="language-rzk highlight">µ</code>. A term of that type is introduced with <code class="language-rzk highlight"><span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> µ t</code>, where <code class="language-rzk highlight">t</code> is checked in a context “under” modality <code class="language-rzk highlight">µ</code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:sharp-pure₁" id="define:sharp-pure₁" style="visibility: visible; position: relative; color: inherit">sharp-pure₁</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="kt">U</span>) <span class="p">(</span>x <span class="p">:</span> A)
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  : <span class="p">&lt;|</span> <span class="nd">♯</span> | A <span class="p">|&gt;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  := <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♯</span> x
+</span></code></pre></div>
+<p>This works for <code class="language-rzk highlight"><span class="nd">_#</span></code> because there is a coercion <code class="language-rzk highlight">id → <span class="nd">_#</span></code>, so any variable accessible under <code class="language-rzk highlight">id</code> (i.e. any ordinary variable) is also accessible under <code class="language-rzk highlight"><span class="nd">_#</span></code>. For <code class="language-rzk highlight"><span class="nd">_b</span></code> there is no such coercion, so the analogous definition is ill-typed:</p>
+<div class="language-text rzk highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>-- ill-typed
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>#def bad-flat-pure (A : U) (x : A)
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  : &lt;| _b | A |&gt;
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  := mod _b x
+</span></code></pre></div>
+<h2 id="modal-let-mod">Modal <code class="language-rzk highlight"><span class="k">let mod</span></code><a class="headerlink" href="#modal-let-mod" title="Permanent link">&para;</a></h2>
+<p>Modal <code class="language-rzk highlight"><span class="k">let mod</span></code> is the elimination principle for modal types.
+Modal bindings use <code class="language-rzk highlight"><span class="k">let mod</span> ext/inn x := value <span class="k">in</span> body</code>, where:</p>
+<ul>
+<li><code class="language-rzk highlight">value</code> is checked against <code class="language-rzk highlight"><span class="p">&lt;|</span> inn | T <span class="p">|&gt;</span></code> under an <strong><code>ext</code>-lock</strong></li>
+<li><code class="language-rzk highlight">body</code> is checked with <code class="language-rzk highlight">x</code> <span class="arithmatex">\(:^{ext \cdot inn}\)</span> <code class="language-rzk highlight">T</code> in context</li>
+</ul>
+<p>If <code class="language-rzk highlight">ext</code> is omitted, <code class="language-rzk highlight"><span class="k">let mod</span> m x := value <span class="k">in</span> body</code> is sugar for <code class="language-rzk highlight"><span class="k">let mod</span> _id/m x := value <span class="k">in</span> body</code>.</p>
+<p>It can be seen as a pattern-match on <code class="language-rzk highlight"><span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span></code> in the binder. For example, <code class="language-rzk highlight">flat-extract</code> is the opposite of <code class="language-rzk highlight">sharp-pure</code> — it is definable precisely because there is a coercion <span class="arithmatex">\(\flat \Rightarrow id\)</span>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:flat-extract" id="define:flat-extract" style="visibility: visible; position: relative; color: inherit">flat-extract</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="p">&lt;|</span> <span class="nd">♭</span> | <span class="kt">U</span> <span class="p">|&gt;</span>) <span class="p">(</span>x <span class="p">:</span> <span class="k">let mod</span> <span class="nd">♭</span> Ab := A <span class="k">in</span> <span class="p">&lt;|</span> <span class="nd">♭</span> | Ab <span class="p">|&gt;</span>)
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  : <span class="k">let mod</span> <span class="nd">♭</span> Ab := A <span class="k">in</span> Ab
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  := <span class="k">let mod</span> <span class="nd">♭</span> xb := x <span class="k">in</span> xb
+</span></code></pre></div>
+<p>Using <code class="language-rzk highlight"><span class="k">let mod</span></code> you can define the modal сomposition <span class="arithmatex">\(\langle \mu | \langle \nu | A \rangle \rangle \to \langle \mu \cdot \nu | A \rangle\)</span>. A concrete example is <code class="language-rzk highlight">double-op</code>:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:double-op" id="define:double-op" style="visibility: visible; position: relative; color: inherit">double-op</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="kt">U</span>) <span class="p">(</span>x <span class="p">:</span> <span class="p">&lt;|</span> <span class="nd">ᵒᵖ</span> | <span class="p">&lt;|</span> <span class="nd">ᵒᵖ</span> | A <span class="p">|&gt;</span> <span class="p">|&gt;</span>)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  : A
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  :=
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  <span class="k">let mod</span> <span class="nd">ᵒᵖ</span> x_1 := x <span class="k">in</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  <span class="k">let mod</span> <span class="nd">ᵒᵖ</span> / <span class="nd">ᵒᵖ</span> x_2 := x_1 <span class="k">in</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  x_2
+</span></code></pre></div>
+<h2 id="modal-bindings">Modal bindings<a class="headerlink" href="#modal-bindings" title="Permanent link">&para;</a></h2>
+<p>Modal parameter annotations <code class="language-rzk highlight"><span class="p">(</span>x <span class="p">:</span> m A)</code> are syntactic sugar that makes definitions look less verbose than the raw <code class="language-rzk highlight"><span class="k">let mod</span></code> form. A parameter <code class="language-rzk highlight"><span class="p">(</span>x <span class="p">:</span> <span class="nd">_b</span> A) -&gt; ...</code> desugars to <code class="language-rzk highlight"><span class="p">(</span>_a <span class="p">:</span> <span class="p">&lt;|</span> <span class="nd">_b</span> | A <span class="p">|&gt;</span>) → <span class="k">let mod</span> <span class="nd">_b</span> x := _a <span class="k">in</span> …</code>. This sugar is available in <code class="language-rzk highlight">λ</code>-abstractions, <code class="language-rzk highlight">Π</code>- and <code class="language-rzk highlight"><span class="kt">Σ</span></code>-types, and definition argument lists.</p>
+<p>For example, <code class="language-rzk highlight">b-extract</code> and <code class="language-rzk highlight">b-map</code> written with modal bindings are much cleaner than the explicit <code class="language-rzk highlight"><span class="k">let mod</span></code> version shown above:</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:b-extract₁" id="define:b-extract₁" style="visibility: visible; position: relative; color: inherit">b-extract₁</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="nd">♭</span> <span class="kt">U</span>) <span class="p">(</span>x <span class="p">:</span> <span class="nd">♭</span> A)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  : A
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  := x
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:b-map₁" id="define:b-map₁" style="visibility: visible; position: relative; color: inherit">b-map₁</a></span> <span class="p">(</span>A B <span class="p">:</span> <span class="nd">♭</span> <span class="kt">U</span>) <span class="p">(</span>f <span class="p">:</span> <span class="nd">♭</span> A → B)
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  : <span class="p">&lt;|</span> <span class="nd">♭</span> | A <span class="p">|&gt;</span> → <span class="p">&lt;|</span> <span class="nd">♭</span> | B <span class="p">|&gt;</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  :=
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>  \ <span class="p">(</span>x <span class="p">:</span> <span class="nd">♭</span> A) → <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♭</span> (f x)
+</span></code></pre></div>
+<h2 id="s4-like-combinators">S4-like combinators<a class="headerlink" href="#s4-like-combinators" title="Permanent link">&para;</a></h2>
+<p>Below is a small self-contained example of modal syntax. The combinators follow the S4-style structure: each modality comes with extract/map/join operations where the mode theory allows it. Note that <code class="language-rzk highlight"><span class="nd">♭</span></code> carries a <strong>comonadic</strong> structure (<code>b-extract</code>, <code>b-map</code>, <code>b-dup</code>), while <code class="language-rzk highlight"><span class="nd">♯</span></code> carries a <strong>monadic</strong> structure (<code>sharp-pure</code>, <code>sharp-map</code>, <code>sharp-join</code>).</p>
+<div class="language-rzk highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:b-extract" id="define:b-extract" style="visibility: visible; position: relative; color: inherit">b-extract</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="nd">♭</span> <span class="kt">U</span>) <span class="p">(</span>x <span class="p">:</span> <span class="nd">♭</span> A)
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  : A
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  := x
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:b-map" id="define:b-map" style="visibility: visible; position: relative; color: inherit">b-map</a></span> <span class="p">(</span>A B <span class="p">:</span> <span class="nd">♭</span> <span class="kt">U</span>) <span class="p">(</span>f <span class="p">:</span> <span class="nd">♭</span> A → B)
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  : <span class="p">&lt;|</span> <span class="nd">♭</span> | A <span class="p">|&gt;</span> → <span class="p">&lt;|</span> <span class="nd">♭</span> | B <span class="p">|&gt;</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>  := \ <span class="p">(</span>x <span class="p">:</span> <span class="nd">♭</span> A) → <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♭</span> (f x)
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:b-dup" id="define:b-dup" style="visibility: visible; position: relative; color: inherit">b-dup</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="nd">♭</span> <span class="kt">U</span>) <span class="p">(</span>x <span class="p">:</span> <span class="nd">♭</span> A)
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>  : <span class="p">&lt;|</span> <span class="nd">♭</span> | <span class="p">&lt;|</span> <span class="nd">♭</span> | A <span class="p">|&gt;</span> <span class="p">|&gt;</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>  := <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♭</span> (<span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♭</span> x)
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:op-map" id="define:op-map" style="visibility: visible; position: relative; color: inherit">op-map</a></span> <span class="p">(</span>A B <span class="p">:</span> <span class="nd">ᵒᵖ</span> <span class="kt">U</span>) <span class="p">(</span>f <span class="p">:</span> <span class="nd">ᵒᵖ</span> A → B)
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>  : <span class="p">&lt;|</span> <span class="nd">ᵒᵖ</span> | A <span class="p">|&gt;</span> → <span class="p">&lt;|</span> <span class="nd">ᵒᵖ</span> | B <span class="p">|&gt;</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>  := \ <span class="p">(</span>x <span class="p">:</span> <span class="nd">ᵒᵖ</span> A) → <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">ᵒᵖ</span> (f x)
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:sharp-pure" id="define:sharp-pure" style="visibility: visible; position: relative; color: inherit">sharp-pure</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="kt">U</span>) <span class="p">(</span>x <span class="p">:</span> A)
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>  : <span class="p">&lt;|</span> <span class="nd">♯</span> | A <span class="p">|&gt;</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>  := <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♯</span> x
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:sharp-map" id="define:sharp-map" style="visibility: visible; position: relative; color: inherit">sharp-map</a></span> <span class="p">(</span>A B <span class="p">:</span> <span class="kt">U</span>) <span class="p">(</span>f <span class="p">:</span> A → B)
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>  : <span class="p">&lt;|</span> <span class="nd">♯</span> | A <span class="p">|&gt;</span> → <span class="p">&lt;|</span> <span class="nd">♯</span> | B <span class="p">|&gt;</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>  := \ <span class="p">(</span>x <span class="p">:</span> <span class="nd">♯</span> A) → <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♯</span> (f x)
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a><span class="kr">#def</span><span class="p"> </span><span class="nf"><a href="#define:sharp-join" id="define:sharp-join" style="visibility: visible; position: relative; color: inherit">sharp-join</a></span> <span class="p">(</span>A <span class="p">:</span> <span class="kt">U</span>) <span class="p">(</span>a <span class="p">:</span> <span class="p">&lt;|</span> <span class="nd">♯</span> | <span class="p">&lt;|</span> <span class="nd">♯</span> | A <span class="p">|&gt;</span> <span class="p">|&gt;</span>)
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>  : <span class="p">&lt;|</span> <span class="nd">♯</span> | A <span class="p">|&gt;</span>
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>  :=
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>  <span class="k">let mod</span> <span class="nd">♯</span> x_1 := a <span class="k">in</span>
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a>  <span class="k">let mod</span> <span class="nd">♯</span> / <span class="nd">♯</span> x_2 := x_1 <span class="k">in</span>
+</span><span id="__span-6-30"><a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>  <span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">♯</span> x_2
+</span></code></pre></div>
+<h2 id="how-the-typechecker-uses-modalities">How the typechecker uses modalities<a class="headerlink" href="#how-the-typechecker-uses-modalities" title="Permanent link">&para;</a></h2>
+<p>Modalities not only introduce modal types but also impose constraints on how variables can be introduced and used.</p>
+<ul>
+<li>Every <code class="language-rzk highlight"><span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> m …</code> or <code class="language-rzk highlight"><span class="p">&lt;|</span> m | … <span class="p">|&gt;</span></code> expression places an <strong>m-lock</strong> (a lock annotated with modality <span class="arithmatex">\(m\)</span>) on the current context.</li>
+<li><code class="language-rzk highlight"><span class="k">let mod</span> ext/inn x := value <span class="k">in</span> body</code> introduces <code class="language-rzk highlight">x</code> as a <strong>modality-parametrized binding</strong> with modality <span class="arithmatex">\(ext \cdot inn\)</span>.</li>
+<li>A variable bound under modality <span class="arithmatex">\(\mu\)</span> can only be used when the <strong>accumulated lock</strong> <span class="arithmatex">\(\hat{m}\)</span> — the composition of all m-locks placed between the binding site and the use site — is <span class="arithmatex">\(\mu\)</span>-coercible, i.e. there exists a coercion from <span class="arithmatex">\(\mu\)</span> to <span class="arithmatex">\(\hat{m}\)</span>.</li>
+</ul>
+<p>If a variable's modality cannot be coerced into the current lock accumulator, the typechecker reports:</p>
+<blockquote>
+<p>unaccessible var with modality … under locks …</p>
+</blockquote>
+<h2 id="modalities-at-tope-level">Modalities at tope level<a class="headerlink" href="#modalities-at-tope-level" title="Permanent link">&para;</a></h2>
+<h3 id="inversion-of-arrows-with-op">Inversion of arrows with op<a class="headerlink" href="#inversion-of-arrows-with-op" title="Permanent link">&para;</a></h3>
+<p>Modalities are also available at the cube and tope layers. Their mechanics are the same as for modal types at the dependent type layer. Additionally, there are operators for inverting cubes and topes.</p>
+<p>The equivalence between <code class="language-rzk highlight"><span class="kt">2</span></code> and <code class="language-rzk highlight"><span class="p">&lt;|</span> <span class="nd">_op</span> | <span class="kt">2</span> <span class="p">|&gt;</span></code> is witnessed by <code class="language-rzk highlight"><span class="s">flipᵒᵖ</span></code> and <code class="language-rzk highlight"><span class="s">unflipᵒᵖ</span></code>. In particular, <code class="language-rzk highlight"><span class="s">flipᵒᵖ</span> <span class="m">0₂</span></code> reduces to <code class="language-rzk highlight"><span class="nf"><a href="#define:mod" id="define:mod" style="visibility: visible; position: relative; color: inherit">mod</a></span> <span class="nd">_op</span> <span class="m">1₂</span></code> and vice versa.</p>
+<p>The equivalence between <code class="language-rzk highlight"><span class="kt">TOPE</span></code> and <code class="language-rzk highlight"><span class="p">&lt;|</span> <span class="nd">_op</span> | <span class="kt">TOPE</span> <span class="p">|&gt;</span></code> is witnessed by <code class="language-rzk highlight"><span class="s">invᵒᵖ</span></code> and <code class="language-rzk highlight"><span class="s">uninvᵒᵖ</span></code>, which reverse the direction of inequalities.</p>
+<p>Here is an example of a function that reverses the direction of a morphism using the <code class="language-rzk highlight"><span class="nd">_op</span></code> modality:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>#def op-hom-to-hom
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  ( B : _op U)
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  ( x : _op B)
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  ( y : _op B)
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>  ( h : _op (t : 2) → B [ t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y ])
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>  : ( ( t : 2) → &lt;| _op | B |&gt; [ t ≡ 0₂ ↦ mod _op y , t ≡ 1₂ ↦ mod _op x ])
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>  := \ t → let mod _op s := flipᵒᵖ t in mod _op (h s)
+</span></code></pre></div>
+<h3 id="discrete-interval-elimination">Discrete interval elimination<a class="headerlink" href="#discrete-interval-elimination" title="Permanent link">&para;</a></h3>
+<p>The discrete interval <code class="language-rzk highlight"><span class="p">&lt;|</span> <span class="nd">_b</span> | <span class="kt">2</span> <span class="p">|&gt;</span></code> can be treated as a Boolean type. A crisp point of <code class="language-rzk highlight"><span class="kt">2</span></code> is either <code class="language-rzk highlight">0₂</code> or <code class="language-rzk highlight">1₂</code>, so we can eliminate by cases:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>#def discrete-2-elim (i : _b 2) (A : U) (x y : A) : A :=
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  recOR(
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    (i === 0_2) |-&gt; x,
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    (i === 1_2) |-&gt; y)
+</span></code></pre></div>
+<h2 id="known-unsoundness-footgun-dont-postulate-on-2">Known unsoundness footgun: don't postulate <code>√</code> on <code>2</code><a class="headerlink" href="#known-unsoundness-footgun-dont-postulate-on-2" title="Permanent link">&para;</a></h2>
+<div class="admonition danger">
+<p class="admonition-title">Do not postulate <code>√</code> ("<code>2</code> is tiny") on the cube <code>2</code></p>
+<p>When formalizing Triangulated Type Theory<sup id="fnref2:ttt"><a class="footnote-ref" href="#fn:ttt">1</a></sup>, the natural-looking next step after introducing modalities is to postulate the <strong>amazing right adjoint</strong> <code>√</code> to the path-space functor <code>(2 → −)</code> — equivalently, the assertion that the directed interval <code>2</code> is <strong>tiny</strong>. <strong>This is unsound on the standard RS17 model.</strong></p>
+<p>The reason is structural. In the standard simplicial-set model <code>PSh(∆)</code>, the directed interval is realized by the representable <code>y([1])</code>, and <strong><code>(−)^I</code> has no right adjoint</strong> — concretely, exponentiation by <code>y([1])</code> does not preserve pushouts (see <a href="https://arxiv.org/abs/2407.09146">Gratzer–Weinberger–Buchholtz §1.3 and §3</a>, footnote 7). Rzk's cube <code>2</code> inherits exactly that totally-ordered structure, so postulating <code>√</code> on <code>2</code> — or any <code>is-tiny(2)</code> formulation — contradicts the model.</p>
+<p>The planned <strong><code>𝕀</code></strong> primitive — a bounded distributive lattice cube, per GWB §1.3 — is the <strong>sound place</strong> to postulate <code>√</code>. Until <code>𝕀</code> ships, TT⊲ formalizations with <code>√</code>-on-<code>2</code> can potentially be unsound (if the underlying tope solver ever relies on the total order).</p>
+</div>
+<h2 id="axioms-and-larger-formalizations">Axioms and larger formalizations<a class="headerlink" href="#axioms-and-larger-formalizations" title="Permanent link">&para;</a></h2>
+<p>Many principles of TTT are not built into Rzk as primitive rules; they are introduced as <code>#postulate</code> in libraries. On the sHoTT <code>diruniv</code> branch, examples include crisp induction for <code class="language-rzk highlight"><span class="nd">_b</span></code> and axioms for the directed interval modality. The directed-univalence development in <a href="https://github.com/LIshy2/sHoTT/blob/diruniv/src/simplicial-hott/17-diruniv.rzk"><code>17-diruniv.rzk</code></a> is the reference corpus for how modal syntax is used at scale; this page does not reproduce that proof.</p>
+<h2 id="related-reading">Related reading<a class="headerlink" href="#related-reading" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2407.09146">Gratzer, Weinberger &amp; Buchholtz — <em>Directed univalence in simplicial homotopy type theory</em></a> (TTT)</li>
+<li><a href="https://hott-uf.github.io/2026/abstracts/HoTTUF_2026_paper_22.pdf">Talipov &amp; Kudasov — <em>Towards Formalization of Directed Univalence in Rzk proof assistant</em></a> — HoTT/UF 2026 contributed talk on this extension</li>
+<li><a href="https://github.com/LIshy2/sHoTT/tree/diruniv">sHoTT <code>diruniv</code></a> — formalizations using Rzk modalities</li>
+<li><a href="../introduction.rzk/">Introduction</a> — cube, tope, and type layers</li>
+<li><a href="../type-layer.rzk/">Dependent types</a> — functions, sums, and identity types without modalities</li>
+</ul>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:ttt">
+<p>Daniel Gratzer, Jonathan Weinberger, Ulrik Buchholtz. <em>Directed univalence in simplicial homotopy type theory.</em> arXiv:2407.09146, 2024 (revised 2026). <a href="https://arxiv.org/abs/2407.09146">https://arxiv.org/abs/2407.09146</a>&#160;<a class="footnote-backref" href="#fnref:ttt" title="Jump back to footnote 1 in the text">&#8617;</a><a class="footnote-backref" href="#fnref2:ttt" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="fn:hottuf26">
+<p>Islam Talipov and Nikolai Kudasov. <em>Towards Formalization of Directed Univalence in Rzk proof assistant.</em> Contributed talk, HoTT/UF 2026. <a href="https://hott-uf.github.io/2026/abstracts/HoTTUF_2026_paper_22.pdf">https://hott-uf.github.io/2026/abstracts/HoTTUF_2026_paper_22.pdf</a>&#160;<a class="footnote-backref" href="#fnref:hottuf26" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../type-layer.rzk/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Dependent types">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Dependent types
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../tope-disjunction-elimination.rzk/" class="md-footer__link md-footer__link--next" aria-label="Next: Tope disjunction elimination">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Tope disjunction elimination
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.action.edit", "navigation.footer", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.prune", "navigation.path", "navigation.indexes", "toc.integrate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascript/mathjax.js"></script>
+      
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

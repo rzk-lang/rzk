@@ -1,0 +1,62 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | This module defines a variation of</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- free scoped (relative) monads relying on the foil for</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- the scope-safe efficient handling of the binders.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- See description of the approach in [&#171;Free Foil: Generating Efficient and Scope-Safe Abstract Syntax&#187;](https://arxiv.org/abs/2405.16384).</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Free.Foil.html"><span class="hs-identifier">Control.Monad.Free.Foil</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Terms</span></span><span>
+</span><span id="line-8"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#AST"><span class="hs-identifier">AST</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#ScopedAST"><span class="hs-identifier">ScopedAST</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Substitution</span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#substitute"><span class="hs-identifier">substitute</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#substituteRefreshed"><span class="hs-identifier">substituteRefreshed</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#substitutePattern"><span class="hs-identifier">substitutePattern</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Transformations between signatures</span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#foldAST"><span class="hs-identifier">foldAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#hoistAST"><span class="hs-identifier">hoistAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>  </span><span class="annot"><span class="hs-comment">-- * \(\alpha\)-equivalence</span></span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#refreshAST"><span class="hs-identifier">refreshAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#refreshScopedAST"><span class="hs-identifier">refreshScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#alphaEquivRefreshed"><span class="hs-identifier">alphaEquivRefreshed</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#alphaEquiv"><span class="hs-identifier">alphaEquiv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#alphaEquivScoped"><span class="hs-identifier">alphaEquivScoped</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#renamedId"><span class="hs-identifier">renamedId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#bindPairs"><span class="hs-identifier">bindPairs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#alphaEquivEnv"><span class="hs-identifier">alphaEquivEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#alphaEquivScopedEnv"><span class="hs-identifier">alphaEquivScopedEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Unsafe equality checks</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsafeEqAST"><span class="hs-identifier">unsafeEqAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsafeEqScopedAST"><span class="hs-identifier">unsafeEqScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsafeEqASTIn"><span class="hs-identifier">unsafeEqASTIn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsafeEqScopedASTIn"><span class="hs-identifier">unsafeEqScopedASTIn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Converting to and from free foil</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Convert to free foil</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#UnresolvedName"><span class="hs-identifier">UnresolvedName</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unresolvedNames"><span class="hs-identifier">unresolvedNames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unresolvedNamesWith"><span class="hs-identifier">unresolvedNamesWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#tryConvertToAST"><span class="hs-identifier">tryConvertToAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#tryConvertToASTWith"><span class="hs-identifier">tryConvertToASTWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsafeConvertToAST"><span class="hs-identifier">unsafeConvertToAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsafeConvertToScopedAST"><span class="hs-identifier">unsafeConvertToScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Convert from free foil</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#convertFromAST"><span class="hs-identifier">convertFromAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#convertFromScopedAST"><span class="hs-identifier">convertFromScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#convertFromASTWith"><span class="hs-identifier">convertFromASTWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Unsinking AST</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#supportOf"><span class="hs-identifier">supportOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#supportOfScopedAST"><span class="hs-identifier">supportOfScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#withRelevantScope"><span class="hs-identifier">withRelevantScope</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#unsinkAST"><span class="hs-identifier">unsinkAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#freeVarsOf"><span class="hs-identifier">freeVarsOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html#freeVarsOfScopedAST"><span class="hs-identifier">freeVarsOfScopedAST</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Control.Monad.Free.Foil.Internal.html"><span class="hs-identifier">Control.Monad.Free.Foil.Internal</span></a></span><span>
+</span><span id="line-62"></span></pre></body></html>

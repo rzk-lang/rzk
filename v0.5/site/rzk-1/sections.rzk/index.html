@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Sections and Variables - rzk: an experimental proof assistant for syntheric ∞-categories</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css" rel="stylesheet" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/rzk/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/rzk/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/rzk/favicon-16x16.png">
+    <link rel="manifest" href="/rzk/site.webmanifest">
+<!-- <link rel="stylesheet" href="../../css/highlightjs-11.7.0.min.css" /> -->
+    <link rel="stylesheet" href="../../css/highlightjs-copy.css" />
+    <script src="../../js/highlight-11.7.0.min.js"></script>
+    <script src="../../js/rzk.js"></script>
+    <link rel="stylesheet" href="../../css/gruvbox-light.css" />
+    <!-- <link rel="stylesheet" href="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.css" /> -->
+    <script src="../../js/highlightjs-copy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script>
+      hljs.addPlugin(new CopyButtonPlugin());
+      hljs.highlightAll();
+    </script>
+    <style>
+      .rzk-render {
+        float: right;
+        clear: both;
+      }
+    </style>
+    
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Sections and Variables";
+        var mkdocs_page_input_path = "rzk-1/sections.rzk.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+ 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> rzk: an experimental proof assistant for syntheric ∞-categories
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">General</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../..">About</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">rzk-1 Language</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="" href="../introduction.md">Introduction</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../sections.md">Sections and Variables</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../render.md">Rendering Diagrams</a>
+                  </li>
+                  <li class="toctree-l1"><a class="" href="../recId.md">Weak tope disjunction elimination</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tools</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/highlight/">Syntax Highlighting</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/ide/">IDE support</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../tools/continuous/">Continuous Verification</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Related Projects</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/sHoTT/">sHoTT</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../related/simple-topes/">simple-topes</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">rzk: an experimental proof assistant for syntheric ∞-categories</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Sections and Variables</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="sections-and-variables">Sections and Variables</h1>
+<p>Sections and variables allow to simplify definitions by factoring out common assumptions.</p>
+<div class="admonition hint">
+<p class="admonition-title">Coq-style variables</p>
+<p><code>rzk</code> implements variables similarly to
+<a href="https://coq.inria.fr/refman/language/core/assumptions.html#coq:cmd.Variable" target="_blank"><code>Variable</code> command in Coq</a>.
+An important difference is that <code>rzk</code> does not allow definitions to use variables implicitly and adds <code>uses (...)</code> annotations to ensure such dependencies are not accidental.
+This is, perhaps, somewhat related to <a href="https://coq.inria.fr/refman/proofs/writing-proofs/equality.html#coq:exn.Section-variable-‘ident’-occurs-implicitly-in-global-declaration-‘qualid’-present-in-hypothesis-‘ident’" target="_blank">this error message in Coq</a>.</p>
+</div>
+<p>This is a literate <code>rzk</code> file:</p>
+<pre><code class="language-rzk">#lang rzk-1
+</code></pre>
+<h2 id="variables">Variables</h2>
+<p>Consider the following definitions:</p>
+<pre><code class="language-rzk">#def compose₁
+  (A B C : U)
+  (g : B -&gt; C)
+  (f : A -&gt; B)
+  : A -&gt; C
+  := \x -&gt; g (f x)
+
+#def twice₁
+  (A : U)
+  (h : A -&gt; A)
+  : A -&gt; A
+  := \x -&gt; h (h x)
+</code></pre>
+<p>Since it might be common to introduce types <code>A</code>, <code>B</code>, and <code>C</code>, we can declare these are variables:</p>
+<pre><code class="language-rzk">#variables A B C : U
+
+#def compose₂
+  (g : B -&gt; C)
+  (f : A -&gt; B)
+  : A -&gt; C
+  := \x -&gt; g (f x)
+
+#def twice₂
+  (h : A -&gt; A)
+  : A -&gt; A
+  := \x -&gt; h (h x)
+</code></pre>
+<p>The <code>#variables</code> command here introduces assumptions, which can be used in the following definitions. Importantly, after checking a file (module), all definitions will have the assumptions used (explicitly or implicitly) attached as bound variables.</p>
+<h3 id="implicitly-used-variables-and-uses">Implicitly used variables (and <code>uses</code>)</h3>
+<p>We can try going even further and declare variables <code>f</code>, <code>g</code>, <code>h</code>, and <code>x</code>:</p>
+<pre><code class="language-rzk">#variable g : B -&gt; C
+#variable f : A -&gt; B
+#variable h : A -&gt; A
+#variable x : A
+
+-- #def bad-compose₃ : C := g (f x)  -- ERROR: implicit assumptions A and B
+#def twice₃ : A := h (h x)
+</code></pre>
+<p>Note how this definition of <code>bad-compose₃</code> is implicitly dependent on the types <code>A</code> and <code>B</code>, which is promptly noted by <code>rzk</code>, which issues an error (if we uncomment the corresponding line):</p>
+<pre><code class="language-text">implicit assumption
+  B : U
+used in definition of
+  bad-compose₃
+</code></pre>
+<p>To let <code>rzk</code> know that this is not accidental, we can add <code>uses (...)</code> annotation to specify a list of variables implicitly used in the definition:</p>
+<pre><code class="language-rzk">#def compose₃ uses (A B) : C := g (f x)
+</code></pre>
+<h2 id="sections">Sections</h2>
+<p>To introduce assumption variables temporarily inside of one file, you can use sections:</p>
+<pre><code class="language-rzk">#section example-1
+
+#variables X Y Z : U
+#variable k : X -&gt; X
+#variable x' : X
+
+#def compose₄
+  (g : Y -&gt; Z)
+  (f : X -&gt; Y)
+  : X -&gt; Z
+  := \x -&gt; g (f x)
+
+#def twice₄ : X := k (k x')
+
+#end example-1
+</code></pre>
+<p>Now, once outside of the section, <code>compose₄</code> and <code>twice₄</code> obtain corresponding parameters
+(only those used, explicitly or implicitly):</p>
+<pre><code class="language-rzk">-- compose₄ : (X : U) -&gt; (Y : U) -&gt; (Z : U) -&gt; (g : Y -&gt; Z) -&gt; (f : X -&gt; Y) -&gt; (X -&gt; Z)
+-- twice₄ : (X : U) -&gt; (k : X -&gt; X) -&gt; (x' : X) -&gt; X
+
+#def twice₅
+  (T : U)
+  (e : T -&gt; T)
+  : T -&gt; T
+  := compose₄ T T T e e
+
+#def identity
+  (T : U)
+  : T -&gt; T
+  := twice₄ T (\t -&gt; t)
+</code></pre>
+<div class="admonition warning">
+<p class="admonition-title">Lack of indentation</p>
+<p><code>rzk</code> currently does not support indentation, so all definitions and commands inside a section (including nested sections) have to start at the beginning of a line.</p>
+</div>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+  </span>
+</div>
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

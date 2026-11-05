@@ -1,0 +1,2 @@
+include:
+  - "posts/**/*.rzk.md"
