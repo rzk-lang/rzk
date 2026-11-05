@@ -2,6 +2,14 @@ name: Release
 on:
   release:
     types: [published]
+  # Build the binaries of a published release again, from its tag; the
+  # workflow runs from the branch chosen at dispatch, not from the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag of a published release, such as v0.11.4
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,13 +21,14 @@ concurrency:
 jobs:
   hackage:
     name: "Upload a new candidate on Hackage"
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
         with:
           # The tag of the release, not the default branch the release targets.
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v5
@@ -49,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # The tag of the release, not the default branch the release targets.
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v5
@@ -66,13 +75,11 @@ jobs:
           tar -cavf program.tar.gz *
         shell: bash
 
-      - name: 🚀 Upload assets
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
+      - name: 🚀 Upload the asset to the release, replacing one of the same name
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./prepared_binaries/program.tar.gz
-          asset_name: rzk-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.tar.gz
-          asset_content_type: application/tar.gz
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          cp prepared_binaries/program.tar.gz "rzk-$TAG-${{ runner.os }}-${{ runner.arch }}.tar.gz"
+          gh release upload "$TAG" "rzk-$TAG-${{ runner.os }}-${{ runner.arch }}.tar.gz" --clobber
+        shell: bash
