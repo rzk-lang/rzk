@@ -26,6 +26,11 @@ jobs:
         with:
           # The action's default is "--fast --pedantic", an unoptimised build.
           stack-build-arguments: --pedantic
+          # A cache of the other workflows holds a --fast build that stack
+          # takes as up to date, so the release keeps its own cache and
+          # rebuilds the package regardless.
+          cache-prefix: release-
+          stack-build-arguments-build: --force-dirty
 
       - name: 🔨 Generate package dist tarball
         run: stack sdist --tar-dir packages/
@@ -56,6 +61,11 @@ jobs:
         with:
           # The action's default is "--fast --pedantic", an unoptimised build.
           stack-build-arguments: --pedantic
+          # A cache of the other workflows holds a --fast build that stack
+          # takes as up to date, so the release keeps its own cache and
+          # rebuilds the package regardless.
+          cache-prefix: release-
+          stack-build-arguments-build: --force-dirty
 
       - name: Tar and strip the binary
         run: |
