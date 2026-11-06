@@ -92,6 +92,31 @@ underRawScope md dom mshape (ScopedAST pat body) k = do
           ctx' = underPattern scope' ctx md dom mshape pat'
       in inContext ctx' (k pat' body')
 
+-- | A tope family over a cube, as a type: its Π, when its codomain is
+-- @TOPE@.
+topeFamilyOf :: Distinct n => Foil.Scope n -> Context d n -> Value n -> Maybe (Pi n)
+topeFamilyOf scope ctx ty = case piOf ty of
+  Just p@(Pi _ _ dom mshape (ScopedAST _ UniverseTope))
+    | isCube scope ctx dom || maybe False (const True) mshape -> Just p
+  _ -> Nothing
+
+-- | The shape of a binder written with a family as its type: the family,
+-- conjoined with the shape of the family's own domain when it has one.
+familyShape :: Distinct n => Foil.Scope n -> Core n -> Core n -> Maybe (Core n) -> Core n
+familyShape scope cube family mdom = case mdom of
+  Nothing -> family
+  Just (Lambda _ (ScopedAST _ TopeTop)) -> family
+  Just dom -> Foil.withFresh scope $ \b ->
+    Lambda (Just (Param Id cube Nothing))
+      (ScopedAST (singlePattern b)
+        (TopeAnd (App (Foil.sink dom) (Var (Foil.nameOf b))) (App (Foil.sink family) (Var (Foil.nameOf b)))))
+
+-- | A binder over a cube has a shape: ⊤ when none is written.
+withTopShape :: Distinct n => Foil.Scope n -> Context d n -> Value n -> Maybe (Value n) -> Maybe (Value n)
+withTopShape scope ctx dom = \case
+  Nothing | isCube scope ctx dom -> Just (topShapeValue scope dom)
+  mshape -> mshape
+
 -- | A Π value with a constant codomain: the type of a shape over a cube,
 -- or of a family.
 constPi :: Distinct n => Foil.Scope n -> TModality -> Value n -> Maybe (Value n) -> Core Foil.VoidS -> Value n
@@ -125,14 +150,12 @@ classifyType scope ctx ty = case force (stripRestrictions ty) of
   NbE.VNode (TypeModalF _ inner) -> case classifyType scope ctx inner of
     DomainType -> DomainType
     _          -> DomainModalTope
-  NbE.VSuspended env (TypeFunF _ dom mshape ret) ->
+  NbE.VSuspended env (TypeFunF md dom mshape ret) ->
     let cubeDom = case mshape of
           Just _  -> True
-          Nothing -> cubeOfType dom /= KOther
-        inner = Foil.withFresh scope $ \b ->
-          let scope' = Foil.extendScope b scope
-          in classifyType scope' (sinkContextUnchecked ctx)
-               (codomainAt scope' (sinkContextUnchecked ctx) (Foil.sink env) ret (NbE.vvar (Foil.nameOf b)))
+          Nothing -> isCube scope ctx dom
+        inner = underFreshVar scope ctx md dom mshape $ \scope' ctx' x ->
+          classifyType scope' ctx' (codomainAt scope' ctx' (Foil.sink env) ret x)
     in case inner of
          DomainTopeUniverse | cubeDom -> DomainTopeFamily
                             | otherwise -> DomainOtherTopeFamily
@@ -261,12 +284,12 @@ checkHole mname goal = do
             scope = ctxScope ctx
             entry (x, e) = (ppName naming x, ppValueIn ctx (entryType e))
             locals = [ (x, e) | (x, e) <- entriesInScope ctx, entryKind e == EntryLocal ]
-            isCube e = cubeOfType (entryType e) /= KOther
+            isCubeEntry e = cubeOfType (entryType e) /= KOther
         in HoleInfo
           { holeName = mname
           , holeGoal = ppValue scope ctx goal
-          , holeTermVars = [ entry xe | xe@(_, e) <- locals, not (isCube e) ]
-          , holeCubeVars = [ entry xe | xe@(_, e) <- locals, isCube e ]
+          , holeTermVars = [ entry xe | xe@(_, e) <- locals, not (isCubeEntry e) ]
+          , holeCubeVars = [ entry xe | xe@(_, e) <- locals, isCubeEntry e ]
           , holeTopes = [ ppTope naming (tTope mt) | mt <- contextTopes (ctxTopes ctx), tTope mt /= TTop ]
           , holeLocation = ctxLocation ctx
           }
@@ -310,16 +333,19 @@ check term ty = performing (ActionCheck term ty) $ case term of
                   (param', paramTy) <- infer param
                   paramV <- evalM param'
                   -- a shape written as the parameter type: the domain is its cube
-                  case classifyType scope ctx paramTy of
-                    DomainTopeFamily | Just (Pi _ _ cube _ _) <- piOf paramTy -> do
+                  case topeFamilyOf scope ctx paramTy of
+                    Just (Pi _ _ cube mdomShape _) -> do
                       convertTypes dom' cube
+                      cubeC <- quoteM cube
+                      mdomC <- traverse quoteM mdomShape
+                      shapeV <- evalM (familyShape scope cubeC param' mdomC)
                       case mshape' of
-                        Just shape' -> subtypeValues shape' paramV
+                        Just shape' -> subtypeValues shape' shapeV
                         Nothing -> pure ()
-                      pure (Param md cube (Just paramV))
-                    _ -> do
+                      pure (Param md cube (Just shapeV))
+                    Nothing -> do
                       convertTypes dom' paramV
-                      pure (Param md paramV Nothing)
+                      pure (Param md paramV (withTopShape scope ctx paramV Nothing))
                 Just shape -> do
                   cube' <- check param cubeUniverse
                   cubeV <- evalM cube'
@@ -662,20 +688,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
           bIn <- check bTerm universe
           pure (ScopedAST pat bIn)
         pure (TypeFun md a' Nothing b', universe)
-      -- a cube
+      -- a cube: the shape is ⊤
       NbE.VNode UniverseCubeF -> do
-        b' <- underRawScope md aV Nothing b $ \pat bTerm -> do
+        let shapeV = topShapeValue scope aV
+        b' <- underRawScope md aV (Just shapeV) b $ \pat bTerm -> do
           bIn <- check bTerm universe
           pure (ScopedAST pat bIn)
-        pure (TypeFun md a' Nothing b', universe)
+        shapeC <- quoteM shapeV
+        pure (TypeFun md a' (Just shapeC) b', universe)
       -- a shape: a tope family over a cube
-      _ | DomainTopeFamily <- classifyType scope ctx aTy
-        , Just (Pi _ _ cube _ _) <- piOf aTy -> do
-          b' <- underRawScope md cube (Just aV) b $ \pat bTerm -> do
+      _ | Just (Pi _ _ cube mdomShape _) <- topeFamilyOf scope ctx aTy -> do
+          cubeC <- quoteM cube
+          mdomC <- traverse quoteM mdomShape
+          let shapeC = familyShape scope cubeC a' mdomC
+          shapeV <- evalM shapeC
+          b' <- underRawScope md cube (Just shapeV) b $ \pat bTerm -> do
             bIn <- check bTerm universe
             pure (ScopedAST pat bIn)
-          cubeC <- quoteM cube
-          pure (TypeFun md cubeC (Just a') b', universe)
+          pure (TypeFun md cubeC (Just shapeC) b', universe)
       _ -> issueTypeError (TypeErrorInvalidArgumentType a aTy)
 
   RawNode (TypeFunF md cube (Just shape) ret) -> do
@@ -746,9 +776,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
     let scope = ctxScope ctx
     (dom, mshape) <- case force tyTy of
       NbE.VNode UniverseF -> pure (tyV, Nothing)
-      NbE.VNode UniverseCubeF -> pure (tyV, Nothing)
-      _ | DomainTopeFamily <- classifyType scope ctx tyTy
-        , Just (Pi _ _ cube _ _) <- piOf tyTy -> pure (cube, Just tyV)
+      NbE.VNode UniverseCubeF -> pure (tyV, Just (topShapeValue scope tyV))
+      _ | Just (Pi _ _ cube mdomShape _) <- topeFamilyOf scope ctx tyTy -> do
+          cubeC <- quoteM cube
+          mdomC <- traverse quoteM mdomShape
+          shapeV <- evalM (familyShape scope cubeC ty' mdomC)
+          pure (cube, Just shapeV)
       _ -> issueTypeError (TypeErrorInvalidArgumentType ty tyTy)
     inferLambda md dom mshape body
 

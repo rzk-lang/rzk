@@ -148,6 +148,11 @@ fromCore used supply names = go
         in case md of
              Id -> Rzk.TypeFun loc (Rzk.ParamTermType loc patTerm (go arg)) ret'
              _  -> Rzk.TypeFun loc (Rzk.ParamTermModalType loc patTerm (fromTModalityToModalColon md) (go arg)) ret'
+      TypeFun md cube (Just (Lambda _ (ScopedAST _ TopeTop))) ret -> withScope ret $ \pat ret' ->
+        let patTerm = patternTerm pat
+        in case md of
+             Id -> Rzk.TypeFun loc (Rzk.ParamTermType loc patTerm (go cube)) ret'
+             _  -> Rzk.TypeFun loc (Rzk.ParamTermModalType loc patTerm (fromTModalityToModalColon md) (go cube)) ret'
       TypeFun md cube (Just shape) ret -> withScopeAndShape ret shape $ \pat tope ret' ->
         let patTerm = patternTerm pat
         in case md of
@@ -169,6 +174,11 @@ fromCore used supply names = go
         let param = case md of
               Id -> Rzk.ParamPatternType loc [pat] (go ty)
               _  -> Rzk.ParamPatternModalType loc [pat] (fromTModalityToModalColon md) (go ty)
+        in Rzk.Lambda loc [param] body'
+      Lambda (Just (Param md cube (Just (Lambda _ (ScopedAST _ TopeTop))))) body -> withScope body $ \pat body' ->
+        let param = case md of
+              Id -> Rzk.ParamPatternType loc [pat] (go cube)
+              _  -> Rzk.ParamPatternModalType loc [pat] (fromTModalityToModalColon md) (go cube)
         in Rzk.Lambda loc [param] body'
       Lambda (Just (Param md cube (Just shape))) body -> withScopeAndShape body shape $ \pat tope body' ->
         let param = case md of

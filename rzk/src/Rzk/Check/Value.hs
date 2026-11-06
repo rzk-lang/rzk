@@ -83,6 +83,9 @@ module Rzk.Check.Value
   , letEntries
   , singlePattern
   , underPattern
+  , underFreshVar
+  , isCube
+  , topShapeValue
     -- * The tope layer
   , topeOf
   , pointOf
@@ -696,6 +699,31 @@ underPattern scope' ctx md ty mshape pat =
        Nothing    -> ctx'
        Just shape -> assumeValue scope' ctx' (appValue scope' ctx' (Foil.sink shape) (patternValue pat))
 
+-- | The context under one fresh name of a type: the scope, the context
+-- with the name's entry, and the name as a value.
+underFreshVar
+  :: Distinct n
+  => Scope n -> Context d n -> TModality -> Value n -> Maybe (Value n)
+  -> (forall l. DExt n l => Scope l -> Context d l -> Value l -> r) -> r
+underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
+  let pat = singlePattern b
+      scope' = Foil.extendScopePattern pat scope
+  in k scope' (underPattern scope' ctx md ty mshape pat) (NbE.vvar (Foil.nameOf b))
+
+-- | Does a value stand for a cube: by its head, or by the sort of the
+-- entry at its head?
+isCube :: Distinct n => Scope n -> Context d n -> Value n -> Bool
+isCube scope ctx v = cubeOfType v /= KOther || case neutralType scope ctx v of
+  Just s | NbE.VNode UniverseCubeF <- NbE.force s -> True
+  _ -> False
+
+-- | The shape of a binder over a cube with no restriction: the family
+-- that is ⊤ everywhere.
+topShapeValue :: Distinct n => Scope n -> Value n -> Value n
+topShapeValue scope cube = Foil.withFresh scope $ \b ->
+  NbE.vsuspended Foil.identitySubst
+    (LambdaF (Just (Param Id cube Nothing)) (ScopedAST (singlePattern b) TopeTop))
+
 -- | The binder of a λ, from its parameter: its domain and modality, and its
 -- shape, assumed for the body. A λ without a parameter binds names of an
 -- unknown type.
@@ -888,11 +916,8 @@ flagsOfType scope0 ctx0 = go scope0 ctx0 noFlags
         let flags' = case (mshape, body) of
               (Just _, UniverseTope) -> flags { flagTopeFamily = True }
               _ -> flags
-        in Foil.withFresh scope $ \b ->
-             let scope' = Foil.extendScope b scope
-                 ctx' = sinkContextUnchecked ctx
-                 cod = evalScope scope' ctx' (Foil.sink env) ret (NbE.vvar (Foil.nameOf b))
-             in go scope' ctx' flags' cod
+        in underFreshVar scope ctx Id (vhole Nothing) Nothing $ \scope' ctx' x ->
+             go scope' ctx' flags' (evalScope scope' ctx' (Foil.sink env) ret x)
       _ -> flags
 
 -- * Holes

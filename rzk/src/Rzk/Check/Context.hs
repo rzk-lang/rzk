@@ -121,6 +121,8 @@ data Options = Options
   , optHintLemmas          :: [VarIdent]
   , optWarnOverhang        :: Bool
   , optWarnTopeFamilyDomain :: Bool
+  , optRender              :: Maybe String
+    -- ^ the render backend, which the new checker accepts but does not run
   } deriving (Eq, Show)
 
 defaultOptions :: Options
@@ -130,6 +132,7 @@ defaultOptions = Options
   , optHintLemmas = []
   , optWarnOverhang = False
   , optWarnTopeFamilyDomain = True
+  , optRender = Nothing
   }
 
 -- | The state of a conversion check, after smalltt's approximate conversion

@@ -41,6 +41,7 @@ import           Rzk.Check.Monad
 import           Rzk.Check.Rules
 import           Rzk.Check.Syntax
 import           Rzk.Check.Value
+import           Rzk.TypeCheck.Decl       (duplicateBinders)
 
 -- | A top-level declaration, as checked.
 data Decl n = Decl
@@ -83,7 +84,7 @@ withTopLevel name ty mval kind k = do
   ctx <- askContext
   let scope = ctxScope ctx
   Foil.withFresh scope $ \binder -> do
-    let pat = singlePattern binder
+    let pat = PatternVar (Just name) binder
         scope' = Foil.extendScopePattern pat scope
         ctx0 = sinkContextUnchecked ctx
         value = fmap (evalCore scope ctx) mval
@@ -155,8 +156,12 @@ setOption name value = case (name, value) of
   ("warn-tope-family-domain", "no")  -> withOptions (\o -> o { optWarnTopeFamilyDomain = False })
   ("warn-tope-family-domain", _) -> const $ issueTypeError $ TypeErrorOther
     "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
+  ("render", "svg") -> withOptions (\o -> o { optRender = Just "svg" })
+  ("render", "latex") -> withOptions (\o -> o { optRender = Just "latex" })
+  ("render", "none") -> withOptions (\o -> o { optRender = Nothing })
+  ("render", _) -> const $ issueTypeError $ TypeErrorOther
+    "unknown render backend (use \"svg\", \"latex\", or \"none\")"
   -- options of checks the new checker does not run yet are accepted
-  ("render", _) -> id
   ("render-hide-term", _) -> id
   ("rstt-safe", _) -> id
   ("warn-meta-prefix", _) -> id
@@ -171,7 +176,7 @@ unsetOption name = case name of
   "warn-overhang" -> withOptions (\o -> o { optWarnOverhang = optWarnOverhang defaultOptions })
   "warn-tope-family-domain" ->
     withOptions (\o -> o { optWarnTopeFamilyDomain = optWarnTopeFamilyDomain defaultOptions })
-  "render" -> id
+  "render" -> withOptions (\o -> o { optRender = Nothing })
   "render-hide-term" -> id
   "rstt-safe" -> id
   "warn-meta-prefix" -> id
@@ -179,6 +184,14 @@ unsetOption name = case name of
   "warn-shape-dependency" -> id
   "warn-meta-binder" -> id
   _ -> const $ issueTypeError $ TypeErrorOther ("unknown option " <> show name)
+
+-- | Run a check at a command: the location points at the command, and a
+-- judgement inside it narrows it to the sub-term it is about.
+atCommand :: Checking m => Rzk.Command -> m n a -> m n a
+atCommand command = localContext $ \ctx -> ctx { ctxLocation = at <$> ctxLocation ctx }
+  where
+    at loc = loc { locationLine = fst <$> pos, locationColumn = snd <$> pos }
+    pos = Rzk.hasPosition command
 
 -- | Run a check with the location narrowed to where a surface term was
 -- written.
@@ -201,17 +214,25 @@ checkCommands
   -> m n r
 checkCommands path i total commands k = case commands of
   [] -> k [] []
+  command : more | (dup, previous) : _ <- duplicateBinders command -> do
+    result <- attempt $ atCommand command $ issueTypeError (TypeErrorRepeatedBinder dup previous)
+    case result of
+      Left err -> skipping err path i total more k
+      Right () -> checkCommands path (i + 1) total more k
 
   Rzk.CommandUnsetOption _loc optionName : more ->
     announce ("Unsetting option " <> optionName) $
       unsetOption optionName $ checkCommands path (i + 1) total more k
 
-  Rzk.CommandSetOption _loc optionName optionValue : more ->
-    announce ("Setting option " <> optionName <> " = " <> optionValue) $
-      setOption optionName optionValue $ checkCommands path (i + 1) total more k
+  command@(Rzk.CommandSetOption _loc optionName optionValue) : more ->
+    announce ("Setting option " <> optionName <> " = " <> optionValue) $ do
+      result <- attempt $ atCommand command $ setOption optionName optionValue (pure ())
+      case result of
+        Left err -> skipping err path i total more k
+        Right () -> setOption optionName optionValue $ checkCommands path (i + 1) total more k
 
-  Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ _vars) params ty term : more ->
-    announce (" Checking #define " <> Rzk.printTree name) $ do
+  command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ _vars) params ty term) : more ->
+    announce (" Checking #define " <> Rzk.printTree name) $ atCommand command $ do
       typeResult <- attempt $ do
         paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
         tyTerm <- elaborate (addParamDecls paramDecls ty)
@@ -232,12 +253,19 @@ checkCommands path i total commands k = case commands of
           let (mvalue, bodyErrors) = case result of
                 Right val' -> (Just val', [])
                 Left err   -> (Nothing, [err])
+          renderResult <- attempt $ atCommand command $ do
+            render <- asksContext (optRender . ctxOptions)
+            case render of
+              Just "latex" | Just _ <- mvalue -> issueTypeError $
+                TypeErrorOther "\"latex\" rendering is not yet supported"
+              _ -> pure ()
+          let renderErrors = either pure (const []) renderResult
           withTopLevel (varIdentAt path name) tyV mvalue EntryTopLevel $ \decl ->
             checkCommands path (i + 1) total more $ \decls errs ->
-              k (Foil.sink decl : decls) (bodyErrors <> errs)
+              k (Foil.sink decl : decls) (bodyErrors <> renderErrors <> errs)
 
-  Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ _vars) params ty : more ->
-    announce (" Checking #postulate " <> Rzk.printTree name) $ do
+  command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ _vars) params ty) : more ->
+    announce (" Checking #postulate " <> Rzk.printTree name) $ atCommand command $ do
       typeResult <- attempt $ do
         paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
         tyTerm <- elaborate (addParamDecls paramDecls ty)
@@ -250,8 +278,8 @@ checkCommands path i total commands k = case commands of
             checkCommands path (i + 1) total more $ \decls errs ->
               k (Foil.sink decl : decls) errs
 
-  Rzk.CommandCheck _loc term ty : more ->
-    announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $ do
+  command@(Rzk.CommandCheck _loc term ty) : more ->
+    announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $ atCommand command $ do
       result <- attempt $ do
         tyTerm <- elaborate ty
         ty' <- atSurface ty $ check tyTerm universe
@@ -266,8 +294,8 @@ checkCommands path i total commands k = case commands of
   Rzk.CommandCompute loc term : more ->
     checkCommands path i total (Rzk.CommandComputeWHNF loc term : more) k
 
-  Rzk.CommandComputeNF _loc term : more ->
-    announce (" Computing NF for " <> Rzk.printTree term) $ do
+  command@(Rzk.CommandComputeNF _loc term) : more ->
+    announce (" Computing NF for " <> Rzk.printTree term) $ atCommand command $ do
       result <- attempt $ do
         (term', _) <- atSurface term $ elaborate term >>= infer
         ctx <- askContext
@@ -276,8 +304,8 @@ checkCommands path i total commands k = case commands of
         Left err -> skipping err path i total more k
         Right shown -> announce ("  " <> shown) $ checkCommands path (i + 1) total more k
 
-  Rzk.CommandComputeWHNF _loc term : more ->
-    announce (" Computing WHNF for " <> Rzk.printTree term) $ do
+  command@(Rzk.CommandComputeWHNF _loc term) : more ->
+    announce (" Computing WHNF for " <> Rzk.printTree term) $ atCommand command $ do
       result <- attempt $ do
         (term', _) <- atSurface term $ elaborate term >>= infer
         ctx <- askContext

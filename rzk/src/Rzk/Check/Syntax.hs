@@ -70,12 +70,13 @@ module Rzk.Check.Syntax
   , holeNamesOf
   , isHoleHeaded
   , alphaEqCore
+  , eqCore
   ) where
 
 import           Control.Monad.Foil                (NameBinder, S)
 import qualified Control.Monad.Foil                as Foil
 import           Control.Monad.Free.Foil           (AST (..), ScopedAST (..),
-                                                    alphaEquiv)
+                                                    alphaEquiv, unsafeEqAST)
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Data.Bifoldable                   (bifoldMap, bifoldr)
 import           Data.Bifunctor                    (bimap)
@@ -126,7 +127,7 @@ data Param term = Param
   { paramModality :: TModality
   , paramDomain   :: term
   , paramShape    :: Maybe term
-  } deriving (Functor, Foldable, Traversable)
+  } deriving (Functor, Foldable, Traversable, Show)
 
 instance ZipMatchK TModality where
   zipMatchWithK = zipMatchViaEq
@@ -418,3 +419,8 @@ isHoleHeaded = \case
 -- | α-equivalence of two core terms in a scope.
 alphaEqCore :: Foil.Distinct n => Foil.Scope n -> Core n -> Core n -> Bool
 alphaEqCore = alphaEquiv
+
+-- | Syntactic equality of two core terms: conservative, as two α-equivalent
+-- terms whose binders differ are not equal, and cheaper than 'alphaEqCore'.
+eqCore :: Foil.Distinct n => Core n -> Core n -> Bool
+eqCore = unsafeEqAST

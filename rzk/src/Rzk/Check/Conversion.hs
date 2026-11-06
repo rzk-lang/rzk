@@ -23,7 +23,7 @@ module Rzk.Check.Conversion
   , holesTolerated
   ) where
 
-import           Control.Monad            (unless)
+import           Control.Monad            (unless, when)
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..))
@@ -96,13 +96,29 @@ explain mterm variance expected actual = do
       sequence_
         [ underTope (topeOf scope ctx tope) $ convertTerms face termV
         | (tope, face) <- rsE ]
+    -- both restricted: the underlying types, then the faces of the
+    -- supertype covered by those of the subtype, agreeing on overlaps
+    (VNodeRestricted tyE rsE, VNodeRestricted tyA rsA) -> do
+      compareWith mterm variance tyE tyA
+      let (superRs, subRs) = case variance of
+            Contravariant -> (rsA, rsE)
+            _             -> (rsE, rsA)
+      sequence_
+        [ underTope superT $ do
+            ctx' <- askContext
+            let subTopes = map (topeOf scope ctx' . fst) subRs
+            unless (entailsUnion (ctxTopes ctx') subTopes) $
+              issueTypeError (TypeErrorTopeNotSatisfied (accessibleTopes (ctxTopes ctx')) (foldr topeOr TBot subTopes))
+            sequence_
+              [ underTope (topeOf scope ctx' subTope) $ convertTerms superTerm subTerm
+              | (subTope, subTerm) <- subRs ]
+        | (superTope, superTerm) <- superRs
+        , let superT = topeOf scope ctx superTope ]
+      when (variance == Invariant) $
+        compareWith mterm Covariant actual expected
     -- a function is a subtype of another when its applications are
     (VPi (Pi envE md domE mshapeE retE), VPi (Pi envA md' domA mshapeA retA)) | md == md' -> do
       compareWith Nothing (opposite variance) domE domA
-      case (mshapeE, mshapeA) of
-        (Nothing, Nothing) -> pure ()
-        (Just sE, Just sA) -> compareWith Nothing (opposite variance) sE sA
-        _ -> mismatch
       Foil.withFresh scope $ \b -> do
         let pat = singlePattern b
             scope' = Foil.extendScopePattern pat scope
@@ -111,7 +127,33 @@ explain mterm variance expected actual = do
             codE = codomainAt scope' ctx' (Foil.sink envE) retE x
             codA = codomainAt scope' ctx' (Foil.sink envA) retA x
             mterm' = fmap (\term -> App (Foil.sink term) (Var (Foil.nameOf b))) mterm
-        inContext ctx' $ compareWith mterm' variance codE codA
+        inContext ctx' $ do
+          -- the shapes: the expected one entails the actual one, as the
+          -- domain is contravariant
+          case (mshapeE, mshapeA) of
+            (Nothing, Nothing) -> pure ()
+            (Just sE, Just sA) -> do
+              let tE = topeOf scope' ctx' (appValue scope' ctx' (Foil.sink sE) x)
+                  tA = topeOf scope' ctx' (appValue scope' ctx' (Foil.sink sA) x)
+                  topes = ctxTopes ctx'
+                  holds = case variance of
+                    Covariant     -> entails (assume tE topes) tA
+                    Contravariant -> entails (assume tA topes) tE
+                    Invariant     -> entails (assume tE topes) tA && entails (assume tA topes) tE
+                  (super, sub) = case variance of
+                    Contravariant -> (tA, tE)
+                    _             -> (tE, tA)
+              unless holds $
+                issueTypeError (TypeErrorTopeNotSatisfied (accessibleTopes (assume super topes)) sub)
+            _ -> inContext ctx mismatch
+          compareWith mterm' variance codE codA
+    -- identity types: the carriers, then the endpoints
+    (NbE.VNode (TypeIdF xE mtE yE), NbE.VNode (TypeIdF xA mtA yA)) -> do
+      case (mtE, mtA) of
+        (Just tE, Just tA) -> convertTypes tE tA
+        _ -> pure ()
+      convertTerms xE xA
+      convertTerms yE yA
     _ -> mismatch
   where
     mismatch = case mterm of
