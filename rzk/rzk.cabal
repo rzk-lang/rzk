@@ -643,6 +643,7 @@ library
       Rzk.Check.Error
       Rzk.Check.Modality
       Rzk.Check.Monad
+      Rzk.Check.Rules
       Rzk.Check.Syntax
       Rzk.Check.Topes
       Rzk.Check.Value
