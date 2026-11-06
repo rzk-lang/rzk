@@ -636,6 +636,7 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Rzk
+      Rzk.Check.Syntax
       Rzk.Diagnostic
       Rzk.Format
       Rzk.Main
