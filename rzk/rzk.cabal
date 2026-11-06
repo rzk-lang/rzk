@@ -636,10 +636,12 @@ library
       Language.Rzk.Syntax.Par
       Language.Rzk.Syntax.Print
       Rzk
+      Rzk.Check.Context
       Rzk.Check.Convert
       Rzk.Check.Modality
       Rzk.Check.Syntax
       Rzk.Check.Topes
+      Rzk.Check.Value
       Rzk.Diagnostic
       Rzk.Format
       Rzk.Main

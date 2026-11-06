@@ -55,11 +55,11 @@ import           Rzk.Check.Modality
 
 -- | A cube, as far as the solver tells cubes apart.
 data Cube
-  = CubeUnit
-  | Cube2
-  | CubeI
-  | CubeProd Cube Cube
-  | CubeOther
+  = KUnit
+  | K2
+  | KI
+  | KProd Cube Cube
+  | KOther
     -- ^ a cube the solver has no rules for: a neutral one, or a modal one
   deriving (Eq, Ord, Show)
 
@@ -86,9 +86,9 @@ data Point
   | PApp !Cube Point Point
     -- ^ a neutral application, with its cube
   | PHole (Maybe VarIdent)
-  | POpaque !Int
+  | POpaque String
     -- ^ a point the solver cannot read (an elimination it has no rule for),
-    -- numbered so that equal values read back equal
+    -- keyed by a fingerprint of its term, so that equal values read back equal
   deriving (Eq, Ord, Show)
 
 -- | A tope.
@@ -113,29 +113,29 @@ data Tope
 cubeOf :: Point -> Cube
 cubeOf = \case
   PVar _ c       -> c
-  PStar          -> CubeUnit
-  P2_0           -> Cube2
-  P2_1           -> Cube2
-  PI_0           -> CubeI
-  PI_1           -> CubeI
-  PPair l r      -> CubeProd (cubeOf l) (cubeOf r)
-  PFst p         -> case cubeOf p of { CubeProd a _ -> a; _ -> CubeOther }
-  PSnd p         -> case cubeOf p of { CubeProd _ b -> b; _ -> CubeOther }
+  PStar          -> KUnit
+  P2_0           -> K2
+  P2_1           -> K2
+  PI_0           -> KI
+  PI_1           -> KI
+  PPair l r      -> KProd (cubeOf l) (cubeOf r)
+  PFst p         -> case cubeOf p of { KProd a _ -> a; _ -> KOther }
+  PSnd p         -> case cubeOf p of { KProd _ b -> b; _ -> KOther }
   PSup l r       -> interval (cubeOf l) (cubeOf r)
   PInf l r       -> interval (cubeOf l) (cubeOf r)
-  PFlip _        -> CubeOther
-  PUnflip _      -> CubeOther
-  PModApp{}      -> CubeOther
-  PModExtract{}  -> CubeOther
+  PFlip _        -> KOther
+  PUnflip _      -> KOther
+  PModApp{}      -> KOther
+  PModExtract{}  -> KOther
   PApp c _ _     -> c
-  PHole _        -> CubeOther
-  POpaque _      -> CubeOther
+  PHole _        -> KOther
+  POpaque _      -> KOther
   where
-    interval Cube2 Cube2 = Cube2
-    interval CubeI CubeI = CubeI
-    interval CubeI Cube2 = CubeI
-    interval Cube2 CubeI = CubeI
-    interval _ _         = CubeOther
+    interval K2 K2 = K2
+    interval KI KI = KI
+    interval KI K2 = KI
+    interval K2 KI = KI
+    interval _ _         = KOther
 
 -- | The first component of a point of a product cube.
 pointFirst :: Point -> Point
@@ -476,11 +476,11 @@ generateTopesForPoints points = concat (topes <> stars)
       | x : points' <- tails (filter (`notElem` endpoints) points)
       , y <- points'
       , x /= y ]
-    stars = [ [TEq x PStar] | x <- points, cubeOf x == CubeUnit ]
+    stars = [ [TEq x PStar] | x <- points, cubeOf x == KUnit ]
     topes =
       [ [TOr (TLeq x y) (TLeq y x)]
       | (x, y) <- pairs
-      , cubeOf x == Cube2, cubeOf y == Cube2 ]
+      , cubeOf x == K2, cubeOf y == K2 ]
 
 allTopePoints :: Tope -> [Point]
 allTopePoints = nub . foldMap subPoints . nub . topePoints
@@ -498,8 +498,8 @@ subPoints = \case
   p@(PPair x y) -> p : foldMap subPoints [x, y]
   p@PVar{}      -> [p]
   p -> case cubeOf p of
-    CubeUnit -> [p]
-    Cube2    -> [p]
+    KUnit -> [p]
+    K2    -> [p]
     _        -> []
 
 -- * Simplifying the left-hand side
@@ -536,9 +536,9 @@ solveRHS modalTopes goal =
       in solveRHS (saturateInv (saturateTopes shifted)) inTope
     TEq (PPair x y) (PPair x' y') ->
       solveRHS modalTopes (TAnd (TEq x x') (TEq y y'))
-    TEq l@(PPair x y) r | CubeProd _ _ <- cubeOf l ->
+    TEq l@(PPair x y) r | KProd _ _ <- cubeOf l ->
       solveRHS modalTopes (TAnd (TEq x (pointFirst r)) (TEq y (pointSecond r)))
-    TEq l r@(PPair x y) | CubeProd _ _ <- cubeOf r ->
+    TEq l r@(PPair x y) | KProd _ _ <- cubeOf r ->
       solveRHS modalTopes (TAnd (TEq (pointFirst l) x) (TEq (pointSecond l) y))
     TEq P2_0 PI_0 -> True
     TEq PI_0 P2_0 -> True
@@ -549,7 +549,7 @@ solveRHS modalTopes goal =
       | goal `elem` topes -> True
       | TEq r l `elem` topes -> True
       | otherwise -> case (cubeOf l, cubeOf r) of
-          (CubeUnit, CubeUnit) -> True
+          (KUnit, KUnit) -> True
           -- antisymmetry proves an equation between lattice points
           _ | isLatticePoint l || isLatticePoint r ->
                 solveRHS modalTopes (TAnd (TLeq l r) (TLeq r l))
@@ -596,11 +596,11 @@ solveTopes topes tope = case tope of
   TEq (PPair x y) (PPair x' y')
     | solveTopes topes (TEq x x') && solveTopes topes (TEq y y') -> True
   TEq l@(PPair x y) r
-    | CubeProd _ _ <- cubeOf l
+    | KProd _ _ <- cubeOf l
     , solveTopes topes (TEq x (pointFirst r))
     , solveTopes topes (TEq y (pointSecond r)) -> True
   TEq l r@(PPair x y)
-    | CubeProd _ _ <- cubeOf r
+    | KProd _ _ <- cubeOf r
     , solveTopes topes (TEq (pointFirst l) x)
     , solveTopes topes (TEq (pointSecond l) y) -> True
   TEq P2_0 PI_0 -> True
