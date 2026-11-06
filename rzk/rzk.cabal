@@ -637,7 +637,9 @@ library
       Language.Rzk.Syntax.Print
       Rzk
       Rzk.Check.Convert
+      Rzk.Check.Modality
       Rzk.Check.Syntax
+      Rzk.Check.Topes
       Rzk.Diagnostic
       Rzk.Format
       Rzk.Main
