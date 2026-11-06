@@ -43,6 +43,21 @@ data Covariance
   | Contravariant -- ^ Negative position.
   | Invariant     -- ^ Unknown position.
 
+-- | Which conversion fast path unification consults before its own search
+-- (see "Rzk.TypeCheck.NbE").
+data FastPath
+  = FastPathOff
+    -- ^ None: every comparison goes through the unification alone.
+  | FastPathSpine
+    -- ^ The hand-written fast path, "Rzk.TypeCheck.NbE.Spine".
+  | FastPathGeneric
+    -- ^ The fast path on free-foil-NBE, the default.
+  | FastPathCheck
+    -- ^ The differential test: both fast paths answer every query, the
+    -- unification decides it, and a generic @Convertible@ that the
+    -- unification rejects is reported.
+  deriving (Eq, Show)
+
 data RenderBackend
   = RenderSVG
   | RenderLaTeX
@@ -231,6 +246,7 @@ data Context n = Context
   , ctxLocation            :: Maybe LocationInfo
   , ctxVerbosity           :: Verbosity
   , ctxCovariance          :: Covariance
+  , ctxFastPath            :: FastPath
   , ctxRenderBackend       :: Maybe RenderBackend
   , ctxRenderHideTerm      :: Bool
     -- ^ When rendering a diagram, hide the proof term: drop the @\<title\>@ (which
@@ -319,6 +335,7 @@ emptyContext = Context
   , ctxLocation = Nothing
   , ctxVerbosity = Normal
   , ctxCovariance = Covariant
+  , ctxFastPath = FastPathGeneric
   , ctxRenderBackend = Nothing
   , ctxRenderHideTerm = False
   , ctxHolesAreErrors = True

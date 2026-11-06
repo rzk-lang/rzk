@@ -10,7 +10,7 @@
 
 -- Benchmark harness for the rzk typechecker. See bench/README.md.
 --
---   bench/bench.hs run     [--quick] [--runs N] [--corpus NAME] [--rts "OPTS"] [--label STR]
+--   bench/bench.hs run     [--quick] [--runs N] [--corpus NAME] [--rts "OPTS"] [--label STR] [--args "ARGS"]
 --   bench/bench.hs profile [--quick] [--corpus NAME]
 --   bench/bench.hs setup   [--corpus NAME]
 --
@@ -68,15 +68,17 @@ data Options = Options
   , optCorpus :: String
   , optRts    :: [String]
   , optLabel  :: String
+  , optArgs   :: [String]
+    -- | Extra arguments for @rzk typecheck@ (a fast-path mode, say).
   }
 
 defaultOptions :: Options
-defaultOptions = Options False 3 "sHoTT" [] ""
+defaultOptions = Options False 3 "sHoTT" [] "" []
 
 usage :: IO a
 usage = do
   hPutStrLn stderr "usage: bench/bench.hs (setup | run | profile) \
-                   \[--quick] [--runs N] [--corpus NAME] [--rts \"OPTS\"] [--label STR]\n\
+                   \[--quick] [--runs N] [--corpus NAME] [--rts \"OPTS\"] [--label STR] [--args \"ARGS\"]\n\
                    \       bench/bench.hs summary FILE.prof"
   exitFailure
 
@@ -98,6 +100,7 @@ parseArgs (cmdStr : rest) = do
     go opts ("--corpus" : c : xs)  = go opts { optCorpus = c } xs
     go opts ("--rts" : r : xs)     = go opts { optRts = words r } xs
     go opts ("--label" : l : xs)   = go opts { optLabel = l } xs
+    go opts ("--args" : a : xs)    = go opts { optArgs = words a } xs
     go _ (arg : _)                 = do
       hPutStrLn stderr ("unknown option: " <> arg)
       usage
@@ -225,7 +228,7 @@ benchRun root benchDir opts = do
 
   walls <- forM [1 .. optRuns opts] $ \i -> do
     let statsFile = resultsDir </> ".stats.tmp"
-        args = ["typecheck"] ++ files
+        args = ["typecheck"] ++ optArgs opts ++ files
             ++ ["+RTS"] ++ optRts opts
             ++ ["-t" <> statsFile, "--machine-readable", "-RTS"]
     (code, out) <- runIn corpusDir bin args

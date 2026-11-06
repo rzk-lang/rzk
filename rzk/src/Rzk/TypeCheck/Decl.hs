@@ -1669,11 +1669,21 @@ checkedModules modules ctx =
   package $ runTypeCheckWith ctx $
     checkModules modules $ \decls errs -> do
       ctx' <- ask
+      reportDifferential
       pure (Checked ctx' decls errs [])
   where
     package (Left err, _) = Left err
     package (Right (Checked ctx' decls errs _), (holes, warnings)) =
       Right (Checked ctx' decls errs warnings, holes)
+
+-- | Under 'FastPathCheck', the tallies of the differential test of the
+-- conversion fast paths, as a warning at the end of the run.
+reportDifferential :: Distinct n => TypeCheck n ()
+reportDifferential = asks ctxFastPath >>= \case
+  FastPathCheck -> do
+    stats <- getsLog logNbEStats
+    recordCheckWarning (NbEDifferentialReport stats)
+  _ -> pure ()
 
 -- | Check the modules strictly: an unfilled hole is an error, and the first error
 -- stops the run.
