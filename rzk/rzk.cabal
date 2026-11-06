@@ -639,7 +639,9 @@ library
       Rzk.Check.Context
       Rzk.Check.Convert
       Rzk.Check.Display
+      Rzk.Check.Error
       Rzk.Check.Modality
+      Rzk.Check.Monad
       Rzk.Check.Syntax
       Rzk.Check.Topes
       Rzk.Check.Value
