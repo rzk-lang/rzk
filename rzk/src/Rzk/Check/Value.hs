@@ -82,6 +82,7 @@ module Rzk.Check.Value
     -- * Patterns
   , patternValue
   , patternValues
+  , bindPattern
   , patternEntries
   , letEntries
   , singlePattern
@@ -202,8 +203,7 @@ instance Eval (Context d) Pattern Sig where
     SecondF p -> secondValue (ev p)
     LetF _mty val (ScopedAST pat body) -> case Foil.assertDistinct pat of
       Foil.Distinct ->
-        let v = ev val
-        in NbE.eval scope ctx (Foil.addSubstPattern env pat (patternValues pat v)) body
+        NbE.eval scope ctx (bindPattern env pat (ev val)) body
     TypeAscF term _ty -> ev term
     IdJF tA a tC d x p -> idJValue (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
     -- The branch whose guard the tope context entails; otherwise the one
@@ -429,11 +429,13 @@ instance Eval (Context d) Pattern Sig where
         Just x | flagRefines (entryFlags (lookupEntry x ctx)) -> refineNeutral scope ctx value
         _ -> value
 
-  {-# INLINE singleBinder #-}
-  singleBinder _ _ b = Just (PatternVar Nothing b)
+  -- A pattern stands for its names paired; bound to a value, its leaves
+  -- get the projections.
+  {-# INLINE binderValue #-}
+  binderValue _ _ pat = Just (patternValue pat)
 
-  {-# INLINE destructure #-}
-  destructure _ _ pat v = Just (patternValues pat v)
+  {-# INLINE bindValue #-}
+  bindValue _ _ pat v = Just (patternValues pat v)
 
 -- | A node without scoped positions, as a value.
 nodeValue :: Sig a (Value n) -> Maybe (Value n)
@@ -479,7 +481,7 @@ evalCore scope ctx = NbE.eval scope ctx Foil.identitySubst
 evalScope :: (Distinct n, Distinct i) => Scope n -> Context d n -> Env i n -> ScopedCore i -> Value n -> Value n
 {-# INLINE evalScope #-}
 evalScope scope ctx env (ScopedAST pat body) arg = case Foil.assertDistinct pat of
-  Foil.Distinct -> NbE.eval scope ctx (Foil.addSubstPattern env pat (patternValues pat arg)) body
+  Foil.Distinct -> NbE.eval scope ctx (bindPattern env pat arg) body
 
 quoteIn :: Distinct n => Scope n -> Context d n -> Value n -> Core n
 {-# INLINE quoteIn #-}
@@ -542,7 +544,7 @@ appValue :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Value 
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
   NbE.VSuspended env (LambdaF _ (ScopedAST pat body)) ->
     case Foil.assertDistinct pat of
-      Foil.Distinct -> NbE.eval scope ctx (Foil.addSubstPattern env pat (patternValues pat arg)) body
+      Foil.Distinct -> NbE.eval scope ctx (bindPattern env pat arg) body
   NbE.Stuck fun' -> case spineHead fun' of
     Just x | flagTopeFamily (entryFlags (lookupEntry x ctx))
            , Just ty <- neutralType scope ctx fun'
@@ -658,13 +660,18 @@ patternValue = \case
   PatternUnit b   -> NbE.vvar (Foil.nameOf b)
   PatternPair l r -> NbE.vnode (PairF (unsafeCoerce (patternValue l)) (patternValue r))
 
--- | The values of a pattern's names, in binding order, read off a value by
+-- | The values of a pattern's names, keyed by name, read off a value by
 -- projections.
-patternValues :: Pattern i l -> Value n -> [Value n]
+patternValues :: Pattern i l -> Value n -> NbE.NameBinderMap i l (Value n)
 patternValues pat v = case pat of
-  PatternVar _ _  -> [v]
-  PatternUnit _   -> [v]
-  PatternPair l r -> patternValues l (firstValue v) <> patternValues r (secondValue v)
+  PatternVar _ b  -> NbE.singletonBinderMap b v
+  PatternUnit b   -> NbE.singletonBinderMap b v
+  PatternPair l r -> NbE.unionBinderMap (patternValues l (firstValue v)) (patternValues r (secondValue v))
+
+-- | An environment extended with a pattern bound to a value.
+bindPattern :: Env i n -> Pattern i l -> Value n -> Env l n
+{-# INLINE bindPattern #-}
+bindPattern env pat v = NbE.addSubstBinderMap env (patternValues pat v)
 
 -- | The pattern binding one name.
 singlePattern :: NameBinder n l -> Pattern n l
@@ -715,7 +722,13 @@ letEntries
 letEntries scope ctx loc ty val pat =
   zipWith (\entry v -> entry { entryValue = Just v })
     (patternEntries scope ctx Id loc ty pat)
-    (patternValues pat val)
+    (leafValues pat val)
+  where
+    leafValues :: Pattern x y -> Value l -> [Value l]
+    leafValues p v = case p of
+      PatternVar _ _  -> [v]
+      PatternUnit _   -> [v]
+      PatternPair l r -> leafValues l (firstValue v) <> leafValues r (secondValue v)
 
 -- * Binders
 
