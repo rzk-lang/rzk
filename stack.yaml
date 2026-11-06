@@ -8,3 +8,7 @@ packages:
 extra-deps:
   - free-foil-0.6.1
   - kind-generics-th-0.2.3.3
+  # free-foil-NBE is not on Hackage yet. The branch rzk-integration is its PR
+  # stack (glue-speculation) with main merged in; only the main library is used.
+  - git: https://github.com/p50000/free-foil-NBE.git
+    commit: d7c2eb224d27fbb330945faf1af480b1ff26c35e
