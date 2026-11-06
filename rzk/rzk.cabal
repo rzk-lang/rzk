@@ -637,6 +637,7 @@ library
       Language.Rzk.Syntax.Print
       Rzk
       Rzk.Check.Context
+      Rzk.Check.Conversion
       Rzk.Check.Convert
       Rzk.Check.Display
       Rzk.Check.Error
