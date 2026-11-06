@@ -81,7 +81,6 @@ module Rzk.Check.Value
   , restrictionsOf
     -- * Patterns
   , patternValue
-  , patternValues
   , bindPattern
   , patternEntries
   , letEntries
@@ -435,7 +434,7 @@ instance Eval (Context d) Pattern Sig where
   binderValue _ _ pat = Just (patternValue pat)
 
   {-# INLINE bindValue #-}
-  bindValue _ _ pat v = Just (patternValues pat v)
+  bindValue _ _ env pat v = Just (bindPattern env pat v)
 
 -- | A node without scoped positions, as a value.
 nodeValue :: Sig a (Value n) -> Maybe (Value n)
@@ -660,18 +659,14 @@ patternValue = \case
   PatternUnit b   -> NbE.vvar (Foil.nameOf b)
   PatternPair l r -> NbE.vnode (PairF (unsafeCoerce (patternValue l)) (patternValue r))
 
--- | The values of a pattern's names, keyed by name, read off a value by
--- projections.
-patternValues :: Pattern i l -> Value n -> NbE.NameBinderMap i l (Value n)
-patternValues pat v = case pat of
-  PatternVar _ b  -> NbE.singletonBinderMap b v
-  PatternUnit b   -> NbE.singletonBinderMap b v
-  PatternPair l r -> NbE.unionBinderMap (patternValues l (firstValue v)) (patternValues r (secondValue v))
-
--- | An environment extended with a pattern bound to a value.
+-- | An environment extended with a pattern bound to a value: each leaf
+-- gets the projection of the value at its position, computed when the
+-- name is looked up.
 bindPattern :: Env i n -> Pattern i l -> Value n -> Env l n
-{-# INLINE bindPattern #-}
-bindPattern env pat v = NbE.addSubstBinderMap env (patternValues pat v)
+bindPattern env pat v = case pat of
+  PatternVar _ b  -> Foil.addSubst env b v
+  PatternUnit b   -> Foil.addSubst env b v
+  PatternPair l r -> bindPattern (bindPattern env l (firstValue v)) r (secondValue v)
 
 -- | The pattern binding one name.
 singlePattern :: NameBinder n l -> Pattern n l
