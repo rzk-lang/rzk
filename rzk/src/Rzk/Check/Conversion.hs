@@ -83,19 +83,6 @@ explain mterm variance expected actual = do
   let scope = ctxScope ctx
   tolerated <- maybe (pure False) holesTolerated mterm
   if tolerated then pure () else case (force expected, force actual) of
-    -- the restricted type is the subtype of its underlying type
-    (_, VNodeRestricted tyA _) | variance == Covariant ->
-      compareWith mterm variance expected tyA
-    (VNodeRestricted tyE _, _) | variance == Contravariant ->
-      compareWith mterm variance tyE actual
-    -- a term of an unrestricted type stands at a restricted one when it
-    -- agrees with each face
-    (VNodeRestricted tyE rsE, _) | Just term <- mterm, variance == Covariant -> do
-      compareWith mterm variance tyE actual
-      let termV = evalCore scope ctx term
-      sequence_
-        [ underTope (topeOf scope ctx tope) $ convertTerms face termV
-        | (tope, face) <- rsE ]
     -- both restricted: the underlying types, then the faces of the
     -- supertype covered by those of the subtype, agreeing on overlaps
     (VNodeRestricted tyE rsE, VNodeRestricted tyA rsA) -> do
@@ -116,6 +103,43 @@ explain mterm variance expected actual = do
         , let superT = topeOf scope ctx superTope ]
       when (variance == Invariant) $
         compareWith mterm Covariant actual expected
+    -- the restricted type is the subtype of its underlying type
+    (_, VNodeRestricted tyA _) | variance == Covariant ->
+      compareWith mterm variance expected tyA
+    (VNodeRestricted tyE _, _) | variance == Contravariant ->
+      compareWith mterm variance tyE actual
+    -- a term of an unrestricted type stands at a restricted one when it
+    -- agrees with each face
+    (VNodeRestricted tyE rsE, _) | Just term <- mterm, variance == Covariant -> do
+      compareWith mterm variance tyE actual
+      let termV = evalCore scope ctx term
+      sequence_
+        [ underTope (topeOf scope ctx tope) $ convertTerms face termV
+        | (tope, face) <- rsE ]
+    -- two family types: the cubes, then the shapes, covariantly and on
+    -- their own
+    (NbE.VNode (TypeShapeF md cubeE mshapeE), NbE.VNode (TypeShapeF md' cubeA mshapeA)) | md == md' -> do
+      compareWith Nothing (opposite variance) cubeE cubeA
+      case (mshapeE, mshapeA) of
+        (Nothing, Nothing) -> pure ()
+        (Just sE, Just sA) -> Foil.withFresh scope $ \b -> do
+          let pat = singlePattern b
+              scope' = Foil.extendScopePattern pat scope
+              ctx' = underPattern scope' ctx md cubeA Nothing pat
+              x = patternValue pat
+              tE = topeOf scope' ctx' (appValue scope' ctx' (Foil.sink sE) x)
+              tA = topeOf scope' ctx' (appValue scope' ctx' (Foil.sink sA) x)
+              topes = ctxTopes ctx'
+              holds = case variance of
+                Covariant     -> topesEntail topes [tA] tE
+                Contravariant -> topesEntail topes [tE] tA
+                Invariant     -> equivalent topes tE tA
+              (super, sub) = case variance of
+                Contravariant -> (tE, tA)
+                _             -> (tA, tE)
+          unless holds $ inContext ctx' $
+            issueTypeError (TypeErrorTopeNotSatisfied [super] sub)
+        _ -> mismatch
     -- a function is a subtype of another when its applications are
     (VPi (Pi envE md domE mshapeE retE), VPi (Pi envA md' domA mshapeA retA)) | md == md' -> do
       compareWith Nothing (opposite variance) domE domA

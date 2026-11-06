@@ -57,7 +57,7 @@ module Rzk.Check.Syntax
   , pattern TopeTop, pattern TopeBottom, pattern TopeEQ, pattern TopeLEQ, pattern TopeAnd, pattern TopeOr
   , pattern TopeInv, pattern TopeUninv
   , pattern RecBottom, pattern RecOr
-  , pattern TypeFun, pattern TypeSigma, pattern TypeId, pattern App, pattern Let, pattern Lambda
+  , pattern TypeFun, pattern TypeShape, pattern TypeSigma, pattern TypeId, pattern App, pattern Let, pattern Lambda
   , pattern Pair, pattern First, pattern Second, pattern Refl, pattern IdJ
   , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc
   , pattern TypeRestricted, pattern TypeModal, pattern ModApp, pattern ModExtract, pattern LetMod
@@ -175,6 +175,10 @@ data Sig scope term
   | TypeFunF TModality term (Maybe term) scope
     -- ^ a Π: the modality of the binder, its domain (a type, or the cube of
     -- a shape), the shape as a tope family over the cube, and the codomain
+  | TypeShapeF TModality term (Maybe term)
+    -- ^ the type of a tope family: @{t : cube | shape} → TOPE@, whose
+    -- codomain is constant, so that the subtyping of families, which is
+    -- covariant in the shape, can tell it from a Π
   | TypeSigmaF TModality term scope
   | TypeIdF term (Maybe term) term
   | AppF term term
@@ -314,6 +318,8 @@ pattern RecOr :: [(Core n, Core n)] -> Core n
 pattern RecOr rs = Node (RecOrF rs)
 pattern TypeFun :: TModality -> Core n -> Maybe (Core n) -> ScopedCore n -> Core n
 pattern TypeFun md dom mshape ret = Node (TypeFunF md dom mshape ret)
+pattern TypeShape :: TModality -> Core n -> Maybe (Core n) -> Core n
+pattern TypeShape md cube mshape = Node (TypeShapeF md cube mshape)
 pattern TypeSigma :: TModality -> Core n -> ScopedCore n -> Core n
 pattern TypeSigma md a b = Node (TypeSigmaF md a b)
 pattern TypeId :: Core n -> Maybe (Core n) -> Core n -> Core n
@@ -360,7 +366,7 @@ pattern Hole mname = Node (HoleF mname)
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
   Cube2, Cube2_0, Cube2_1, CubeI, CubeI_0, CubeI_1, CubeProduct, CubeFlip,
   CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
-  TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeSigma, TypeId, App,
+  TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeShape, TypeSigma, TypeId, App,
   Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
   TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 

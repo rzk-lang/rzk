@@ -74,6 +74,9 @@ module Rzk.Check.Value
   , piOf
   , Sigma (..)
   , sigmaOf
+  , Family (..)
+  , familyOf
+  , isTopShape
   , stripRestrictions
   , restrictionsOf
     -- * Patterns
@@ -300,12 +303,12 @@ instance Eval (Context d) Pattern Sig where
     -- guards the branches agree; a recOR against another term agrees with
     -- it under each guard
     (RecOrF rsL, RecOrF rsR) -> Just $ mconcat
-      [ term bL bR (assumeValue scope ctx (topeAndValue tL tR))
+      [ underOverlap (topeAndValue tL tR) (term bL bR)
       | (tL, bL) <- rsL, (tR, bR) <- rsR ]
     (RecOrF rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
-      [ term bL rv (assumeValue scope ctx tL) | (tL, bL) <- rsL ]
+      [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
     (_, RecOrF rsR) | Just lv <- nodeValue l -> Just $ mconcat
-      [ term lv bR (assumeValue scope ctx tR) | (tR, bR) <- rsR ]
+      [ underOverlap tR (term lv bR) | (tR, bR) <- rsR ]
 
     -- two topes are compared by entailment in the context's variance: the
     -- subtype's tope entails the supertype's
@@ -331,6 +334,17 @@ instance Eval (Context d) Pattern Sig where
          (Just pL, Just pR) -> term (paramDomain pL) (paramDomain pR) (withVariance Invariant ctx)
          _ -> mempty)
       <> scoped bodyL bodyR (lambdasBinder mpL mpR)
+
+    -- a family type: the cube in the opposite variance, the shape in the
+    -- context's variance (the family's subtyping is covariant in it, and
+    -- the tope context plays no part)
+    (TypeShapeF md cubeL mshapeL, TypeShapeF md' cubeR mshapeR)
+      | md == md' ->
+          let domain = term cubeL cubeR (withVariance (opposite (ctxVariance ctx)) ctx)
+          in case (mshapeL, mshapeR) of
+               (Nothing, Nothing) -> Just domain
+               (Just sL, Just sR) -> Just (domain <> term sL sR ctx)
+               _ -> Nothing
 
     -- Π: the domain in the opposite variance, the shapes as shapes, the
     -- codomain under the binder
@@ -371,15 +385,23 @@ instance Eval (Context d) Pattern Sig where
     where
       guarded holds = if holds then Just mempty else Nothing
 
+      -- A comparison under a tope, which holds trivially when the tope
+      -- makes the context contradictory.
+      underOverlap tope compare' =
+        let ctx' = assumeValue scope ctx tope
+        in if entailsBottom (ctxTopes ctx') then mempty else compare' ctx'
+
       -- The faces of the supertype are covered by the faces of the subtype:
       -- under each face of the supertype, the subtype's topes cover the
       -- context, and the boundary terms agree under each overlap. The sides
       -- of the comparison are kept whichever side is the supertype.
       facesCovered superRs subRs = fmap mconcat $ sequence
         [ let face = assumeValue scope ctx tope
-          in if entailsUnion (ctxTopes face) (map (topeOf scope face . fst) subRs)
+          in if entailsBottom (ctxTopes face) then Just mempty
+             else if entailsUnion (ctxTopes face) (map (topeOf scope face . fst) subRs)
                then Just $ mconcat
-                 [ sided term' (assumeValue scope face tope')
+                 [ let overlap = assumeValue scope face tope'
+                   in if entailsBottom (ctxTopes overlap) then mempty else sided term' overlap
                  | (tope', term') <- subRs ]
                else Nothing
         | (tope, term0) <- superRs
@@ -524,13 +546,10 @@ appValue scope ctx fun arg = NbE.eliminate fun $ \case
   NbE.Stuck fun' -> case spineHead fun' of
     Just x | flagTopeFamily (entryFlags (lookupEntry x ctx))
            , Just ty <- neutralType scope ctx fun'
-           , Just (Pi _ _ _ (Just shape) ret) <- piOf ty
-           , isTopeCodomain ret ->
+           , Just (Family _ _ (Just shape)) <- familyOf ty
+           , not (isTopShape shape) ->
         topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
     _ -> NbE.vnode (AppF fun' arg)
-  where
-    isTopeCodomain (ScopedAST _ UniverseTope) = True
-    isTopeCodomain _                          = False
 
 firstValue :: Value n -> Value n
 {-# INLINE firstValue #-}
@@ -594,6 +613,20 @@ piOf :: Value n -> Maybe (Pi n)
 piOf v = case NbE.force (stripRestrictions v) of
   NbE.VSuspended env (TypeFunF md dom mshape ret) -> Just (Pi env md dom mshape ret)
   _ -> Nothing
+
+-- | The type of a tope family: its modality, its cube and its shape.
+data Family n = Family TModality (Value n) (Maybe (Value n))
+
+familyOf :: Value n -> Maybe (Family n)
+familyOf v = case NbE.force (stripRestrictions v) of
+  NbE.VNode (TypeShapeF md cube mshape) -> Just (Family md cube mshape)
+  _ -> Nothing
+
+-- | Is a shape the one that is ⊤ everywhere?
+isTopShape :: Value n -> Bool
+isTopShape v = case NbE.force v of
+  NbE.VSuspended _ (LambdaF _ (ScopedAST _ TopeTop)) -> True
+  _ -> False
 
 -- | A Σ type value, opened.
 data Sigma n where
@@ -884,8 +917,12 @@ neutralType :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
   NbE.VNode (AppF f a) -> do
-    Pi env _ _ _ ret <- piOf =<< neutralType scope ctx f
-    Just (codomainAt scope ctx env ret a)
+    fTy <- neutralType scope ctx f
+    case familyOf fTy of
+      Just _ -> Just topeUniverse
+      Nothing -> do
+        Pi env _ _ _ ret <- piOf fTy
+        Just (codomainAt scope ctx env ret a)
   NbE.VNode (FirstF p) -> do
     ty <- neutralType scope ctx p
     case NbE.force (stripRestrictions ty) of
@@ -912,12 +949,11 @@ flagsOfType scope0 ctx0 = go scope0 ctx0 noFlags
     go scope ctx flags ty = case NbE.force ty of
       NbE.VNode (TypeRestrictedF inner _) -> go scope ctx flags { flagRefines = True } inner
       NbE.VNode TypeUnitF -> flags { flagRefines = True }
-      NbE.VSuspended env (TypeFunF _ _ mshape ret@(ScopedAST _ body)) ->
-        let flags' = case (mshape, body) of
-              (Just _, UniverseTope) -> flags { flagTopeFamily = True }
-              _ -> flags
-        in underFreshVar scope ctx Id (vhole Nothing) Nothing $ \scope' ctx' x ->
-             go scope' ctx' flags' (evalScope scope' ctx' (Foil.sink env) ret x)
+      NbE.VNode (TypeShapeF _ _ (Just shape))
+        | not (isTopShape shape) -> flags { flagTopeFamily = True }
+      NbE.VSuspended env (TypeFunF md dom mshape ret) ->
+        underFreshVar scope ctx md dom mshape $ \scope' ctx' x ->
+          go scope' ctx' flags (evalScope scope' ctx' (Foil.sink env) ret x)
       _ -> flags
 
 -- * Holes

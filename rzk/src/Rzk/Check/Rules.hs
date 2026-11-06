@@ -40,7 +40,6 @@ import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..),
                                            substitute)
 import           Data.List                (tails)
 import           Data.Maybe               (isNothing)
-import           Unsafe.Coerce            (unsafeCoerce)
 
 import qualified FreeFoil.NbE             as NbE
 
@@ -48,7 +47,7 @@ import           Language.Rzk.Foil.Names  (TModality (..), VarIdent,
                                            unmarkUnresolved)
 import           Rzk.Check.Context
 import           Rzk.Check.Conversion
-import           Rzk.Check.Display        (namingOfContext, ppName, ppValue, ppValueIn)
+import           Rzk.Check.Display        (namingOfContext, panicImpossible, ppName, ppValue, ppValueIn)
 import           Rzk.Check.Error
 import           Rzk.Check.Monad
 import           Rzk.Check.Syntax
@@ -92,13 +91,13 @@ underRawScope md dom mshape (ScopedAST pat body) k = do
           ctx' = underPattern scope' ctx md dom mshape pat'
       in inContext ctx' (k pat' body')
 
--- | A tope family over a cube, as a type: its Π, when its codomain is
--- @TOPE@.
-topeFamilyOf :: Distinct n => Foil.Scope n -> Context d n -> Value n -> Maybe (Pi n)
-topeFamilyOf scope ctx ty = case piOf ty of
-  Just p@(Pi _ _ dom mshape (ScopedAST _ UniverseTope))
-    | isCube scope ctx dom || maybe False (const True) mshape -> Just p
-  _ -> Nothing
+-- | A tope family over a cube, as a type.
+topeFamilyOf :: Value n -> Maybe (Family n)
+topeFamilyOf = familyOf
+
+-- | The type of a family over a cube: @{t : cube | shape} → TOPE@.
+familyType :: TModality -> Value n -> Maybe (Value n) -> Value n
+familyType md cube mshape = vnode (TypeShapeF md cube mshape)
 
 -- | The shape of a binder written with a family as its type: the family,
 -- conjoined with the shape of the family's own domain when it has one.
@@ -116,17 +115,6 @@ withTopShape :: Distinct n => Foil.Scope n -> Context d n -> Value n -> Maybe (V
 withTopShape scope ctx dom = \case
   Nothing | isCube scope ctx dom -> Just (topShapeValue scope dom)
   mshape -> mshape
-
--- | A Π value with a constant codomain: the type of a shape over a cube,
--- or of a family.
-constPi :: Distinct n => Foil.Scope n -> TModality -> Value n -> Maybe (Value n) -> Core Foil.VoidS -> Value n
-constPi scope md dom mshape cod = Foil.withFresh scope $ \b ->
-  NbE.vsuspended Foil.identitySubst
-    (TypeFunF md dom mshape (ScopedAST (singlePattern b) (closedCore cod)))
-
--- | A closed term, in any scope.
-closedCore :: Core Foil.VoidS -> Core l
-closedCore = unsafeCoerce
 
 -- * The layer discipline
 
@@ -147,6 +135,7 @@ classifyType :: Distinct n => Foil.Scope n -> Context d n -> Value n -> DomainKi
 classifyType scope ctx ty = case force (stripRestrictions ty) of
   NbE.VNode UniverseCubeF -> DomainCubeUniverse
   NbE.VNode UniverseTopeF -> DomainTopeUniverse
+  NbE.VNode (TypeShapeF _ _ _) -> DomainTopeFamily
   NbE.VNode (TypeModalF _ inner) -> case classifyType scope ctx inner of
     DomainType -> DomainType
     _          -> DomainModalTope
@@ -322,6 +311,51 @@ check term ty = performing (ActionCheck term ty) $ case term of
           pure term'
 
       tyW -> case term of
+        -- a λ against a family type: its body is a tope under the binder,
+        -- carrying the family's domain
+        RawNode (LambdaF mparam body) | Just (Family md' cube' mshape') <- familyOf (NbE.fromWhnf tyW) -> do
+          mparam' <- forM mparam $ \(Param md param mshape) -> do
+            when (md /= md') $ issueTypeError $ TypeErrorOther
+              "modality mismatch in lambda parameter"
+            cubeV <- case mshape of
+              Nothing -> do
+                (param', paramTy) <- infer param
+                paramV <- evalM param'
+                case topeFamilyOf paramTy of
+                  Just (Family _ cube _) -> convertTypes cube' cube >> pure cube
+                  Nothing -> convertTypes cube' paramV >> pure paramV
+              Just shape -> do
+                cube'' <- check param cubeUniverse
+                cubeV <- evalM cube''
+                convertTypes cube' cubeV
+                shape' <- check shape (familyType Id cubeV Nothing)
+                shapeV <- evalM shape'
+                forM_ mshape' $ \s' -> convertTypes s' shapeV
+                pure cubeV
+            pure (Param md cubeV mshape')
+          let mshapeAssumed = maybe mshape' paramShape mparam'
+          body' <- underRawScope md' cube' mshapeAssumed body $ \pat bodyTerm -> do
+            ctxIn <- askContext
+            let scopeIn = ctxScope ctxIn
+            bodyIn <- check bodyTerm topeUniverse
+            bodyIn' <- case mshapeAssumed of
+              Just shape -> do
+                bodyV <- evalM bodyIn
+                let domainV = appValue scopeIn ctxIn (Foil.sink shape) (patternValue pat)
+                    bodyT = topeOf scopeIn ctxIn bodyV
+                    domainT = topeOf scopeIn ctxIn domainV
+                if topesEntail (ctxTopes ctxIn) [bodyT] domainT then pure bodyIn else do
+                  warn <- asksContext (optWarnTopeFamilyDomain . ctxOptions)
+                  when warn $ recordWarning WarnTopeFamilyDomain $ \c ->
+                    TopeFamilyDomainWarning (ppValueIn c bodyV) (ppValueIn c domainV) (ctxLocation c)
+                  domainC <- quoteM domainV
+                  pure (TopeAnd domainC bodyIn)
+              Nothing -> pure bodyIn
+            pure (ScopedAST pat bodyIn')
+          cubeC <- quoteM cube'
+          mshapeC <- traverse quoteM mshapeAssumed
+          pure (Lambda (Just (Param md' cubeC mshapeC)) body')
+
         RawNode (LambdaF mparam body) -> case piOf (NbE.fromWhnf tyW) of
           Just (Pi env md' dom' mshape' ret) -> do
             -- the λ's own parameter, if written, must agree with the Π's
@@ -333,8 +367,8 @@ check term ty = performing (ActionCheck term ty) $ case term of
                   (param', paramTy) <- infer param
                   paramV <- evalM param'
                   -- a shape written as the parameter type: the domain is its cube
-                  case topeFamilyOf scope ctx paramTy of
-                    Just (Pi _ _ cube mdomShape _) -> do
+                  case topeFamilyOf paramTy of
+                    Just (Family _ cube mdomShape) -> do
                       convertTypes dom' cube
                       cubeC <- quoteM cube
                       mdomC <- traverse quoteM mdomShape
@@ -350,7 +384,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
                   cube' <- check param cubeUniverse
                   cubeV <- evalM cube'
                   convertTypes dom' cubeV
-                  shape' <- check shape (constPi scope Id cubeV Nothing UniverseTope)
+                  shape' <- check shape (familyType Id cubeV Nothing)
                   shapeV <- evalM shape'
                   forM_ mshape' $ \s' -> convertTypes s' shapeV
                   pure (Param md cubeV (Just shapeV))
@@ -691,34 +725,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
       -- a cube: the shape is ⊤
       NbE.VNode UniverseCubeF -> do
         let shapeV = topShapeValue scope aV
-        b' <- underRawScope md aV (Just shapeV) b $ \pat bTerm -> do
-          bIn <- check bTerm universe
-          pure (ScopedAST pat bIn)
         shapeC <- quoteM shapeV
-        pure (TypeFun md a' (Just shapeC) b', universe)
+        piOrFamily md a' shapeC aV shapeV b
       -- a shape: a tope family over a cube
-      _ | Just (Pi _ _ cube mdomShape _) <- topeFamilyOf scope ctx aTy -> do
+      _ | Just (Family _ cube mdomShape) <- topeFamilyOf aTy -> do
           cubeC <- quoteM cube
           mdomC <- traverse quoteM mdomShape
           let shapeC = familyShape scope cubeC a' mdomC
           shapeV <- evalM shapeC
-          b' <- underRawScope md cube (Just shapeV) b $ \pat bTerm -> do
-            bIn <- check bTerm universe
-            pure (ScopedAST pat bIn)
-          pure (TypeFun md cubeC (Just shapeC) b', universe)
+          piOrFamily md cubeC shapeC cube shapeV b
       _ -> issueTypeError (TypeErrorInvalidArgumentType a aTy)
 
   RawNode (TypeFunF md cube (Just shape) ret) -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     cube' <- check cube cubeUniverse
     cubeV <- evalM cube'
-    ctx <- askContext
-    shape' <- check shape (constPi (ctxScope ctx) Id cubeV Nothing UniverseTope)
+    shape' <- check shape (familyType Id cubeV Nothing)
     shapeV <- evalM shape'
-    ret' <- underRawScope md cubeV (Just shapeV) ret $ \pat retTerm -> do
-      retIn <- check retTerm universe
-      pure (ScopedAST pat retIn)
-    pure (TypeFun md cube' (Just shape') ret', universe)
+    piOrFamily md cube' shape' cubeV shapeV ret
 
   RawNode (TypeSigmaF md a b) -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal Σ type")
@@ -751,6 +775,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
     ctx <- askContext
     let scope = ctxScope ctx
     case piOf fTy of
+      _ | Just (Family md cube _) <- familyOf fTy -> do
+        when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal function")
+        x' <- check x cube
+        pure (App f' x', topeUniverse)
       Just (Pi env md a mshape b) -> do
         when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal function")
         x' <- check x a
@@ -758,11 +786,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         case force a of
           NbE.VNode UniverseF -> ensureTypeAtU "a type argument" xV
           _ -> pure ()
-        forM_ mshape $ \shape -> case b of
-          -- a tope family's result carries the shape as a side condition
-          -- (see 'appValue'); a function over a shape needs the shape
-          ScopedAST _ UniverseTope -> pure ()
-          _ -> contextEntails (appValue scope ctx shape xV)
+        forM_ mshape $ \shape -> contextEntails (appValue scope ctx shape xV)
         pure (App f' x', codomainAt scope ctx env b xV)
       Nothing -> issueTypeError (TypeErrorNotFunction f' fTy)
 
@@ -777,7 +801,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     (dom, mshape) <- case force tyTy of
       NbE.VNode UniverseF -> pure (tyV, Nothing)
       NbE.VNode UniverseCubeF -> pure (tyV, Just (topShapeValue scope tyV))
-      _ | Just (Pi _ _ cube mdomShape _) <- topeFamilyOf scope ctx tyTy -> do
+      _ | Just (Family _ cube mdomShape) <- topeFamilyOf tyTy -> do
           cubeC <- quoteM cube
           mdomC <- traverse quoteM mdomShape
           shapeV <- evalM (familyShape scope cubeC ty' mdomC)
@@ -789,8 +813,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     cube' <- check cube cubeUniverse
     cubeV <- evalM cube'
-    ctx <- askContext
-    shape' <- check shape (constPi (ctxScope ctx) Id cubeV Nothing UniverseTope)
+    shape' <- check shape (familyType Id cubeV Nothing)
     shapeV <- evalM shape'
     inferLambda md cubeV (Just shapeV) body
 
@@ -879,6 +902,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RawNode ModExtractF{} -> issueTypeError (TypeErrorUnsupported "extract")
   RawNode MatchF{} -> issueTypeError (TypeErrorUnsupported "match")
   RawNode MatchArmF{} -> issueTypeError (TypeErrorUnsupported "a match arm")
+  RawNode TypeShapeF{} -> panicImpossible "a family type in a raw term"
   where
     lattice :: String -> (Core n -> Core n -> Core n) -> Raw n -> Raw n -> m n (Core n, Value n)
     lattice name mk l r = do
@@ -895,17 +919,38 @@ infer tt = performing (ActionInfer tt) $ case tt of
           pure (mk l'' r', vcubeI)
         _ -> issueTypeError (TypeErrorNotIntervalCube name lTy rTy)
 
+-- | A Π over a cube with a shape, or, when its codomain is @TOPE@, the
+-- type of a family over that shape.
+piOrFamily
+  :: (Checking m, Distinct n)
+  => TModality -> Core n -> Core n -> Value n -> Value n -> ScopedRaw n -> m n (Core n, Value n)
+piOrFamily md cubeC shapeC cubeV shapeV ret = do
+  (ret', isTope) <- underRawScope md cubeV (Just shapeV) ret $ \pat retTerm -> do
+    retIn <- check retTerm universe
+    retV <- evalM retIn
+    let isTope = case force retV of
+          NbE.VNode UniverseTopeF -> True
+          _ -> False
+    pure (ScopedAST pat retIn, isTope)
+  if isTope
+    then pure (TypeShape md cubeC (Just shapeC), universe)
+    else pure (TypeFun md cubeC (Just shapeC) ret', universe)
+
 -- | Infer a λ whose parameter is known: the body is inferred under it, and
 -- the λ's type is the Π over the pattern with the body's type as codomain.
 inferLambda
   :: (Checking m, Distinct n)
   => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n -> m n (Core n, Value n)
 inferLambda md dom mshape body = do
-  (body', retScoped) <- underRawScope md dom mshape body $ \pat bodyTerm -> do
+  (body', retScoped, isTope) <- underRawScope md dom mshape body $ \pat bodyTerm -> do
     (bodyIn, retIn) <- infer bodyTerm
     retC <- quoteM retIn
-    pure (ScopedAST pat bodyIn, ScopedAST pat retC)
+    let isTope = case force retIn of
+          NbE.VNode UniverseTopeF -> True
+          _ -> False
+    pure (ScopedAST pat bodyIn, ScopedAST pat retC, isTope)
   domC <- quoteM dom
   mshapeC <- traverse quoteM mshape
-  pure ( Lambda (Just (Param md domC mshapeC)) body'
-       , NbE.vsuspended Foil.identitySubst (TypeFunF md dom mshape retScoped) )
+  let ty | isTope, Just _ <- mshape = familyType md dom mshape
+         | otherwise = NbE.vsuspended Foil.identitySubst (TypeFunF md dom mshape retScoped)
+  pure (Lambda (Just (Param md domC mshapeC)) body', ty)

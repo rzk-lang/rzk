@@ -159,6 +159,20 @@ fromCore used supply names = go
              Id -> Rzk.TypeFun loc (Rzk.ParamTermShape loc patTerm (go cube) tope) ret'
              _  -> Rzk.TypeFun loc (Rzk.ParamTermModalShape loc patTerm (fromTModalityToModalColon md) (go cube) tope) ret'
 
+      -- a family over a cube: @(t : cube | tope) → TOPE@, or @cube → TOPE@
+      -- when its shape is ⊤
+      TypeShape _ cube (Just (Lambda _ (ScopedAST _ TopeTop))) ->
+        Rzk.TypeFun loc (Rzk.ParamType loc (go cube)) (Rzk.UniverseTope loc)
+      TypeShape _ cube Nothing ->
+        Rzk.TypeFun loc (Rzk.ParamType loc (go cube)) (Rzk.UniverseTope loc)
+      TypeShape md cube (Just shape@(Lambda _ (ScopedAST _ _))) ->
+        withScopeAndShape (shapeScope shape) shape $ \pat tope _ ->
+          let patTerm = patternTerm pat
+          in case md of
+               Id -> Rzk.TypeFun loc (Rzk.ParamTermShape loc patTerm (go cube) tope) (Rzk.UniverseTope loc)
+               _  -> Rzk.TypeFun loc (Rzk.ParamTermModalShape loc patTerm (fromTModalityToModalColon md) (go cube) tope) (Rzk.UniverseTope loc)
+      TypeShape _ cube (Just shape) ->
+        Rzk.TypeFun loc (Rzk.ParamType loc (Rzk.TypeFun loc (Rzk.ParamType loc (go cube)) (Rzk.App loc (go shape) (Rzk.Var loc (fromVarIdent "_"))))) (Rzk.UniverseTope loc)
       TypeSigma md a b -> withScope b $ \pat b' ->
         case md of
           Id -> Rzk.TypeSigma loc pat (go a) b'
@@ -227,6 +241,12 @@ fromCore used supply names = go
              (Id, Just motive) -> Rzk.LetModInto loc (fromMod inn) bind (go val) (go motive) body'
              (_, Nothing)      -> Rzk.LetModFramed loc (fromMod app) (fromMod inn) bind (go val) body'
              (_, Just motive)  -> Rzk.LetModFramedInto loc (fromMod app) (fromMod inn) bind (go val) (go motive) body'
+
+    -- The binder a family's shape is shown under: the shape's own λ scope,
+    -- with a body that is never printed.
+    shapeScope :: Core n -> ScopedCore n
+    shapeScope (Lambda _ (ScopedAST pat _)) = ScopedAST pat (Node UnitF)
+    shapeScope _ = error "Rzk.Check.Display: impossible: a shape that is not a λ"
 
     -- Enter a scope: name its pattern and print the body under it.
     withScope :: ScopedCore n -> (Rzk.Pattern -> Rzk.Term -> r) -> r
