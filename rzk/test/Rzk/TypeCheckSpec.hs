@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Rzk.TypeCheckSpec (spec) where
 
-import           Control.Monad            (forM, unless)
+import           Control.Monad            (forM, unless, when)
 import           Data.Aeson               (FromJSON, withObject, (.:), (.:?))
 import           Data.Bifunctor           (first)
 import           Data.List                (isInfixOf, isPrefixOf)
@@ -20,6 +20,7 @@ import           System.FilePath.Glob     (compile, globDir1)
 import           Data.List                (sort)
 
 import qualified Language.Rzk.Syntax        as Rzk
+import qualified Rzk.Check                as Check
 import           Rzk.Diagnostic           (checkWarningTag,
                                            locationOfTypeError,
                                            typeErrorTagInScopedContext)
@@ -333,6 +334,110 @@ spec = describe "Typecheck fixtures" $ do
     root <- runIO resolveRoot
     ks <- runIO (discoverCases root)
     mapM_ (\k -> it (caseTitle k) (runCase k)) ks
+  -- Every fixture also runs under the new checker ("Rzk.Check"); a fixture
+  -- whose constructs the new checker does not cover yet is pending.
+  describe "cases under the new checker" $ do
+    root <- runIO resolveRoot
+    ks <- runIO (discoverCases root)
+    mapM_ (\k -> it (caseTitle k) (runCaseNew k)) ks
+
+-- * The new checker
+
+newOptions :: Check.Options
+newOptions = Check.defaultOptions { Check.optVerbosity = Check.Silent }
+
+-- | The outcome of a run under the new checker: the errors it reports, in
+-- order, and its warnings.
+runNew :: [(FilePath, Rzk.Module)] -> ([Check.ErrorInContext], [Check.Warning])
+runNew ms = case Check.checkModulesFull newOptions ms of
+  Check.Checked _ _ errs warnings _ -> (errs, warnings)
+
+-- | Does a fixture exercise the fragment checks (RSTT-safe mode, the
+-- meta-prefix, meta-binder, free-standing restriction and shape dependency
+-- checks), which the new checker does not run yet?
+fragmentFixture :: Expect -> [T.Text] -> Bool
+fragmentFixture Expect{..} sources =
+  maybe False (== "TypeErrorRSTT") expectErrorTag
+    || any (`notElem` ["OverhangWarning", "TopeFamilyDomainWarning"]) (concat expectWarnings)
+    || any (\src -> any (`T.isInfixOf` src) fragmentOptions) sources
+  where
+    fragmentOptions =
+      [ "\"rstt-safe\"", "\"warn-meta-prefix\"", "\"warn-meta-binder\""
+      , "\"warn-free-standing-restriction\"", "\"warn-shape-dependency\"" ]
+
+assertExpectNew :: String -> Expect -> Bool -> [T.Text] -> ([Check.ErrorInContext], [Check.Warning]) -> IO ()
+assertExpectNew label expect@Expect{..} collect sources (errs, warnings) = case errs of
+  _ | fragmentFixture expect sources ->
+    pendingWith "the fragment checks are not in the new checker yet"
+  err : _ | Check.errorTag err == "TypeErrorUnsupported" ->
+    pendingWith ("not covered by the new checker yet: " <> Check.ppErrorInContext err)
+  _ -> case expectStatus of
+    "ok" -> case errs of
+      [] -> case expectWarnings of
+        Nothing -> pure ()
+        Just want -> do
+          let got = map Check.warningTag warnings
+          unless (sort want == sort got) $
+            expectationFailure $ "in " <> label <> ", expected warnings "
+              <> show want <> " but got " <> show got
+      err : _ -> expectationFailure $ "unexpected type error in " <> label <> ":\n"
+        <> Check.ppErrorInContext err
+    "error" -> case errs of
+      [] -> expectationFailure "expected type error (status: error), but typechecking succeeded"
+      err : _ -> do
+        let tag = Check.errorTag err
+        case expectErrorTag of
+          Nothing -> expectationFailure "expect.yaml missing error_tag for status: error"
+          Just want | want /= tag ->
+            expectationFailure $ "wrong error constructor in " <> label <> ": wanted "
+              <> want <> ", got " <> tag <> "\nFull message:\n" <> Check.ppErrorInContext err
+          Just _ -> pure ()
+        when collect $ case expectErrorCount of
+          Just n | length errs /= n ->
+            expectationFailure $ "in " <> label <> ", expected " <> show n
+              <> " errors, got " <> show (length errs)
+          _ -> pure ()
+        case expectLine of
+          Nothing -> pure ()
+          Just ln -> case Check.errorLocation err >>= Check.locationLine of
+            Just got | got /= ln ->
+              expectationFailure $ "in " <> label <> ", expected line " <> show ln <> " got " <> show got
+            _ -> pure ()
+        case expectColumn of
+          Nothing -> pure ()
+          Just c -> case Check.errorLocation err >>= Check.locationColumn of
+            Just got | got /= c ->
+              expectationFailure $ "in " <> label <> ", expected column " <> show c <> " got " <> show got
+            _ -> pure ()
+    st -> expectationFailure $ "in " <> label <> ", unknown status " <> show st
+
+runCaseNew :: CaseKind -> IO ()
+runCaseNew PairedCase{..} = do
+  e <- readExpect pcExpectPath
+  expect <- case e of
+    Left err -> expectationFailure ("YAML " <> pcExpectPath <> ": " <> err) >> undefined
+    Right x  -> pure x
+  txt <- T.readFile pcRzkPath
+  root <- resolveRoot
+  case Rzk.parseModule txt of
+    Left perr -> expectationFailure $
+      "parse failure in " <> relTitleFrom root pcRzkPath <> ":\n" <> T.unpack perr
+    Right m   -> do
+      let mods = [(relTitleFrom root pcRzkPath, m)]
+      assertExpectNew pcRelTitle expect (expectApi expect == Just "collect") [txt] (runNew mods)
+runCaseNew DirCase{..} = do
+  e <- readExpect dcExpectPath
+  expect <- case e of
+    Left err -> expectationFailure ("YAML " <> dcExpectPath <> ": " <> err) >> undefined
+    Right x  -> pure x
+  root <- resolveRoot
+  modRelAbs <- case expectModules expect of
+    Nothing -> pure [(relTitleFrom root (dcDir </> "input.rzk"), dcDir </> "input.rzk")]
+    Just names -> pure [(relTitleFrom root (dcDir </> n), dcDir </> n) | n <- names]
+  modsE <- loadModules modRelAbs
+  mods <- either (\msg -> expectationFailure ("load/parse in " <> dcRelTitle <> ": " <> msg) >> undefined) pure modsE
+  sources <- mapM (T.readFile . snd) modRelAbs
+  assertExpectNew dcRelTitle expect (expectApi expect == Just "collect") sources (runNew mods)
 
 caseTitle :: CaseKind -> String
 caseTitle = \case

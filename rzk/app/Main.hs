@@ -32,6 +32,8 @@ import           Rzk.Diagnostic          (Diagnostic (..), Severity (..),
                                           ppHoleInfo)
 import           Rzk.Format              (formatFile, formatFileWrite,
                                           isWellFormattedFile)
+import qualified Rzk.Check               as Check
+import           Rzk.Check.Monad         (Findings (..))
 import           Rzk.Main
 import           Rzk.TypeCheck
 import           Rzk.Version             (ppVersionInfo, versionInfo,
@@ -51,6 +53,7 @@ data TypecheckOptions = TypecheckOptions
   { typecheckAllowHoles :: Bool
   , typecheckJson       :: Bool
   , typecheckRSTTSafe   :: Maybe String
+  , typecheckChecker    :: Maybe String
   } deriving (Generic, Show, ParseRecord, Read, ParseField)
 
 instance ParseFields TypecheckOptions where
@@ -58,6 +61,7 @@ instance ParseFields TypecheckOptions where
     <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
     <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
     <*> parseFields (Just "Enforce RSTT fragment checks throughout the run: warn, error, or off") (Just "rstt-safe") Nothing Nothing
+    <*> parseFields (Just "The checker to run: old (the default), new, or new-fast (status only)") (Just "checker") Nothing Nothing
 
 data VersionOptions = VersionOptions
   { versionFull :: Bool
@@ -82,6 +86,31 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckChecker = Just checker}) paths
+      | checker `elem` ["new", "new-fast"] -> do
+      modules <- parseRzkFilesOrStdin paths
+      let options = Check.defaultOptions
+            { Check.optHoles = if allowHolesFlag then Check.HolesDeferred else Check.HolesAreErrors }
+      if checker == "new-fast"
+        then do
+          let Check.Status errors findings = Check.checkModulesFast options modules
+          forM_ (findingsWarnings findings) (putStrLn . ("Warning: " <>) . show)
+          case errors of
+            [] -> putStrLn ("Everything is ok! (" <> show (findingsHoles findings) <> " hole(s))")
+            _  -> do forM_ errors (putStrLn . ("Type error: " <>)); exitFailure
+        else case Check.checkModulesFull options modules of
+          Check.Checked _ctx _decls errors warnings holes -> do
+            forM_ warnings (putStrLn . Check.ppWarning)
+            forM_ holes (putStr . Check.ppHoleInfo)
+            case errors of
+              [] -> putStrLn "Everything is ok!"
+              _  -> do
+                forM_ errors $ \err -> putStrLn $ unlines
+                  [ "An error occurred when typechecking!"
+                  , "Type Error:"
+                  , Check.ppErrorInContext err ]
+                exitFailure
+
     Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag}) paths -> do
       safeOverride <- case safeFlag of
         Nothing -> pure Nothing
