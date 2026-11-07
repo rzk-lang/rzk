@@ -105,6 +105,7 @@ module Rzk.Check.Value
 
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil          as Foil
+import           Control.Monad.Foil.Internal (Name (UnsafeName))
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
 import           Data.Bifoldable             (bifoldMap)
 import           Data.Bifunctor              (bimap)
@@ -411,20 +412,27 @@ instance Eval (Context d) Pattern Sig where
   -- a point of the unit type is unit.
   {-# INLINE refineVar #-}
   refineVar scope ctx x
-    | flagRefines (entryFlags (lookupEntry x ctx)) = refineNeutral scope ctx (NbE.vvar x)
-    | otherwise = NbE.vvar x
+    | flagPoint flags   = representativeOf scope ctx (NbE.vvar x)
+    | flagRefines flags = refineNeutral scope ctx (NbE.vvar x)
+    | otherwise         = NbE.vvar x
+    where
+      flags = entryFlags (lookupEntry x ctx)
 
   {-# INLINE refineSig #-}
   refineSig scope ctx value node = case node of
     AppF{}    -> refineSpine
-    FirstF{}  -> refineSpine
-    SecondF{} -> refineSpine
+    FirstF{}  -> refineProjection
+    SecondF{} -> refineProjection
     IdJF{}    -> refineSpine
     _         -> value
     where
       refineSpine = case spineHead value of
         Just x | flagRefines (entryFlags (lookupEntry x ctx)) -> refineNeutral scope ctx value
         _ -> value
+      -- a projection of a point of a product cube is a point too
+      refineProjection = case spineHead value of
+        Just x | flagPoint (entryFlags (lookupEntry x ctx)) -> representativeOf scope ctx value
+        _ -> refineSpine
 
   -- A pattern stands for its names paired; bound to a value, its leaves
   -- get the projections.
@@ -433,6 +441,26 @@ instance Eval (Context d) Pattern Sig where
 
   {-# INLINE bindValue #-}
   bindValue _ _ env pat v = Just (bindPattern env pat v)
+
+-- | A point replaced by the representative of its class under the tope
+-- context, or left as it is when it represents its class.
+representativeOf :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+representativeOf scope ctx v =
+  maybe v pointValue (representative (ctxTopes ctx) (pointOf scope ctx v))
+
+-- | A representative point as a value: an endpoint, or a variable with its
+-- projections, whose name the tope context took from this scope.
+pointValue :: Point -> Value n
+pointValue = \case
+  PVar i _ -> NbE.vvar (UnsafeName i)
+  PFst p   -> NbE.vnode (FirstF (pointValue p))
+  PSnd p   -> NbE.vnode (SecondF (pointValue p))
+  PStar    -> NbE.vnode CubeUnitStarF
+  P2_0     -> NbE.vnode Cube2_0F
+  P2_1     -> NbE.vnode Cube2_1F
+  PI_0     -> NbE.vnode CubeI_0F
+  PI_1     -> NbE.vnode CubeI_1F
+  p        -> error ("Rzk.Check.Value: impossible: not a representative point: " <> show p)
 
 -- | A node without scoped positions, as a value.
 nodeValue :: Sig a (Value n) -> Maybe (Value n)
@@ -933,7 +961,8 @@ neutralType scope ctx v = case NbE.forceFolded v of
 -- unit, and whether it is a tope family over a shape (anywhere along its
 -- codomains).
 flagsOfType :: forall d n. Distinct n => Scope n -> Context d n -> Value n -> EntryFlags
-flagsOfType scope0 ctx0 = go scope0 ctx0 noFlags
+flagsOfType scope0 ctx0 ty0 =
+  (go scope0 ctx0 noFlags ty0) { flagPoint = isCube scope0 ctx0 ty0 }
   where
     go :: forall l. Distinct l => Scope l -> Context d l -> EntryFlags -> Value l -> EntryFlags
     go scope ctx flags ty = case NbE.force ty of
