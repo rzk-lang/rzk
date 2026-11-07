@@ -34,7 +34,6 @@ module Rzk.Check.Topes
   , applyModality
     -- * Queries
   , entails
-  , representative
   , entailsBottom
   , entailsUnion
   , entailedBy
@@ -45,10 +44,7 @@ module Rzk.Check.Topes
   , inAlternatives
   ) where
 
-import           Data.List               (minimumBy, nub, tails)
-import           Data.Map                (Map)
-import qualified Data.Map                as Map
-import           Data.Ord                (comparing)
+import           Data.List               (nub, tails)
 
 import qualified Data.Set                as Set
 
@@ -209,9 +205,6 @@ data TopeContext = TopeContext
   , tcEntailsBottom :: Bool
   , tcSaturated     :: [[ModalTope]]
     -- ^ each alternative saturated
-  , tcRepresentatives :: Map Point Point
-    -- ^ the representative of each point that the context makes equal to
-    -- another one, and is not its own representative
   }
 
 -- | The empty context: ⊤ holds under every modality.
@@ -226,7 +219,6 @@ emptyTopeContext = refresh TopeContext
   , tcAlternatives = []
   , tcEntailsBottom = False
   , tcSaturated = []
-  , tcRepresentatives = Map.empty
   }
 
 -- | Recompute the derived parts, lazily.
@@ -234,12 +226,10 @@ refresh :: TopeContext -> TopeContext
 refresh tc = tc
   { tcAlternatives = alternativesOf (tcTopes tc)
   , tcEntailsBottom = entailsFrom tc (tcTopes tc) TBot
-  , tcSaturated = saturated
-  , tcRepresentatives = representativesOf saturated
+  , tcSaturated = saturateForEntailment (tcDiscrete tc) (tcTopes tc)
   }
   where
     alternativesOf topes = map nub (simplifyLHSwithDisjunctions topes)
-    saturated = saturateForEntailment (tcDiscrete tc) (tcTopes tc)
 
 -- | The assumed topes, newest first, with their modalities.
 contextTopes :: TopeContext -> [ModalTope]
@@ -282,14 +272,6 @@ applyModality md tc = refresh tc
 -- | Does the context entail the tope?
 entails :: TopeContext -> Tope -> Bool
 entails tc goal = all (`solveRHS` goal) (tcSaturated tc)
-
--- | The representative of a point's class: the points the context makes
--- equal to it, by the equations that hold in every alternative. An
--- endpoint represents its class if the class has one, else the variable
--- bound earliest (with its projections). 'Nothing' when the point is its
--- own representative.
-representative :: TopeContext -> Point -> Maybe Point
-representative tc p = Map.lookup p (tcRepresentatives tc)
 
 -- | Is the context contradictory?
 entailsBottom :: TopeContext -> Bool
@@ -338,59 +320,6 @@ inAlternatives tc check = case alternatives tc of
 entailsFrom :: TopeContext -> [ModalTope] -> Tope -> Bool
 entailsFrom tc modalTopes goal =
   all (`solveRHS` goal) (saturateForEntailment (tcDiscrete tc) modalTopes)
-
--- * Representatives of points
-
--- | The representatives of the points of saturated alternatives. Only
--- variables, their projections and endpoints take part; a contradictory
--- alternative (which makes every point equal) and the topes under a
--- modality add nothing.
-representativesOf :: [[ModalTope]] -> Map Point Point
-representativesOf alts = case map equalities alts of
-  [] -> Map.empty
-  eqs : more ->
-    let common = foldr (Map.intersectionWith Set.intersection) eqs more
-    in Map.fromList
-         [ (x, r)
-         | (x, ys) <- Map.toList common
-         , let r = minimumBy (comparing (\q -> (rank (cubeOf x) q, q))) (x : Set.toList ys)
-         , r /= x ]
-  where
-    -- the points each point of an alternative is equal to
-    equalities alt
-      | TBot `elem` topes = Map.empty
-      | otherwise = Map.fromListWith Set.union
-          [ (x, Set.singleton y)
-          | TEq x y <- topes, x /= y, refinable x, refinable y ]
-      where topes = [ tTope mt | mt <- alt, isPlain mt ]
-    isPlain mt = tModAccum mt == Id && tModVar mt == Id
-
-    -- endpoints of the point's own cube first, then by the variable at
-    -- the root (bound earliest first), then the shorter projection; ties
-    -- (π₁ x against π₂ x) go by the order of points, so that the whole
-    -- class agrees on one representative
-    rank cube q = case q of
-      _ | isEndpoint q, cubeOf q == cube -> (0 :: Int, 0, 0)
-      _ | isEndpoint q -> (2, 0, 0)
-      _ -> case root q of
-        Just (i, depth) -> (1, i, depth)
-        Nothing         -> (2, 0, 0)
-
-    isEndpoint = \case
-      PStar -> True
-      P2_0  -> True
-      P2_1  -> True
-      PI_0  -> True
-      PI_1  -> True
-      _     -> False
-
-    root = \case
-      PVar i _ -> Just (i, 0 :: Int)
-      PFst q   -> fmap (fmap (+ 1)) (root q)
-      PSnd q   -> fmap (fmap (+ 1)) (root q)
-      _        -> Nothing
-
-    refinable q = isEndpoint q || maybe False (const True) (root q)
 
 -- * Saturation
 

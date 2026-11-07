@@ -151,18 +151,15 @@ data EntryKind = EntryLocal | EntryAssumption | EntryTopLevel
 
 -- | What evaluation may need to know about an entry's type without reading
 -- it: whether a neutral headed by the entry may reduce by a restriction of
--- its type, whether the entry is a tope family over a shape, whose
--- applications carry the shape as a side condition, and whether it is a
--- point of a cube, which readback replaces by the representative of its
--- class under the tope context.
+-- its type, and whether the entry is a tope family over a shape, whose
+-- applications carry the shape as a side condition.
 data EntryFlags = EntryFlags
   { flagRefines    :: !Bool
   , flagTopeFamily :: !Bool
-  , flagPoint      :: !Bool
   } deriving (Eq, Show)
 
 noFlags :: EntryFlags
-noFlags = EntryFlags False False False
+noFlags = EntryFlags False False
 
 -- | What is known about a name in scope.
 data Entry n = Entry
