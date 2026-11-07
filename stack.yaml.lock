@@ -19,15 +19,15 @@ packages:
   original:
     hackage: kind-generics-th-0.2.3.3
 - completed:
-    commit: fe3852e982111c74f3e9a0f8452920398e60064a
+    commit: 6ebca4703f5d4daf74acb5111f271e796fc96f95
     git: https://github.com/p50000/free-foil-NBE.git
     name: free-foil-nbe
     pantry-tree:
-      sha256: 1ade28221d645a75e8084bcbac13845a42c5c670a851a2202913e9b11d5b59b3
-      size: 7228
+      sha256: a790df787fb97c4e4582062d5b61e8670d7424badd66eb5f21dba416c2b6f8d9
+      size: 7291
     version: 0.1.0.0
   original:
-    commit: fe3852e982111c74f3e9a0f8452920398e60064a
+    commit: 6ebca4703f5d4daf74acb5111f271e796fc96f95
     git: https://github.com/p50000/free-foil-NBE.git
 snapshots:
 - completed:

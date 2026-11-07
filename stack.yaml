@@ -8,7 +8,7 @@ packages:
 extra-deps:
   - free-foil-0.6.1
   - kind-generics-th-0.2.3.3
-  # free-foil-NBE is not on Hackage yet. The branch rzk-integration is its PR
-  # stack up to the pattern PR (#52); only the main library is used.
+  # free-foil-NBE is not on Hackage yet. The pin is its branch relate-mismatch,
+  # on top of the pattern PR (#52); only the main library is used.
   - git: https://github.com/p50000/free-foil-NBE.git
-    commit: fe3852e982111c74f3e9a0f8452920398e60064a
+    commit: 6ebca4703f5d4daf74acb5111f271e796fc96f95
