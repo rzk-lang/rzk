@@ -44,6 +44,7 @@ import           Data.Maybe               (isNothing)
 import qualified FreeFoil.NbE             as NbE
 
 import           Language.Rzk.Foil.Names  (TModality (..), VarIdent,
+                                           ppVarIdentWithLocation,
                                            unmarkUnresolved)
 import           Rzk.Check.Context
 import           Rzk.Check.Conversion
@@ -77,6 +78,7 @@ underRawScope
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
   -> m n r
 underRawScope md dom mshape (ScopedAST pat body) k = do
+  warnShadowing pat
   ctx <- askContext
   let scope = ctxScope ctx
       fresh = all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
@@ -90,6 +92,19 @@ underRawScope md dom mshape (ScopedAST pat body) k = do
       let body' = substitute scope' (extendSubst Foil.identitySubst) body
           ctx' = underPattern scope' ctx md dom mshape pat'
       in inContext ctx' (k pat' body')
+
+-- | Warn about each name of a binder that shadows a name in scope, as the
+-- old checker did with a trace.
+warnShadowing :: (Checking m, Distinct n) => Pattern n l -> m n ()
+warnShadowing pat = do
+  ctx <- askContext
+  sequence_
+    [ recordWarning WarnShadowing $ \c -> ShadowingWarning
+        (ppVarIdentWithLocation x)
+        [ ppVarIdentWithLocation previous | Just previous <- [entryName (lookupEntry v c)] ]
+        (ctxLocation c)
+    | (Just x, _) <- patternNames pat
+    , Just v <- [lookupNamed x ctx] ]
 
 -- | A tope family over a cube, as a type.
 topeFamilyOf :: Value n -> Maybe (Family n)
@@ -494,6 +509,7 @@ underLet
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
   -> m n r
 underLet ty val (ScopedAST pat body) k = do
+  warnShadowing pat
   ctx <- askContext
   let scope = ctxScope ctx
       enter :: forall l. DExt n l => Pattern n l -> Raw l -> m n r

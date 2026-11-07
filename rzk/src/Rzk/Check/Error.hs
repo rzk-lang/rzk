@@ -359,6 +359,7 @@ ppModality = \case
 data WarningKind
   = WarnOverhang
   | WarnTopeFamilyDomain
+  | WarnShadowing
   deriving (Eq, Ord, Show)
 
 -- | A warning, rendered.
@@ -368,23 +369,28 @@ data Warning
     -- tope context
   | TopeFamilyDomainWarning String String (Maybe LocationInfo)
     -- ^ the family, its declared domain
+  | ShadowingWarning String [String] (Maybe LocationInfo)
+    -- ^ a binder, and the binding it shadows, each with where it was written
   deriving (Eq, Show)
 
 warningKind :: Warning -> WarningKind
 warningKind = \case
   OverhangWarning{}         -> WarnOverhang
   TopeFamilyDomainWarning{} -> WarnTopeFamilyDomain
+  ShadowingWarning{}        -> WarnShadowing
 
 -- | The stable code of a warning.
 warningTag :: Warning -> String
 warningTag = \case
   OverhangWarning{}         -> "OverhangWarning"
   TopeFamilyDomainWarning{} -> "TopeFamilyDomainWarning"
+  ShadowingWarning{}        -> "ShadowingWarning"
 
 warningLocation :: Warning -> Maybe LocationInfo
 warningLocation = \case
   OverhangWarning _ _ _ loc     -> loc
   TopeFamilyDomainWarning _ _ loc -> loc
+  ShadowingWarning _ _ loc        -> loc
 
 ppWarning :: Warning -> String
 ppWarning = \case
@@ -398,6 +404,10 @@ ppWarning = \case
     , "is not included in its declared domain"
     , "  " <> domain
     , "and is read as their intersection" ]
+  ShadowingWarning binder previous _ -> intercalate "\n" $
+    [ "Warning: a binder shadows a name in scope"
+    , "  " <> binder
+    , "previously bound at" ] <> map ("  " <>) previous
 
 -- * Holes
 
