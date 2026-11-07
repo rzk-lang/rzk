@@ -1,0 +1,16 @@
+#lang rzk-1
+
+-- Two extension types with the same faces compare the terms of each face
+-- under that face: under t ≡ 0₂, g t is a by the restriction of g. The
+-- types stand as arguments of a type former, so only conversion compares
+-- them (as the arguments of Equiv-of-maps in sHoTT's right orthogonality).
+
+#postulate P : U → U
+
+#define face-terms-under-face
+  (A : U)
+  (a : A)
+  (g : (t : 2) → A [t ≡ 0₂ ↦ a])
+  (p : P ((t : 2) → A [t ≡ 0₂ ↦ g t]))
+  : P ((t : 2) → A [t ≡ 0₂ ↦ a])
+  := p

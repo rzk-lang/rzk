@@ -48,6 +48,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-vec.rzk
     test/typecheck/cases/happy-eta-annotated-lambda.rzk
     test/typecheck/cases/happy-ext-style-restrictions.rzk
+    test/typecheck/cases/happy-face-terms-under-face.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-endpoint-entailment.rzk
@@ -349,6 +350,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-vec.expect.yaml
     test/typecheck/cases/happy-eta-annotated-lambda.expect.yaml
     test/typecheck/cases/happy-ext-style-restrictions.expect.yaml
+    test/typecheck/cases/happy-face-terms-under-face.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-endpoint-entailment.expect.yaml
