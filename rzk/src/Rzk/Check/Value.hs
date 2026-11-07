@@ -489,7 +489,9 @@ spineHead v = case NbE.force v of
 -- from its head, since a restriction may be on the type of a prefix: in
 -- @g t x@ with @g : (t : ψ) → (X → A) [ϕ t ↦ f t]@, it is @g t@ that is
 -- @f t@ under @ϕ t@. A refined prefix gets the rest of the spine again by
--- evaluation, and the result is refined in turn.
+-- evaluation. The result, like the term of a restriction, is refined in
+-- turn, since it may be a neutral restricted further (a component of a
+-- pair restricted under a smaller tope).
 refineNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Value n
 refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 
@@ -509,7 +511,8 @@ refinedNeutral scope ctx value = viaPrefix <|> byOwnType
       ty <- neutralType scope ctx value
       case NbE.force ty of
         NbE.VNode TypeUnitF -> Just vunit
-        _ -> listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
+        _ -> refineNeutral scope ctx <$>
+               listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
 
 -- * Evaluation and readback
 
