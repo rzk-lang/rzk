@@ -66,6 +66,8 @@ module Rzk.Check.Syntax
   , pattern RawNode
     -- * Queries
   , freeNamesOf
+  , substituteName
+  , abstractName
   , containsHole
   , holeNamesOf
   , isHoleHeaded
@@ -75,11 +77,14 @@ module Rzk.Check.Syntax
 
 import           Control.Monad.Foil                (NameBinder, S)
 import qualified Control.Monad.Foil                as Foil
+import           Control.Monad.Foil.Internal       (Substitution (..))
 import           Control.Monad.Free.Foil           (AST (..), ScopedAST (..),
-                                                    alphaEquiv, unsafeEqAST)
+                                                    alphaEquiv, substitute,
+                                                    unsafeEqAST)
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Data.Bifoldable                   (bifoldMap, bifoldr)
 import           Data.Bifunctor                    (bimap)
+import qualified Data.IntMap                       as IntMap
 import           Data.Bifunctor.TH                 (deriveBifoldable,
                                                     deriveBifunctor,
                                                     deriveBitraversable)
@@ -395,6 +400,25 @@ freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
         , Foil.nameId x `notElem` bound ]
       where
         bound = map (Foil.nameId . snd) (patternNames pat)
+
+-- | Replace a free name of a term by a term of the same scope.
+substituteName :: Foil.Distinct n => Foil.Scope n -> Foil.Name n -> Core n -> Core n -> Core n
+substituteName scope name value =
+  substitute scope (UnsafeSubstitution (IntMap.singleton (Foil.nameId name) value))
+
+-- | Abstract a free name out of a term: the pattern the continuation
+-- receives binds what the name stood for, under the name's display name.
+-- The name stays in the scope index, as a scope only grows, but the term
+-- no longer mentions it.
+abstractName
+  :: Foil.Distinct n
+  => Foil.Scope n -> Maybe VarIdent -> Foil.Name n -> Core n
+  -> (forall l. (Foil.DExt n l, Foil.Distinct l) => Pattern n l -> Core l -> r)
+  -> r
+abstractName scope mname name term k = Foil.withFresh scope $ \binder ->
+  let scope' = Foil.extendScope binder scope
+      term' = substituteName scope' (Foil.sink name) (Var (Foil.nameOf binder)) (Foil.sink term)
+  in k (PatternVar mname binder) term'
 
 -- | Does the term contain a hole anywhere?
 containsHole :: Core n -> Bool
