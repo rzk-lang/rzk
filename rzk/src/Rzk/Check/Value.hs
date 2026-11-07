@@ -503,8 +503,10 @@ spineHead v = case NbE.force v of
 -- entails gives its term; the unit type gives unit. The spine is walked
 -- from its head, since a restriction may be on the type of a prefix: in
 -- @g t x@ with @g : (t : ψ) → (X → A) [ϕ t ↦ f t]@, it is @g t@ that is
--- @f t@ under @ϕ t@. A refined prefix gets the rest of the spine again by
--- evaluation. The result, like the term of a restriction, is refined in
+-- @f t@ under @ϕ t@. The spine is read as it computes, through
+-- definitions, and includes the path of a path induction, so that @ap f p@
+-- computes once @p@ is @refl@. A refined prefix gets the rest of the spine
+-- again by evaluation. The result, like the term of a restriction, is refined in
 -- turn, since it may be a neutral restricted further (a component of a
 -- pair restricted under a smaller tope).
 refineNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Value n
@@ -515,10 +517,12 @@ refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 refinedNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
 refinedNeutral scope ctx value = viaPrefix <|> byOwnType
   where
-    viaPrefix = case NbE.forceFolded value of
+    -- the spine as it computes, through definitions
+    viaPrefix = case NbE.force value of
       NbE.VNode (AppF f a)  -> again (\f' -> appValue scope ctx f' a) f
       NbE.VNode (FirstF p)  -> again firstValue p
       NbE.VNode (SecondF p) -> again secondValue p
+      NbE.VNode (IdJF tA a tC d x p) -> again (idJValue tA a tC d x) p
       _                     -> Nothing
     again eliminate prefix =
       refineNeutral scope ctx . eliminate <$> refinedNeutral scope ctx prefix
