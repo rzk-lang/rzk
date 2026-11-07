@@ -275,6 +275,14 @@ instance Eval (Context d) Pattern Sig where
     where
       noScopedPosition = error "Rzk.Check.Value: impossible: a scoped position of a node without scoped positions"
 
+  -- Two points that differ as values are equal if the tope context
+  -- entails their equation, as the old unification compared every two
+  -- terms whose type is a cube.
+  {-# INLINE relateMismatch #-}
+  relateMismatch scope ctx l r =
+    isPointValue scope ctx l && isPointValue scope ctx r
+      && entails (ctxTopes ctx) (TEq (pointOf scope ctx l) (pointOf scope ctx r))
+
   -- Subtyping in the context's variance; the cases of the old unification
   -- that are not a structural comparison of the children.
   {-# INLINE relateWith #-}
@@ -433,6 +441,28 @@ instance Eval (Context d) Pattern Sig where
 
   {-# INLINE bindValue #-}
   bindValue _ _ env pat v = Just (bindPattern env pat v)
+
+-- | Is a value a point of a cube: an endpoint, an operation on points, or
+-- a neutral whose type is a cube? A pair of points is not asked about:
+-- conversion compares its components, which are.
+isPointValue :: Distinct n => Scope n -> Context d n -> Value n -> Bool
+isPointValue scope ctx v = case NbE.force v of
+  NbE.VNode node -> case node of
+    CubeUnitStarF -> True
+    Cube2_0F      -> True
+    Cube2_1F      -> True
+    CubeI_0F      -> True
+    CubeI_1F      -> True
+    CubeSupF{}    -> True
+    CubeInfF{}    -> True
+    CubeFlipF{}   -> True
+    CubeUnflipF{} -> True
+    PairF{}       -> False
+    _             -> neutralOfCube
+  NbE.VVar _ -> neutralOfCube
+  _ -> False
+  where
+    neutralOfCube = maybe False (isCube scope ctx) (neutralType scope ctx v)
 
 -- | A node without scoped positions, as a value.
 nodeValue :: Sig a (Value n) -> Maybe (Value n)
