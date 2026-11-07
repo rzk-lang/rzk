@@ -372,7 +372,7 @@ instance Eval (Context d) Pattern Sig where
                 (Nothing, Nothing) -> Just mempty
                 (Just sL, Just sR) -> Just (term sL sR ctx')
                 _ -> Nothing
-          in fmap (\s -> domain <> s <> scoped retL retR ctx (piBinder md domR Nothing)) shapes
+          in fmap (\s -> domain <> s <> scoped retL retR ctx (pisBinder md domR mshapeL mshapeR)) shapes
     (TypeSigmaF md aL bL, TypeSigmaF md' aR bR)
       | md == md' -> Just (term aL aR ctx <> scoped bL bR ctx (sigmaBinder md aR))
     (TypeIdF xL tAL yL, TypeIdF xR tAR yR) -> Just $
@@ -850,6 +850,19 @@ letBinder mty val = Extend $ \_ pat scope' ctx ->
 opaqueBinder :: Extend (Context d) Pattern Sig n
 {-# INLINE opaqueBinder #-}
 opaqueBinder = Extend $ \_ pat scope' ctx -> underPattern scope' ctx Id (vhole Nothing) Nothing pat
+
+-- | The binder the codomains of two Π types are compared under: the right
+-- one's domain, and both shapes. The codomains need to agree only where
+-- the supertype's shape holds, and the comparison of the shapes, part of
+-- the same comparison, makes that the conjunction of both.
+pisBinder :: TModality -> Value n -> Maybe (Value n) -> Maybe (Value n) -> Extend (Context d) Pattern Sig n
+{-# INLINE pisBinder #-}
+pisBinder md dom mshapeL mshapeR = Extend $ \_ pat scope' ctx ->
+  let ctx' = underPattern scope' ctx md dom Nothing pat
+      assumeShape c mshape = case mshape of
+        Nothing    -> c
+        Just shape -> assumeValue scope' c (appValue scope' c (Foil.sink shape) (patternValue pat))
+  in assumeShape (assumeShape ctx' mshapeL) mshapeR
 
 -- | The binder two lambdas are compared under: the right one's domain, and
 -- both shapes, since the bodies agree only where both are defined.
