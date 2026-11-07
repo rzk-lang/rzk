@@ -78,6 +78,7 @@ extra-source-files:
     test/typecheck/cases/happy-nbe-transport-refl-spine.rzk
     test/typecheck/cases/happy-nbe-wrapper-alignment.rzk
     test/typecheck/cases/happy-op-hom-to-hom.rzk
+    test/typecheck/cases/happy-pi-codomain-under-shape.rzk
     test/typecheck/cases/happy-points-equal-by-topes.rzk
     test/typecheck/cases/happy-recbot-term-wellformed.rzk
     test/typecheck/cases/happy-recor-guard-exceeds-context.rzk
@@ -378,6 +379,7 @@ extra-source-files:
     test/typecheck/cases/happy-nbe-transport-refl-spine.expect.yaml
     test/typecheck/cases/happy-nbe-wrapper-alignment.expect.yaml
     test/typecheck/cases/happy-op-hom-to-hom.expect.yaml
+    test/typecheck/cases/happy-pi-codomain-under-shape.expect.yaml
     test/typecheck/cases/happy-points-equal-by-topes.expect.yaml
     test/typecheck/cases/happy-recbot-term-wellformed.expect.yaml
     test/typecheck/cases/happy-recor-guard-exceeds-context.expect.yaml

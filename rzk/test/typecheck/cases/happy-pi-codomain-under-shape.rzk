@@ -1,0 +1,19 @@
+#lang rzk-1
+
+-- The codomains of two Π types over a shape are compared where the shape
+-- holds. Under χ t ∧ ψ s the face ϕ s of a family ϕ over ψ, which is
+-- ψ s ∧ ϕ s, and the face χ t ∧ ϕ s are the same, so the parameter of the
+-- λ may be written with either (as in sHoTT's
+-- is-right-orthogonal-to-shape-product).
+
+#define family-face-under-product-shape
+  (J : CUBE)
+  (χ : J → TOPE)
+  (I : CUBE)
+  (ψ : I → TOPE)
+  (ϕ : ψ → TOPE)
+  (A B : U)
+  (σ : ((t , s) : J × I | χ t ∧ ϕ s) → A)
+  (k : (((t , s) : J × I | χ t ∧ ψ s) → A [χ t ∧ ϕ s ↦ σ (t , s)]) → B)
+  : (((t , s) : J × I | χ t ∧ ψ s) → A [χ t ∧ ϕ s ↦ σ (t , s)]) → B
+  := \ (τ : ((t , s) : J × I | χ t ∧ ψ s) → A [ϕ s ↦ σ (t , s)]) → k τ
