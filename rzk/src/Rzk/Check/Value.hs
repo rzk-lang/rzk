@@ -103,12 +103,14 @@ module Rzk.Check.Value
   , valueHasHole
   ) where
 
+import           Control.Applicative         ((<|>))
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
 import           Data.Bifoldable             (bifoldMap)
 import           Data.Bifunctor              (bimap)
 import           Data.List                   (intercalate)
+import           Data.Maybe                  (fromMaybe, listToMaybe)
 import           Data.Monoid                 (Any (..))
 import           Data.Void                   (Void)
 import           Unsafe.Coerce               (unsafeCoerce)
@@ -483,15 +485,31 @@ spineHead v = case NbE.force v of
   _ -> Nothing
 
 -- | Refine a neutral by its type: a restriction whose tope the context
--- entails gives its term; the unit type gives unit.
+-- entails gives its term; the unit type gives unit. The spine is walked
+-- from its head, since a restriction may be on the type of a prefix: in
+-- @g t x@ with @g : (t : ψ) → (X → A) [ϕ t ↦ f t]@, it is @g t@ that is
+-- @f t@ under @ϕ t@. A refined prefix gets the rest of the spine again by
+-- evaluation, and the result is refined in turn.
 refineNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Value n
-refineNeutral scope ctx value = case neutralType scope ctx value of
-  Nothing -> value
-  Just ty -> case NbE.force ty of
-    NbE.VNode TypeUnitF -> vunit
-    _ -> case [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ] of
-      t : _ -> t
-      []    -> value
+refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
+
+-- | A neutral refined by its type or the type of a prefix of its spine, or
+-- 'Nothing' if neither has a restriction the context entails.
+refinedNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
+refinedNeutral scope ctx value = viaPrefix <|> byOwnType
+  where
+    viaPrefix = case NbE.forceFolded value of
+      NbE.VNode (AppF f a)  -> again (\f' -> appValue scope ctx f' a) f
+      NbE.VNode (FirstF p)  -> again firstValue p
+      NbE.VNode (SecondF p) -> again secondValue p
+      _                     -> Nothing
+    again eliminate prefix =
+      refineNeutral scope ctx . eliminate <$> refinedNeutral scope ctx prefix
+    byOwnType = do
+      ty <- neutralType scope ctx value
+      case NbE.force ty of
+        NbE.VNode TypeUnitF -> Just vunit
+        _ -> listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
 
 -- * Evaluation and readback
 
