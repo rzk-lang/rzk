@@ -251,9 +251,8 @@ instance Eval (Context d) Pattern Sig where
   -- pair project it.
   {-# INLINE etaMatchWith #-}
   etaMatchWith scoped term = \case
-    LambdaF mparam body -> Just $
-      LambdaF (fmap (fmap (`term` EtaTerm (\_ _ other -> other))) mparam)
-              (scoped body (EtaScoped appliedToPattern))
+    -- the domain annotation is not compared: both sides have the same type
+    LambdaF _ body -> Just (LambdaF Nothing (scoped body (EtaScoped appliedToPattern)))
     PairF a b -> Just (PairF (term a (EtaTerm (\_ _ -> firstValue))) (term b (EtaTerm (\_ _ -> secondValue))))
     _ -> Nothing
 
