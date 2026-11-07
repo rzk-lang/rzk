@@ -17,3 +17,14 @@
   (g : (t : 2) → (Σ (a : A) , B) [t ≡ 0₂ ↦ f t])
   : (t : 2) → A [t ≡ 0₂ ↦ first (f t)]
   := \ t → first (g t)
+
+-- two restrictions in a chain: under ϕ t, g t is f t by the restriction of
+-- g, and f t is a t by the restriction of f (after RS17, Theorem 4.4, the
+-- composition of cofibrations)
+#define restriction-chain
+  (X : U)
+  (a : 2 → X)
+  (f : (t : 2) → X [t ≡ 0₂ ↦ a t])
+  (g : (t : 2) → X [t ≡ 0₂ ∨ t ≡ 1₂ ↦ f t])
+  : (t : 2) → X [t ≡ 0₂ ↦ a t]
+  := \ t → g t
