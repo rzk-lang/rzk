@@ -437,10 +437,17 @@ withSection
 withSection name path i total commands k =
   localContext (\ctx -> ctx { ctxSections = Section name [] : ctxSections ctx }) $
     checkCommands path i total commands $ \_decls errs -> do
+      outer <- askContext
       result <- attempt $ performing (ActionCloseSection name) (endSection errs)
       case result of
-        Left err                   -> k [] (errs <> [err])
-        Right (decls, errs', ctx') -> inContext ctx' (k decls errs')
+        -- the section is closed even so, so that the enclosing one does not
+        -- process its entries again
+        Left err ->
+          localContext (\c -> c { ctxSections = drop 1 (ctxSections c) }) $
+            k [] (errs <> [err])
+        -- the rest of the module is not checked under the closing action
+        Right (decls, errs', ctx') ->
+          inContext ctx' { ctxDiag = ctxDiag outer, ctxLocation = ctxLocation outer } (k decls errs')
 
 -- * Closing a section
 
