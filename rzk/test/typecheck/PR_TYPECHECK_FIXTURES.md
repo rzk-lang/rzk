@@ -164,6 +164,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | PR [#179](https://github.com/rzk-lang/rzk/pull/179) unused variable errors | `ill-unused-assumption` | Section assumption unused at `#end` |
 | PR [#115](https://github.com/rzk-lang/rzk/pull/115) `typecheckModules` | `multimodule-two-ok` | Ordered modules share context |
 | Commit ac9b6d89 refl / check | `happy-refl-path` | `refl_{x}` and identity `#check` |
+| η against an annotated λ | `happy-eta-annotated-lambda` | `f ≡ \ (x : A) → f x` and a λ over a pair pattern against `f`: under η the λ's domain annotation is not compared, as both sides have the same type. |
 | Docs: sections / implicit | `ill-implicit` | `TypeErrorImplicitAssumption` |
 | Coverage matrix | `ill-unify`, `ill-undefined`, `ill-duplicate`, `ill-not-function`, `happy-check` | Core `TypeError` constructors |
 | Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer`, `ill-hole-recor-guard-point` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position, including a tope point, is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
