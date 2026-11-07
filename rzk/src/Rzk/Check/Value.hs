@@ -531,20 +531,23 @@ refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 -- 'Nothing' if neither has a restriction the context entails.
 refinedNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
 refinedNeutral scope ctx value =
-  viaPrefix (NbE.forceFolded value) <|> viaPrefix (NbE.force value) <|> byOwnType
+  walk NbE.forceFolded value <|> walk NbE.force value
   where
-    -- the spine as written, where a prefix headed by a definition has its
-    -- declared type, then the spine as it computes, through definitions
-    viaPrefix = \case
-      NbE.VNode (AppF f a)  -> again (\f' -> appValue scope ctx f' a) f
-      NbE.VNode (FirstF p)  -> again firstValue p
-      NbE.VNode (SecondF p) -> again secondValue p
-      NbE.VNode (IdJF tA a tC d x p) -> again (idJValue tA a tC d x) p
+    -- The spine as written, where a prefix headed by a definition has its
+    -- declared type, or the spine as it computes, through definitions. Each
+    -- walk stays in its view: walking both views at every level would
+    -- repeat the walk below, exponentially in the length of the spine.
+    walk view v = viaPrefix view (view v) <|> byOwnType v
+    viaPrefix view = \case
+      NbE.VNode (AppF f a)  -> again view (\f' -> appValue scope ctx f' a) f
+      NbE.VNode (FirstF p)  -> again view firstValue p
+      NbE.VNode (SecondF p) -> again view secondValue p
+      NbE.VNode (IdJF tA a tC d x p) -> again view (idJValue tA a tC d x) p
       _                     -> Nothing
-    again eliminate prefix =
-      refineNeutral scope ctx . eliminate <$> refinedNeutral scope ctx prefix
-    byOwnType = do
-      ty <- neutralType scope ctx value
+    again view eliminate prefix =
+      refineNeutral scope ctx . eliminate <$> walk view prefix
+    byOwnType v = do
+      ty <- neutralType scope ctx v
       case NbE.force ty of
         NbE.VNode TypeUnitF -> Just vunit
         _ -> refineNeutral scope ctx <$>
