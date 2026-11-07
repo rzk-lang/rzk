@@ -959,9 +959,9 @@ neutralType scope ctx v = case NbE.forceFolded v of
   _ -> Nothing
 
 -- | What evaluation needs to know about a type: whether a neutral of it may
--- reduce by a restriction (of the type, or of a codomain of it), or is
--- unit, and whether it is a tope family over a shape (anywhere along its
--- codomains).
+-- reduce by a restriction (of the type, or of a codomain or a component of
+-- it), or is unit, and whether it is a tope family over a shape (anywhere
+-- along its codomains and components). A defined type is unfolded.
 flagsOfType :: forall d n. Distinct n => Scope n -> Context d n -> Value n -> EntryFlags
 flagsOfType scope0 ctx0 = go scope0 ctx0 noFlags
   where
@@ -974,6 +974,11 @@ flagsOfType scope0 ctx0 = go scope0 ctx0 noFlags
       NbE.VSuspended env (TypeFunF md dom mshape ret) ->
         underFreshVar scope ctx md dom mshape $ \scope' ctx' x ->
           go scope' ctx' flags (evalScope scope' ctx' (Foil.sink env) ret x)
+      -- a projection of a pair reaches either component
+      NbE.VSuspended env (TypeSigmaF md a b) ->
+        let flags' = go scope ctx flags a
+        in underFreshVar scope ctx md a Nothing $ \scope' ctx' x ->
+             go scope' ctx' flags' (evalScope scope' ctx' (Foil.sink env) b x)
       _ -> flags
 
 -- * Holes
