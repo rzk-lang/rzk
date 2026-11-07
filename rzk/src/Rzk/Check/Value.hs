@@ -292,8 +292,15 @@ instance Eval (Context d) Pattern Sig where
   -- retried a failed comparison in each alternative (a neutral restricted
   -- on the faces of a horn is its face's term in each of them).
   {-# INLINE relateMismatch #-}
-  relateMismatch scope ctx l r = pointsEqual || equalInEveryAlternative
+  relateMismatch scope ctx l r = pointsEqual || equalRefined || equalInEveryAlternative
     where
+      -- Conversion does not refine an application of a definition, only
+      -- the definition unfolded, where the declared type of the definition,
+      -- and the restriction in it, is lost. Such a value is refined here, by
+      -- the spine as written, and compared again.
+      equalRefined = case refinedNeutral scope ctx l of
+        Just l' -> conv scope ctx l' r
+        Nothing -> maybe False (conv scope ctx l) (refinedNeutral scope ctx r)
       pointsEqual =
         isPointValue scope ctx l && isPointValue scope ctx r
           && entails (ctxTopes ctx) (TEq (pointOf scope ctx l) (pointOf scope ctx r))
@@ -523,10 +530,12 @@ refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 -- | A neutral refined by its type or the type of a prefix of its spine, or
 -- 'Nothing' if neither has a restriction the context entails.
 refinedNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
-refinedNeutral scope ctx value = viaPrefix <|> byOwnType
+refinedNeutral scope ctx value =
+  viaPrefix (NbE.forceFolded value) <|> viaPrefix (NbE.force value) <|> byOwnType
   where
-    -- the spine as it computes, through definitions
-    viaPrefix = case NbE.force value of
+    -- the spine as written, where a prefix headed by a definition has its
+    -- declared type, then the spine as it computes, through definitions
+    viaPrefix = \case
       NbE.VNode (AppF f a)  -> again (\f' -> appValue scope ctx f' a) f
       NbE.VNode (FirstF p)  -> again firstValue p
       NbE.VNode (SecondF p) -> again secondValue p
