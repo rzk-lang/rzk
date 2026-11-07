@@ -4,7 +4,7 @@ packages: rzk rzk-js
 source-repository-package
   type: git
   location: https://github.com/p50000/free-foil-NBE.git
-  tag: d7c2eb224d27fbb330945faf1af480b1ff26c35e
+  tag: fe3852e982111c74f3e9a0f8452920398e60064a
 
 -- Required by doctest-parallel: it spawns GHCi to test examples, and needs
 -- cabal to emit a package environment file so the spawned GHCi sees the
