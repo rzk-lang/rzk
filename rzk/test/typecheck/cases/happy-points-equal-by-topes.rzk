@@ -1,0 +1,29 @@
+#lang rzk-1
+
+-- Points that the tope context makes equal are equal in conversion: the
+-- branches of each recOR agree where their guards overlap only because
+-- the overlap identifies the points (after the retraction of RS17,
+-- Proposition 3.6).
+
+-- two variables, equal under t ≤ s ∧ s ≤ t
+#define diagonal-variables
+  (A : U)
+  (f : 2 → 2 → A)
+  : 2 → 2 → A
+  := \ t s → recOR (t ≤ s ↦ f t t , s ≤ t ↦ f t s)
+
+-- a variable and an endpoint
+#define variable-endpoint
+  (A : U)
+  (f : 2 → A)
+  : 2 → A
+  := \ t → recOR (t ≡ 0₂ ↦ f 0₂ , ⊤ ↦ f t)
+
+-- projections of a variable of a product cube
+#define diagonal-projections
+  (A : U)
+  (f : 2 → 2 → A)
+  : (2 × 2) → A
+  := \ ts → recOR
+       ( first ts ≤ second ts ↦ f (first ts) (first ts)
+       , second ts ≤ first ts ↦ f (first ts) (second ts))

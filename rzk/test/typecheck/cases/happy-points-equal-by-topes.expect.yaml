@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - points-equal-by-tope-context

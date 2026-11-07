@@ -165,6 +165,7 @@ Fixture comments and `regression_for` use stable prose (which judgment fails, wh
 | PR [#115](https://github.com/rzk-lang/rzk/pull/115) `typecheckModules` | `multimodule-two-ok` | Ordered modules share context |
 | Commit ac9b6d89 refl / check | `happy-refl-path` | `refl_{x}` and identity `#check` |
 | η against an annotated λ | `happy-eta-annotated-lambda` | `f ≡ \ (x : A) → f x` and a λ over a pair pattern against `f`: under η the λ's domain annotation is not compared, as both sides have the same type. |
+| Points equal by the tope context | `happy-points-equal-by-topes` | Two variables equal under `t ≤ s ∧ s ≤ t`, a variable equal to `0₂`, and projections of a point of `2 × 2`: conversion identifies them, so `recOR` branches agree on their overlap (RS17, Proposition 3.6). |
 | Docs: sections / implicit | `ill-implicit` | `TypeErrorImplicitAssumption` |
 | Coverage matrix | `ill-unify`, `ill-undefined`, `ill-duplicate`, `ill-not-function`, `happy-check` | Core `TypeError` constructors |
 | Typed holes (strict mode) | `ill-hole-unsolved`, `ill-hole-infer`, `ill-hole-recor-guard-point` | A hole is `TypeErrorUnsolvedHole` by default (finished work/CI reject holes); a hole in inference position, including a tope point, is `TypeErrorCannotInferHole`. Lenient mode + structured goal/context in `Rzk.HolesSpec`. |
