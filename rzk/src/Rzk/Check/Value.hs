@@ -332,7 +332,7 @@ instance Eval (Context d) Pattern Sig where
       (case (mpL, mpR) of
          (Just pL, Just pR) -> term (paramDomain pL) (paramDomain pR) (withVariance Invariant ctx)
          _ -> mempty)
-      <> scoped bodyL bodyR (lambdasBinder mpL mpR)
+      <> scoped bodyL bodyR ctx (lambdasBinder mpL mpR)
 
     -- a family type: the cube in the opposite variance, the shape in the
     -- context's variance (the family's subtyping is covariant in it, and
@@ -355,9 +355,9 @@ instance Eval (Context d) Pattern Sig where
                 (Nothing, Nothing) -> Just mempty
                 (Just sL, Just sR) -> Just (term sL sR ctx')
                 _ -> Nothing
-          in fmap (\s -> domain <> s <> scoped retL retR (piBinder md domR Nothing)) shapes
+          in fmap (\s -> domain <> s <> scoped retL retR ctx (piBinder md domR Nothing)) shapes
     (TypeSigmaF md aL bL, TypeSigmaF md' aR bR)
-      | md == md' -> Just (term aL aR ctx <> scoped bL bR (sigmaBinder md aR))
+      | md == md' -> Just (term aL aR ctx <> scoped bL bR ctx (sigmaBinder md aR))
     (TypeIdF xL tAL yL, TypeIdF xR tAR yR) -> Just $
       (case (tAL, tAR) of
          (Just tL, Just tR) -> term tL tR (withVariance Invariant ctx)
@@ -379,8 +379,7 @@ instance Eval (Context d) Pattern Sig where
     -- a restricted type against an unrestricted one is left to the
     -- checker's subtyping, which has the term the faces are checked on
 
-    _ -> NbE.relateNodes scope (withVariance Invariant ctx)
-           (\a a' extend -> scoped a a' (invariantly extend)) term hd l r
+    _ -> NbE.relateNodes scope (withVariance Invariant ctx) scoped term hd l r
     where
       guarded holds = if holds then Just mempty else Nothing
 
@@ -812,12 +811,6 @@ lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
         Nothing    -> c
         Just shape -> assumeValue scope' c (appValue scope' c (Foil.sink shape) (patternValue pat))
   in assumeShape (assumeShape ctx' mpL) mpR
-
--- | An extension of the context for invariant comparison under it.
-invariantly :: Extend (Context d) Pattern Sig n -> Extend (Context d) Pattern Sig n
-{-# INLINE invariantly #-}
-invariantly (Extend extend) = Extend $ \scope pat scope' ctx ->
-  withVariance Invariant (extend scope pat scope' ctx)
 
 -- | The observer of a λ's body: the other value applied to the pattern.
 appliedToPattern :: Distinct l => Scope l -> Context d l -> Pattern n l -> Value l -> Value l
