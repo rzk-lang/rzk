@@ -207,6 +207,14 @@ instance Eval (Context d) Pattern Sig where
         NbE.eval scope ctx (bindPattern env pat (ev val)) body
     TypeAscF term _ty -> ev term
     IdJF tA a tC d x p -> idJValue (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
+    -- A face whose tope is ⊥ restricts nothing, and a type with no face
+    -- left is its underlying type, as the old checker's weak head normal
+    -- form dropped them. Such a face arises by instantiation, as with the
+    -- subshape ⊥ of a shape.
+    TypeRestrictedF ty rs ->
+      case [ (tope', face) | (tope, face) <- rs, let tope' = ev tope, not (isBottomTope tope') ] of
+        []  -> ev ty
+        rs' -> NbE.vnode (TypeRestrictedF (ev ty) [ (tope', ev face) | (tope', face) <- rs' ])
     -- The branch whose guard the tope context entails; otherwise the one
     -- branch if they are all the same term; otherwise stuck.
     RecOrF rs ->
@@ -465,6 +473,12 @@ isPointValue scope ctx v = case NbE.force v of
   _ -> False
   where
     neutralOfCube = maybe False (isCube scope ctx) (neutralType scope ctx v)
+
+-- | Is a tope value ⊥?
+isBottomTope :: Value n -> Bool
+isBottomTope v = case NbE.force v of
+  NbE.VNode TopeBottomF -> True
+  _                     -> False
 
 -- | A node without scoped positions, as a value.
 nodeValue :: Sig a (Value n) -> Maybe (Value n)
