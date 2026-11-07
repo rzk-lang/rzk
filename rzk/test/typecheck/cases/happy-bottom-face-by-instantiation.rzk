@@ -1,0 +1,18 @@
+#lang rzk-1
+
+-- A restriction face whose tope becomes ⊥ by instantiation restricts
+-- nothing: the extension type over the subshape ⊥ is the plain function
+-- type, and a term checked against it meets no vacuous face.
+
+#define extensions
+  (ϕ : 2 → TOPE)
+  (A : U)
+  (a : A)
+  : U
+  := (t : 2) → A [ϕ t ↦ a]
+
+#define over-bottom
+  (A : U)
+  (a x : A)
+  : extensions (\ _ → BOT) A a
+  := \ _ → x
