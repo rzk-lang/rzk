@@ -11,4 +11,4 @@ extra-deps:
   # free-foil-NBE is not on Hackage yet. The pin is its branch relate-mismatch,
   # on top of the pattern PR (#52); only the main library is used.
   - git: https://github.com/p50000/free-foil-NBE.git
-    commit: 6ebca4703f5d4daf74acb5111f271e796fc96f95
+    commit: ccbc77e149b0b5b1ada240281f669030046996f8
