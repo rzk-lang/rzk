@@ -1,0 +1,19 @@
+#lang rzk-1
+
+-- A neutral reduces by a restriction on the type of a prefix of its spine:
+-- in g t x, it is g t that is f t under t ≡ 0₂ (after RS17, Theorem 4.1,
+-- the commutation of arguments).
+
+#define restriction-on-prefix
+  (X A : U)
+  (f : 2 → X → A)
+  (g : (t : 2) → (X → A) [t ≡ 0₂ ↦ f t])
+  : (t : 2) → (x : X) → A [t ≡ 0₂ ↦ f t x]
+  := \ t x → g t x
+
+#define restriction-on-projected-prefix
+  (A B : U)
+  (f : 2 → Σ (a : A) , B)
+  (g : (t : 2) → (Σ (a : A) , B) [t ≡ 0₂ ↦ f t])
+  : (t : 2) → A [t ≡ 0₂ ↦ first (f t)]
+  := \ t → first (g t)

@@ -83,6 +83,7 @@ extra-source-files:
     test/typecheck/cases/happy-recor-split-simplex-overhang.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
+    test/typecheck/cases/happy-restriction-on-prefix.rzk
     test/typecheck/cases/happy-restriction-under-sigma.rzk
     test/typecheck/cases/happy-rstt-awareness.rzk
     test/typecheck/cases/happy-rstt-bare-tope-param.rzk
@@ -381,6 +382,7 @@ extra-source-files:
     test/typecheck/cases/happy-recor-split-simplex-overhang.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
+    test/typecheck/cases/happy-restriction-on-prefix.expect.yaml
     test/typecheck/cases/happy-restriction-under-sigma.expect.yaml
     test/typecheck/cases/happy-rstt-awareness.expect.yaml
     test/typecheck/cases/happy-rstt-bare-tope-param.expect.yaml
