@@ -7,25 +7,36 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE TupleSections       #-}
 -- | Declarations, commands and the module driver.
 --
 -- A top-level entry is a name bound in the outermost scope, so the scope
--- grows as a module is checked: each @#define@ and @#postulate@ enters a
--- binder and the rest of the module is checked under it. The driver is
--- written in continuation-passing style, and the result is packaged with
--- the scope it was produced in.
+-- grows as a module is checked: each @#define@, @#postulate@ and @#assume@
+-- enters a binder and the rest of the module is checked under it. The
+-- driver is written in continuation-passing style, and the result is
+-- packaged with the scope it was produced in.
 --
--- Sections, @#assume@ and @#data@ are not covered yet: such a command is
--- reported and skipped.
+-- A section (and a module, which is an anonymous section) is closed by
+-- abstracting its definitions over the assumptions they use. The
+-- dependencies are read off the elaborated 'Core' each top-level entry
+-- keeps, as the old checker read them off its terms ("Rzk.TypeCheck.Decl").
+--
+-- @#data@ is not covered yet: such a command is reported and skipped.
 module Rzk.Check.Decl
   ( Decl (..)
   , checkModules
   , elaborate
   ) where
 
+import           Control.Applicative      ((<|>))
+import           Control.Monad            (forM, when)
 import           Control.Monad.Foil       (DExt, Distinct)
 import qualified Control.Monad.Foil       as Foil
-import           Control.Monad.Free.Foil  (AST (..))
+import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
+import qualified Data.IntSet              as IntSet
+import           Data.List                (genericLength)
+import qualified Data.Map                 as Map
+import           Data.Maybe               (fromMaybe)
 import qualified FreeFoil.NbE             as NbE
 import           Debug.Trace              (trace)
 
@@ -73,13 +84,15 @@ elaborate term = do
         Nothing -> rawNode (RzkPosition Nothing Nothing) (HoleF (Just (markUnresolved name)))
   pure (toRaw (ctxScope ctx) env term)
 
--- | Bind a top-level entry and run the rest of the module under it.
+-- | Bind a top-level entry and run the rest of the module under it. The
+-- entry keeps its elaborated type and body, and is recorded in the
+-- innermost open section.
 withTopLevel
   :: (Checking m, Distinct n)
-  => VarIdent -> Value n -> Maybe (Core n) -> EntryKind
+  => VarIdent -> Core n -> Value n -> Maybe (Core n) -> EntryKind -> [Foil.Name n]
   -> (forall l. (DExt n l, Distinct l) => Decl l -> m l r)
   -> m n r
-withTopLevel name ty mval kind k = do
+withTopLevel name tyCore ty mval kind uses k = do
   checkTopLevelDuplicate name
   ctx <- askContext
   let scope = ctxScope ctx
@@ -96,10 +109,12 @@ withTopLevel name ty mval kind k = do
           , entryKind = kind
           , entryName = Just name
           , entryLocation = ctxLocation ctx
-          , entryUses = []
+          , entryUses = map Foil.sink uses
           , entryFlags = flagsOfType scope' ctx0 (Foil.sink ty)
+          , entryTypeCore = Just (Foil.sink tyCore)
+          , entryValueCore = Foil.sink <$> mval
           }
-        ctx' = enterPattern pat [entry] ctx
+        ctx' = recordInSection (Foil.nameOf binder) (enterPattern pat [entry] ctx)
         decl = Decl
           { declName = name
           , declNameOf = Foil.nameOf binder
@@ -108,6 +123,33 @@ withTopLevel name ty mval kind k = do
           , declLocation = ctxLocation ctx
           }
     inContext ctx' (k decl)
+
+-- | Record a new entry in the innermost open section.
+recordInSection :: Foil.Name n -> Context d n -> Context d n
+recordInSection name ctx = ctx
+  { ctxSections = case ctxSections ctx of
+      []       -> [Section Nothing [name]]
+      s : rest -> s { sectionEntries = name : sectionEntries s } : rest
+  }
+
+-- | Assume names of one type, each a top-level entry.
+assume
+  :: (Checking m, Distinct n)
+  => [VarIdent] -> Core n -> Value n
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> m l r)
+  -> m n r
+assume [] _ _ k = k []
+assume (name : names) tyCore ty k =
+  withTopLevel name tyCore ty Nothing EntryAssumption [] $ \decl ->
+    assume names (Foil.sink tyCore) (Foil.sink ty) $ \decls ->
+      k (Foil.sink decl : decls)
+
+-- | The names a declaration says it uses.
+usedNames :: (Checking m, Distinct n) => Maybe FilePath -> [Rzk.VarIdent] -> m n [Foil.Name n]
+usedNames path vars = forM vars $ \var -> do
+  ctx <- askContext
+  let name = varIdentAt path var
+  maybe (issueTypeError (TypeErrorUndefined name)) pure (lookupNamed name ctx)
 
 checkTopLevelDuplicate :: (Checking m, Distinct n) => VarIdent -> m n ()
 checkTopLevelDuplicate name = do
@@ -231,16 +273,17 @@ checkCommands path i total commands k = case commands of
         Left err -> skipping err path i total more k
         Right () -> setOption optionName optionValue $ checkCommands path (i + 1) total more k
 
-  command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ _vars) params ty term) : more ->
+  command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : more ->
     announce (" Checking #define " <> Rzk.printTree name) $ atCommand command $ do
       typeResult <- attempt $ do
+        used <- usedNames path vars
         paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
         tyTerm <- elaborate (addParamDecls paramDecls ty)
         ty' <- atSurface ty $ check tyTerm universe
-        evalM ty'
+        (used, ty',) <$> evalM ty'
       case typeResult of
         Left err -> skipping err path i total more k
-        Right tyV -> do
+        Right (used, tyC, tyV) -> do
           -- the body is checked on its own, so that a definition whose
           -- type is fine but whose proof is not still enters the scope
           result <- attempt $ do
@@ -260,21 +303,22 @@ checkCommands path i total commands k = case commands of
                 TypeErrorOther "\"latex\" rendering is not yet supported"
               _ -> pure ()
           let renderErrors = either pure (const []) renderResult
-          withTopLevel (varIdentAt path name) tyV mvalue EntryTopLevel $ \decl ->
+          withTopLevel (varIdentAt path name) tyC tyV mvalue EntryTopLevel used $ \decl ->
             checkCommands path (i + 1) total more $ \decls errs ->
               k (Foil.sink decl : decls) (bodyErrors <> renderErrors <> errs)
 
-  command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ _vars) params ty) : more ->
+  command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $ atCommand command $ do
       typeResult <- attempt $ do
+        used <- usedNames path vars
         paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
         tyTerm <- elaborate (addParamDecls paramDecls ty)
         ty' <- atSurface ty $ check tyTerm universe
-        evalM ty'
+        (used, ty',) <$> evalM ty'
       case typeResult of
         Left err -> skipping err path i total more k
-        Right tyV ->
-          withTopLevel (varIdentAt path name) tyV Nothing EntryTopLevel $ \decl ->
+        Right (used, tyC, tyV) ->
+          withTopLevel (varIdentAt path name) tyC tyV Nothing EntryTopLevel used $ \decl ->
             checkCommands path (i + 1) total more $ \decls errs ->
               k (Foil.sink decl : decls) errs
 
@@ -314,10 +358,38 @@ checkCommands path i total commands k = case commands of
         Left err -> skipping err path i total more k
         Right shown -> announce ("  " <> shown) $ checkCommands path (i + 1) total more k
 
+  command@(Rzk.CommandAssume _loc names ty) : more ->
+    announce (" Checking #assume " <> unwords (map Rzk.printTree names)) $ atCommand command $ do
+      typeResult <- attempt $ do
+        tyTerm <- elaborate ty
+        ty' <- atSurface ty $ check tyTerm universe
+        (ty',) <$> evalM ty'
+      case typeResult of
+        Left err -> skipping err path i total more k
+        Right (tyC, tyV) ->
+          assume (map (varIdentAt path) names) tyC tyV $ \assumed ->
+            checkCommands path (i + 1) total more $ \decls errs ->
+              k (sinkDecls assumed <> decls) errs
+
+  -- A malformed section stops the module, as does an error inside a
+  -- section: the declarations after it are not checked.
+  command@(Rzk.CommandSection _loc name) : more -> do
+    split <- attempt $ atCommand command $ splitSectionCommands name more
+    case split of
+      Left err -> k [] [err]
+      Right (sectionCommands, more') ->
+        withSection (Just (Rzk.printTree name)) path (i + 1) total sectionCommands $ \sectionDecls sectionErrs ->
+          case sectionErrs of
+            [] -> checkCommands path (i + 1 + genericLength sectionCommands) total more' $ \decls errs ->
+                    k (sinkDecls sectionDecls <> decls) errs
+            _  -> k sectionDecls sectionErrs
+
+  command@(Rzk.CommandSectionEnd _loc endName) : _more -> do
+    err <- captureError $ atCommand command $ issueTypeError $ TypeErrorOther $
+      "unexpected #end " <> Rzk.printTree endName <> ", no section was declared!"
+    k [] [err]
+
   Rzk.CommandData{} : more -> unsupported "#data" more
-  Rzk.CommandAssume{} : more -> unsupported "#assume" more
-  Rzk.CommandSection{} : more -> unsupported "#section" more
-  Rzk.CommandSectionEnd{} : more -> unsupported "#end" more
   where
     announce :: String -> m l a -> m l a
     announce what = traceNormal ("[ " <> show i <> " out of " <> show total <> " ]" <> what)
@@ -328,6 +400,209 @@ checkCommands path i total commands k = case commands of
       case result of
         Left err -> skipping err path i total more k
         Right () -> checkCommands path (i + 1) total more k
+
+-- | The commands of a section up to its @#end@, and the commands after it.
+-- A nested section is merged into the enclosing one, as in the old checker.
+splitSectionCommands
+  :: (Checking m, Distinct n)
+  => Rzk.SectionName -> [Rzk.Command] -> m n ([Rzk.Command], [Rzk.Command])
+splitSectionCommands name = \case
+  [] -> issueTypeError $ TypeErrorOther $
+    "Section " <> Rzk.printTree name <> " is not closed with an #end"
+  Rzk.CommandSection _loc name' : more -> do
+    (cs1, cs2) <- splitSectionCommands name' more
+    (cs3, cs4) <- splitSectionCommands name cs2
+    pure (cs1 <> cs3, cs4)
+  Rzk.CommandSectionEnd _loc endName : more -> do
+    when (Rzk.printTree name /= Rzk.printTree endName) $
+      issueTypeError $ TypeErrorOther $
+        "unexpected #end " <> Rzk.printTree endName <> ", expecting #end " <> Rzk.printTree name
+    pure ([], more)
+  command : more -> do
+    (cs1, cs2) <- splitSectionCommands name more
+    pure (command : cs1, cs2)
+
+-- | An error raised by a judgement, captured rather than propagated.
+captureError :: Checking m => m n () -> m n (FailureOf m)
+captureError action = attempt action >>= \case
+  Left err -> pure err
+  Right () -> panicImpossible "captureError: the judgement did not fail"
+
+-- | Check the commands of a section, then close it.
+withSection
+  :: forall m n r. (Checking m, Distinct n)
+  => Maybe String -> Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [FailureOf m] -> m l r)
+  -> m n r
+withSection name path i total commands k =
+  localContext (\ctx -> ctx { ctxSections = Section name [] : ctxSections ctx }) $
+    checkCommands path i total commands $ \_decls errs -> do
+      result <- attempt $ performing (ActionCloseSection name) (endSection errs)
+      case result of
+        Left err                   -> k [] (errs <> [err])
+        Right (decls, errs', ctx') -> inContext ctx' (k decls errs')
+
+-- * Closing a section
+
+-- | Close the innermost section: abstract each of its assumptions out of
+-- the definitions that use it, report the assumptions and the @uses@ that
+-- went unused, and take the assumptions out of scope.
+--
+-- The definitions stay in scope with their entries replaced: the type and
+-- the body are abstracted over the assumptions with Π and λ, and later
+-- uses of an abstracted definition are rewritten to its application to the
+-- assumption. The assumptions' names stay in the scope index, as a scope
+-- only grows, but leave the surface names and the list of what is bound,
+-- so they can no longer be referred to or shown.
+endSection
+  :: forall m n. (Checking m, Distinct n)
+  => [FailureOf m]
+  -> m n ([Decl n], [FailureOf m], Context (DiagOf m) n)
+endSection errs = do
+  ctx <- askContext
+  let scope = ctxScope ctx
+      entries = [ (name, lookupEntry name ctx)    -- newest first
+                | name <- case ctxSections ctx of
+                    []    -> []
+                    s : _ -> sectionEntries s ]
+      isAssumptionEntry entry = entryKind entry == EntryAssumption
+      assumptions = IntSet.fromList [ Foil.nameId name | (name, entry) <- entries, isAssumptionEntry entry ]
+      isAssumption name = Foil.nameId name `IntSet.member` assumptions
+
+      -- In a sketch, a hole may still come to use an assumption, so the
+      -- unused-variable errors are not reported in a section with a hole.
+      tolerateUnused = optHoles (ctxOptions ctx) /= HolesAreErrors
+        && any (maybe False containsHole . entryValueCore . snd) entries
+      reportUnused = null errs && not tolerateUnused
+
+      typeCoreOf entry = fromMaybe (quoteFolded scope ctx (entryType entry)) (entryTypeCore entry)
+      namesOf = maybe [] freeNamesOf
+
+      -- The names an entry depends on: those its type and body mention,
+      -- and those the types of these mention, transitively. The types are
+      -- the ones written, read off the context.
+      dependencies entry =
+        closeUnderTypes IntSet.empty (namesOf (entryTypeCore entry) <> namesOf (entryValueCore entry))
+      closeUnderTypes seen = \case
+        [] -> seen
+        name : more
+          | Foil.nameId name `IntSet.member` seen -> closeUnderTypes seen more
+          | otherwise -> closeUnderTypes (IntSet.insert (Foil.nameId name) seen)
+              (freeNamesOf (typeCoreOf (lookupEntry name ctx)) <> more)
+
+      -- Abstract an assumption out of the definitions (oldest first) that
+      -- depend on it.
+      abstractAssumption a aEntry = go
+        where
+          go [] = pure (False, [])
+          go ((x, xEntry, changed) : xs) = do
+            let written = lookupEntry x ctx
+                mentioned = any (sameName a) (namesOf (entryTypeCore written) <> namesOf (entryValueCore written))
+                declared = any (sameName a) (entryUses xEntry)
+            if Foil.nameId a `IntSet.member` dependencies xEntry
+              then do
+                -- used, but neither written in the type or the body nor
+                -- declared with @uses@
+                when (not mentioned && not declared) $
+                  localContext (\c -> c { ctxLocation = entryLocation xEntry <|> ctxLocation c }) $
+                    issueTypeError (TypeErrorImplicitAssumption (a, entryType aEntry) x)
+                let xs' = [ (y, applyToAssumption a x yEntry, True) | (y, yEntry, _) <- xs ]
+                (_, xs'') <- go xs'
+                pure (True, (x, abstractOver a aEntry xEntry, True) : xs'')
+              else do
+                (used, xs'') <- go xs
+                pure (used, (x, xEntry, changed) : xs'')
+
+      -- Give an entry the assumption as an explicit parameter.
+      abstractOver a aEntry entry =
+        let aType = typeCoreOf aEntry
+            cube = isCube scope ctx (entryType aEntry)
+            mshape = if cube then Just (quoteFolded scope ctx (topShapeValue scope (entryType aEntry))) else Nothing
+            family = cube && isTopeUniverse (entryType entry)
+            newType = abstractName scope (entryName aEntry) a (typeCoreOf entry) $ \pat body ->
+              if family
+                then TypeShape Id aType mshape
+                else TypeFun Id aType mshape (ScopedAST pat body)
+            abstractBody body = abstractName scope (entryName aEntry) a body $ \pat body' ->
+              Lambda (Just (Param Id aType mshape)) (ScopedAST pat body')
+        in entry
+             { entryTypeCore = Just newType
+             , entryValueCore = abstractBody <$> entryValueCore entry
+             , entryModality = Id
+             , entryUses = filter (not . sameName a) (entryUses entry)
+             }
+
+      -- Rewrite every use of a definition into its application to the
+      -- assumption it has just been abstracted over.
+      applyToAssumption a x entry = entry
+        { entryTypeCore = Just (rewrite (typeCoreOf entry))
+        , entryValueCore = rewrite <$> entryValueCore entry
+        }
+        where rewrite = substituteName scope x (App (Var x) (Var a))
+
+      -- The entries newest first; the definitions met so far, oldest first.
+      collect recent [] = pure (recent, [])
+      collect recent ((name, entry) : more)
+        | isAssumptionEntry entry = do
+            (used, recent') <- abstractAssumption name entry recent
+            unused <- if used || not reportUnused
+              then pure []
+              else fmap pure $ captureError $
+                localContext (\c -> c { ctxLocation = entryLocation entry <|> ctxLocation c }) $
+                  issueTypeError (TypeErrorUnusedVariable name (entryType entry))
+            (kept, unusedMore) <- collect recent' more
+            pure (kept, unused <> unusedMore)
+        | otherwise = collect ((name, entry, False) : recent) more
+
+  (kept, unusedAssumptions) <- collect [] entries
+
+  -- an abstracted entry is evaluated again, in the context it is now in
+  let reevaluate entry =
+        let ty = evalCore scope ctx' (typeCoreOf entry)
+        in entry
+             { entryType = ty
+             , entryValue = evalCore scope ctx' <$> entryValueCore entry
+             , entryFlags = flagsOfType scope ctx' ty
+             }
+      final = [ (name, if changed then reevaluate entry else entry) | (name, entry, changed) <- kept ]
+      ctx1 = ctx
+        { ctxSections = closeInnermost (ctxSections ctx)
+        , ctxBound = filter (not . isAssumption) (ctxBound ctx)
+        , ctxNamed = Map.filter (not . isAssumption) (ctxNamed ctx)
+        }
+      ctx' = foldr (uncurry insertEntry) ctx1 final
+
+      -- The section's definitions outlive it, so the enclosing section
+      -- adopts them, to abstract them over its own assumptions in turn.
+      closeInnermost sections = case drop 1 sections of
+        []       -> []
+        s : rest -> s { sectionEntries = reverse (map fst final) <> sectionEntries s } : rest
+
+      decls =
+        [ Decl
+            { declName = fromMaybe "_" (entryName entry)
+            , declNameOf = name
+            , declType = entryType entry
+            , declValue = entryValue entry
+            , declLocation = entryLocation entry <|> ctxLocation ctx
+            }
+        | (name, entry) <- final ]
+
+  -- the uses that name an assumption of this section which went unused
+  unusedUses <- if not reportUnused then pure [] else
+    fmap concat $ forM final $ \(name, entry) ->
+      case filter isAssumption (entryUses entry) of
+        [] -> pure []
+        unused -> fmap pure $ captureError $
+          localContext (\c -> c { ctxLocation = entryLocation entry <|> ctxLocation c }) $
+            issueTypeError (TypeErrorUnusedUsedVariables unused name)
+
+  pure (decls, errs <> unusedAssumptions <> unusedUses, ctx')
+  where
+    sameName a b = Foil.nameId a == Foil.nameId b
+    isTopeUniverse ty = case NbE.force ty of
+      NbE.VNode UniverseTopeF -> True
+      _                       -> False
 
 -- | Report a command's error and go on to the next one.
 skipping
@@ -351,7 +626,7 @@ checkModule
   -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [FailureOf m] -> m l r)
   -> m n r
 checkModule path (Rzk.Module _loc _lang commands) k =
-  checkCommands path 1 (fromIntegral (length commands)) commands k
+  withSection Nothing path 1 (genericLength commands) commands k
 
 -- | Check a list of modules, one after another, in a scope that grows as
 -- it goes. Checking stops at the first module with an error.

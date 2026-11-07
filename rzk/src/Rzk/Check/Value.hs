@@ -696,17 +696,7 @@ patternEntries scope ctx md loc = go
     -- a sub-pattern's names are names of the whole pattern's scope
     patternValueIn :: Pattern x y -> Value l
     patternValueIn = unsafeCoerce . patternValue
-    entryOf mname t = Entry
-      { entryType = t
-      , entryValue = Nothing
-      , entryModality = md
-      , entryLocks = Id
-      , entryKind = EntryLocal
-      , entryName = mname
-      , entryLocation = loc
-      , entryUses = []
-      , entryFlags = flagsOfType scope ctx t
-      }
+    entryOf mname t = localEntry md mname loc (flagsOfType scope ctx t) t
 
 -- | The entries of a let's pattern: each name has its component of the
 -- value.

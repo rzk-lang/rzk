@@ -35,6 +35,8 @@ module Rzk.Check.Context
   , EntryFlags (..)
   , noFlags
   , Entry (..)
+  , localEntry
+  , Section (..)
     -- * Diagnostics
   , Action (..)
   , NoDiag (..)
@@ -174,6 +176,11 @@ data Entry n = Entry
   , entryUses     :: [Foil.Name n]
     -- ^ the variables a declaration says it uses
   , entryFlags    :: EntryFlags
+  , entryTypeCore  :: Maybe (Core n)
+    -- ^ a top-level entry's type as elaborated, which closing a section
+    -- reads its dependencies off and abstracts
+  , entryValueCore :: Maybe (Core n)
+    -- ^ a definition's body as elaborated
   }
 
 instance Foil.Sinkable Entry where
@@ -181,7 +188,34 @@ instance Foil.Sinkable Entry where
     { entryType = Foil.sinkabilityProof rename (entryType entry)
     , entryValue = Foil.sinkabilityProof rename <$> entryValue entry
     , entryUses = map rename (entryUses entry)
+    , entryTypeCore = Foil.sinkabilityProof rename <$> entryTypeCore entry
+    , entryValueCore = Foil.sinkabilityProof rename <$> entryValueCore entry
     }
+
+-- | The entry of a local name of a type, with the flags its type gives.
+localEntry :: TModality -> Maybe VarIdent -> Maybe LocationInfo -> EntryFlags -> Value n -> Entry n
+localEntry md mname loc flags ty = Entry
+  { entryType = ty
+  , entryValue = Nothing
+  , entryModality = md
+  , entryLocks = Id
+  , entryKind = EntryLocal
+  , entryName = mname
+  , entryLocation = loc
+  , entryUses = []
+  , entryFlags = flags
+  , entryTypeCore = Nothing
+  , entryValueCore = Nothing
+  }
+
+-- | An open section: its name, and the top-level entries made in it,
+-- newest first. The module itself is an anonymous section, so that an
+-- assumption outside any named section is abstracted at the end of the
+-- module.
+data Section n = Section
+  { sectionName    :: Maybe String
+  , sectionEntries :: [Foil.Name n]
+  }
 
 sinkEntry :: DExt n l => Entry n -> Entry l
 sinkEntry = Foil.sink
@@ -230,6 +264,8 @@ data Context (d :: S -> Type) n = Context
   , ctxApproximation :: Approximation
   , ctxOptions       :: Options
   , ctxLocation      :: Maybe LocationInfo
+  , ctxSections      :: [Section n]
+    -- ^ the open sections, innermost first
   , ctxDiag          :: d n
   }
 
@@ -245,6 +281,7 @@ emptyContext diag = Context
   , ctxApproximation = Rigid
   , ctxOptions = defaultOptions
   , ctxLocation = Nothing
+  , ctxSections = []
   , ctxDiag = diag
   }
 
