@@ -46,6 +46,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-shape-tope.rzk
     test/typecheck/cases/happy-data-tope-param.rzk
     test/typecheck/cases/happy-data-vec.rzk
+    test/typecheck/cases/happy-equal-in-every-alternative.rzk
     test/typecheck/cases/happy-eta-annotated-lambda.rzk
     test/typecheck/cases/happy-ext-style-restrictions.rzk
     test/typecheck/cases/happy-face-terms-under-face.rzk
@@ -349,6 +350,7 @@ extra-source-files:
     test/typecheck/cases/happy-data-shape-tope.expect.yaml
     test/typecheck/cases/happy-data-tope-param.expect.yaml
     test/typecheck/cases/happy-data-vec.expect.yaml
+    test/typecheck/cases/happy-equal-in-every-alternative.expect.yaml
     test/typecheck/cases/happy-eta-annotated-lambda.expect.yaml
     test/typecheck/cases/happy-ext-style-restrictions.expect.yaml
     test/typecheck/cases/happy-face-terms-under-face.expect.yaml
