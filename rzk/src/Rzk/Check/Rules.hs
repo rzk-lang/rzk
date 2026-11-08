@@ -188,13 +188,13 @@ data DomainKind
 -- | Classify a type value.
 classifyType :: Distinct n => Foil.Scope n -> Context n -> Value n -> DomainKind
 classifyType scope ctx ty = case force (stripRestrictions ty) of
-  NbE.VNode UniverseCubeF -> DomainCubeUniverse
-  NbE.VNode UniverseTopeF -> DomainTopeUniverse
-  NbE.VNode (TypeShapeF _ _ _) -> DomainTopeFamily
-  NbE.VNode (TypeModalF _ inner) -> case classifyType scope ctx inner of
+  VUniverseCube -> DomainCubeUniverse
+  VUniverseTope -> DomainTopeUniverse
+  VTypeShape _ _ _ -> DomainTopeFamily
+  VTypeModal _ inner -> case classifyType scope ctx inner of
     DomainType -> DomainType
     _          -> DomainModalTope
-  NbE.VSuspended env (TypeFunF md dom mshape ret) ->
+  VTypeFun env md dom mshape ret ->
     let cubeDom = case mshape of
           Just _  -> True
           Nothing -> isCube scope ctx dom
@@ -343,20 +343,20 @@ checkHole mname goal = do
 
 check :: forall n. Distinct n => Raw n -> Value n -> Check n (Core n)
 check term ty = performing (ActionCheck term ty) $ case term of
-  RawNode (HoleF (Just name)) | Just x <- unmarkUnresolved name ->
+  RHole (Just name) | Just x <- unmarkUnresolved name ->
     issueTypeError (TypeErrorUndefined x)
-  RawNode (HoleF mname) -> checkHole mname ty
+  RHole mname -> checkHole mname ty
   _ -> do
     ctx <- askContext
     let scope = ctxScope ctx
     case force ty of
       -- even under an absurd context the term must be well-formed
-      NbE.VNode RecBottomF -> do
+      VRecBottom -> do
         _ <- infer term
         pure RecBottom
 
-      NbE.VNode (TypeRestrictedF ty' rs) -> case term of
-        RawNode (RecOrF branches) -> checkRecOrAgainst ty branches
+      VTypeRestricted ty' rs -> case term of
+        RRecOr branches -> checkRecOrAgainst ty branches
         _ -> do
           term' <- check term ty'
           termV <- evalM term'
@@ -368,7 +368,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
       tyW -> case term of
         -- a λ against a family type: its body is a tope under the binder,
         -- carrying the family's domain
-        RawNode (LambdaF mparam body) | Just (Family md' cube' mshape') <- familyOf (NbE.fromWhnf tyW) -> do
+        RLambda mparam body | Just (Family md' cube' mshape') <- familyOf (NbE.fromWhnf tyW) -> do
           mparam' <- forM mparam $ \(Param md param mshape) -> do
             when (md /= md') $ issueTypeError $ TypeErrorOther
               "modality mismatch in lambda parameter"
@@ -392,7 +392,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
           mshapeC <- traverse quoteM mshapeAssumed
           pure (Lambda (Just (Param md' cubeC mshapeC)) body')
 
-        RawNode (LambdaF mparam body) -> case piOf (NbE.fromWhnf tyW) of
+        RLambda mparam body -> case piOf (NbE.fromWhnf tyW) of
           Just (Pi env md' dom' mshape' ret) -> do
             -- the λ's own parameter, if written, must agree with the Π's
             mparam' <- forM mparam $ \(Param md param mshape) -> do
@@ -431,7 +431,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
               -- domain: its body becomes the conjunction, unless the body
               -- already entails the domain
               bodyIn' <- case (force retIn, mshapeAssumed) of
-                (NbE.VNode UniverseTopeF, Just shape) -> carryFamilyDomain pat shape bodyIn
+                (VUniverseTope, Just shape) -> carryFamilyDomain pat shape bodyIn
                 _ -> pure bodyIn
               pure (ScopedAST pat bodyIn')
             domC <- quoteM dom'
@@ -439,7 +439,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
             pure (Lambda (Just (Param md' domC mshapeC)) body')
           Nothing -> issueTypeError (TypeErrorUnexpectedLambda term ty)
 
-        RawNode (LetF mannot val body) -> do
+        RLet mannot val body -> do
           (val', valTy) <- performing (ActionCheckLetValue (patternName body)) $ case mannot of
             Nothing -> infer val
             Just annot -> do
@@ -453,8 +453,8 @@ check term ty = performing (ActionCheck term ty) $ case term of
           valTyC <- quoteM valTy
           pure (Let (Just valTyC) val' body')
 
-        RawNode (PairF l r) -> case tyW of
-          NbE.VNode (CubeProductF a b) -> do
+        RPair l r -> case tyW of
+          VCubeProduct a b -> do
             l' <- check l a
             r' <- check r b
             pure (Pair l' r')
@@ -462,15 +462,15 @@ check term ty = performing (ActionCheck term ty) $ case term of
             when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal Σ type")
             l' <- check l a
             case force a of
-              NbE.VNode UniverseF -> evalM l' >>= ensureTypeAtU "a pair component at type U"
+              VUniverse -> evalM l' >>= ensureTypeAtU "a pair component at type U"
               _ -> pure ()
             lV <- evalM l'
             r' <- check r (codomainAt scope ctx env b lV)
             pure (Pair l' r')
           _ -> issueTypeError (TypeErrorUnexpectedPair term ty)
 
-        RawNode (ReflF mx) -> case tyW of
-          NbE.VNode (TypeIdF y mtA z) -> do
+        RRefl mx -> case tyW of
+          VTypeId y mtA z -> do
             tA <- case mtA of
               Just tA -> pure tA
               Nothing -> issueTypeError (TypeErrorOther "an identity type without its carrier")
@@ -487,13 +487,13 @@ check term ty = performing (ActionCheck term ty) $ case term of
             pure (Refl Nothing)
           _ -> issueTypeError (TypeErrorUnexpectedRefl term ty)
 
-        RawNode (RecOrF rs) -> case tyW of
-          NbE.VNode UniverseTopeF -> issueTypeError $ TypeErrorOther "a recOR cannot be used as a tope"
+        RRecOr rs -> case tyW of
+          VUniverseTope -> issueTypeError $ TypeErrorOther "a recOR cannot be used as a tope"
           _ -> checkRecOrAgainst ty rs
 
-        RawNode MatchF{} -> issueTypeError (TypeErrorUnsupported "match")
-        RawNode LetModF{} -> issueTypeError (TypeErrorUnsupported "let mod")
-        RawNode ModAppF{} -> issueTypeError (TypeErrorUnsupported "mod")
+        RMatch{} -> issueTypeError (TypeErrorUnsupported "match")
+        RLetMod{} -> issueTypeError (TypeErrorUnsupported "let mod")
+        RModApp{} -> issueTypeError (TypeErrorUnsupported "mod")
 
         -- a neutral term is inferred, then its type compared with the
         -- expected one
@@ -553,9 +553,9 @@ sortOf :: Distinct n => Value n -> Check n (Value n)
 sortOf ty = do
   ctx <- askContext
   pure $ case force ty of
-    NbE.VNode UniverseF -> universe
-    NbE.VNode UniverseCubeF -> universe
-    NbE.VNode UniverseTopeF -> universe
+    VUniverse -> universe
+    VUniverseCube -> universe
+    VUniverseTope -> universe
     _ | cubeOfType ty /= KOther -> cubeUniverse
     _ -> case neutralType (ctxScope ctx) ctx ty of
       Just s -> stripRestrictions s
@@ -563,9 +563,9 @@ sortOf ty = do
 
 -- | Infer a cube point used by @≡@. A bare hole here has an unknown cube.
 inferPoint :: Distinct n => Raw n -> Check n (Core n, Value n)
-inferPoint term@(RawNode (HoleF (Just name)))
+inferPoint term@((RHole (Just name)))
   | Just x <- unmarkUnresolved name = performing (ActionInfer term) $ issueTypeError (TypeErrorUndefined x)
-inferPoint term@(RawNode (HoleF mname)) = performing (ActionInfer term) $ do
+inferPoint term@((RHole mname)) = performing (ActionInfer term) $ do
   mode <- asksContext (optHoles . ctxOptions)
   case mode of
     HolesAreErrors -> issueTypeError (TypeErrorCannotInferHole term)
@@ -580,9 +580,9 @@ inferDirectedPoint :: Distinct n => Raw n -> Check n (Core n, Value n)
 inferDirectedPoint term = performing (ActionInfer term) $ do
   (point, cube) <- inferPoint term
   case force cube of
-    NbE.VNode (HoleF _) -> pure (point, cube)
-    NbE.VNode Cube2F -> pure (point, cube)
-    NbE.VNode CubeIF -> pure (point, cube)
+    VHole _ -> pure (point, cube)
+    VCube2 -> pure (point, cube)
+    VCubeI -> pure (point, cube)
     _ -> do
       ctx <- askContext
       issueTypeError $ TypeErrorOther $
@@ -590,42 +590,42 @@ inferDirectedPoint term = performing (ActionInfer term) $ do
 
 infer :: forall n. Distinct n => Raw n -> Check n (Core n, Value n)
 infer tt = performing (ActionInfer tt) $ case tt of
-  RawNode (HoleF (Just name)) | Just x <- unmarkUnresolved name ->
+  RHole (Just name) | Just x <- unmarkUnresolved name ->
     issueTypeError (TypeErrorUndefined x)
-  RawNode (HoleF _) -> issueTypeError (TypeErrorCannotInferHole tt)
+  RHole _ -> issueTypeError (TypeErrorCannotInferHole tt)
   Var x -> do
     entry <- asksContext (lookupEntry x)
     pure (Var x, entryType entry)
 
-  RawNode UniverseF -> pure (Universe, universe)
-  RawNode UniverseCubeF -> pure (UniverseCube, universe)
-  RawNode UniverseTopeF -> pure (UniverseTope, universe)
+  RUniverse -> pure (Universe, universe)
+  RUniverseCube -> pure (UniverseCube, universe)
+  RUniverseTope -> pure (UniverseTope, universe)
 
-  RawNode CubeUnitF -> pure (CubeUnit, cubeUniverse)
-  RawNode CubeUnitStarF -> pure (CubeUnitStar, vnode CubeUnitF)
-  RawNode Cube2F -> pure (Cube2, cubeUniverse)
-  RawNode Cube2_0F -> pure (Cube2_0, vcube2)
-  RawNode Cube2_1F -> pure (Cube2_1, vcube2)
-  RawNode CubeIF -> pure (CubeI, cubeUniverse)
-  RawNode CubeI_0F -> pure (CubeI_0, vcubeI)
-  RawNode CubeI_1F -> pure (CubeI_1, vcubeI)
-  RawNode (CubeProductF l r) -> do
+  RCubeUnit -> pure (CubeUnit, cubeUniverse)
+  RCubeUnitStar -> pure (CubeUnitStar, vnode CubeUnitF)
+  RCube2 -> pure (Cube2, cubeUniverse)
+  RCube2_0 -> pure (Cube2_0, vcube2)
+  RCube2_1 -> pure (Cube2_1, vcube2)
+  RCubeI -> pure (CubeI, cubeUniverse)
+  RCubeI_0 -> pure (CubeI_0, vcubeI)
+  RCubeI_1 -> pure (CubeI_1, vcubeI)
+  RCubeProduct l r -> do
     l' <- check l cubeUniverse
     r' <- check r cubeUniverse
     pure (CubeProduct l' r', cubeUniverse)
 
-  RawNode CubeFlipF{} -> issueTypeError (TypeErrorUnsupported "flip")
-  RawNode CubeUnflipF{} -> issueTypeError (TypeErrorUnsupported "unflip")
+  RCubeFlip{} -> issueTypeError (TypeErrorUnsupported "flip")
+  RCubeUnflip{} -> issueTypeError (TypeErrorUnsupported "unflip")
 
-  RawNode (CubeSupF l r) -> lattice "sup" CubeSup l r
-  RawNode (CubeInfF l r) -> lattice "inf" CubeInf l r
+  RCubeSup l r -> lattice "sup" CubeSup l r
+  RCubeInf l r -> lattice "inf" CubeInf l r
 
-  RawNode (PairF l r) -> do
+  RPair l r -> do
     (l', lt) <- infer l
     (r', rt) <- infer r
     ltSort <- sortOf lt
     case force ltSort of
-      NbE.VNode UniverseCubeF -> pure (Pair l' r', vnode (CubeProductF lt rt))
+      VUniverseCube -> pure (Pair l' r', vnode (CubeProductF lt rt))
       _ -> do
         -- a non-dependent pair
         ctx <- askContext
@@ -635,49 +635,49 @@ infer tt = performing (ActionInfer tt) $ case tt of
                 (TypeSigmaF Id lt (ScopedAST (singlePattern b) (Foil.sink rtC)))
         pure (Pair l' r', sigma)
 
-  RawNode (FirstF t) -> do
+  RFirst t -> do
     (t', ty) <- infer t
     case force (stripRestrictions ty) of
-      NbE.VNode RecBottomF -> pure (First t', vrecBottom)
-      NbE.VNode (CubeProductF a _) -> pure (First t', a)
+      VRecBottom -> pure (First t', vrecBottom)
+      VCubeProduct a _ -> pure (First t', a)
       _ | Just (Sigma _ _ a _) <- sigmaOf ty -> pure (First t', a)
       _ -> issueTypeError (TypeErrorNotPair t' ty)
 
-  RawNode (SecondF t) -> do
+  RSecond t -> do
     (t', ty) <- infer t
     ctx <- askContext
     let scope = ctxScope ctx
     case force (stripRestrictions ty) of
-      NbE.VNode RecBottomF -> pure (Second t', vrecBottom)
-      NbE.VNode (CubeProductF _ b) -> pure (Second t', b)
+      VRecBottom -> pure (Second t', vrecBottom)
+      VCubeProduct _ b -> pure (Second t', b)
       _ | Just (Sigma env _ _ b) <- sigmaOf ty -> do
         tV <- evalM t'
         pure (Second t', codomainAt scope ctx env b (firstValue tV))
       _ -> issueTypeError (TypeErrorNotPair t' ty)
 
-  RawNode TypeUnitF -> pure (TypeUnit, universe)
-  RawNode UnitF -> pure (Unit, vtypeUnit)
+  RTypeUnit -> pure (TypeUnit, universe)
+  RUnit -> pure (Unit, vtypeUnit)
 
-  RawNode TopeTopF -> pure (TopeTop, topeUniverse)
-  RawNode TopeBottomF -> pure (TopeBottom, topeUniverse)
+  RTopeTop -> pure (TopeTop, topeUniverse)
+  RTopeBottom -> pure (TopeBottom, topeUniverse)
 
-  RawNode (TopeEQF l r) -> do
+  RTopeEQ l r -> do
     (l', lt) <- inferPoint l
     r' <- check r lt
     pure (TopeEQ l' r', topeUniverse)
 
-  RawNode (TopeLEQF l r) -> do
+  RTopeLEQ l r -> do
     (l', lTy) <- inferDirectedPoint l
     (r', rTy) <- inferDirectedPoint r
     case (force lTy, force rTy) of
-      (NbE.VNode (HoleF _), _) -> pure (TopeLEQ l' r', topeUniverse)
-      (_, NbE.VNode (HoleF _)) -> pure (TopeLEQ l' r', topeUniverse)
-      (NbE.VNode Cube2F, NbE.VNode Cube2F) -> pure (TopeLEQ l' r', topeUniverse)
-      (NbE.VNode CubeIF, NbE.VNode CubeIF) -> pure (TopeLEQ l' r', topeUniverse)
-      (NbE.VNode CubeIF, NbE.VNode Cube2F) -> do
+      ((VHole _), _) -> pure (TopeLEQ l' r', topeUniverse)
+      (_, (VHole _)) -> pure (TopeLEQ l' r', topeUniverse)
+      (VCube2, VCube2) -> pure (TopeLEQ l' r', topeUniverse)
+      (VCubeI, VCubeI) -> pure (TopeLEQ l' r', topeUniverse)
+      (VCubeI, VCube2) -> do
         r'' <- check r vcubeI
         pure (TopeLEQ l' r'', topeUniverse)
-      (NbE.VNode Cube2F, NbE.VNode CubeIF) -> do
+      (VCube2, VCubeI) -> do
         l'' <- check l vcubeI
         pure (TopeLEQ l'' r', topeUniverse)
       _ -> do
@@ -686,24 +686,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
           "the (t ≤ s) tope expects points in interval cubes (2 or 𝕀); got "
             <> ppValueIn ctx lTy <> " and " <> ppValueIn ctx rTy
 
-  RawNode (TopeAndF l r) -> do
+  RTopeAnd l r -> do
     l' <- check l topeUniverse
     r' <- check r topeUniverse
     pure (TopeAnd l' r', topeUniverse)
 
-  RawNode (TopeOrF l r) -> do
+  RTopeOr l r -> do
     l' <- check l topeUniverse
     r' <- check r topeUniverse
     pure (TopeOr l' r', topeUniverse)
 
-  RawNode TopeInvF{} -> issueTypeError (TypeErrorUnsupported "a tope inversion")
-  RawNode TopeUninvF{} -> issueTypeError (TypeErrorUnsupported "a tope inversion")
+  RTopeInv{} -> issueTypeError (TypeErrorUnsupported "a tope inversion")
+  RTopeUninv{} -> issueTypeError (TypeErrorUnsupported "a tope inversion")
 
-  RawNode RecBottomF -> do
+  RRecBottom -> do
     contextEntails vtopeBottom
     pure (RecBottom, vrecBottom)
 
-  RawNode (RecOrF rs) -> do
+  RRecOr rs -> do
     ctx <- askContext
     let scope = ctxScope ctx
     branches <- forM rs $ \(tope, branch) -> do
@@ -717,7 +717,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     contextEntailsUnion [ t | (_, (t, _), _) <- branches ]
     pure (RecOr [ b | (b, _, _) <- branches ], vnode (RecOrF [ t | (_, _, t) <- branches ]))
 
-  RawNode (TypeFunF md a Nothing b) -> do
+  RTypeFun md a Nothing b -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     (a', aTy) <- infer a
     aV <- evalM a'
@@ -725,13 +725,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     let scope = ctxScope ctx
     case force aTy of
       -- a type, including TOPE: a bare tope parameter
-      NbE.VNode UniverseF -> do
+      VUniverse -> do
         b' <- underRawScope md aV Nothing b $ \pat bTerm -> do
           bIn <- check bTerm universe
           pure (ScopedAST pat bIn)
         pure (TypeFun md a' Nothing b', universe)
       -- a cube: the shape is ⊤
-      NbE.VNode UniverseCubeF -> do
+      VUniverseCube -> do
         let shapeV = topShapeValue scope aV
         shapeC <- quoteM shapeV
         piOrFamily md a' shapeC aV shapeV b
@@ -744,7 +744,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
           piOrFamily md cubeC shapeC cube shapeV b
       _ -> issueTypeError (TypeErrorInvalidArgumentType a aTy)
 
-  RawNode (TypeFunF md cube (Just shape) ret) -> do
+  RTypeFun md cube (Just shape) ret -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     cube' <- check cube cubeUniverse
     cubeV <- evalM cube'
@@ -752,7 +752,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     shapeV <- evalM shape'
     piOrFamily md cube' shape' cubeV shapeV ret
 
-  RawNode (TypeSigmaF md a b) -> do
+  RTypeSigma md a b -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal Σ type")
     a' <- check a universe
     aV <- evalM a'
@@ -763,7 +763,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       pure (ScopedAST pat bIn)
     pure (TypeSigma md a' b', universe)
 
-  RawNode (TypeIdF x (Just tA) y) -> do
+  RTypeId x (Just tA) y -> do
     tA' <- check tA universe
     tAV <- evalM tA'
     ensureTypeAtU "the carrier of an identity type" tAV
@@ -771,14 +771,14 @@ infer tt = performing (ActionInfer tt) $ case tt of
     y' <- check y tAV
     pure (TypeId x' (Just tA') y', universe)
 
-  RawNode (TypeIdF x Nothing y) -> do
+  RTypeId x Nothing y -> do
     (x', tAV) <- inferAs universe x
     ensureTypeAtU "the carrier of an identity type" tAV
     y' <- check y tAV
     tA' <- quoteM tAV
     pure (TypeId x' (Just tA') y', universe)
 
-  RawNode (AppF f x) -> do
+  RApp f x -> do
     (f', fTy) <- inferAs universe f
     ctx <- askContext
     let scope = ctxScope ctx
@@ -792,23 +792,23 @@ infer tt = performing (ActionInfer tt) $ case tt of
         x' <- check x a
         xV <- evalM x'
         case force a of
-          NbE.VNode UniverseF -> ensureTypeAtU "a type argument" xV
+          VUniverse -> ensureTypeAtU "a type argument" xV
           _ -> pure ()
         forM_ mshape $ \shape -> contextEntails (appValue scope ctx shape xV)
         pure (App f' x', codomainAt scope ctx env b xV)
       Nothing -> issueTypeError (TypeErrorNotFunction f' fTy)
 
-  RawNode (LambdaF Nothing _) -> issueTypeError (TypeErrorCannotInferBareLambda tt)
+  RLambda Nothing _ -> issueTypeError (TypeErrorCannotInferBareLambda tt)
 
-  RawNode (LambdaF (Just (Param md ty Nothing)) body) -> do
+  RLambda (Just (Param md ty Nothing)) body -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     (ty', tyTy) <- infer ty
     tyV <- evalM ty'
     ctx <- askContext
     let scope = ctxScope ctx
     (dom, mshape) <- case force tyTy of
-      NbE.VNode UniverseF -> pure (tyV, Nothing)
-      NbE.VNode UniverseCubeF -> pure (tyV, Just (topShapeValue scope tyV))
+      VUniverse -> pure (tyV, Nothing)
+      VUniverseCube -> pure (tyV, Just (topShapeValue scope tyV))
       _ | Just (Family _ cube mdomShape) <- familyOf tyTy -> do
           cubeC <- quoteM cube
           mdomC <- traverse quoteM mdomShape
@@ -817,7 +817,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       _ -> issueTypeError (TypeErrorInvalidArgumentType ty tyTy)
     inferLambda md dom mshape body
 
-  RawNode (LambdaF (Just (Param md cube (Just shape))) body) -> do
+  RLambda (Just (Param md cube (Just shape))) body -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     cube' <- check cube cubeUniverse
     cubeV <- evalM cube'
@@ -825,7 +825,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     shapeV <- evalM shape'
     inferLambda md cubeV (Just shapeV) body
 
-  RawNode (LetF mannot val body) -> do
+  RLet mannot val body -> do
     (val', valTy) <- performing (ActionCheckLetValue (patternName body)) $ case mannot of
       Nothing -> infer val
       Just annot -> do
@@ -842,22 +842,22 @@ infer tt = performing (ActionInfer tt) $ case tt of
     let ret = evalScope (ctxScope ctx) ctx Foil.identitySubst retScoped valV
     pure (Let (Just valTyC) val' body', ret)
 
-  RawNode LetModF{} -> issueTypeError (TypeErrorUnsupported "let mod")
+  RLetMod{} -> issueTypeError (TypeErrorUnsupported "let mod")
 
-  RawNode (ReflF Nothing) -> issueTypeError (TypeErrorCannotInferBareRefl tt)
-  RawNode (ReflF (Just (x, Nothing))) -> do
+  RRefl Nothing -> issueTypeError (TypeErrorCannotInferBareRefl tt)
+  RRefl (Just (x, Nothing)) -> do
     (x', ty) <- inferAs universe x
     xV <- evalM x'
     tyC <- quoteM ty
     pure (Refl (Just (x', Just tyC)), vnode (TypeIdF xV (Just ty) xV))
-  RawNode (ReflF (Just (x, Just ty))) -> do
+  RRefl (Just (x, Just ty)) -> do
     ty' <- check ty universe
     tyV <- evalM ty'
     x' <- check x tyV
     xV <- evalM x'
     pure (Refl (Just (x', Just ty')), vnode (TypeIdF xV (Just tyV) xV))
 
-  RawNode (IdJF tA a tC d x p) -> do
+  RIdJ tA a tC d x p -> do
     tA' <- check tA universe
     tAV <- evalM tA'
     a' <- check a tAV
@@ -886,15 +886,15 @@ infer tt = performing (ActionInfer tt) $ case tt of
     pure (IdJ tA' a' tC' d' x' p', appValue scope ctx (appValue scope ctx tCV xV) pV)
 
   -- an annotation is built by evaluation and never written
-  RawNode (AnnF term _) -> infer term
+  RAnn term _ -> infer term
 
-  RawNode (TypeAscF term ty) -> do
+  RTypeAsc term ty -> do
     (ty', _) <- inferAs universe ty
     tyV <- evalM ty'
     term' <- check term tyV
     pure (TypeAsc term' ty', tyV)
 
-  RawNode (TypeRestrictedF ty rs) -> do
+  RTypeRestricted ty rs -> do
     ty' <- check ty universe
     tyV <- evalM ty'
     ctx <- askContext
@@ -908,24 +908,24 @@ infer tt = performing (ActionInfer tt) $ case tt of
     sequence_ [ checkCoherence l r | l : rest <- tails (map snd rs'), r <- rest ]
     pure (TypeRestricted ty' (map fst rs'), universe)
 
-  RawNode TypeModalF{} -> issueTypeError (TypeErrorUnsupported "a modal type")
-  RawNode ModAppF{} -> issueTypeError (TypeErrorUnsupported "mod")
-  RawNode ModExtractF{} -> issueTypeError (TypeErrorUnsupported "extract")
-  RawNode MatchF{} -> issueTypeError (TypeErrorUnsupported "match")
-  RawNode MatchArmF{} -> issueTypeError (TypeErrorUnsupported "a match arm")
-  RawNode TypeShapeF{} -> panicImpossible "a family type in a raw term"
+  RTypeModal{} -> issueTypeError (TypeErrorUnsupported "a modal type")
+  RModApp{} -> issueTypeError (TypeErrorUnsupported "mod")
+  RModExtract{} -> issueTypeError (TypeErrorUnsupported "extract")
+  RMatch{} -> issueTypeError (TypeErrorUnsupported "match")
+  RMatchArm{} -> issueTypeError (TypeErrorUnsupported "a match arm")
+  RTypeShape{} -> panicImpossible "a family type in a raw term"
   where
     lattice :: String -> (Core n -> Core n -> Core n) -> Raw n -> Raw n -> Check n (Core n, Value n)
     lattice name mk l r = do
       (l', lTy) <- inferAs cubeUniverse l
       (r', rTy) <- inferAs cubeUniverse r
       case (force lTy, force rTy) of
-        (NbE.VNode Cube2F, NbE.VNode Cube2F) -> pure (mk l' r', vcube2)
-        (NbE.VNode CubeIF, NbE.VNode CubeIF) -> pure (mk l' r', vcubeI)
-        (NbE.VNode CubeIF, NbE.VNode Cube2F) -> do
+        (VCube2, VCube2) -> pure (mk l' r', vcube2)
+        (VCubeI, VCubeI) -> pure (mk l' r', vcubeI)
+        (VCubeI, VCube2) -> do
           r'' <- check r vcubeI
           pure (mk l' r'', vcubeI)
-        (NbE.VNode Cube2F, NbE.VNode CubeIF) -> do
+        (VCube2, VCubeI) -> do
           l'' <- check l vcubeI
           pure (mk l'' r', vcubeI)
         _ -> issueTypeError (TypeErrorNotIntervalCube name lTy rTy)
@@ -940,7 +940,7 @@ piOrFamily md cubeC shapeC cubeV shapeV ret = do
     retIn <- check retTerm universe
     retV <- evalM retIn
     let isTope = case force retV of
-          NbE.VNode UniverseTopeF -> True
+          VUniverseTope -> True
           _ -> False
     pure (ScopedAST pat retIn, isTope)
   if isTope
@@ -957,7 +957,7 @@ inferLambda md dom mshape body = do
     (bodyIn, retIn) <- infer bodyTerm
     retC <- quoteM retIn
     let isTope = case force retIn of
-          NbE.VNode UniverseTopeF -> True
+          VUniverseTope -> True
           _ -> False
     pure (ScopedAST pat bodyIn, ScopedAST pat retC, isTope)
   domC <- quoteM dom

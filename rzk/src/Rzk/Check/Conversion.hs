@@ -85,7 +85,7 @@ explain mterm variance expected actual = do
   if tolerated then pure () else case (force expected, force actual) of
     -- both restricted: the underlying types, then the faces of the
     -- supertype covered by those of the subtype, agreeing on overlaps
-    (VNodeRestricted tyE rsE, VNodeRestricted tyA rsA) -> do
+    (VTypeRestricted tyE rsE, VTypeRestricted tyA rsA) -> do
       compareWith mterm variance tyE tyA
       let (superRs, subRs) = case variance of
             Contravariant -> (rsA, rsE)
@@ -104,13 +104,13 @@ explain mterm variance expected actual = do
       when (variance == Invariant) $
         compareWith mterm Covariant actual expected
     -- the restricted type is the subtype of its underlying type
-    (_, VNodeRestricted tyA _) | variance == Covariant ->
+    (_, VTypeRestricted tyA _) | variance == Covariant ->
       compareWith mterm variance expected tyA
-    (VNodeRestricted tyE _, _) | variance == Contravariant ->
+    (VTypeRestricted tyE _, _) | variance == Contravariant ->
       compareWith mterm variance tyE actual
     -- a term of an unrestricted type stands at a restricted one when it
     -- agrees with each face
-    (VNodeRestricted tyE rsE, _) | Just term <- mterm, variance == Covariant -> do
+    (VTypeRestricted tyE rsE, _) | Just term <- mterm, variance == Covariant -> do
       compareWith mterm variance tyE actual
       let termV = evalCore scope ctx term
       sequence_
@@ -118,7 +118,7 @@ explain mterm variance expected actual = do
         | (tope, face) <- rsE ]
     -- two family types: the cubes, then the shapes, covariantly and on
     -- their own
-    (NbE.VNode (TypeShapeF md cubeE mshapeE), NbE.VNode (TypeShapeF md' cubeA mshapeA)) | md == md' -> do
+    ((VTypeShape md cubeE mshapeE), (VTypeShape md' cubeA mshapeA)) | md == md' -> do
       compareWith Nothing (opposite variance) cubeE cubeA
       case (mshapeE, mshapeA) of
         (Nothing, Nothing) -> pure ()
@@ -166,7 +166,7 @@ explain mterm variance expected actual = do
             _ -> inContext ctx mismatch
           compareWith mterm' variance codE codA
     -- identity types: the carriers, then the endpoints
-    (NbE.VNode (TypeIdF xE mtE yE), NbE.VNode (TypeIdF xA mtA yA)) -> do
+    ((VTypeId xE mtE yE), (VTypeId xA mtA yA)) -> do
       case (mtE, mtA) of
         (Just tE, Just tA) -> convertTypes tE tA
         _ -> pure ()
@@ -178,8 +178,6 @@ explain mterm variance expected actual = do
       Just term -> issueTypeError (TypeErrorUnify term expected actual)
       Nothing   -> issueTypeError (TypeErrorUnifyTerms expected actual)
 
-pattern VNodeRestricted :: Value n -> [(Value n, Value n)] -> Whnf n
-pattern VNodeRestricted ty rs <- NbE.VNode (TypeRestrictedF ty rs)
 
 pattern VPi :: Pi n -> Whnf n
 pattern VPi p <- (piOf . NbE.fromWhnf -> Just p)

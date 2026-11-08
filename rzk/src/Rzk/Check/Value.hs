@@ -36,6 +36,56 @@ module Rzk.Check.Value
   ( -- * Values
     Value
   , Whnf
+  , pattern VUniverse
+  , pattern VUniverseCube
+  , pattern VUniverseTope
+  , pattern VCubeUnit
+  , pattern VCubeUnitStar
+  , pattern VCube2
+  , pattern VCube2_0
+  , pattern VCube2_1
+  , pattern VCubeI
+  , pattern VCubeI_0
+  , pattern VCubeI_1
+  , pattern VCubeProduct
+  , pattern VCubeFlip
+  , pattern VCubeUnflip
+  , pattern VCubeSup
+  , pattern VCubeInf
+  , pattern VTopeTop
+  , pattern VTopeBottom
+  , pattern VTopeEQ
+  , pattern VTopeLEQ
+  , pattern VTopeAnd
+  , pattern VTopeOr
+  , pattern VTopeInv
+  , pattern VTopeUninv
+  , pattern VRecBottom
+  , pattern VRecOr
+  , pattern VTypeFun
+  , pattern VTypeShape
+  , pattern VTypeSigma
+  , pattern VTypeId
+  , pattern VApp
+  , pattern VLet
+  , pattern VLambda
+  , pattern VPair
+  , pattern VFirst
+  , pattern VSecond
+  , pattern VRefl
+  , pattern VIdJ
+  , pattern VMatch
+  , pattern VMatchArm
+  , pattern VUnit
+  , pattern VTypeUnit
+  , pattern VTypeAsc
+  , pattern VAnn
+  , pattern VTypeRestricted
+  , pattern VTypeModal
+  , pattern VModApp
+  , pattern VModExtract
+  , pattern VLetMod
+  , pattern VHole
   , Env
     -- * Evaluation and readback
   , evalCore
@@ -210,30 +260,30 @@ instance Eval Context Pattern Sig where
              _ -> NbE.vnode (RecOrF [ (guard, ev branch) | (guard, branch) <- rs' ])
     -- the cube layer
     CubeFlipF t -> case NbE.force (ev t) of
-      NbE.VNode (CubeUnflipF t') -> t'
-      NbE.VNode Cube2_0F -> opp (NbE.vnode Cube2_1F)
-      NbE.VNode Cube2_1F -> opp (NbE.vnode Cube2_0F)
-      NbE.VNode CubeI_0F -> opp (NbE.vnode CubeI_1F)
-      NbE.VNode CubeI_1F -> opp (NbE.vnode CubeI_0F)
+      VCubeUnflip t' -> t'
+      VCube2_0 -> opp (NbE.vnode Cube2_1F)
+      VCube2_1 -> opp (NbE.vnode Cube2_0F)
+      VCubeI_0 -> opp (NbE.vnode CubeI_1F)
+      VCubeI_1 -> opp (NbE.vnode CubeI_0F)
       NbE.Stuck t' -> NbE.vnode (CubeFlipF t')
     CubeUnflipF t -> case NbE.force (ev t) of
-      NbE.VNode (CubeFlipF t') -> t'
-      NbE.VNode (ModAppF Op p) | NbE.VNode Cube2_0F <- NbE.force p -> NbE.vnode Cube2_1F
-      NbE.VNode (ModAppF Op p) | NbE.VNode Cube2_1F <- NbE.force p -> NbE.vnode Cube2_0F
-      NbE.VNode (ModAppF Op p) | NbE.VNode CubeI_0F <- NbE.force p -> NbE.vnode CubeI_1F
-      NbE.VNode (ModAppF Op p) | NbE.VNode CubeI_1F <- NbE.force p -> NbE.vnode CubeI_0F
+      VCubeFlip t' -> t'
+      VModApp Op p | VCube2_0 <- NbE.force p -> NbE.vnode Cube2_1F
+      VModApp Op p | VCube2_1 <- NbE.force p -> NbE.vnode Cube2_0F
+      VModApp Op p | VCubeI_0 <- NbE.force p -> NbE.vnode CubeI_1F
+      VModApp Op p | VCubeI_1 <- NbE.force p -> NbE.vnode CubeI_0F
       NbE.Stuck t' -> NbE.vnode (CubeUnflipF t')
     CubeSupF l r -> supValue (ev l) (ev r)
     CubeInfF l r -> infValue (ev l) (ev r)
     -- the tope layer
     TopeAndF l r -> case NbE.force (ev l) of
-      NbE.VNode TopeBottomF -> vtopeBottom
+      VTopeBottom -> vtopeBottom
       NbE.Stuck l' -> case NbE.force (ev r) of
-        NbE.VNode TopeBottomF -> vtopeBottom
+        VTopeBottom -> vtopeBottom
         NbE.Stuck r' -> NbE.vnode (TopeAndF l' r')
     TopeOrF l r -> case (NbE.force (ev l), NbE.force (ev r)) of
-      (NbE.VNode TopeBottomF, r') -> NbE.fromWhnf r'
-      (l', NbE.VNode TopeBottomF) -> NbE.fromWhnf l'
+      (VTopeBottom, r') -> NbE.fromWhnf r'
+      (l', VTopeBottom) -> NbE.fromWhnf l'
       (l', r') -> NbE.vnode (TopeOrF (NbE.fromWhnf l') (NbE.fromWhnf r'))
     node -> NbE.evalNode scope ctx env node
     where
@@ -476,7 +526,7 @@ isPointValue scope ctx v = case NbE.force v of
 -- | Is a tope value ⊥?
 isBottomTope :: Value n -> Bool
 isBottomTope v = case NbE.force v of
-  NbE.VNode TopeBottomF -> True
+  VTopeBottom -> True
   _                     -> False
 
 -- | A node without scoped positions, as a value.
@@ -504,7 +554,7 @@ refinedNeutral :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value 
 refinedNeutral scope ctx value = do
   ty <- neutralType scope ctx value
   case NbE.force (stripRestrictions ty) of
-    NbE.VNode TypeUnitF -> Just vunit
+    VTypeUnit -> Just vunit
     _ -> refineNeutral scope ctx <$>
            listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
 
@@ -574,6 +624,112 @@ vrecBottom = NbE.vnode RecBottomF
 vhole :: Maybe VarIdent -> Value n
 vhole = NbE.vnode . HoleF
 
+-- * Weak head normal forms
+
+-- | A weak head normal form of each constructor: @VTypeFun@ for 'TypeFunF',
+-- and so on. A node with scoped subterms is suspended under its environment,
+-- which the pattern binds first.
+pattern VUniverse :: Whnf n
+pattern VUniverse <- NbE.VNode UniverseF
+pattern VUniverseCube :: Whnf n
+pattern VUniverseCube <- NbE.VNode UniverseCubeF
+pattern VUniverseTope :: Whnf n
+pattern VUniverseTope <- NbE.VNode UniverseTopeF
+pattern VCubeUnit :: Whnf n
+pattern VCubeUnit <- NbE.VNode CubeUnitF
+pattern VCubeUnitStar :: Whnf n
+pattern VCubeUnitStar <- NbE.VNode CubeUnitStarF
+pattern VCube2 :: Whnf n
+pattern VCube2 <- NbE.VNode Cube2F
+pattern VCube2_0 :: Whnf n
+pattern VCube2_0 <- NbE.VNode Cube2_0F
+pattern VCube2_1 :: Whnf n
+pattern VCube2_1 <- NbE.VNode Cube2_1F
+pattern VCubeI :: Whnf n
+pattern VCubeI <- NbE.VNode CubeIF
+pattern VCubeI_0 :: Whnf n
+pattern VCubeI_0 <- NbE.VNode CubeI_0F
+pattern VCubeI_1 :: Whnf n
+pattern VCubeI_1 <- NbE.VNode CubeI_1F
+pattern VCubeProduct :: Value n -> Value n -> Whnf n
+pattern VCubeProduct x1 x2 <- NbE.VNode (CubeProductF x1 x2)
+pattern VCubeFlip :: Value n -> Whnf n
+pattern VCubeFlip x1 <- NbE.VNode (CubeFlipF x1)
+pattern VCubeUnflip :: Value n -> Whnf n
+pattern VCubeUnflip x1 <- NbE.VNode (CubeUnflipF x1)
+pattern VCubeSup :: Value n -> Value n -> Whnf n
+pattern VCubeSup x1 x2 <- NbE.VNode (CubeSupF x1 x2)
+pattern VCubeInf :: Value n -> Value n -> Whnf n
+pattern VCubeInf x1 x2 <- NbE.VNode (CubeInfF x1 x2)
+pattern VTopeTop :: Whnf n
+pattern VTopeTop <- NbE.VNode TopeTopF
+pattern VTopeBottom :: Whnf n
+pattern VTopeBottom <- NbE.VNode TopeBottomF
+pattern VTopeEQ :: Value n -> Value n -> Whnf n
+pattern VTopeEQ x1 x2 <- NbE.VNode (TopeEQF x1 x2)
+pattern VTopeLEQ :: Value n -> Value n -> Whnf n
+pattern VTopeLEQ x1 x2 <- NbE.VNode (TopeLEQF x1 x2)
+pattern VTopeAnd :: Value n -> Value n -> Whnf n
+pattern VTopeAnd x1 x2 <- NbE.VNode (TopeAndF x1 x2)
+pattern VTopeOr :: Value n -> Value n -> Whnf n
+pattern VTopeOr x1 x2 <- NbE.VNode (TopeOrF x1 x2)
+pattern VTopeInv :: Value n -> Whnf n
+pattern VTopeInv x1 <- NbE.VNode (TopeInvF x1)
+pattern VTopeUninv :: Value n -> Whnf n
+pattern VTopeUninv x1 <- NbE.VNode (TopeUninvF x1)
+pattern VRecBottom :: Whnf n
+pattern VRecBottom <- NbE.VNode RecBottomF
+pattern VRecOr :: [(Value n, Value n)] -> Whnf n
+pattern VRecOr x1 <- NbE.VNode (RecOrF x1)
+pattern VTypeFun :: () => Distinct i => Env i n -> TModality -> Value n -> Maybe (Value n) -> ScopedCore i -> Whnf n
+pattern VTypeFun env x1 x2 x3 x4 <- NbE.VSuspended env (TypeFunF x1 x2 x3 x4)
+pattern VTypeShape :: TModality -> Value n -> Maybe (Value n) -> Whnf n
+pattern VTypeShape x1 x2 x3 <- NbE.VNode (TypeShapeF x1 x2 x3)
+pattern VTypeSigma :: () => Distinct i => Env i n -> TModality -> Value n -> ScopedCore i -> Whnf n
+pattern VTypeSigma env x1 x2 x3 <- NbE.VSuspended env (TypeSigmaF x1 x2 x3)
+pattern VTypeId :: Value n -> Maybe (Value n) -> Value n -> Whnf n
+pattern VTypeId x1 x2 x3 <- NbE.VNode (TypeIdF x1 x2 x3)
+pattern VApp :: Value n -> Value n -> Whnf n
+pattern VApp x1 x2 <- NbE.VNode (AppF x1 x2)
+pattern VLet :: () => Distinct i => Env i n -> Maybe (Value n) -> Value n -> ScopedCore i -> Whnf n
+pattern VLet env x1 x2 x3 <- NbE.VSuspended env (LetF x1 x2 x3)
+pattern VLambda :: () => Distinct i => Env i n -> Maybe (Param (Value n)) -> ScopedCore i -> Whnf n
+pattern VLambda env x1 x2 <- NbE.VSuspended env (LambdaF x1 x2)
+pattern VPair :: Value n -> Value n -> Whnf n
+pattern VPair x1 x2 <- NbE.VNode (PairF x1 x2)
+pattern VFirst :: Value n -> Whnf n
+pattern VFirst x1 <- NbE.VNode (FirstF x1)
+pattern VSecond :: Value n -> Whnf n
+pattern VSecond x1 <- NbE.VNode (SecondF x1)
+pattern VRefl :: Maybe (Value n, Maybe (Value n)) -> Whnf n
+pattern VRefl x1 <- NbE.VNode (ReflF x1)
+pattern VIdJ :: Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Whnf n
+pattern VIdJ x1 x2 x3 x4 x5 x6 <- NbE.VNode (IdJF x1 x2 x3 x4 x5 x6)
+pattern VMatch :: TModality -> Value n -> Maybe (Value n) -> [(VarIdent, Value n)] -> Whnf n
+pattern VMatch x1 x2 x3 x4 <- NbE.VNode (MatchF x1 x2 x3 x4)
+pattern VMatchArm :: () => Distinct i => Env i n -> ScopedCore i -> Whnf n
+pattern VMatchArm env x1 <- NbE.VSuspended env (MatchArmF x1)
+pattern VUnit :: Whnf n
+pattern VUnit <- NbE.VNode UnitF
+pattern VTypeUnit :: Whnf n
+pattern VTypeUnit <- NbE.VNode TypeUnitF
+pattern VTypeAsc :: Value n -> Value n -> Whnf n
+pattern VTypeAsc x1 x2 <- NbE.VNode (TypeAscF x1 x2)
+pattern VAnn :: Value n -> Value n -> Whnf n
+pattern VAnn x1 x2 <- NbE.VNode (AnnF x1 x2)
+pattern VTypeRestricted :: Value n -> [(Value n, Value n)] -> Whnf n
+pattern VTypeRestricted x1 x2 <- NbE.VNode (TypeRestrictedF x1 x2)
+pattern VTypeModal :: TModality -> Value n -> Whnf n
+pattern VTypeModal x1 x2 <- NbE.VNode (TypeModalF x1 x2)
+pattern VModApp :: TModality -> Value n -> Whnf n
+pattern VModApp x1 x2 <- NbE.VNode (ModAppF x1 x2)
+pattern VModExtract :: TModality -> TModality -> Value n -> Whnf n
+pattern VModExtract x1 x2 x3 <- NbE.VNode (ModExtractF x1 x2 x3)
+pattern VLetMod :: () => Distinct i => Env i n -> TModality -> TModality -> Maybe (Value n) -> Maybe (Value n) -> Value n -> ScopedCore i -> Whnf n
+pattern VLetMod env x1 x2 x3 x4 x5 x6 <- NbE.VSuspended env (LetModF x1 x2 x3 x4 x5 x6)
+pattern VHole :: Maybe VarIdent -> Whnf n
+pattern VHole x1 <- NbE.VNode (HoleF x1)
+
 -- * Elimination
 
 -- | Apply a function value: a λ enters its body under the pattern bound to
@@ -582,7 +738,7 @@ vhole = NbE.vnode . HoleF
 appValue :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n
 {-# INLINE appValue #-}
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
-  NbE.VSuspended env (LambdaF _ body) -> evalScope scope ctx env body arg
+  VLambda env _ body -> evalScope scope ctx env body arg
   NbE.Stuck fun' -> case neutralType scope ctx fun' of
     Just ty | Just (Family _ _ (Just shape)) <- familyOf ty
             , not (isTopShape shape) ->
@@ -592,33 +748,33 @@ appValue scope ctx fun arg = NbE.eliminate fun $ \case
 firstValue :: Value n -> Value n
 {-# INLINE firstValue #-}
 firstValue p = NbE.eliminate p $ \case
-  NbE.VNode (PairF a _) -> a
+  VPair a _ -> a
   NbE.Stuck p' -> NbE.vnode (FirstF p')
 
 secondValue :: Value n -> Value n
 {-# INLINE secondValue #-}
 secondValue p = NbE.eliminate p $ \case
-  NbE.VNode (PairF _ b) -> b
+  VPair _ b -> b
   NbE.Stuck p' -> NbE.vnode (SecondF p')
 
 -- | A projection, a neutral annotated with its type.
 firstValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE firstValueIn #-}
 firstValueIn scope ctx p = NbE.eliminate p $ \case
-  NbE.VNode (PairF a _) -> a
+  VPair a _ -> a
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (FirstF p'))
 
 secondValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE secondValueIn #-}
 secondValueIn scope ctx p = NbE.eliminate p $ \case
-  NbE.VNode (PairF _ b) -> b
+  VPair _ b -> b
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (SecondF p'))
 
 -- | Path induction, a neutral annotated with its type.
 idJValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
 {-# INLINE idJValueIn #-}
 idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
-  NbE.VNode (ReflF _) -> d
+  VRefl _ -> d
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (IdJF tA a tC d x p'))
 
 -- | A neutral with its type, computed lazily and once, from the type of
@@ -634,36 +790,36 @@ unknownType = NbE.vnode (HoleF Nothing)
 -- | The type an annotation carries, if it is known.
 annotationType :: Value n -> Maybe (Value n)
 annotationType ty = case NbE.force ty of
-  NbE.VNode (HoleF Nothing) -> Nothing
+  VHole Nothing -> Nothing
   _                         -> Just ty
 
 -- | The join of two points, normalised at the endpoints.
 supValue :: Value n -> Value n -> Value n
 supValue l r = case (NbE.force l, NbE.force r) of
-  (NbE.VNode Cube2_0F, _) -> r
-  (_, NbE.VNode Cube2_0F) -> l
-  (NbE.VNode Cube2_1F, _) -> l
-  (_, NbE.VNode Cube2_1F) -> r
-  (NbE.VNode CubeI_0F, _) -> r
-  (_, NbE.VNode CubeI_0F) -> l
-  (NbE.VNode CubeI_1F, _) -> l
-  (_, NbE.VNode CubeI_1F) -> r
+  (VCube2_0, _) -> r
+  (_, VCube2_0) -> l
+  (VCube2_1, _) -> l
+  (_, VCube2_1) -> r
+  (VCubeI_0, _) -> r
+  (_, VCubeI_0) -> l
+  (VCubeI_1, _) -> l
+  (_, VCubeI_1) -> r
   _ -> NbE.vnode (CubeSupF l r)
 
 -- | The meet of two points, normalised at the endpoints and distributed
 -- over a join.
 infValue :: Value n -> Value n -> Value n
 infValue l r = case (NbE.force l, NbE.force r) of
-  (NbE.VNode Cube2_0F, _) -> l
-  (_, NbE.VNode Cube2_0F) -> r
-  (NbE.VNode Cube2_1F, _) -> r
-  (_, NbE.VNode Cube2_1F) -> l
-  (NbE.VNode CubeI_0F, _) -> l
-  (_, NbE.VNode CubeI_0F) -> r
-  (NbE.VNode CubeI_1F, _) -> r
-  (_, NbE.VNode CubeI_1F) -> l
-  (NbE.VNode (CubeSupF a b), _) -> supValue (infValue a r) (infValue b r)
-  (_, NbE.VNode (CubeSupF a b)) -> supValue (infValue l a) (infValue l b)
+  (VCube2_0, _) -> l
+  (_, VCube2_0) -> r
+  (VCube2_1, _) -> r
+  (_, VCube2_1) -> l
+  (VCubeI_0, _) -> l
+  (_, VCubeI_0) -> r
+  (VCubeI_1, _) -> r
+  (_, VCubeI_1) -> l
+  ((VCubeSup a b), _) -> supValue (infValue a r) (infValue b r)
+  (_, (VCubeSup a b)) -> supValue (infValue l a) (infValue l b)
   _ -> NbE.vnode (CubeInfF l r)
 
 -- | The codomain of a scope at a value for its pattern.
@@ -678,7 +834,7 @@ data Pi n where
 
 piOf :: Value n -> Maybe (Pi n)
 piOf v = case NbE.force (stripRestrictions v) of
-  NbE.VSuspended env (TypeFunF md dom mshape ret) -> Just (Pi env md dom mshape ret)
+  VTypeFun env md dom mshape ret -> Just (Pi env md dom mshape ret)
   _ -> Nothing
 
 -- | The type of a tope family: its modality, its cube and its shape.
@@ -686,13 +842,13 @@ data Family n = Family TModality (Value n) (Maybe (Value n))
 
 familyOf :: Value n -> Maybe (Family n)
 familyOf v = case NbE.force (stripRestrictions v) of
-  NbE.VNode (TypeShapeF md cube mshape) -> Just (Family md cube mshape)
+  VTypeShape md cube mshape -> Just (Family md cube mshape)
   _ -> Nothing
 
 -- | Is a shape the one that is ⊤ everywhere?
 isTopShape :: Value n -> Bool
 isTopShape v = case NbE.force v of
-  NbE.VSuspended _ (LambdaF _ (ScopedAST _ TopeTop)) -> True
+  VLambda _ _ (ScopedAST _ TopeTop) -> True
   _ -> False
 
 -- | A Σ type value, opened.
@@ -701,19 +857,19 @@ data Sigma n where
 
 sigmaOf :: Value n -> Maybe (Sigma n)
 sigmaOf v = case NbE.force (stripRestrictions v) of
-  NbE.VSuspended env (TypeSigmaF md a b) -> Just (Sigma env md a b)
+  VTypeSigma env md a b -> Just (Sigma env md a b)
   _ -> Nothing
 
 -- | A type value with its restrictions peeled off.
 stripRestrictions :: Value n -> Value n
 stripRestrictions v = case NbE.force v of
-  NbE.VNode (TypeRestrictedF ty _) -> stripRestrictions ty
+  VTypeRestricted ty _ -> stripRestrictions ty
   _                                -> v
 
 -- | The restrictions of a type value, outermost first.
 restrictionsOf :: Value n -> [(Value n, Value n)]
 restrictionsOf v = case NbE.force v of
-  NbE.VNode (TypeRestrictedF ty rs) -> rs <> restrictionsOf ty
+  VTypeRestricted ty rs -> rs <> restrictionsOf ty
   _                                 -> []
 
 -- * Patterns
@@ -756,9 +912,9 @@ patternEntries scope ctx md loc = go
       PatternVar x _ -> [entryOf x ty]
       PatternUnit _  -> [entryOf Nothing ty]
       PatternPair l r -> case NbE.force (stripRestrictions ty) of
-        NbE.VSuspended env (TypeSigmaF _ a b) ->
+        VTypeSigma env _ a b ->
           go a l <> go (evalScope scope ctx env b (patternValueIn l)) r
-        NbE.VNode (CubeProductF a b) -> go a l <> go b r
+        VCubeProduct a b -> go a l <> go b r
         _ -> go (vhole Nothing) l <> go (vhole Nothing) r
     -- a sub-pattern's names are names of the whole pattern's scope
     patternValueIn :: Pattern x y -> Value l
@@ -817,7 +973,7 @@ underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
 -- entry at its head?
 isCube :: Distinct n => Scope n -> Context n -> Value n -> Bool
 isCube scope ctx v = cubeOfType v /= KOther || case neutralType scope ctx v of
-  Just s | NbE.VNode UniverseCubeF <- NbE.force (stripRestrictions s) -> True
+  Just s | VUniverseCube <- NbE.force (stripRestrictions s) -> True
   _ -> False
 
 -- | The shape of a binder over a cube with no restriction: the family
@@ -900,10 +1056,10 @@ entailsValue scope ctx tope = entails (ctxTopes ctx) (topeOf scope ctx tope)
 -- | The conjunction of two tope values, with ⊥ absorbing.
 topeAndValue :: Value n -> Value n -> Value n
 topeAndValue l r = case (NbE.force l, NbE.force r) of
-  (NbE.VNode TopeBottomF, _) -> vtopeBottom
-  (_, NbE.VNode TopeBottomF) -> vtopeBottom
-  (NbE.VNode TopeTopF, _) -> r
-  (_, NbE.VNode TopeTopF) -> l
+  (VTopeBottom, _) -> vtopeBottom
+  (_, VTopeBottom) -> vtopeBottom
+  (VTopeTop, _) -> r
+  (_, VTopeTop) -> l
   _ -> NbE.vnode (TopeAndF l r)
 
 isTopeNode :: Sig a b -> Bool
@@ -921,17 +1077,17 @@ isTopeNode = \case
 -- | A tope value read into the solver's syntax.
 topeOf :: Distinct n => Scope n -> Context n -> Value n -> Tope
 topeOf scope ctx v = case NbE.force v of
-  NbE.VNode TopeTopF -> TTop
-  NbE.VNode TopeBottomF -> TBot
-  NbE.VNode (TopeEQF x y) -> TEq (pointOf scope ctx x) (pointOf scope ctx y)
-  NbE.VNode (TopeLEQF x y) -> TLeq (pointOf scope ctx x) (pointOf scope ctx y)
-  NbE.VNode (TopeAndF l r) -> TAnd (topeOf scope ctx l) (topeOf scope ctx r)
-  NbE.VNode (TopeOrF l r) -> TOr (topeOf scope ctx l) (topeOf scope ctx r)
-  NbE.VNode (TopeInvF t) -> TInv (topeOf scope ctx t)
-  NbE.VNode (TopeUninvF t) -> TUninv (topeOf scope ctx t)
-  NbE.VNode (TypeModalF md t) -> TModal md (topeOf scope ctx t)
-  NbE.VNode (ModAppF md t) -> TModApp md (topeOf scope ctx t)
-  NbE.VNode (HoleF m) -> THole m
+  VTopeTop -> TTop
+  VTopeBottom -> TBot
+  VTopeEQ x y -> TEq (pointOf scope ctx x) (pointOf scope ctx y)
+  VTopeLEQ x y -> TLeq (pointOf scope ctx x) (pointOf scope ctx y)
+  VTopeAnd l r -> TAnd (topeOf scope ctx l) (topeOf scope ctx r)
+  VTopeOr l r -> TOr (topeOf scope ctx l) (topeOf scope ctx r)
+  VTopeInv t -> TInv (topeOf scope ctx t)
+  VTopeUninv t -> TUninv (topeOf scope ctx t)
+  VTypeModal md t -> TModal md (topeOf scope ctx t)
+  VModApp md t -> TModApp md (topeOf scope ctx t)
+  VHole m -> THole m
   _ -> TNeutral (pointOf scope ctx v)
 
 -- | A point value read into the solver's syntax. A variable carries its
@@ -939,33 +1095,33 @@ topeOf scope ctx v = case NbE.force v of
 pointOf :: Distinct n => Scope n -> Context n -> Value n -> Point
 pointOf scope ctx v = case NbE.force v of
   NbE.VVar x -> PVar (Foil.nameId x) (cubeOfType (entryType (lookupEntry x ctx)))
-  NbE.VNode (AnnF n _) -> pointOf scope ctx n
-  NbE.VNode CubeUnitStarF -> PStar
-  NbE.VNode Cube2_0F -> P2_0
-  NbE.VNode Cube2_1F -> P2_1
-  NbE.VNode CubeI_0F -> PI_0
-  NbE.VNode CubeI_1F -> PI_1
-  NbE.VNode (PairF a b) -> PPair (pointOf scope ctx a) (pointOf scope ctx b)
-  NbE.VNode (FirstF p) -> PFst (pointOf scope ctx p)
-  NbE.VNode (SecondF p) -> PSnd (pointOf scope ctx p)
-  NbE.VNode (CubeSupF l r) -> PSup (pointOf scope ctx l) (pointOf scope ctx r)
-  NbE.VNode (CubeInfF l r) -> PInf (pointOf scope ctx l) (pointOf scope ctx r)
-  NbE.VNode (CubeFlipF p) -> PFlip (pointOf scope ctx p)
-  NbE.VNode (CubeUnflipF p) -> PUnflip (pointOf scope ctx p)
-  NbE.VNode (ModAppF md p) -> PModApp md (pointOf scope ctx p)
-  NbE.VNode (ModExtractF app inn p) -> PModExtract app inn (pointOf scope ctx p)
-  NbE.VNode (HoleF m) -> PHole m
-  NbE.VNode (AppF f a) ->
+  VAnn n _ -> pointOf scope ctx n
+  VCubeUnitStar -> PStar
+  VCube2_0 -> P2_0
+  VCube2_1 -> P2_1
+  VCubeI_0 -> PI_0
+  VCubeI_1 -> PI_1
+  VPair a b -> PPair (pointOf scope ctx a) (pointOf scope ctx b)
+  VFirst p -> PFst (pointOf scope ctx p)
+  VSecond p -> PSnd (pointOf scope ctx p)
+  VCubeSup l r -> PSup (pointOf scope ctx l) (pointOf scope ctx r)
+  VCubeInf l r -> PInf (pointOf scope ctx l) (pointOf scope ctx r)
+  VCubeFlip p -> PFlip (pointOf scope ctx p)
+  VCubeUnflip p -> PUnflip (pointOf scope ctx p)
+  VModApp md p -> PModApp md (pointOf scope ctx p)
+  VModExtract app inn p -> PModExtract app inn (pointOf scope ctx p)
+  VHole m -> PHole m
+  VApp f a ->
     PApp (maybe KOther cubeOfType (neutralType scope ctx v)) (pointOf scope ctx f) (pointOf scope ctx a)
   _ -> POpaque (fingerprint (quoteIn scope ctx v))
 
 -- | A cube value, as far as the solver tells cubes apart.
 cubeOfType :: Value n -> Cube
 cubeOfType v = case NbE.force (stripRestrictions v) of
-  NbE.VNode CubeUnitF -> KUnit
-  NbE.VNode Cube2F -> K2
-  NbE.VNode CubeIF -> KI
-  NbE.VNode (CubeProductF a b) -> KProd (cubeOfType a) (cubeOfType b)
+  VCubeUnit -> KUnit
+  VCube2 -> K2
+  VCubeI -> KI
+  VCubeProduct a b -> KProd (cubeOfType a) (cubeOfType b)
   _ -> KOther
 
 -- | A term as a string that equal terms share: the constructors and the
@@ -993,27 +1149,27 @@ fingerprint (Node sig) =
 neutralType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
-  NbE.VNode (AnnF n ty) -> annotationType ty <|> neutralType scope ctx n
-  NbE.VNode (AppF f a) -> do
+  VAnn n ty -> annotationType ty <|> neutralType scope ctx n
+  VApp f a -> do
     fTy <- neutralType scope ctx f
     case familyOf fTy of
       Just _ -> Just topeUniverse
       Nothing -> do
         Pi env _ _ _ ret <- piOf fTy
         Just (inherit fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a))
-  NbE.VNode (FirstF p) -> do
+  VFirst p -> do
     ty <- neutralType scope ctx p
     inherit ty (firstValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
-      NbE.VSuspended _ (TypeSigmaF _ a _) -> Just a
-      NbE.VNode (CubeProductF a _) -> Just a
+      VTypeSigma _ _ a _ -> Just a
+      VCubeProduct a _ -> Just a
       _ -> Nothing
-  NbE.VNode (SecondF p) -> do
+  VSecond p -> do
     ty <- neutralType scope ctx p
     inherit ty (secondValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
-      NbE.VSuspended env (TypeSigmaF _ _ b) -> Just (codomainAt scope ctx env b (firstValue p))
-      NbE.VNode (CubeProductF _ b) -> Just b
+      VTypeSigma env _ _ b -> Just (codomainAt scope ctx env b (firstValue p))
+      VCubeProduct _ b -> Just b
       _ -> Nothing
-  NbE.VNode (IdJF tA a tC d x p) ->
+  VIdJ tA a tC d x p ->
     let motive = appValue scope ctx (appValue scope ctx tC x) p
     in Just (maybe motive (\ty -> inherit ty (idJValueIn scope ctx tA a tC d x) motive) (neutralType scope ctx p))
   _ -> Nothing

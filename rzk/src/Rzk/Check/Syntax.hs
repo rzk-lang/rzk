@@ -64,6 +64,56 @@ module Rzk.Check.Syntax
   , pattern Hole
     -- * Raw patterns
   , pattern RawNode
+  , pattern RUniverse
+  , pattern RUniverseCube
+  , pattern RUniverseTope
+  , pattern RCubeUnit
+  , pattern RCubeUnitStar
+  , pattern RCube2
+  , pattern RCube2_0
+  , pattern RCube2_1
+  , pattern RCubeI
+  , pattern RCubeI_0
+  , pattern RCubeI_1
+  , pattern RCubeProduct
+  , pattern RCubeFlip
+  , pattern RCubeUnflip
+  , pattern RCubeSup
+  , pattern RCubeInf
+  , pattern RTopeTop
+  , pattern RTopeBottom
+  , pattern RTopeEQ
+  , pattern RTopeLEQ
+  , pattern RTopeAnd
+  , pattern RTopeOr
+  , pattern RTopeInv
+  , pattern RTopeUninv
+  , pattern RRecBottom
+  , pattern RRecOr
+  , pattern RTypeFun
+  , pattern RTypeShape
+  , pattern RTypeSigma
+  , pattern RTypeId
+  , pattern RApp
+  , pattern RLet
+  , pattern RLambda
+  , pattern RPair
+  , pattern RFirst
+  , pattern RSecond
+  , pattern RRefl
+  , pattern RIdJ
+  , pattern RMatch
+  , pattern RMatchArm
+  , pattern RUnit
+  , pattern RTypeUnit
+  , pattern RTypeAsc
+  , pattern RAnn
+  , pattern RTypeRestricted
+  , pattern RTypeModal
+  , pattern RModApp
+  , pattern RModExtract
+  , pattern RLetMod
+  , pattern RHole
     -- * Queries
   , freeNamesOf
   , stripAnnotations
@@ -395,6 +445,111 @@ pattern RawNode :: Sig (ScopedRaw n) (Raw n) -> Raw n
 pattern RawNode sig <- Node (AnnSig _ sig)
 
 {-# COMPLETE Var, RawNode #-}
+
+-- | A raw node of each constructor, matched without regard for where it was
+-- written: @RTypeFun@ for 'TypeFunF', and so on.
+pattern RUniverse :: Raw n
+pattern RUniverse <- RawNode UniverseF
+pattern RUniverseCube :: Raw n
+pattern RUniverseCube <- RawNode UniverseCubeF
+pattern RUniverseTope :: Raw n
+pattern RUniverseTope <- RawNode UniverseTopeF
+pattern RCubeUnit :: Raw n
+pattern RCubeUnit <- RawNode CubeUnitF
+pattern RCubeUnitStar :: Raw n
+pattern RCubeUnitStar <- RawNode CubeUnitStarF
+pattern RCube2 :: Raw n
+pattern RCube2 <- RawNode Cube2F
+pattern RCube2_0 :: Raw n
+pattern RCube2_0 <- RawNode Cube2_0F
+pattern RCube2_1 :: Raw n
+pattern RCube2_1 <- RawNode Cube2_1F
+pattern RCubeI :: Raw n
+pattern RCubeI <- RawNode CubeIF
+pattern RCubeI_0 :: Raw n
+pattern RCubeI_0 <- RawNode CubeI_0F
+pattern RCubeI_1 :: Raw n
+pattern RCubeI_1 <- RawNode CubeI_1F
+pattern RCubeProduct :: Raw n -> Raw n -> Raw n
+pattern RCubeProduct x1 x2 <- RawNode (CubeProductF x1 x2)
+pattern RCubeFlip :: Raw n -> Raw n
+pattern RCubeFlip x1 <- RawNode (CubeFlipF x1)
+pattern RCubeUnflip :: Raw n -> Raw n
+pattern RCubeUnflip x1 <- RawNode (CubeUnflipF x1)
+pattern RCubeSup :: Raw n -> Raw n -> Raw n
+pattern RCubeSup x1 x2 <- RawNode (CubeSupF x1 x2)
+pattern RCubeInf :: Raw n -> Raw n -> Raw n
+pattern RCubeInf x1 x2 <- RawNode (CubeInfF x1 x2)
+pattern RTopeTop :: Raw n
+pattern RTopeTop <- RawNode TopeTopF
+pattern RTopeBottom :: Raw n
+pattern RTopeBottom <- RawNode TopeBottomF
+pattern RTopeEQ :: Raw n -> Raw n -> Raw n
+pattern RTopeEQ x1 x2 <- RawNode (TopeEQF x1 x2)
+pattern RTopeLEQ :: Raw n -> Raw n -> Raw n
+pattern RTopeLEQ x1 x2 <- RawNode (TopeLEQF x1 x2)
+pattern RTopeAnd :: Raw n -> Raw n -> Raw n
+pattern RTopeAnd x1 x2 <- RawNode (TopeAndF x1 x2)
+pattern RTopeOr :: Raw n -> Raw n -> Raw n
+pattern RTopeOr x1 x2 <- RawNode (TopeOrF x1 x2)
+pattern RTopeInv :: Raw n -> Raw n
+pattern RTopeInv x1 <- RawNode (TopeInvF x1)
+pattern RTopeUninv :: Raw n -> Raw n
+pattern RTopeUninv x1 <- RawNode (TopeUninvF x1)
+pattern RRecBottom :: Raw n
+pattern RRecBottom <- RawNode RecBottomF
+pattern RRecOr :: [(Raw n, Raw n)] -> Raw n
+pattern RRecOr x1 <- RawNode (RecOrF x1)
+pattern RTypeFun :: TModality -> Raw n -> Maybe (Raw n) -> ScopedRaw n -> Raw n
+pattern RTypeFun x1 x2 x3 x4 <- RawNode (TypeFunF x1 x2 x3 x4)
+pattern RTypeShape :: TModality -> Raw n -> Maybe (Raw n) -> Raw n
+pattern RTypeShape x1 x2 x3 <- RawNode (TypeShapeF x1 x2 x3)
+pattern RTypeSigma :: TModality -> Raw n -> ScopedRaw n -> Raw n
+pattern RTypeSigma x1 x2 x3 <- RawNode (TypeSigmaF x1 x2 x3)
+pattern RTypeId :: Raw n -> Maybe (Raw n) -> Raw n -> Raw n
+pattern RTypeId x1 x2 x3 <- RawNode (TypeIdF x1 x2 x3)
+pattern RApp :: Raw n -> Raw n -> Raw n
+pattern RApp x1 x2 <- RawNode (AppF x1 x2)
+pattern RLet :: Maybe (Raw n) -> Raw n -> ScopedRaw n -> Raw n
+pattern RLet x1 x2 x3 <- RawNode (LetF x1 x2 x3)
+pattern RLambda :: Maybe (Param (Raw n)) -> ScopedRaw n -> Raw n
+pattern RLambda x1 x2 <- RawNode (LambdaF x1 x2)
+pattern RPair :: Raw n -> Raw n -> Raw n
+pattern RPair x1 x2 <- RawNode (PairF x1 x2)
+pattern RFirst :: Raw n -> Raw n
+pattern RFirst x1 <- RawNode (FirstF x1)
+pattern RSecond :: Raw n -> Raw n
+pattern RSecond x1 <- RawNode (SecondF x1)
+pattern RRefl :: Maybe (Raw n, Maybe (Raw n)) -> Raw n
+pattern RRefl x1 <- RawNode (ReflF x1)
+pattern RIdJ :: Raw n -> Raw n -> Raw n -> Raw n -> Raw n -> Raw n -> Raw n
+pattern RIdJ x1 x2 x3 x4 x5 x6 <- RawNode (IdJF x1 x2 x3 x4 x5 x6)
+pattern RMatch :: TModality -> Raw n -> Maybe (Raw n) -> [(VarIdent, Raw n)] -> Raw n
+pattern RMatch x1 x2 x3 x4 <- RawNode (MatchF x1 x2 x3 x4)
+pattern RMatchArm :: ScopedRaw n -> Raw n
+pattern RMatchArm x1 <- RawNode (MatchArmF x1)
+pattern RUnit :: Raw n
+pattern RUnit <- RawNode UnitF
+pattern RTypeUnit :: Raw n
+pattern RTypeUnit <- RawNode TypeUnitF
+pattern RTypeAsc :: Raw n -> Raw n -> Raw n
+pattern RTypeAsc x1 x2 <- RawNode (TypeAscF x1 x2)
+pattern RAnn :: Raw n -> Raw n -> Raw n
+pattern RAnn x1 x2 <- RawNode (AnnF x1 x2)
+pattern RTypeRestricted :: Raw n -> [(Raw n, Raw n)] -> Raw n
+pattern RTypeRestricted x1 x2 <- RawNode (TypeRestrictedF x1 x2)
+pattern RTypeModal :: TModality -> Raw n -> Raw n
+pattern RTypeModal x1 x2 <- RawNode (TypeModalF x1 x2)
+pattern RModApp :: TModality -> Raw n -> Raw n
+pattern RModApp x1 x2 <- RawNode (ModAppF x1 x2)
+pattern RModExtract :: TModality -> TModality -> Raw n -> Raw n
+pattern RModExtract x1 x2 x3 <- RawNode (ModExtractF x1 x2 x3)
+pattern RLetMod :: TModality -> TModality -> Maybe (Raw n) -> Maybe (Raw n) -> Raw n -> ScopedRaw n -> Raw n
+pattern RLetMod x1 x2 x3 x4 x5 x6 <- RawNode (LetModF x1 x2 x3 x4 x5 x6)
+pattern RHole :: Maybe VarIdent -> Raw n
+pattern RHole x1 <- RawNode (HoleF x1)
+
+{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RAnn, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
 
 -- * Queries
 

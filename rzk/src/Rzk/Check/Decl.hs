@@ -293,7 +293,7 @@ checkCommands path i total commands k = case commands of
             valTerm <- elaborate (addParams params term)
             val' <- atSurface term $ check valTerm tyV
             case force tyV of
-              VNodeUniverse -> evalM val' >>= ensureTypeAtU "a definition at type U"
+              VUniverse -> evalM val' >>= ensureTypeAtU "a definition at type U"
               _ -> pure ()
             pure val'
           let (mvalue, bodyErrors) = case result of
@@ -605,7 +605,7 @@ endSection errs = do
   where
     sameName a b = Foil.nameId a == Foil.nameId b
     isTopeUniverse ty = case NbE.force ty of
-      NbE.VNode UniverseTopeF -> True
+      VUniverseTope -> True
       _                       -> False
 
 -- | Report a command's error and go on to the next one.
@@ -653,5 +653,3 @@ checkModules ((path, m) : ms) k =
 quoteWhnfCore :: Distinct n => Foil.Scope n -> Context n -> Core n -> Core n
 quoteWhnfCore scope ctx = quoteWhnfFolded scope ctx . evalCore scope ctx
 
-pattern VNodeUniverse :: Whnf n
-pattern VNodeUniverse <- NbE.VNode UniverseF
