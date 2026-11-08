@@ -106,10 +106,6 @@ warnShadowing pat = do
     | (Just x, _) <- patternNames pat
     , Just v <- [lookupNamed x ctx] ]
 
--- | A tope family over a cube, as a type.
-topeFamilyOf :: Value n -> Maybe (Family n)
-topeFamilyOf = familyOf
-
 -- | The type of a family over a cube: @{t : cube | shape} → TOPE@.
 familyType :: TModality -> Value n -> Maybe (Value n) -> Value n
 familyType md cube mshape = vnode (TypeShapeF md cube mshape)
@@ -336,7 +332,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
               Nothing -> do
                 (param', paramTy) <- infer param
                 paramV <- evalM param'
-                case topeFamilyOf paramTy of
+                case familyOf paramTy of
                   Just (Family _ cube _) -> convertTypes cube' cube >> pure cube
                   Nothing -> convertTypes cube' paramV >> pure paramV
               Just shape -> do
@@ -382,7 +378,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
                   (param', paramTy) <- infer param
                   paramV <- evalM param'
                   -- a shape written as the parameter type: the domain is its cube
-                  case topeFamilyOf paramTy of
+                  case familyOf paramTy of
                     Just (Family _ cube mdomShape) -> do
                       convertTypes dom' cube
                       cubeC <- quoteM cube
@@ -644,12 +640,11 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   RawNode (FirstF t) -> do
     (t', ty) <- infer t
-    ctx <- askContext
     case force (stripRestrictions ty) of
       NbE.VNode RecBottomF -> pure (First t', vrecBottom)
       NbE.VNode (CubeProductF a _) -> pure (First t', a)
       _ | Just (Sigma _ _ a _) <- sigmaOf ty -> pure (First t', a)
-      _ -> issueTypeError (TypeErrorNotPair t' ty) >> pure (First t', ty) <* pure ctx
+      _ -> issueTypeError (TypeErrorNotPair t' ty)
 
   RawNode (SecondF t) -> do
     (t', ty) <- infer t
@@ -744,7 +739,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         shapeC <- quoteM shapeV
         piOrFamily md a' shapeC aV shapeV b
       -- a shape: a tope family over a cube
-      _ | Just (Family _ cube mdomShape) <- topeFamilyOf aTy -> do
+      _ | Just (Family _ cube mdomShape) <- familyOf aTy -> do
           cubeC <- quoteM cube
           mdomC <- traverse quoteM mdomShape
           let shapeC = familyShape scope cubeC a' mdomC
@@ -817,7 +812,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     (dom, mshape) <- case force tyTy of
       NbE.VNode UniverseF -> pure (tyV, Nothing)
       NbE.VNode UniverseCubeF -> pure (tyV, Just (topShapeValue scope tyV))
-      _ | Just (Family _ cube mdomShape) <- topeFamilyOf tyTy -> do
+      _ | Just (Family _ cube mdomShape) <- familyOf tyTy -> do
           cubeC <- quoteM cube
           mdomC <- traverse quoteM mdomShape
           shapeV <- evalM (familyShape scope cubeC ty' mdomC)
