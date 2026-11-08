@@ -47,6 +47,7 @@ module Rzk.Check.Value
   , evalScope
   , quoteIn
   , quoteFolded
+  , quoteWhnfFolded
   , nfCore
   , force
   , conv
@@ -557,6 +558,13 @@ quoteIn scope ctx = stripAnnotations . NbE.quote scope ctx
 -- spell them.
 quoteFolded :: Distinct n => Scope n -> Context d n -> Value n -> Core n
 quoteFolded scope ctx = stripAnnotations . NbE.quote scope ctx { ctxUnfolding = Folded }
+
+-- | Read back the weak head normal form of a value: the head unfolded and
+-- reduced, its arguments read back with defined names folded, as the old
+-- checker's @#compute-whnf@ printed them.
+quoteWhnfFolded :: Distinct n => Scope n -> Context d n -> Value n -> Core n
+quoteWhnfFolded scope ctx =
+  stripAnnotations . NbE.quoteWhnf scope ctx { ctxUnfolding = Folded } . NbE.fromWhnf . NbE.force
 
 nfCore :: Distinct n => Scope n -> Context d n -> Core n -> Core n
 {-# INLINE nfCore #-}

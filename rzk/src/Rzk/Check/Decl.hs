@@ -648,9 +648,9 @@ checkModules ((path, m) : ms) k =
           []    -> checkModules ms $ \rest errors ->
             k ((path, sinkDecls decls) : rest) errors
 
--- | The weak head normal form of a term, read back.
+-- | The weak head normal form of a term, read back ('quoteWhnfFolded').
 quoteWhnfCore :: Distinct n => Foil.Scope n -> Context d n -> Core n -> Core n
-quoteWhnfCore scope ctx = quoteFolded scope ctx . evalCore scope ctx
+quoteWhnfCore scope ctx = quoteWhnfFolded scope ctx . evalCore scope ctx
 
 pattern VNodeUniverse :: Whnf n
 pattern VNodeUniverse <- NbE.VNode UniverseF
