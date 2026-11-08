@@ -292,32 +292,14 @@ fromCore used supply names = go
     scopeUses :: Core l -> [Int]
     scopeUses = nameIdsOf
 
-    -- Name every leaf of a pattern: a named leaf keeps its name, refreshed
-    -- against the names in use; an anonymous leaf is @_@ unless the body
-    -- uses it, when it draws from the supply.
+    -- Name every leaf of a pattern ('namePatternLeaves') and extend the
+    -- naming with the leaves.
     withPatternNames
       :: forall l r'. Pattern n l -> [Int]
       -> (Rzk.Pattern -> [VarIdent] -> [VarIdent] -> NameMap l VarIdent -> r') -> r'
     withPatternNames pat0 usedIds k =
-      let (pat', used', supply', entries) = goPat used supply [] pat0
+      let (pat', used', supply', entries) = namePatternLeaves usedIds used supply [] pat0
       in k pat' used' supply' (NameMap (IntMap.union (IntMap.fromList entries) (coerceNames names)))
-      where
-        goPat :: [VarIdent] -> [VarIdent] -> [(Int, VarIdent)] -> Pattern x y
-              -> (Rzk.Pattern, [VarIdent], [VarIdent], [(Int, VarIdent)])
-        goPat u s acc = \case
-          PatternVar (Just x) b ->
-            let x' = refreshVar u x
-            in (Rzk.PatternVar loc (fromVarIdent x'), x' : u, filter (/= x') s, (Foil.nameId (Foil.nameOf b), x') : acc)
-          PatternVar Nothing b
-            | Foil.nameId (Foil.nameOf b) `elem` usedIds, x : s' <- s ->
-                (Rzk.PatternVar loc (fromVarIdent x), x : u, s', (Foil.nameId (Foil.nameOf b), x) : acc)
-            | otherwise ->
-                (Rzk.PatternVar loc (fromVarIdent "_"), u, s, (Foil.nameId (Foil.nameOf b), "_") : acc)
-          PatternUnit b -> (Rzk.PatternUnit loc, u, s, (Foil.nameId (Foil.nameOf b), "unit") : acc)
-          PatternPair l r ->
-            let (l', u1, s1, acc1) = goPat u s acc l
-                (r', u2, s2, acc2) = goPat u1 s1 acc1 r
-            in (Rzk.PatternPair loc l' r', u2, s2, acc2)
 
 -- | A surface pattern as a term, for a binder written as a term.
 patternTerm :: Rzk.Pattern -> Rzk.Term
@@ -338,26 +320,36 @@ matchArms used supply names = \case
   body -> ([], fromCore used supply names body)
   where
     renderPattern u s nm pat usedIds =
-      let (pat', u', s', entries) = goPat u s [] pat
+      let (pat', u', s', entries) = namePatternLeaves usedIds u s [] pat
           NameMap m = nm
       in (pat', u', s', NameMap (IntMap.union (IntMap.fromList entries) m))
-      where
-        goPat :: [VarIdent] -> [VarIdent] -> [(Int, VarIdent)] -> Pattern x y
-              -> (Rzk.Pattern, [VarIdent], [VarIdent], [(Int, VarIdent)])
-        goPat u0 s0 acc = \case
-          PatternVar (Just x) b ->
-            let x' = refreshVar u0 x
-            in (Rzk.PatternVar Nothing (fromVarIdent x'), x' : u0, filter (/= x') s0, (Foil.nameId (Foil.nameOf b), x') : acc)
-          PatternVar Nothing b
-            | Foil.nameId (Foil.nameOf b) `elem` usedIds, x : s1 <- s0 ->
-                (Rzk.PatternVar Nothing (fromVarIdent x), x : u0, s1, (Foil.nameId (Foil.nameOf b), x) : acc)
-            | otherwise ->
-                (Rzk.PatternVar Nothing (fromVarIdent "_"), u0, s0, (Foil.nameId (Foil.nameOf b), "_") : acc)
-          PatternUnit b -> (Rzk.PatternUnit Nothing, u0, s0, (Foil.nameId (Foil.nameOf b), "unit") : acc)
-          PatternPair l r ->
-            let (l', u1, s1, acc1) = goPat u0 s0 acc l
-                (r', u2, s2, acc2) = goPat u1 s1 acc1 r
-            in (Rzk.PatternPair Nothing l' r', u2, s2, acc2)
+
+-- | Name every leaf of a pattern: a named leaf keeps its name, refreshed
+-- against the names in use; an anonymous leaf is @_@ unless the body uses
+-- it (its id is among the given ones), when it draws from the supply.
+-- Returns the surface pattern, the names in use and the supply after it,
+-- and the name of each leaf by id.
+namePatternLeaves
+  :: [Int] -> [VarIdent] -> [VarIdent] -> [(Int, VarIdent)] -> Pattern x y
+  -> (Rzk.Pattern, [VarIdent], [VarIdent], [(Int, VarIdent)])
+namePatternLeaves usedIds = go
+  where
+    go :: [VarIdent] -> [VarIdent] -> [(Int, VarIdent)] -> Pattern x y
+       -> (Rzk.Pattern, [VarIdent], [VarIdent], [(Int, VarIdent)])
+    go u s acc = \case
+      PatternVar (Just x) b ->
+        let x' = refreshVar u x
+        in (Rzk.PatternVar Nothing (fromVarIdent x'), x' : u, filter (/= x') s, (Foil.nameId (Foil.nameOf b), x') : acc)
+      PatternVar Nothing b
+        | Foil.nameId (Foil.nameOf b) `elem` usedIds, x : s' <- s ->
+            (Rzk.PatternVar Nothing (fromVarIdent x), x : u, s', (Foil.nameId (Foil.nameOf b), x) : acc)
+        | otherwise ->
+            (Rzk.PatternVar Nothing (fromVarIdent "_"), u, s, (Foil.nameId (Foil.nameOf b), "_") : acc)
+      PatternUnit b -> (Rzk.PatternUnit Nothing, u, s, (Foil.nameId (Foil.nameOf b), "unit") : acc)
+      PatternPair l r ->
+        let (l', u1, s1, acc1) = go u s acc l
+            (r', u2, s2, acc2) = go u1 s1 acc1 r
+        in (Rzk.PatternPair Nothing l' r', u2, s2, acc2)
 
 -- | Does a scope use the names its pattern binds?
 scopeUsesItsPattern :: ScopedCore n -> Bool
