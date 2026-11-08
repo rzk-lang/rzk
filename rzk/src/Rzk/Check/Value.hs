@@ -144,23 +144,23 @@ instance HasDefinitions (Context d) Pattern Sig where
     Unfolded -> unfolded
   {-# INLINE contextGlueSpeculation #-}
   contextGlueSpeculation _ ctx x _ y _ = case ctxApproximation ctx of
-    Rigid
-      | x == y    -> TryFolded ctx { ctxApproximation = Flex } (Just ctx { ctxApproximation = Full })
+    ApproxRigid
+      | x == y    -> TryFolded ctx { ctxApproximation = ApproxFlex } (Just ctx { ctxApproximation = ApproxFull })
       | otherwise -> CompareUnfolded ctx
-    Flex
+    ApproxFlex
       | x == y    -> TryFolded ctx Nothing
       | otherwise -> Unrelated
     -- Two equal names are compared by their arguments first here too:
     -- unfolding them again at every level would normalise a repeated
     -- definition once per occurrence, exponentially in its nesting, where
     -- the old checker compared spines on one definition by congruence.
-    Full
-      | x == y    -> TryFolded ctx { ctxApproximation = Flex } (Just ctx)
+    ApproxFull
+      | x == y    -> TryFolded ctx { ctxApproximation = ApproxFlex } (Just ctx)
       | otherwise -> CompareUnfolded ctx
   {-# INLINE contextUnfoldGlued #-}
   contextUnfoldGlued _ ctx _ _ = case ctxApproximation ctx of
-    Flex -> Nothing
-    _    -> Just ctx
+    ApproxFlex -> Nothing
+    _          -> Just ctx
 
 -- | The heads: the function of an application, the pair of a projection,
 -- the path of an induction.

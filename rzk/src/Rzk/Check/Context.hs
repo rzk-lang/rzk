@@ -133,11 +133,11 @@ defaultOptions = Options
   , optRender = Nothing
   }
 
--- | The state of a conversion check, after smalltt's approximate conversion
--- checking: 'Rigid' to begin with; two glued values of one defined name
--- compare their folded sides 'Flex', and if that fails their unfolded sides
--- 'Full'.
-data Approximation = Rigid | Flex | Full
+-- | The state of a conversion check, after the approximate conversion
+-- checking of Kovács's smalltt. A check starts 'ApproxRigid'. Two glued
+-- values of one defined name compare their folded sides 'ApproxFlex', with
+-- no unfolding, and if these differ their unfolded sides 'ApproxFull'.
+data Approximation = ApproxRigid | ApproxFlex | ApproxFull
   deriving (Eq, Show)
 
 -- * Entries
@@ -257,7 +257,7 @@ emptyContext diag = Context
   , ctxTopes = emptyTopeContext
   , ctxVariance = Covariant
   , ctxUnfolding = Unfolded
-  , ctxApproximation = Rigid
+  , ctxApproximation = ApproxRigid
   , ctxOptions = defaultOptions
   , ctxLocation = Nothing
   , ctxSections = []
