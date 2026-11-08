@@ -54,14 +54,6 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: 🚀 Deploy with mike (${{ github.ref_name }}, latest)
-        if: ${{ github.ref_name != 'develop' && !startsWith(github.ref_name, 'mkdocs') }}
-        run: |
-          for config in $(ls docs/config/*/mkdocs.yml); do
-            mike deploy --push --update-aliases --config-file ${config} ${{ github.ref_name }} latest;
-            mike set-default latest --config-file ${config} --push;
-          done
-
       - name: 🚀 Deploy with mike (${{ github.ref_name }})
         if: ${{ github.ref_name == 'develop' || startsWith(github.ref_name, 'mkdocs') }}
         run: |
