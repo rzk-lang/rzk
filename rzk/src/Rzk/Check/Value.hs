@@ -98,7 +98,6 @@ module Rzk.Check.Value
   , topeAndValue
     -- * Types of neutrals
   , neutralType
-  , flagsOfType
     -- * Holes
   , valueHasHole
   ) where
@@ -447,29 +446,25 @@ instance Eval (Context d) Pattern Sig where
         ]
 
   -- A neutral reduces by a restriction of its type whose tope holds, and
-  -- a point of the unit type is unit.
+  -- a point of the unit type is unit. A variable's type is its entry's; a
+  -- neutral built by evaluation carries its type ('AnnF'), and refinement
+  -- reads only the top of it, as the old checker's weak head normal form
+  -- read the type of a term.
   {-# INLINE refineVar #-}
-  refineVar scope ctx x
-    | flagRefines (entryFlags (lookupEntry x ctx)) = refineNeutral scope ctx (NbE.vvar x)
-    | otherwise = NbE.vvar x
+  refineVar scope ctx x = refineNeutral scope ctx (NbE.vvar x)
 
   {-# INLINE refineSig #-}
   refineSig scope ctx value node = case node of
-    AppF{}    -> refineSpine
-    FirstF{}  -> refineSpine
-    SecondF{} -> refineSpine
-    IdJF{}    -> refineSpine
-    -- an annotated neutral is refined by its type, which it carries
+    AppF{}    -> refineNeutral scope ctx value
+    FirstF{}  -> refineNeutral scope ctx value
+    SecondF{} -> refineNeutral scope ctx value
+    IdJF{}    -> refineNeutral scope ctx value
     AnnF{}    -> refineNeutral scope ctx value
     -- a recOR evaluated before its guard was assumed takes the branch the
     -- context now entails, as the old checker decided it in its weak head
     -- normal form (a type cached in an annotation may hold one)
     RecOrF rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
     _         -> value
-    where
-      refineSpine
-        | mayRefine ctx value = refineNeutral scope ctx value
-        | otherwise = value
 
   -- A pattern stands for its names paired; bound to a value, its leaves
   -- get the projections.
@@ -515,29 +510,6 @@ nodeValue node
   | otherwise = Just (NbE.vnode (bimap (const noScoped) id node))
   where
     noScoped = error "Rzk.Check.Value: impossible: a scoped position of a node without scoped positions"
-
--- | May a neutral spine reduce by a restriction of its type? Only if the
--- type of its head may give one (its flags), or if the spine has a path
--- induction, whose type is its motive's and says nothing about the head.
-mayRefine :: Context d n -> Value n -> Bool
-mayRefine ctx v = case NbE.force v of
-  NbE.VVar x -> flagRefines (entryFlags (lookupEntry x ctx))
-  NbE.VNode (AppF f _) -> mayRefine ctx f
-  NbE.VNode (FirstF p) -> mayRefine ctx p
-  NbE.VNode (SecondF p) -> mayRefine ctx p
-  NbE.VNode IdJF{} -> True
-  _ -> False
-
--- | The head variable of a neutral spine, if it is one.
-spineHead :: Value n -> Maybe (Foil.Name n)
-spineHead v = case NbE.force v of
-  NbE.VVar x -> Just x
-  NbE.VNode (AnnF n _) -> spineHead n
-  NbE.VNode (AppF f _) -> spineHead f
-  NbE.VNode (FirstF p) -> spineHead p
-  NbE.VNode (SecondF p) -> spineHead p
-  NbE.VNode (IdJF _ _ _ _ _ p) -> spineHead p
-  _ -> Nothing
 
 -- | Refine a neutral by its type: a restriction whose tope the context
 -- entails gives its term; the unit type gives unit. The type of a neutral
@@ -639,11 +611,9 @@ appValue scope ctx fun arg = NbE.eliminate fun $ \case
   NbE.VSuspended env (LambdaF _ (ScopedAST pat body)) ->
     case Foil.assertDistinct pat of
       Foil.Distinct -> NbE.eval scope ctx (bindPattern env pat arg) body
-  NbE.Stuck fun' -> case spineHead fun' of
-    Just x | flagTopeFamily (entryFlags (lookupEntry x ctx))
-           , Just ty <- neutralType scope ctx fun'
-           , Just (Family _ _ (Just shape)) <- familyOf ty
-           , not (isTopShape shape) ->
+  NbE.Stuck fun' -> case neutralType scope ctx fun' of
+    Just ty | Just (Family _ _ (Just shape)) <- familyOf ty
+            , not (isTopShape shape) ->
         topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
     _ -> annotated scope ctx (NbE.vnode (AppF fun' arg))
 
@@ -821,7 +791,7 @@ patternEntries scope ctx md loc = go
     -- a sub-pattern's names are names of the whole pattern's scope
     patternValueIn :: Pattern x y -> Value l
     patternValueIn = unsafeCoerce . patternValue
-    entryOf mname t = localEntry md mname loc (flagsOfType scope ctx t) t
+    entryOf mname t = localEntry md mname loc t
 
 -- | The entries of a let's pattern: each name has its component of the
 -- value.
@@ -1079,29 +1049,6 @@ neutralType scope ctx v = case NbE.forceFolded v of
     inherit from eliminate ty = case restrictionsOf from of
       [] -> ty
       rs -> NbE.vnode (TypeRestrictedF ty [ (tope, eliminate t) | (tope, t) <- rs ])
-
--- | What evaluation needs to know about a type: whether a neutral of it may
--- reduce by a restriction (of the type, or of a codomain or a component of
--- it), or is unit, and whether it is a tope family over a shape (anywhere
--- along its codomains and components). A defined type is unfolded.
-flagsOfType :: forall d n. Distinct n => Scope n -> Context d n -> Value n -> EntryFlags
-flagsOfType scope0 ctx0 = go scope0 ctx0 noFlags
-  where
-    go :: forall l. Distinct l => Scope l -> Context d l -> EntryFlags -> Value l -> EntryFlags
-    go scope ctx flags ty = case NbE.force ty of
-      NbE.VNode (TypeRestrictedF inner _) -> go scope ctx flags { flagRefines = True } inner
-      NbE.VNode TypeUnitF -> flags { flagRefines = True }
-      NbE.VNode (TypeShapeF _ _ (Just shape))
-        | not (isTopShape shape) -> flags { flagTopeFamily = True }
-      NbE.VSuspended env (TypeFunF md dom mshape ret) ->
-        underFreshVar scope ctx md dom mshape $ \scope' ctx' x ->
-          go scope' ctx' flags (evalScope scope' ctx' (Foil.sink env) ret x)
-      -- a projection of a pair reaches either component
-      NbE.VSuspended env (TypeSigmaF md a b) ->
-        let flags' = go scope ctx flags a
-        in underFreshVar scope ctx md a Nothing $ \scope' ctx' x ->
-             go scope' ctx' flags' (evalScope scope' ctx' (Foil.sink env) b x)
-      _ -> flags
 
 -- * Holes
 

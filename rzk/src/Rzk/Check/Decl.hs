@@ -98,8 +98,6 @@ withTopLevel name tyCore ty mval kind uses k = do
   let scope = ctxScope ctx
   Foil.withFresh scope $ \binder -> do
     let pat = PatternVar (Just name) binder
-        scope' = Foil.extendScopePattern pat scope
-        ctx0 = sinkContextUnchecked ctx
         value = fmap (evalCore scope ctx) mval
         entry = Entry
           { entryType = Foil.sink ty
@@ -110,7 +108,6 @@ withTopLevel name tyCore ty mval kind uses k = do
           , entryName = Just name
           , entryLocation = ctxLocation ctx
           , entryUses = map Foil.sink uses
-          , entryFlags = flagsOfType scope' ctx0 (Foil.sink ty)
           , entryTypeCore = Just (Foil.sink tyCore)
           , entryValueCore = Foil.sink <$> mval
           }
@@ -569,7 +566,6 @@ endSection errs = do
         in entry
              { entryType = ty
              , entryValue = evalCore scope ctx' <$> entryValueCore entry
-             , entryFlags = flagsOfType scope ctx' ty
              }
       final = [ (name, if changed then reevaluate entry else entry) | (name, entry, changed) <- kept ]
       ctx1 = ctx

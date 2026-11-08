@@ -32,8 +32,6 @@ module Rzk.Check.Context
   , Unfolding (..)
     -- * Entries
   , EntryKind (..)
-  , EntryFlags (..)
-  , noFlags
   , Entry (..)
   , localEntry
   , Section (..)
@@ -149,18 +147,6 @@ data Approximation = Rigid | Flex | Full
 data EntryKind = EntryLocal | EntryAssumption | EntryTopLevel
   deriving (Eq, Show)
 
--- | What evaluation may need to know about an entry's type without reading
--- it: whether a neutral headed by the entry may reduce by a restriction of
--- its type, and whether the entry is a tope family over a shape, whose
--- applications carry the shape as a side condition.
-data EntryFlags = EntryFlags
-  { flagRefines    :: !Bool
-  , flagTopeFamily :: !Bool
-  } deriving (Eq, Show)
-
-noFlags :: EntryFlags
-noFlags = EntryFlags False False
-
 -- | What is known about a name in scope.
 data Entry n = Entry
   { entryType     :: Value n
@@ -175,7 +161,6 @@ data Entry n = Entry
   , entryLocation :: Maybe LocationInfo
   , entryUses     :: [Foil.Name n]
     -- ^ the variables a declaration says it uses
-  , entryFlags    :: EntryFlags
   , entryTypeCore  :: Maybe (Core n)
     -- ^ a top-level entry's type as elaborated, which closing a section
     -- reads its dependencies off and abstracts
@@ -192,9 +177,9 @@ instance Foil.Sinkable Entry where
     , entryValueCore = Foil.sinkabilityProof rename <$> entryValueCore entry
     }
 
--- | The entry of a local name of a type, with the flags its type gives.
-localEntry :: TModality -> Maybe VarIdent -> Maybe LocationInfo -> EntryFlags -> Value n -> Entry n
-localEntry md mname loc flags ty = Entry
+-- | The entry of a local name of a type.
+localEntry :: TModality -> Maybe VarIdent -> Maybe LocationInfo -> Value n -> Entry n
+localEntry md mname loc ty = Entry
   { entryType = ty
   , entryValue = Nothing
   , entryModality = md
@@ -203,7 +188,6 @@ localEntry md mname loc flags ty = Entry
   , entryName = mname
   , entryLocation = loc
   , entryUses = []
-  , entryFlags = flags
   , entryTypeCore = Nothing
   , entryValueCore = Nothing
   }
