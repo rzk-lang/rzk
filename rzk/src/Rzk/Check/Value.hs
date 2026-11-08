@@ -188,9 +188,7 @@ instance Eval (Context d) Pattern Sig where
     FirstF p -> firstValueIn scope ctx (ev p)
     SecondF p -> secondValueIn scope ctx (ev p)
     AnnF term _ -> ev term
-    LetF _mty val (ScopedAST pat body) -> case Foil.assertDistinct pat of
-      Foil.Distinct ->
-        NbE.eval scope ctx (bindPattern env pat (ev val)) body
+    LetF _mty val body -> evalScope scope ctx env body (ev val)
     TypeAscF term _ty -> ev term
     IdJF tA a tC d x p -> idJValueIn scope ctx (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
     -- A face whose tope is ⊥ restricts nothing, and a type with no face
@@ -585,9 +583,7 @@ vhole = NbE.vnode . HoleF
 appValue :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Value n
 {-# INLINE appValue #-}
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
-  NbE.VSuspended env (LambdaF _ (ScopedAST pat body)) ->
-    case Foil.assertDistinct pat of
-      Foil.Distinct -> NbE.eval scope ctx (bindPattern env pat arg) body
+  NbE.VSuspended env (LambdaF _ body) -> evalScope scope ctx env body arg
   NbE.Stuck fun' -> case neutralType scope ctx fun' of
     Just ty | Just (Family _ _ (Just shape)) <- familyOf ty
             , not (isTopShape shape) ->
@@ -797,9 +793,15 @@ underPattern scope' ctx md ty mshape pat =
   let ctx0 = sinkContextUnchecked ctx
       entries = patternEntries scope' ctx0 md (ctxLocation ctx) (Foil.sink ty) pat
       ctx' = enterPattern pat entries ctx
-  in case mshape of
-       Nothing    -> ctx'
-       Just shape -> assumeValue scope' ctx' (appValue scope' ctx' (Foil.sink shape) (patternValue pat))
+  in assumeShapeAt scope' pat mshape ctx'
+
+-- | A context with a binder's shape assumed at the pattern bound by it.
+assumeShapeAt
+  :: DExt n l
+  => Scope l -> Pattern n l -> Maybe (Value n) -> Context d l -> Context d l
+assumeShapeAt scope' pat mshape ctx = case mshape of
+  Nothing    -> ctx
+  Just shape -> assumeValue scope' ctx (appValue scope' ctx (Foil.sink shape) (patternValue pat))
 
 -- | The context under one fresh name of a type: the scope, the context
 -- with the name's entry, and the name as a value.
@@ -867,10 +869,7 @@ pisBinder :: TModality -> Value n -> Maybe (Value n) -> Maybe (Value n) -> Exten
 {-# INLINE pisBinder #-}
 pisBinder md dom mshapeL mshapeR = Extend $ \_ pat scope' ctx ->
   let ctx' = underPattern scope' ctx md dom Nothing pat
-      assumeShape c mshape = case mshape of
-        Nothing    -> c
-        Just shape -> assumeValue scope' c (appValue scope' c (Foil.sink shape) (patternValue pat))
-  in assumeShape (assumeShape ctx' mshapeL) mshapeR
+  in assumeShapeAt scope' pat mshapeR (assumeShapeAt scope' pat mshapeL ctx')
 
 -- | The binder two lambdas are compared under: the right one's domain, and
 -- both shapes, since the bodies agree only where both are defined.
@@ -882,10 +881,7 @@ lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
         (_, Just p) -> (paramModality p, paramDomain p)
         _           -> (Id, vhole Nothing)
       ctx' = underPattern scope' ctx md dom Nothing pat
-      assumeShape c mp = case mp >>= paramShape of
-        Nothing    -> c
-        Just shape -> assumeValue scope' c (appValue scope' c (Foil.sink shape) (patternValue pat))
-  in assumeShape (assumeShape ctx' mpL) mpR
+  in assumeShapeAt scope' pat (mpR >>= paramShape) (assumeShapeAt scope' pat (mpL >>= paramShape) ctx')
 
 -- | The observer of a λ's body: the other value applied to the pattern.
 appliedToPattern :: Distinct l => Scope l -> Context d l -> Pattern n l -> Value l -> Value l
