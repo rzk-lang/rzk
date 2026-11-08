@@ -44,10 +44,8 @@ module Rzk.Check.Syntax
   , Core
   , ScopedCore
   , SrcPos (..)
-  , noSrcPos
   , rawNode
   , positionOfRaw
-  , positionOf
   , stripPositions
     -- * Core patterns
   , pattern Universe, pattern UniverseCube, pattern UniverseTope
@@ -72,7 +70,6 @@ module Rzk.Check.Syntax
   , containsHole
   , holeNamesOf
   , isHoleHeaded
-  , alphaEqCore
   , eqCore
   ) where
 
@@ -80,7 +77,7 @@ import           Control.Monad.Foil                (NameBinder, S)
 import qualified Control.Monad.Foil                as Foil
 import           Control.Monad.Foil.Internal       (Substitution (..))
 import           Control.Monad.Free.Foil           (AST (..), ScopedAST (..),
-                                                    alphaEquiv, substitute,
+                                                    substitute,
                                                     unsafeEqAST)
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Data.Bifoldable                   (bifoldMap, bifoldr)
@@ -234,9 +231,6 @@ newtype SrcPos term = SrcPos RzkPosition
 instance ZipMatchK SrcPos where
   zipMatchWithK _ (SrcPos pos) _ = Just (SrcPos pos)
 
-noSrcPos :: SrcPos term
-noSrcPos = SrcPos (RzkPosition Nothing Nothing)
-
 -- | A raw term: the surface syntax converted, every node carrying where it
 -- was written. What the checker takes.
 type Raw = AST Pattern (AnnSig SrcPos Sig)
@@ -261,10 +255,6 @@ positionOfRaw (Node (AnnSig (SrcPos pos) _)) = case rzkLineCol pos of
   Nothing -> Nothing
   Just _  -> Just pos
 
--- | The position of a raw node, whether or not it has one.
-positionOf :: Raw n -> RzkPosition
-positionOf (Var _)                        = RzkPosition Nothing Nothing
-positionOf (Node (AnnSig (SrcPos pos) _)) = pos
 
 -- | A raw term as a core term: the positions dropped.
 stripPositions :: Raw n -> Core n
@@ -464,11 +454,7 @@ isHoleHeaded = \case
   Second t   -> isHoleHeaded t
   _          -> False
 
--- | α-equivalence of two core terms in a scope.
-alphaEqCore :: Foil.Distinct n => Foil.Scope n -> Core n -> Core n -> Bool
-alphaEqCore = alphaEquiv
-
 -- | Syntactic equality of two core terms: conservative, as two α-equivalent
--- terms whose binders differ are not equal, and cheaper than 'alphaEqCore'.
+-- terms whose binders differ are not equal, and cheaper than α-equivalence.
 eqCore :: Foil.Distinct n => Core n -> Core n -> Bool
 eqCore = unsafeEqAST

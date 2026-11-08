@@ -50,8 +50,6 @@ module Rzk.Check.Context
   , sinkContextUnchecked
   , insertEntry
   , withVariance
-  , sinkEntry
-  , sinkEntries
   ) where
 
 import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope, S)
@@ -200,9 +198,6 @@ data Section n = Section
   { sectionName    :: Maybe String
   , sectionEntries :: [Foil.Name n]
   }
-
-sinkEntry :: DExt n l => Entry n -> Entry l
-sinkEntry = Foil.sink
 
 sinkEntries :: DExt n l => NameMap n (Entry n) -> NameMap n (Entry l)
 sinkEntries = Foil.sink1

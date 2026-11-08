@@ -4,7 +4,6 @@ module Rzk.Check.Modality
   ( TModality (..)
   , comp
   , coe
-  , isRA
   ) where
 
 import           Language.Rzk.Foil.Names (TModality (..))
@@ -33,10 +32,3 @@ coe Flat Sharp = True
 coe Op Sharp   = True
 coe a b        = a == b
 
--- | Does the modality have a right adjoint (so that its values can be
--- extracted)?
-isRA :: TModality -> Bool
-isRA Sharp = True
-isRA Op    = True
-isRA Id    = True
-isRA _     = False

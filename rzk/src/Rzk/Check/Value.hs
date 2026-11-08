@@ -38,11 +38,7 @@ module Rzk.Check.Value
     Value
   , Whnf
   , Env
-  , TypeValue (..)
-  , TopeValue (..)
-  , CubeValue (..)
     -- * Evaluation and readback
-  , evalIn
   , evalCore
   , evalScope
   , quoteIn
@@ -59,13 +55,11 @@ module Rzk.Check.Value
   , topeUniverse
   , vcube2
   , vcubeI
-  , vtopeTop
   , vtopeBottom
   , vunit
   , vtypeUnit
   , vhole
   , vrecBottom
-  , vlambda
     -- * Elimination
   , appValue
   , firstValue
@@ -100,7 +94,6 @@ module Rzk.Check.Value
     -- * Types of neutrals
   , neutralType
     -- * Holes
-  , valueHasHole
   ) where
 
 import           Control.Applicative         ((<|>))
@@ -133,21 +126,6 @@ import           Rzk.Check.Topes
 type Whnf = NbE.Whnf Pattern Sig
 
 type Env i n = Foil.Substitution (NbE.Value Pattern Sig) i n
-
--- | A value standing for a type.
-newtype TypeValue n = TypeValue { typeValue :: Value n }
-
--- | A value standing for a tope.
-newtype TopeValue n = TopeValue { topeValue :: Value n }
-
--- | A value standing for a cube.
-newtype CubeValue n = CubeValue { cubeValue :: Value n }
-
-instance Foil.Sinkable TypeValue where
-  sinkabilityProof rename (TypeValue v) = TypeValue (Foil.sinkabilityProof rename v)
-
-instance Foil.Sinkable TopeValue where
-  sinkabilityProof rename (TopeValue v) = TopeValue (Foil.sinkabilityProof rename v)
 
 -- A node's constructor, for fingerprints.
 deriving instance Show (Sig () ())
@@ -535,10 +513,6 @@ refinedNeutral scope ctx value = do
 
 -- * Evaluation and readback
 
-evalIn :: (Distinct o, Distinct i) => Scope o -> Context d o -> Env i o -> Core i -> Value o
-{-# INLINE evalIn #-}
-evalIn = NbE.eval
-
 -- | A core term as a value, in the scope it was checked in.
 evalCore :: Distinct n => Scope n -> Context d n -> Core n -> Value n
 {-# INLINE evalCore #-}
@@ -589,13 +563,12 @@ vnode :: Sig Void (Value n) -> Value n
 {-# INLINE vnode #-}
 vnode = NbE.vnode
 
-universe, cubeUniverse, topeUniverse, vcube2, vcubeI, vtopeTop, vtopeBottom, vunit, vtypeUnit, vrecBottom :: Value n
+universe, cubeUniverse, topeUniverse, vcube2, vcubeI, vtopeBottom, vunit, vtypeUnit, vrecBottom :: Value n
 universe = NbE.vnode UniverseF
 cubeUniverse = NbE.vnode UniverseCubeF
 topeUniverse = NbE.vnode UniverseTopeF
 vcube2 = NbE.vnode Cube2F
 vcubeI = NbE.vnode CubeIF
-vtopeTop = NbE.vnode TopeTopF
 vtopeBottom = NbE.vnode TopeBottomF
 vunit = NbE.vnode UnitF
 vtypeUnit = NbE.vnode TypeUnitF
@@ -603,10 +576,6 @@ vrecBottom = NbE.vnode RecBottomF
 
 vhole :: Maybe VarIdent -> Value n
 vhole = NbE.vnode . HoleF
-
--- | A λ value over a core scope under an environment.
-vlambda :: Distinct i => Env i n -> Maybe (Param (Value n)) -> ScopedCore i -> Value n
-vlambda env mparam body = NbE.vsuspended env (LambdaF mparam body)
 
 -- * Elimination
 
@@ -1057,15 +1026,3 @@ neutralType scope ctx v = case NbE.forceFolded v of
     inherit from eliminate ty = case restrictionsOf from of
       [] -> ty
       rs -> NbE.vnode (TypeRestrictedF ty [ (tope, eliminate t) | (tope, t) <- rs ])
-
--- * Holes
-
--- | Does a value contain a hole, as far as its evaluated parts go: a hole
--- under a binder counts when its scope is read syntactically.
-valueHasHole :: Value n -> Bool
-valueHasHole v = case NbE.force v of
-  NbE.VVar _ -> False
-  NbE.VNode (HoleF _) -> True
-  NbE.VNode node -> getAny (bifoldMap (const mempty) (Any . valueHasHole) node)
-  NbE.VSuspended _ node ->
-    getAny (bifoldMap (\(ScopedAST _ body) -> Any (containsHole body)) (Any . valueHasHole) node)

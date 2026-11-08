@@ -29,21 +29,16 @@ module Rzk.Check.Monad
   , emptyFindings
   , runFull
   , runFast
-  , runFullIn
     -- * Helpers
-  , askScope
   , asksContext
-  , inScopeOf
   , withLocation
   , withOptions
   , issueTypeError
-  , entailsM
   , underTope
   , withVarianceM
-  , traceAt
   ) where
 
-import           Control.Monad.Foil       (Distinct, S, Scope)
+import           Control.Monad.Foil       (Distinct, S)
 import           Data.Kind                (Type)
 import           Debug.Trace              (trace)
 
@@ -131,9 +126,6 @@ type Fast = CheckM NoDiag String Findings
 runFull :: Context Diag n -> Full n a -> (Either ErrorInContext a, CheckLog)
 runFull ctx (CheckM m) = m ctx emptyCheckLog
 
-runFullIn :: Context Diag n -> Full n a -> Either ErrorInContext a
-runFullIn ctx = fst . runFull ctx
-
 runFast :: Context NoDiag n -> Fast n a -> (Either String a, Findings)
 runFast ctx (CheckM m) = m ctx emptyFindings
 
@@ -211,18 +203,9 @@ narrowLocation action loc = case action of
 
 -- * Helpers
 
-askScope :: Checking m => m n (Scope n)
-askScope = ctxScope <$> askContext
-{-# INLINE askScope #-}
-
 asksContext :: Checking m => (Context (DiagOf m) n -> a) -> m n a
 asksContext f = f <$> askContext
 {-# INLINE asksContext #-}
-
--- | Run a judgement in the context of an inner scope.
-inScopeOf :: Checking m => Context (DiagOf m) l -> m l a -> m n a
-inScopeOf = inContext
-{-# INLINE inScopeOf #-}
 
 withLocation :: Checking m => LocationInfo -> m n a -> m n a
 withLocation loc = localContext $ \ctx -> ctx { ctxLocation = Just loc }
@@ -234,11 +217,6 @@ issueTypeError :: (Checking m, Distinct n) => TypeError n -> m n a
 issueTypeError = failWith
 {-# INLINE issueTypeError #-}
 
--- | Does the tope context entail the tope?
-entailsM :: Checking m => Tope -> m n Bool
-entailsM tope = asksContext (\ctx -> entails (ctxTopes ctx) tope)
-{-# INLINE entailsM #-}
-
 -- | Run a judgement with a tope assumed.
 underTope :: Checking m => Tope -> m n a -> m n a
 underTope tope = localContext $ \ctx -> ctx { ctxTopes = assume tope (ctxTopes ctx) }
@@ -247,9 +225,3 @@ underTope tope = localContext $ \ctx -> ctx { ctxTopes = assume tope (ctxTopes c
 withVarianceM :: Checking m => Variance -> m n a -> m n a
 withVarianceM v = localContext (withVariance v)
 {-# INLINE withVarianceM #-}
-
--- | Print a message at debug verbosity.
-traceAt :: Checking m => String -> m n a -> m n a
-traceAt msg action = do
-  verbosity <- asksContext (optVerbosity . ctxOptions)
-  if verbosity <= Debug then trace msg action else action

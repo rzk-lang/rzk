@@ -66,7 +66,6 @@ data TypeError n
   | TypeErrorUndefined VarIdent
   | TypeErrorTopeNotSatisfied [Tope] Tope
   | TypeErrorTopeContextDisjoint Tope [Tope]
-  | TypeErrorTopesNotEquivalent (Value n) (Value n)
   | TypeErrorInvalidArgumentType (Raw n) (Value n)
   | TypeErrorDuplicateTopLevel [VarIdent] VarIdent
   | TypeErrorUnusedVariable (Foil.Name n) (Value n)
@@ -95,7 +94,6 @@ typeErrorTag = \case
   TypeErrorUndefined{}            -> "TypeErrorUndefined"
   TypeErrorTopeNotSatisfied{}     -> "TypeErrorTopeNotSatisfied"
   TypeErrorTopeContextDisjoint{}  -> "TypeErrorTopeContextDisjoint"
-  TypeErrorTopesNotEquivalent{}   -> "TypeErrorTopesNotEquivalent"
   TypeErrorInvalidArgumentType{}  -> "TypeErrorInvalidArgumentType"
   TypeErrorDuplicateTopLevel{}    -> "TypeErrorDuplicateTopLevel"
   TypeErrorUnusedVariable{}       -> "TypeErrorUnusedVariable"
@@ -186,11 +184,6 @@ ppTypeError ctx = \case
     , "so this restriction face or recOR branch is vacuous everywhere"
     , "in local context (normalised)"
     , intercalate "\n" (map (("  " <>) . ppTope naming) topes) ]
-  TypeErrorTopesNotEquivalent expected actual -> block
-    [ "expected tope"
-    , "  " <> ppV expected
-    , "but got"
-    , "  " <> ppV actual ]
   TypeErrorInvalidArgumentType argType argKind -> block
     [ "invalid function parameter type"
     , "  " <> ppR argType
