@@ -291,15 +291,8 @@ instance Eval (Context d) Pattern Sig where
   -- retried a failed comparison in each alternative (a neutral restricted
   -- on the faces of a horn is its face's term in each of them).
   {-# INLINE relateMismatch #-}
-  relateMismatch scope ctx l r = pointsEqual || equalRefined || equalInEveryAlternative
+  relateMismatch scope ctx l r = pointsEqual || equalInEveryAlternative
     where
-      -- Conversion does not refine an application of a definition, only
-      -- the definition unfolded, where the declared type of the definition,
-      -- and the restriction in it, is lost. Such a value is refined here, by
-      -- the spine as written, and compared again.
-      equalRefined = case refinedNeutral scope ctx l of
-        Just l' -> conv scope ctx l' r
-        Nothing -> maybe False (conv scope ctx l) (refinedNeutral scope ctx r)
       pointsEqual =
         isPointValue scope ctx l && isPointValue scope ctx r
           && entails (ctxTopes ctx) (TEq (pointOf scope ctx l) (pointOf scope ctx r))
@@ -455,9 +448,9 @@ instance Eval (Context d) Pattern Sig where
     IdJF{}    -> refineSpine
     _         -> value
     where
-      refineSpine = case spineHead value of
-        Just x | flagRefines (entryFlags (lookupEntry x ctx)) -> refineNeutral scope ctx value
-        _ -> value
+      refineSpine
+        | mayRefine ctx value = refineNeutral scope ctx value
+        | otherwise = value
 
   -- A pattern stands for its names paired; bound to a value, its leaves
   -- get the projections.
@@ -502,6 +495,18 @@ nodeValue node
   | otherwise = Just (NbE.vnode (bimap (const noScoped) id node))
   where
     noScoped = error "Rzk.Check.Value: impossible: a scoped position of a node without scoped positions"
+
+-- | May a neutral spine reduce by a restriction of its type? Only if the
+-- type of its head may give one (its flags), or if the spine has a path
+-- induction, whose type is its motive's and says nothing about the head.
+mayRefine :: Context d n -> Value n -> Bool
+mayRefine ctx v = case NbE.force v of
+  NbE.VVar x -> flagRefines (entryFlags (lookupEntry x ctx))
+  NbE.VNode (AppF f _) -> mayRefine ctx f
+  NbE.VNode (FirstF p) -> mayRefine ctx p
+  NbE.VNode (SecondF p) -> mayRefine ctx p
+  NbE.VNode IdJF{} -> True
+  _ -> False
 
 -- | The head variable of a neutral spine, if it is one.
 spineHead :: Value n -> Maybe (Foil.Name n)
