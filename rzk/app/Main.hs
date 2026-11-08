@@ -111,6 +111,11 @@ main = do
                   , Check.ppErrorInContext err ]
                 exitFailure
 
+    Typecheck (TypecheckOptions {typecheckChecker = Just checker}) _
+      | checker /= "old" -> do
+      putStrLn "Unknown --checker (use old, new, or new-fast)"
+      exitFailure
+
     Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag}) paths -> do
       safeOverride <- case safeFlag of
         Nothing -> pure Nothing
