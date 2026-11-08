@@ -3,7 +3,7 @@ name: GHC (build, test, haddock)
 # Controls when the workflow will run
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, release-v0.7.8-preparation]
     tags: [v*]
     paths:
       - .github/workflows/ghcjs.yml
@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-13, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-15]
 
     steps:
       - name: 📥 Checkout repository

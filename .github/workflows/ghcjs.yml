@@ -3,7 +3,6 @@ name: GHCJS (build and deploy Rzk playground)
 on:
   push:
     branches: [main, develop]
-    tags: [v*]
     paths:
       - .github/workflows/ghcjs.yml
       - rzk/**

@@ -6,43 +6,34 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  hackage:
-    name: "Upload a new candidate on Hackage"
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 🧰 Setup Stack
-        uses: freckle/stack-action@v5
-        with:
-          fast: false
-
-      - name: 🔨 Generate package dist tarball
-        run: stack sdist --tar-dir packages/
-
-      - name: 🚀 Upload on Hackage
-        uses: haskell-actions/hackage-publish@v1
-        with:
-          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
-          packagesPath: packages
-          publish: false
-
   binaries:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-13, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-15]
 
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The tag of the release, not the default branch the release targets.
+          ref: ${{ github.event.release.tag_name }}
 
       - name: 🧰 Setup Stack
         uses: freckle/stack-action@v5
         with:
-          fast: false
+          # The action's default is "--fast --pedantic", an unoptimised build.
+          stack-build-arguments: --pedantic
+          # A cache of the other workflows holds a --fast build that stack
+          # takes as up to date, so the release keeps its own cache and
+          # rebuilds the package regardless.
+          cache-prefix: release-
+          stack-build-arguments-build: --force-dirty
 
       - name: Tar and strip the binary
         run: |
