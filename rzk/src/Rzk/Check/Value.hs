@@ -103,6 +103,7 @@ module Rzk.Check.Value
   , valueHasHole
   ) where
 
+import           Control.Applicative         ((<|>))
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
@@ -192,6 +193,7 @@ instance HasHeads Sig where
     FirstF p           -> FirstF (hd p)
     SecondF p          -> SecondF (hd p)
     IdJF tA a tC d x p -> IdJF (other tA) (other a) (other tC) (other d) (other x) (hd p)
+    AnnF t ty          -> AnnF (hd t) (other ty)
     node               -> bimap id other node
 
 {-# SPECIALIZE NbE.eval ::
@@ -205,13 +207,14 @@ instance Eval (Context d) Pattern Sig where
   {-# INLINABLE evalSig #-}
   evalSig scope ctx env = \case
     AppF fun arg -> appValue scope ctx (ev fun) (ev arg)
-    FirstF p -> firstValue (ev p)
-    SecondF p -> secondValue (ev p)
+    FirstF p -> firstValueIn scope ctx (ev p)
+    SecondF p -> secondValueIn scope ctx (ev p)
+    AnnF term _ -> ev term
     LetF _mty val (ScopedAST pat body) -> case Foil.assertDistinct pat of
       Foil.Distinct ->
         NbE.eval scope ctx (bindPattern env pat (ev val)) body
     TypeAscF term _ty -> ev term
-    IdJF tA a tC d x p -> idJValue (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
+    IdJF tA a tC d x p -> idJValueIn scope ctx (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
     -- A face whose tope is ⊥ restricts nothing, and a type with no face
     -- left is its underlying type, as the old checker's weak head normal
     -- form dropped them. Such a face arises by instantiation, as with the
@@ -310,6 +313,10 @@ instance Eval (Context d) Pattern Sig where
   -- that are not a structural comparison of the children.
   {-# INLINE relateWith #-}
   relateWith scope ctx scoped term hd l r = case (l, r) of
+    -- the annotation of a neutral takes no part in the comparison
+    (AnnF nL _, AnnF nR _) -> Just (term nL nR ctx)
+    (AnnF nL _, _) | Just rv <- nodeValue r -> Just (term nL rv ctx)
+    (_, AnnF nR _) | Just lv <- nodeValue l -> Just (term lv nR ctx)
     -- a hole stands for a term of the expected type
     (HoleF _, _) -> Just mempty
     (_, HoleF _) -> Just mempty
@@ -452,9 +459,11 @@ instance Eval (Context d) Pattern Sig where
     FirstF{}  -> refineSpine
     SecondF{} -> refineSpine
     IdJF{}    -> refineSpine
+    -- an annotated neutral is refined by its type, which it carries
+    AnnF{}    -> refineNeutral scope ctx value
     -- a recOR evaluated before its guard was assumed takes the branch the
     -- context now entails, as the old checker decided it in its weak head
-    -- normal form
+    -- normal form (a type cached in an annotation may hold one)
     RecOrF rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
     _         -> value
     where
@@ -486,6 +495,7 @@ isPointValue scope ctx v = case NbE.force v of
     CubeFlipF{}   -> True
     CubeUnflipF{} -> True
     PairF{}       -> False
+    AnnF _ ty | Just t <- annotationType ty -> isCube scope ctx t
     _             -> neutralOfCube
   NbE.VVar _ -> neutralOfCube
   _ -> False
@@ -522,6 +532,7 @@ mayRefine ctx v = case NbE.force v of
 spineHead :: Value n -> Maybe (Foil.Name n)
 spineHead v = case NbE.force v of
   NbE.VVar x -> Just x
+  NbE.VNode (AnnF n _) -> spineHead n
   NbE.VNode (AppF f _) -> spineHead f
   NbE.VNode (FirstF p) -> spineHead p
   NbE.VNode (SecondF p) -> spineHead p
@@ -568,16 +579,16 @@ evalScope scope ctx env (ScopedAST pat body) arg = case Foil.assertDistinct pat 
 
 quoteIn :: Distinct n => Scope n -> Context d n -> Value n -> Core n
 {-# INLINE quoteIn #-}
-quoteIn = NbE.quote
+quoteIn scope ctx = stripAnnotations . NbE.quote scope ctx
 
 -- | Read a value back with defined names folded, as the checker's own terms
 -- spell them.
 quoteFolded :: Distinct n => Scope n -> Context d n -> Value n -> Core n
-quoteFolded scope ctx = NbE.quote scope ctx { ctxUnfolding = Folded }
+quoteFolded scope ctx = stripAnnotations . NbE.quote scope ctx { ctxUnfolding = Folded }
 
 nfCore :: Distinct n => Scope n -> Context d n -> Core n -> Core n
 {-# INLINE nfCore #-}
-nfCore = NbE.nf
+nfCore scope ctx = stripAnnotations . NbE.nf scope ctx
 
 force :: Value n -> Whnf n
 {-# INLINE force #-}
@@ -634,7 +645,7 @@ appValue scope ctx fun arg = NbE.eliminate fun $ \case
            , Just (Family _ _ (Just shape)) <- familyOf ty
            , not (isTopShape shape) ->
         topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
-    _ -> NbE.vnode (AppF fun' arg)
+    _ -> annotated scope ctx (NbE.vnode (AppF fun' arg))
 
 firstValue :: Value n -> Value n
 {-# INLINE firstValue #-}
@@ -648,12 +659,41 @@ secondValue p = NbE.eliminate p $ \case
   NbE.VNode (PairF _ b) -> b
   NbE.Stuck p' -> NbE.vnode (SecondF p')
 
--- | Path induction: on @refl@ the base case, otherwise stuck on the path.
-idJValue :: Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
-{-# INLINE idJValue #-}
-idJValue tA a tC d x p = NbE.eliminate p $ \case
+-- | A projection, a neutral annotated with its type.
+firstValueIn :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+{-# INLINE firstValueIn #-}
+firstValueIn scope ctx p = NbE.eliminate p $ \case
+  NbE.VNode (PairF a _) -> a
+  NbE.Stuck p' -> annotated scope ctx (NbE.vnode (FirstF p'))
+
+secondValueIn :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+{-# INLINE secondValueIn #-}
+secondValueIn scope ctx p = NbE.eliminate p $ \case
+  NbE.VNode (PairF _ b) -> b
+  NbE.Stuck p' -> annotated scope ctx (NbE.vnode (SecondF p'))
+
+-- | Path induction, a neutral annotated with its type.
+idJValueIn :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
+{-# INLINE idJValueIn #-}
+idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
   NbE.VNode (ReflF _) -> d
-  NbE.Stuck p' -> NbE.vnode (IdJF tA a tC d x p')
+  NbE.Stuck p' -> annotated scope ctx (NbE.vnode (IdJF tA a tC d x p'))
+
+-- | A neutral with its type, computed lazily and once, from the type of
+-- the neutral it eliminates (which is read off that neutral's annotation).
+-- A type that cannot be computed is a hole.
+annotated :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+{-# INLINE annotated #-}
+annotated scope ctx v = NbE.vnode (AnnF v (fromMaybe unknownType (neutralType scope ctx v)))
+
+unknownType :: Value n
+unknownType = NbE.vnode (HoleF Nothing)
+
+-- | The type an annotation carries, if it is known.
+annotationType :: Value n -> Maybe (Value n)
+annotationType ty = case NbE.force ty of
+  NbE.VNode (HoleF Nothing) -> Nothing
+  _                         -> Just ty
 
 -- | The join of two points, normalised at the endpoints.
 supValue :: Value n -> Value n -> Value n
@@ -957,6 +997,7 @@ topeOf scope ctx v = case NbE.force v of
 pointOf :: Distinct n => Scope n -> Context d n -> Value n -> Point
 pointOf scope ctx v = case NbE.force v of
   NbE.VVar x -> PVar (Foil.nameId x) (cubeOfType (entryType (lookupEntry x ctx)))
+  NbE.VNode (AnnF n _) -> pointOf scope ctx n
   NbE.VNode CubeUnitStarF -> PStar
   NbE.VNode Cube2_0F -> P2_0
   NbE.VNode Cube2_1F -> P2_1
@@ -1004,10 +1045,13 @@ fingerprint (Node sig) =
 -- motive at its endpoints. A glued head keeps its declared type. An
 -- elimination of a neutral whose type is restricted is restricted by the
 -- same elimination of the terms: under @ϕ@, a neutral @f : (X → A) [ϕ ↦ g]@
--- is @g@, so @f a : A [ϕ ↦ g a]@.
+-- is @g@, so @f a : A [ϕ ↦ g a]@. A neutral built by evaluation carries its
+-- type ('AnnF'), so each step reads only the type of the neutral it
+-- eliminates.
 neutralType :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
+  NbE.VNode (AnnF n ty) -> annotationType ty <|> neutralType scope ctx n
   NbE.VNode (AppF f a) -> do
     fTy <- neutralType scope ctx f
     case familyOf fTy of
@@ -1017,19 +1061,19 @@ neutralType scope ctx v = case NbE.forceFolded v of
         Just (inherit fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a))
   NbE.VNode (FirstF p) -> do
     ty <- neutralType scope ctx p
-    inherit ty firstValue <$> case NbE.force (stripRestrictions ty) of
+    inherit ty (firstValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
       NbE.VSuspended _ (TypeSigmaF _ a _) -> Just a
       NbE.VNode (CubeProductF a _) -> Just a
       _ -> Nothing
   NbE.VNode (SecondF p) -> do
     ty <- neutralType scope ctx p
-    inherit ty secondValue <$> case NbE.force (stripRestrictions ty) of
+    inherit ty (secondValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
       NbE.VSuspended env (TypeSigmaF _ _ b) -> Just (codomainAt scope ctx env b (firstValue p))
       NbE.VNode (CubeProductF _ b) -> Just b
       _ -> Nothing
   NbE.VNode (IdJF tA a tC d x p) ->
     let motive = appValue scope ctx (appValue scope ctx tC x) p
-    in Just (maybe motive (\ty -> inherit ty (idJValue tA a tC d x) motive) (neutralType scope ctx p))
+    in Just (maybe motive (\ty -> inherit ty (idJValueIn scope ctx tA a tC d x) motive) (neutralType scope ctx p))
   _ -> Nothing
   where
     inherit from eliminate ty = case restrictionsOf from of

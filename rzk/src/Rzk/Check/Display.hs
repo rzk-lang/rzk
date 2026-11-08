@@ -226,6 +226,7 @@ fromCore used supply names = go
           goBranch (con, chain) = Rzk.MatchBranch loc (fromVarIdent con) pats body
             where (pats, body) = matchArms used supply names chain
       MatchArm{} -> panicImpossible "a match arm outside of a match branch"
+      Ann t _ -> go t
       TypeAsc l r -> Rzk.TypeAsc loc (go l) (go r)
       TypeRestricted ty rs ->
         Rzk.TypeRestricted loc (go ty) [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]

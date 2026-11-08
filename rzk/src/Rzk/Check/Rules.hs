@@ -893,6 +893,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
     pV <- evalM p'
     pure (IdJ tA' a' tC' d' x' p', appValue scope ctx (appValue scope ctx tCV xV) pV)
 
+  -- an annotation is built by evaluation and never written
+  RawNode (AnnF term _) -> infer term
+
   RawNode (TypeAscF term ty) -> do
     (ty', _) <- inferAs universe ty
     tyV <- evalM ty'

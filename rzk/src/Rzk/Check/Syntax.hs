@@ -59,13 +59,14 @@ module Rzk.Check.Syntax
   , pattern RecBottom, pattern RecOr
   , pattern TypeFun, pattern TypeShape, pattern TypeSigma, pattern TypeId, pattern App, pattern Let, pattern Lambda
   , pattern Pair, pattern First, pattern Second, pattern Refl, pattern IdJ
-  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc
+  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc, pattern Ann
   , pattern TypeRestricted, pattern TypeModal, pattern ModApp, pattern ModExtract, pattern LetMod
   , pattern Hole
     -- * Raw patterns
   , pattern RawNode
     -- * Queries
   , freeNamesOf
+  , stripAnnotations
   , substituteName
   , abstractName
   , containsHole
@@ -202,6 +203,11 @@ data Sig scope term
   | UnitF
   | TypeUnitF
   | TypeAscF term term
+  | AnnF term term
+    -- ^ a neutral value with its type, which evaluation builds so that the
+    -- type of a neutral is read off it rather than computed from its head;
+    -- evaluation and readback drop it, and the type takes no part in
+    -- conversion or in the free names of a term
   | TypeRestrictedF term [(term, term)]
   | TypeModalF TModality term
   | ModAppF TModality term
@@ -355,6 +361,9 @@ pattern TypeUnit :: Core n
 pattern TypeUnit = Node TypeUnitF
 pattern TypeAsc :: Core n -> Core n -> Core n
 pattern TypeAsc term ty = Node (TypeAscF term ty)
+
+pattern Ann :: Core n -> Core n -> Core n
+pattern Ann term ty = Node (AnnF term ty)
 pattern TypeRestricted :: Core n -> [(Core n, Core n)] -> Core n
 pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
 pattern TypeModal :: TModality -> Core n -> Core n
@@ -390,6 +399,7 @@ pattern RawNode sig <- Node (AnnSig _ sig)
 -- outer scope right.
 freeNamesOf :: Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
+freeNamesOf (Ann t _) = freeNamesOf t
 freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
   where
     scoped :: ScopedCore n' -> [Foil.Name n']
@@ -400,6 +410,14 @@ freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
         , Foil.nameId x `notElem` bound ]
       where
         bound = map (Foil.nameId . snd) (patternNames pat)
+
+-- | A term without the annotations of its neutrals, which readback leaves.
+-- The types are not looked at.
+stripAnnotations :: Core n -> Core n
+stripAnnotations = \case
+  Var x    -> Var x
+  Ann t _  -> stripAnnotations t
+  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations sig)
 
 -- | Replace a free name of a term by a term of the same scope.
 substituteName :: Foil.Distinct n => Foil.Scope n -> Foil.Name n -> Core n -> Core n -> Core n
