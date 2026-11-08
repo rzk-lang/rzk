@@ -446,6 +446,10 @@ instance Eval (Context d) Pattern Sig where
     FirstF{}  -> refineSpine
     SecondF{} -> refineSpine
     IdJF{}    -> refineSpine
+    -- a recOR evaluated before its guard was assumed takes the branch the
+    -- context now entails, as the old checker decided it in its weak head
+    -- normal form
+    RecOrF rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
     _         -> value
     where
       refineSpine
