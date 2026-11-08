@@ -194,33 +194,29 @@ checkDeclType path vars params ty = do
   (used, ty',) <$> evalM ty'
 
 setOption :: (Checking m, Distinct n) => String -> String -> m n a -> m n a
-setOption name value = case (name, value) of
-  ("verbosity", "debug")  -> withOptions (\o -> o { optVerbosity = Debug })
-  ("verbosity", "normal") -> withOptions (\o -> o { optVerbosity = Normal })
-  ("verbosity", "silent") -> withOptions (\o -> o { optVerbosity = Silent })
-  ("verbosity", _) -> const $ issueTypeError $ TypeErrorOther
-    "unknown verbosity level (use \"debug\", \"normal\", or \"silent\")"
-  ("warn-overhang", "yes") -> withOptions (\o -> o { optWarnOverhang = True })
-  ("warn-overhang", "no")  -> withOptions (\o -> o { optWarnOverhang = False })
-  ("warn-overhang", _) -> const $ issueTypeError $ TypeErrorOther
-    "unknown value for \"warn-overhang\" (use \"yes\" or \"no\")"
-  ("warn-tope-family-domain", "yes") -> withOptions (\o -> o { optWarnTopeFamilyDomain = True })
-  ("warn-tope-family-domain", "no")  -> withOptions (\o -> o { optWarnTopeFamilyDomain = False })
-  ("warn-tope-family-domain", _) -> const $ issueTypeError $ TypeErrorOther
-    "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
-  ("render", "svg") -> withOptions (\o -> o { optRender = Just "svg" })
-  ("render", "latex") -> withOptions (\o -> o { optRender = Just "latex" })
-  ("render", "none") -> withOptions (\o -> o { optRender = Nothing })
-  ("render", _) -> const $ issueTypeError $ TypeErrorOther
-    "unknown render backend (use \"svg\", \"latex\", or \"none\")"
-  -- options of checks the new checker does not run yet are accepted
-  ("render-hide-term", _) -> id
-  ("rstt-safe", _) -> id
-  ("warn-meta-prefix", _) -> id
-  ("warn-free-standing-restriction", _) -> id
-  ("warn-shape-dependency", _) -> id
-  ("warn-meta-binder", _) -> id
+setOption name value = case name of
+  "verbosity" -> case value of
+    "debug"  -> withOptions (\o -> o { optVerbosity = Debug })
+    "normal" -> withOptions (\o -> o { optVerbosity = Normal })
+    "silent" -> withOptions (\o -> o { optVerbosity = Silent })
+    _ -> const $ issueTypeError $ TypeErrorOther
+      "unknown verbosity level (use \"debug\", \"normal\", or \"silent\")"
+  "warn-overhang" -> yesNo $ \b o -> o { optWarnOverhang = b }
+  "warn-tope-family-domain" -> yesNo $ \b o -> o { optWarnTopeFamilyDomain = b }
+  "render" -> case value of
+    "svg"   -> withOptions (\o -> o { optRender = Just "svg" })
+    "latex" -> withOptions (\o -> o { optRender = Just "latex" })
+    "none"  -> withOptions (\o -> o { optRender = Nothing })
+    _ -> const $ issueTypeError $ TypeErrorOther
+      "unknown render backend (use \"svg\", \"latex\", or \"none\")"
+  _ | name `elem` ignoredOptions -> id
   _ -> const $ issueTypeError $ TypeErrorOther ("unknown option " <> show name)
+  where
+    yesNo set = case value of
+      "yes" -> withOptions (set True)
+      "no"  -> withOptions (set False)
+      _ -> const $ issueTypeError $ TypeErrorOther
+        ("unknown value for " <> show name <> " (use \"yes\" or \"no\")")
 
 unsetOption :: (Checking m, Distinct n) => String -> m n a -> m n a
 unsetOption name = case name of
@@ -229,13 +225,15 @@ unsetOption name = case name of
   "warn-tope-family-domain" ->
     withOptions (\o -> o { optWarnTopeFamilyDomain = optWarnTopeFamilyDomain defaultOptions })
   "render" -> withOptions (\o -> o { optRender = Nothing })
-  "render-hide-term" -> id
-  "rstt-safe" -> id
-  "warn-meta-prefix" -> id
-  "warn-free-standing-restriction" -> id
-  "warn-shape-dependency" -> id
-  "warn-meta-binder" -> id
+  _ | name `elem` ignoredOptions -> id
   _ -> const $ issueTypeError $ TypeErrorOther ("unknown option " <> show name)
+
+-- | The options of checks the new checker does not run yet: accepted, and
+-- without effect.
+ignoredOptions :: [String]
+ignoredOptions =
+  [ "render-hide-term", "rstt-safe", "warn-meta-prefix"
+  , "warn-free-standing-restriction", "warn-shape-dependency", "warn-meta-binder" ]
 
 -- | Run a check at a command: the location points at the command, and a
 -- judgement inside it narrows it to the sub-term it is about.
