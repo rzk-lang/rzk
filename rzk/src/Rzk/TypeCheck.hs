@@ -1912,8 +1912,8 @@ unify mterm expected actual = performUnification `catchError` \typeError -> do
 unifyViaDecompose :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyViaDecompose expected actual | expected == actual = return ()
 unifyViaDecompose (AppT _ f x) (AppT _ g y) = do
-  unify Nothing f g
-  setVariance Invariant $ unify Nothing x y
+  unifyTerms f g
+  unifyTerms x y
 unifyViaDecompose _ _ = issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyInCurrentContext :: Eq var => Maybe (TermT var) -> TermT var -> TermT var -> TypeCheck var ()
@@ -1939,12 +1939,14 @@ unifyInCurrentContext mterm expected actual = performing action $
             RecBottomT{} -> return ()
             RecOrT _ty rs' ->
               case expected' of
-                RecOrT _ty rs -> sequence_ $
-                  checkCoherence <$> rs <*> rs'
+                RecOrT _ty rs -> forM_ [(l, r) | l <- rs, r <- rs'] $
+                  \((ltope, lterm), (rtope, rterm)) ->
+                    localTope (topeAndT ltope rtope) $
+                      unify mterm lterm rterm
                 _ -> do
                   forM_ rs' $ \(tope, term) ->
                     localTope tope $
-                      unifyTerms expected' term
+                      unify mterm expected' term
             _ -> typeOf expected' >>= typeOf >>= \case
               UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
               _ -> do
@@ -2022,13 +2024,13 @@ unifyInCurrentContext mterm expected actual = performing action $
                       _ -> do
                         forM_ rs $ \(tope, term) ->
                           localTope tope $
-                            unifyTerms term actual'
+                            unify mterm term actual'
 
                   TypeFunT _ty _orig cube mtope ret ->
                     case actual' of
                       TypeFunT _ty' orig' cube' mtope' ret' -> do
                         switchVariance $  -- unifying in the negative position!
-                          unifyTerms cube cube' -- FIXME: unifyCubes
+                          unify Nothing cube cube' -- FIXME: unifyCubes
                         enterScope orig' cube $ do
                           -- The tope checks below are subtyping checks with a fixed
                           -- direction relative to (subtype, supertype). Which side is
@@ -2077,8 +2079,14 @@ unifyInCurrentContext mterm expected actual = performing action $
                                 Invariant     -> do
                                   superEntailsSub expectedTopeNF actualTopeNF
                                   superEntailsSub actualTopeNF expectedTopeNF
-                          case mterm of
-                            Nothing -> unifyTerms ret ret'
+                          -- Codomains are compared on the supertype's domain.
+                          -- Invariant comparison runs both directional checks.
+                          let domain = case variance of
+                                Covariant -> mtope
+                                Contravariant -> mtope'
+                                Invariant -> mtope
+                          maybe id localTope domain $ case mterm of
+                            Nothing -> unify Nothing ret ret'
                             Just term -> unifyTypes (appT ret' (S <$> term) (Pure Z)) ret ret'
                       _ -> err
 
@@ -2107,17 +2115,16 @@ unifyInCurrentContext mterm expected actual = performing action $
                         -- was produced.
                         t1 <- maybe (typeOf x)  pure tA
                         t2 <- maybe (typeOf x') pure tA'
-                        setVariance Invariant (unify Nothing t1 t2)
-                        unify Nothing x x'
-                        unify Nothing y y'
+                        unifyTerms t1 t2
+                        unifyTerms x x'
+                        unifyTerms y y'
                       _ -> err
 
                   AppT _ty f x ->
                     case actual' of
                       AppT _ty' f' x' -> do
-                        unify Nothing f f'
-                        setVariance Invariant $
-                          unify Nothing x x'
+                        unifyTerms f f'
+                        unifyTerms x x'
                       _ -> err
 
                   LambdaT ty _orig _mparam body ->
@@ -2127,14 +2134,14 @@ unifyInCurrentContext mterm expected actual = performing action $
                           LambdaT ty' orig' _mparam' body' -> do
                             case stripTypeRestrictions (infoType ty') of
                               TypeFunT _ty' _origF' param' mtope' _ret' -> do
-                                unify Nothing param param' -- we (should) have already checked this in types!
+                                unifyTerms param param' -- we (should) have already checked this in types!
                                 enterScope orig' param $ do
                                   case (mtope, mtope') of
                                     (Just tope, Just tope') -> do
-                                      unify Nothing tope tope' -- we (should) have already checked this in types!
-                                      localTope tope $ unify Nothing body body'
+                                      unifyTerms tope tope' -- we (should) have already checked this in types!
+                                      localTope tope $ unifyTerms body body'
                                     (Nothing, Nothing) -> do
-                                      unify Nothing body body'
+                                      unifyTerms body body'
                                     _ -> errS
                               _ -> err
                           _ -> err
@@ -2143,21 +2150,21 @@ unifyInCurrentContext mterm expected actual = performing action $
                   ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
                     case actual' of
                       ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
-                        -- unify Nothing tA tA' -- TODO: do we need this check?
-                        unify Nothing x x'
-                        unify Nothing y y'
+                        -- unifyTerms tA tA' -- TODO: do we need this check?
+                        unifyTerms x x'
+                        unifyTerms y y'
                       _ -> err
                   ReflT{} -> panicImpossible "refl with a non-identity type!"
 
                   IdJT _ty a b c d e f ->
                     case actual' of
                       IdJT _ty' a' b' c' d' e' f' -> do
-                        unify Nothing a a'
-                        unify Nothing b b'
-                        unify Nothing c c'
-                        unify Nothing d d'
-                        unify Nothing e e'
-                        unify Nothing f f'
+                        unifyTerms a a'
+                        unifyTerms b b'
+                        unifyTerms c c'
+                        unifyTerms d d'
+                        unifyTerms e e'
+                        unifyTerms f f'
                       _ -> err
 
                   TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
@@ -2177,7 +2184,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                                   contextEntails (foldr topeOrT topeBottomT (map fst subRs))
                                   forM_ subRs $ \(tope', term') -> do
                                     localTope tope' $
-                                      unify Nothing term term'
+                                      unifyTerms term term'
                               | (tope, term) <- superRs
                               ]
                         case variance of
@@ -2196,8 +2203,11 @@ unifyInCurrentContext mterm expected actual = performing action $
 unifyTypes :: Eq var => TermT var -> TermT var -> TermT var -> TypeCheck var ()
 unifyTypes = unify . Just
 
+-- | Compare terms by conversion, including when the terms are types.
+-- Subtyping in these positions is unsound with type-in-type.
+-- Type-former comparisons use 'unify' directly to retain the ambient variance.
 unifyTerms :: Eq var => TermT var -> TermT var -> TypeCheck var ()
-unifyTerms = unify Nothing
+unifyTerms expected actual = setVariance Invariant (unify Nothing expected actual)
 
 localTope :: Eq var => TermT var -> TypeCheck var a -> TypeCheck var a
 localTope tope tc = do
@@ -2592,10 +2602,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                 xty' <- typecheck xty universeT
                 unifyTerms tA xty'
               x' <- typecheck x tA
-              unifyTerms x' y >> unifyTerms y x'
-              unifyTerms x' z >> unifyTerms z x'
+              unifyTerms x' y
+              unifyTerms x' z
             when (isNothing mx) $
-              unifyTerms y z >> unifyTerms z y
+              unifyTerms y z
             return (reflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorUnexpectedRefl term ty
 

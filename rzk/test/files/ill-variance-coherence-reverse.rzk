@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Reversing incoherent branches must not change their rejection.
+#def test (A : U) (a : A) (t s : 2) : U
+  := recOR (s ≤ t ↦ A [TOP ↦ a], t ≤ s ↦ A)

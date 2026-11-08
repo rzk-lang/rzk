@@ -22,6 +22,13 @@ extra-source-files:
     test/files/happy-tope-family-domain-instance.rzk
     test/files/ill-tope-family-domain-non-instance.rzk
     test/files/ill-tope-family-domain-same-domain.rzk
+    test/files/happy-variance-conversion.rzk
+    test/files/ill-variance-all-equal.rzk
+    test/files/ill-variance-coherence-forward.rzk
+    test/files/ill-variance-coherence-reverse.rzk
+    test/files/ill-variance-id-endpoint.rzk
+    test/files/ill-variance-lambda-boundary.rzk
+    test/files/ill-variance-pair-boundary.rzk
 extra-doc-files:
     README.md
     ChangeLog.md
