@@ -70,28 +70,38 @@ quoteM v = asksContext $ \ctx -> quoteFolded (ctxScope ctx) ctx v
 -- * Binders
 
 -- | Enter a raw scope: refresh its pattern against the scope if its names
--- clash, enter the pattern with the domain, modality and shape, and run
--- the continuation on the body.
+-- clash, extend the context with the pattern by the given function, and
+-- run the continuation on the body.
+enterRawScope
+  :: forall m n r. (Checking m, Distinct n)
+  => (forall l. (Distinct l, DExt n l) => Foil.Scope l -> Pattern n l -> Context (DiagOf m) n -> Context (DiagOf m) l)
+  -> ScopedRaw n
+  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
+  -> m n r
+enterRawScope extend (ScopedAST pat body) k = do
+  warnShadowing pat
+  ctx <- askContext
+  let scope = ctxScope ctx
+      enter :: forall l. DExt n l => Pattern n l -> Raw l -> m n r
+      enter pat' body' = case (Foil.assertDistinct pat', Foil.assertExt pat') of
+        (Foil.Distinct, Foil.Ext) ->
+          let scope' = Foil.extendScopePattern pat' scope
+          in inContext (extend scope' pat' ctx) (k pat' body')
+      fresh = all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
+  if fresh
+    then case (Foil.assertExt pat, Foil.assertDistinct pat) of
+      (Foil.Ext, Foil.Distinct) -> enter pat body
+    else Foil.withRefreshedPattern scope pat $ \extendSubst pat' scope' ->
+      enter pat' (substitute scope' (extendSubst Foil.identitySubst) body)
+
+-- | Enter a raw scope bound at a domain, with a modality and a shape.
 underRawScope
   :: forall m n r. (Checking m, Distinct n)
   => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
   -> m n r
-underRawScope md dom mshape (ScopedAST pat body) k = do
-  warnShadowing pat
-  ctx <- askContext
-  let scope = ctxScope ctx
-      fresh = all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
-  if fresh
-    then case (Foil.assertExt pat, Foil.assertDistinct pat) of
-      (Foil.Ext, Foil.Distinct) ->
-        let scope' = Foil.extendScopePattern pat scope
-            ctx' = underPattern scope' ctx md dom mshape pat
-        in inContext ctx' (k pat body)
-    else Foil.withRefreshedPattern scope pat $ \extendSubst pat' scope' ->
-      let body' = substitute scope' (extendSubst Foil.identitySubst) body
-          ctx' = underPattern scope' ctx md dom mshape pat'
-      in inContext ctx' (k pat' body')
+underRawScope md dom mshape =
+  enterRawScope (\scope' pat ctx -> underPattern scope' ctx md dom mshape pat)
 
 -- | Check a λ parameter written with a shape, @(t : cube | shape)@, against
 -- the expected domain and, if there is one, the expected shape: the cube
@@ -505,23 +515,10 @@ underLet
   => Value n -> Value n -> ScopedRaw n
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
   -> m n r
-underLet ty val (ScopedAST pat body) k = do
-  warnShadowing pat
-  ctx <- askContext
-  let scope = ctxScope ctx
-      enter :: forall l. DExt n l => Pattern n l -> Raw l -> m n r
-      enter pat' body' = case (Foil.assertDistinct pat', Foil.assertExt pat') of
-        (Foil.Distinct, Foil.Ext) ->
-          let scope' = Foil.extendScopePattern pat' scope
-              ctx0 = sinkContextUnchecked ctx
-              entries = letEntries scope' ctx0 (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat'
-          in inContext (enterPattern pat' entries ctx) (k pat' body')
-      fresh = all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
-  if fresh
-    then case (Foil.assertExt pat, Foil.assertDistinct pat) of
-      (Foil.Ext, Foil.Distinct) -> enter pat body
-    else Foil.withRefreshedPattern scope pat $ \extendSubst pat' scope' ->
-      enter pat' (substitute scope' (extendSubst Foil.identitySubst) body)
+underLet ty val = enterRawScope $ \scope' pat ctx ->
+  enterPattern pat
+    (letEntries scope' (sinkContextUnchecked ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat)
+    ctx
 
 -- | A @recOR@ against a known type: every branch is checked against it
 -- under its guard, the branches cohere, and the guards cover the context.
