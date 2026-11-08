@@ -48,7 +48,7 @@ import           Language.Rzk.Foil.Names  (TModality (..), VarIdent,
                                            unmarkUnresolved)
 import           Rzk.Check.Context
 import           Rzk.Check.Conversion
-import           Rzk.Check.Display        (namingOfContext, panicImpossible, ppName, ppValue, ppValueIn)
+import           Rzk.Check.Display        (namingOfContext, ppName, ppValue, ppValueIn)
 import           Rzk.Check.Error
 import           Rzk.Check.Monad
 import           Rzk.Check.Syntax

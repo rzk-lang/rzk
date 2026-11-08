@@ -267,7 +267,7 @@ instance Eval (Context d) Pattern Sig where
     MatchArmF body -> MatchArmF (scoped body opaqueBinder)
     node -> bimap (const noScopedPosition) term node
     where
-      noScopedPosition = error "Rzk.Check.Value: impossible: a scoped position of a node without scoped positions"
+      noScopedPosition = panicImpossible "a scoped position of a node without scoped positions"
 
   -- Two values that differ are equal all the same if they are points and
   -- the tope context entails their equation, as the old unification
@@ -486,7 +486,7 @@ nodeValue node
   | getAny (bifoldMap (const (Any True)) (const mempty) node) = Nothing
   | otherwise = Just (NbE.vnode (bimap (const noScoped) id node))
   where
-    noScoped = error "Rzk.Check.Value: impossible: a scoped position of a node without scoped positions"
+    noScoped = panicImpossible "a scoped position of a node without scoped positions"
 
 -- | Refine a neutral by its type: a restriction whose tope the context
 -- entails gives its term; the unit type gives unit. The type of a neutral

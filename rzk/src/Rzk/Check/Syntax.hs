@@ -45,6 +45,7 @@ module Rzk.Check.Syntax
   , ScopedCore
   , SrcPos (..)
   , rawNode
+  , panicImpossible
   , noPosition
   , positionOfRaw
   , stripPositions
@@ -247,6 +248,13 @@ type ScopedCore = ScopedAST Pattern Sig
 -- | A raw node at a position.
 rawNode :: RzkPosition -> Sig (ScopedRaw n) (Raw n) -> Raw n
 rawNode pos sig = Node (AnnSig (SrcPos pos) sig)
+
+-- | Fail on a case the checker's invariants rule out, asking for a bug report.
+panicImpossible :: String -> a
+panicImpossible msg = error $ unlines
+  [ "PANIC! Impossible happened (" <> msg <> ")!"
+  , "Please, report a bug at https://github.com/rzk-lang/rzk/issues"
+  ]
 
 -- | The position of a node the checker builds, which was written nowhere.
 noPosition :: RzkPosition

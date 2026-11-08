@@ -22,7 +22,6 @@ module Rzk.Check.Display
   , ppCore
   , ppValue
   , ppValueIn
-  , panicImpossible
   ) where
 
 import           Control.Monad.Foil          (Distinct, NameMap, Scope)
@@ -247,7 +246,7 @@ fromCore used supply names = go
     -- with a body that is never printed.
     shapeScope :: Core n -> ScopedCore n
     shapeScope (Lambda _ (ScopedAST pat _)) = ScopedAST pat (Node UnitF)
-    shapeScope _ = error "Rzk.Check.Display: impossible: a shape that is not a λ"
+    shapeScope _ = panicImpossible "a shape that is not a λ"
 
     -- Enter a scope: name its pattern and print the body under it.
     withScope :: ScopedCore n -> (Rzk.Pattern -> Rzk.Term -> r) -> r
@@ -360,9 +359,3 @@ scopeUsesItsPattern (ScopedAST pat body) =
 nameIdsOf :: Core l -> [Int]
 nameIdsOf (Var x) = [Foil.nameId x]
 nameIdsOf (Node sig) = bifoldMap (\(ScopedAST _ body) -> nameIdsOf body) nameIdsOf sig
-
-panicImpossible :: String -> a
-panicImpossible msg = error $ unlines
-  [ "PANIC! Impossible happened (" <> msg <> ")!"
-  , "Please, report a bug at https://github.com/rzk-lang/rzk/issues"
-  ]
