@@ -1,0 +1,111 @@
+#lang rzk-1
+
+-- A neutral is refined by the top layer of its own type, so a type that
+-- unfolds to a large tree of Σ-types is never walked in depth. Here `P30 A`
+-- unfolds to 2^30 components, and the variable `p` of a type built on it
+-- enters the context and is compared.
+
+#define P0 (A : U) : U := A
+
+#define d0 (A : U) (a : A) : P0 A := a
+
+#define P1 (A : U) : U := Σ (_ : P0 A) , P0 A
+#define d1 (A : U) (a : A) : P1 A := (d0 A a , d0 A a)
+
+#define P2 (A : U) : U := Σ (_ : P1 A) , P1 A
+#define d2 (A : U) (a : A) : P2 A := (d1 A a , d1 A a)
+
+#define P3 (A : U) : U := Σ (_ : P2 A) , P2 A
+#define d3 (A : U) (a : A) : P3 A := (d2 A a , d2 A a)
+
+#define P4 (A : U) : U := Σ (_ : P3 A) , P3 A
+#define d4 (A : U) (a : A) : P4 A := (d3 A a , d3 A a)
+
+#define P5 (A : U) : U := Σ (_ : P4 A) , P4 A
+#define d5 (A : U) (a : A) : P5 A := (d4 A a , d4 A a)
+
+#define P6 (A : U) : U := Σ (_ : P5 A) , P5 A
+#define d6 (A : U) (a : A) : P6 A := (d5 A a , d5 A a)
+
+#define P7 (A : U) : U := Σ (_ : P6 A) , P6 A
+#define d7 (A : U) (a : A) : P7 A := (d6 A a , d6 A a)
+
+#define P8 (A : U) : U := Σ (_ : P7 A) , P7 A
+#define d8 (A : U) (a : A) : P8 A := (d7 A a , d7 A a)
+
+#define P9 (A : U) : U := Σ (_ : P8 A) , P8 A
+#define d9 (A : U) (a : A) : P9 A := (d8 A a , d8 A a)
+
+#define P10 (A : U) : U := Σ (_ : P9 A) , P9 A
+#define d10 (A : U) (a : A) : P10 A := (d9 A a , d9 A a)
+
+#define P11 (A : U) : U := Σ (_ : P10 A) , P10 A
+#define d11 (A : U) (a : A) : P11 A := (d10 A a , d10 A a)
+
+#define P12 (A : U) : U := Σ (_ : P11 A) , P11 A
+#define d12 (A : U) (a : A) : P12 A := (d11 A a , d11 A a)
+
+#define P13 (A : U) : U := Σ (_ : P12 A) , P12 A
+#define d13 (A : U) (a : A) : P13 A := (d12 A a , d12 A a)
+
+#define P14 (A : U) : U := Σ (_ : P13 A) , P13 A
+#define d14 (A : U) (a : A) : P14 A := (d13 A a , d13 A a)
+
+#define P15 (A : U) : U := Σ (_ : P14 A) , P14 A
+#define d15 (A : U) (a : A) : P15 A := (d14 A a , d14 A a)
+
+#define P16 (A : U) : U := Σ (_ : P15 A) , P15 A
+#define d16 (A : U) (a : A) : P16 A := (d15 A a , d15 A a)
+
+#define P17 (A : U) : U := Σ (_ : P16 A) , P16 A
+#define d17 (A : U) (a : A) : P17 A := (d16 A a , d16 A a)
+
+#define P18 (A : U) : U := Σ (_ : P17 A) , P17 A
+#define d18 (A : U) (a : A) : P18 A := (d17 A a , d17 A a)
+
+#define P19 (A : U) : U := Σ (_ : P18 A) , P18 A
+#define d19 (A : U) (a : A) : P19 A := (d18 A a , d18 A a)
+
+#define P20 (A : U) : U := Σ (_ : P19 A) , P19 A
+#define d20 (A : U) (a : A) : P20 A := (d19 A a , d19 A a)
+
+#define P21 (A : U) : U := Σ (_ : P20 A) , P20 A
+#define d21 (A : U) (a : A) : P21 A := (d20 A a , d20 A a)
+
+#define P22 (A : U) : U := Σ (_ : P21 A) , P21 A
+#define d22 (A : U) (a : A) : P22 A := (d21 A a , d21 A a)
+
+#define P23 (A : U) : U := Σ (_ : P22 A) , P22 A
+#define d23 (A : U) (a : A) : P23 A := (d22 A a , d22 A a)
+
+#define P24 (A : U) : U := Σ (_ : P23 A) , P23 A
+#define d24 (A : U) (a : A) : P24 A := (d23 A a , d23 A a)
+
+#define P25 (A : U) : U := Σ (_ : P24 A) , P24 A
+#define d25 (A : U) (a : A) : P25 A := (d24 A a , d24 A a)
+
+#define P26 (A : U) : U := Σ (_ : P25 A) , P25 A
+#define d26 (A : U) (a : A) : P26 A := (d25 A a , d25 A a)
+
+#define P27 (A : U) : U := Σ (_ : P26 A) , P26 A
+#define d27 (A : U) (a : A) : P27 A := (d26 A a , d26 A a)
+
+#define P28 (A : U) : U := Σ (_ : P27 A) , P27 A
+#define d28 (A : U) (a : A) : P28 A := (d27 A a , d27 A a)
+
+#define P29 (A : U) : U := Σ (_ : P28 A) , P28 A
+#define d29 (A : U) (a : A) : P29 A := (d28 A a , d28 A a)
+
+#define P30 (A : U) : U := Σ (_ : P29 A) , P29 A
+#define d30 (A : U) (a : A) : P30 A := (d29 A a , d29 A a)
+
+#define e (A : U) (a : A) : P30 A := d30 A a
+
+#define T (A : U) (x : P30 A) : U := x =_{P30 A} x
+
+#define same
+  (A : U)
+  (a : A)
+  (p : T A (e A a))
+  : T A (e A a)
+  := p
