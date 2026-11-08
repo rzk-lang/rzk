@@ -17,7 +17,8 @@
 -- location), raises errors with their context, and records warnings and
 -- holes rendered. The fast instance keeps none of that: an error is its
 -- tag, a warning its kind, a hole a count, so that a status-only run pays
--- for nothing it does not report. Every rule is specialised at both.
+-- for nothing it does not report. The rules are polymorphic in the
+-- instance, so both runs share them.
 module Rzk.Check.Monad
   ( Checking (..)
   , CheckM
@@ -129,8 +130,8 @@ runFull ctx (CheckM m) = m ctx emptyCheckLog
 runFast :: Context NoDiag n -> Fast n a -> (Either String a, Findings)
 runFast ctx (CheckM m) = m ctx emptyFindings
 
--- | The depth of nested judgements at which checking gives up: the cap
--- catches a non-terminating search.
+-- | The depth of nested judgements at which a full run gives up: the cap
+-- catches a non-terminating search. The fast run keeps no depth.
 maxDepth :: Int
 maxDepth = 1000
 

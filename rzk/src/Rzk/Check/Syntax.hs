@@ -204,9 +204,10 @@ data Sig scope term
   | TypeAscF term term
   | AnnF term term
     -- ^ a neutral value with its type, which evaluation builds so that the
-    -- type of a neutral is read off it rather than computed from its head;
-    -- evaluation and readback drop it, and the type takes no part in
-    -- conversion or in the free names of a term
+    -- type of a neutral is read off it rather than computed from its head.
+    -- Evaluating it drops it, the readbacks of "Rzk.Check.Value" strip it
+    -- ('stripAnnotations'), and the type takes no part in conversion or in
+    -- the free names of a term.
   | TypeRestrictedF term [(term, term)]
   | TypeModalF TModality term
   | ModAppF TModality term
@@ -414,8 +415,8 @@ freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
       where
         bound = map (Foil.nameId . snd) (patternNames pat)
 
--- | A term without the annotations of its neutrals, which readback leaves.
--- The types are not looked at.
+-- | A term without the annotations of its neutrals, which the library's
+-- readback keeps. The types are not looked at.
 stripAnnotations :: Core n -> Core n
 stripAnnotations = \case
   Var x    -> Var x

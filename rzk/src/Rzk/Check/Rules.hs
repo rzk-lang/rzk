@@ -17,8 +17,8 @@
 -- with the expected one by subtyping ("Rzk.Check.Conversion"). The rules
 -- mirror those of "Rzk.TypeCheck.Judgements" case by case, on values.
 --
--- The rules are written once against 'Checking' and specialised at both
--- its instances. The modal constructs and @match@ are not covered yet.
+-- The rules are written once against 'Checking', so the full and the fast
+-- run share them. The modal constructs and @match@ are not covered yet.
 module Rzk.Check.Rules
   ( check
   , infer

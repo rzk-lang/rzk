@@ -18,9 +18,9 @@
   : (t : 2) → A [t ≡ 0₂ ↦ first (f t)]
   := \ t → first (g t)
 
--- two restrictions in a chain: under ϕ t, g t is f t by the restriction of
--- g, and f t is a t by the restriction of f (after RS17, Theorem 4.4, the
--- composition of cofibrations)
+-- two restrictions in a chain: under t ≡ 0₂, g t is f t by the restriction
+-- of g, and f t is a t by the restriction of f (compare RS17, Theorem 4.4,
+-- on composites of cofibrations)
 #define restriction-chain
   (X : U)
   (a : 2 → X)

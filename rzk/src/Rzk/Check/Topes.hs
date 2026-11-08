@@ -6,11 +6,13 @@
 -- ordering keys a set. The solver is the saturation solver of
 -- "Rzk.TypeCheck.Eval" (Riehl and Shulman's tope logic, the lattice
 -- operations on the intervals, and the cover of a disjunction by
--- alternatives), unchanged in its algorithm and pure: the context caches
--- its saturation lazily, and a query reads it.
+-- alternatives), made pure and without inversion under @ᵒᵖ@ (see
+-- 'saturateInv'). The context caches its saturation lazily, and a query
+-- reads it.
 --
--- The modal layer (topes assumed under a modality, inversion under @ᵒᵖ@)
--- keeps its representation here; its rules come with the modal fragment.
+-- The modal layer (topes assumed under a modality, locks, and ex falso
+-- across modalities) follows the modal topes of LIshy2 in the old checker
+-- (#230). Inversion under @ᵒᵖ@ is not implemented yet.
 module Rzk.Check.Topes
   ( -- * Topes
     Cube (..)
@@ -339,9 +341,9 @@ saturateTopes topes = saturated <> inaccessible
       (\new old -> map plainTope (generateTopes (map tTope new) (map tTope old)))
       accessible
 
--- | Inversion under @ᵒᵖ@: the rules come with the modal fragment. Until
--- then a context whose topes all sit at the identity modality, which is
--- every context of the non-modal fragment, is left as it is.
+-- | Inversion under @ᵒᵖ@, not implemented yet, so the identity. This loses
+-- nothing in the non-modal fragment, where every tope sits at the identity
+-- modality. Under @ᵒᵖ@ the solver misses the entailments inversion gives.
 saturateInv :: [ModalTope] -> [ModalTope]
 saturateInv = id
 

@@ -1,6 +1,6 @@
--- The scope-extension evidence on 'sinkContext' (a coercion) is its
--- soundness contract, not an argument it can consume, so GHC calls it
--- redundant. It stays.
+-- The scope-extension constraint of 'sinkContextUnchecked' (a coercion) is
+-- a contract for its callers, not an argument it uses, so GHC calls it
+-- redundant. It is kept as the contract.
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE GADTs               #-}
@@ -276,9 +276,9 @@ entriesInScope :: Context d n -> [(Foil.Name n, Entry n)]
 entriesInScope ctx = [ (name, lookupEntry name ctx) | name <- reverse (ctxBound ctx) ]
 
 -- | Sink a context along a scope extension. Unsound on its own: the scope
--- and the entries still describe the old scope, and 'enterPattern' fixes
--- both. Everything else in the context mentions the scope only through
--- values and names, which sink by coercion.
+-- and the entries still describe the old scope, so the caller must extend
+-- both, as 'enterPattern' does. Everything else in the context mentions
+-- the scope only through values and names, which sink by coercion.
 sinkContextUnchecked :: DExt n l => Context d n -> Context d l
 sinkContextUnchecked = unsafeCoerce
 

@@ -348,7 +348,8 @@ ppModality = \case
 
 -- * Warnings
 
--- | The kinds of warning a run may record, which a status-only run counts.
+-- | The kinds of warning a run may record, which is all a status-only run
+-- records of a warning.
 data WarningKind
   = WarnOverhang
   | WarnTopeFamilyDomain

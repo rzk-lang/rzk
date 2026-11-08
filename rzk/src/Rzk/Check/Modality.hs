@@ -1,5 +1,8 @@
--- | The mode theory of the modalities: composition, the coercions between
--- them (what a lock lets through), and which have a right adjoint.
+-- | The mode theory of the modalities: composition, and the coercions
+-- between them (what a lock lets through). The tables are those of the old
+-- checker ("Rzk.TypeCheck.Context"), and the vocabulary (modalities, locks,
+-- coercions) follows the multimodal type theory of Gratzer, Kavvos, Nuyts,
+-- and Birkedal.
 module Rzk.Check.Modality
   ( TModality (..)
   , comp
