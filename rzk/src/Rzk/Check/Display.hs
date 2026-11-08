@@ -12,7 +12,8 @@
 -- display name per name in scope and a supply of fresh names for the
 -- binders the printer meets. A binder inside the term is freshened only
 -- against the names the term mentions, so a type shows the binder it was
--- written with.
+-- written with. This follows the display naming of the old checker
+-- ("Rzk.TypeCheck.Display").
 module Rzk.Check.Display
   ( Naming (..)
   , namingOfContext

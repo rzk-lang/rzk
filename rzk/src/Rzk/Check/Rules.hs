@@ -9,8 +9,8 @@
 -- | The typing rules: 'check' and 'infer' on raw terms, with types as
 -- values, producing core terms.
 --
--- The algorithm is Coquand's (/An algorithm for type-checking dependent
--- types/, 1996), in the form of free-foil-NBE's @DependentTypes.Elaborate@
+-- The algorithm is Coquand's bidirectional one (/An algorithm for
+-- type-checking dependent types/, 1996), in the form of free-foil-NBE's @DependentTypes.Elaborate@
 -- (Renata Shakirova and Nikolai Kudasov): a λ is checked against a Π
 -- value by entering its binder with the domain and checking the body
 -- against the codomain at the bound names; an inferred type is compared

@@ -8,7 +8,7 @@
 --
 -- A transcription of "Language.Rzk.Foil.Convert" onto the pattern binder: a
 -- pattern becomes a 'Pattern' with one fresh name per leaf, and the
--- environment maps each leaf to its name. A shape restriction becomes a
+-- environment maps each leaf to its name. The shape of a binder becomes a
 -- tope family, a λ over the same pattern with the tope as its body.
 module Rzk.Check.Convert
   ( SurfaceEnv
@@ -80,8 +80,8 @@ scopedAnon scope env body =
   Foil.withFresh scope $ \b ->
     ScopedAST (PatternVar Nothing b) (toRaw (Foil.extendScope b scope) (Foil.sink . env) body)
 
--- | A shape restriction as a tope family: a λ over the binder's pattern whose
--- body is the tope.
+-- | The shape of a binder as a tope family: a λ over the binder's pattern
+-- whose body is the tope.
 shapeOf :: Distinct n => Scope n -> Rzk.Pattern -> SurfaceEnv n -> Rzk.Term -> Raw n
 shapeOf scope pat env tope =
   rawNode (positionIn tope) (LambdaF Nothing (scoped scope pat env tope))

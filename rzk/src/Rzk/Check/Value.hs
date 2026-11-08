@@ -28,11 +28,10 @@
 -- normalisation by evaluation generic in the signature, conversion checking
 -- after Coquand (/An algorithm for type-checking dependent types/, 1996),
 -- the untyped η for surjective pairs of Abel and Coquand (2007), glued
--- evaluation and approximate conversion checking after Kovács' smalltt, and
+-- evaluation and approximate conversion checking after Kovács's smalltt, and
 -- subtyping as conversion with the direction in the context, as in Rocq's
 -- kernel and in Rzk's own unification. The rules follow the evaluator and
--- the unification of "Rzk.TypeCheck", and the fast path on free-foil-NBE
--- that preceded this checker.
+-- the unification of "Rzk.TypeCheck".
 module Rzk.Check.Value
   ( -- * Values
     Value

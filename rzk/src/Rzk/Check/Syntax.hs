@@ -28,7 +28,7 @@
 -- patterns, each leaf binding one name. A pair pattern binds its names
 -- directly, so no projection of a single variable stands for a component.
 --
--- A shape is a term: the restriction of a Π or of a λ over a cube is a tope
+-- A shape is a term: the shape of a Π or of a λ over a cube is a tope
 -- family @cube → TOPE@, applied to the bound point where it is assumed. So
 -- @(t : I | φ)@ holds the family @\\ t → φ@, and @(t : Δ¹)@ holds @Δ¹@.
 module Rzk.Check.Syntax
