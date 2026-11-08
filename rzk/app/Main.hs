@@ -60,7 +60,7 @@ instance ParseFields TypecheckOptions where
     <$> parseFields (Just "Allow unsolved holes: report each hole's goal and local context instead of failing") (Just "allow-holes") (Just 'H') Nothing
     <*> parseFields (Just "Output diagnostics (type errors and holes) as JSON on stdout") (Just "json") (Just 'j') Nothing
     <*> parseFields (Just "Enforce RSTT fragment checks throughout the run: warn, error, or off") (Just "rstt-safe") Nothing Nothing
-    <*> parseFields (Just "The checker to run: old (the default) or new") (Just "checker") Nothing Nothing
+    <*> parseFields (Just "The checker to run: classic (the default) or nbe") (Just "checker") Nothing Nothing
 
 data VersionOptions = VersionOptions
   { versionFull :: Bool
@@ -86,7 +86,7 @@ main = do
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
     Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckChecker = Just checker}) paths
-      | checker == "new" -> do
+      | checker == "nbe" -> do
       modules <- parseRzkFilesOrStdin paths
       let options = Check.defaultOptions
             { Check.optHoles = if allowHolesFlag then Check.HolesDeferred else Check.HolesAreErrors }
@@ -104,8 +104,8 @@ main = do
               exitFailure
 
     Typecheck (TypecheckOptions {typecheckChecker = Just checker}) _
-      | checker /= "old" -> do
-      putStrLn "Unknown --checker (use old or new)"
+      | checker /= "classic" -> do
+      putStrLn "Unknown --checker (use classic or nbe)"
       exitFailure
 
     Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag}) paths -> do
