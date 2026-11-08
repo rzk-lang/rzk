@@ -3,7 +3,7 @@ name: GHC (build, test, haddock)
 # Controls when the workflow will run
 on:
   push:
-    branches: [main, develop, release-v0.7.8-preparation]
+    branches: [main, develop, release-v0.7.8]
     tags: [v*]
     paths:
       - .github/workflows/ghcjs.yml
