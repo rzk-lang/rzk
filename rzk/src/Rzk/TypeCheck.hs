@@ -2557,7 +2557,17 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
             enterScope orig param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
-                return (lambdaT ty' orig (Just (param', mtope')) body')
+                -- As in rzk-lang/rzk#359, a concrete tope family carries its
+                -- declared domain, matching the domain conjunct in nfTope.
+                -- Test inclusion without assuming the domain itself.
+                body'' <- case (ret, mtope') of
+                  (UniverseTopeT{}, Just domain) -> do
+                    bodyNF <- nfT body'
+                    domainNF <- nfT domain
+                    included <- [bodyNF] `entailM` domainNF
+                    pure $ if included then body' else topeAndT domain body'
+                  _ -> pure body'
+                return (lambdaT ty' orig (Just (param', mtope')) body'')
 
           _ -> issueTypeError $ TypeErrorUnexpectedLambda term ty
 

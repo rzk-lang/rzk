@@ -19,6 +19,9 @@ license-file:   LICENSE
 build-type:     Custom
 extra-source-files:
     grammar/Syntax.cf
+    test/files/happy-tope-family-domain-instance.rzk
+    test/files/ill-tope-family-domain-non-instance.rzk
+    test/files/ill-tope-family-domain-same-domain.rzk
 extra-doc-files:
     README.md
     ChangeLog.md
@@ -167,6 +170,7 @@ test-suite rzk-test
   main-is: Spec.hs
   other-modules:
       Rzk.FormatSpec
+      Rzk.TypeCheckSpec
       Paths_rzk
   hs-source-dirs:
       test
