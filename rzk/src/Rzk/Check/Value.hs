@@ -171,7 +171,13 @@ instance HasDefinitions (Context d) Pattern Sig where
     Flex
       | x == y    -> TryFolded ctx Nothing
       | otherwise -> Unrelated
-    Full -> CompareUnfolded ctx
+    -- Two equal names are compared by their arguments first here too:
+    -- unfolding them again at every level would normalise a repeated
+    -- definition once per occurrence, exponentially in its nesting, where
+    -- the old checker compared spines on one definition by congruence.
+    Full
+      | x == y    -> TryFolded ctx { ctxApproximation = Flex } (Just ctx)
+      | otherwise -> CompareUnfolded ctx
   {-# INLINE contextUnfoldGlued #-}
   contextUnfoldGlued _ ctx _ _ = case ctxApproximation ctx of
     Flex -> Nothing
