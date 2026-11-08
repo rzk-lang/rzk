@@ -6,11 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## v0.7.8 — ????-??-??
+## v0.7.8 — 2026-11-08
 
-This is a bugfix release.
+This release preserves the checker used for the original paper artifact.
+The checker source is unchanged from commit `3b48d753`.
+Corrections for the revised submission are planned for v0.7.9.
 
-Fixes:
+Fixes since v0.7.7:
 
 - Respect the ambient variance in the asymmetric subtype checks:
   tope-family domains, the domain topes of `Π`- and extension types,
@@ -28,6 +30,9 @@ Fixes:
   expected. Some developments relied on the missing comparison in
   benign cases; the `sHoTT` library has been updated to annotate the
   affected identity types at their intended types.
+
+- Reject restriction faces disjoint from a consistent local tope context.
+  Faces that merely overhang the context remain accepted with a warning.
 
 ## v0.7.7 — 2025-11-04
 
