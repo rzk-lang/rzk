@@ -11,7 +11,7 @@
 -- environment maps each leaf to its name. A shape restriction becomes a
 -- tope family, a λ over the same pattern with the tope as its body.
 module Rzk.Check.Convert
-  ( Env
+  ( SurfaceEnv
   , toRaw
   , withPattern
   , desugarTuple
@@ -35,14 +35,14 @@ import           Rzk.Check.Syntax
 
 -- | What a surface identifier stands for in the current scope: a variable of
 -- the scope, or a term standing in for an identifier that is not in scope.
-type Env n = VarIdent -> Raw n
+type SurfaceEnv n = VarIdent -> Raw n
 
 -- | Enter a pattern: a fresh name per leaf, each mapped by the environment
 -- to its name, and the rest of the environment carried in by coercion.
 withPattern
   :: forall n r. Distinct n
-  => Scope n -> Rzk.Pattern -> Env n
-  -> (forall l. DExt n l => Pattern n l -> Scope l -> Env l -> r)
+  => Scope n -> Rzk.Pattern -> SurfaceEnv n
+  -> (forall l. DExt n l => Pattern n l -> Scope l -> SurfaceEnv l -> r)
   -> r
 withPattern scope pat env k = case pat of
   Rzk.PatternVar _loc (Rzk.VarIdent _ "_") ->
@@ -68,21 +68,21 @@ withPattern scope pat env k = case pat of
     withPattern scope (desugarTuple loc (reverse ps) p2 p1) env k
 
 -- | A pattern binder over a surface body.
-scoped :: Distinct n => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> ScopedRaw n
+scoped :: Distinct n => Scope n -> Rzk.Pattern -> SurfaceEnv n -> Rzk.Term -> ScopedRaw n
 scoped scope pat env body =
   withPattern scope pat env $ \pat' scope' env' ->
     ScopedAST pat' (toRaw scope' env' body)
 
 -- | An anonymous binder: the codomain of a non-dependent function type binds
 -- nothing.
-scopedAnon :: Distinct n => Scope n -> Env n -> Rzk.Term -> ScopedRaw n
+scopedAnon :: Distinct n => Scope n -> SurfaceEnv n -> Rzk.Term -> ScopedRaw n
 scopedAnon scope env body =
   Foil.withFresh scope $ \b ->
     ScopedAST (PatternVar Nothing b) (toRaw (Foil.extendScope b scope) (Foil.sink . env) body)
 
 -- | A shape restriction as a tope family: a λ over the binder's pattern whose
 -- body is the tope.
-shapeOf :: Distinct n => Scope n -> Rzk.Pattern -> Env n -> Rzk.Term -> Raw n
+shapeOf :: Distinct n => Scope n -> Rzk.Pattern -> SurfaceEnv n -> Rzk.Term -> Raw n
 shapeOf scope pat env tope =
   rawNode (positionIn tope) (LambdaF Nothing (scoped scope pat env tope))
 
@@ -90,7 +90,7 @@ positionIn :: Rzk.Term -> RzkPosition
 positionIn term = RzkPosition Nothing (Rzk.hasPosition term)
 
 -- | Translate a surface term.
-toRaw :: forall n. Distinct n => Scope n -> Env n -> Rzk.Term -> Raw n
+toRaw :: forall n. Distinct n => Scope n -> SurfaceEnv n -> Rzk.Term -> Raw n
 toRaw scope env = go
   where
     ppPosition Nothing = ""
@@ -322,7 +322,7 @@ toRaw scope env = go
     -- arm's scope holds the branch body.
     matchBranch (Rzk.MatchBranch _loc con pats body) = (varIdent con, arms scope env pats)
       where
-        arms :: forall m. Distinct m => Scope m -> Env m -> [Rzk.Pattern] -> Raw m
+        arms :: forall m. Distinct m => Scope m -> SurfaceEnv m -> [Rzk.Pattern] -> Raw m
         arms s e []       = toRaw s e body
         arms s e (p : ps) =
           node' (MatchArmF (withPattern s p e (\p' s' e' -> ScopedAST p' (arms s' e' ps))))
