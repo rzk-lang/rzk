@@ -111,6 +111,7 @@ extra-source-files:
     test/typecheck/cases/happy-tope-param.rzk
     test/typecheck/cases/happy-tope-rec-and-restrict.rzk
     test/typecheck/cases/happy-tope-shapes.rzk
+    test/typecheck/cases/happy-variance-conversion.rzk
     test/typecheck/cases/ill-bare-lambda-compute.rzk
     test/typecheck/cases/ill-bare-refl-compute.rzk
     test/typecheck/cases/ill-data-clash-generated.rzk
@@ -284,6 +285,12 @@ extra-source-files:
     test/typecheck/cases/ill-unify.rzk
     test/typecheck/cases/ill-unset-option-unknown.rzk
     test/typecheck/cases/ill-unused-assumption.rzk
+    test/typecheck/cases/ill-variance-all-equal.rzk
+    test/typecheck/cases/ill-variance-coherence-forward.rzk
+    test/typecheck/cases/ill-variance-coherence-reverse.rzk
+    test/typecheck/cases/ill-variance-id-endpoint.rzk
+    test/typecheck/cases/ill-variance-lambda-boundary.rzk
+    test/typecheck/cases/ill-variance-pair-boundary.rzk
     test/typecheck/cases/multimodule-first-error/bad.rzk
     test/typecheck/cases/multimodule-first-error/lib.rzk
     test/typecheck/cases/multimodule-two-ok/lib.rzk
@@ -406,6 +413,7 @@ extra-source-files:
     test/typecheck/cases/happy-tope-param.expect.yaml
     test/typecheck/cases/happy-tope-rec-and-restrict.expect.yaml
     test/typecheck/cases/happy-tope-shapes.expect.yaml
+    test/typecheck/cases/happy-variance-conversion.expect.yaml
     test/typecheck/cases/ill-bare-lambda-compute.expect.yaml
     test/typecheck/cases/ill-bare-refl-compute.expect.yaml
     test/typecheck/cases/ill-data-clash-generated.expect.yaml
@@ -579,6 +587,12 @@ extra-source-files:
     test/typecheck/cases/ill-unify.expect.yaml
     test/typecheck/cases/ill-unset-option-unknown.expect.yaml
     test/typecheck/cases/ill-unused-assumption.expect.yaml
+    test/typecheck/cases/ill-variance-all-equal.expect.yaml
+    test/typecheck/cases/ill-variance-coherence-forward.expect.yaml
+    test/typecheck/cases/ill-variance-coherence-reverse.expect.yaml
+    test/typecheck/cases/ill-variance-id-endpoint.expect.yaml
+    test/typecheck/cases/ill-variance-lambda-boundary.expect.yaml
+    test/typecheck/cases/ill-variance-pair-boundary.expect.yaml
     test/typecheck/cases/uses-whnf-discarded.expect.yaml
     test/typecheck/cases/uses-whnf-masked-transitive.expect.yaml
     test/typecheck/cases/warn-free-standing-restriction-assumed.expect.yaml

@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A type-valued function must agree with its restriction boundary by conversion.
+#def bad-function (A : U) (a : A)
+  : (Unit → U) [TOP ↦ (\ _ → A)]
+  := \ _ → A [TOP ↦ a]

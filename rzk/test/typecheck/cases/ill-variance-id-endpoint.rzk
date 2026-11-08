@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- Identity endpoints must agree by conversion, not merely subtyping.
+#def leak (A : U) (a : A) (p : A [TOP ↦ a] =_{U} A [TOP ↦ a])
+  : A =_{U} A [TOP ↦ a]
+  := p
