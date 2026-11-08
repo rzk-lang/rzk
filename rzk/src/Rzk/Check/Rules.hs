@@ -159,7 +159,7 @@ classifyType scope ctx ty = case force (stripRestrictions ty) of
           Just _  -> True
           Nothing -> isCube scope ctx dom
         inner = underFreshVar scope ctx md dom mshape $ \scope' ctx' x ->
-          classifyType scope' ctx' (codomainAt scope' ctx' (Foil.sink env) ret x)
+          classifyType scope' ctx' (codomainAt scope' ctx' (Foil.sink env) ret (NbE.vvar x))
     in case inner of
          DomainTopeUniverse | cubeDom -> DomainTopeFamily
                             | otherwise -> DomainOtherTopeFamily

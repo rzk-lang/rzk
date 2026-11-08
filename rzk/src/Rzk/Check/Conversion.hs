@@ -122,11 +122,8 @@ explain mterm variance expected actual = do
       compareWith Nothing (opposite variance) cubeE cubeA
       case (mshapeE, mshapeA) of
         (Nothing, Nothing) -> pure ()
-        (Just sE, Just sA) -> Foil.withFresh scope $ \b -> do
-          let pat = singlePattern b
-              scope' = Foil.extendScopePattern pat scope
-              ctx' = underPattern scope' ctx md cubeA Nothing pat
-              x = patternValue pat
+        (Just sE, Just sA) -> underFreshVar scope ctx md cubeA Nothing $ \scope' ctx' name -> do
+          let x = NbE.vvar name
               tE = topeOf scope' ctx' (appValue scope' ctx' (Foil.sink sE) x)
               tA = topeOf scope' ctx' (appValue scope' ctx' (Foil.sink sA) x)
               topes = ctxTopes ctx'
@@ -143,14 +140,11 @@ explain mterm variance expected actual = do
     -- a function is a subtype of another when its applications are
     (VPi (Pi envE md domE mshapeE retE), VPi (Pi envA md' domA mshapeA retA)) | md == md' -> do
       compareWith Nothing (opposite variance) domE domA
-      Foil.withFresh scope $ \b -> do
-        let pat = singlePattern b
-            scope' = Foil.extendScopePattern pat scope
-            ctx' = underPattern scope' ctx md domA Nothing pat
-            x = patternValue pat
+      underFreshVar scope ctx md domA Nothing $ \scope' ctx' name -> do
+        let x = NbE.vvar name
             codE = codomainAt scope' ctx' (Foil.sink envE) retE x
             codA = codomainAt scope' ctx' (Foil.sink envA) retA x
-            mterm' = fmap (\term -> App (Foil.sink term) (Var (Foil.nameOf b))) mterm
+            mterm' = fmap (\term -> App (Foil.sink term) (Var name)) mterm
         inContext ctx' $ do
           -- the shapes: the expected one entails the actual one, as the
           -- domain is contravariant

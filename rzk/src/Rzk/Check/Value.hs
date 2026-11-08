@@ -804,15 +804,15 @@ assumeShapeAt scope' pat mshape ctx = case mshape of
   Just shape -> assumeValue scope' ctx (appValue scope' ctx (Foil.sink shape) (patternValue pat))
 
 -- | The context under one fresh name of a type: the scope, the context
--- with the name's entry, and the name as a value.
+-- with the name's entry, and the name.
 underFreshVar
   :: Distinct n
   => Scope n -> Context d n -> TModality -> Value n -> Maybe (Value n)
-  -> (forall l. DExt n l => Scope l -> Context d l -> Value l -> r) -> r
+  -> (forall l. (DExt n l, Distinct l) => Scope l -> Context d l -> Foil.Name l -> r) -> r
 underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
   let pat = singlePattern b
       scope' = Foil.extendScopePattern pat scope
-  in k scope' (underPattern scope' ctx md ty mshape pat) (NbE.vvar (Foil.nameOf b))
+  in k scope' (underPattern scope' ctx md ty mshape pat) (Foil.nameOf b)
 
 -- | Does a value stand for a cube: by its head, or by the sort of the
 -- entry at its head?
