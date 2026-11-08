@@ -14,7 +14,6 @@ module Rzk.Check.Convert
   ( SurfaceEnv
   , toRaw
   , withPattern
-  , desugarTuple
   ) where
 
 import           Control.Monad.Foil       (DExt, Distinct, Scope)
@@ -25,7 +24,7 @@ import           Data.Functor             (void)
 import           Debug.Trace              (trace)
 
 import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
-                                           VarIdent, desugarTuple, flattenBinderApp,
+                                           VarIdent, flattenBinderApp,
                                            holeName, modalColonToTModality,
                                            patternToTerm, sigmaParamToTypeSigma,
                                            toModality, unsafeTermToPattern,
@@ -65,7 +64,12 @@ withPattern scope pat env k = case pat of
         in case (Foil.assertExt pat', Foil.assertDistinct pat') of
              (Foil.Ext, Foil.Distinct) -> k pat' scope'' env''
   Rzk.PatternTuple loc p1 p2 ps ->
-    withPattern scope (desugarTuple loc (reverse ps) p2 p1) env k
+    withPattern scope (tuplePattern loc (Rzk.PatternPair loc p1 p2) ps) env k
+  where
+    -- a tuple pattern is a pair nested to the left: (((p1, p2), p3), p4)
+    tuplePattern loc acc = \case
+      []      -> acc
+      p : ps' -> tuplePattern loc (Rzk.PatternPair loc acc p) ps'
 
 -- | A pattern binder over a surface body.
 scoped :: Distinct n => Scope n -> Rzk.Pattern -> SurfaceEnv n -> Rzk.Term -> ScopedRaw n

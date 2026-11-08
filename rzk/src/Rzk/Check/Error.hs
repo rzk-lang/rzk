@@ -252,7 +252,7 @@ ppContext ctx = intercalate "\n" $ filter (not . null)
       | action <- reverse (diagActions (ctxDiag ctx)) ]
   , intercalate "\n" $ "Definitions in context:" :
       [ "  " <> ppName naming name <> " : " <> ppValueIn ctx (entryType entry)
-      | (name, entry) <- reverse (entriesInScope ctx) ]
+      | name <- ctxBound ctx, let entry = lookupEntry name ctx ]
   ]
   where
     naming = namingOfContext ctx
