@@ -180,6 +180,19 @@ addParams :: [Rzk.Param] -> Rzk.Term -> Rzk.Term
 addParams []     = id
 addParams params = Rzk.Lambda Nothing params
 
+-- | The type of a declaration with its parameters, checked: the names it
+-- says it uses, the type as elaborated, and as a value.
+checkDeclType
+  :: (Checking m, Distinct n)
+  => Maybe FilePath -> [Rzk.VarIdent] -> [Rzk.Param] -> Rzk.Term
+  -> m n ([Foil.Name n], Core n, Value n)
+checkDeclType path vars params ty = do
+  used <- usedNames path vars
+  paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
+  tyTerm <- elaborate (addParamDecls paramDecls ty)
+  ty' <- atSurface ty $ check tyTerm universe
+  (used, ty',) <$> evalM ty'
+
 setOption :: (Checking m, Distinct n) => String -> String -> m n a -> m n a
 setOption name value = case (name, value) of
   ("verbosity", "debug")  -> withOptions (\o -> o { optVerbosity = Debug })
@@ -272,12 +285,7 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : more ->
     announce (" Checking #define " <> Rzk.printTree name) $ atCommand command $ do
-      typeResult <- attempt $ do
-        used <- usedNames path vars
-        paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
-        tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- atSurface ty $ check tyTerm universe
-        (used, ty',) <$> evalM ty'
+      typeResult <- attempt $ checkDeclType path vars params ty
       case typeResult of
         Left err -> skipping err path i total more k
         Right (used, tyC, tyV) -> do
@@ -306,12 +314,7 @@ checkCommands path i total commands k = case commands of
 
   command@(Rzk.CommandPostulate _loc name (Rzk.DeclUsedVars _ vars) params ty) : more ->
     announce (" Checking #postulate " <> Rzk.printTree name) $ atCommand command $ do
-      typeResult <- attempt $ do
-        used <- usedNames path vars
-        paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
-        tyTerm <- elaborate (addParamDecls paramDecls ty)
-        ty' <- atSurface ty $ check tyTerm universe
-        (used, ty',) <$> evalM ty'
+      typeResult <- attempt $ checkDeclType path vars params ty
       case typeResult of
         Left err -> skipping err path i total more k
         Right (used, tyC, tyV) ->
