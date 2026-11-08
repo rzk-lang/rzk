@@ -93,6 +93,41 @@ underRawScope md dom mshape (ScopedAST pat body) k = do
           ctx' = underPattern scope' ctx md dom mshape pat'
       in inContext ctx' (k pat' body')
 
+-- | Check a λ parameter written with a shape, @(t : cube | shape)@, against
+-- the expected domain and, if there is one, the expected shape: the cube
+-- and the shape, as values.
+checkShapedParam
+  :: (Checking m, Distinct n)
+  => Value n -> Maybe (Value n) -> Raw n -> Raw n -> m n (Value n, Value n)
+checkShapedParam dom mexpectedShape param shape = do
+  cube <- check param cubeUniverse
+  cubeV <- evalM cube
+  convertTypes dom cubeV
+  shape' <- check shape (familyType Id cubeV Nothing)
+  shapeV <- evalM shape'
+  forM_ mexpectedShape $ \s -> convertTypes s shapeV
+  pure (cubeV, shapeV)
+
+-- | A tope family over a shape carries its domain: the body of the family
+-- becomes the conjunction of the shape at the pattern and the body, unless
+-- the body already entails the shape, with a warning.
+carryFamilyDomain
+  :: (Checking m, DExt n l)
+  => Pattern n l -> Value n -> Core l -> m l (Core l)
+carryFamilyDomain pat shape body = do
+  ctx <- askContext
+  let scope = ctxScope ctx
+  bodyV <- evalM body
+  let domainV = appValue scope ctx (Foil.sink shape) (patternValue pat)
+      bodyT = topeOf scope ctx bodyV
+      domainT = topeOf scope ctx domainV
+  if topesEntail (ctxTopes ctx) [bodyT] domainT then pure body else do
+    warn <- asksContext (optWarnTopeFamilyDomain . ctxOptions)
+    when warn $ recordWarning WarnTopeFamilyDomain $ \c ->
+      TopeFamilyDomainWarning (ppValueIn c bodyV) (ppValueIn c domainV) (ctxLocation c)
+    domainC <- quoteM domainV
+    pure (TopeAnd domainC body)
+
 -- | Warn about each name of a binder that shadows a name in scope, as the
 -- old checker did with a trace.
 warnShadowing :: (Checking m, Distinct n) => Pattern n l -> m n ()
@@ -335,32 +370,13 @@ check term ty = performing (ActionCheck term ty) $ case term of
                 case familyOf paramTy of
                   Just (Family _ cube _) -> convertTypes cube' cube >> pure cube
                   Nothing -> convertTypes cube' paramV >> pure paramV
-              Just shape -> do
-                cube'' <- check param cubeUniverse
-                cubeV <- evalM cube''
-                convertTypes cube' cubeV
-                shape' <- check shape (familyType Id cubeV Nothing)
-                shapeV <- evalM shape'
-                forM_ mshape' $ \s' -> convertTypes s' shapeV
-                pure cubeV
+              Just shape -> fst <$> checkShapedParam cube' mshape' param shape
             pure (Param md cubeV mshape')
           let mshapeAssumed = maybe mshape' paramShape mparam'
           body' <- underRawScope md' cube' mshapeAssumed body $ \pat bodyTerm -> do
-            ctxIn <- askContext
-            let scopeIn = ctxScope ctxIn
             bodyIn <- check bodyTerm topeUniverse
             bodyIn' <- case mshapeAssumed of
-              Just shape -> do
-                bodyV <- evalM bodyIn
-                let domainV = appValue scopeIn ctxIn (Foil.sink shape) (patternValue pat)
-                    bodyT = topeOf scopeIn ctxIn bodyV
-                    domainT = topeOf scopeIn ctxIn domainV
-                if topesEntail (ctxTopes ctxIn) [bodyT] domainT then pure bodyIn else do
-                  warn <- asksContext (optWarnTopeFamilyDomain . ctxOptions)
-                  when warn $ recordWarning WarnTopeFamilyDomain $ \c ->
-                    TopeFamilyDomainWarning (ppValueIn c bodyV) (ppValueIn c domainV) (ctxLocation c)
-                  domainC <- quoteM domainV
-                  pure (TopeAnd domainC bodyIn)
+              Just shape -> carryFamilyDomain pat shape bodyIn
               Nothing -> pure bodyIn
             pure (ScopedAST pat bodyIn')
           cubeC <- quoteM cube'
@@ -392,12 +408,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
                       convertTypes dom' paramV
                       pure (Param md paramV (withTopShape scope ctx paramV Nothing))
                 Just shape -> do
-                  cube' <- check param cubeUniverse
-                  cubeV <- evalM cube'
-                  convertTypes dom' cubeV
-                  shape' <- check shape (familyType Id cubeV Nothing)
-                  shapeV <- evalM shape'
-                  forM_ mshape' $ \s' -> convertTypes s' shapeV
+                  (cubeV, shapeV) <- checkShapedParam dom' mshape' param shape
                   pure (Param md cubeV (Just shapeV))
             let mshapeAssumed = case mparam' of
                   Just (Param _ _ (Just s)) -> Just s
@@ -411,17 +422,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
               -- domain: its body becomes the conjunction, unless the body
               -- already entails the domain
               bodyIn' <- case (force retIn, mshapeAssumed) of
-                (NbE.VNode UniverseTopeF, Just shape) -> do
-                  bodyV <- evalM bodyIn
-                  let domainV = appValue scopeIn ctxIn (Foil.sink shape) (patternValue pat)
-                      bodyT = topeOf scopeIn ctxIn bodyV
-                      domainT = topeOf scopeIn ctxIn domainV
-                  if topesEntail (ctxTopes ctxIn) [bodyT] domainT then pure bodyIn else do
-                    warn <- asksContext (optWarnTopeFamilyDomain . ctxOptions)
-                    when warn $ recordWarning WarnTopeFamilyDomain $ \c ->
-                      TopeFamilyDomainWarning (ppValueIn c bodyV) (ppValueIn c domainV) (ctxLocation c)
-                    domainC <- quoteM domainV
-                    pure (TopeAnd domainC bodyIn)
+                (NbE.VNode UniverseTopeF, Just shape) -> carryFamilyDomain pat shape bodyIn
                 _ -> pure bodyIn
               pure (ScopedAST pat bodyIn')
             domC <- quoteM dom'
