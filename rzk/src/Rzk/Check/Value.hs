@@ -103,7 +103,6 @@ module Rzk.Check.Value
   , valueHasHole
   ) where
 
-import           Control.Applicative         ((<|>))
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
@@ -515,43 +514,25 @@ spineHead v = case NbE.force v of
   _ -> Nothing
 
 -- | Refine a neutral by its type: a restriction whose tope the context
--- entails gives its term; the unit type gives unit. The spine is walked
--- from its head, since a restriction may be on the type of a prefix: in
--- @g t x@ with @g : (t : ψ) → (X → A) [ϕ t ↦ f t]@, it is @g t@ that is
--- @f t@ under @ϕ t@. The spine is read as it computes, through
--- definitions, and includes the path of a path induction, so that @ap f p@
--- computes once @p@ is @refl@. A refined prefix gets the rest of the spine
--- again by evaluation. The result, like the term of a restriction, is refined in
--- turn, since it may be a neutral restricted further (a component of a
--- pair restricted under a smaller tope).
+-- entails gives its term; the unit type gives unit. The type of a neutral
+-- carries the restrictions of the types of the prefixes of its spine (see
+-- 'neutralType'): in @g t x@ with @g : (t : ψ) → (X → A) [ϕ t ↦ f t]@, it
+-- is @g t@ that is @f t@ under @ϕ t@, so @g t x@ is @f t x@. The result,
+-- like the term of a restriction, is refined in turn, since it may be a
+-- neutral restricted further (a component of a pair restricted under a
+-- smaller tope).
 refineNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Value n
 refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 
--- | A neutral refined by its type or the type of a prefix of its spine, or
--- 'Nothing' if neither has a restriction the context entails.
+-- | A neutral refined by its type, or 'Nothing' if the type has no
+-- restriction the context entails and is not unit.
 refinedNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
-refinedNeutral scope ctx value =
-  walk NbE.forceFolded value <|> walk NbE.force value
-  where
-    -- The spine as written, where a prefix headed by a definition has its
-    -- declared type, or the spine as it computes, through definitions. Each
-    -- walk stays in its view: walking both views at every level would
-    -- repeat the walk below, exponentially in the length of the spine.
-    walk view v = viaPrefix view (view v) <|> byOwnType v
-    viaPrefix view = \case
-      NbE.VNode (AppF f a)  -> again view (\f' -> appValue scope ctx f' a) f
-      NbE.VNode (FirstF p)  -> again view firstValue p
-      NbE.VNode (SecondF p) -> again view secondValue p
-      NbE.VNode (IdJF tA a tC d x p) -> again view (idJValue tA a tC d x) p
-      _                     -> Nothing
-    again view eliminate prefix =
-      refineNeutral scope ctx . eliminate <$> walk view prefix
-    byOwnType v = do
-      ty <- neutralType scope ctx v
-      case NbE.force ty of
-        NbE.VNode TypeUnitF -> Just vunit
-        _ -> refineNeutral scope ctx <$>
-               listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
+refinedNeutral scope ctx value = do
+  ty <- neutralType scope ctx value
+  case NbE.force (stripRestrictions ty) of
+    NbE.VNode TypeUnitF -> Just vunit
+    _ -> refineNeutral scope ctx <$>
+           listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
 
 -- * Evaluation and readback
 
@@ -833,7 +814,7 @@ underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
 -- entry at its head?
 isCube :: Distinct n => Scope n -> Context d n -> Value n -> Bool
 isCube scope ctx v = cubeOfType v /= KOther || case neutralType scope ctx v of
-  Just s | NbE.VNode UniverseCubeF <- NbE.force s -> True
+  Just s | NbE.VNode UniverseCubeF <- NbE.force (stripRestrictions s) -> True
   _ -> False
 
 -- | The shape of a binder over a cube with no restriction: the family
@@ -982,7 +963,7 @@ pointOf scope ctx v = case NbE.force v of
 
 -- | A cube value, as far as the solver tells cubes apart.
 cubeOfType :: Value n -> Cube
-cubeOfType v = case NbE.force v of
+cubeOfType v = case NbE.force (stripRestrictions v) of
   NbE.VNode CubeUnitF -> KUnit
   NbE.VNode Cube2F -> K2
   NbE.VNode CubeIF -> KI
@@ -1005,7 +986,10 @@ fingerprint (Node sig) =
 -- | The type of a neutral, read off its head and its eliminations: an
 -- application has the codomain of its function's type at the argument, a
 -- projection the component of the pair's Σ type, a path induction the
--- motive at its endpoints. A glued head keeps its declared type.
+-- motive at its endpoints. A glued head keeps its declared type. An
+-- elimination of a neutral whose type is restricted is restricted by the
+-- same elimination of the terms: under @ϕ@, a neutral @f : (X → A) [ϕ ↦ g]@
+-- is @g@, so @f a : A [ϕ ↦ g a]@.
 neutralType :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
@@ -1015,21 +999,27 @@ neutralType scope ctx v = case NbE.forceFolded v of
       Just _ -> Just topeUniverse
       Nothing -> do
         Pi env _ _ _ ret <- piOf fTy
-        Just (codomainAt scope ctx env ret a)
+        Just (inherit fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a))
   NbE.VNode (FirstF p) -> do
     ty <- neutralType scope ctx p
-    case NbE.force (stripRestrictions ty) of
+    inherit ty firstValue <$> case NbE.force (stripRestrictions ty) of
       NbE.VSuspended _ (TypeSigmaF _ a _) -> Just a
       NbE.VNode (CubeProductF a _) -> Just a
       _ -> Nothing
   NbE.VNode (SecondF p) -> do
     ty <- neutralType scope ctx p
-    case NbE.force (stripRestrictions ty) of
+    inherit ty secondValue <$> case NbE.force (stripRestrictions ty) of
       NbE.VSuspended env (TypeSigmaF _ _ b) -> Just (codomainAt scope ctx env b (firstValue p))
       NbE.VNode (CubeProductF _ b) -> Just b
       _ -> Nothing
-  NbE.VNode (IdJF _ _ tC _ x p) -> Just (appValue scope ctx (appValue scope ctx tC x) p)
+  NbE.VNode (IdJF tA a tC d x p) ->
+    let motive = appValue scope ctx (appValue scope ctx tC x) p
+    in Just (maybe motive (\ty -> inherit ty (idJValue tA a tC d x) motive) (neutralType scope ctx p))
   _ -> Nothing
+  where
+    inherit from eliminate ty = case restrictionsOf from of
+      [] -> ty
+      rs -> NbE.vnode (TypeRestrictedF ty [ (tope, eliminate t) | (tope, t) <- rs ])
 
 -- | What evaluation needs to know about a type: whether a neutral of it may
 -- reduce by a restriction (of the type, or of a codomain or a component of

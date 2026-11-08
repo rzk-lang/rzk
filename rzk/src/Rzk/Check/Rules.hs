@@ -565,7 +565,7 @@ sortOf ty = do
     NbE.VNode UniverseTopeF -> universe
     _ | cubeOfType ty /= KOther -> cubeUniverse
     _ -> case neutralType (ctxScope ctx) ctx ty of
-      Just s -> s
+      Just s -> stripRestrictions s
       Nothing -> universe
 
 -- | Infer a cube point used by @≡@. A bare hole here has an unknown cube.
