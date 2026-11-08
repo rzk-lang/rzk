@@ -51,6 +51,7 @@ extra-source-files:
     test/typecheck/cases/happy-ext-style-restrictions.rzk
     test/typecheck/cases/happy-face-terms-under-face.rzk
     test/typecheck/cases/happy-flip-unflip.rzk
+    test/typecheck/cases/happy-glued-equal-names-after-unfolding.rzk
     test/typecheck/cases/happy-interval-basics.rzk
     test/typecheck/cases/happy-interval-endpoint-entailment.rzk
     test/typecheck/cases/happy-interval-subtyping.rzk
@@ -357,6 +358,7 @@ extra-source-files:
     test/typecheck/cases/happy-ext-style-restrictions.expect.yaml
     test/typecheck/cases/happy-face-terms-under-face.expect.yaml
     test/typecheck/cases/happy-flip-unflip.expect.yaml
+    test/typecheck/cases/happy-glued-equal-names-after-unfolding.expect.yaml
     test/typecheck/cases/happy-interval-basics.expect.yaml
     test/typecheck/cases/happy-interval-endpoint-entailment.expect.yaml
     test/typecheck/cases/happy-interval-subtyping.expect.yaml
