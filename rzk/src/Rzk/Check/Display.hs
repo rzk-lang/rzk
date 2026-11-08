@@ -56,7 +56,7 @@ data Naming n = Naming
 -- if an outer one has taken it; an anonymous one draws from the supply.
 -- Entries are named oldest binding first, so an outer binder keeps its
 -- name and an inner one is refreshed away from it.
-namingOfContext :: Context d n -> Naming n
+namingOfContext :: Context n -> Naming n
 namingOfContext ctx = Naming
   { namingOf = NameMap (IntMap.fromList entries)
   , namingUsed = used
@@ -95,10 +95,10 @@ ppCore :: Naming n -> Core n -> String
 ppCore naming = Rzk.printTree . renderCore naming
 
 -- | A value shown to the user: read back with defined names folded.
-ppValue :: Distinct n => Scope n -> Context d n -> Value n -> String
+ppValue :: Distinct n => Scope n -> Context n -> Value n -> String
 ppValue scope ctx = ppCore (namingOfContext ctx) . quoteFolded scope ctx
 
-ppValueIn :: Distinct n => Context d n -> Value n -> String
+ppValueIn :: Distinct n => Context n -> Value n -> String
 ppValueIn ctx = ppValue (ctxScope ctx) ctx
 
 -- | The printer proper: the names in use (which a binder must avoid), the

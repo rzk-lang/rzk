@@ -37,7 +37,7 @@ import           Rzk.Check.Topes
 
 -- | The checker's monad.
 newtype Check n a = Check
-  { unCheck :: Context Diag n -> CheckLog -> (Either ErrorInContext a, CheckLog) }
+  { unCheck :: Context n -> CheckLog -> (Either ErrorInContext a, CheckLog) }
 
 instance Functor (Check n) where
   fmap f (Check m) = Check $ \ctx l -> case m ctx l of
@@ -71,7 +71,7 @@ data CheckLog = CheckLog
 emptyCheckLog :: CheckLog
 emptyCheckLog = CheckLog [] []
 
-runCheck :: Context Diag n -> Check n a -> (Either ErrorInContext a, CheckLog)
+runCheck :: Context n -> Check n a -> (Either ErrorInContext a, CheckLog)
 runCheck ctx (Check m) = m ctx emptyCheckLog
 
 -- | The depth of nested judgements at which checking gives up: the cap
@@ -79,16 +79,16 @@ runCheck ctx (Check m) = m ctx emptyCheckLog
 maxDepth :: Int
 maxDepth = 1000
 
-askContext :: Check n (Context Diag n)
+askContext :: Check n (Context n)
 askContext = Check $ \ctx l -> (Right ctx, l)
 {-# INLINE askContext #-}
 
 -- | Run a judgement in another scope's context.
-inContext :: Context Diag l -> Check l a -> Check n a
+inContext :: Context l -> Check l a -> Check n a
 inContext ctx (Check m) = Check $ \_ l -> m ctx l
 {-# INLINE inContext #-}
 
-localContext :: (Context Diag n -> Context Diag n) -> Check n a -> Check n a
+localContext :: (Context n -> Context n) -> Check n a -> Check n a
 localContext f (Check m) = Check $ \ctx l -> m (f ctx) l
 {-# INLINE localContext #-}
 
@@ -122,14 +122,14 @@ performing action (Check m) = Check $ \ctx l ->
 {-# INLINE performing #-}
 
 -- | Record a warning, rendered from the context, once.
-recordWarning :: (Context Diag n -> Warning) -> Check n ()
+recordWarning :: (Context n -> Warning) -> Check n ()
 recordWarning render = Check $ \ctx l ->
   let w = render ctx
   in (Right (), if w `elem` logWarnings l then l else l { logWarnings = w : logWarnings l })
 {-# INLINE recordWarning #-}
 
 -- | Record a hole, rendered from the context.
-recordHole :: (Context Diag n -> HoleInfo) -> Check n ()
+recordHole :: (Context n -> HoleInfo) -> Check n ()
 recordHole render = Check $ \ctx l -> (Right (), l { logHoles = render ctx : logHoles l })
 {-# INLINE recordHole #-}
 
@@ -143,7 +143,7 @@ narrowLocation action loc = case action of
 
 -- * Helpers
 
-asksContext :: (Context Diag n -> a) -> Check n a
+asksContext :: (Context n -> a) -> Check n a
 asksContext f = f <$> askContext
 {-# INLINE asksContext #-}
 

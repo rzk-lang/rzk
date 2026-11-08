@@ -51,11 +51,10 @@ module Rzk.Check.Context
   , withVariance
   ) where
 
-import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope, S)
+import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import qualified Data.IntMap                 as IntMap
-import           Data.Kind                   (Type)
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
 import           Unsafe.Coerce               (unsafeCoerce)
@@ -224,7 +223,7 @@ emptyDiag = Diag [] 0
 
 -- * The context
 
-data Context (d :: S -> Type) n = Context
+data Context n = Context
   { ctxScope         :: Scope n
   , ctxEntries       :: NameMap n (Entry n)
     -- ^ total on 'ctxScope'
@@ -241,11 +240,11 @@ data Context (d :: S -> Type) n = Context
   , ctxLocation      :: Maybe LocationInfo
   , ctxSections      :: [Section n]
     -- ^ the open sections, innermost first
-  , ctxDiag          :: d n
+  , ctxDiag          :: Diag n
   }
 
-emptyContext :: d Foil.VoidS -> Context d Foil.VoidS
-emptyContext diag = Context
+emptyContext :: Context Foil.VoidS
+emptyContext = Context
   { ctxScope = Foil.emptyScope
   , ctxEntries = Foil.emptyNameMap
   , ctxNamed = Map.empty
@@ -257,32 +256,32 @@ emptyContext diag = Context
   , ctxOptions = defaultOptions
   , ctxLocation = Nothing
   , ctxSections = []
-  , ctxDiag = diag
+  , ctxDiag = emptyDiag
   }
 
 -- | What a name stands for. Total: every name in scope has an entry.
-lookupEntry :: Foil.Name n -> Context d n -> Entry n
+lookupEntry :: Foil.Name n -> Context n -> Entry n
 lookupEntry name ctx = Foil.lookupName name (ctxEntries ctx)
 
-lookupNamed :: VarIdent -> Context d n -> Maybe (Foil.Name n)
+lookupNamed :: VarIdent -> Context n -> Maybe (Foil.Name n)
 lookupNamed name ctx = Map.lookup name (ctxNamed ctx)
 
 -- | Every entry in scope, oldest binding first.
-entriesInScope :: Context d n -> [(Foil.Name n, Entry n)]
+entriesInScope :: Context n -> [(Foil.Name n, Entry n)]
 entriesInScope ctx = [ (name, lookupEntry name ctx) | name <- reverse (ctxBound ctx) ]
 
 -- | Sink a context along a scope extension. Unsound on its own: the scope
 -- and the entries still describe the old scope, so the caller must extend
 -- both, as 'enterPattern' does. Everything else in the context mentions
 -- the scope only through values and names, which sink by coercion.
-sinkContextUnchecked :: DExt n l => Context d n -> Context d l
+sinkContextUnchecked :: DExt n l => Context n -> Context l
 sinkContextUnchecked = unsafeCoerce
 
 -- | Enter the scope of a pattern: extend the scope with its names and
 -- record an entry for each, in binding order.
 enterPattern
   :: (Distinct n, DExt n l)
-  => Pattern n l -> [Entry l] -> Context d n -> Context d l
+  => Pattern n l -> [Entry l] -> Context n -> Context l
 enterPattern pat entries ctx = (sinkContextUnchecked ctx)
   { ctxScope = Foil.extendScopePattern pat (ctxScope ctx)
   , ctxEntries = NameMap (foldr insert old (zip names entries))
@@ -303,9 +302,9 @@ sinkNamed :: DExt n l => Map VarIdent (Foil.Name n) -> Map VarIdent (Foil.Name l
 sinkNamed = Foil.sink1
 
 -- | Replace what a name stands for.
-insertEntry :: Foil.Name n -> Entry n -> Context d n -> Context d n
+insertEntry :: Foil.Name n -> Entry n -> Context n -> Context n
 insertEntry name entry ctx = ctx { ctxEntries = NameMap (IntMap.insert (Foil.nameId name) entry m) }
   where NameMap m = ctxEntries ctx
 
-withVariance :: Variance -> Context d n -> Context d n
+withVariance :: Variance -> Context n -> Context n
 withVariance v ctx = ctx { ctxVariance = v }

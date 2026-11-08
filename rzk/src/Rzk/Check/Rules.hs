@@ -73,7 +73,7 @@ quoteM v = asksContext $ \ctx -> quoteFolded (ctxScope ctx) ctx v
 -- run the continuation on the body.
 enterRawScope
   :: forall n r. (Distinct n)
-  => (forall l. (Distinct l, DExt n l) => Foil.Scope l -> Pattern n l -> Context Diag n -> Context Diag l)
+  => (forall l. (Distinct l, DExt n l) => Foil.Scope l -> Pattern n l -> Context n -> Context l)
   -> ScopedRaw n
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l r)
   -> Check n r
@@ -166,7 +166,7 @@ familyShape scope cube family mdom = case mdom of
         (TopeAnd (App (Foil.sink dom) (Var (Foil.nameOf b))) (App (Foil.sink family) (Var (Foil.nameOf b)))))
 
 -- | A binder over a cube has a shape: ⊤ when none is written.
-withTopShape :: Distinct n => Foil.Scope n -> Context d n -> Value n -> Maybe (Value n) -> Maybe (Value n)
+withTopShape :: Distinct n => Foil.Scope n -> Context n -> Value n -> Maybe (Value n) -> Maybe (Value n)
 withTopShape scope ctx dom = \case
   Nothing | isCube scope ctx dom -> Just (topShapeValue scope dom)
   mshape -> mshape
@@ -186,7 +186,7 @@ data DomainKind
   deriving (Eq, Show)
 
 -- | Classify a type value.
-classifyType :: Distinct n => Foil.Scope n -> Context d n -> Value n -> DomainKind
+classifyType :: Distinct n => Foil.Scope n -> Context n -> Value n -> DomainKind
 classifyType scope ctx ty = case force (stripRestrictions ty) of
   NbE.VNode UniverseCubeF -> DomainCubeUniverse
   NbE.VNode UniverseTopeF -> DomainTopeUniverse

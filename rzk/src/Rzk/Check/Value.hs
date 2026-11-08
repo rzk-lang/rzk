@@ -132,7 +132,7 @@ deriving instance Show (Sig () ())
 -- * The library's hooks
 
 -- | A defined name is glued to its value; any other name is a neutral.
-instance HasDefinitions (Context d) Pattern Sig where
+instance HasDefinitions Context Pattern Sig where
   {-# INLINE contextDefinition #-}
   contextDefinition _ ctx x = case entryValue (lookupEntry x ctx) of
     Just value -> NbE.vglued x value
@@ -174,13 +174,13 @@ instance HasHeads Sig where
     node               -> bimap id other node
 
 {-# SPECIALIZE NbE.eval ::
-      (Distinct o, Distinct i) => Scope o -> Context d o -> Env i o -> Core i -> Value o #-}
-{-# SPECIALIZE NbE.quote :: Distinct n => Scope n -> Context d n -> Value n -> Core n #-}
-{-# SPECIALIZE NbE.nf :: Distinct n => Scope n -> Context d n -> Core n -> Core n #-}
-{-# SPECIALIZE Conv.conv :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Bool #-}
-{-# SPECIALIZE Conv.convertible :: Distinct n => Scope n -> Context d n -> Core n -> Core n -> Bool #-}
+      (Distinct o, Distinct i) => Scope o -> Context o -> Env i o -> Core i -> Value o #-}
+{-# SPECIALIZE NbE.quote :: Distinct n => Scope n -> Context n -> Value n -> Core n #-}
+{-# SPECIALIZE NbE.nf :: Distinct n => Scope n -> Context n -> Core n -> Core n #-}
+{-# SPECIALIZE Conv.conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool #-}
+{-# SPECIALIZE Conv.convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool #-}
 
-instance Eval (Context d) Pattern Sig where
+instance Eval Context Pattern Sig where
   {-# INLINABLE evalSig #-}
   evalSig scope ctx env = \case
     AppF fun arg -> appValue scope ctx (ev fun) (ev arg)
@@ -453,7 +453,7 @@ instance Eval (Context d) Pattern Sig where
 -- | Is a value a point of a cube: an endpoint, an operation on points, or
 -- a neutral whose type is a cube? A pair of points is not asked about:
 -- conversion compares its components, which are.
-isPointValue :: Distinct n => Scope n -> Context d n -> Value n -> Bool
+isPointValue :: Distinct n => Scope n -> Context n -> Value n -> Bool
 isPointValue scope ctx v = case NbE.force v of
   NbE.VNode node -> case node of
     CubeUnitStarF -> True
@@ -495,12 +495,12 @@ nodeValue node
 -- like the term of a restriction, is refined in turn, since it may be a
 -- neutral restricted further (a component of a pair restricted under a
 -- smaller tope).
-refineNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+refineNeutral :: Distinct n => Scope n -> Context n -> Value n -> Value n
 refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 
 -- | A neutral refined by its type, or 'Nothing' if the type has no
 -- restriction the context entails and is not unit.
-refinedNeutral :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
+refinedNeutral :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 refinedNeutral scope ctx value = do
   ty <- neutralType scope ctx value
   case NbE.force (stripRestrictions ty) of
@@ -511,33 +511,33 @@ refinedNeutral scope ctx value = do
 -- * Evaluation and readback
 
 -- | A core term as a value, in the scope it was checked in.
-evalCore :: Distinct n => Scope n -> Context d n -> Core n -> Value n
+evalCore :: Distinct n => Scope n -> Context n -> Core n -> Value n
 {-# INLINE evalCore #-}
 evalCore scope ctx = NbE.eval scope ctx Foil.identitySubst
 
 -- | A scoped term at a value for its pattern.
-evalScope :: (Distinct n, Distinct i) => Scope n -> Context d n -> Env i n -> ScopedCore i -> Value n -> Value n
+evalScope :: (Distinct n, Distinct i) => Scope n -> Context n -> Env i n -> ScopedCore i -> Value n -> Value n
 {-# INLINE evalScope #-}
 evalScope scope ctx env (ScopedAST pat body) arg = case Foil.assertDistinct pat of
   Foil.Distinct -> NbE.eval scope ctx (bindPattern env pat arg) body
 
-quoteIn :: Distinct n => Scope n -> Context d n -> Value n -> Core n
+quoteIn :: Distinct n => Scope n -> Context n -> Value n -> Core n
 {-# INLINE quoteIn #-}
 quoteIn scope ctx = stripAnnotations . NbE.quote scope ctx
 
 -- | Read a value back with defined names folded, as the checker's own terms
 -- spell them.
-quoteFolded :: Distinct n => Scope n -> Context d n -> Value n -> Core n
+quoteFolded :: Distinct n => Scope n -> Context n -> Value n -> Core n
 quoteFolded scope ctx = stripAnnotations . NbE.quote scope ctx { ctxUnfolding = Folded }
 
 -- | Read back the weak head normal form of a value: the head unfolded and
 -- reduced, its arguments read back with defined names folded, as the old
 -- checker's @#compute-whnf@ printed them.
-quoteWhnfFolded :: Distinct n => Scope n -> Context d n -> Value n -> Core n
+quoteWhnfFolded :: Distinct n => Scope n -> Context n -> Value n -> Core n
 quoteWhnfFolded scope ctx =
   stripAnnotations . NbE.quoteWhnf scope ctx { ctxUnfolding = Folded } . NbE.fromWhnf . NbE.force
 
-nfCore :: Distinct n => Scope n -> Context d n -> Core n -> Core n
+nfCore :: Distinct n => Scope n -> Context n -> Core n -> Core n
 {-# INLINE nfCore #-}
 nfCore scope ctx = stripAnnotations . NbE.nf scope ctx
 
@@ -546,11 +546,11 @@ force :: Value n -> Whnf n
 force = NbE.force
 
 -- | Two values compared in the context's variance.
-conv :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Bool
+conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool
 {-# INLINE conv #-}
 conv = Conv.conv
 
-convertible :: Distinct n => Scope n -> Context d n -> Core n -> Core n -> Bool
+convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool
 {-# INLINE convertible #-}
 convertible = Conv.convertible
 
@@ -579,7 +579,7 @@ vhole = NbE.vnode . HoleF
 -- | Apply a function value: a λ enters its body under the pattern bound to
 -- the argument; a neutral stays stuck, with the shape of a tope family it
 -- is an application of as a side condition.
-appValue :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Value n
+appValue :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n
 {-# INLINE appValue #-}
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
   NbE.VSuspended env (LambdaF _ body) -> evalScope scope ctx env body arg
@@ -602,20 +602,20 @@ secondValue p = NbE.eliminate p $ \case
   NbE.Stuck p' -> NbE.vnode (SecondF p')
 
 -- | A projection, a neutral annotated with its type.
-firstValueIn :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+firstValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE firstValueIn #-}
 firstValueIn scope ctx p = NbE.eliminate p $ \case
   NbE.VNode (PairF a _) -> a
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (FirstF p'))
 
-secondValueIn :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+secondValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE secondValueIn #-}
 secondValueIn scope ctx p = NbE.eliminate p $ \case
   NbE.VNode (PairF _ b) -> b
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (SecondF p'))
 
 -- | Path induction, a neutral annotated with its type.
-idJValueIn :: Distinct n => Scope n -> Context d n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
+idJValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
 {-# INLINE idJValueIn #-}
 idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
   NbE.VNode (ReflF _) -> d
@@ -624,7 +624,7 @@ idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
 -- | A neutral with its type, computed lazily and once, from the type of
 -- the neutral it eliminates (which is read off that neutral's annotation).
 -- A type that cannot be computed is a hole.
-annotated :: Distinct n => Scope n -> Context d n -> Value n -> Value n
+annotated :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE annotated #-}
 annotated scope ctx v = NbE.vnode (AnnF v (fromMaybe unknownType (neutralType scope ctx v)))
 
@@ -667,7 +667,7 @@ infValue l r = case (NbE.force l, NbE.force r) of
   _ -> NbE.vnode (CubeInfF l r)
 
 -- | The codomain of a scope at a value for its pattern.
-codomainAt :: (Distinct n, Distinct i) => Scope n -> Context d n -> Env i n -> ScopedCore i -> Value n -> Value n
+codomainAt :: (Distinct n, Distinct i) => Scope n -> Context n -> Env i n -> ScopedCore i -> Value n -> Value n
 {-# INLINE codomainAt #-}
 codomainAt = evalScope
 
@@ -747,8 +747,8 @@ singlePattern = PatternVar Nothing
 -- names, which the environment binds, so the entries are never consulted
 -- while they are built.
 patternEntries
-  :: forall d n l. Distinct l
-  => Scope l -> Context d l -> TModality -> Maybe LocationInfo -> Value l -> Pattern n l -> [Entry l]
+  :: forall n l. Distinct l
+  => Scope l -> Context l -> TModality -> Maybe LocationInfo -> Value l -> Pattern n l -> [Entry l]
 patternEntries scope ctx md loc = go
   where
     go :: Value l -> Pattern x y -> [Entry l]
@@ -768,8 +768,8 @@ patternEntries scope ctx md loc = go
 -- | The entries of a let's pattern: each name has its component of the
 -- value.
 letEntries
-  :: forall d n l. Distinct l
-  => Scope l -> Context d l -> Maybe LocationInfo -> Value l -> Value l -> Pattern n l -> [Entry l]
+  :: forall n l. Distinct l
+  => Scope l -> Context l -> Maybe LocationInfo -> Value l -> Value l -> Pattern n l -> [Entry l]
 letEntries scope ctx loc ty val pat =
   zipWith (\entry v -> entry { entryValue = Just v })
     (patternEntries scope ctx Id loc ty pat)
@@ -787,7 +787,7 @@ letEntries scope ctx loc ty val pat =
 -- it.
 underPattern
   :: (Distinct n, DExt n l)
-  => Scope l -> Context d n -> TModality -> Value n -> Maybe (Value n) -> Pattern n l -> Context d l
+  => Scope l -> Context n -> TModality -> Value n -> Maybe (Value n) -> Pattern n l -> Context l
 underPattern scope' ctx md ty mshape pat =
   let ctx0 = sinkContextUnchecked ctx
       entries = patternEntries scope' ctx0 md (ctxLocation ctx) (Foil.sink ty) pat
@@ -797,7 +797,7 @@ underPattern scope' ctx md ty mshape pat =
 -- | A context with a binder's shape assumed at the pattern bound by it.
 assumeShapeAt
   :: DExt n l
-  => Scope l -> Pattern n l -> Maybe (Value n) -> Context d l -> Context d l
+  => Scope l -> Pattern n l -> Maybe (Value n) -> Context l -> Context l
 assumeShapeAt scope' pat mshape ctx = case mshape of
   Nothing    -> ctx
   Just shape -> assumeValue scope' ctx (appValue scope' ctx (Foil.sink shape) (patternValue pat))
@@ -806,8 +806,8 @@ assumeShapeAt scope' pat mshape ctx = case mshape of
 -- with the name's entry, and the name.
 underFreshVar
   :: Distinct n
-  => Scope n -> Context d n -> TModality -> Value n -> Maybe (Value n)
-  -> (forall l. (DExt n l, Distinct l) => Scope l -> Context d l -> Foil.Name l -> r) -> r
+  => Scope n -> Context n -> TModality -> Value n -> Maybe (Value n)
+  -> (forall l. (DExt n l, Distinct l) => Scope l -> Context l -> Foil.Name l -> r) -> r
 underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
   let pat = singlePattern b
       scope' = Foil.extendScopePattern pat scope
@@ -815,7 +815,7 @@ underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
 
 -- | Does a value stand for a cube: by its head, or by the sort of the
 -- entry at its head?
-isCube :: Distinct n => Scope n -> Context d n -> Value n -> Bool
+isCube :: Distinct n => Scope n -> Context n -> Value n -> Bool
 isCube scope ctx v = cubeOfType v /= KOther || case neutralType scope ctx v of
   Just s | NbE.VNode UniverseCubeF <- NbE.force (stripRestrictions s) -> True
   _ -> False
@@ -830,23 +830,23 @@ topShapeValue scope cube = Foil.withFresh scope $ \b ->
 -- | The binder of a λ, from its parameter: its domain and modality, and its
 -- shape, assumed for the body. A λ without a parameter binds names of an
 -- unknown type.
-lambdaBinder :: Maybe (Param (Value n)) -> Extend (Context d) Pattern Sig n
+lambdaBinder :: Maybe (Param (Value n)) -> Extend Context Pattern Sig n
 {-# INLINE lambdaBinder #-}
 lambdaBinder mparam = Extend $ \_ pat scope' ctx -> case mparam of
   Just (Param md dom mshape) -> underPattern scope' ctx md dom mshape pat
   Nothing -> underPattern scope' ctx Id (vhole Nothing) Nothing pat
 
 -- | The binder of a Π: its domain, and its shape assumed for the codomain.
-piBinder :: TModality -> Value n -> Maybe (Value n) -> Extend (Context d) Pattern Sig n
+piBinder :: TModality -> Value n -> Maybe (Value n) -> Extend Context Pattern Sig n
 {-# INLINE piBinder #-}
 piBinder md dom mshape = Extend $ \_ pat scope' ctx -> underPattern scope' ctx md dom mshape pat
 
-sigmaBinder :: TModality -> Value n -> Extend (Context d) Pattern Sig n
+sigmaBinder :: TModality -> Value n -> Extend Context Pattern Sig n
 {-# INLINE sigmaBinder #-}
 sigmaBinder md a = Extend $ \_ pat scope' ctx -> underPattern scope' ctx md a Nothing pat
 
 -- | The binder of a let: its names have the components of the value.
-letBinder :: Maybe (Value n) -> Value n -> Extend (Context d) Pattern Sig n
+letBinder :: Maybe (Value n) -> Value n -> Extend Context Pattern Sig n
 {-# INLINE letBinder #-}
 letBinder mty val = Extend $ \_ pat scope' ctx ->
   let ctx0 = sinkContextUnchecked ctx
@@ -856,7 +856,7 @@ letBinder mty val = Extend $ \_ pat scope' ctx ->
 
 -- | A binder whose names have no known type (a construct not yet checked
 -- on values).
-opaqueBinder :: Extend (Context d) Pattern Sig n
+opaqueBinder :: Extend Context Pattern Sig n
 {-# INLINE opaqueBinder #-}
 opaqueBinder = Extend $ \_ pat scope' ctx -> underPattern scope' ctx Id (vhole Nothing) Nothing pat
 
@@ -864,7 +864,7 @@ opaqueBinder = Extend $ \_ pat scope' ctx -> underPattern scope' ctx Id (vhole N
 -- one's domain, and both shapes. The codomains need to agree only where
 -- the supertype's shape holds, and the comparison of the shapes, part of
 -- the same comparison, makes that the conjunction of both.
-pisBinder :: TModality -> Value n -> Maybe (Value n) -> Maybe (Value n) -> Extend (Context d) Pattern Sig n
+pisBinder :: TModality -> Value n -> Maybe (Value n) -> Maybe (Value n) -> Extend Context Pattern Sig n
 {-# INLINE pisBinder #-}
 pisBinder md dom mshapeL mshapeR = Extend $ \_ pat scope' ctx ->
   let ctx' = underPattern scope' ctx md dom Nothing pat
@@ -872,7 +872,7 @@ pisBinder md dom mshapeL mshapeR = Extend $ \_ pat scope' ctx ->
 
 -- | The binder two lambdas are compared under: the right one's domain, and
 -- both shapes, since the bodies agree only where both are defined.
-lambdasBinder :: Maybe (Param (Value n)) -> Maybe (Param (Value n)) -> Extend (Context d) Pattern Sig n
+lambdasBinder :: Maybe (Param (Value n)) -> Maybe (Param (Value n)) -> Extend Context Pattern Sig n
 {-# INLINE lambdasBinder #-}
 lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
   let (md, dom) = case (mpR, mpL) of
@@ -883,18 +883,18 @@ lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
   in assumeShapeAt scope' pat (mpR >>= paramShape) (assumeShapeAt scope' pat (mpL >>= paramShape) ctx')
 
 -- | The observer of a λ's body: the other value applied to the pattern.
-appliedToPattern :: Distinct l => Scope l -> Context d l -> Pattern n l -> Value l -> Value l
+appliedToPattern :: Distinct l => Scope l -> Context l -> Pattern n l -> Value l -> Value l
 {-# INLINE appliedToPattern #-}
 appliedToPattern scope ctx pat other = appValue scope ctx other (patternValue pat)
 
 -- * The tope layer
 
 -- | Assume a tope value.
-assumeValue :: Distinct n => Scope n -> Context d n -> Value n -> Context d n
+assumeValue :: Distinct n => Scope n -> Context n -> Value n -> Context n
 assumeValue scope ctx tope = ctx { ctxTopes = assume (topeOf scope ctx tope) (ctxTopes ctx) }
 
 -- | Does the context entail a tope value?
-entailsValue :: Distinct n => Scope n -> Context d n -> Value n -> Bool
+entailsValue :: Distinct n => Scope n -> Context n -> Value n -> Bool
 entailsValue scope ctx tope = entails (ctxTopes ctx) (topeOf scope ctx tope)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.
@@ -919,7 +919,7 @@ isTopeNode = \case
   _            -> False
 
 -- | A tope value read into the solver's syntax.
-topeOf :: Distinct n => Scope n -> Context d n -> Value n -> Tope
+topeOf :: Distinct n => Scope n -> Context n -> Value n -> Tope
 topeOf scope ctx v = case NbE.force v of
   NbE.VNode TopeTopF -> TTop
   NbE.VNode TopeBottomF -> TBot
@@ -936,7 +936,7 @@ topeOf scope ctx v = case NbE.force v of
 
 -- | A point value read into the solver's syntax. A variable carries its
 -- cube; a defined point is unfolded.
-pointOf :: Distinct n => Scope n -> Context d n -> Value n -> Point
+pointOf :: Distinct n => Scope n -> Context n -> Value n -> Point
 pointOf scope ctx v = case NbE.force v of
   NbE.VVar x -> PVar (Foil.nameId x) (cubeOfType (entryType (lookupEntry x ctx)))
   NbE.VNode (AnnF n _) -> pointOf scope ctx n
@@ -990,7 +990,7 @@ fingerprint (Node sig) =
 -- is @g@, so @f a : A [ϕ ↦ g a]@. A neutral built by evaluation carries its
 -- type ('AnnF'), so each step reads only the type of the neutral it
 -- eliminates.
-neutralType :: Distinct n => Scope n -> Context d n -> Value n -> Maybe (Value n)
+neutralType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
   NbE.VNode (AnnF n ty) -> annotationType ty <|> neutralType scope ctx n

@@ -25,7 +25,7 @@ import           Rzk.Check.Monad
 data Checked where
   Checked
     :: Distinct n
-    => Context Diag n
+    => Context n
     -> [(FilePath, [Decl n])]
     -> [ErrorInContext]
     -> [Warning]
@@ -43,4 +43,4 @@ checkModules options modules =
     (Left err, CheckLog holes warnings) ->
       Checked ctx0 [] [err] (reverse warnings) (reverse holes)
   where
-    ctx0 = (emptyContext emptyDiag) { ctxOptions = options }
+    ctx0 = emptyContext { ctxOptions = options }

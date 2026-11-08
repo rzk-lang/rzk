@@ -103,7 +103,7 @@ typeErrorTag = \case
 -- | An error with the context it was raised in. The scope is existential:
 -- the context says what the names are called.
 data ErrorInContext where
-  ErrorInContext :: Distinct n => Context Diag n -> TypeError n -> ErrorInContext
+  ErrorInContext :: Distinct n => Context n -> TypeError n -> ErrorInContext
 
 errorTag :: ErrorInContext -> String
 errorTag (ErrorInContext _ err) = typeErrorTag err
@@ -111,7 +111,7 @@ errorTag (ErrorInContext _ err) = typeErrorTag err
 errorLocation :: ErrorInContext -> Maybe LocationInfo
 errorLocation (ErrorInContext ctx _) = ctxLocation ctx
 
-ppTypeError :: Distinct n => Context d n -> TypeError n -> String
+ppTypeError :: Distinct n => Context n -> TypeError n -> String
 ppTypeError ctx = \case
   TypeErrorOther msg -> msg
   TypeErrorUnsupported what -> "not supported by the new checker yet: " <> what
@@ -233,7 +233,7 @@ ppErrorInContext (ErrorInContext ctx err) = intercalate "\n"
 
 -- | The context an error was raised in: where, the tope context, the stack
 -- of judgements, and the hypotheses.
-ppContext :: Distinct n => Context Diag n -> String
+ppContext :: Distinct n => Context n -> String
 ppContext ctx = intercalate "\n" $ filter (not . null)
   [ case ctxLocation ctx of
       Just (LocationInfo (Just path) (Just lineNo) (Just col)) ->
@@ -257,7 +257,7 @@ ppContext ctx = intercalate "\n" $ filter (not . null)
   where
     naming = namingOfContext ctx
 
-ppAction :: Distinct n => Context d n -> Action n -> String
+ppAction :: Distinct n => Context n -> Action n -> String
 ppAction ctx = \case
   ActionCheck term ty -> block
     [ "typechecking"

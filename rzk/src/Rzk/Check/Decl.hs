@@ -122,7 +122,7 @@ withTopLevel name tyCore ty mval kind uses k = do
     inContext ctx' (k decl)
 
 -- | Record a new entry in the innermost open section.
-recordInSection :: Foil.Name n -> Context d n -> Context d n
+recordInSection :: Foil.Name n -> Context n -> Context n
 recordInSection name ctx = ctx
   { ctxSections = case ctxSections ctx of
       []       -> [Section Nothing [name]]
@@ -462,7 +462,7 @@ withSection name path i total commands k =
 endSection
   :: forall n. (Distinct n)
   => [ErrorInContext]
-  -> Check n ([Decl n], [ErrorInContext], Context Diag n)
+  -> Check n ([Decl n], [ErrorInContext], Context n)
 endSection errs = do
   ctx <- askContext
   let scope = ctxScope ctx
@@ -650,7 +650,7 @@ checkModules ((path, m) : ms) k =
             k ((path, sinkDecls decls) : rest) errors
 
 -- | The weak head normal form of a term, read back ('quoteWhnfFolded').
-quoteWhnfCore :: Distinct n => Foil.Scope n -> Context d n -> Core n -> Core n
+quoteWhnfCore :: Distinct n => Foil.Scope n -> Context n -> Core n -> Core n
 quoteWhnfCore scope ctx = quoteWhnfFolded scope ctx . evalCore scope ctx
 
 pattern VNodeUniverse :: Whnf n
