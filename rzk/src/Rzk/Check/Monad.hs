@@ -1,35 +1,23 @@
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE KindSignatures         #-}
-{-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE QuantifiedConstraints  #-}
-{-# LANGUAGE RankNTypes             #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE TypeFamilies           #-}
-{-# LANGUAGE UndecidableInstances   #-}
--- | The checker's monads: what the typing rules need from their monad, as
--- a class, and its two instances.
---
--- The rules are written once against 'Checking'. The full instance keeps
--- the context's diagnostics (the stack of judgements, the narrowed
--- location), raises errors with their context, and records warnings and
--- holes rendered. The fast instance keeps none of that: an error is its
--- tag, a warning its kind, a hole a count, so that a status-only run pays
--- for nothing it does not report. The rules are polymorphic in the
--- instance, so both runs share them.
+{-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes     #-}
+-- | The checker's monad: a reader of the context and a state of what the
+-- run records (holes and warnings), with errors raised in their context.
+-- The context keeps the diagnostics: the stack of judgements and the
+-- location narrowed to the term a judgement is about.
 module Rzk.Check.Monad
-  ( Checking (..)
-  , CheckM
-  , Full
-  , Fast
+  ( Check
   , CheckLog (..)
   , emptyCheckLog
-  , Findings (..)
-  , emptyFindings
-  , runFull
-  , runFast
+  , runCheck
+  , askContext
+  , inContext
+  , localContext
+  , failWith
+  , attempt
+  , performing
+  , recordWarning
+  , recordHole
     -- * Helpers
   , asksContext
   , withLocation
@@ -39,8 +27,7 @@ module Rzk.Check.Monad
   , withVarianceM
   ) where
 
-import           Control.Monad.Foil       (Distinct, S)
-import           Data.Kind                (Type)
+import           Control.Monad.Foil       (Distinct)
 import           Debug.Trace              (trace)
 
 import           Rzk.Check.Context
@@ -48,57 +35,33 @@ import           Rzk.Check.Error
 import           Rzk.Check.Syntax
 import           Rzk.Check.Topes
 
--- | What the typing rules need from their monad.
-class (forall n. Monad (m n)) => Checking (m :: S -> Type -> Type) where
-  -- | What the context keeps for diagnostics.
-  type DiagOf m :: S -> Type
-  -- | What a failed attempt returns.
-  type FailureOf m :: Type
-  askContext :: m n (Context (DiagOf m) n)
-  -- | Run a judgement in another scope's context.
-  inContext :: Context (DiagOf m) l -> m l a -> m n a
-  localContext :: (Context (DiagOf m) n -> Context (DiagOf m) n) -> m n a -> m n a
-  -- | Raise an error. The argument is a thunk: the fast instance never
-  -- forces its fields.
-  failWith :: Distinct n => TypeError n -> m n a
-  -- | Run a judgement for its outcome, keeping what it recorded.
-  attempt :: m n a -> m n (Either (FailureOf m) a)
-  -- | Run a judgement as an action on the stack, with the location narrowed
-  -- to the term it is about.
-  performing :: Distinct n => Action n -> m n a -> m n a
-  -- | Record a warning: its kind, and its rendering from the context.
-  recordWarning :: Distinct n => WarningKind -> (Context (DiagOf m) n -> Warning) -> m n ()
-  -- | Record a hole: its rendering from the context.
-  recordHole :: Distinct n => (Context (DiagOf m) n -> HoleInfo) -> m n ()
+-- | The checker's monad.
+newtype Check n a = Check
+  { unCheck :: Context Diag n -> CheckLog -> (Either ErrorInContext a, CheckLog) }
 
--- | The one shape of both instances: a reader of the context and a state
--- of what the run records, with an error channel.
-newtype CheckM (d :: S -> Type) e log n a = CheckM
-  { unCheckM :: Context d n -> log -> (Either e a, log) }
-
-instance Functor (CheckM d e log n) where
-  fmap f (CheckM m) = CheckM $ \ctx l -> case m ctx l of
+instance Functor (Check n) where
+  fmap f (Check m) = Check $ \ctx l -> case m ctx l of
     (Left e, l')  -> (Left e, l')
     (Right a, l') -> (Right (f a), l')
   {-# INLINE fmap #-}
 
-instance Applicative (CheckM d e log n) where
-  pure a = CheckM $ \_ l -> (Right a, l)
+instance Applicative (Check n) where
+  pure a = Check $ \_ l -> (Right a, l)
   {-# INLINE pure #-}
-  CheckM mf <*> CheckM ma = CheckM $ \ctx l -> case mf ctx l of
+  Check mf <*> Check ma = Check $ \ctx l -> case mf ctx l of
     (Left e, l')  -> (Left e, l')
     (Right f, l') -> case ma ctx l' of
       (Left e, l'')  -> (Left e, l'')
       (Right a, l'') -> (Right (f a), l'')
   {-# INLINE (<*>) #-}
 
-instance Monad (CheckM d e log n) where
-  CheckM m >>= k = CheckM $ \ctx l -> case m ctx l of
+instance Monad (Check n) where
+  Check m >>= k = Check $ \ctx l -> case m ctx l of
     (Left e, l')  -> (Left e, l')
-    (Right a, l') -> unCheckM (k a) ctx l'
+    (Right a, l') -> unCheck (k a) ctx l'
   {-# INLINE (>>=) #-}
 
--- | What a full run records: the holes it found and the warnings it made,
+-- | What a run records: the holes it found and the warnings it made,
 -- newest first.
 data CheckLog = CheckLog
   { logHoles    :: [HoleInfo]
@@ -108,91 +71,67 @@ data CheckLog = CheckLog
 emptyCheckLog :: CheckLog
 emptyCheckLog = CheckLog [] []
 
--- | What a fast run records: which kinds of warning fired, and how many
--- holes it met.
-data Findings = Findings
-  { findingsWarnings :: [WarningKind]
-  , findingsHoles    :: !Int
-  }
+runCheck :: Context Diag n -> Check n a -> (Either ErrorInContext a, CheckLog)
+runCheck ctx (Check m) = m ctx emptyCheckLog
 
-emptyFindings :: Findings
-emptyFindings = Findings [] 0
-
--- | The full instance.
-type Full = CheckM Diag ErrorInContext CheckLog
-
--- | The fast instance.
-type Fast = CheckM NoDiag String Findings
-
-runFull :: Context Diag n -> Full n a -> (Either ErrorInContext a, CheckLog)
-runFull ctx (CheckM m) = m ctx emptyCheckLog
-
-runFast :: Context NoDiag n -> Fast n a -> (Either String a, Findings)
-runFast ctx (CheckM m) = m ctx emptyFindings
-
--- | The depth of nested judgements at which a full run gives up: the cap
--- catches a non-terminating search. The fast run keeps no depth.
+-- | The depth of nested judgements at which checking gives up: the cap
+-- catches a non-terminating search.
 maxDepth :: Int
 maxDepth = 1000
 
-instance Checking Full where
-  type DiagOf Full = Diag
-  type FailureOf Full = ErrorInContext
-  askContext = CheckM $ \ctx l -> (Right ctx, l)
-  {-# INLINE askContext #-}
-  inContext ctx (CheckM m) = CheckM $ \_ l -> m ctx l
-  {-# INLINE inContext #-}
-  localContext f (CheckM m) = CheckM $ \ctx l -> m (f ctx) l
-  {-# INLINE localContext #-}
-  failWith err = CheckM $ \ctx l -> (Left (ErrorInContext ctx err), l)
-  {-# INLINE failWith #-}
-  attempt (CheckM m) = CheckM $ \ctx l -> case m ctx l of
-    (Left e, l')  -> (Right (Left e), l')
-    (Right a, l') -> (Right (Right a), l')
-  {-# INLINE attempt #-}
-  performing action (CheckM m) = CheckM $ \ctx l ->
-    let diag = ctxDiag ctx
-        depth = diagDepth diag
-        ctx' = ctx
-          { ctxDiag = Diag (action : diagActions diag) (depth + 1)
-          , ctxLocation = narrowLocation action (ctxLocation ctx)
-          }
-    in if depth >= maxDepth
-         then (Left (ErrorInContext ctx (TypeErrorOther "maximum depth reached")), l)
-         else if optVerbosity (ctxOptions ctx) <= Debug
-           then trace (unlines (map (replicate (2 * depth) ' ' <>) (lines (ppAction ctx action)))) (m ctx' l)
-           else m ctx' l
-  {-# INLINE performing #-}
-  recordWarning _ render = CheckM $ \ctx l ->
-    let w = render ctx
-    in (Right (), if w `elem` logWarnings l then l else l { logWarnings = w : logWarnings l })
-  {-# INLINE recordWarning #-}
-  recordHole render = CheckM $ \ctx l -> (Right (), l { logHoles = render ctx : logHoles l })
-  {-# INLINE recordHole #-}
+askContext :: Check n (Context Diag n)
+askContext = Check $ \ctx l -> (Right ctx, l)
+{-# INLINE askContext #-}
 
-instance Checking Fast where
-  type DiagOf Fast = NoDiag
-  type FailureOf Fast = String
-  askContext = CheckM $ \ctx l -> (Right ctx, l)
-  {-# INLINE askContext #-}
-  inContext ctx (CheckM m) = CheckM $ \_ l -> m ctx l
-  {-# INLINE inContext #-}
-  localContext f (CheckM m) = CheckM $ \ctx l -> m (f ctx) l
-  {-# INLINE localContext #-}
-  failWith err = CheckM $ \_ l -> (Left (typeErrorTag err), l)
-  {-# INLINE failWith #-}
-  attempt (CheckM m) = CheckM $ \ctx l -> case m ctx l of
-    (Left e, l')  -> (Right (Left e), l')
-    (Right a, l') -> (Right (Right a), l')
-  {-# INLINE attempt #-}
-  performing action (CheckM m) = CheckM $ \ctx l ->
-    m ctx { ctxLocation = narrowLocation action (ctxLocation ctx) } l
-  {-# INLINE performing #-}
-  recordWarning kind _ = CheckM $ \_ l ->
-    (Right (), if kind `elem` findingsWarnings l then l else l { findingsWarnings = kind : findingsWarnings l })
-  {-# INLINE recordWarning #-}
-  recordHole _ = CheckM $ \_ l -> (Right (), l { findingsHoles = findingsHoles l + 1 })
-  {-# INLINE recordHole #-}
+-- | Run a judgement in another scope's context.
+inContext :: Context Diag l -> Check l a -> Check n a
+inContext ctx (Check m) = Check $ \_ l -> m ctx l
+{-# INLINE inContext #-}
+
+localContext :: (Context Diag n -> Context Diag n) -> Check n a -> Check n a
+localContext f (Check m) = Check $ \ctx l -> m (f ctx) l
+{-# INLINE localContext #-}
+
+-- | Raise an error, in the current context.
+failWith :: Distinct n => TypeError n -> Check n a
+failWith err = Check $ \ctx l -> (Left (ErrorInContext ctx err), l)
+{-# INLINE failWith #-}
+
+-- | Run a judgement for its outcome, keeping what it recorded.
+attempt :: Check n a -> Check n (Either ErrorInContext a)
+attempt (Check m) = Check $ \ctx l -> case m ctx l of
+  (Left e, l')  -> (Right (Left e), l')
+  (Right a, l') -> (Right (Right a), l')
+{-# INLINE attempt #-}
+
+-- | Run a judgement as an action on the stack, with the location narrowed
+-- to the term it is about.
+performing :: Distinct n => Action n -> Check n a -> Check n a
+performing action (Check m) = Check $ \ctx l ->
+  let diag = ctxDiag ctx
+      depth = diagDepth diag
+      ctx' = ctx
+        { ctxDiag = Diag (action : diagActions diag) (depth + 1)
+        , ctxLocation = narrowLocation action (ctxLocation ctx)
+        }
+  in if depth >= maxDepth
+       then (Left (ErrorInContext ctx (TypeErrorOther "maximum depth reached")), l)
+       else if optVerbosity (ctxOptions ctx) <= Debug
+         then trace (unlines (map (replicate (2 * depth) ' ' <>) (lines (ppAction ctx action)))) (m ctx' l)
+         else m ctx' l
+{-# INLINE performing #-}
+
+-- | Record a warning, rendered from the context, once.
+recordWarning :: (Context Diag n -> Warning) -> Check n ()
+recordWarning render = Check $ \ctx l ->
+  let w = render ctx
+  in (Right (), if w `elem` logWarnings l then l else l { logWarnings = w : logWarnings l })
+{-# INLINE recordWarning #-}
+
+-- | Record a hole, rendered from the context.
+recordHole :: (Context Diag n -> HoleInfo) -> Check n ()
+recordHole render = Check $ \ctx l -> (Right (), l { logHoles = render ctx : logHoles l })
+{-# INLINE recordHole #-}
 
 -- | Point the location at the sub-term an action is about, when the
 -- action's term carries a position.
@@ -204,25 +143,25 @@ narrowLocation action loc = case action of
 
 -- * Helpers
 
-asksContext :: Checking m => (Context (DiagOf m) n -> a) -> m n a
+asksContext :: (Context Diag n -> a) -> Check n a
 asksContext f = f <$> askContext
 {-# INLINE asksContext #-}
 
-withLocation :: Checking m => LocationInfo -> m n a -> m n a
+withLocation :: LocationInfo -> Check n a -> Check n a
 withLocation loc = localContext $ \ctx -> ctx { ctxLocation = Just loc }
 
-withOptions :: Checking m => (Options -> Options) -> m n a -> m n a
+withOptions :: (Options -> Options) -> Check n a -> Check n a
 withOptions f = localContext $ \ctx -> ctx { ctxOptions = f (ctxOptions ctx) }
 
-issueTypeError :: (Checking m, Distinct n) => TypeError n -> m n a
+issueTypeError :: Distinct n => TypeError n -> Check n a
 issueTypeError = failWith
 {-# INLINE issueTypeError #-}
 
 -- | Run a judgement with a tope assumed.
-underTope :: Checking m => Tope -> m n a -> m n a
+underTope :: Tope -> Check n a -> Check n a
 underTope tope = localContext $ \ctx -> ctx { ctxTopes = assume tope (ctxTopes ctx) }
 {-# INLINE underTope #-}
 
-withVarianceM :: Checking m => Variance -> m n a -> m n a
+withVarianceM :: Variance -> Check n a -> Check n a
 withVarianceM v = localContext (withVariance v)
 {-# INLINE withVarianceM #-}

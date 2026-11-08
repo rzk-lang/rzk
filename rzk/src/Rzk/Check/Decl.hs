@@ -76,7 +76,7 @@ sinkDecls = Foil.sink1
 -- | A surface term in the current scope: a free identifier resolves to the
 -- entry it names, and an unknown one is marked for the checker to report
 -- where it is used.
-elaborate :: (Checking m, Distinct n) => Rzk.Term -> m n (Raw n)
+elaborate :: Distinct n => Rzk.Term -> Check n (Raw n)
 elaborate term = do
   ctx <- askContext
   let env name = case lookupNamed name ctx of
@@ -88,10 +88,10 @@ elaborate term = do
 -- entry keeps its elaborated type and body, and is recorded in the
 -- innermost open section.
 withTopLevel
-  :: (Checking m, Distinct n)
+  :: (Distinct n)
   => VarIdent -> Core n -> Value n -> Maybe (Core n) -> EntryKind -> [Foil.Name n]
-  -> (forall l. (DExt n l, Distinct l) => Decl l -> m l r)
-  -> m n r
+  -> (forall l. (DExt n l, Distinct l) => Decl l -> Check l r)
+  -> Check n r
 withTopLevel name tyCore ty mval kind uses k = do
   checkTopLevelDuplicate name
   ctx <- askContext
@@ -131,10 +131,10 @@ recordInSection name ctx = ctx
 
 -- | Assume names of one type, each a top-level entry.
 assume
-  :: (Checking m, Distinct n)
+  :: (Distinct n)
   => [VarIdent] -> Core n -> Value n
-  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> m l r)
-  -> m n r
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> Check l r)
+  -> Check n r
 assume [] _ _ k = k []
 assume (name : names) tyCore ty k =
   withTopLevel name tyCore ty Nothing EntryAssumption [] $ \decl ->
@@ -142,13 +142,13 @@ assume (name : names) tyCore ty k =
       k (Foil.sink decl : decls)
 
 -- | The names a declaration says it uses.
-usedNames :: (Checking m, Distinct n) => Maybe FilePath -> [Rzk.VarIdent] -> m n [Foil.Name n]
+usedNames :: Distinct n => Maybe FilePath -> [Rzk.VarIdent] -> Check n [Foil.Name n]
 usedNames path vars = forM vars $ \var -> do
   ctx <- askContext
   let name = varIdentAt path var
   maybe (issueTypeError (TypeErrorUndefined name)) pure (lookupNamed name ctx)
 
-checkTopLevelDuplicate :: (Checking m, Distinct n) => VarIdent -> m n ()
+checkTopLevelDuplicate :: Distinct n => VarIdent -> Check n ()
 checkTopLevelDuplicate name = do
   ctx <- askContext
   case lookupNamed name ctx of
@@ -183,9 +183,9 @@ addParams params = Rzk.Lambda Nothing params
 -- | The type of a declaration with its parameters, checked: the names it
 -- says it uses, the type as elaborated, and as a value.
 checkDeclType
-  :: (Checking m, Distinct n)
+  :: (Distinct n)
   => Maybe FilePath -> [Rzk.VarIdent] -> [Rzk.Param] -> Rzk.Term
-  -> m n ([Foil.Name n], Core n, Value n)
+  -> Check n ([Foil.Name n], Core n, Value n)
 checkDeclType path vars params ty = do
   used <- usedNames path vars
   paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
@@ -193,7 +193,7 @@ checkDeclType path vars params ty = do
   ty' <- atSurface ty $ check tyTerm universe
   (used, ty',) <$> evalM ty'
 
-setOption :: (Checking m, Distinct n) => String -> String -> m n a -> m n a
+setOption :: Distinct n => String -> String -> Check n a -> Check n a
 setOption name value = case name of
   "verbosity" -> case value of
     "debug"  -> withOptions (\o -> o { optVerbosity = Debug })
@@ -218,7 +218,7 @@ setOption name value = case name of
       _ -> const $ issueTypeError $ TypeErrorOther
         ("unknown value for " <> show name <> " (use \"yes\" or \"no\")")
 
-unsetOption :: (Checking m, Distinct n) => String -> m n a -> m n a
+unsetOption :: Distinct n => String -> Check n a -> Check n a
 unsetOption name = case name of
   "verbosity" -> withOptions (\o -> o { optVerbosity = optVerbosity defaultOptions })
   "warn-overhang" -> withOptions (\o -> o { optWarnOverhang = optWarnOverhang defaultOptions })
@@ -237,7 +237,7 @@ ignoredOptions =
 
 -- | Run a check at a command: the location points at the command, and a
 -- judgement inside it narrows it to the sub-term it is about.
-atCommand :: Checking m => Rzk.Command -> m n a -> m n a
+atCommand :: Rzk.Command -> Check n a -> Check n a
 atCommand command = localContext $ \ctx -> ctx { ctxLocation = at <$> ctxLocation ctx }
   where
     at loc = loc { locationLine = fst <$> pos, locationColumn = snd <$> pos }
@@ -245,7 +245,7 @@ atCommand command = localContext $ \ctx -> ctx { ctxLocation = at <$> ctxLocatio
 
 -- | Run a check with the location narrowed to where a surface term was
 -- written.
-atSurface :: (Checking m, Rzk.HasPosition a) => a -> m n b -> m n b
+atSurface :: (Rzk.HasPosition a) => a -> Check n b -> Check n b
 atSurface x = localContext $ \ctx -> ctx { ctxLocation = narrow <$> ctxLocation ctx }
   where
     narrow loc = case Rzk.hasPosition x of
@@ -258,10 +258,10 @@ atSurface x = localContext $ \ctx -> ctx { ctxLocation = narrow <$> ctxLocation 
 -- The continuation runs in the final scope with the declarations and the
 -- errors found.
 checkCommands
-  :: forall m n r. (Checking m, Distinct n)
+  :: forall n r. (Distinct n)
   => Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
-  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [FailureOf m] -> m l r)
-  -> m n r
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [ErrorInContext] -> Check l r)
+  -> Check n r
 checkCommands path i total commands k = case commands of
   [] -> k [] []
   command : more | (dup, previous) : _ <- duplicateBinders command -> do
@@ -389,10 +389,10 @@ checkCommands path i total commands k = case commands of
 
   Rzk.CommandData{} : more -> unsupported "#data" more
   where
-    announce :: String -> m l a -> m l a
+    announce :: String -> Check l a -> Check l a
     announce what = traceNormal ("[ " <> show i <> " out of " <> show total <> " ]" <> what)
 
-    unsupported :: String -> [Rzk.Command] -> m n r
+    unsupported :: String -> [Rzk.Command] -> Check n r
     unsupported what more = do
       result <- attempt $ issueTypeError (TypeErrorUnsupported what)
       case result of
@@ -402,8 +402,8 @@ checkCommands path i total commands k = case commands of
 -- | The commands of a section up to its @#end@, and the commands after it.
 -- A nested section is merged into the enclosing one, as in the old checker.
 splitSectionCommands
-  :: (Checking m, Distinct n)
-  => Rzk.SectionName -> [Rzk.Command] -> m n ([Rzk.Command], [Rzk.Command])
+  :: (Distinct n)
+  => Rzk.SectionName -> [Rzk.Command] -> Check n ([Rzk.Command], [Rzk.Command])
 splitSectionCommands name = \case
   [] -> issueTypeError $ TypeErrorOther $
     "Section " <> Rzk.printTree name <> " is not closed with an #end"
@@ -421,17 +421,17 @@ splitSectionCommands name = \case
     pure (command : cs1, cs2)
 
 -- | An error raised by a judgement, captured rather than propagated.
-captureError :: Checking m => m n () -> m n (FailureOf m)
+captureError :: Check n () -> Check n (ErrorInContext)
 captureError action = attempt action >>= \case
   Left err -> pure err
   Right () -> panicImpossible "captureError: the judgement did not fail"
 
 -- | Check the commands of a section, then close it.
 withSection
-  :: forall m n r. (Checking m, Distinct n)
+  :: forall n r. (Distinct n)
   => Maybe String -> Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
-  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [FailureOf m] -> m l r)
-  -> m n r
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [ErrorInContext] -> Check l r)
+  -> Check n r
 withSection name path i total commands k =
   localContext (\ctx -> ctx { ctxSections = Section name [] : ctxSections ctx }) $
     checkCommands path i total commands $ \_decls errs -> do
@@ -460,9 +460,9 @@ withSection name path i total commands k =
 -- only grows, but leave the surface names and the list of what is bound,
 -- so they can no longer be referred to or shown.
 endSection
-  :: forall m n. (Checking m, Distinct n)
-  => [FailureOf m]
-  -> m n ([Decl n], [FailureOf m], Context (DiagOf m) n)
+  :: forall n. (Distinct n)
+  => [ErrorInContext]
+  -> Check n ([Decl n], [ErrorInContext], Context Diag n)
 endSection errs = do
   ctx <- askContext
   let scope = ctxScope ctx
@@ -610,35 +610,35 @@ endSection errs = do
 
 -- | Report a command's error and go on to the next one.
 skipping
-  :: forall m n r. (Checking m, Distinct n)
-  => FailureOf m -> Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
-  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [FailureOf m] -> m l r)
-  -> m n r
+  :: forall n r. (Distinct n)
+  => ErrorInContext -> Maybe FilePath -> Integer -> Integer -> [Rzk.Command]
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [ErrorInContext] -> Check l r)
+  -> Check n r
 skipping err path i total more k =
   checkCommands path (i + 1) total more $ \decls errs -> k decls (err : errs)
 
 -- | A trace at normal verbosity.
-traceNormal :: Checking m => String -> m n a -> m n a
+traceNormal :: String -> Check n a -> Check n a
 traceNormal msg action = do
   verbosity <- asksContext (optVerbosity . ctxOptions)
   if verbosity <= Normal then trace msg action else action
 
 -- | Check one module.
 checkModule
-  :: forall m n r. (Checking m, Distinct n)
+  :: forall n r. (Distinct n)
   => Maybe FilePath -> Rzk.Module
-  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [FailureOf m] -> m l r)
-  -> m n r
+  -> (forall l. (DExt n l, Distinct l) => [Decl l] -> [ErrorInContext] -> Check l r)
+  -> Check n r
 checkModule path (Rzk.Module _loc _lang commands) k =
   withSection Nothing path 1 (genericLength commands) commands k
 
 -- | Check a list of modules, one after another, in a scope that grows as
 -- it goes. Checking stops at the first module with an error.
 checkModules
-  :: forall m n r. (Checking m, Distinct n)
+  :: forall n r. (Distinct n)
   => [(FilePath, Rzk.Module)]
-  -> (forall l. (DExt n l, Distinct l) => [(FilePath, [Decl l])] -> [FailureOf m] -> m l r)
-  -> m n r
+  -> (forall l. (DExt n l, Distinct l) => [(FilePath, [Decl l])] -> [ErrorInContext] -> Check l r)
+  -> Check n r
 checkModules [] k = k [] []
 checkModules ((path, m) : ms) k =
   traceNormal ("Checking module from " <> path) $

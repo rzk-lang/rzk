@@ -37,7 +37,6 @@ module Rzk.Check.Context
   , Section (..)
     -- * Diagnostics
   , Action (..)
-  , NoDiag (..)
   , Diag (..)
   , emptyDiag
     -- * The context
@@ -213,9 +212,6 @@ data Action n
   | ActionEntailsUnion [Tope] [Tope]
   | ActionCheckLetValue (Maybe VarIdent)
   | ActionCloseSection (Maybe String)
-
--- | No diagnostics: what a status-only run keeps.
-data NoDiag (n :: S) = NoDiag
 
 -- | What a full run keeps for its diagnostics: the stack of judgements.
 data Diag n = Diag

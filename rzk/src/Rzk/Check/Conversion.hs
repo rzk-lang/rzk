@@ -37,30 +37,30 @@ import           Rzk.Check.Topes
 import           Rzk.Check.Value
 
 -- | The actual type of a term is a subtype of the expected one.
-subtype :: (Checking m, Distinct n) => Core n -> Value n -> Value n -> m n ()
+subtype :: Distinct n => Core n -> Value n -> Value n -> Check n ()
 subtype term expected actual = compareWith (Just term) Covariant expected actual
 
 -- | The second type is a subtype of the first, with no term at hand.
-subtypeValues :: (Checking m, Distinct n) => Value n -> Value n -> m n ()
+subtypeValues :: Distinct n => Value n -> Value n -> Check n ()
 subtypeValues = compareWith Nothing Covariant
 
 -- | Two types are convertible.
-convertTypes :: (Checking m, Distinct n) => Value n -> Value n -> m n ()
+convertTypes :: Distinct n => Value n -> Value n -> Check n ()
 convertTypes = compareWith Nothing Invariant
 
 -- | Two terms are convertible.
-convertTerms :: (Checking m, Distinct n) => Value n -> Value n -> m n ()
+convertTerms :: Distinct n => Value n -> Value n -> Check n ()
 convertTerms = compareWith Nothing Invariant
 
 -- | In a lenient hole mode, a term that still carries a hole is work in
 -- progress, and a mismatch around it is tolerated.
-holesTolerated :: Checking m => Core n -> m n Bool
+holesTolerated :: Core n -> Check n Bool
 holesTolerated term = asksContext $ \ctx ->
   optHoles (ctxOptions ctx) == HolesDeferred && containsHole term
 
 compareWith
-  :: forall m n. (Checking m, Distinct n)
-  => Maybe (Core n) -> Variance -> Value n -> Value n -> m n ()
+  :: forall n. (Distinct n)
+  => Maybe (Core n) -> Variance -> Value n -> Value n -> Check n ()
 compareWith mterm variance expected actual =
   performing (ActionConvert expected actual) $ do
     ctx <- askContext
@@ -76,8 +76,8 @@ compareWith mterm variance expected actual =
 -- | Why two values do not compare, and the cases the library cannot
 -- decide: a restriction met by the term, a function by its applications.
 explain
-  :: forall m n. (Checking m, Distinct n)
-  => Maybe (Core n) -> Variance -> Value n -> Value n -> m n ()
+  :: forall n. (Distinct n)
+  => Maybe (Core n) -> Variance -> Value n -> Value n -> Check n ()
 explain mterm variance expected actual = do
   ctx <- askContext
   let scope = ctxScope ctx

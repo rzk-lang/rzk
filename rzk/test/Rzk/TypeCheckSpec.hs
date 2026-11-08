@@ -349,7 +349,7 @@ newOptions = Check.defaultOptions { Check.optVerbosity = Check.Silent }
 -- | The outcome of a run under the new checker: the errors it reports, in
 -- order, and its warnings.
 runNew :: [(FilePath, Rzk.Module)] -> ([Check.ErrorInContext], [Check.Warning])
-runNew ms = case Check.checkModulesFull newOptions ms of
+runNew ms = case Check.checkModules newOptions ms of
   Check.Checked _ _ errs warnings _ -> (errs, warnings)
 
 -- | Does a fixture exercise the fragment checks (RSTT-safe mode, the

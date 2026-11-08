@@ -22,9 +22,7 @@ module Rzk.Check.Error
   , ppTope
   , ppPoint
     -- * Warnings
-  , WarningKind (..)
   , Warning (..)
-  , warningKind
   , warningTag
   , warningLocation
   , ppWarning
@@ -348,14 +346,6 @@ ppModality = \case
 
 -- * Warnings
 
--- | The kinds of warning a run may record, which is all a status-only run
--- records of a warning.
-data WarningKind
-  = WarnOverhang
-  | WarnTopeFamilyDomain
-  | WarnShadowing
-  deriving (Eq, Ord, Show)
-
 -- | A warning, rendered.
 data Warning
   = OverhangWarning String String [String] (Maybe LocationInfo)
@@ -366,12 +356,6 @@ data Warning
   | ShadowingWarning String [String] (Maybe LocationInfo)
     -- ^ a binder, and the binding it shadows, each with where it was written
   deriving (Eq, Show)
-
-warningKind :: Warning -> WarningKind
-warningKind = \case
-  OverhangWarning{}         -> WarnOverhang
-  TopeFamilyDomainWarning{} -> WarnTopeFamilyDomain
-  ShadowingWarning{}        -> WarnShadowing
 
 -- | The stable code of a warning.
 warningTag :: Warning -> String

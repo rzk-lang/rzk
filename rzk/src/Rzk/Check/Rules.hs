@@ -17,8 +17,7 @@
 -- with the expected one by subtyping ("Rzk.Check.Conversion"). The rules
 -- mirror those of "Rzk.TypeCheck.Judgements" case by case, on values.
 --
--- The rules are written once against 'Checking', so the full and the fast
--- run share them. The modal constructs and @match@ are not covered yet.
+-- The modal constructs and @match@ are not covered yet.
 module Rzk.Check.Rules
   ( check
   , infer
@@ -57,13 +56,13 @@ import           Rzk.Check.Value
 
 -- * Values in the monad
 
-evalM :: (Checking m, Distinct n) => Core n -> m n (Value n)
+evalM :: Distinct n => Core n -> Check n (Value n)
 evalM t = asksContext $ \ctx -> evalCore (ctxScope ctx) ctx t
 {-# INLINE evalM #-}
 
 -- | A value read back, with defined names folded. Lazy: nothing is read
 -- back until a consumer looks.
-quoteM :: (Checking m, Distinct n) => Value n -> m n (Core n)
+quoteM :: Distinct n => Value n -> Check n (Core n)
 quoteM v = asksContext $ \ctx -> quoteFolded (ctxScope ctx) ctx v
 {-# INLINE quoteM #-}
 
@@ -73,16 +72,16 @@ quoteM v = asksContext $ \ctx -> quoteFolded (ctxScope ctx) ctx v
 -- clash, extend the context with the pattern by the given function, and
 -- run the continuation on the body.
 enterRawScope
-  :: forall m n r. (Checking m, Distinct n)
-  => (forall l. (Distinct l, DExt n l) => Foil.Scope l -> Pattern n l -> Context (DiagOf m) n -> Context (DiagOf m) l)
+  :: forall n r. (Distinct n)
+  => (forall l. (Distinct l, DExt n l) => Foil.Scope l -> Pattern n l -> Context Diag n -> Context Diag l)
   -> ScopedRaw n
-  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
-  -> m n r
+  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l r)
+  -> Check n r
 enterRawScope extend (ScopedAST pat body) k = do
   warnShadowing pat
   ctx <- askContext
   let scope = ctxScope ctx
-      enter :: forall l. DExt n l => Pattern n l -> Raw l -> m n r
+      enter :: forall l. DExt n l => Pattern n l -> Raw l -> Check n r
       enter pat' body' = case (Foil.assertDistinct pat', Foil.assertExt pat') of
         (Foil.Distinct, Foil.Ext) ->
           let scope' = Foil.extendScopePattern pat' scope
@@ -96,10 +95,10 @@ enterRawScope extend (ScopedAST pat body) k = do
 
 -- | Enter a raw scope bound at a domain, with a modality and a shape.
 underRawScope
-  :: forall m n r. (Checking m, Distinct n)
+  :: forall n r. (Distinct n)
   => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n
-  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
-  -> m n r
+  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l r)
+  -> Check n r
 underRawScope md dom mshape =
   enterRawScope (\scope' pat ctx -> underPattern scope' ctx md dom mshape pat)
 
@@ -107,8 +106,8 @@ underRawScope md dom mshape =
 -- the expected domain and, if there is one, the expected shape: the cube
 -- and the shape, as values.
 checkShapedParam
-  :: (Checking m, Distinct n)
-  => Value n -> Maybe (Value n) -> Raw n -> Raw n -> m n (Value n, Value n)
+  :: (Distinct n)
+  => Value n -> Maybe (Value n) -> Raw n -> Raw n -> Check n (Value n, Value n)
 checkShapedParam dom mexpectedShape param shape = do
   cube <- check param cubeUniverse
   cubeV <- evalM cube
@@ -122,8 +121,8 @@ checkShapedParam dom mexpectedShape param shape = do
 -- becomes the conjunction of the shape at the pattern and the body, unless
 -- the body already entails the shape, with a warning.
 carryFamilyDomain
-  :: (Checking m, DExt n l)
-  => Pattern n l -> Value n -> Core l -> m l (Core l)
+  :: (DExt n l)
+  => Pattern n l -> Value n -> Core l -> Check l (Core l)
 carryFamilyDomain pat shape body = do
   ctx <- askContext
   let scope = ctxScope ctx
@@ -133,18 +132,18 @@ carryFamilyDomain pat shape body = do
       domainT = topeOf scope ctx domainV
   if topesEntail (ctxTopes ctx) [bodyT] domainT then pure body else do
     warn <- asksContext (optWarnTopeFamilyDomain . ctxOptions)
-    when warn $ recordWarning WarnTopeFamilyDomain $ \c ->
+    when warn $ recordWarning $ \c ->
       TopeFamilyDomainWarning (ppValueIn c bodyV) (ppValueIn c domainV) (ctxLocation c)
     domainC <- quoteM domainV
     pure (TopeAnd domainC body)
 
 -- | Warn about each name of a binder that shadows a name in scope, as the
 -- old checker did with a trace.
-warnShadowing :: (Checking m, Distinct n) => Pattern n l -> m n ()
+warnShadowing :: Pattern n l -> Check n ()
 warnShadowing pat = do
   ctx <- askContext
   sequence_
-    [ recordWarning WarnShadowing $ \c -> ShadowingWarning
+    [ recordWarning $ \c -> ShadowingWarning
         (ppVarIdentWithLocation x)
         [ ppVarIdentWithLocation previous | Just previous <- [entryName (lookupEntry v c)] ]
         (ctxLocation c)
@@ -224,7 +223,7 @@ domainKindName = \case
   DomainModalTope       -> "a modal cube or tope kind"
 
 -- | Reject a universe kind standing where an ordinary type is required.
-ensureTypeAtU :: (Checking m, Distinct n) => String -> Value n -> m n ()
+ensureTypeAtU :: Distinct n => String -> Value n -> Check n ()
 ensureTypeAtU position ty = do
   ctx <- askContext
   case classifyType (ctxScope ctx) ctx ty of
@@ -235,12 +234,12 @@ ensureTypeAtU position ty = do
 -- * Topes
 
 -- | The tope context, for an error.
-contextTopesM :: Checking m => m n [Tope]
+contextTopesM :: Check n [Tope]
 contextTopesM = asksContext (accessibleTopes . ctxTopes)
 
 -- | The context entails the tope, or the tope mentions a hole and cannot
 -- be decided.
-contextEntails :: (Checking m, Distinct n) => Value n -> m n ()
+contextEntails :: Distinct n => Value n -> Check n ()
 contextEntails topeV = do
   ctx <- askContext
   let tope = topeOf (ctxScope ctx) ctx topeV
@@ -251,7 +250,7 @@ contextEntails topeV = do
 
 -- | The context is covered by the disjunction of the topes: the coverage
 -- obligation of a @recOR@.
-contextEntailsUnion :: (Checking m, Distinct n) => [Value n] -> m n ()
+contextEntailsUnion :: Distinct n => [Value n] -> Check n ()
 contextEntailsUnion topeVs = do
   ctx <- askContext
   let topes = map (topeOf (ctxScope ctx) ctx) topeVs
@@ -292,7 +291,7 @@ pointHasHole = \case
 -- | Diagnose a @recOR@ guard or a restriction face against the context: a
 -- tope disjoint from a consistent context is vacuous, an error; a tope
 -- that overhangs the context is reported when the option asks.
-checkTopeAgainstContext :: (Checking m, Distinct n) => String -> Value n -> m n ()
+checkTopeAgainstContext :: Distinct n => String -> Value n -> Check n ()
 checkTopeAgainstContext what topeV = do
   ctx <- askContext
   let topes = ctxTopes ctx
@@ -301,13 +300,13 @@ checkTopeAgainstContext what topeV = do
     if disjoint topes tope && not (topeHasHole tope)
       then issueTypeError (TypeErrorTopeContextDisjoint tope (filter (/= TTop) (accessibleTopes topes)))
       else when (optWarnOverhang (ctxOptions ctx) && not (entailedBy topes tope)) $
-        recordWarning WarnOverhang $ \c ->
+        recordWarning $ \c ->
           let naming = namingOfContext c
           in OverhangWarning what (ppTope naming tope)
                (map (ppTope naming) (filter (/= TTop) (accessibleTopes topes))) (ctxLocation c)
 
 -- | Two faces, or two branches, agree where their topes overlap.
-checkCoherence :: (Checking m, Distinct n) => (Value n, Value n) -> (Value n, Value n) -> m n ()
+checkCoherence :: Distinct n => (Value n, Value n) -> (Value n, Value n) -> Check n ()
 checkCoherence (ltope, lterm) (rtope, rterm) = do
   ctx <- askContext
   let scope = ctxScope ctx
@@ -318,7 +317,7 @@ checkCoherence (ltope, lterm) (rtope, rterm) = do
 
 -- | A hole in checking position: an error in strict mode; otherwise its
 -- goal and context are recorded and it stands for a term of the goal.
-checkHole :: (Checking m, Distinct n) => Maybe VarIdent -> Value n -> m n (Core n)
+checkHole :: Distinct n => Maybe VarIdent -> Value n -> Check n (Core n)
 checkHole mname goal = do
   mode <- asksContext (optHoles . ctxOptions)
   case mode of
@@ -342,7 +341,7 @@ checkHole mname goal = do
 
 -- * Checking
 
-check :: forall m n. (Checking m, Distinct n) => Raw n -> Value n -> m n (Core n)
+check :: forall n. Distinct n => Raw n -> Value n -> Check n (Core n)
 check term ty = performing (ActionCheck term ty) $ case term of
   RawNode (HoleF (Just name)) | Just x <- unmarkUnresolved name ->
     issueTypeError (TypeErrorUndefined x)
@@ -511,10 +510,10 @@ patternName (ScopedAST pat _) = case pat of
 
 -- | Enter the scope of a let: its names have the components of the value.
 underLet
-  :: forall m n r. (Checking m, Distinct n)
+  :: forall n r. (Distinct n)
   => Value n -> Value n -> ScopedRaw n
-  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> m l r)
-  -> m n r
+  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l r)
+  -> Check n r
 underLet ty val = enterRawScope $ \scope' pat ctx ->
   enterPattern pat
     (letEntries scope' (sinkContextUnchecked ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat)
@@ -522,7 +521,7 @@ underLet ty val = enterRawScope $ \scope' pat ctx ->
 
 -- | A @recOR@ against a known type: every branch is checked against it
 -- under its guard, the branches cohere, and the guards cover the context.
-checkRecOrAgainst :: (Checking m, Distinct n) => Value n -> [(Raw n, Raw n)] -> m n (Core n)
+checkRecOrAgainst :: Distinct n => Value n -> [(Raw n, Raw n)] -> Check n (Core n)
 checkRecOrAgainst ty rs = do
   ctx <- askContext
   let scope = ctxScope ctx
@@ -540,7 +539,7 @@ checkRecOrAgainst ty rs = do
 -- * Inference
 
 -- | Infer a term and compare its type's sort with the expected one.
-inferAs :: (Checking m, Distinct n) => Value n -> Raw n -> m n (Core n, Value n)
+inferAs :: Distinct n => Value n -> Raw n -> Check n (Core n, Value n)
 inferAs expectedKind term = do
   (term', ty) <- infer term
   kind <- sortOf ty
@@ -550,7 +549,7 @@ inferAs expectedKind term = do
 -- | The sort of a type value: the universe it lives in. The universes are
 -- all @U@-sorted; a cube is in @CUBE@, a tope in @TOPE@; anything else is
 -- a type, in @U@.
-sortOf :: (Checking m, Distinct n) => Value n -> m n (Value n)
+sortOf :: Distinct n => Value n -> Check n (Value n)
 sortOf ty = do
   ctx <- askContext
   pure $ case force ty of
@@ -563,7 +562,7 @@ sortOf ty = do
       Nothing -> universe
 
 -- | Infer a cube point used by @≡@. A bare hole here has an unknown cube.
-inferPoint :: (Checking m, Distinct n) => Raw n -> m n (Core n, Value n)
+inferPoint :: Distinct n => Raw n -> Check n (Core n, Value n)
 inferPoint term@(RawNode (HoleF (Just name)))
   | Just x <- unmarkUnresolved name = performing (ActionInfer term) $ issueTypeError (TypeErrorUndefined x)
 inferPoint term@(RawNode (HoleF mname)) = performing (ActionInfer term) $ do
@@ -577,7 +576,7 @@ inferPoint term@(RawNode (HoleF mname)) = performing (ActionInfer term) $ do
 inferPoint term = inferAs cubeUniverse term
 
 -- | Infer a point of a directed cube, @2@ or @𝕀@, for @≤@.
-inferDirectedPoint :: (Checking m, Distinct n) => Raw n -> m n (Core n, Value n)
+inferDirectedPoint :: Distinct n => Raw n -> Check n (Core n, Value n)
 inferDirectedPoint term = performing (ActionInfer term) $ do
   (point, cube) <- inferPoint term
   case force cube of
@@ -589,7 +588,7 @@ inferDirectedPoint term = performing (ActionInfer term) $ do
       issueTypeError $ TypeErrorOther $
         "the (t ≤ s) tope expects a point in a directed cube (2 or 𝕀); got " <> ppValueIn ctx cube
 
-infer :: forall m n. (Checking m, Distinct n) => Raw n -> m n (Core n, Value n)
+infer :: forall n. Distinct n => Raw n -> Check n (Core n, Value n)
 infer tt = performing (ActionInfer tt) $ case tt of
   RawNode (HoleF (Just name)) | Just x <- unmarkUnresolved name ->
     issueTypeError (TypeErrorUndefined x)
@@ -916,7 +915,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RawNode MatchArmF{} -> issueTypeError (TypeErrorUnsupported "a match arm")
   RawNode TypeShapeF{} -> panicImpossible "a family type in a raw term"
   where
-    lattice :: String -> (Core n -> Core n -> Core n) -> Raw n -> Raw n -> m n (Core n, Value n)
+    lattice :: String -> (Core n -> Core n -> Core n) -> Raw n -> Raw n -> Check n (Core n, Value n)
     lattice name mk l r = do
       (l', lTy) <- inferAs cubeUniverse l
       (r', rTy) <- inferAs cubeUniverse r
@@ -934,8 +933,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
 -- | A Π over a cube with a shape, or, when its codomain is @TOPE@, the
 -- type of a family over that shape.
 piOrFamily
-  :: (Checking m, Distinct n)
-  => TModality -> Core n -> Core n -> Value n -> Value n -> ScopedRaw n -> m n (Core n, Value n)
+  :: (Distinct n)
+  => TModality -> Core n -> Core n -> Value n -> Value n -> ScopedRaw n -> Check n (Core n, Value n)
 piOrFamily md cubeC shapeC cubeV shapeV ret = do
   (ret', isTope) <- underRawScope md cubeV (Just shapeV) ret $ \pat retTerm -> do
     retIn <- check retTerm universe
@@ -951,8 +950,8 @@ piOrFamily md cubeC shapeC cubeV shapeV ret = do
 -- | Infer a λ whose parameter is known: the body is inferred under it, and
 -- the λ's type is the Π over the pattern with the body's type as codomain.
 inferLambda
-  :: (Checking m, Distinct n)
-  => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n -> m n (Core n, Value n)
+  :: (Distinct n)
+  => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n -> Check n (Core n, Value n)
 inferLambda md dom mshape body = do
   (body', retScoped, isTope) <- underRawScope md dom mshape body $ \pat bodyTerm -> do
     (bodyIn, retIn) <- infer bodyTerm
