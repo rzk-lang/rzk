@@ -45,6 +45,7 @@ module Rzk.Check.Syntax
   , ScopedCore
   , SrcPos (..)
   , rawNode
+  , noPosition
   , positionOfRaw
   , stripPositions
     -- * Core patterns
@@ -246,6 +247,10 @@ type ScopedCore = ScopedAST Pattern Sig
 -- | A raw node at a position.
 rawNode :: RzkPosition -> Sig (ScopedRaw n) (Raw n) -> Raw n
 rawNode pos sig = Node (AnnSig (SrcPos pos) sig)
+
+-- | The position of a node the checker builds, which was written nowhere.
+noPosition :: RzkPosition
+noPosition = RzkPosition Nothing Nothing
 
 -- | Where a raw term was written, when it came from a file. A variable is a
 -- leaf and carries no position.

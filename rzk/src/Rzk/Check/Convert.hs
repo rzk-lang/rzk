@@ -119,7 +119,7 @@ toRaw scope env = go
     atPosition _ t = t
 
     node :: Sig (ScopedRaw n) (Raw n) -> Raw n
-    node = rawNode (RzkPosition Nothing Nothing)
+    node = rawNode noPosition
 
     sc = scoped scope
     anon = scopedAnon scope env
@@ -326,4 +326,4 @@ toRaw scope env = go
         arms s e []       = toRaw s e body
         arms s e (p : ps) =
           node' (MatchArmF (withPattern s p e (\p' s' e' -> ScopedAST p' (arms s' e' ps))))
-        node' = rawNode (RzkPosition Nothing Nothing)
+        node' = rawNode noPosition

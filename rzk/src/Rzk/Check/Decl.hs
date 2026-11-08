@@ -40,7 +40,7 @@ import           Data.Maybe               (fromMaybe)
 import qualified FreeFoil.NbE             as NbE
 import           Debug.Trace              (trace)
 
-import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
+import           Language.Rzk.Foil.Names  (TModality (..),
                                            VarIdent, markUnresolved,
                                            patternToTerm, varIdentAt)
 import qualified Language.Rzk.Syntax      as Rzk
@@ -81,7 +81,7 @@ elaborate term = do
   ctx <- askContext
   let env name = case lookupNamed name ctx of
         Just v  -> Var v
-        Nothing -> rawNode (RzkPosition Nothing Nothing) (HoleF (Just (markUnresolved name)))
+        Nothing -> rawNode noPosition (HoleF (Just (markUnresolved name)))
   pure (toRaw (ctxScope ctx) env term)
 
 -- | Bind a top-level entry and run the rest of the module under it. The
