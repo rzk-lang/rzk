@@ -1,0 +1,24 @@
+#lang rzk-1
+
+-- Equality checks must preserve ordinary subtyping and coherent recOR branches.
+#def forget (A : U) (a : A) (x : A [TOP ↦ a]) : A := x
+
+#def coherent (A : U) (a : A) (t s : 2) : U
+  := recOR (t ≤ s ↦ A [TOP ↦ a], s ≤ t ↦ A [TOP ↦ a])
+
+#def coherent-reversed (A : U) (a : A) (t s : 2) : U
+  := recOR (s ≤ t ↦ A [TOP ↦ a], t ≤ s ↦ A [TOP ↦ a])
+
+#def piecewise-forget (A : U) (a : A) (t s : 2)
+  (f : recOR (t ≤ s ↦ A [TOP ↦ a], s ≤ t ↦ A [TOP ↦ a]))
+  : recOR (t ≤ s ↦ A, s ≤ t ↦ A)
+  := f
+
+#def equal-types (A : U) (a : A)
+  : (A [TOP ↦ a]) =_{U} (A [TOP ↦ a]) := refl
+
+-- Boundary descriptions are compared under the function's shape domain.
+#def equal-ext-types (A : U) (a : A)
+  : ((t : 2 | t ≡ 0₂) → A [t ≡ 0₂ ↦ a])
+    =_{U} ((t : 2 | t ≡ 0₂) → A [TOP ↦ a])
+  := refl
