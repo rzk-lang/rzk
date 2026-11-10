@@ -29,6 +29,7 @@ import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..))
 import qualified FreeFoil.NbE             as NbE
 
+import           Language.Rzk.Foil.Names  (TModality (..))
 import           Rzk.Check.Context
 import           Rzk.Check.Error
 import           Rzk.Check.Monad
@@ -165,6 +166,23 @@ explain mterm variance expected actual = do
                 issueTypeError (TypeErrorTopeNotSatisfied (accessibleTopes (assume super topes)) sub)
             _ -> inContext ctx mismatch
           compareWith mterm' variance codE codA
+    -- two lambdas: their bodies under a fresh variable of the actual one's
+    -- domain, where both shapes hold, so that the mismatch is reported
+    -- where it is
+    (VLambda envE mpE bodyE, VLambda envA mpA bodyA) -> do
+      let (md, dom) = case (mpA, mpE) of
+            (Just p, _) -> (paramModality p, paramDomain p)
+            (_, Just p) -> (paramModality p, paramDomain p)
+            _           -> (Id, vhole Nothing)
+      underFreshVar scope ctx md dom (mpA >>= paramShape) $ \scope' ctx' name -> do
+        let x = NbE.vvar name
+            ctx'' = case mpE >>= paramShape of
+              Nothing    -> ctx'
+              Just shape -> assumeValue scope' ctx' (appValue scope' ctx' (Foil.sink shape) x)
+        inContext ctx'' $
+          compareWith Nothing variance
+            (evalScope scope' ctx'' (Foil.sink envE) bodyE x)
+            (evalScope scope' ctx'' (Foil.sink envA) bodyA x)
     -- identity types: the carriers, then the endpoints
     ((VTypeId xE mtE yE), (VTypeId xA mtA yA)) -> do
       case (mtE, mtA) of
