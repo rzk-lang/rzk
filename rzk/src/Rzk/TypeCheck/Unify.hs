@@ -7,8 +7,8 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Conversion and subtyping. Term comparisons are invariant; type comparisons
--- track the variance of function domains, tope families, and restriction faces.
+-- | Conversion and subtyping. Terms are compared invariantly. Type comparisons
+-- account for the variance of function domains, tope families, and restriction faces.
 module Rzk.TypeCheck.Unify where
 
 import           Control.Monad            (forM_, unless, when)
@@ -117,9 +117,8 @@ unifyViaDecompose expected actual = do
 unifyTypes :: Distinct n => TermT n -> TermT n -> TermT n -> TypeCheck n ()
 unifyTypes = unify . Just
 
--- | Compare terms by conversion, including when the terms are types.
--- Subtyping in these positions is unsound with type-in-type.
--- Type-former comparisons use 'unify' directly to retain the ambient variance.
+-- | Compare terms by conversion. Types used as terms must also be convertible.
+-- Use 'unify' for directional comparisons of types.
 unifyTerms :: Distinct n => TermT n -> TermT n -> TypeCheck n ()
 unifyTerms expected actual = setVariance Invariant (unify Nothing expected actual)
 
