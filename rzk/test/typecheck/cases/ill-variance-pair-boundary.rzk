@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- A type-valued pair must agree with its restriction boundary by conversion.
+#def bad-pair (A : U) (a : A)
+  : (Σ (_ : U), Unit) [TOP ↦ (A, unit)]
+  := (A [TOP ↦ a], unit)

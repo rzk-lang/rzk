@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- Subtyping between identity endpoints would make all elements equal.
+#def leak-reverse (A : U) (a : A) (p : A [TOP ↦ a] =_{U} A [TOP ↦ a])
+  : A [TOP ↦ a] =_{U} A
+  := p
+
+#def all-equal (A : U) (a x y : A) : x =_{A} y
+  := idJ (U, A [TOP ↦ a], (\ B _ → (u : B) → (v : B) → u =_{B} v),
+          (\ u v → refl), A, leak-reverse A a refl) x y
