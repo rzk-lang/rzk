@@ -140,6 +140,7 @@ module Rzk.Check.Value
   , entailsValue
   , assumeValue
   , topeAndValue
+  , recOrValue
     -- * Types of neutrals
   , neutralType
     -- * Holes
@@ -1056,6 +1057,17 @@ assumeValue scope ctx tope = ctx { ctxTopes = assume (topeOf scope ctx tope) (ct
 -- | Does the context entail a tope value?
 entailsValue :: Distinct n => Scope n -> Context n -> Value n -> Bool
 entailsValue scope ctx tope = entails (ctxTopes ctx) (topeOf scope ctx tope)
+
+-- | A @recOR@ of values, simplified as evaluation simplifies one: the branch
+-- whose guard the context entails, otherwise the one branch if all are
+-- convertible, otherwise the @recOR@ itself.
+recOrValue :: Distinct n => Scope n -> Context n -> [(Value n, Value n)] -> Value n
+recOrValue scope ctx rs =
+  case [ b | (guard, b) <- rs, entailsValue scope ctx guard ] of
+    b : _ -> b
+    [] -> case rs of
+      (_, b) : rest | all (conv scope (withVariance Invariant ctx) b . snd) rest -> b
+      _ -> NbE.vnode (RecOrF rs)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.
 topeAndValue :: Value n -> Value n -> Value n

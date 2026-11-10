@@ -715,7 +715,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       pure ((tope', branch'), (topeV, branchV), (topeV, ty))
     sequence_ [ checkCoherence l r | l : rest <- tails [ b | (_, b, _) <- branches ], r <- rest ]
     contextEntailsUnion [ t | (_, (t, _), _) <- branches ]
-    pure (RecOr [ b | (b, _, _) <- branches ], vnode (RecOrF [ t | (_, _, t) <- branches ]))
+    pure (RecOr [ b | (b, _, _) <- branches ], recOrValue scope ctx [ t | (_, _, t) <- branches ])
 
   RTypeFun md a Nothing b -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
