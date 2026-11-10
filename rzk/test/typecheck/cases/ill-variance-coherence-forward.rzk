@@ -1,0 +1,5 @@
+#lang rzk-1
+
+-- Type-valued branches must agree on their overlap.
+#def test (A : U) (a : A) (t s : 2) : U
+  := recOR (t ≤ s ↦ A, s ≤ t ↦ A [TOP ↦ a])

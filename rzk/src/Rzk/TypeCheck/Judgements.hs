@@ -601,7 +601,7 @@ saturateWithHoles term = do
 endpointsAgree :: Distinct n => TermT n -> TermT n -> TypeCheck n Bool
 endpointsAgree a b =
   suppressing
-    ((unify Nothing a b >> pure True) `catchError` \_ -> pure False)
+    ((unifyTerms a b >> pure True) `catchError` \_ -> pure False)
 
 -- | Ex falso: in a contradictory tope context @recBOT@ inhabits any type, so it is a
 -- candidate for every goal there (and only there — elsewhere it would not
@@ -1144,10 +1144,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ case term of
                 xty' <- typecheck xty universeT
                 unifyTerms tA xty'
               x' <- typecheck x tA
-              unifyTerms x' y >> unifyTerms y x'
-              unifyTerms x' z >> unifyTerms z x'
+              unifyTerms x' y
+              unifyTerms x' z
             when (isNothing mx) $
-              unifyTerms y z >> unifyTerms z y
+              unifyTerms y z
             return (reflT ty' (Just (y, Just tA)))
           _ -> issueTypeError $ TypeErrorUnexpectedRefl term ty
 

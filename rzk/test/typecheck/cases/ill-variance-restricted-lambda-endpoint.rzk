@@ -1,0 +1,10 @@
+#lang rzk-1
+
+-- The bodies of type-valued functions in identity endpoints must agree by
+-- conversion, not by the subtyping of their faces.
+#def leak (A : U) (a : A) (t : 2)
+  (p : (\ (_ : Unit) → A [t ≡ 0₂ ↦ a, t ≡ 1₂ ↦ a])
+       =_{Unit → U} (\ (_ : Unit) → A [t ≡ 0₂ ↦ a, t ≡ 1₂ ↦ a]))
+  : (\ (_ : Unit) → A [t ≡ 0₂ ↦ a])
+    =_{Unit → U} (\ (_ : Unit) → A [t ≡ 0₂ ↦ a, t ≡ 1₂ ↦ a])
+  := p

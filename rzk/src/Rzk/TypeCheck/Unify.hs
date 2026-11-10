@@ -7,8 +7,8 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | Unification, which in rzk is really subtyping: an extension type's faces, a
--- shape's tope and the variance of the position all take part.
+-- | Conversion and subtyping. Terms are compared invariantly. Type comparisons
+-- account for the variance of function domains, tope families, and restriction faces.
 module Rzk.TypeCheck.Unify where
 
 import           Control.Monad            (forM_, unless, when)
@@ -110,15 +110,17 @@ unifyViaDecompose expected actual = do
         Convertible -> return ()
         DontKnow -> case (expected, actual) of
           (AppT _ f x, AppT _ g y) -> do
-            unify Nothing f g
-            setVariance Invariant $ unify Nothing x y
+            unifyTerms f g
+            unifyTerms x y
           _ -> issueTypeError (TypeErrorOther "cannot decompose")
 
 unifyTypes :: Distinct n => TermT n -> TermT n -> TermT n -> TypeCheck n ()
 unifyTypes = unify . Just
 
+-- | Compare terms by conversion. Types used as terms must also be convertible.
+-- Use 'unify' for directional comparisons of types.
 unifyTerms :: Distinct n => TermT n -> TermT n -> TypeCheck n ()
-unifyTerms = unify Nothing
+unifyTerms expected actual = setVariance Invariant (unify Nothing expected actual)
 
 checkCoherence
   :: Distinct n
@@ -181,11 +183,14 @@ unifyInCurrentContext mterm expected actual = performing action $ do
         RecBottomT{} -> return ()
         RecOrT _ty rs' ->
           case expected' of
-            RecOrT _ty rs -> sequence_ (checkCoherence <$> rs <*> rs')
+            RecOrT _ty rs -> forM_ [(l, r) | l <- rs, r <- rs'] $
+              \((ltope, lterm), (rtope, rterm)) ->
+                localTope (topeAndT ltope rtope) $
+                  unify mterm lterm rterm
             _ ->
               forM_ rs' $ \(tope, term) ->
                 localTope tope $
-                  unifyTerms expected' term
+                  unify mterm expected' term
         _ -> typeOf expected' >>= typeOf >>= \case
           UniverseCubeT{} -> contextEntails (topeEQT expected' actual')
           _ -> unifyStructurally expected' actual'
@@ -302,7 +307,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
           -- not obvious; take care when refactoring.
           forM_ rs $ \(tope, term) ->
             localTope tope $
-              unifyTerms term actual'
+              unify mterm term actual'
 
         TypeFunT _ty _orig md cube mtope ret ->
           case actual' of
@@ -311,7 +316,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                 issueTypeError (TypeErrorModalityMismatch
                   MismatchFunctionType md md' Nothing)
               switchVariance $  -- unifying in the negative position!
-                unifyTerms cube cube' -- FIXME: unifyCubes
+                unify Nothing cube cube' -- FIXME: unifyCubes
               inScope2 orig' md cube' ret ret' $ \binder retBody retBody' -> do
                 scope <- asks ctxScope
                 let openTope = fmap (openWith scope (Foil.nameOf binder))
@@ -338,8 +343,15 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                     expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtopeIn
                     actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtopeIn'
                     bySubtyping domainEntails expectedTopeNF actualTopeNF
-                case mterm of
-                  Nothing -> unifyTerms retBody retBody'
+                -- Codomains are compared on the supertype's domain.
+                -- Invariant comparison runs both directional checks.
+                variance <- asks ctxCovariance
+                let domain = case variance of
+                      Covariant -> mtopeIn
+                      Contravariant -> mtopeIn'
+                      Invariant -> mtopeIn
+                maybe id localTope domain $ case mterm of
+                  Nothing -> unify Nothing retBody retBody'
                   Just term ->
                     unifyTypes
                       (appT retBody' (Foil.sink term) (Var (Foil.nameOf binder)))
@@ -366,18 +378,17 @@ unifyInCurrentContext mterm expected actual = performing action $ do
               -- functions) where an endpoint-fixing one (a path in a hom-type) is
               -- expected. Compared invariantly: subtyping between the underlying
               -- types must not leak into equality of identity types over them.
-              mapM_ (\(t1, t2) -> setVariance Invariant (unify Nothing t1 t2))
+              mapM_ (\(t1, t2) -> unifyTerms t1 t2)
                 ((,) <$> tA <*> tA')
-              unify Nothing x x'
-              unify Nothing y y'
+              unifyTerms x x'
+              unifyTerms y y'
             _ -> err
 
         AppT _ty f x ->
           case actual' of
             AppT _ty' f' x' -> do
-              unify Nothing f f'
-              setVariance Invariant $
-                unify Nothing x x'
+              unifyTerms f f'
+              unifyTerms x x'
             _ -> err
 
         LambdaT ty _orig _mparam body ->
@@ -390,7 +401,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                       when (md /= md') $
                         issueTypeError (TypeErrorModalityMismatch
                           MismatchLambda md md' Nothing)
-                      unify Nothing param param' -- we (should) have already checked this in types!
+                      unifyTerms param param' -- we (should) have already checked this in types!
                       inScope2 orig' md param body body' $ \binder bodyIn bodyIn' -> do
                         scope <- asks ctxScope
                         let openTope = fmap (openWith scope (Foil.nameOf binder))
@@ -403,9 +414,9 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                             bySubtyping domainEntails tope tope'
                             -- The bodies agree only where both are defined.
                             localTope (topeAndT tope tope') $
-                              unify Nothing bodyIn bodyIn'
+                              unifyTerms bodyIn bodyIn'
                           (Nothing, Nothing) ->
-                            unify Nothing bodyIn bodyIn'
+                            unifyTerms bodyIn bodyIn'
                           _ -> errIn
                     _ -> err
                 _ -> err
@@ -421,29 +432,29 @@ unifyInCurrentContext mterm expected actual = performing action $ do
           case actual' of
             LetModT _ _ app' inn' _ _mmotive' val' body'
               | app == app', inn == inn' -> do
-                unify Nothing val val'
+                unifyTerms val val'
                 bty <- requireTypeUnderModal inn val
                 inScope2 orig (comp app inn) bty body body' $ \_binder bodyIn bodyIn' ->
-                  unify Nothing bodyIn bodyIn'
+                  unifyTerms bodyIn bodyIn'
             _ -> err
 
         ReflT ty _x | TypeIdT _ty x _tA y <- infoType ty ->
           case actual' of
             ReflT ty' _x' | TypeIdT _ty' x' _tA' y' <- infoType ty' -> do
-              unify Nothing x x'
-              unify Nothing y y'
+              unifyTerms x x'
+              unifyTerms y y'
             _ -> err
         ReflT{} -> panicImpossible "refl with a non-identity type!"
 
         IdJT _ty a b c d e f ->
           case actual' of
             IdJT _ty' a' b' c' d' e' f' -> do
-              unify Nothing a a'
-              unify Nothing b b'
-              unify Nothing c c'
-              unify Nothing d d'
-              unify Nothing e e'
-              unify Nothing f f'
+              unifyTerms a a'
+              unifyTerms b b'
+              unifyTerms c c'
+              unifyTerms d d'
+              unifyTerms e e'
+              unifyTerms f f'
             _ -> err
 
         TypeAscT{} -> panicImpossible "type ascription at the root of WHNF"
@@ -463,7 +474,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
                         contextEntails (foldr topeOrT topeBottomT (map fst subRs))
                         forM_ subRs $ \(tope', term') ->
                           localTope tope' $
-                            unify Nothing term term'
+                            unifyTerms term term'
                     | (tope, term) <- superRs
                     ]
               case variance of
@@ -484,7 +495,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
           case actual' of
             ModAppT _ty' m' ty' -> do
               when (m' /= m) err
-              enterModality m $ unify Nothing ty ty'
+              enterModality m $ unifyTerms ty ty'
             _ -> err
         -- The external component of an extraction is bookkeeping, not
         -- denotation: it records the lock under which the extracted value was
@@ -498,7 +509,7 @@ unifyInCurrentContext mterm expected actual = performing action $ do
           case actual' of
             ModExtractT _ty' _app' inn' te' -> do
               when (inn' /= inn) err
-              enterModality app $ unify Nothing te te'
+              enterModality app $ unifyTerms te te'
             _ -> err
 
         -- defensive: a hole nested anywhere also defers here rather than panicking
