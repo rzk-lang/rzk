@@ -1,0 +1,19 @@
+#lang rzk-1
+
+-- The warning is controlled by warn-tope-family-domain. The family is read as
+-- its intersection with the domain either way.
+
+#def over-domain (I : CUBE) (ψ : I → TOPE) (χ : ψ → TOPE) (A : U) : U
+  := (t : χ) → A
+
+#set-option "warn-tope-family-domain" = "no"
+
+-- Silent.
+#def instantiate-quietly (I : CUBE) (A : U) : U
+  := over-domain I (\ t → BOT) (\ t → TOP) A
+
+#unset-option "warn-tope-family-domain"
+
+-- Reported again.
+#def instantiate (I : CUBE) (A : U) : U
+  := over-domain I (\ t → BOT) (\ t → TOP) A

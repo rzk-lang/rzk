@@ -1,0 +1,4 @@
+#lang rzk-1
+
+-- This family is already included in its domain.
+#def endpoint : (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → TOPE := \ t → t ≡ 0₂

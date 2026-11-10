@@ -11,6 +11,7 @@ import           Control.Applicative      ((<|>))
 import           Control.Monad            (forM, forM_, join, unless, when)
 import           Control.Monad.Except
 import           Control.Monad.Reader
+import           Control.Monad.Writer.Strict (Writer, runWriter, tell)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
@@ -36,7 +37,27 @@ instance IsString TermT' where
 defaultTypeCheck
   :: TypeCheck var a
   -> Either (TypeErrorInScopedContext var) a
-defaultTypeCheck tc = runExcept (runReaderT tc emptyContext)
+defaultTypeCheck tc =
+  let (result, warnings) = defaultTypeCheckWithWarnings tc
+  in foldr (trace . ("Warning: " <>) . ppCheckWarning) result warnings
+
+-- | Run the checker and return tope-family warnings separately.
+defaultTypeCheckWithWarnings
+  :: TypeCheck var a
+  -> (Either (TypeErrorInScopedContext var) a, [CheckWarning])
+defaultTypeCheckWithWarnings tc =
+  let (result, warnings) = runWriter (runExceptT (runReaderT tc emptyContext))
+  in (result, nub warnings)
+
+-- The warning and its deduplication are adapted from
+-- https://github.com/rzk-lang/rzk/pull/362.
+data CheckWarning = TopeFamilyDomainWarning String String (Maybe LocationInfo)
+  deriving (Eq)
+
+ppCheckWarning :: CheckWarning -> String
+ppCheckWarning (TopeFamilyDomainWarning family domain _) =
+  "tope family " <> family <> " is not included in its declared domain "
+    <> domain <> ". It is read as its intersection with the domain"
 
 -- FIXME: merge with VarInfo
 data Decl var = Decl
@@ -241,11 +262,18 @@ setOption "render" = \case
   "none"  -> localRenderBackend Nothing
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown render backend (use \"svg\", \"latex\", or \"none\")"
+setOption "warn-tope-family-domain" = \case
+  "yes" -> localWarnTopeFamilyDomain True
+  "no"  -> localWarnTopeFamilyDomain False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 unsetOption :: String -> TypeCheck var a -> TypeCheck var a
 unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
+unsetOption "warn-tope-family-domain" =
+  localWarnTopeFamilyDomain (warnTopeFamilyDomain emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -612,6 +640,10 @@ traceTypeCheck msgLevel msg tc = do
 localVerbosity :: Verbosity -> TypeCheck var a -> TypeCheck var a
 localVerbosity v = local $ \Context{..} -> Context { verbosity = v, .. }
 
+localWarnTopeFamilyDomain :: Bool -> TypeCheck var a -> TypeCheck var a
+localWarnTopeFamilyDomain enabled = local $ \context ->
+  context { warnTopeFamilyDomain = enabled }
+
 localRenderBackend :: Maybe RenderBackend -> TypeCheck var a -> TypeCheck var a
 localRenderBackend v = local $ \Context{..} -> Context { renderBackend = v, .. }
 
@@ -653,6 +685,7 @@ data Context var = Context
   , location               :: Maybe LocationInfo
   , verbosity              :: Verbosity
   , covariance             :: Covariance
+  , warnTopeFamilyDomain   :: Bool
   , renderBackend          :: Maybe RenderBackend
   } deriving (Functor, Foldable)
 
@@ -676,6 +709,7 @@ emptyContext = Context
   , location = Nothing
   , verbosity = Normal
   , covariance = Covariant
+  , warnTopeFamilyDomain = True
   , renderBackend = Nothing
   }
 
@@ -978,7 +1012,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
       , varLocation = loc
       }
 
-type TypeCheck var = ReaderT (Context var) (Except (TypeErrorInScopedContext var))
+type TypeCheck var = ReaderT (Context var) (ExceptT (TypeErrorInScopedContext var) (Writer [CheckWarning]))
 
 freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
 freeVarsT_ term = do
@@ -2563,6 +2597,10 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                   unifyTerms (fromMaybe topeTopT mtope') mtope''
 
             mapM_ checkNameShadowing orig
+            origs <- asks varOrigs
+            let fallback = zip (nub (freeVars term)) defaultVarIdents
+                name var = fromMaybe "_" (join (lookup var origs) <|> lookup var fallback)
+                family = show (name <$> term)
             enterScope orig param' $ do
               maybe id localTope mtope' $ do
                 body' <- typecheck body ret
@@ -2574,7 +2612,13 @@ typecheck term ty = performing (ActionTypeCheck term ty) $ do
                     bodyNF <- nfT body'
                     domainNF <- nfT domain
                     included <- [bodyNF] `entailM` domainNF
-                    pure $ if included then body' else topeAndT domain body'
+                    if included then pure body' else do
+                      warn <- asks warnTopeFamilyDomain
+                      when warn $ do
+                        domainText <- ppTermInContext domainNF
+                        loc <- asks location
+                        tell [TopeFamilyDomainWarning family domainText loc]
+                      pure (topeAndT domain body')
                   _ -> pure body'
                 return (lambdaT ty' orig (Just (param', mtope')) body'')
 

@@ -1,6 +1,7 @@
 -- Regression examples follow rzk-lang/rzk#359, based on Reviewer A's
 -- tope-family counterexample. Restricted endpoint cases follow
 -- https://github.com/rzk-lang/rzk/pull/377.
+-- Warning cases follow https://github.com/rzk-lang/rzk/pull/362.
 -- This runner uses the historical checker API.
 module Rzk.TypeCheckSpec where
 
@@ -17,6 +18,16 @@ spec = do
       checkFixture "ill-tope-family-domain-non-instance" RejectTope
     it "rejects the same-domain control at its cube argument" $
       checkFixture "ill-tope-family-domain-same-domain" RejectTope
+
+  describe "Tope-family warnings" $ do
+    it "reports a clipped family once per source location" $
+      checkFixtureWarnings "warn-tope-family-domain-non-instance" 2
+    it "supports disabling the warning and restoring its default" $
+      checkFixtureWarnings "warn-tope-family-domain-option" 1
+    it "does not warn for an included family" $
+      checkFixtureWarnings "happy-tope-family-domain-contained" 0
+    it "rejects an invalid warning option" $
+      checkFixture "ill-tope-family-domain-option" RejectOption
 
   describe "Invariant term comparison" $ do
     it "rejects subtyping of identity endpoints" $
@@ -37,7 +48,7 @@ spec = do
     it "preserves type subtyping and coherent branches" $
       checkFixture "happy-variance-conversion" Accept
 
-data Expected = Accept | RejectTope | RejectConversion
+data Expected = Accept | RejectTope | RejectConversion | RejectOption
   deriving (Eq, Show)
 
 checkFixture :: String -> Expected -> Expectation
@@ -59,4 +70,19 @@ rejectionKind (PlainTypeError err) = case typeErrorError err of
   TypeErrorTopeNotSatisfied{} -> Just RejectTope
   TypeErrorUnifyTerms{} -> Just RejectConversion
   TypeErrorUnify{} -> Just RejectConversion
+  TypeErrorOther message
+    | message == "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")" -> Just RejectOption
   _ -> Nothing
+
+checkFixtureWarnings :: String -> Int -> Expectation
+checkFixtureWarnings name expected = do
+  let path = "test/files/" ++ name ++ ".rzk"
+  source <- readFile path
+  case Rzk.parseModule source of
+    Left err -> expectationFailure ("Parse error: " ++ err)
+    Right parsed -> do
+      let (result, warnings) = defaultTypeCheckWithWarnings $
+            localVerbosity Silent (typecheckModulesWithLocation [(path, parsed)])
+      case result of
+        Left err -> expectationFailure (ppTypeErrorInScopedContext' BottomUp err)
+        Right _ -> length warnings `shouldBe` expected
