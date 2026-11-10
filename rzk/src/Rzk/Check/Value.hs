@@ -389,12 +389,13 @@ instance Eval Context Pattern Sig where
     -- refl is refl: its endpoints are those of its type
     (ReflF _, ReflF _) -> Just mempty
 
-    -- two lambdas: their domains, and the bodies where both shapes hold
+    -- two lambdas: their domains, and the bodies where both shapes hold,
+    -- both by conversion, since a lambda is a term
     (LambdaF mpL bodyL, LambdaF mpR bodyR) -> Just $
       (case (mpL, mpR) of
          (Just pL, Just pR) -> term (paramDomain pL) (paramDomain pR) (withVariance Invariant ctx)
          _ -> mempty)
-      <> scoped bodyL bodyR ctx (lambdasBinder mpL mpR)
+      <> scoped bodyL bodyR (withVariance Invariant ctx) (lambdasBinder mpL mpR)
 
     -- a family type: the cube in the opposite variance, the shape in the
     -- context's variance (the family's subtyping is covariant in it, and
@@ -420,11 +421,14 @@ instance Eval Context Pattern Sig where
           in fmap (\s -> domain <> s <> scoped retL retR ctx (pisBinder md domR mshapeL mshapeR)) shapes
     (TypeSigmaF md aL bL, TypeSigmaF md' aR bR)
       | md == md' -> Just (term aL aR ctx <> scoped bL bR ctx (sigmaBinder md aR))
+    -- identity types: the carrier and the endpoints are terms, which agree
+    -- by conversion; subtyping between endpoints that are types would let
+    -- transport along a path identify any two elements
     (TypeIdF xL tAL yL, TypeIdF xR tAR yR) -> Just $
       (case (tAL, tAR) of
          (Just tL, Just tR) -> term tL tR (withVariance Invariant ctx)
          _ -> mempty)
-        <> term xL xR ctx <> term yL yR ctx
+        <> term xL xR (withVariance Invariant ctx) <> term yL yR (withVariance Invariant ctx)
     (AppF fL xL, AppF fR xR) -> Just (hd fL fR ctx <> term xL xR (withVariance Invariant ctx))
 
     -- extension types: the underlying types, and the faces of the supertype
