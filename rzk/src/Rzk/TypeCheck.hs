@@ -2203,9 +2203,8 @@ unifyInCurrentContext mterm expected actual = performing action $
 unifyTypes :: Eq var => TermT var -> TermT var -> TermT var -> TypeCheck var ()
 unifyTypes = unify . Just
 
--- | Compare terms by conversion, including when the terms are types.
--- Subtyping in these positions is unsound with type-in-type.
--- Type-former comparisons use 'unify' directly to retain the ambient variance.
+-- | Compare terms by conversion. Types used as terms must also be convertible.
+-- Use 'unify' for directional comparisons of types.
 unifyTerms :: Eq var => TermT var -> TermT var -> TypeCheck var ()
 unifyTerms expected actual = setVariance Invariant (unify Nothing expected actual)
 
