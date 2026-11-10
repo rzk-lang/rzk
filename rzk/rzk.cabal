@@ -29,6 +29,8 @@ extra-source-files:
     test/files/ill-variance-id-endpoint.rzk
     test/files/ill-variance-lambda-boundary.rzk
     test/files/ill-variance-pair-boundary.rzk
+    test/files/ill-variance-restricted-endpoint.rzk
+    test/files/ill-variance-restricted-lambda-endpoint.rzk
 extra-doc-files:
     README.md
     ChangeLog.md

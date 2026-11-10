@@ -1,5 +1,6 @@
 -- Regression examples follow rzk-lang/rzk#359, based on Reviewer A's
--- tope-family counterexample. Variance cases exercise type-valued terms.
+-- tope-family counterexample. Restricted endpoint cases follow
+-- https://github.com/rzk-lang/rzk/pull/377.
 -- This runner uses the historical checker API.
 module Rzk.TypeCheckSpec where
 
@@ -20,6 +21,10 @@ spec = do
   describe "Invariant term comparison" $ do
     it "rejects subtyping of identity endpoints" $
       checkFixture "ill-variance-id-endpoint" RejectConversion
+    it "rejects subtyping between restricted identity endpoints" $
+      checkFixture "ill-variance-restricted-endpoint" RejectTope
+    it "rejects subtyping between restricted lambda endpoints" $
+      checkFixture "ill-variance-restricted-lambda-endpoint" RejectTope
     it "rejects the equality-collapse exploit" $
       checkFixture "ill-variance-all-equal" RejectConversion
     it "rejects incoherent branches in either order" $ do

@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- Identity endpoints that are both restricted must agree by conversion,
+-- not by the subtyping of their faces.
+#def leak (A : U) (a : A) (t : 2)
+  (p : A [t ≡ 0₂ ↦ a, t ≡ 1₂ ↦ a] =_{U} A [t ≡ 0₂ ↦ a, t ≡ 1₂ ↦ a])
+  : A [t ≡ 0₂ ↦ a] =_{U} A [t ≡ 0₂ ↦ a, t ≡ 1₂ ↦ a]
+  := p
