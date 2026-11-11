@@ -1417,6 +1417,20 @@ setVariance :: Covariance -> TypeCheck var a -> TypeCheck var a
 setVariance variance = local $ \Context{..} -> Context
   { covariance = variance, .. }
 
+-- | Orient a subtyping check on (supertype, subtype) by the ambient variance.
+-- Adapted from https://github.com/rzk-lang/rzk/pull/347.
+bySubtyping
+  :: (TermT var -> TermT var -> TypeCheck var ())
+  -> TermT var -> TermT var -> TypeCheck var ()
+bySubtyping check expected actual = asks covariance >>= \case
+  Covariant     -> check expected actual
+  Contravariant -> check actual expected
+  Invariant     -> check expected actual >> check actual expected
+
+-- | The subtype's domain must hold wherever the supertype's domain does.
+domainEntails :: Eq var => TermT var -> TermT var -> TypeCheck var ()
+domainEntails superTope subTope = localTope superTope $ contextEntails subTope
+
 enterScopeContext :: Maybe VarIdent -> TermT var -> Context var -> Context (Inc var)
 enterScopeContext orig ty context =
   addVarInCurrentScope Z VarInfo
@@ -2066,14 +2080,6 @@ unifyInCurrentContext mterm expected actual = performing action $
                         switchVariance $  -- unifying in the negative position!
                           unify Nothing cube cube' -- FIXME: unifyCubes
                         enterScope orig' cube $ do
-                          -- The tope checks below are subtyping checks with a fixed
-                          -- direction relative to (subtype, supertype). Which side is
-                          -- the subtype depends on the ambient variance: under
-                          -- Covariant the actual type must be a subtype of the
-                          -- expected one; under Contravariant (inside a domain) the
-                          -- roles are reversed. Invariant is normally handled
-                          -- upstream by running both directions; it is handled here
-                          -- as well for safety.
                           variance <- asks covariance
                           case ret' of
                             UniverseTopeT{} -> do
@@ -2086,16 +2092,11 @@ unifyInCurrentContext mterm expected actual = performing action $
                               -- we DO NOT take tope context Φ into account!
                               expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                               actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                              let subEntailsSuper subNF superNF = do
+                              let superEntailedBySub superNF subNF = do
                                     entails <- [subNF] `entailM` superNF
                                     unless entails $
                                       issueTypeError (TypeErrorTopeNotSatisfied [subNF] superNF)
-                              case variance of
-                                Covariant     -> subEntailsSuper actualTopeNF expectedTopeNF
-                                Contravariant -> subEntailsSuper expectedTopeNF actualTopeNF
-                                Invariant     -> do
-                                  subEntailsSuper actualTopeNF expectedTopeNF
-                                  subEntailsSuper expectedTopeNF actualTopeNF
+                              bySubtyping superEntailedBySub expectedTopeNF actualTopeNF
                             _ -> do
                               -- this is the case for Π-types and extension types
                               --
@@ -2104,15 +2105,7 @@ unifyInCurrentContext mterm expected actual = performing action $
                               -- Ξ | Φ, ψ ⊢ φ
                               expectedTopeNF <- fromMaybe topeTopT <$> traverse nfT mtope
                               actualTopeNF   <- fromMaybe topeTopT <$> traverse nfT mtope'
-                              let superEntailsSub superNF subNF =
-                                    localTope superNF $
-                                      contextEntails subNF
-                              case variance of
-                                Covariant     -> superEntailsSub expectedTopeNF actualTopeNF
-                                Contravariant -> superEntailsSub actualTopeNF expectedTopeNF
-                                Invariant     -> do
-                                  superEntailsSub expectedTopeNF actualTopeNF
-                                  superEntailsSub actualTopeNF expectedTopeNF
+                              bySubtyping domainEntails expectedTopeNF actualTopeNF
                           -- Codomains are compared on the supertype's domain.
                           -- Invariant comparison runs both directional checks.
                           let domain = case variance of
@@ -2172,8 +2165,12 @@ unifyInCurrentContext mterm expected actual = performing action $
                                 enterScope orig' param $ do
                                   case (mtope, mtope') of
                                     (Just tope, Just tope') -> do
-                                      unifyTerms tope tope' -- we (should) have already checked this in types!
-                                      localTope tope $ unifyTerms body body'
+                                      -- η-expansion uses the function's own domain.
+                                      -- Compare domains as for Π-types, then compare
+                                      -- bodies where both functions are defined.
+                                      bySubtyping domainEntails tope tope'
+                                      localTope (topeAndT tope tope') $
+                                        unifyTerms body body'
                                     (Nothing, Nothing) -> do
                                       unifyTerms body body'
                                     _ -> errS

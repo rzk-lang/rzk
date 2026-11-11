@@ -1,10 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- Regression examples follow rzk-lang/rzk#359, based on Reviewer A's
 -- tope-family counterexample. Restricted endpoint cases follow
 -- https://github.com/rzk-lang/rzk/pull/377.
 -- Warning cases follow https://github.com/rzk-lang/rzk/pull/362.
+-- Lambda-domain cases follow https://github.com/rzk-lang/rzk/pull/347.
 -- This runner uses the historical checker API.
 module Rzk.TypeCheckSpec where
 
+import           Language.Rzk.Free.Syntax (TermT')
 import qualified Language.Rzk.Syntax as Rzk
 import           Rzk.TypeCheck
 import           Test.Hspec
@@ -28,6 +31,33 @@ spec = do
       checkFixtureWarnings "happy-tope-family-domain-contained" 0
     it "rejects an invalid warning option" $
       checkFixture "ill-tope-family-domain-option" RejectOption
+
+  describe "Lambda domains" $ do
+    let point = "\\ (t : 2 | t === 0_2) -> unit" :: TermT'
+        interval = "\\ (t : 2 | TOP) -> unit" :: TermT'
+    it "restricts an interval lambda to a point covariantly" $
+      checkComparison Covariant point interval Accept
+    it "restricts an interval lambda to a point contravariantly" $
+      checkComparison Contravariant interval point Accept
+    it "rejects widening a point lambda covariantly" $
+      checkComparison Covariant interval point RejectTope
+    it "rejects widening a point lambda contravariantly" $
+      checkComparison Contravariant point interval RejectTope
+    it "rejects different domains in invariant comparison" $
+      checkComparison Invariant point interval RejectTope
+
+    it "compares bodies under the common domain in both directions" $ do
+      let pointBody = "\\ (t : 2 | t === 0_2) -> Unit [TOP |-> unit]" :: TermT'
+          intervalBody = "\\ (t : 2 | TOP) -> Unit [t === 0_2 |-> unit]" :: TermT'
+      checkComparison Covariant pointBody intervalBody Accept
+      checkComparison Contravariant intervalBody pointBody Accept
+    it "rejects bodies that only subtype on the common domain" $ do
+      let pointBody = "\\ (t : 2 | t === 0_2) -> Unit" :: TermT'
+          intervalBody = "\\ (t : 2 | TOP) -> Unit [TOP |-> unit]" :: TermT'
+      checkComparison Covariant pointBody intervalBody RejectConversion
+    it "accepts equivalent domains invariantly" $
+      checkComparison Invariant point
+        "\\ (t : 2 | t === 0_2 /\\ TOP) -> unit" Accept
 
   describe "Invariant term comparison" $ do
     it "rejects subtyping of identity endpoints" $
@@ -68,6 +98,7 @@ rejectionKind :: TypeErrorInScopedContext var -> Maybe Expected
 rejectionKind (ScopedTypeError _ err) = rejectionKind err
 rejectionKind (PlainTypeError err) = case typeErrorError err of
   TypeErrorTopeNotSatisfied{} -> Just RejectTope
+  TypeErrorTopesNotEquivalent{} -> Just RejectTope
   TypeErrorUnifyTerms{} -> Just RejectConversion
   TypeErrorUnify{} -> Just RejectConversion
   TypeErrorOther message
@@ -86,3 +117,11 @@ checkFixtureWarnings name expected = do
       case result of
         Left err -> expectationFailure (ppTypeErrorInScopedContext' BottomUp err)
         Right _ -> length warnings `shouldBe` expected
+
+checkComparison :: Covariance -> TermT' -> TermT' -> Expected -> Expectation
+checkComparison variance expected actual verdict =
+  case defaultTypeCheck (localVerbosity Silent (setVariance variance (unify Nothing expected actual))) of
+    Right () -> Accept `shouldBe` verdict
+    Left err
+      | Just verdict == rejectionKind err -> pure ()
+      | otherwise -> expectationFailure (ppTypeErrorInScopedContext' BottomUp err)
