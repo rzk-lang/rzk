@@ -1,5 +1,13 @@
 # Options
 
+## RSTT-safe mode
+
+The optional `rstt-safe` bundle checks the RSTT fragment and schematic instantiations. For example, it rejects `id U Unit` when `id (A : U) (a : A) : A := a`, because a universe cannot instantiate an object-type parameter. It also checks dependencies used from declarations checked while the mode was off. Postulates remain trusted assumptions.
+
+Use `#set-option "rstt-safe" = "warn"` to report violations or `"error"` to reject them. The default is `"off"`. `#unset-option "rstt-safe"` restores that default, and section-local settings remain scoped. Enabled modes force strict meta-prefix checking and all three fragment diagnostics, even if their standalone switches are disabled. An incomplete inspection is also a violation.
+
+The command `rzk typecheck --rstt-safe error <files>` applies a mode throughout the run, overriding source settings. The CLI also accepts `warn` and `off`. Safe mode can substantially increase checking time. These syntactic and schematic checks are additional restrictions, not a proved soundness guarantee or universe-level inference.
+
 ## Tope-family domain warning
 
 By default, the checker warns when a concrete tope family is not included in its declared domain. It reads the family as its intersection with the domain.

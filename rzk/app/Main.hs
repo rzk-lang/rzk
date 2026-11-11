@@ -40,8 +40,16 @@ instance ParseFields FormatOptions where
     <$> parseFields (Just "Check if the files are correctly formatted") (Just "check") (Just 'c') Nothing
     <*> parseFields (Just "Write formatted file to disk") (Just "write") (Just 'w') Nothing
 
+data TypecheckOptions = TypecheckOptions
+  { rsttSafe :: Maybe String
+  } deriving (Generic, Show, ParseRecord, Read, ParseField)
+
+instance ParseFields TypecheckOptions where
+  parseFields _ _ _ _ = TypecheckOptions
+    <$> parseFields (Just "RSTT-safe mode: off, warn, or error (overrides source options)") (Just "rstt-safe") Nothing Nothing
+
 data Command
-  = Typecheck [FilePath]
+  = Typecheck TypecheckOptions [FilePath]
   | Lsp
   | Format FormatOptions [FilePath]
   | Version
@@ -53,9 +61,17 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck paths -> do
+    Typecheck (TypecheckOptions requestedMode) paths -> do
+      mode <- case requestedMode of
+        Nothing -> pure Nothing
+        Just "off" -> pure (Just RSTTSafeOff)
+        Just "warn" -> pure (Just RSTTSafeWarn)
+        Just "error" -> pure (Just RSTTSafeError)
+        Just _ -> do
+          putStrLn "Unknown rstt-safe mode (use off, warn, or error)"
+          exitFailure
       modules <- parseRzkFilesOrStdin paths
-      case defaultTypeCheck (typecheckModulesWithLocation modules) of
+      case defaultTypeCheck (localRSTTSafeOverride mode (typecheckModulesWithLocation modules)) of
         Left err -> do
           putStrLn "An error occurred when typechecking!"
           putStrLn $ unlines

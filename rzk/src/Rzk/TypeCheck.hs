@@ -62,6 +62,7 @@ data CheckWarning
   | MetaBinderWarning VarIdent VarIdent String (Maybe LocationInfo)
   | ShapeDependencyWarning String (Maybe LocationInfo)
   | RSTTIncompleteWarning String (Maybe LocationInfo)
+  | RSTTSchematicWarning String (Maybe LocationInfo)
   deriving (Eq)
 
 data FragmentUse = UseBinder | UseMotive | UseData | UseIdentity | UseConcluded
@@ -98,6 +99,7 @@ ppCheckWarning (MetaBinderWarning defName name ty _) =
     <> " inside a term (in " <> show defName <> ")"
 ppCheckWarning (ShapeDependencyWarning reason _) = reason
 ppCheckWarning (RSTTIncompleteWarning reason _) = reason
+ppCheckWarning (RSTTSchematicWarning reason _) = reason
 
 -- FIXME: merge with VarInfo
 data Decl var = Decl
@@ -200,6 +202,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           checkedTerm <- typecheck (toTerm' (addParams params term)) ty'
           recordMetaPrefixUses (varIdentAt path name) checkedType (Just checkedTerm)
           recordFragmentUses (varIdentAt path name) checkedType (Just checkedTerm) False
+          recordSchematicDeclaration (varIdentAt path name) checkedType (Just checkedTerm)
           term' <- memoizeWHNF checkedTerm
           loc <- asks location
           let decl = Decl (varIdentAt path name) (cacheWHNF checkedType ty') (Just term') False (varIdentAt path <$> vars) loc
@@ -223,6 +226,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           checkedType <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT
           recordMetaPrefixUses (varIdentAt path name) checkedType Nothing
           recordFragmentUses (varIdentAt path name) checkedType Nothing True
+          recordSchematicDeclaration (varIdentAt path name) checkedType Nothing
           ty' <- whnfT checkedType
           loc <- asks location
           let decl = Decl (varIdentAt path name) (cacheWHNF checkedType ty') Nothing False (varIdentAt path <$> vars) loc
@@ -239,6 +243,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           term' <- typecheck (toTerm' term) ty'
           recordMetaPrefixUses "#check" checkedType (Just term')
           recordFragmentUses "#check" checkedType (Just term') False
+          recordSchematicDeclaration "#check" checkedType (Just term')
           go (i + 1) moreCommands
 
     go  i (Rzk.CommandCompute loc term : moreCommands) =
@@ -252,6 +257,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           checkedType <- typeOfUncomputed checkedTerm
           recordMetaPrefixUses "#compute-nf" checkedType (Just checkedTerm)
           recordFragmentUses "#compute-nf" checkedType (Just checkedTerm) False
+          recordSchematicDeclaration "#compute-nf" checkedType (Just checkedTerm)
           term' <- nfT checkedTerm
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
@@ -264,6 +270,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           checkedType <- typeOfUncomputed checkedTerm
           recordMetaPrefixUses "#compute" checkedType (Just checkedTerm)
           recordFragmentUses "#compute" checkedType (Just checkedTerm) False
+          recordSchematicDeclaration "#compute" checkedType (Just checkedTerm)
           term' <- whnfT checkedTerm
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
@@ -275,6 +282,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           ty' <- typecheck (toTerm' ty) universeT
           forM_ names $ \name -> recordMetaPrefixUses (varIdentAt path name) ty' Nothing
           forM_ names $ \name -> recordFragmentUses (varIdentAt path name) ty' Nothing True
+          forM_ names $ \name -> recordSchematicDeclaration (varIdentAt path name) ty' Nothing
           loc <- asks location
           let decls = [ Decl (varIdentAt path name) ty' Nothing True [] loc | name <- names ]
           fmap (first (decls <>)) $
@@ -310,6 +318,11 @@ splitSectionCommands name (command : moreCommands) = do
   return (command : cs1, cs2)
 
 setOption :: String -> String -> TypeCheck var a -> TypeCheck var a
+setOption "rstt-safe" = \case
+  "off" -> localRSTTSafeMode RSTTSafeOff
+  "warn" -> localRSTTSafeMode RSTTSafeWarn
+  "error" -> localRSTTSafeMode RSTTSafeError
+  _ -> const $ issueTypeError $ TypeErrorOther "unknown rstt-safe mode (use off, warn, or error)"
 setOption "verbosity" = \case
   "debug"   -> localVerbosity Debug
   "normal"  -> localVerbosity Normal
@@ -352,6 +365,7 @@ setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
 unsetOption :: String -> TypeCheck var a -> TypeCheck var a
+unsetOption "rstt-safe" = localRSTTSafeMode RSTTSafeOff
 unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
 unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (warnTopeFamilyDomain emptyContext)
@@ -388,6 +402,7 @@ data SchematicProblem = SchematicKindMismatch | SchematicDependency | SchematicU
 data TypeError var
   = TypeErrorOther String
   | TypeErrorSchematic SchematicProblem String
+  | TypeErrorRSTT String
   | TypeErrorUnify (TermT var) (TermT var) (TermT var)
   | TypeErrorUnifyTerms (TermT var) (TermT var)
   | TypeErrorNotPair (TermT var) (TermT var)
@@ -424,6 +439,7 @@ ppTypeError' :: TypeError' -> String
 ppTypeError' = \case
   TypeErrorOther msg -> msg
   TypeErrorSchematic _ msg -> msg
+  TypeErrorRSTT msg -> "RSTT-safe check failed: " <> msg
   TypeErrorUnify term expected actual -> block TopDown
     [ "cannot unify expected type"
     , "  " <> show (untyped expected)
@@ -779,6 +795,8 @@ data Context var = Context
   , location               :: Maybe LocationInfo
   , verbosity              :: Verbosity
   , covariance             :: Covariance
+  , rsttSafeSetting :: RSTTSafeMode
+  , rsttSafeOverride :: Maybe RSTTSafeMode
   , metaPrefixSensitivity  :: MetaPrefixSensitivity
   , warnTopeFamilyDomain   :: Bool
   , warnFreeStandingRestriction :: Bool
@@ -807,6 +825,8 @@ emptyContext = Context
   , location = Nothing
   , verbosity = Normal
   , covariance = Covariant
+  , rsttSafeSetting = RSTTSafeOff
+  , rsttSafeOverride = Nothing
   , metaPrefixSensitivity = MetaPrefixStrict
   , warnTopeFamilyDomain = True
   , warnFreeStandingRestriction = False
@@ -1138,6 +1158,60 @@ data SchematicCache = SchematicCache
 emptySchematicCache :: SchematicCache
 emptySchematicCache = SchematicCache 0 IntSet.empty IntMap.empty
 
+-- Bundle controls follow https://github.com/rzk-lang/rzk/pull/364.
+-- Safe mode is opt-in because the additional traversals can be expensive.
+data RSTTSafeMode = RSTTSafeOff | RSTTSafeWarn | RSTTSafeError
+  deriving (Eq, Show, Read)
+
+rsttSafeMode :: Context var -> RSTTSafeMode
+rsttSafeMode ctx = fromMaybe (rsttSafeSetting ctx) (rsttSafeOverride ctx)
+
+localRSTTSafeMode :: RSTTSafeMode -> TypeCheck var a -> TypeCheck var a
+localRSTTSafeMode mode = local $ \ctx -> ctx { rsttSafeSetting = mode }
+
+-- | Apply a run-wide choice that source options cannot override.
+localRSTTSafeOverride :: Maybe RSTTSafeMode -> TypeCheck var a -> TypeCheck var a
+localRSTTSafeOverride mode = local $ \ctx -> ctx { rsttSafeOverride = mode }
+
+effectiveMetaPrefixSensitivity :: Context var -> MetaPrefixSensitivity
+effectiveMetaPrefixSensitivity ctx
+  | rsttSafeMode ctx /= RSTTSafeOff = MetaPrefixStrict
+  | otherwise = metaPrefixSensitivity ctx
+
+effectiveFragmentCheck :: (Context var -> Bool) -> Context var -> Bool
+effectiveFragmentCheck standalone ctx = rsttSafeMode ctx /= RSTTSafeOff || standalone ctx
+
+recordCheckWarning :: CheckWarning -> TypeCheck var ()
+recordCheckWarning warning = do
+  tell [warning]
+  mode <- asks rsttSafeMode
+  when (mode == RSTTSafeError) $ case warning of
+    TopeFamilyDomainWarning{} -> pure ()
+    _ -> issueTypeError (TypeErrorRSTT (ppCheckWarning warning))
+
+isRSTTError :: TypeErrorInScopedContext var -> Bool
+isRSTTError (ScopedTypeError _ err) = isRSTTError err
+isRSTTError (PlainTypeError err) = case typeErrorError err of
+  TypeErrorRSTT{} -> True
+  _ -> False
+
+recordSchematicDeclaration :: Eq var => VarIdent -> TermT var -> Maybe (TermT var) -> TypeCheck var ()
+recordSchematicDeclaration name ty value = do
+  mode <- asks rsttSafeMode
+  when (mode /= RSTTSafeOff) $
+    checkSchematicDeclaration ty value `catchError` report
+  where
+    report err = case schematicReason err of
+      Just message -> do
+        loc <- asks location
+        recordCheckWarning (RSTTSchematicWarning (message <> " (in " <> show name <> ")") loc)
+      Nothing -> reportIncompleteRSTTCheck ("RSTT schematic check incomplete in " <> show name) err
+    schematicReason :: TypeErrorInScopedContext v -> Maybe String
+    schematicReason (ScopedTypeError _ err) = schematicReason err
+    schematicReason (PlainTypeError err) = case typeErrorError err of
+      TypeErrorSchematic _ message -> Just message
+      _ -> Nothing
+
 -- The meta-prefix check follows https://github.com/rzk-lang/rzk/pull/312,
 -- including the incomplete-check reporting in
 -- https://github.com/rzk-lang/rzk/pull/364.
@@ -1161,7 +1235,7 @@ isMetaType ty = metaHeadView ty >>= \case
 -- | Count parameters through the last schematic parameter.
 metaPrefixOf :: Eq var => TermT var -> TypeCheck var Int
 metaPrefixOf ty = go 1 0 ty `catchError` \err -> do
-  sensitivity <- asks metaPrefixSensitivity
+  sensitivity <- asks effectiveMetaPrefixSensitivity
   when (sensitivity /= MetaPrefixOff) $
     reportIncompleteRSTTCheck "RSTT meta-prefix classification incomplete" err
   pure 0
@@ -1186,7 +1260,8 @@ metaHeadView ty = case stripTypeRestrictions ty of
 reportIncompleteRSTTCheck :: String -> TypeErrorInScopedContext var -> TypeCheck var ()
 reportIncompleteRSTTCheck what err = do
   loc <- asks location
-  tell [RSTTIncompleteWarning (what <> ": " <> reason err) loc]
+  if isRSTTError err then throwError err
+    else recordCheckWarning (RSTTIncompleteWarning (what <> ": " <> reason err) loc)
   where
     reason :: TypeErrorInScopedContext v -> String
     reason (ScopedTypeError _ nested) = reason nested
@@ -1208,7 +1283,7 @@ objectPositions = MetaPositions ObjectPos ObjectPos
 
 -- | Report top-level uses that supply too few schematic arguments.
 recordMetaPrefixUses :: Eq var => VarIdent -> TermT var -> Maybe (TermT var) -> TypeCheck var ()
-recordMetaPrefixUses defName ty mval = asks metaPrefixSensitivity >>= \case
+recordMetaPrefixUses defName ty mval = asks effectiveMetaPrefixSensitivity >>= \case
   MetaPrefixOff -> pure ()
   _ -> localVerbosity Silent $
     (go metaPositions ty >> mapM_ (go metaPositions) mval) `catchError`
@@ -1267,14 +1342,14 @@ recordMetaPrefixUses defName ty mval = asks metaPrefixSensitivity >>= \case
       info <- metaVarInfo v
       let required = varMetaPrefix info
       when (varIsTopLevel info && required > supplied) $ do
-        sensitivity <- asks metaPrefixSensitivity
+        sensitivity <- asks effectiveMetaPrefixSensitivity
         let rule = case (posStructural pos, posStrict pos) of
               (ObjectPos, _) -> Just MetaPrefixBoth
               (MetaPos, ObjectPos) | sensitivity == MetaPrefixStrict -> Just MetaPrefixStrictOnly
               _ -> Nothing
         forM_ rule $ \r -> do
           loc <- asks location
-          tell [MetaPrefixWarning defName (fromMaybe "_" (varOrig info)) supplied required r loc]
+          recordCheckWarning (MetaPrefixWarning defName (fromMaybe "_" (varOrig info)) supplied required r loc)
 
 metaVarInfo :: Eq var => var -> TypeCheck var (VarInfo var)
 metaVarInfo v = asks (lookup v . varInfos) >>= \case
@@ -1305,9 +1380,9 @@ recordFragmentUses
   -> Bool              -- ^ does it supply an assumption rather than a proof?
   -> TypeCheck n ()
 recordFragmentUses defName ty mval isAssumption = do
-  restrictions <- asks warnFreeStandingRestriction
-  binders <- asks warnMetaBinder
-  shapes <- asks warnShapeDependency
+  restrictions <- asks (effectiveFragmentCheck warnFreeStandingRestriction)
+  binders <- asks (effectiveFragmentCheck warnMetaBinder)
+  shapes <- asks (effectiveFragmentCheck warnShapeDependency)
   when (restrictions || binders || shapes) $
     localVerbosity Silent $
       forM_ [SourceTypes, ComputedTypes] $ \view ->
@@ -1417,7 +1492,7 @@ checkFragmentUses view defName ty mval isAssumption = do
     -- Schematic families are judgements over cube contexts, not extension types.
     checkShapeDependencies :: Eq l => CheckedPosition -> TermT l -> TypeCheck l ()
     checkShapeDependencies position t = do
-      enabled <- asks warnShapeDependency
+      enabled <- asks (effectiveFragmentCheck warnShapeDependency)
       when enabled $ case t of
         TypeFunT _ orig param mtope ret -> do
           schematic <- isMetaType t
@@ -1440,10 +1515,10 @@ checkFragmentUses view defName ty mval isAssumption = do
         rendered <- ppTermInContext tope
         names <- mapM (ppTermInContext . Pure) points
         loc <- asks location
-        tell [ShapeDependencyWarning
+        recordCheckWarning (ShapeDependencyWarning
           ("context-dependent " <> what <> " " <> rendered
             <> " (outer cube points: " <> intercalate ", " names
-            <> ", in " <> show defName <> ")") loc]
+            <> ", in " <> show defName <> ")") loc)
 
     -- Follow aliases and variable types without reducing away dependencies.
     outerPoints :: Eq l => l -> TermT l -> TypeCheck l [l]
@@ -1573,21 +1648,21 @@ checkFragmentUses view defName ty mval isAssumption = do
 
     reportMetaBinder :: Eq l => Maybe VarIdent -> TermT l -> TypeCheck l ()
     reportMetaBinder orig param = do
-      enabled <- asks warnMetaBinder
+      enabled <- asks (effectiveFragmentCheck warnMetaBinder)
       when enabled $ do
         meta <- isMetaType param
         when meta $ do
           rendered <- ppTermInContext param
           loc <- asks location
-          tell [MetaBinderWarning defName (fromMaybe "_" orig) rendered loc]
+          recordCheckWarning (MetaBinderWarning defName (fromMaybe "_" orig) rendered loc)
 
     reportFreeStanding :: Eq l => FragmentUse -> TermT l -> TypeCheck l ()
     reportFreeStanding use t = do
-      enabled <- asks warnFreeStandingRestriction
+      enabled <- asks (effectiveFragmentCheck warnFreeStandingRestriction)
       when enabled $ do
         rendered <- ppTermInContext t
         loc <- asks location
-        tell [FreeStandingRestrictionWarning defName rendered use loc]
+        recordCheckWarning (FreeStandingRestrictionWarning defName rendered use loc)
 
 -- Expose type constructors without consulting cached normal forms or simplifying
 -- their guards. Keep this reducer in step with the object-level rules in whnfT.
