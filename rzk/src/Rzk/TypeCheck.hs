@@ -1718,12 +1718,13 @@ localWarnShapeDependency enabled = local $ \ctx -> ctx { warnShapeDependency = e
 localWarnMetaBinder :: Bool -> TypeCheck var a -> TypeCheck var a
 localWarnMetaBinder enabled = local $ \ctx -> ctx { warnMetaBinder = enabled }
 
--- Schematic validation follows https://github.com/rzk-lang/rzk/pull/364.
--- It checks family arguments at fresh indices and keeps universes separate
--- from object types. Postulates remain trusted rules.
 -- | Roles of elaborated type and domain expressions in schematic declarations.
 -- These are not universe levels. The fragment's formation conditions are
--- checked separately by recordFragmentUses.
+-- checked separately by 'recordFragmentUses'.
+--
+-- Schematic validation follows <https://github.com/rzk-lang/rzk/pull/364>.
+-- It checks family arguments at fresh indices and keeps universes separate
+-- from object types. Postulates remain trusted rules.
 data SchematicSort
   = ObjectType
     -- ^ Ordinary types that may instantiate @(A : U)@, e.g. @Unit@ or @A -> A@.
@@ -1734,7 +1735,7 @@ data SchematicSort
     -- ^ Function signatures ending in an object type and quantifying over
     -- kinds or rules, e.g. @(A : U) -> A -> A@.
   | Shape
-    -- ^ Cube or tope expressions, e.g. @2@ or @TOP@; these are not object types.
+    -- ^ Cube or tope expressions, e.g. @2@ or @TOP@. These are not object types.
   deriving (Eq)
 
 -- | Validate an elaborated declaration and the definitions used by its proof.
