@@ -13,8 +13,6 @@ import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict (Writer, runWriter, tell)
 import qualified Control.Monad.State.Strict as State
-import qualified Data.IntMap.Strict as IntMap
-import qualified Data.IntSet as IntSet
 import           Data.Bifoldable          (bifoldMap, bifoldr)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
@@ -25,6 +23,7 @@ import           Data.String              (IsString (..))
 import           Data.Tuple               (swap)
 
 import           Free.Scoped
+import           Rzk.Declaration
 import           Language.Rzk.Free.Syntax
 import qualified Language.Rzk.Syntax      as Rzk
 
@@ -778,7 +777,8 @@ data VarInfo var = VarInfo
   , varOrig                :: Maybe VarIdent
   , varIsTopLevel          :: Bool
   , varMetaPrefix          :: Int
-  , varSchematicId         :: Int
+  , varDeclarationId       :: Maybe DeclarationId
+    -- ^ Identity of this installed declaration. Local binders have none.
   , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
   , varDeclaredAssumptions :: [var]
   , varLocation            :: Maybe LocationInfo
@@ -919,7 +919,7 @@ insertExplicitAssumptionFor' a decl VarInfo{..}
       , varIsAssumption = varIsAssumption
       , varIsTopLevel = varIsTopLevel
       , varMetaPrefix = varMetaPrefix
-      , varSchematicId = varSchematicId
+      , varDeclarationId = varDeclarationId
       , varOrig = varOrig
       , varDeclaredAssumptions = varDeclaredAssumptions
       , varLocation = varLocation
@@ -961,7 +961,7 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
       , varIsAssumption = varIsAssumption xInfo
       , varIsTopLevel = varIsTopLevel xInfo
       , varMetaPrefix = varMetaPrefix xInfo
-      , varSchematicId = varSchematicId xInfo
+      , varDeclarationId = varDeclarationId xInfo
       , varOrig = varOrig xInfo
       , varDeclaredAssumptions = varDeclaredAssumptions xInfo \\ [a]
       , varLocation = varLocation xInfo
@@ -1132,7 +1132,7 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
   -- Section closing may have added schematic parameters to this type.
   prefix <- metaPrefixOf ty
   key <- State.gets schematicNextId
-  State.modify' $ \cache -> cache { schematicNextId = key + 1 }
+  State.modify' $ \cache -> cache { schematicNextId = nextDeclarationId key }
   local (update key prefix) tc
   where
     update key prefix = addVarInCurrentScope x VarInfo
@@ -1142,21 +1142,27 @@ localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
       , varIsAssumption = isAssumption
       , varIsTopLevel = True
       , varMetaPrefix = prefix
-      , varSchematicId = key
+      , varDeclarationId = Just key
       , varDeclaredAssumptions = vars
       , varLocation = loc
       }
 
 type TypeCheck var = ReaderT (Context var) (ExceptT (TypeErrorInScopedContext var) (State.StateT SchematicCache (Writer [CheckWarning])))
 
+-- | Memoised schematic checks for one checker run. Entries may outlive the
+-- declaration's scope. Every installation receives a fresh identity, so section
+-- generalisation cannot reuse results for an earlier telescope.
 data SchematicCache = SchematicCache
-  { schematicNextId :: Int
-  , schematicValidated :: IntSet.IntSet
-  , schematicFamilies :: IntMap.IntMap (Maybe Int)
+  { schematicNextId :: DeclarationId
+    -- ^ Next unused identity in this run.
+  , schematicValidated :: DeclarationSet
+    -- ^ Declarations whose dependency validation has succeeded.
+  , schematicFamilies :: DeclarationMap DeclarationSort
+    -- ^ Family summaries. A missing entry has not been probed yet.
   }
 
 emptySchematicCache :: SchematicCache
-emptySchematicCache = SchematicCache 0 IntSet.empty IntMap.empty
+emptySchematicCache = SchematicCache firstDeclarationId emptyDeclarationSet emptyDeclarationMap
 
 -- Bundle controls follow https://github.com/rzk-lang/rzk/pull/364.
 -- Safe mode is opt-in because the additional traversals can be expensive.
@@ -1734,7 +1740,7 @@ data SchematicSort
 -- | Validate an elaborated declaration and the definitions used by its proof.
 -- This supplements dRzk typing with kind checks.
 checkSchematicDeclaration :: Eq var => TermT var -> Maybe (TermT var) -> TypeCheck var ()
-checkSchematicDeclaration = schematicDeclaration 256 IntSet.empty
+checkSchematicDeclaration = schematicDeclaration 256 emptyDeclarationSet
 
 schematicInvalid :: Eq n => String -> TermT n -> TypeCheck n a
 schematicInvalid = schematicError SchematicKindMismatch
@@ -1750,7 +1756,7 @@ schematicBudget fuel = when (fuel <= 0) $
 
 -- Check a declaration telescope separately: a definition may name a family kind
 -- or a schema, whereas an argument to a type parameter must be an object type.
-schematicDeclaration :: Eq n => Int -> IntSet.IntSet -> TermT n -> Maybe (TermT n) -> TypeCheck n ()
+schematicDeclaration :: Eq n => Int -> DeclarationSet -> TermT n -> Maybe (TermT n) -> TypeCheck n ()
 schematicDeclaration fuel seen ty value = do
   schematicBudget fuel
   -- Check dependencies before reduction can obscure their failures.
@@ -1760,7 +1766,7 @@ schematicDeclaration fuel seen ty value = do
   where
     dependencies = mapM_ (schematicUses fuel seen . Pure) . (freeVars . untyped)
 
-schematicSignature :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicSignature :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicSignature fuel seen ty = do
   schematicBudget fuel
   schematicUses fuel seen ty
@@ -1773,21 +1779,24 @@ schematicSignature fuel seen ty = do
     t -> void (schematicClassify (fuel - 1) seen t)
 
 -- Check each dependency before using its signature, even if safe mode was off
--- when it was declared. Successful earlier checks are cached in the context.
+-- when it was declared. Successful earlier checks are cached in checker state.
 -- Check variables during traversal instead of rescanning every subtree.
-schematicUses :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicUses :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicUses fuel seen (Pure v) = do
   info <- metaVarInfo v
-  cached <- State.gets (IntSet.member (varSchematicId info) . schematicValidated)
-  when (varIsTopLevel info && not cached) $ do
-    schematicBudget fuel
-    when (IntSet.member (varSchematicId info) seen) $
-      issueTypeError (TypeErrorOther "cyclic schematic dependency")
-    -- A caller's tope assumptions cannot justify a reusable dependency check.
-    local withoutCallerTopes $ schematicDeclaration (fuel - 1) (IntSet.insert (varSchematicId info) seen)
-      (varType info) (varValue info)
-    State.modify' $ \checkLog' -> checkLog'
-      { schematicValidated = IntSet.insert (varSchematicId info) (schematicValidated checkLog') }
+  case varDeclarationId info of
+    Nothing -> pure ()
+    Just key -> do
+      cached <- State.gets (memberDeclarationSet key . schematicValidated)
+      unless cached $ do
+        schematicBudget fuel
+        when (memberDeclarationSet key seen) $
+          issueTypeError (TypeErrorOther "cyclic schematic dependency")
+        -- A caller's tope assumptions cannot justify a reusable dependency check.
+        local withoutCallerTopes $ schematicDeclaration (fuel - 1) (insertDeclarationSet key seen)
+          (varType info) (varValue info)
+        State.modify' $ \cache -> cache
+          { schematicValidated = insertDeclarationSet key (schematicValidated cache) }
 schematicUses _ _ _ = pure ()
 
 withoutCallerTopes :: Context n -> Context n
@@ -1797,7 +1806,7 @@ withoutCallerTopes ctx = ctx
   }
 
 -- Check erased arguments and annotations before exposing the result.
-schematicInspectRedex :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicInspectRedex :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicInspectRedex fuel seen original = case original of
   TypeAscT{} -> schematicTerm fuel seen original
   FirstT{} -> schematicTerm fuel seen original
@@ -1806,7 +1815,7 @@ schematicInspectRedex fuel seen original = case original of
   RecOrT{} -> schematicTerm fuel seen original
   _ -> schematicApplications fuel seen original
 
-schematicClassify :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n SchematicSort
+schematicClassify :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n SchematicSort
 schematicClassify fuel seen original = do
   schematicBudget fuel
   schematicUses fuel seen original
@@ -1815,7 +1824,7 @@ schematicClassify fuel seen original = do
     True -> pure ObjectType
     False -> schematicClassifyHead fuel seen original
 
-schematicClassifyHead :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n SchematicSort
+schematicClassifyHead :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n SchematicSort
 schematicClassifyHead fuel seen original =
   fragmentHead fuel original >>= \case
     UniverseT{} -> pure ParameterKind
@@ -1865,52 +1874,57 @@ schematicClassifyHead fuel seen original =
 
 -- Reuse only universally object-valued families, after checking actual arguments.
 -- Other families retain reduction-based classification in the caller's context.
-schematicKnownObjectFamily :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n Bool
+schematicKnownObjectFamily :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n Bool
 schematicKnownObjectFamily fuel seen = spine 0
   where
     spine arity (AppT _ f _) = spine (arity + 1) f
     spine arity (Pure v) = do
       info <- metaVarInfo v
-      if not (varIsTopLevel info) then pure False else do
-        let key = varSchematicId info
-        cached <- State.gets (IntMap.lookup key . schematicFamilies)
-        summary <- case cached of
-          Just result -> pure result
-          Nothing -> do
-            cache key Nothing
-            result <- (local withoutCallerTopes $
-              schematicObjectFamilyArity fuel seen 0 (varType info) (Pure v))
-              `catchError` \_ -> pure Nothing
-            cache key result
-            pure result
-        pure (summary == Just arity)
+      case varDeclarationId info of
+        Nothing -> pure False
+        Just key -> do
+          cached <- State.gets (lookupDeclarationMap key . schematicFamilies)
+          summary <- case cached of
+            Just result -> pure result
+            Nothing -> do
+              -- Recursive probes must fall back to ordinary classification.
+              cache key DeclarationUnclassified
+              result <- (local withoutCallerTopes $
+                schematicObjectFamilySort fuel seen 0 (varType info) (Pure v))
+                `catchError` \_ -> pure DeclarationUnclassified
+              cache key result
+              pure result
+          pure (summary == DeclarationObjectValuedAfter arity)
     spine _ _ = pure False
-    cache :: Int -> Maybe Int -> TypeCheck var ()
+    cache :: DeclarationId -> DeclarationSort -> TypeCheck var ()
     cache key result = State.modify' $ \checkLog' -> checkLog'
-      { schematicFamilies = IntMap.insert key result (schematicFamilies checkLog') }
+      { schematicFamilies = insertDeclarationMap key result (schematicFamilies checkLog') }
 
 -- Probe at fresh parameters to avoid generalising a concrete instance.
-schematicObjectFamilyArity :: Eq n => Int -> IntSet.IntSet -> Int -> TermT n -> TermT n -> TypeCheck n (Maybe Int)
-schematicObjectFamilyArity fuel seen arity ty value = do
+schematicObjectFamilySort :: Eq n => Int -> DeclarationSet -> Int -> TermT n -> TermT n -> TypeCheck n DeclarationSort
+schematicObjectFamilySort fuel seen arity ty value = do
   schematicBudget fuel
   fragmentHead fuel ty >>= \case
     TypeFunT _ orig dom _ body ->
       enterScope orig dom $
-        schematicObjectFamilyArity (fuel - 1) seen (arity + 1) body
+        schematicObjectFamilySort (fuel - 1) seen (arity + 1) body
           (appT body (S <$> value) (Pure Z))
     UniverseT{} -> do
       s <- schematicClassify (fuel - 1) seen value
-      pure (if s == ObjectType then Just arity else Nothing)
-    _ -> pure Nothing
+      pure $ case s of
+        ObjectType -> DeclarationObjectValuedAfter arity
+        ParameterKind -> DeclarationMetaValued
+        _ -> DeclarationUnclassified
+    _ -> pure DeclarationUnclassified
 
-schematicObject :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicObject :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicObject fuel seen t = do
   s <- schematicClassify (fuel - 1) seen t
   unless (s == ObjectType) (schematicInvalid "expected an object type" t)
 
 -- A type-family argument is checked pointwise. In particular U, A -> U, and
 -- (A : U) -> A cannot instantiate a parameter declared simply as A : U.
-schematicArgument :: Eq n => Int -> IntSet.IntSet -> TermT n -> TermT n -> TypeCheck n ()
+schematicArgument :: Eq n => Int -> DeclarationSet -> TermT n -> TermT n -> TypeCheck n ()
 schematicArgument fuel seen dom arg = do
   schematicBudget fuel
   schematicFunctionHead fuel dom >>= \case
@@ -1953,7 +1967,7 @@ schematicFunctionHead fuel t = do
     TypeRestrictedT _ base _ -> schematicFunctionHead (fuel - 1) base
     head' -> pure head'
 
-schematicApplications :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicApplications :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicApplications fuel seen (AppT _ f x) = do
   schematicBudget fuel
   schematicTerm (fuel - 1) seen f
@@ -1962,7 +1976,7 @@ schematicApplications fuel seen (AppT _ f x) = do
     _ -> schematicInvalid "application without a schematic or object function type" f
 schematicApplications _ _ _ = pure ()
 
-schematicTerm :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicTerm :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicTerm fuel seen t = do
   schematicBudget fuel
   schematicUses fuel seen t
@@ -1992,7 +2006,7 @@ schematicTerm fuel seen t = do
     _ -> schematicTermNeutral fuel seen t
 
 -- This is deliberately an allow-list. New syntax cannot inherit certification.
-schematicTermNeutral :: Eq n => Int -> IntSet.IntSet -> TermT n -> TypeCheck n ()
+schematicTermNeutral :: Eq n => Int -> DeclarationSet -> TermT n -> TypeCheck n ()
 schematicTermNeutral fuel seen t = case t of
   Pure{} -> pure ()
   UniverseT{} -> pure ()
@@ -2471,7 +2485,7 @@ enterScopeContext orig ty context =
     , varIsAssumption = False
     , varIsTopLevel = False
     , varMetaPrefix = 0
-    , varSchematicId = -1
+    , varDeclarationId = Nothing
     , varDeclaredAssumptions = []
     , varLocation = location context
     }
