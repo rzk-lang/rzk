@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorOther
+message_contains:
+  - "sharp (♯) match is only supported for inductive types with one constructor"
+regression_for:
+  - sharp-match-requires-exactly-one-constructor

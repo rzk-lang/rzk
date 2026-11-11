@@ -1,0 +1,32 @@
+#lang rzk-1
+
+-- The disjunction becomes available inside Sharp, where recOR may split it.
+#define sharp-cases-inside
+  : (i : II | _# ((i === 0_I) \/ (i === 1_I))) -> _# Unit
+  := \ i -> mod _# (recOR
+       ( i === 0_I |-> unit
+       , i === 1_I |-> unit ))
+
+-- Conversion also needs the newly exposed alternatives after entering Sharp.
+#define sharp-conversion-inside
+  (A : U) (a : A)
+  : (i : II | _# ((i === 0_I) \/ (i === 1_I)))
+  -> (z : A [ i === 0_I |-> a , i === 1_I |-> a ])
+  -> _# (z =_{A} a)
+  := \ i z -> mod _# refl_{z}
+
+-- Ordinary disjunctive conversion is unchanged.
+#define plain-conversion
+  (A : U) (a : A)
+  : (i : II | (i === 0_I) \/ (i === 1_I))
+  -> (z : A [ i === 0_I |-> a , i === 1_I |-> a ])
+  -> z =_{A} a
+  := \ i z -> refl_{z}
+
+-- Cases justified before Flat remain usable, even though their individual
+-- plain hypotheses become hidden behind the lock.
+#define disjunctive-contradiction-under-flat
+  (A :_b U)
+  : (i : II | ((i === 0_I) /\ (i === 1_I))
+           \/ ((i === 1_I) /\ (i === 0_I))) -> _b A
+  := \ _ -> mod _b recBOT

@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- Sharp does not turn a covered union into a union of sharp-covered faces.
+#define no-sharp-distribution
+  : (i : II | _# ((i === 0_I) \/ (i === 1_I))) -> Unit
+  := \ i -> recOR
+       ( _# (i === 0_I) |-> unit
+       , _# (i === 1_I) |-> unit )

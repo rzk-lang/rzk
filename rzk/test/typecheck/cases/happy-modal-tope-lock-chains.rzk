@@ -1,0 +1,124 @@
+#lang rzk-1
+
+-- Each source modality is tested along the same eight paths in this file and
+-- its ill- companion. Lock introductions stay inline under the hypothesis.
+#define id-sixteen-op (p q :_b TOPE)
+  : (t : 1 | p \/ q) ->
+    _op _op _op _op _op _op _op _op _op _op _op _op _op _op _op _op Unit
+  := \ _ ->
+    mod _op mod _op mod _op mod _op mod _op mod _op mod _op mod _op
+    mod _op mod _op mod _op mod _op mod _op mod _op mod _op mod _op
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-sixteen-op (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) ->
+    _op _op _op _op _op _op _op _op _op _op _op _op _op _op _op _op Unit
+  := \ _ ->
+    mod _op mod _op mod _op mod _op mod _op mod _op mod _op mod _op
+    mod _op mod _op mod _op mod _op mod _op mod _op mod _op mod _op
+    recOR (p |-> unit, q |-> unit)
+
+-- Op cases exposed at the first lock remain licensed after later locks hide
+-- their atoms again. The final guard observes those retained alternatives.
+#define op-sixteen-op-retains-cases (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) ->
+    _op _op _op _op _op _op _op _op _op _op _op _op _op _op _op _op Unit
+  := \ _ ->
+    mod _op mod _op mod _op mod _op mod _op mod _op mod _op mod _op
+    mod _op mod _op mod _op mod _op mod _op mod _op mod _op mod _op
+    recOR ((_# q \/ _# p) |-> unit)
+
+#define id-sixteen-sharp (p q :_b TOPE)
+  : (t : 1 | p \/ q) ->
+    _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# Unit
+  := \ _ ->
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    recOR (p |-> unit, q |-> unit)
+
+#define op-sixteen-sharp (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) ->
+    _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# Unit
+  := \ _ ->
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-sixteen-sharp (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) ->
+    _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# Unit
+  := \ _ ->
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    recOR (p |-> unit, q |-> unit)
+
+#define sharp-sixteen-sharp (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) ->
+    _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# _# Unit
+  := \ _ ->
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    mod _# mod _# mod _# mod _# mod _# mod _# mod _# mod _#
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-sixteen-flat (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) ->
+    _b _b _b _b _b _b _b _b _b _b _b _b _b _b _b _b Unit
+  := \ _ ->
+    mod _b mod _b mod _b mod _b mod _b mod _b mod _b mod _b
+    mod _b mod _b mod _b mod _b mod _b mod _b mod _b mod _b
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-absorbing-flat (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _b _op _# _id _op _# _b _op Unit
+  := \ _ -> mod _b mod _op mod _# mod _id mod _op mod _# mod _b mod _op
+    recOR (p |-> unit, q |-> unit)
+
+#define id-delayed-sharp (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> _op _id _op _id _# _b _op _# _b _op Unit
+  := \ _ -> mod _op mod _id mod _op mod _id mod _# mod _b mod _op mod _# mod _b mod _op
+    recOR (p |-> unit, q |-> unit)
+
+#define op-delayed-sharp (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) -> _op _id _op _id _# _b _op _# _b _op Unit
+  := \ _ -> mod _op mod _id mod _op mod _id mod _# mod _b mod _op mod _# mod _b mod _op
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-delayed-sharp (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _op _id _op _id _# _b _op _# _b _op Unit
+  := \ _ -> mod _op mod _id mod _op mod _id mod _# mod _b mod _op mod _# mod _b mod _op
+    recOR (p |-> unit, q |-> unit)
+
+#define sharp-delayed-sharp (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> _op _id _op _id _# _b _op _# _b _op Unit
+  := \ _ -> mod _op mod _id mod _op mod _id mod _# mod _b mod _op mod _# mod _b mod _op
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-op-before-flat (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _id _id _op _op _op _b _# _op _id _# Unit
+  := \ _ -> mod _id mod _id mod _op mod _op mod _op mod _b mod _# mod _op mod _id mod _#
+    recOR (p |-> unit, q |-> unit)
+
+#define id-absorbing-sharp (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> _id _id _# _b _op _op _b _# _id Unit
+  := \ _ -> mod _id mod _id mod _# mod _b mod _op mod _op mod _b mod _# mod _id
+    recOR (p |-> unit, q |-> unit)
+
+#define op-absorbing-sharp (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) -> _id _id _# _b _op _op _b _# _id Unit
+  := \ _ -> mod _id mod _id mod _# mod _b mod _op mod _op mod _b mod _# mod _id
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-absorbing-sharp (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _id _id _# _b _op _op _b _# _id Unit
+  := \ _ -> mod _id mod _id mod _# mod _b mod _op mod _op mod _b mod _# mod _id
+    recOR (p |-> unit, q |-> unit)
+
+#define sharp-absorbing-sharp (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> _id _id _# _b _op _op _b _# _id Unit
+  := \ _ -> mod _id mod _id mod _# mod _b mod _op mod _op mod _b mod _# mod _id
+    recOR (p |-> unit, q |-> unit)
+
+#define flat-leading-id-flat (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _id _id _b _# _op _b _# _op _# Unit
+  := \ _ -> mod _id mod _id mod _b mod _# mod _op mod _b mod _# mod _op mod _#
+    recOR (p |-> unit, q |-> unit)

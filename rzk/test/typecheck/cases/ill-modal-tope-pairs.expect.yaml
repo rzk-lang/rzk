@@ -1,0 +1,7 @@
+status: error
+api: collect
+error_tag: TypeErrorTopeNotSatisfied
+error_count: 15
+regression_for:
+  - modal-tope-all-source-lock-pairs
+  - modal-tope-hidden-disjunction-does-not-cover-plain-faces

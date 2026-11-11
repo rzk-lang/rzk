@@ -1,0 +1,75 @@
+#lang rzk-1
+
+#define bot-id : (t : 1 | BOT) -> Unit := \ _ -> recBOT
+#define bot-op : (t : 1 | BOT) -> _op Unit := \ _ -> mod _op recBOT
+#define bot-flat : (t : 1 | BOT) -> _b Unit := \ _ -> mod _b recBOT
+#define bot-sharp : (t : 1 | BOT) -> _# Unit := \ _ -> mod _# recBOT
+
+#define sharp-bot-sharp : (t : 1 | _# BOT) -> _# Unit
+  := \ _ -> mod _# recBOT
+#define sharp-bot-sharp-flat : (t : 1 | _# BOT) -> _# _b Unit
+  := \ _ -> mod _# mod _b recBOT
+#define sharp-bot-op-sharp : (t : 1 | _# BOT) -> _op _# Unit
+  := \ _ -> mod _op mod _# recBOT
+#define sharp-bot-long : (t : 1 | _# BOT) -> _id _op _op _# _b _op Unit
+  := \ _ -> mod _id mod _op mod _op mod _# mod _b mod _op recBOT
+
+#define sharp-bot-proves-sharp-goal (p :_b TOPE)
+  : (t : 1 | _# BOT) -> Unit
+  := \ _ -> recOR (_# p |-> unit)
+
+-- All six orders in one restriction: hidden BOT must not erase p or q.
+#define order-bpq (p q :_b TOPE)
+  : (t : 1 | (_# BOT /\ p) /\ q) -> Unit
+  := \ _ -> recOR ((p /\ q) |-> unit)
+#define order-bqp (p q :_b TOPE)
+  : (t : 1 | (_# BOT /\ q) /\ p) -> Unit
+  := \ _ -> recOR ((p /\ q) |-> unit)
+#define order-pbq (p q :_b TOPE)
+  : (t : 1 | (p /\ _# BOT) /\ q) -> Unit
+  := \ _ -> recOR ((p /\ q) |-> unit)
+#define order-pqb (p q :_b TOPE)
+  : (t : 1 | (p /\ q) /\ _# BOT) -> Unit
+  := \ _ -> recOR ((p /\ q) |-> unit)
+#define order-qbp (p q :_b TOPE)
+  : (t : 1 | (q /\ _# BOT) /\ p) -> Unit
+  := \ _ -> recOR ((p /\ q) |-> unit)
+#define order-qpb (p q :_b TOPE)
+  : (t : 1 | (q /\ p) /\ _# BOT) -> Unit
+  := \ _ -> recOR ((p /\ q) |-> unit)
+
+-- The same six orders introduced incrementally through local shape binders.
+#define bind-bpq (p q :_b TOPE)
+  : (b : 1 | _# BOT) -> (x : 1 | p) -> (y : 1 | q) -> Unit
+  := \ _ _ _ -> recOR ((p /\ q) |-> unit)
+#define bind-bqp (p q :_b TOPE)
+  : (b : 1 | _# BOT) -> (y : 1 | q) -> (x : 1 | p) -> Unit
+  := \ _ _ _ -> recOR ((p /\ q) |-> unit)
+#define bind-pbq (p q :_b TOPE)
+  : (x : 1 | p) -> (b : 1 | _# BOT) -> (y : 1 | q) -> Unit
+  := \ _ _ _ -> recOR ((p /\ q) |-> unit)
+#define bind-pqb (p q :_b TOPE)
+  : (x : 1 | p) -> (y : 1 | q) -> (b : 1 | _# BOT) -> Unit
+  := \ _ _ _ -> recOR ((p /\ q) |-> unit)
+#define bind-qbp (p q :_b TOPE)
+  : (y : 1 | q) -> (b : 1 | _# BOT) -> (x : 1 | p) -> Unit
+  := \ _ _ _ -> recOR ((p /\ q) |-> unit)
+#define bind-qpb (p q :_b TOPE)
+  : (y : 1 | q) -> (x : 1 | p) -> (b : 1 | _# BOT) -> Unit
+  := \ _ _ _ -> recOR ((p /\ q) |-> unit)
+
+-- An impossible case closes only itself; the other case still proves q.
+#define one-impossible-case (p q :_b TOPE)
+  : (t : 1 | ((0_2 === 1_2) /\ p) \/ q) -> Unit
+  := \ _ -> recOR (q |-> unit)
+
+#define branch-local-conversion
+  (p q :_b TOPE) (A : U) (a : A)
+  (f g : (u : 1) -> A [q |-> a])
+  : (t : 1 | ((0_2 === 1_2) /\ p) \/ q) -> (f *_1 =_{A} g *_1)
+  := \ _ -> refl
+
+#define nested-impossible-cases-under-sharp
+  : (t : 1 | _# ((0_2 === 1_2) \/ ((0_I === 1_I) \/ (1_2 === 0_2))))
+  -> _# Unit
+  := \ _ -> mod _# recBOT

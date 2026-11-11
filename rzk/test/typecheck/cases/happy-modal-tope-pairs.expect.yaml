@@ -1,0 +1,4 @@
+status: ok
+regression_for:
+  - modal-tope-all-source-lock-pairs
+  - modal-tope-accessible-disjunction-coverage

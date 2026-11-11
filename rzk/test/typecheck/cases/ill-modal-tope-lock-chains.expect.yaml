@@ -1,0 +1,8 @@
+status: error
+api: collect
+error_tag: TypeErrorTopeNotSatisfied
+error_count: 15
+regression_for:
+  - modal-tope-long-lock-chains-all-source-modalities
+  - modal-tope-retained-cases-do-not-expose-hidden-atoms
+  - modal-sharp-disjunction-remains-hidden-along-op-chain
