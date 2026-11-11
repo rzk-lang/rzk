@@ -14,6 +14,7 @@ extra-source-files:
   - grammar/Syntax.cf
   - test/files/*tope-family-domain*.rzk
   - test/files/*variance*.rzk
+  - test/files/*meta-prefix*.rzk
 
 synopsis: An experimental proof assistant for synthetic ∞-categories
 category: Dependent Types # same as Agda

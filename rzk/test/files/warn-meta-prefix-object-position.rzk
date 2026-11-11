@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- my-id has meta prefix X (a universe parameter).
+#define my-id (X : U) (x : X) : X := x
+
+-- Storing the unsaturated schema in a pair component is an object-level
+-- use: the meta prefix must be supplied.
+#define stash : Σ (h : (X : U) → X → X), Unit := (my-id, unit)

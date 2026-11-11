@@ -35,6 +35,12 @@ extra-source-files:
     test/files/ill-variance-pair-boundary.rzk
     test/files/ill-variance-restricted-endpoint.rzk
     test/files/ill-variance-restricted-lambda-endpoint.rzk
+    test/files/happy-meta-prefix-option-off.rzk
+    test/files/happy-meta-prefix-plumbing.rzk
+    test/files/warn-meta-prefix-object-position.rzk
+    test/files/warn-meta-prefix-option-structural.rzk
+    test/files/warn-meta-prefix-section.rzk
+    test/files/warn-meta-prefix-strict-only.rzk
 extra-doc-files:
     README.md
     ChangeLog.md
@@ -183,6 +189,7 @@ test-suite rzk-test
   main-is: Spec.hs
   other-modules:
       Rzk.FormatSpec
+      Rzk.MetaPrefixSpec
       Rzk.TypeCheckSpec
       Paths_rzk
   hs-source-dirs:

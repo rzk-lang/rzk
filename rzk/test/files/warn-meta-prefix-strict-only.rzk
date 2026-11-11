@@ -1,0 +1,9 @@
+#lang rzk-1
+
+#define my-id (X : U) (x : X) : X := x
+
+-- Passing the unsaturated schema to a local parameter whose declared type
+-- is meta-shaped is allowed by the structural rule; only the strict rule
+-- (top-level receiver, within its meta prefix) flags it.
+#define local-use (A : U) (a : A) : A
+  := (\ (h : (X : U) → X → X) → h A a) my-id

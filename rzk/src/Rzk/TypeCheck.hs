@@ -12,6 +12,7 @@ import           Control.Monad            (forM, forM_, join, unless, when)
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict (Writer, runWriter, tell)
+import           Data.Bifoldable          (bifoldr)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
@@ -41,7 +42,7 @@ defaultTypeCheck tc =
   let (result, warnings) = defaultTypeCheckWithWarnings tc
   in foldr (trace . ("Warning: " <>) . ppCheckWarning) result warnings
 
--- | Run the checker and return tope-family warnings separately.
+-- | Run the checker and return warnings separately.
 defaultTypeCheckWithWarnings
   :: TypeCheck var a
   -> (Either (TypeErrorInScopedContext var) a, [CheckWarning])
@@ -49,15 +50,32 @@ defaultTypeCheckWithWarnings tc =
   let (result, warnings) = runWriter (runExceptT (runReaderT tc emptyContext))
   in (result, nub warnings)
 
--- The warning and its deduplication are adapted from
+-- The tope-family warning and its deduplication are adapted from
 -- https://github.com/rzk-lang/rzk/pull/362.
-data CheckWarning = TopeFamilyDomainWarning String String (Maybe LocationInfo)
+data CheckWarning
+  = TopeFamilyDomainWarning String String (Maybe LocationInfo)
+  | MetaPrefixWarning VarIdent VarIdent Int Int MetaPrefixRule (Maybe LocationInfo)
+  | RSTTIncompleteWarning String (Maybe LocationInfo)
   deriving (Eq)
+
+data MetaPrefixRule = MetaPrefixBoth | MetaPrefixStrictOnly
+  deriving (Eq, Show)
+
+data MetaPrefixSensitivity = MetaPrefixOff | MetaPrefixStructural | MetaPrefixStrict
+  deriving (Eq, Show)
 
 ppCheckWarning :: CheckWarning -> String
 ppCheckWarning (TopeFamilyDomainWarning family domain _) =
   "tope family " <> family <> " is not included in its declared domain "
     <> domain <> ". It is read as its intersection with the domain"
+ppCheckWarning (MetaPrefixWarning defName usedName supplied required rule _) =
+  "meta-parameter layer: " <> show usedName <> " is used with "
+    <> show supplied <> " of its " <> show required <> " meta-prefix arguments"
+    <> (case rule of
+          MetaPrefixBoth -> " at an object-level position"
+          MetaPrefixStrictOnly -> " outside another declaration's meta prefix")
+    <> " (in " <> show defName <> ")"
+ppCheckWarning (RSTTIncompleteWarning reason _) = reason
 
 -- FIXME: merge with VarInfo
 data Decl var = Decl
@@ -155,8 +173,11 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
-          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
-          term' <- typecheck (toTerm' (addParams params term)) ty' >>= whnfT
+          checkedType <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT
+          ty' <- whnfT checkedType
+          checkedTerm <- typecheck (toTerm' (addParams params term)) ty'
+          recordMetaPrefixUses (varIdentAt path name) checkedType (Just checkedTerm)
+          term' <- whnfT checkedTerm
           loc <- asks location
           let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars) loc
           fmap (first (decl :)) $
@@ -176,7 +197,9 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           mapM_ checkDefinedVar (varIdentAt path <$> vars)
           paramDecls <- concat <$> mapM paramToParamDecl params
-          ty' <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT >>= whnfT
+          checkedType <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT
+          recordMetaPrefixUses (varIdentAt path name) checkedType Nothing
+          ty' <- whnfT checkedType
           loc <- asks location
           let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars) loc
           fmap (first (decl :)) $
@@ -187,8 +210,10 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty ) $ do
         withCommand command $ do
-          ty' <- typecheck (toTerm' ty) universeT >>= whnfT
-          _term' <- typecheck (toTerm' term) ty'
+          checkedType <- typecheck (toTerm' ty) universeT
+          ty' <- whnfT checkedType
+          term' <- typecheck (toTerm' term) ty'
+          recordMetaPrefixUses "#check" checkedType (Just term')
           go (i + 1) moreCommands
 
     go  i (Rzk.CommandCompute loc term : moreCommands) =
@@ -198,7 +223,10 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Computing NF for " <> Rzk.printTree term) $ do
         withCommand command $ do
-          term' <- infer (toTerm' term) >>= nfT
+          checkedTerm <- infer (toTerm' term)
+          checkedType <- typeOfUncomputed checkedTerm
+          recordMetaPrefixUses "#compute-nf" checkedType (Just checkedTerm)
+          term' <- nfT checkedTerm
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
 
@@ -206,7 +234,10 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
       traceTypeCheck Normal ("[ " <> show i <> " out of " <> show totalCommands <> " ]"
           <> " Computing WHNF for " <> Rzk.printTree term) $ do
         withCommand command $ do
-          term' <- infer (toTerm' term) >>= whnfT
+          checkedTerm <- infer (toTerm' term)
+          checkedType <- typeOfUncomputed checkedTerm
+          recordMetaPrefixUses "#compute" checkedType (Just checkedTerm)
+          term' <- whnfT checkedTerm
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
 
@@ -215,6 +246,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           <> " Checking #assume " <> intercalate " " [ Rzk.printTree name | name <- names ] ) $ do
         withCommand command $ do
           ty' <- typecheck (toTerm' ty) universeT
+          forM_ names $ \name -> recordMetaPrefixUses (varIdentAt path name) ty' Nothing
           loc <- asks location
           let decls = [ Decl (varIdentAt path name) ty' Nothing True [] loc | name <- names ]
           fmap (first (decls <>)) $
@@ -267,6 +299,12 @@ setOption "warn-tope-family-domain" = \case
   "no"  -> localWarnTopeFamilyDomain False
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-tope-family-domain\" (use \"yes\" or \"no\")"
+setOption "warn-meta-prefix" = \case
+  "off" -> localMetaPrefixSensitivity MetaPrefixOff
+  "structural" -> localMetaPrefixSensitivity MetaPrefixStructural
+  "strict" -> localMetaPrefixSensitivity MetaPrefixStrict
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-prefix\" (use \"off\", \"structural\", or \"strict\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -274,6 +312,8 @@ unsetOption :: String -> TypeCheck var a -> TypeCheck var a
 unsetOption "verbosity" = localVerbosity (verbosity emptyContext)
 unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (warnTopeFamilyDomain emptyContext)
+unsetOption "warn-meta-prefix" =
+  localMetaPrefixSensitivity (metaPrefixSensitivity emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -669,6 +709,8 @@ data VarInfo var = VarInfo
   { varType                :: TermT var
   , varValue               :: Maybe (TermT var)
   , varOrig                :: Maybe VarIdent
+  , varIsTopLevel          :: Bool
+  , varMetaPrefix          :: Int
   , varIsAssumption        :: Bool -- FIXME: perhaps, introduce something like decl kind?
   , varDeclaredAssumptions :: [var]
   , varLocation            :: Maybe LocationInfo
@@ -685,6 +727,7 @@ data Context var = Context
   , location               :: Maybe LocationInfo
   , verbosity              :: Verbosity
   , covariance             :: Covariance
+  , metaPrefixSensitivity  :: MetaPrefixSensitivity
   , warnTopeFamilyDomain   :: Bool
   , renderBackend          :: Maybe RenderBackend
   } deriving (Functor, Foldable)
@@ -709,6 +752,7 @@ emptyContext = Context
   , location = Nothing
   , verbosity = Normal
   , covariance = Covariant
+  , metaPrefixSensitivity = MetaPrefixStrict
   , warnTopeFamilyDomain = True
   , renderBackend = Nothing
   }
@@ -795,6 +839,8 @@ insertExplicitAssumptionFor' a decl VarInfo{..}
       { varType = insertExplicitAssumptionFor a decl varType
       , varValue = insertExplicitAssumptionFor a decl <$> varValue
       , varIsAssumption = varIsAssumption
+      , varIsTopLevel = varIsTopLevel
+      , varMetaPrefix = varMetaPrefix
       , varOrig = varOrig
       , varDeclaredAssumptions = varDeclaredAssumptions
       , varLocation = varLocation
@@ -834,6 +880,8 @@ makeAssumptionExplicit assumption@(a, aInfo) ((x, xInfo) : xs) = do
       { varType = xType'
       , varValue = fmap (lambdaT xType' (varOrig aInfo) Nothing . abstract a) (varValue xInfo)
       , varIsAssumption = varIsAssumption xInfo
+      , varIsTopLevel = varIsTopLevel xInfo
+      , varMetaPrefix = varMetaPrefix xInfo
       , varOrig = varOrig xInfo
       , varDeclaredAssumptions = varDeclaredAssumptions xInfo \\ [a]
       , varLocation = varLocation xInfo
@@ -1001,18 +1049,169 @@ localDecl (Decl x ty term isAssumption vars loc) tc = do
 localDeclPrepared :: Decl VarIdent -> TypeCheck VarIdent a -> TypeCheck VarIdent a
 localDeclPrepared (Decl x ty term isAssumption vars loc) tc = do
   checkTopLevelDuplicate x
-  local update tc
+  -- Section closing may have added schematic parameters to this type.
+  prefix <- metaPrefixOf ty
+  local (update prefix) tc
   where
-    update  = addVarInCurrentScope x VarInfo
+    update prefix = addVarInCurrentScope x VarInfo
       { varType = ty
       , varValue = term
       , varOrig = Just x
       , varIsAssumption = isAssumption
+      , varIsTopLevel = True
+      , varMetaPrefix = prefix
       , varDeclaredAssumptions = vars
       , varLocation = loc
       }
 
 type TypeCheck var = ReaderT (Context var) (ExceptT (TypeErrorInScopedContext var) (Writer [CheckWarning]))
+
+-- The meta-prefix check follows https://github.com/rzk-lang/rzk/pull/312,
+-- including the incomplete-check reporting in
+-- https://github.com/rzk-lang/rzk/pull/364.
+-- A prefix ends at the last schematic parameter. This check does not
+-- establish universe levels or validate schematic instantiations.
+localMetaPrefixSensitivity :: MetaPrefixSensitivity -> TypeCheck var a -> TypeCheck var a
+localMetaPrefixSensitivity sensitivity = local $ \ctx ->
+  ctx { metaPrefixSensitivity = sensitivity }
+
+-- | Recognise universes and functions quantifying over or into them.
+isMetaType :: Eq var => TermT var -> TypeCheck var Bool
+isMetaType ty = metaHeadView ty >>= \case
+  UniverseT{} -> pure True
+  UniverseCubeT{} -> pure True
+  UniverseTopeT{} -> pure True
+  TypeFunT _ orig param _mtope ret -> do
+    paramMeta <- isMetaType param
+    if paramMeta then pure True else enterScope orig param (isMetaType ret)
+  _ -> pure False
+
+-- | Count parameters through the last schematic parameter.
+metaPrefixOf :: Eq var => TermT var -> TypeCheck var Int
+metaPrefixOf ty = go 1 0 ty `catchError` \err -> do
+  sensitivity <- asks metaPrefixSensitivity
+  when (sensitivity /= MetaPrefixOff) $
+    reportIncompleteMetaCheck "RSTT meta-prefix classification incomplete" err
+  pure 0
+  where
+    go :: Eq v => Int -> Int -> TermT v -> TypeCheck v Int
+    go pos acc t = metaHeadView t >>= \case
+      TypeFunT _ orig param _mtope ret -> do
+        meta <- isMetaType param
+        enterScope orig param (go (pos + 1) (if meta then pos else acc) ret)
+      _ -> pure acc
+
+metaHeadView :: Eq var => TermT var -> TypeCheck var (TermT var)
+metaHeadView ty = case stripTypeRestrictions ty of
+  t@UniverseT{} -> pure t
+  t@UniverseCubeT{} -> pure t
+  t@UniverseTopeT{} -> pure t
+  t@TypeFunT{} -> pure t
+  t@TypeSigmaT{} -> pure t
+  t@TypeIdT{} -> pure t
+  t -> stripTypeRestrictions <$> whnfT t
+
+reportIncompleteMetaCheck :: String -> TypeErrorInScopedContext var -> TypeCheck var ()
+reportIncompleteMetaCheck what err = do
+  loc <- asks location
+  tell [RSTTIncompleteWarning (what <> ": " <> reason err) loc]
+  where
+    reason :: TypeErrorInScopedContext v -> String
+    reason (ScopedTypeError _ nested) = reason nested
+    reason (PlainTypeError e) = case typeErrorError e of
+      TypeErrorOther message -> message
+      _ -> "could not inspect a type"
+
+data MetaPosKind = MetaPos | ObjectPos
+  deriving (Eq)
+
+data MetaPositions = MetaPositions
+  { posStructural :: MetaPosKind
+  , posStrict :: MetaPosKind
+  }
+
+metaPositions, objectPositions :: MetaPositions
+metaPositions = MetaPositions MetaPos MetaPos
+objectPositions = MetaPositions ObjectPos ObjectPos
+
+-- | Report top-level uses that supply too few schematic arguments.
+recordMetaPrefixUses :: Eq var => VarIdent -> TermT var -> Maybe (TermT var) -> TypeCheck var ()
+recordMetaPrefixUses defName ty mval = asks metaPrefixSensitivity >>= \case
+  MetaPrefixOff -> pure ()
+  _ -> localVerbosity Silent $
+    (go metaPositions ty >> mapM_ (go metaPositions) mval) `catchError`
+      reportIncompleteMetaCheck ("RSTT meta-parameter check incomplete in " <> show defName)
+  where
+    go :: Eq v => MetaPositions -> TermT v -> TypeCheck v ()
+    go pos t = case t of
+      Pure v -> checkHead pos v 0
+      AppT{} -> do
+        let (headTerm, args) = collectMetaSpine t []
+        prefix <- case headTerm of
+          Pure v -> do
+            info <- metaVarInfo v
+            checkHead pos v (length args)
+            pure (if varIsTopLevel info then Just (varMetaPrefix info) else Nothing)
+          _ -> go objectPositions headTerm >> pure Nothing
+        forM_ (zip [1 :: Int ..] args) $ \(i, (fun, arg)) -> do
+          domMeta <- typeOfUncomputed fun >>= metaHeadView >>= \case
+            TypeFunT _ _ dom _ _ -> isMetaType dom
+            _ -> pure False
+          let strict = case prefix of
+                Just k | domMeta && i <= k -> MetaPos
+                _ -> ObjectPos
+          go (MetaPositions (if domMeta then MetaPos else ObjectPos) strict) arg
+      LambdaT info orig mparam body -> do
+        dom <- case mparam of
+          Just (param, mtope) -> do
+            go metaPositions param
+            forM_ mtope $ \tope -> enterScope orig param (go objectPositions tope)
+            pure param
+          Nothing -> metaHeadView (infoType info) >>= \case
+            TypeFunT _ _ param _ _ -> pure param
+            _ -> pure universeT
+        enterScope orig dom (go pos body)
+      TypeFunT _ orig param mtope ret -> do
+        go metaPositions param
+        forM_ mtope $ \tope -> enterScope orig param (go objectPositions tope)
+        enterScope orig param (go metaPositions ret)
+      TypeSigmaT _ orig param ret -> do
+        go metaPositions param
+        enterScope orig param (go metaPositions ret)
+      TypeIdT _ left mty right -> do
+        go objectPositions left
+        mapM_ (go metaPositions) mty
+        go objectPositions right
+      TypeRestrictedT _ base restrictions -> do
+        go metaPositions base
+        forM_ restrictions $ \(tope, term) -> do
+          go objectPositions tope
+          go objectPositions term
+      Free (AnnF _ node) ->
+        mapM_ (go objectPositions) (bifoldr (\_ acc -> acc) (:) [] node)
+
+    checkHead :: Eq v => MetaPositions -> v -> Int -> TypeCheck v ()
+    checkHead pos v supplied = do
+      info <- metaVarInfo v
+      let required = varMetaPrefix info
+      when (varIsTopLevel info && required > supplied) $ do
+        sensitivity <- asks metaPrefixSensitivity
+        let rule = case (posStructural pos, posStrict pos) of
+              (ObjectPos, _) -> Just MetaPrefixBoth
+              (MetaPos, ObjectPos) | sensitivity == MetaPrefixStrict -> Just MetaPrefixStrictOnly
+              _ -> Nothing
+        forM_ rule $ \r -> do
+          loc <- asks location
+          tell [MetaPrefixWarning defName (fromMaybe "_" (varOrig info)) supplied required r loc]
+
+metaVarInfo :: Eq var => var -> TypeCheck var (VarInfo var)
+metaVarInfo v = asks (lookup v . varInfos) >>= \case
+  Just info -> pure info
+  Nothing -> issueTypeError (TypeErrorUndefined v)
+
+collectMetaSpine :: TermT var -> [(TermT var, TermT var)] -> (TermT var, [(TermT var, TermT var)])
+collectMetaSpine (AppT _ fun arg) args = collectMetaSpine fun ((fun, arg) : args)
+collectMetaSpine headTerm args = (headTerm, args)
 
 freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
 freeVarsT_ term = do
@@ -1438,6 +1637,8 @@ enterScopeContext orig ty context =
     , varValue  = Nothing
     , varOrig   = orig
     , varIsAssumption = False
+    , varIsTopLevel = False
+    , varMetaPrefix = 0
     , varDeclaredAssumptions = []
     , varLocation = location context
     }

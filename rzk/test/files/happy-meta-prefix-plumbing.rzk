@@ -1,0 +1,16 @@
+#lang rzk-1
+
+#define my-id (X : U) (x : X) : X := x
+
+-- Aliasing a schema at the root of a definition is macro-level plumbing.
+#define alias : (X : U) → X → X := my-id
+
+-- A saturated use is always fine.
+#define saturated (A : U) (a : A) : A := my-id A a
+
+-- Passing a schema to another declaration's meta-prefix parameter is
+-- allowed under both rules (the receiving domain is meta-shaped and within
+-- the receiver's meta prefix), as in composing extensionality lemmas.
+#define apply-h (h : (X : U) → X → X) (A : U) (a : A) : A := h A a
+
+#define plumbed (A : U) (a : A) : A := apply-h my-id A a
