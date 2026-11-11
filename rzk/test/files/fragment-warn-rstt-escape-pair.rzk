@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+
+#set-option "warn-free-standing-restriction" = "yes"
+#def via-pair (A : U) (a : A) : U := first ((A [TOP ↦ a], unit) as Σ (X : U), Unit)

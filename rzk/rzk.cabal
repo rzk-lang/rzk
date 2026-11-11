@@ -41,6 +41,21 @@ extra-source-files:
     test/files/warn-meta-prefix-option-structural.rzk
     test/files/warn-meta-prefix-section.rzk
     test/files/warn-meta-prefix-strict-only.rzk
+    test/files/fragment-happy-ext-style-restrictions.rzk
+    test/files/fragment-happy-rstt-independent-cubes.rzk
+    test/files/fragment-happy-rstt-schema-parameters.rzk
+    test/files/fragment-warn-free-standing-restriction-assumed.rzk
+    test/files/fragment-warn-free-standing-restriction-option.rzk
+    test/files/fragment-warn-meta-binder-inside-term.rzk
+    test/files/fragment-warn-rstt-dependent-cube.rzk
+    test/files/fragment-warn-rstt-escape-beta.rzk
+    test/files/fragment-warn-rstt-escape-pair.rzk
+    test/files/fragment-warn-rstt-escape-section.rzk
+    test/files/fragment-warn-rstt-escape-tope-family.rzk
+    test/files/fragment-warn-rstt-escape-unfolding.rzk
+    test/files/fragment-warn-rstt-meta-binder-in-face.rzk
+    test/files/fragment-warn-rstt-shape-boundary.rzk
+    test/files/fragment-warn-rstt-shape-dependency.rzk
 extra-doc-files:
     README.md
     ChangeLog.md
@@ -189,6 +204,7 @@ test-suite rzk-test
   main-is: Spec.hs
   other-modules:
       Rzk.FormatSpec
+      Rzk.FragmentSpec
       Rzk.MetaPrefixSpec
       Rzk.TypeCheckSpec
       Paths_rzk

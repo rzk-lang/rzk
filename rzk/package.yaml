@@ -15,6 +15,7 @@ extra-source-files:
   - test/files/*tope-family-domain*.rzk
   - test/files/*variance*.rzk
   - test/files/*meta-prefix*.rzk
+  - test/files/fragment-*.rzk
 
 synopsis: An experimental proof assistant for synthetic ∞-categories
 category: Dependent Types # same as Agda

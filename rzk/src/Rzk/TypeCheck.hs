@@ -12,7 +12,7 @@ import           Control.Monad            (forM, forM_, join, unless, when)
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict (Writer, runWriter, tell)
-import           Data.Bifoldable          (bifoldr)
+import           Data.Bifoldable          (bifoldMap, bifoldr)
 import           Data.Bifunctor           (first)
 import           Data.List                (intercalate, intersect, nub, tails,
                                            (\\))
@@ -55,8 +55,14 @@ defaultTypeCheckWithWarnings tc =
 data CheckWarning
   = TopeFamilyDomainWarning String String (Maybe LocationInfo)
   | MetaPrefixWarning VarIdent VarIdent Int Int MetaPrefixRule (Maybe LocationInfo)
+  | FreeStandingRestrictionWarning VarIdent String FragmentUse (Maybe LocationInfo)
+  | MetaBinderWarning VarIdent VarIdent String (Maybe LocationInfo)
+  | ShapeDependencyWarning String (Maybe LocationInfo)
   | RSTTIncompleteWarning String (Maybe LocationInfo)
   deriving (Eq)
+
+data FragmentUse = UseBinder | UseMotive | UseData | UseIdentity | UseConcluded
+  deriving (Eq, Show)
 
 data MetaPrefixRule = MetaPrefixBoth | MetaPrefixStrictOnly
   deriving (Eq, Show)
@@ -75,6 +81,19 @@ ppCheckWarning (MetaPrefixWarning defName usedName supplied required rule _) =
           MetaPrefixBoth -> " at an object-level position"
           MetaPrefixStrictOnly -> " outside another declaration's meta prefix")
     <> " (in " <> show defName <> ")"
+ppCheckWarning (FreeStandingRestrictionWarning defName ty use _) =
+  "free-standing restriction " <> ty <> " in " <> place use
+    <> " (in " <> show defName <> ")"
+  where
+    place UseBinder = "a binder type"
+    place UseMotive = "an eliminator motive"
+    place UseData = "a type passed as data"
+    place UseIdentity = "an identity type"
+    place UseConcluded = "a concluded type, off the spine of codomains"
+ppCheckWarning (MetaBinderWarning defName name ty _) =
+  "schematic binder " <> show name <> " : " <> ty
+    <> " inside a term (in " <> show defName <> ")"
+ppCheckWarning (ShapeDependencyWarning reason _) = reason
 ppCheckWarning (RSTTIncompleteWarning reason _) = reason
 
 -- FIXME: merge with VarInfo
@@ -177,6 +196,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           ty' <- whnfT checkedType
           checkedTerm <- typecheck (toTerm' (addParams params term)) ty'
           recordMetaPrefixUses (varIdentAt path name) checkedType (Just checkedTerm)
+          recordFragmentUses (varIdentAt path name) checkedType (Just checkedTerm) False
           term' <- whnfT checkedTerm
           loc <- asks location
           let decl = Decl (varIdentAt path name) ty' (Just term') False (varIdentAt path <$> vars) loc
@@ -199,6 +219,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           paramDecls <- concat <$> mapM paramToParamDecl params
           checkedType <- typecheck (toTerm' (addParamDecls paramDecls ty)) universeT
           recordMetaPrefixUses (varIdentAt path name) checkedType Nothing
+          recordFragmentUses (varIdentAt path name) checkedType Nothing True
           ty' <- whnfT checkedType
           loc <- asks location
           let decl = Decl (varIdentAt path name) ty' Nothing False (varIdentAt path <$> vars) loc
@@ -214,6 +235,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           ty' <- whnfT checkedType
           term' <- typecheck (toTerm' term) ty'
           recordMetaPrefixUses "#check" checkedType (Just term')
+          recordFragmentUses "#check" checkedType (Just term') False
           go (i + 1) moreCommands
 
     go  i (Rzk.CommandCompute loc term : moreCommands) =
@@ -226,6 +248,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           checkedTerm <- infer (toTerm' term)
           checkedType <- typeOfUncomputed checkedTerm
           recordMetaPrefixUses "#compute-nf" checkedType (Just checkedTerm)
+          recordFragmentUses "#compute-nf" checkedType (Just checkedTerm) False
           term' <- nfT checkedTerm
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
@@ -237,6 +260,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
           checkedTerm <- infer (toTerm' term)
           checkedType <- typeOfUncomputed checkedTerm
           recordMetaPrefixUses "#compute" checkedType (Just checkedTerm)
+          recordFragmentUses "#compute" checkedType (Just checkedTerm) False
           term' <- whnfT checkedTerm
           traceTypeCheck Normal ("  " <> show (untyped term')) $ do
             go (i + 1) moreCommands
@@ -247,6 +271,7 @@ typecheckModule path (Rzk.Module _moduleLoc _lang commands) =
         withCommand command $ do
           ty' <- typecheck (toTerm' ty) universeT
           forM_ names $ \name -> recordMetaPrefixUses (varIdentAt path name) ty' Nothing
+          forM_ names $ \name -> recordFragmentUses (varIdentAt path name) ty' Nothing True
           loc <- asks location
           let decls = [ Decl (varIdentAt path name) ty' Nothing True [] loc | name <- names ]
           fmap (first (decls <>)) $
@@ -305,6 +330,21 @@ setOption "warn-meta-prefix" = \case
   "strict" -> localMetaPrefixSensitivity MetaPrefixStrict
   _ -> const $
     issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-prefix\" (use \"off\", \"structural\", or \"strict\")"
+setOption "warn-free-standing-restriction" = \case
+  "yes" -> localWarnFreeStandingRestriction True
+  "no" -> localWarnFreeStandingRestriction False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-free-standing-restriction\" (use \"yes\" or \"no\")"
+setOption "warn-shape-dependency" = \case
+  "yes" -> localWarnShapeDependency True
+  "no" -> localWarnShapeDependency False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-shape-dependency\" (use \"yes\" or \"no\")"
+setOption "warn-meta-binder" = \case
+  "yes" -> localWarnMetaBinder True
+  "no" -> localWarnMetaBinder False
+  _ -> const $
+    issueTypeError $ TypeErrorOther "unknown value for \"warn-meta-binder\" (use \"yes\" or \"no\")"
 setOption optionName = const $ const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -314,6 +354,9 @@ unsetOption "warn-tope-family-domain" =
   localWarnTopeFamilyDomain (warnTopeFamilyDomain emptyContext)
 unsetOption "warn-meta-prefix" =
   localMetaPrefixSensitivity (metaPrefixSensitivity emptyContext)
+unsetOption "warn-free-standing-restriction" = localWarnFreeStandingRestriction (warnFreeStandingRestriction emptyContext)
+unsetOption "warn-shape-dependency" = localWarnShapeDependency (warnShapeDependency emptyContext)
+unsetOption "warn-meta-binder" = localWarnMetaBinder (warnMetaBinder emptyContext)
 unsetOption optionName = const $
   issueTypeError $ TypeErrorOther ("unknown option " <> show optionName)
 
@@ -729,6 +772,9 @@ data Context var = Context
   , covariance             :: Covariance
   , metaPrefixSensitivity  :: MetaPrefixSensitivity
   , warnTopeFamilyDomain   :: Bool
+  , warnFreeStandingRestriction :: Bool
+  , warnShapeDependency :: Bool
+  , warnMetaBinder :: Bool
   , renderBackend          :: Maybe RenderBackend
   } deriving (Functor, Foldable)
 
@@ -754,6 +800,9 @@ emptyContext = Context
   , covariance = Covariant
   , metaPrefixSensitivity = MetaPrefixStrict
   , warnTopeFamilyDomain = True
+  , warnFreeStandingRestriction = False
+  , warnShapeDependency = False
+  , warnMetaBinder = False
   , renderBackend = Nothing
   }
 
@@ -1091,7 +1140,7 @@ metaPrefixOf :: Eq var => TermT var -> TypeCheck var Int
 metaPrefixOf ty = go 1 0 ty `catchError` \err -> do
   sensitivity <- asks metaPrefixSensitivity
   when (sensitivity /= MetaPrefixOff) $
-    reportIncompleteMetaCheck "RSTT meta-prefix classification incomplete" err
+    reportIncompleteRSTTCheck "RSTT meta-prefix classification incomplete" err
   pure 0
   where
     go :: Eq v => Int -> Int -> TermT v -> TypeCheck v Int
@@ -1111,8 +1160,8 @@ metaHeadView ty = case stripTypeRestrictions ty of
   t@TypeIdT{} -> pure t
   t -> stripTypeRestrictions <$> whnfT t
 
-reportIncompleteMetaCheck :: String -> TypeErrorInScopedContext var -> TypeCheck var ()
-reportIncompleteMetaCheck what err = do
+reportIncompleteRSTTCheck :: String -> TypeErrorInScopedContext var -> TypeCheck var ()
+reportIncompleteRSTTCheck what err = do
   loc <- asks location
   tell [RSTTIncompleteWarning (what <> ": " <> reason err) loc]
   where
@@ -1140,7 +1189,7 @@ recordMetaPrefixUses defName ty mval = asks metaPrefixSensitivity >>= \case
   MetaPrefixOff -> pure ()
   _ -> localVerbosity Silent $
     (go metaPositions ty >> mapM_ (go metaPositions) mval) `catchError`
-      reportIncompleteMetaCheck ("RSTT meta-parameter check incomplete in " <> show defName)
+      reportIncompleteRSTTCheck ("RSTT meta-parameter check incomplete in " <> show defName)
   where
     go :: Eq v => MetaPositions -> TermT v -> TypeCheck v ()
     go pos t = case t of
@@ -1212,6 +1261,358 @@ metaVarInfo v = asks (lookup v . varInfos) >>= \case
 collectMetaSpine :: TermT var -> [(TermT var, TermT var)] -> (TermT var, [(TermT var, TermT var)])
 collectMetaSpine (AppT _ fun arg) args = collectMetaSpine fun ((fun, arg) : args)
 collectMetaSpine headTerm args = (headTerm, args)
+
+-- Fragment diagnostics follow https://github.com/rzk-lang/rzk/pull/364.
+-- Distinguish concluded types, assumed types, and terms (including type-valued data).
+data CheckedPosition
+  = InTail
+  | InAssumption FragmentUse
+  | InTerm PrefixPosition
+
+-- A schematic argument may have its own parameter prefix.
+data PrefixPosition = InParameterPrefix | OutsideParameterPrefix
+  deriving (Eq)
+
+-- | Report restriction and schematic-binder violations in a declaration.
+recordFragmentUses
+  :: Eq n
+  => VarIdent          -- ^ the declaration
+  -> TermT n           -- ^ its type
+  -> Maybe (TermT n)   -- ^ its value, for a definition
+  -> Bool              -- ^ does it supply an assumption rather than a proof?
+  -> TypeCheck n ()
+recordFragmentUses defName ty mval isAssumption = do
+  restrictions <- asks warnFreeStandingRestriction
+  binders <- asks warnMetaBinder
+  shapes <- asks warnShapeDependency
+  when (restrictions || binders || shapes) $
+    localVerbosity Silent $
+      forM_ [SourceTypes, ComputedTypes] $ \view ->
+        checkFragmentUses view defName ty mval isAssumption `catchError`
+          reportIncompleteRSTTCheck ("RSTT fragment check incomplete in " <> show defName)
+
+-- Keep source checks even when reduction discards an argument or annotation.
+data FragmentView = SourceTypes | ComputedTypes
+  deriving (Eq)
+
+checkFragmentUses
+  :: Eq n
+  => FragmentView -> VarIdent -> TermT n -> Maybe (TermT n) -> Bool -> TypeCheck n ()
+checkFragmentUses view defName ty mval isAssumption = do
+  go (if isAssumption then InAssumption UseBinder else InTail) ty
+  mapM_ (go (InTerm InParameterPrefix)) mval
+  where
+    go :: Eq l => CheckedPosition -> TermT l -> TypeCheck l ()
+    go (InTerm prefixPosition) t = goTerm prefixPosition t
+    go InTail t = goTail t
+    go (InAssumption use) t = goAssumed use t
+
+    expose :: Eq l => TermT l -> TypeCheck l (TermT l)
+    expose = case view of
+      SourceTypes -> pure
+      ComputedTypes -> fragmentHead 256
+
+    -- Allow restrictions along the spine of concluded codomains.
+    goTail :: Eq l => TermT l -> TypeCheck l ()
+    goTail original = expose original >>= \t -> case t of
+      TypeRestrictedT _ ty' rs -> do
+        goTail ty'
+        forM_ rs $ \(tope, term) -> do
+          goTerm OutsideParameterPrefix tope
+          goTerm OutsideParameterPrefix term
+      TypeFunT _ orig param mtope ret -> do
+        checkShapeDependencies InTail t
+        goAssumed UseBinder param
+        checkDomain orig param mtope
+        enterScope orig param (goTail ret)
+      RecOrT _ rs -> forM_ rs $ \(tope, term) -> do
+        goTerm OutsideParameterPrefix tope
+        goTail term
+      _ -> goAssumed UseConcluded t
+
+    -- Assumed restrictions must sit directly under a shape-Π.
+    goAssumed :: Eq l => FragmentUse -> TermT l -> TypeCheck l ()
+    goAssumed = goAssumedAt OutsideParameterPrefix
+
+    goAssumedAt
+      :: Eq l
+      => PrefixPosition -> FragmentUse -> TermT l -> TypeCheck l ()
+    goAssumedAt prefixPosition use original = expose original >>= \t -> case t of
+      TypeRestrictedT _ ty' rs -> do
+        reportFreeStanding use t
+        goAssumed use ty'
+        forM_ rs $ \(tope, term) -> do
+          goTerm OutsideParameterPrefix tope
+          goTerm OutsideParameterPrefix term
+      TypeFunT _ orig param mtope ret -> do
+        checkShapeDependencies (InAssumption use) t
+        goAssumed UseBinder param
+        checkDomain orig param mtope
+        shape <- isShapeBinder (maybe False (const True) mtope) param
+        enterScope orig param $
+          if shape then goExtCodomain use ret else goAssumed use ret
+      TypeSigmaT _ orig a b -> do
+        goAssumed UseBinder a
+        enterScope orig a (goAssumed use b)
+      -- Check the identity type separately from its endpoints.
+      TypeIdT _ a mtA b -> do
+        goTerm OutsideParameterPrefix a
+        mapM_ (goAssumed UseIdentity) mtA
+        goTerm OutsideParameterPrefix b
+      LambdaT info orig mparam body -> do
+        forM_ mparam $ \(param, mtope) -> do
+          goAssumed UseBinder param
+          checkDomain orig param mtope
+          when (prefixPosition == OutsideParameterPrefix) $ reportMetaBinder orig param
+        dom <- binderType info mparam
+        enterScope orig dom (goAssumedAt prefixPosition use body)
+      RecOrT _ rs -> forM_ rs $ \(tope, term) -> do
+        goTerm OutsideParameterPrefix tope
+        goAssumed use term
+      Pure{} -> pure ()
+      _ -> goTerm OutsideParameterPrefix t
+
+    -- Direct shape codomains admit boundary clipping to the binder's domain.
+    goExtCodomain
+      :: Eq l => FragmentUse -> TermT l -> TypeCheck l ()
+    goExtCodomain use original = expose original >>= \t -> case t of
+      TypeRestrictedT _ ty' rs -> do
+        goAssumed use ty'
+        forM_ rs $ \(face, term) -> do
+          goTerm OutsideParameterPrefix face
+          goTerm OutsideParameterPrefix term
+      _ -> goAssumed use t
+
+    -- Topes may contain applications with their own binders and assumed types.
+    checkDomain
+      :: Eq l
+      => Maybe VarIdent -> TermT l -> Maybe (Scope TermT l) -> TypeCheck l ()
+    checkDomain orig param =
+      mapM_ (\tope -> enterScope orig param (goTerm OutsideParameterPrefix tope))
+
+    -- RS17 Appendix A.2 requires shapes independent of ambient cube points.
+    -- Schematic families are judgements over cube contexts, not extension types.
+    checkShapeDependencies :: Eq l => CheckedPosition -> TermT l -> TypeCheck l ()
+    checkShapeDependencies position t = do
+      enabled <- asks warnShapeDependency
+      when enabled $ case t of
+        TypeFunT _ orig param mtope ret -> do
+          schematic <- isMetaType t
+          shape <- isShapeBinder (maybe False (const True) mtope) param
+          when shape $ enterScope orig param $ do
+            reportShapeDependency "cube domain" Z (S <$> param)
+            unless schematic $ do
+              forM_ mtope $ reportShapeDependency "shape domain" Z
+              expose ret >>= \body -> case (position, body) of
+                (InAssumption _, TypeRestrictedT _ _ rs) ->
+                  forM_ rs $ \(face, _) -> reportShapeDependency "restriction boundary" Z face
+                _ -> pure ()
+        _ -> pure ()
+
+    reportShapeDependency
+      :: Eq l => String -> l -> TermT l -> TypeCheck l ()
+    reportShapeDependency what point tope = do
+      points <- outerPoints point tope
+      unless (null points) $ do
+        rendered <- ppTermInContext tope
+        names <- mapM (ppTermInContext . Pure) points
+        loc <- asks location
+        tell [ShapeDependencyWarning
+          ("context-dependent " <> what <> " " <> rendered
+            <> " (outer cube points: " <> intercalate ", " names
+            <> ", in " <> show defName <> ")") loc]
+
+    -- Follow aliases and variable types without reducing away dependencies.
+    outerPoints :: Eq l => l -> TermT l -> TypeCheck l [l]
+    outerPoints point t = walk [point] (freeVars (untyped t))
+      where
+        walk _ [] = pure []
+        walk seen (v : vs)
+          | v `elem` seen = walk seen vs
+          | otherwise = do
+              varTy <- typeOfVar v
+              value <- valueOfVar v
+              cube <- typeOfUncomputed varTy >>= whnfT
+              let here = case (value, cube) of
+                    (Nothing, UniverseCubeT{}) -> [v]
+                    _ -> []
+                  dependencies = freeVars (untyped varTy) <> foldMap (freeVars . untyped) value
+              rest <- walk (v : seen) (dependencies <> vs)
+              pure (here <> rest)
+
+    -- Check term binders and route type-valued bodies through goData.
+    goTerm :: Eq l => PrefixPosition -> TermT l -> TypeCheck l ()
+    goTerm InParameterPrefix t | not (isLambda t) = goDataAt InParameterPrefix t
+    goTerm prefixPosition t = case t of
+      Pure{} -> pure ()
+
+      -- Function types returned by branches still introduce shapes.
+      TypeFunT{} -> goAssumed UseData t
+
+      -- The stored type is synthesised by elaboration.
+      ReflT _ mx -> forM_ mx $ \(x, _mxty) -> goTerm OutsideParameterPrefix x
+
+      TypeAscT _ term' ty' -> do
+        goTerm OutsideParameterPrefix term'
+        goTail ty'
+
+      LambdaT info orig mparam body -> do
+        checkShapeDependencies InTail (infoType info)
+        forM_ mparam $ \(param, mtope) -> do
+          goAssumed UseBinder param
+          checkDomain orig param mtope
+          when (prefixPosition == OutsideParameterPrefix) $ reportMetaBinder orig param
+        dom <- binderType info mparam
+        enterScope orig dom (goTerm prefixPosition body)
+
+      AppT{} -> do
+        let (h, args) = collectFragmentSpine t []
+        goTerm OutsideParameterPrefix h
+        forM_ args $ \(fnode, arg) -> do
+          -- Substitution can create a forbidden type in a later argument domain.
+          when (view == ComputedTypes) $
+            typeOfUncomputed fnode >>= funDomain >>= mapM_ (goAssumed UseBinder)
+          -- Schema arguments may bind their own schematic parameters.
+          plumbing <- domainIsMeta fnode
+          if plumbing then goTerm InParameterPrefix arg else goData arg
+
+      -- The motive is assumed: the eliminator binds its variables at it.
+      IdJT _ tA a tC d x p -> do
+        goData tA
+        goTerm OutsideParameterPrefix a
+        goAssumed UseMotive tC
+        goTerm OutsideParameterPrefix d
+        goTerm OutsideParameterPrefix x
+        goTerm OutsideParameterPrefix p
+
+      PairT _ l r -> do
+        goData l
+        goData r
+
+      Free (AnnF _ f) ->
+        mapM_ (goTerm OutsideParameterPrefix) (bifoldMap (const []) (:[]) f)
+
+    -- Type-valued data may later become binder or motive types. A proof
+    -- quantified over a universe must still be walked as a term.
+    goData :: Eq l => TermT l -> TypeCheck l ()
+    goData = goDataAt OutsideParameterPrefix
+
+    goDataAt :: Eq l => PrefixPosition -> TermT l -> TypeCheck l ()
+    goDataAt prefixPosition t = do
+      isType <- landsInUniverse t
+      if isType then goAssumedAt prefixPosition UseData t else goTerm OutsideParameterPrefix t
+
+    isLambda :: TermT l -> Bool
+    isLambda LambdaT{} = True
+    isLambda _         = False
+
+    binderType
+      :: Eq l
+      => TypeInfo (TermT l) -> Maybe (TermT l, Maybe (Scope TermT l))
+      -> TypeCheck l (TermT l)
+    binderType _info (Just (param, _mtope)) = pure param
+    binderType info Nothing = fromMaybe universeT <$> funDomain (infoType info)
+
+    -- A cube domain without a tope denotes the unrestricted shape.
+    isShapeBinder :: Eq l => Bool -> TermT l -> TypeCheck l Bool
+    isShapeBinder True _ = pure True
+    isShapeBinder False param =
+      typeOfUncomputed param >>= whnfT >>= \case
+        UniverseCubeT{} -> pure True
+        _               -> pure False
+
+    -- Is the Π-domain of this function node schematic?
+    domainIsMeta :: Eq l => TermT l -> TypeCheck l Bool
+    domainIsMeta f = do
+      tf <- typeOfUncomputed f
+      whnfT (stripTypeRestrictions tf) >>= \case
+        TypeFunT _ _ dom _ _ -> isMetaType dom
+        _                      -> pure False
+
+    -- Recognise types and type families by their final codomain.
+    landsInUniverse :: Eq l => TermT l -> TypeCheck l Bool
+    landsInUniverse t =
+      typeOfUncomputed t >>= finalCodomain
+      where
+        finalCodomain :: Eq k => TermT k -> TypeCheck k Bool
+        finalCodomain ty' = whnfT (stripTypeRestrictions ty') >>= \case
+          UniverseT{}     -> pure True
+          UniverseCubeT{} -> pure True
+          UniverseTopeT{} -> pure True
+          TypeFunT _ orig param _mtope ret -> enterScope orig param (finalCodomain ret)
+          _               -> pure False
+
+    funDomain :: Eq l => TermT l -> TypeCheck l (Maybe (TermT l))
+    funDomain tf =
+      whnfT (stripTypeRestrictions tf) >>= \case
+        TypeFunT _ _ dom _ _ -> pure (Just dom)
+        _                      -> pure Nothing
+
+    reportMetaBinder :: Eq l => Maybe VarIdent -> TermT l -> TypeCheck l ()
+    reportMetaBinder orig param = do
+      enabled <- asks warnMetaBinder
+      when enabled $ do
+        meta <- isMetaType param
+        when meta $ do
+          rendered <- ppTermInContext param
+          loc <- asks location
+          tell [MetaBinderWarning defName (fromMaybe "_" orig) rendered loc]
+
+    reportFreeStanding :: Eq l => FragmentUse -> TermT l -> TypeCheck l ()
+    reportFreeStanding use t = do
+      enabled <- asks warnFreeStandingRestriction
+      when enabled $ do
+        rendered <- ppTermInContext t
+        loc <- asks location
+        tell [FreeStandingRestrictionWarning defName rendered use loc]
+
+-- Expose type constructors without consulting cached normal forms or simplifying
+-- their guards. Keep this reducer in step with the object-level rules in whnfT.
+fragmentHead :: Eq n => Int -> TermT n -> TypeCheck n (TermT n)
+fragmentHead fuel t
+  | fuel <= 0 = issueTypeError (TypeErrorOther "RSTT fragment reduction limit reached")
+  | otherwise = case t of
+      Pure v -> valueOfVar v >>= maybe (neutral t) step
+      AppT info f x -> step f >>= \case
+        LambdaT _ _ _ body -> step (substituteT x body)
+        f' -> neutral (AppT info f' x)
+      TypeAscT _ value _ -> step value
+      FirstT info pair -> step pair >>= \case
+        PairT _ a _ -> step a
+        pair' -> neutral (FirstT info pair')
+      SecondT info pair -> step pair >>= \case
+        PairT _ _ b -> step b
+        pair' -> neutral (SecondT info pair')
+      IdJT info a x motive d y proof -> step proof >>= \case
+        ReflT{} -> step d
+        proof' -> neutral (IdJT info a x motive d y proof')
+      RecOrT _ rs -> firstMatchingFragment rs >>= maybe (pure t) step
+      -- In particular, stop at TypeRestrictedT before reducing its topes.
+      _ -> pure t
+  where
+    step = fragmentHead (fuel - 1)
+    neutral term = do
+      ty <- typeOfUncomputed term >>= step
+      tryRestriction ty >>= maybe (pure term) step
+
+collectFragmentSpine :: TermT n -> [(TermT n, TermT n)] -> (TermT n, [(TermT n, TermT n)])
+collectFragmentSpine (AppT _ f x) acc = collectFragmentSpine f ((f, x) : acc)
+collectFragmentSpine h acc            = (h, acc)
+
+firstMatchingFragment :: Eq var => [(TermT var, TermT var)] -> TypeCheck var (Maybe (TermT var))
+firstMatchingFragment [] = pure Nothing
+firstMatchingFragment ((guard, value) : rest) = checkTope guard >>= \case
+  True -> pure (Just value)
+  False -> firstMatchingFragment rest
+
+localWarnFreeStandingRestriction :: Bool -> TypeCheck var a -> TypeCheck var a
+localWarnFreeStandingRestriction enabled = local $ \ctx -> ctx { warnFreeStandingRestriction = enabled }
+
+localWarnShapeDependency :: Bool -> TypeCheck var a -> TypeCheck var a
+localWarnShapeDependency enabled = local $ \ctx -> ctx { warnShapeDependency = enabled }
+
+localWarnMetaBinder :: Bool -> TypeCheck var a -> TypeCheck var a
+localWarnMetaBinder enabled = local $ \ctx -> ctx { warnMetaBinder = enabled }
 
 freeVarsT_ :: Eq var => TermT var -> TypeCheck var [var]
 freeVarsT_ term = do

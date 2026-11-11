@@ -1,0 +1,6 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+
+#set-option "warn-free-standing-restriction" = "yes"
+#def family (A : U) (a : A) : 2 → U := \ t → A [t === 0_2 ↦ a]

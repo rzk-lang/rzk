@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+#set-option "warn-free-standing-restriction" = "yes"
+#set-option "warn-shape-dependency" = "yes"
+#set-option "warn-meta-binder" = "yes"
+
+#def dependent (I : 2 → CUBE) (s : 2)
+  (f : (t : I s) → Unit) : Unit := unit

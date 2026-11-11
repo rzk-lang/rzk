@@ -1,0 +1,29 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+#set-option "warn-free-standing-restriction" = "yes"
+#set-option "warn-shape-dependency" = "yes"
+#set-option "warn-meta-binder" = "yes"
+
+#def ext-type (A : 2 → U) (a : (t : 2 | t ≡ 0₂) → A t) : U
+  := (t : 2) → A t [t ≡ 0₂ ↦ a t]
+
+#def nested-tail
+  ( I : CUBE) (ψ : I → TOPE) (ϕ : ψ → TOPE) (X : U) (Y : ψ → X → U)
+  ( f : (t : ϕ) → (x : X) → Y t x)
+  ( g : (x : X) → (t : ψ) → (Y t x) [ϕ t ↦ f t x])
+  : (t : ψ) → (x : X) → (Y t x) [ϕ t ↦ f t x]
+  := \ t x → g x t
+
+#def rstt-motive (A : U) (x : A) (p : x =_{A} x) : (t : 1) → A [TOP ↦ x]
+  := idJ (A , x , (\ _ _ → (t : 1) → A [TOP ↦ x]) , (\ t → x) , x , p)
+
+#def at-point (I : CUBE) (ψ : I → TOPE) (ϕ : ψ → TOPE) (A : ψ → U)
+  ( a : (t : ϕ) → A t) (f : (t : ψ) → A t [ϕ t ↦ a t]) (s : ψ)
+  : A s
+  := f s
+
+#def refl-at-point (I : CUBE) (ψ : I → TOPE) (ϕ : ψ → TOPE) (A : ψ → U)
+  ( a : (t : ϕ) → A t) (f : (t : ψ) → A t [ϕ t ↦ a t]) (s : ψ)
+  : (f s) =_{A s} (f s)
+  := refl

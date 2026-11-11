@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+#set-option "warn-free-standing-restriction" = "yes"
+#set-option "warn-shape-dependency" = "yes"
+#set-option "warn-meta-binder" = "yes"
+
+#postulate mixed (A : U) (a : A) (s : 2)
+  (f : (t : 2) → A [t === s ↦ a]) : Unit

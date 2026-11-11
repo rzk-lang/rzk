@@ -1,0 +1,25 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+
+#set-option "warn-free-standing-restriction" = "yes"
+
+#def at-binder (A : U) (x : A) (f : (A [TOP ↦ x]) → A) : A
+  := f x
+
+#def at-motive (A : U) (x : A) (p : x =_{A} x) : A [TOP ↦ x]
+  := idJ (A , x , (\ _ _ → A [TOP ↦ x]) , x , x , p)
+
+#def generic-J (A : U) (x : A) (C : (z : A) → (x =_{A} z) → U) (d : C x refl)
+  ( y : A) (p : x =_{A} y)
+  : C y p
+  := idJ (A , x , C , d , y , p)
+
+#def at-data (A : U) (x : A) (p : x =_{A} x) : A [TOP ↦ x]
+  := generic-J A x (\ _ _ → A [TOP ↦ x]) x x p
+
+#def at-universe (A : U) (x : A) : U
+  := A [TOP ↦ x]
+
+#def at-identity (A : U) (x : A) (y : A [TOP ↦ x]) : U
+  := y =_{A [TOP ↦ x]} y

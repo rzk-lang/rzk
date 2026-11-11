@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+#set-option "warn-free-standing-restriction" = "yes"
+#set-option "warn-shape-dependency" = "yes"
+#set-option "warn-meta-binder" = "yes"
+
+#def family (A : U) : U := A
+#def alias : U → U := family
+#def receive (F : U → U) (A : U) : U := F A
+#def supply (A : U) : U := receive (\ B → B) A
+#def ordinary (A : U) : Σ (f : A → A), Unit := ((\ a → a), unit)

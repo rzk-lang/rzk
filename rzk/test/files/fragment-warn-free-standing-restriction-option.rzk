@@ -1,0 +1,16 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+
+#def quietly (A : U) (x : A) : U
+  := A [TOP ↦ x]
+
+#set-option "warn-free-standing-restriction" = "yes"
+
+#def reported (A : U) (x : A) : U
+  := A [TOP ↦ x]
+
+#unset-option "warn-free-standing-restriction"
+
+#def reset-quietly (A : U) (x : A) : U
+  := A [TOP ↦ x]

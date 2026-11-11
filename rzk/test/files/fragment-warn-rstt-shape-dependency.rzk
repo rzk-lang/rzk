@@ -1,0 +1,20 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+#set-option "warn-free-standing-restriction" = "yes"
+#set-option "warn-shape-dependency" = "yes"
+#set-option "warn-meta-binder" = "yes"
+
+#postulate mixed-boundary (A : U) (a : A) (s : 2)
+  (f : (t : 2) → A [t === s ↦ a]) : Unit
+
+#postulate mixed-domain (A : U) (s : 2)
+  (f : (t : 2 | t <= s) → A) : Unit
+
+#postulate distinct-cubes (I J : CUBE) (φ : I → J → TOPE)
+  (s : I) (f : (t : J) → Unit [φ s t ↦ unit]) : Unit
+
+#postulate outer-product (A : U) (a : A) ((s, u) : 2 * 2)
+  (f : (t : 2) → A [t === s ↦ a]) : Unit
+
+#def nested (s : 2) : Unit := (\ (t : 2 | t <= s) → unit) 0_2

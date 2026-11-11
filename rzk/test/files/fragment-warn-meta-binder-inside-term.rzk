@@ -1,0 +1,23 @@
+#lang rzk-1
+
+-- Examples adapted from https://github.com/rzk-lang/rzk/pull/364.
+
+#set-option "warn-meta-binder" = "yes"
+
+#def my-id : (X : U) → X → X
+  := \ X x → x
+
+#def at-universe (A : U) (a : A) : A
+  := (\ (B : U) → \ (b : B) → b) A a
+
+#def at-cube (A : U) (a : A) : A
+  := (\ (J : CUBE) → a) 2
+
+#def at-tope-family (I : CUBE) (A : U) (a : A) : A
+  := (\ (φ : I → TOPE) → a) (\ t → TOP)
+
+#def takes-schema (h : (A : U) → A → A) (B : U) (b : B) : B
+  := h B b
+
+#def supplies-schema (B : U) (b : B) : B
+  := takes-schema (\ A a → a) B b
