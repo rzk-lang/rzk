@@ -1,0 +1,23 @@
+#lang rzk-1
+
+-- A recOR evaluated before its guard holds takes that branch once the
+-- context entails the guard. Here the boundary of `postcomp` is
+-- instantiated by a function into a recOR and evaluated under the binder
+-- `t`, where no guard holds; it is compared with `f x` under `t ≡ 0₂`, as
+-- in sHoTT's `is-equiv-ap-hom-is-equiv`.
+
+#define postcomp
+  (A B : U)
+  (f : A → B)
+  (a : (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → A)
+  (k : (t : 2) → A [t ≡ 0₂ ∨ t ≡ 1₂ ↦ a t])
+  : (t : 2) → B [t ≡ 0₂ ∨ t ≡ 1₂ ↦ f (a t)]
+  := \ t → f (k t)
+
+#define postcomp-boundary
+  (A B : U)
+  (f : A → B)
+  (x y : A)
+  (k : (t : 2) → A [t ≡ 0₂ ∨ t ≡ 1₂ ↦ recOR (t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y)])
+  : (t : 2) → B [t ≡ 0₂ ∨ t ≡ 1₂ ↦ recOR (t ≡ 0₂ ↦ f x , t ≡ 1₂ ↦ f y)]
+  := postcomp A B f (\ t → recOR (t ≡ 0₂ ↦ x , t ≡ 1₂ ↦ y)) k

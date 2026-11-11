@@ -1,0 +1,25 @@
+#lang rzk-1
+
+-- A neutral reduces by a restriction of its type that sits in a component
+-- of a Σ type, also behind a definition and a Π (as the first component of
+-- an Equiv does): under t ≡ 0₂, first F t is a.
+
+#define restriction-in-sigma
+  (A : U)
+  (a : A)
+  (F : Σ (g : (t : 2) → A [t ≡ 0₂ ↦ a]) , Unit)
+  : (t : 2) → A [t ≡ 0₂ ↦ a]
+  := \ t → first F t
+
+#define with-a-restriction
+  (A : U)
+  (a : A)
+  : U
+  := Σ (g : (t : 2) → A [t ≡ 0₂ ↦ a]) , Unit
+
+#define restriction-in-defined-sigma
+  (A : U)
+  (a : A)
+  (F : (x : Unit) → with-a-restriction A a)
+  : (t : 2) → A [t ≡ 0₂ ↦ a]
+  := \ t → first (F unit) t

@@ -1,0 +1,15 @@
+#lang rzk-1
+
+-- Two values that differ are equal if they are equal in every alternative
+-- of a disjunctive tope context: on the shape t ≡ 0₂ ∨ t ≡ 1₂, g t and k t
+-- are a in one alternative and b in the other, by their restrictions,
+-- although neither face holds on the whole shape (as a 2-simplex and its
+-- horn restriction in sHoTT's equiv-horn-restriction).
+
+#define equal-in-every-alternative
+  (A : U)
+  (a b : A)
+  (g : (t : 2) → A [t ≡ 0₂ ↦ a , t ≡ 1₂ ↦ b])
+  (k : (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → A [t ≡ 0₂ ↦ a , t ≡ 1₂ ↦ b])
+  : (\ (t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → g t) =_{(t : 2 | t ≡ 0₂ ∨ t ≡ 1₂) → A} k
+  := refl

@@ -1,0 +1,30 @@
+#lang rzk-1
+
+-- A neutral reduces by a restriction on the type of a prefix of its spine:
+-- in g t x, it is g t that is f t under t ≡ 0₂ (after RS17, Theorem 4.1,
+-- the commutation of arguments).
+
+#define restriction-on-prefix
+  (X A : U)
+  (f : 2 → X → A)
+  (g : (t : 2) → (X → A) [t ≡ 0₂ ↦ f t])
+  : (t : 2) → (x : X) → A [t ≡ 0₂ ↦ f t x]
+  := \ t x → g t x
+
+#define restriction-on-projected-prefix
+  (A B : U)
+  (f : 2 → Σ (a : A) , B)
+  (g : (t : 2) → (Σ (a : A) , B) [t ≡ 0₂ ↦ f t])
+  : (t : 2) → A [t ≡ 0₂ ↦ first (f t)]
+  := \ t → first (g t)
+
+-- two restrictions in a chain: under t ≡ 0₂, g t is f t by the restriction
+-- of g, and f t is a t by the restriction of f (compare RS17, Theorem 4.4,
+-- on composites of cofibrations)
+#define restriction-chain
+  (X : U)
+  (a : 2 → X)
+  (f : (t : 2) → X [t ≡ 0₂ ↦ a t])
+  (g : (t : 2) → X [t ≡ 0₂ ∨ t ≡ 1₂ ↦ f t])
+  : (t : 2) → X [t ≡ 0₂ ↦ a t]
+  := \ t → g t
