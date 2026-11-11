@@ -52,32 +52,51 @@
   -> C n
 #check rec-Nat
   : (C : U) -> C -> ((pred : Nat) -> C -> C) -> Nat -> C
-#check ind-op-Nat
-  : (C : (n :_op Nat) -> U)
-  -> C zero
-  -> ((pred :_op Nat) -> (ih : C pred) -> C (suc pred))
-  -> (n :_op Nat)
-  -> C n
-#check rec-op-Nat
-  : (C : U) -> C -> ((pred :_op Nat) -> C -> C) -> (n :_op Nat) -> C
-#check ind-b-Nat
-  : (C : (n :_b Nat) -> U)
-  -> C zero
-  -> ((pred :_b Nat) -> (ih : C pred) -> C (suc pred))
-  -> (n :_b Nat)
-  -> C n
-#check rec-b-Nat
-  : (C : U) -> C -> ((pred :_b Nat) -> C -> C) -> (n :_b Nat) -> C
 
-#define modal-predecessor-generated
-  (n :_b Nat)
-  : _b Nat
-  := rec-b-Nat (_b Nat) (mod _b zero)
-       (\ pred _ -> mod _b pred) n
+#data Choice := left | right
 
-#define modal-match-recursive
-  (x :_b Nat)
+#check ind-op-Choice
+  : (C : (x :_op Choice) -> U)
+  -> C left
+  -> C right
+  -> (x :_op Choice)
+  -> C x
+#check rec-op-Choice
+  : (C : U) -> C -> C -> (x :_op Choice) -> C
+#check ind-b-Choice
+  : (C : (x :_b Choice) -> U)
+  -> C left
+  -> C right
+  -> (x :_b Choice)
+  -> C x
+#check rec-b-Choice
+  : (C : U) -> C -> C -> (x :_b Choice) -> C
+
+#define modal-match-choice
+  (x :_b Choice)
   : Unit
   := match _b x
-       ( zero => unit
-       | suc pred ih => ih)
+       ( left => unit
+       | right => unit)
+
+#data Box (A : U) := box (value : A)
+
+#check ind-sharp-Box
+  : (A :_# U)
+  -> (C : (x :_# Box A) -> U)
+  -> ((value :_# A) -> C (box A value))
+  -> (x :_# Box A)
+  -> C x
+#check rec-sharp-Box
+  : (A :_# U)
+  -> (C : U)
+  -> ((value :_# A) -> C)
+  -> (x :_# Box A)
+  -> C
+
+#define modal-unbox-sharp
+  (A :_# U)
+  (x :_# Box A)
+  : _# A
+  := match _# x
+       (box value => mod _# value)

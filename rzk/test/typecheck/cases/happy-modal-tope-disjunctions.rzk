@@ -1,0 +1,50 @@
+#lang rzk-1
+
+#define sharp-reassociate (p q r :_b TOPE)
+  : (t : 1 | _# (p \/ (q \/ r))) -> Unit
+  := \ _ -> recOR (_# ((r \/ p) \/ q) |-> unit)
+
+#define sharp-reverse-implication (p q :_b TOPE)
+  : (t : 1 | _# p \/ _# q) -> Unit
+  := \ _ -> recOR (_# (p \/ q) |-> unit)
+
+#define plain-cases-before-sharp (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> Unit
+  := \ _ -> recOR ((_# p \/ _# q) |-> unit)
+
+#define sharp-conjunction (p q :_b TOPE)
+  : (t : 1 | _# (p /\ q)) -> Unit
+  := \ _ -> recOR ((_# p /\ _# q) |-> unit)
+
+-- Both a modal goal and an actual lock must re-saturate the exposed cases.
+#define sharp-resaturate-goal (x y :_b II)
+  : (t : 1 | _# (((x === y) /\ (y === 0_I))
+                 \/ ((x === 0_I) /\ (y === 1_I)))) -> Unit
+  := \ _ -> recOR (_# (x === 0_I) |-> unit)
+
+#define sharp-resaturate-context (x y :_b II)
+  : (t : 1 | _# (((x === y) /\ (y === 0_I))
+                 \/ ((x === 0_I) /\ (y === 1_I)))) -> _# Unit
+  := \ _ -> mod _# (recOR (x === 0_I |-> unit))
+
+#define mixed-plain-sharp (p q r :_b TOPE)
+  : (t : 1 | p \/ _# (q \/ r)) -> Unit
+  := \ _ -> recOR (_# (r \/ (q \/ p)) |-> unit)
+
+#define nested-cases-inside-sharp (p q r :_b TOPE)
+  : (t : 1 | _# (p \/ (q \/ r))) -> _# Unit
+  := \ _ -> mod _# (recOR (r |-> unit, q |-> unit, p |-> unit))
+
+#define two-independent-disjunctions (p q r :_b TOPE)
+  : (t : 1 | _# ((p \/ q) /\ (q \/ r))) -> _# Unit
+  := \ _ -> mod _# (recOR ((q \/ (p /\ r)) |-> unit))
+
+#define nested-sharp-boundary (p q r :_b TOPE)
+  : (t : 1 | _# (p \/ _# (q \/ r))) -> _# Unit
+  := \ _ -> mod _# (recOR ((r \/ (q \/ p)) |-> unit))
+
+-- The outer Op disjunction is exposed at lock 1, the inner one at lock 2.
+-- At lock 3 the inner atoms are hidden again, but its earlier split survives.
+#define nested-op-exposed-in-stages (p q :_b TOPE)
+  : (t : 1 | _op (p \/ _op (p \/ q))) -> _op _op _op Unit
+  := \ _ -> mod _op mod _op mod _op (recOR ((_# p \/ _# q) |-> unit))

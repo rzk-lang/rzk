@@ -1,0 +1,72 @@
+#lang rzk-1
+
+-- Available payloads may be split under each of the four locks.
+-- Opaque topes avoid endpoint/discreteness axioms proving coverage by accident.
+#define id-under-id (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define id-under-sharp (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> _# Unit
+  := \ _ -> mod _# (recOR (p |-> unit, q |-> unit))
+
+#define op-under-op (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) -> _op Unit
+  := \ _ -> mod _op (recOR (p |-> unit, q |-> unit))
+
+#define op-under-sharp (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) -> _# Unit
+  := \ _ -> mod _# (recOR (p |-> unit, q |-> unit))
+
+#define flat-under-id (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define flat-under-op (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _op Unit
+  := \ _ -> mod _op (recOR (p |-> unit, q |-> unit))
+
+#define flat-under-flat (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _b Unit
+  := \ _ -> mod _b (recOR (p |-> unit, q |-> unit))
+
+#define flat-under-sharp (p q :_b TOPE)
+  : (t : 1 | _b (p \/ q)) -> _# Unit
+  := \ _ -> mod _# (recOR (p |-> unit, q |-> unit))
+
+#define sharp-under-sharp (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> _# Unit
+  := \ _ -> mod _# (recOR (p |-> unit, q |-> unit))
+
+-- Nested prefixes compose before deciding whether their payload is available.
+#define id-id (p q :_b TOPE)
+  : (t : 1 | _id (_id (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define id-flat (p q :_b TOPE)
+  : (t : 1 | _id (_b (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define op-op (p q :_b TOPE)
+  : (t : 1 | _op (_op (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define op-flat (p q :_b TOPE)
+  : (t : 1 | _op (_b (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define flat-id (p q :_b TOPE)
+  : (t : 1 | _b (_id (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define flat-op (p q :_b TOPE)
+  : (t : 1 | _b (_op (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define flat-flat (p q :_b TOPE)
+  : (t : 1 | _b (_b (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define flat-sharp (p q :_b TOPE)
+  : (t : 1 | _b (_# (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)

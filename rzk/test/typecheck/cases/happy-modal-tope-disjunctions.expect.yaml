@@ -1,0 +1,6 @@
+status: ok
+regression_for:
+  - modal-tope-nested-disjunctions
+  - modal-tope-resaturation-after-lock-entry
+  - modal-tope-disjunctions-exposed-in-stages
+  - modal-sharp-conjunction-and-valid-disjunction-implications

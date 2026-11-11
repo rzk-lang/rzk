@@ -1,0 +1,7 @@
+status: error
+api: collect
+error_tag: TypeErrorTopeNotSatisfied
+error_count: 4
+regression_for:
+  - modal-sharp-does-not-distribute-over-nested-disjunction
+  - modal-tope-alternatives-do-not-escape-a-lock

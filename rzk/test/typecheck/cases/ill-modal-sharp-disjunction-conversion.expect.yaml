@@ -1,0 +1,4 @@
+status: error
+error_tag: TypeErrorUnifyTerms
+regression_for:
+  - modal-sharp-disjunction-does-not-leak-into-conversion

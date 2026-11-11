@@ -345,7 +345,10 @@ enterModality :: Distinct n => TModality -> TypeCheck n b -> TypeCheck n b
 enterModality Id action = action
 enterModality md action = do
   ctx <- asks (applyModality md)
-  let ctx' = ctx { ctxTopesEntailBottom = Nothing }
+  let ctx' = ctx
+        { ctxTopesNFUnion = concatMap simplifyLHSwithDisjunctions (ctxTopesNFUnion ctx)
+        , ctxTopesEntailBottom = Nothing
+        }
   -- 'applyModality' invalidated the saturation cache (accessibility changed);
   -- refresh it under the shifted context.
   inContext ctx' (withRefreshedTopes id action)
@@ -365,7 +368,9 @@ localTope tope tc = do
   if noNewInformation
     then tc
     else do
-      entailsBottom <- (modalTope' : ctxTopesNF ctx) `entailM` topeBottomT
+      entailsBottom <- allM
+        (\topes -> entailM (modalTope' : topes) topeBottomT)
+        (ctxTopesNFUnion ctx)
       withRefreshedTopes (extend modalTope' entailsBottom) tc
   where
     ask' = asks id
@@ -392,7 +397,8 @@ withRefreshedTopes
   => (Context n -> Context n) -> TypeCheck n a -> TypeCheck n a
 withRefreshedTopes f action = do
   ctx' <- asks f
-  let sat = case runTypeCheckIn ctx' (saturateForEntailment (ctxTopesNF ctx')) of
+  let sat = case runTypeCheckIn ctx'
+        (concat <$> mapM saturateForEntailment (ctxTopesNFUnion ctx')) of
         Left _  -> Nothing
         Right s -> Just s
   local (const ctx' { ctxTopesSaturated = SaturationCached sat }) action
@@ -410,6 +416,7 @@ inAllSubContexts handleSingle tc = do
             { ctxTopes = topes'
             , ctxTopesNF = topes'
             , ctxTopesNFUnion = [topes']
+            , ctxTopesEntailBottom = Nothing
             }) tc
 
 -- * Equality of topes
@@ -478,7 +485,7 @@ entailContextM goal = asks ctxTopesSaturated >>= \case
   SaturationCached Nothing          -> fallback
   SaturationUncached                -> fallback
   where
-    fallback = asks ctxTopesNF >>= (`entailM` goal)
+    fallback = asks ctxTopesNFUnion >>= allM (`entailM` goal)
 
 -- * Saturation
 
@@ -728,14 +735,15 @@ simplifyLHSwithDisjunctions topes = map nubModalTopes $
   case topes of
     [] -> [[]]
     ModalTope _ _ TopeTopT{} : topes' -> simplifyLHSwithDisjunctions topes'
-    ModalTope mAcc mVar TopeBottomT{} : _ -> [[ModalTope mAcc mVar topeBottomT]]
+    mt@(ModalTope _ _ TopeBottomT{}) : _
+      | isAccessible mt -> [[mt]]
     ModalTope mAcc mVar (TopeAndT _ l r) : topes' ->
       simplifyLHSwithDisjunctions (ModalTope mAcc mVar l : ModalTope mAcc mVar r : topes')
 
-    -- NOTE: it is inefficient to expand disjunctions immediately
-    ModalTope mAcc mVar (TopeOrT _ l r) : topes' ->
-      simplifyLHSwithDisjunctions (ModalTope mAcc mVar l : topes')
-        <> simplifyLHSwithDisjunctions (ModalTope mAcc mVar r : topes')
+    mt@(ModalTope mAcc mVar (TopeOrT _ l r)) : topes'
+      | isAccessible mt ->
+          simplifyLHSwithDisjunctions (ModalTope mAcc mVar l : topes')
+            <> simplifyLHSwithDisjunctions (ModalTope mAcc mVar r : topes')
 
     ModalTope mAcc mVar (TopeEQT _ (PairT _ x y) (PairT _ x' y')) : topes' ->
       simplifyLHSwithDisjunctions
@@ -752,11 +760,8 @@ solveRHSM modalTopes goal =
   in case goal of
     _ | topeBottomT `elemT` topes -> return True
     TopeTopT{}     -> return True
-    TypeModalT _ty md inTope -> do
-      let shifted = applyModalityToTopes md modalTopes
-          resaturated = saturateTopes shifted
-      resaturatedInv <- saturateInv resaturated
-      solveRHSM resaturatedInv inTope
+    TypeModalT _ty md inTope ->
+      entailM (applyModalityToTopes md modalTopes) inTope
     TopeEQT  _ty (PairT _ty1 x y) (PairT _ty2 x' y') ->
       solveRHSM modalTopes $ topeAndT (topeEQT x x') (topeEQT y y')
     TopeEQT  _ty (PairT TypeInfo{ infoType = CubeProductT _ cubeI cubeJ } x y) r ->
@@ -922,7 +927,7 @@ contextEntails tope = do
 contextEntailsBottom :: Distinct n => TypeCheck n Bool
 contextEntailsBottom = asks ctxTopesEntailBottom >>= \case
   Just entails -> pure entails
-  Nothing      -> asks ctxTopesNF >>= (`entailM` topeBottomT)
+  Nothing      -> entailContextM topeBottomT
 
 topesEquiv :: Distinct n => TermT n -> TermT n -> TypeCheck n Bool
 topesEquiv expected actual = performing (ActionUnifyTerms expected actual) $ do
@@ -970,7 +975,8 @@ checkTopeAgainstContext what tope = do
   unless ctxEntailsBottom $ do
     contextTopes <- asks ctxTopesNF
     let topes = filter (not . eqT topeTopT) (accessibleTopes contextTopes)
-    disjoint <- (plainTope tope : contextTopes) `entailM` topeBottomT
+    alternatives <- asks ctxTopesNFUnion
+    disjoint <- allM (\topes -> entailM (plainTope tope : topes) topeBottomT) alternatives
     -- a face or guard mentioning an (unfilled) hole can't be decided; defer
     if disjoint && not (containsHole tope)
       then issueTypeError (TypeErrorTopeContextDisjoint tope topes)
