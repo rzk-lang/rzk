@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to the
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## v0.7.9 (unreleased)
+
+This historical maintenance release corrects the v0.7.x checker used by the paper. The original paper version describes v0.7.8 ([arXiv v1](https://arxiv.org/abs/2607.12207v1)).
+
+- Intersect concrete tope families with their declared domains and warn when this changes the family ([#359](https://github.com/rzk-lang/rzk/pull/359), [#362](https://github.com/rzk-lang/rzk/pull/362)).
+- Compare terms by conversion rather than directional subtyping, including identity endpoints and restriction boundaries ([#377](https://github.com/rzk-lang/rzk/pull/377)).
+- Compare lambda domains in the required direction and compare bodies on their common domain ([#347](https://github.com/rzk-lang/rzk/pull/347)). Conversion under contradictory tope assumptions succeeds.
+- Add strict meta-prefix warnings and optional diagnostics for free-standing restrictions, dependent shapes, and schematic binders ([#312](https://github.com/rzk-lang/rzk/pull/312), [#364](https://github.com/rzk-lang/rzk/pull/364)).
+- Add the opt-in RSTT-safe bundle with schematic instantiation checks. Use `rzk typecheck --rstt-safe warn` for diagnostics or `--rstt-safe error` to reject violations. The CLI selection overrides source options. Safe mode defaults to off and can substantially increase checking time. Postulates remain trusted assumptions, and these checks do not establish a soundness theorem.
+
 ## v0.7.8 — 2026-11-08
 
 This release preserves the checker used for the original paper artifact.
