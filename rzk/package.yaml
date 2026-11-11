@@ -54,6 +54,7 @@ dependencies:
   bytestring: ">= 0.10.8.2"
   directory: ">= 1.2.7.0"
   Glob: ">= 0.9.3"
+  containers: ">= 0.6"
   mtl: ">= 2.3.1"
   template-haskell: ">= 2.14.0.0"
   text: ">= 1.2.3.1"
