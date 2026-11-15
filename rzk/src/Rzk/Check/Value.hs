@@ -93,6 +93,7 @@ module Rzk.Check.Value
   , quoteIn
   , quoteFolded
   , quoteWhnfFolded
+  , quoteWhnfCore
   , nfCore
   , force
   , conv
@@ -591,6 +592,10 @@ quoteFolded scope ctx = stripAnnotations . NbE.quote scope ctx { ctxUnfolding = 
 quoteWhnfFolded :: Distinct n => Scope n -> Context n -> Value n -> Core n
 quoteWhnfFolded scope ctx =
   stripAnnotations . NbE.quoteWhnf scope ctx { ctxUnfolding = Folded } . NbE.fromWhnf . NbE.force
+
+-- | Evaluate a core term and read back its weak head normal form.
+quoteWhnfCore :: Distinct n => Scope n -> Context n -> Core n -> Core n
+quoteWhnfCore scope ctx = quoteWhnfFolded scope ctx . evalCore scope ctx
 
 nfCore :: Distinct n => Scope n -> Context n -> Core n -> Core n
 {-# INLINE nfCore #-}

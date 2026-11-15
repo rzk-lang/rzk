@@ -691,6 +691,7 @@ library
       Rzk.Check.Decl
       Rzk.Check.Display
       Rzk.Check.Error
+      Rzk.Check.Foil.Extras
       Rzk.Check.Modality
       Rzk.Check.Monad
       Rzk.Check.Rules

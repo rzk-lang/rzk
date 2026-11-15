@@ -27,10 +27,8 @@ module Rzk.Check.Display
 
 import           Control.Monad.Foil          (Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil          as Foil
-import           Control.Monad.Foil.Internal (NameMap (..))
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
 import           Data.Bifoldable             (bifoldMap)
-import qualified Data.IntMap                 as IntMap
 import           Data.List                   (nub, (\\))
 import qualified Data.Set                    as Set
 
@@ -41,6 +39,7 @@ import           Language.Rzk.Foil.Names     (TModality (..), VarIdent,
                                               refreshVar, refreshVarIn)
 import qualified Language.Rzk.Syntax         as Rzk
 import           Rzk.Check.Context
+import qualified Rzk.Check.Foil.Extras       as Extras
 import           Rzk.Check.Syntax
 import           Rzk.Check.Value             (quoteFolded)
 
@@ -61,7 +60,7 @@ data Naming n = Naming
 -- name and an inner one is refreshed away from it.
 namingOfContext :: Context n -> Naming n
 namingOfContext ctx = Naming
-  { namingOf = NameMap (IntMap.fromList entries)
+  { namingOf = Extras.nameMapFromIds entries
   , namingUsed = used
   , namingSupply = defaultVarIdents \\ used
   }
@@ -284,9 +283,9 @@ fromCore used supply names = go
           let leavesS = map snd (patternNames shapePat)
               leavesP = map snd (patternNames pat)
           in if length leavesS == length leavesP && shapeOf shapePat == shapeOf pat
-               then Just $ NameMap $ foldr
-                      (\(s, p) m -> IntMap.insert (Foil.nameId s) (Foil.lookupName p names') m)
-                      (coerceNames names') (zip leavesS leavesP)
+               then Just $ foldr
+                      (\(s, p) m -> Extras.insertNameId (Foil.nameId s) (Foil.lookupName p names') m)
+                      (Extras.reindexNameMap names') (zip leavesS leavesP)
                else Nothing
     shapeOf :: Pattern x y -> String
     shapeOf = \case
@@ -294,8 +293,6 @@ fromCore used supply names = go
       PatternWildcard _ -> "w"
       PatternUnit       -> "u"
       PatternPair l r   -> "(" <> shapeOf l <> "," <> shapeOf r <> ")"
-    coerceNames :: NameMap a VarIdent -> IntMap.IntMap VarIdent
-    coerceNames (NameMap m) = m
 
     -- Which bound names the body mentions, by id.
     scopeUses :: Core l -> [Int]
@@ -308,7 +305,7 @@ fromCore used supply names = go
       -> (Rzk.Pattern -> [VarIdent] -> [VarIdent] -> NameMap l VarIdent -> r') -> r'
     withPatternNames pat0 usedIds k =
       let (pat', used', supply', entries) = namePatternLeaves usedIds used supply [] pat0
-      in k pat' used' supply' (NameMap (IntMap.union (IntMap.fromList entries) (coerceNames names)))
+      in k pat' used' supply' (Extras.unionNameMaps (Extras.nameMapFromIds entries) (Extras.reindexNameMap names))
 
 -- | A surface pattern as a term, for a binder written as a term.
 patternTerm :: Rzk.Pattern -> Rzk.Term
@@ -331,8 +328,7 @@ matchArms used supply names = \case
   where
     renderPattern u s nm pat usedIds =
       let (pat', u', s', entries) = namePatternLeaves usedIds u s [] pat
-          NameMap m = nm
-      in (pat', u', s', NameMap (IntMap.union (IntMap.fromList entries) m))
+      in (pat', u', s', Extras.unionNameMaps (Extras.nameMapFromIds entries) (Extras.reindexNameMap nm))
 
 -- | Name every leaf of a pattern: a named leaf keeps its name, refreshed
 -- against the names in use; an anonymous leaf is @_@ unless the body uses
