@@ -84,7 +84,7 @@ resolveNames :: Distinct n => Rzk.Term -> Check n (Raw n)
 resolveNames term = do
   ctx <- askContext
   forM_ (hintsOf term) $ \(original, suggestion) ->
-    recordWarning $ \c -> SimplificationHintWarning
+    recordHint $ \c -> SimplificationHint
       (Rzk.printTree original) (Rzk.printTree suggestion) (surfaceLocation original c)
   let env name = case lookupNamed name ctx of
         Just v  -> Var v

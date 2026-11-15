@@ -350,15 +350,15 @@ spec = describe "Typecheck fixtures" $ do
       Left err -> expectationFailure (T.unpack err)
       Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
         `shouldBe` ["TypeErrorOther", "TypeErrorUnify"]
-  it "records simplification hints as structured warnings" $ do
+  it "records simplification hints in the hint log" $ do
     let src = T.unlines
           [ "#lang rzk-1"
           , "#def test : (t : 2 | (\\ s → TOP) t) → TOPE := \\ _ → TOP"
           ]
     case Rzk.parseModule src of
       Left err -> expectationFailure (T.unpack err)
-      Right m -> map Check.warningTag (snd (runNew [("<test>", m)]))
-        `shouldBe` ["SimplificationHintWarning"]
+      Right m -> map Check.hintTag (runNewHints [("<test>", m)])
+        `shouldBe` ["SimplificationHint"]
   it "warns when an option is ignored" $ do
     let src = T.unlines
           [ "#lang rzk-1"
@@ -378,7 +378,12 @@ newOptions = Check.defaultOptions { Check.optVerbosity = Check.Silent }
 -- order, and its warnings.
 runNew :: [(FilePath, Rzk.Module)] -> ([Check.ErrorInContext], [Check.Warning])
 runNew ms = case Check.checkModules newOptions ms of
-  Check.Checked _ _ errs warnings _ -> (errs, warnings)
+  Check.Checked _ _ errs warnings _ _ -> (errs, warnings)
+
+-- | The hints recorded by a run under the new checker.
+runNewHints :: [(FilePath, Rzk.Module)] -> [Check.Hint]
+runNewHints ms = case Check.checkModules newOptions ms of
+  Check.Checked _ _ _ _ hints _ -> hints
 
 -- | Does a fixture exercise the fragment checks (RSTT-safe mode, the
 -- meta-prefix, meta-binder, free-standing restriction and shape dependency
