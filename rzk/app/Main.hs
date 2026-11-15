@@ -85,8 +85,16 @@ main = do
   withUtf8 $
 #endif
     getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
-    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckChecker = Just checker}) paths
+    Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag, typecheckChecker = Just checker}) paths
       | checker == "nbe" -> do
+      when jsonFlag $ do
+        putStrLn "--json is not supported with --checker=nbe"
+        exitFailure
+      case safeFlag of
+        Nothing -> pure ()
+        Just _ -> do
+          putStrLn "--rstt-safe is not supported with --checker=nbe"
+          exitFailure
       modules <- parseRzkFilesOrStdin paths
       let options = Check.defaultOptions
             { Check.optHoles = if allowHolesFlag then Check.HolesDeferred else Check.HolesAreErrors }
