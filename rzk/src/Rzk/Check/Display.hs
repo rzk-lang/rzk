@@ -69,7 +69,7 @@ namingOfContext ctx = Naming
     go taken supply ((v, entry) : rest) = case entryName entry of
       Just x ->
         let x' = refreshVarIn taken x
-        in named v x' supply
+        in named v x' (filter (/= x') supply)
       Nothing -> case supply of
         x : supply' -> named v x supply'
         []          -> panicImpossible "not enough fresh variables"
@@ -136,7 +136,7 @@ fromCore used supply names = go
       TopeInv t -> Rzk.TopeInv loc (go t)
       TopeUninv t -> Rzk.TopeUninv loc (go t)
       RecBottom -> Rzk.RecBottom loc
-      RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
+      RecOr _ rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
       Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
       -- an anonymous binder the codomain does not use is not shown
