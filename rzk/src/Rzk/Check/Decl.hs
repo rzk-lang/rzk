@@ -33,7 +33,6 @@ import           Control.Monad            (forM, when)
 import           Control.Monad.Foil       (DExt, Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
-import qualified Data.IntSet              as IntSet
 import           Data.List                (genericLength)
 import qualified Data.Map                 as Map
 import           Data.Maybe               (fromMaybe)
@@ -479,8 +478,8 @@ endSection errs = do
                     []    -> []
                     s : _ -> sectionEntries s ]
       isAssumptionEntry entry = entryKind entry == EntryAssumption
-      assumptions = IntSet.fromList [ Foil.nameId name | (name, entry) <- entries, isAssumptionEntry entry ]
-      isAssumption name = Foil.nameId name `IntSet.member` assumptions
+      assumptions = Foil.nameSetFromList [ name | (name, entry) <- entries, isAssumptionEntry entry ]
+      isAssumption name = Foil.nameSetMember name assumptions
 
       -- In a sketch, a hole may still come to use an assumption, so the
       -- unused-variable errors are not reported in a section with a hole.
@@ -495,12 +494,12 @@ endSection errs = do
       -- and those the types of these mention, transitively. The types are
       -- the ones written, read off the context.
       dependencies entry =
-        closeUnderTypes IntSet.empty (namesOf (entryTypeCore entry) <> namesOf (entryValueCore entry))
+        closeUnderTypes Foil.emptyNameSet (namesOf (entryTypeCore entry) <> namesOf (entryValueCore entry))
       closeUnderTypes seen = \case
         [] -> seen
         name : more
-          | Foil.nameId name `IntSet.member` seen -> closeUnderTypes seen more
-          | otherwise -> closeUnderTypes (IntSet.insert (Foil.nameId name) seen)
+          | Foil.nameSetMember name seen -> closeUnderTypes seen more
+          | otherwise -> closeUnderTypes (Foil.nameSetInsert name seen)
               (freeNamesOf (typeCoreOf (lookupEntry name ctx)) <> more)
 
       -- Abstract an assumption out of the definitions (oldest first) that
@@ -512,7 +511,7 @@ endSection errs = do
             let written = lookupEntry x ctx
                 mentioned = any (sameName a) (namesOf (entryTypeCore written) <> namesOf (entryValueCore written))
                 declared = any (sameName a) (entryUses xEntry)
-            if Foil.nameId a `IntSet.member` dependencies xEntry
+            if Foil.nameSetMember a (dependencies xEntry)
               then do
                 -- used, but neither written in the type or the body nor
                 -- declared with @uses@
@@ -611,7 +610,7 @@ endSection errs = do
 
   pure (decls, errs <> unusedAssumptions <> unusedUses, ctx')
   where
-    sameName a b = Foil.nameId a == Foil.nameId b
+    sameName a b = a == b
     isTopeUniverse ty = case NbE.force ty of
       VUniverseTope -> True
       _                       -> False

@@ -293,7 +293,7 @@ fromCore used supply names = go
       PatternUnit       -> "u"
       PatternPair l r   -> "(" <> shapeOf l <> "," <> shapeOf r <> ")"
 
-    -- Which bound names the body mentions, by id.
+    -- Which bound names the body mentions, by raw name ID.
     scopeUses :: Core l -> [Int]
     scopeUses = nameIdsOf
 
@@ -331,7 +331,7 @@ matchArms used supply names = \case
 
 -- | Name every leaf of a pattern: a named leaf keeps its name, refreshed
 -- against the names in use; an anonymous leaf is @_@ unless the body uses
--- it (its id is among the given ones), when it draws from the supply.
+-- it (its name ID is among the given ones), when it draws from the supply.
 -- Returns the surface pattern, the names in use and the supply after it,
 -- and the scoped name of each leaf.
 namePatternLeaves
@@ -368,7 +368,8 @@ scopeUsesItsPattern (ScopedAST pat body) = case Foil.assertDistinct pat of
   Foil.Distinct ->
     any (`elem` nameIdsOf body) (map (Foil.nameId . snd) (patternNames pat))
 
--- | Every name id occurring in a term, bound or free.
+-- | Every name ID occurring in a term, bound or free. This deliberately uses
+-- raw IDs because bound names from different scopes occur in one result list.
 nameIdsOf :: Core l -> [Int]
 nameIdsOf (Var x) = [Foil.nameId x]
 nameIdsOf (Node sig) = bifoldMap (\(ScopedAST _ body) -> nameIdsOf body) nameIdsOf sig
