@@ -60,6 +60,22 @@ evalM :: Distinct n => Core n -> Check n (Value n)
 evalM t = asksContext $ \ctx -> evalCore (ctxScope ctx) ctx t
 {-# INLINE evalM #-}
 
+-- | Check a term against a type and evaluate the elaborated term.
+checkEval :: Distinct n => Raw n -> Value n -> Check n (Core n, Value n)
+checkEval term ty = do
+  term' <- check term ty
+  (term',) <$> evalM term'
+{-# INLINE checkEval #-}
+
+-- | Infer a local value's type, or use the supplied type annotation. The result
+-- is the elaborated value and its type.
+inferOrCheckValue :: Distinct n => Maybe (Raw n) -> Raw n -> Check n (Core n, Value n)
+inferOrCheckValue mannot val = case mannot of
+  Nothing -> infer val
+  Just annot -> do
+    (_, annotV) <- checkEval annot universe
+    (, annotV) <$> check val annotV
+
 -- | A value read back, with defined names folded. Lazy: nothing is read
 -- back until a consumer looks.
 quoteM :: Distinct n => Value n -> Check n (Core n)
@@ -103,6 +119,16 @@ underRawScope
 underRawScope md dom mshape =
   enterRawScope (\scope' pat ctx -> underPattern scope' ctx md dom mshape pat)
 
+-- | Enter a raw scope and wrap the elaborated body with its pattern.
+underRawScopeBody
+  :: forall n. (Distinct n)
+  => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n
+  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l (Core l))
+  -> Check n (ScopedCore n)
+underRawScopeBody md dom mshape body k =
+  underRawScope md dom mshape body $ \pat bodyTerm ->
+    ScopedAST pat <$> k pat bodyTerm
+
 -- | Check a λ parameter written with a shape, @(t : cube | shape)@, against
 -- the expected domain and, if there is one, the expected shape: the cube
 -- and the shape, as values.
@@ -110,11 +136,9 @@ checkShapedParam
   :: (Distinct n)
   => Value n -> Maybe (Value n) -> Raw n -> Raw n -> Check n (Value n, Value n)
 checkShapedParam dom mexpectedShape param shape = do
-  cube <- check param cubeUniverse
-  cubeV <- evalM cube
+  (_, cubeV) <- checkEval param cubeUniverse
   convertTypes dom cubeV
-  shape' <- check shape (familyType Id cubeV Nothing)
-  shapeV <- evalM shape'
+  (_, shapeV) <- checkEval shape (familyType Id cubeV Nothing)
   forM_ mexpectedShape $ \s -> convertTypes s shapeV
   pure (cubeV, shapeV)
 
@@ -367,8 +391,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
       VTypeRestricted ty' rs -> case term of
         RRecOr branches -> checkRecOrAgainst ty branches
         _ -> do
-          term' <- check term ty'
-          termV <- evalM term'
+          (term', termV) <- checkEval term ty'
           forM_ rs $ \(tope, face) -> do
             checkTopeAgainstContext "restriction face" tope
             underTope (topeOf scope ctx tope) $ convertTerms face termV
@@ -391,12 +414,11 @@ check term ty = performing (ActionCheck term ty) $ case term of
               Just shape -> fst <$> checkShapedParam cube' mshape' param shape
             pure (Param md cubeV mshape')
           let mshapeAssumed = maybe mshape' paramShape mparam'
-          body' <- underRawScope md' cube' mshapeAssumed body $ \pat bodyTerm -> do
+          body' <- underRawScopeBody md' cube' mshapeAssumed body $ \pat bodyTerm -> do
             bodyIn <- check bodyTerm topeUniverse
-            bodyIn' <- case mshapeAssumed of
+            case mshapeAssumed of
               Just shape -> carryFamilyDomain pat shape bodyIn
               Nothing -> pure bodyIn
-            pure (ScopedAST pat bodyIn')
           cubeC <- quoteM cube'
           mshapeC <- traverse quoteM mshapeAssumed
           pure (Lambda (Just (Param md' cubeC mshapeC)) body')
@@ -431,7 +453,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
             let mshapeAssumed = case mparam' of
                   Just (Param _ _ (Just s)) -> Just s
                   _ -> mshape'
-            body' <- underRawScope md' dom' mshapeAssumed body $ \pat bodyTerm -> do
+            body' <- underRawScopeBody md' dom' mshapeAssumed body $ \pat bodyTerm -> do
               ctxIn <- askContext
               let scopeIn = ctxScope ctxIn
                   retIn = codomainAt scopeIn ctxIn (Foil.sink env) ret (patternValue pat)
@@ -439,26 +461,19 @@ check term ty = performing (ActionCheck term ty) $ case term of
               -- A tope family checked against a shape domain carries the
               -- domain: its body becomes the conjunction, unless the body
               -- already entails the domain
-              bodyIn' <- case (force retIn, mshapeAssumed) of
+              case (force retIn, mshapeAssumed) of
                 (VUniverseTope, Just shape) -> carryFamilyDomain pat shape bodyIn
                 _ -> pure bodyIn
-              pure (ScopedAST pat bodyIn')
             domC <- quoteM dom'
             mshapeC <- traverse quoteM mshapeAssumed
             pure (Lambda (Just (Param md' domC mshapeC)) body')
           Nothing -> issueTypeError (TypeErrorUnexpectedLambda term ty)
 
         RLet mannot val body -> do
-          (val', valTy) <- performing (ActionCheckLetValue (patternName body)) $ case mannot of
-            Nothing -> infer val
-            Just annot -> do
-              annot' <- check annot universe
-              annotV <- evalM annot'
-              (, annotV) <$> check val annotV
+          (val', valTy) <- performing (ActionCheckLetValue (patternName body)) $ inferOrCheckValue mannot val
           valV <- evalM val'
-          body' <- underLet valTy valV body $ \pat bodyTerm -> do
-            bodyIn <- check bodyTerm (Foil.sink ty)
-            pure (ScopedAST pat bodyIn)
+          body' <- underLetBody valTy valV body $ \_ bodyTerm ->
+            check bodyTerm (Foil.sink ty)
           valTyC <- quoteM valTy
           pure (Let (Just valTyC) val' body')
 
@@ -485,11 +500,9 @@ check term ty = performing (ActionCheck term ty) $ case term of
               Nothing -> issueTypeError (TypeErrorOther "an identity type without its carrier")
             forM_ mx $ \(x, mxty) -> do
               forM_ mxty $ \xty -> do
-                xty' <- check xty universe
-                xtyV <- evalM xty'
+                (_, xtyV) <- checkEval xty universe
                 convertTypes tA xtyV
-              x' <- check x tA
-              xV <- evalM x'
+              (_, xV) <- checkEval x tA
               convertTerms xV y
               convertTerms xV z
             when (isNothing mx) $ convertTerms y z
@@ -528,6 +541,16 @@ underLet ty val = enterRawScope $ \scope' pat ctx ->
     (letEntries scope' (sinkContextUnchecked ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat)
     ctx
 
+-- | Enter a local definition's scope and wrap the elaborated body with its
+-- pattern.
+underLetBody
+  :: forall n. (Distinct n)
+  => Value n -> Value n -> ScopedRaw n
+  -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l (Core l))
+  -> Check n (ScopedCore n)
+underLetBody ty val body k = underLet ty val body $ \pat bodyTerm ->
+  ScopedAST pat <$> k pat bodyTerm
+
 -- | A @recOR@ against a known type: every branch is checked against it
 -- under its guard, the branches cohere, and the guards cover the context.
 checkRecOrAgainst :: Distinct n => Value n -> [(Raw n, Raw n)] -> Check n (Core n)
@@ -535,11 +558,9 @@ checkRecOrAgainst ty rs = do
   ctx <- askContext
   let scope = ctxScope ctx
   branches <- forM rs $ \(tope, branch) -> do
-    tope' <- check tope topeUniverse
-    topeV <- evalM tope'
+    (tope', topeV) <- checkEval tope topeUniverse
     checkTopeAgainstContext "recOR branch guard" topeV
-    branch' <- underTope (topeOf scope ctx topeV) $ check branch ty
-    branchV <- evalM branch'
+    (branch', branchV) <- underTope (topeOf scope ctx topeV) $ checkEval branch ty
     pure ((tope', branch'), (topeV, branchV))
   sequence_ [ checkCoherence l r | l : rest <- tails (map snd branches), r <- rest ]
   contextEntailsUnion (map (fst . snd) branches)
@@ -717,8 +738,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     ctx <- askContext
     let scope = ctxScope ctx
     branches <- forM rs $ \(tope, branch) -> do
-      tope' <- check tope topeUniverse
-      topeV <- evalM tope'
+      (tope', topeV) <- checkEval tope topeUniverse
       checkTopeAgainstContext "recOR branch guard" topeV
       (branch', ty) <- underTope (topeOf scope ctx topeV) $ inferAs universe branch
       branchV <- evalM branch'
@@ -738,9 +758,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     case force aTy of
       -- a type, including TOPE: a bare tope parameter
       VUniverse -> do
-        b' <- underRawScope md aV Nothing b $ \pat bTerm -> do
-          bIn <- check bTerm universe
-          pure (ScopedAST pat bIn)
+        b' <- underRawScopeBody md aV Nothing b $ \_ bTerm -> check bTerm universe
         pure (TypeFun md a' Nothing b', universe)
       -- a cube: the shape is ⊤
       VUniverseCube -> do
@@ -758,26 +776,22 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   RTypeFun md cube (Just shape) ret -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
-    cube' <- check cube cubeUniverse
-    cubeV <- evalM cube'
-    shape' <- check shape (familyType Id cubeV Nothing)
-    shapeV <- evalM shape'
+    (cube', cubeV) <- checkEval cube cubeUniverse
+    (shape', shapeV) <- checkEval shape (familyType Id cubeV Nothing)
     piOrFamily md cube' shape' cubeV shapeV ret
 
   RTypeSigma md a b -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal Σ type")
-    a' <- check a universe
-    aV <- evalM a'
+    (a', aV) <- checkEval a universe
     ensureTypeAtU "a Σ component" aV
-    b' <- underRawScope md aV Nothing b $ \pat bTerm -> do
+    b' <- underRawScopeBody md aV Nothing b $ \_ bTerm -> do
       bIn <- check bTerm universe
       evalM bIn >>= ensureTypeAtU "a Σ component"
-      pure (ScopedAST pat bIn)
+      pure bIn
     pure (TypeSigma md a' b', universe)
 
   RTypeId x (Just tA) y -> do
-    tA' <- check tA universe
-    tAV <- evalM tA'
+    (tA', tAV) <- checkEval tA universe
     ensureTypeAtU "the carrier of an identity type" tAV
     x' <- check x tAV
     y' <- check y tAV
@@ -801,8 +815,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
         pure (App f' x', topeUniverse)
       Just (Pi env md a mshape b) -> do
         when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal function")
-        x' <- check x a
-        xV <- evalM x'
+        (x', xV) <- checkEval x a
         case force a of
           VUniverse -> ensureTypeAtU "a type argument" xV
           _ -> pure ()
@@ -831,19 +844,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   RLambda (Just (Param md cube (Just shape))) body -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
-    cube' <- check cube cubeUniverse
-    cubeV <- evalM cube'
-    shape' <- check shape (familyType Id cubeV Nothing)
-    shapeV <- evalM shape'
+    (_, cubeV) <- checkEval cube cubeUniverse
+    (_, shapeV) <- checkEval shape (familyType Id cubeV Nothing)
     inferLambda md cubeV (Just shapeV) body
 
   RLet mannot val body -> do
-    (val', valTy) <- performing (ActionCheckLetValue (patternName body)) $ case mannot of
-      Nothing -> infer val
-      Just annot -> do
-        annot' <- check annot universe
-        annotV <- evalM annot'
-        (, annotV) <$> check val annotV
+    (val', valTy) <- performing (ActionCheckLetValue (patternName body)) $ inferOrCheckValue mannot val
     valV <- evalM val'
     valTyC <- quoteM valTy
     (body', retScoped) <- underLet valTy valV body $ \pat bodyTerm -> do
@@ -863,17 +869,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
     tyC <- quoteM ty
     pure (Refl (Just (x', Just tyC)), vnode (TypeIdF xV (Just ty) xV))
   RRefl (Just (x, Just ty)) -> do
-    ty' <- check ty universe
-    tyV <- evalM ty'
-    x' <- check x tyV
-    xV <- evalM x'
+    (ty', tyV) <- checkEval ty universe
+    (x', xV) <- checkEval x tyV
     pure (Refl (Just (x', Just ty')), vnode (TypeIdF xV (Just tyV) xV))
 
   RIdJ tA a tC d x p -> do
-    tA' <- check tA universe
-    tAV <- evalM tA'
-    a' <- check a tAV
-    aV <- evalM a'
+    (tA', tAV) <- checkEval tA universe
+    (a', aV) <- checkEval a tAV
     ctx <- askContext
     let scope = ctxScope ctx
         -- (z : A) → (a =_A z) → U
@@ -886,15 +888,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
                  (TypeFunF Id tAV Nothing
                    (ScopedAST (singlePattern zB)
                      (TypeFun Id idType Nothing (ScopedAST (singlePattern pB) Universe))))
-    tC' <- check tC motiveTy
-    tCV <- evalM tC'
+    (tC', tCV) <- checkEval tC motiveTy
     let reflAt = vnode (ReflF Nothing)
         typeOfD = appValue scope ctx (appValue scope ctx tCV aV) reflAt
     d' <- check d typeOfD
-    x' <- check x tAV
-    xV <- evalM x'
-    p' <- check p (vnode (TypeIdF aV (Just tAV) xV))
-    pV <- evalM p'
+    (x', xV) <- checkEval x tAV
+    (p', pV) <- checkEval p (vnode (TypeIdF aV (Just tAV) xV))
     pure (IdJ tA' a' tC' d' x' p', appValue scope ctx (appValue scope ctx tCV xV) pV)
 
   -- an annotation is built by evaluation and never written
@@ -907,15 +906,12 @@ infer tt = performing (ActionInfer tt) $ case tt of
     pure (TypeAsc term' ty', tyV)
 
   RTypeRestricted ty rs -> do
-    ty' <- check ty universe
-    tyV <- evalM ty'
+    (ty', tyV) <- checkEval ty universe
     ctx <- askContext
     let scope = ctxScope ctx
     rs' <- forM rs $ \(tope, term) -> do
-      tope' <- check tope topeUniverse
-      topeV <- evalM tope'
-      term' <- underTope (topeOf scope ctx topeV) $ check term tyV
-      termV <- evalM term'
+      (tope', topeV) <- checkEval tope topeUniverse
+      (term', termV) <- underTope (topeOf scope ctx topeV) $ checkEval term tyV
       pure ((tope', term'), (topeV, termV))
     sequence_ [ checkCoherence l r | l : rest <- tails (map snd rs'), r <- rest ]
     pure (TypeRestricted ty' (map fst rs'), universe)
@@ -949,8 +945,7 @@ piOrFamily
   => TModality -> Core n -> Core n -> Value n -> Value n -> ScopedRaw n -> Check n (Core n, Value n)
 piOrFamily md cubeC shapeC cubeV shapeV ret = do
   (ret', isTope) <- underRawScope md cubeV (Just shapeV) ret $ \pat retTerm -> do
-    retIn <- check retTerm universe
-    retV <- evalM retIn
+    (retIn, retV) <- checkEval retTerm universe
     let isTope = case force retV of
           VUniverseTope -> True
           _ -> False
