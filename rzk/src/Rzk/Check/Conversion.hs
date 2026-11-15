@@ -29,7 +29,6 @@ import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..))
 import qualified FreeFoil.NbE             as NbE
 
-import           Language.Rzk.Foil.Names  (TModality (..))
 import           Rzk.Check.Context
 import           Rzk.Check.Error
 import           Rzk.Check.Monad
@@ -181,7 +180,7 @@ explain mterm variance expected actual = do
       let (md, dom) = case (mpA, mpE) of
             (Just p, _) -> (paramModality p, paramDomain p)
             (_, Just p) -> (paramModality p, paramDomain p)
-            _           -> (Id, vhole Nothing)
+            _           -> panicImpossible "an elaborated lambda without a parameter domain"
       underFreshVar scope ctx md dom (mpA >>= paramShape) $ \scope' ctx' name -> do
         let x = NbE.vvar name
             ctx'' = case mpE >>= paramShape of
