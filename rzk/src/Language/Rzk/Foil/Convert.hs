@@ -31,7 +31,7 @@ import           Control.Monad.Foil       (Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Foil.Internal (NameMap (..))
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
-import           Data.Data                (Data, cast, gmapQ)
+import           Data.Data                (Data, cast)
 import           Data.Functor             (void)
 import qualified Data.IntMap              as IntMap
 import           Data.Map                 (Map)
@@ -40,6 +40,7 @@ import qualified Data.Set                 as Set
 import           Debug.Trace              (trace)   -- FIXME: use proper mechanisms for warnings
 import           Unsafe.Coerce            (unsafeCoerce)
 
+import           Language.Rzk.Data         (foldData)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder (..), Display,
                                            RzkPosition (RzkPosition),
@@ -403,8 +404,7 @@ sinkBound = unsafeCoerce
 
 -- | Every identifier occurring in a piece of surface syntax, bound or free.
 collectVarIdents :: Data a => a -> [Rzk.VarIdent]
-collectVarIdents x =
-  maybe [] (:[]) (cast x) ++ concat (gmapQ collectVarIdents x)
+collectVarIdents = foldData (maybe [] (:[]) . cast)
 
 nubOrd :: Ord a => [a] -> [a]
 nubOrd = Set.toList . Set.fromList

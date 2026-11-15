@@ -21,7 +21,7 @@ import           Control.Monad.Foil       (DExt, Distinct, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
-import           Data.Data                (Data, cast, gmapQ)
+import           Data.Data                (cast)
 import           Data.Functor             (void)
 
 import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
@@ -30,6 +30,7 @@ import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
                                            patternToTerm, sigmaParamToTypeSigma,
                                            toModality, unsafeTermToPattern,
                                            varIdent)
+import           Language.Rzk.Data        (foldData)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.Check.Syntax
 
@@ -314,11 +315,8 @@ toRaw scope env = go
 -- | A simpler spelling of a surface construct, with the original and suggested
 -- terms. The collector traverses the original term without changing it.
 hintsOf :: Rzk.Term -> [(Rzk.Term, Rzk.Term)]
-hintsOf = collect
+hintsOf = foldData (maybe [] localHint . cast)
   where
-    collect :: Data a => a -> [(Rzk.Term, Rzk.Term)]
-    collect x = maybe [] localHint (cast x) <> concat (gmapQ collect x)
-
     localHint term@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm _cube tope) ret) =
       case tope of
         Rzk.App _ fun arg

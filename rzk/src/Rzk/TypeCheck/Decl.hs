@@ -26,7 +26,7 @@ module Rzk.TypeCheck.Decl where
 
 import           Control.Monad             (forM, forM_, unless, when)
 import           Control.Monad.Except      (catchError)
-import           Data.Data                 (Data, cast, gmapQ)
+import           Data.Data                 (Data, cast)
 import           Control.Monad.Reader      (ask, asks, local)
 import           Data.List                 (intercalate)
 import qualified Data.IntMap.Strict as IntMap
@@ -41,6 +41,7 @@ import qualified Control.Monad.Foil        as Foil
 import           Control.Monad.Free.Foil   (AST (Var), ScopedAST (..))
 
 import           Language.Rzk.Foil.Convert (Env, toTerm)
+import           Language.Rzk.Data         (foldData)
 import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names   (Binder (..), TModality (..),
                                             VarIdent, binderName, markUnresolved,
@@ -1266,11 +1267,10 @@ withCommand command k action =
 -- duplicate inside one group can only be a mistake, and the silent
 -- freshening it used to get showed names the user never wrote (issue #321).
 duplicateBinders :: Data a => a -> [(VarIdent, [VarIdent])]
-duplicateBinders x = concat
+duplicateBinders = foldData $ \x -> concat
   [ maybe [] termGroup (cast x)
   , maybe [] commandGroup (cast x)
   , maybe [] constructorGroup (cast x)
-  , concat (gmapQ duplicateBinders x)
   ]
   where
     termGroup :: Rzk.Term -> [(VarIdent, [VarIdent])]
