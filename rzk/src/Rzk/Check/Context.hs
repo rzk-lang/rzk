@@ -62,7 +62,7 @@ import           FreeFoil.NbE.Definitions    (Unfolding (..))
 
 import           Language.Rzk.Foil.Names     (RzkPosition (..), TModality (..),
                                               VarIdent)
-import           Rzk.Check.Foil.Extras       (insertName)
+import           Rzk.Check.Foil.Extras       (replaceName)
 import           Rzk.Check.Syntax
 import           Rzk.Check.Topes             (Tope, TopeContext,
                                               emptyTopeContext)
@@ -356,7 +356,7 @@ sinkNamed = Foil.sink1
 
 -- | Replace what a name stands for.
 insertEntry :: Foil.Name n -> Entry n -> Context n -> Context n
-insertEntry name entry ctx = ctx { ctxEntries = insertName name entry (ctxEntries ctx) }
+insertEntry name entry ctx = ctx { ctxEntries = replaceName name entry (ctxEntries ctx) }
 
 withVariance :: Variance -> Context n -> Context n
 withVariance v ctx = ctx { ctxVariance = v }
