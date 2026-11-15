@@ -9,8 +9,8 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | The typing context of the new checker: what every name in scope is, the
--- tope context, the direction of a comparison, the options, and whatever
--- the run keeps for diagnostics, which is the parameter @d@.
+-- tope context, the direction of a comparison, the options, and the stack of
+-- judgements kept for diagnostics.
 --
 -- Every entry holds values: the type of the name, and for a definition its
 -- value, evaluated once. The context is also the evaluation context of
@@ -104,23 +104,37 @@ atPosition pos loc = case rzkLineCol pos of
   Nothing          -> loc
   Just (line, col) -> loc { locationLine = Just line, locationColumn = Just col }
 
--- | How a hole is treated: as an error (finished work, and CI), as a term of
--- any type whose goal is recorded (a sketch), or recorded but matching
--- only as a leaf of an otherwise matching structure (a probe).
-data HoleMode = HolesAreErrors | HolesDeferred | HolesStructural
+-- | How a user hole is treated.
+data HoleMode
+  = HolesAreErrors
+    -- ^ reject an unsolved hole; the default for finished work and CI
+  | HolesDeferred
+    -- ^ record the goal and let the hole stand for a term of any type
+  | HolesStructural
+    -- ^ record the goal, but tolerate a mismatch only at a hole leaf of an
+    -- otherwise matching structure
   deriving (Eq, Show)
 
 -- | The options a run or a file sets.
 data Options = Options
   { optVerbosity           :: Verbosity
+    -- ^ how much progress and debugging output to print
   , optHoles               :: HoleMode
+    -- ^ how to treat user holes
   , optHintLemmas          :: [VarIdent]
+    -- ^ lemmas requested as hints; the new checker does not use them yet
   , optWarnOverhang        :: Bool
+    -- ^ whether to warn when a face or guard overhangs the local context
   , optWarnTopeFamilyDomain :: Bool
+    -- ^ whether to warn when a tope family needs its domain conjoined
   , optRender              :: Maybe String
     -- ^ the render backend, which the new checker accepts but does not run
   } deriving (Eq, Show)
 
+-- | The default options.
+--
+-- >>> defaultOptions
+-- Options {optVerbosity = Normal, optHoles = HolesAreErrors, optHintLemmas = [], optWarnOverhang = False, optWarnTopeFamilyDomain = True, optRender = Nothing}
 defaultOptions :: Options
 defaultOptions = Options
   { optVerbosity = Normal
@@ -135,26 +149,43 @@ defaultOptions = Options
 -- checking of Kovács's smalltt. A check starts 'ApproxRigid'. Two glued
 -- values of one defined name compare their folded sides 'ApproxFlex', with
 -- no unfolding, and if these differ their unfolded sides 'ApproxFull'.
-data Approximation = ApproxRigid | ApproxFlex | ApproxFull
+data Approximation
+  = ApproxRigid
+    -- ^ unfold distinct definitions; equal ones may first compare folded
+  | ApproxFlex
+    -- ^ compare folded sides of one definition, without unfolding
+  | ApproxFull
+    -- ^ allow a full unfolded comparison after the folded attempt
   deriving (Eq, Show)
 
 -- * Entries
 
-data EntryKind = EntryLocal | EntryAssumption | EntryTopLevel
+data EntryKind
+  = EntryLocal
+    -- ^ a local binder, not collected when a section closes
+  | EntryAssumption
+    -- ^ a section assumption, abstracted away when the section closes
+  | EntryTopLevel
+    -- ^ a definition or postulate that survives the section
   deriving (Eq, Show)
 
 -- | What is known about a name in scope.
 data Entry n = Entry
   { entryType     :: Value n
+    -- ^ the type of the name
   , entryValue    :: Maybe (Value n)
     -- ^ the value of a definition, evaluated once; a glued value is made
     -- of it at every lookup
   , entryModality :: TModality
+    -- ^ the modality at which the name was bound
   , entryLocks    :: TModality
+    -- ^ accumulated locks; reserved for modal term checking
   , entryKind     :: EntryKind
+    -- ^ whether the name is local, an assumption, or a top-level entry
   , entryName     :: Maybe VarIdent
     -- ^ the name the user wrote, for display
   , entryLocation :: Maybe LocationInfo
+    -- ^ where the entry was introduced
   , entryUses     :: [Foil.Name n]
     -- ^ the variables a declaration says it uses
   , entryTypeCore  :: Maybe (Core n)
@@ -205,17 +236,26 @@ sinkEntries = Foil.sink1
 -- | The judgement being performed, for the trace and the error report.
 data Action n
   = ActionCheck (Raw n) (Value n)
+    -- ^ check a raw term against a type value
   | ActionInfer (Raw n)
+    -- ^ infer the type of a raw term
   | ActionConvert (Value n) (Value n)
+    -- ^ compare an expected value with an actual one
   | ActionEntails [Tope] Tope
+    -- ^ check that the listed context topes entail a goal
   | ActionEntailsUnion [Tope] [Tope]
+    -- ^ check that the listed context topes are covered by a union
   | ActionCheckLetValue (Maybe VarIdent)
+    -- ^ check or infer a local definition's value
   | ActionCloseSection (Maybe String)
+    -- ^ close a named section, or the anonymous module section
 
 -- | What a full run keeps for its diagnostics: the stack of judgements.
 data Diag n = Diag
   { diagActions :: [Action n]
+    -- ^ the current judgements, innermost first
   , diagDepth   :: !Int
+    -- ^ the number of nested judgements, used by the termination cap
   }
 
 emptyDiag :: Diag n
@@ -225,6 +265,7 @@ emptyDiag = Diag [] 0
 
 data Context n = Context
   { ctxScope         :: Scope n
+    -- ^ the names in scope
   , ctxEntries       :: NameMap n (Entry n)
     -- ^ total on 'ctxScope'
   , ctxNamed         :: Map VarIdent (Foil.Name n)
@@ -232,17 +273,32 @@ data Context n = Context
   , ctxBound         :: [Foil.Name n]
     -- ^ every name in scope, most recently bound first
   , ctxTopes         :: TopeContext
+    -- ^ the assumed topes and their cached saturation
   , ctxVariance      :: Variance
+    -- ^ the direction of the current comparison
   , ctxUnfolding     :: Unfolding
     -- ^ the side of a defined name that readback follows
   , ctxApproximation :: Approximation
+    -- ^ the current glued-comparison strategy
   , ctxOptions       :: Options
+    -- ^ options inherited from the run and source commands
   , ctxLocation      :: Maybe LocationInfo
+    -- ^ the location narrowed to the current command and judgement
   , ctxSections      :: [Section n]
     -- ^ the open sections, innermost first
   , ctxDiag          :: Diag n
+    -- ^ the stack of current judgements and its depth
   }
 
+-- | The empty context, with 'defaultOptions'. Conversion starts covariantly,
+-- with definitions unfolded and the rigid approximation strategy.
+--
+-- >>> ctxVariance emptyContext
+-- Covariant
+-- >>> case ctxUnfolding emptyContext of { Unfolded -> True; Folded -> False }
+-- True
+-- >>> ctxApproximation emptyContext
+-- ApproxRigid
 emptyContext :: Context Foil.VoidS
 emptyContext = Context
   { ctxScope = Foil.emptyScope

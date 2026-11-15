@@ -47,30 +47,51 @@ import           Rzk.Check.Topes
 
 data TypeError n
   = TypeErrorOther String
+    -- ^ a diagnostic that does not yet have a dedicated constructor
   | TypeErrorUnsupported String
     -- ^ a construct the new checker does not cover yet
   | TypeErrorUnify (Core n) (Value n) (Value n)
     -- ^ the term, the expected type and its actual type
   | TypeErrorUnifyTerms (Value n) (Value n)
+    -- ^ the expected and actual values that are not convertible
   | TypeErrorNotPair (Core n) (Value n)
+    -- ^ a projected term and its non-pair type
   | TypeErrorNotFunction (Core n) (Value n)
+    -- ^ an applied term and its non-function type
   | TypeErrorUnexpectedLambda (Raw n) (Value n)
+    -- ^ a λ checked against a non-function type
   | TypeErrorUnexpectedPair (Raw n) (Value n)
+    -- ^ a pair checked against a non-pair type
   | TypeErrorUnexpectedRefl (Raw n) (Value n)
+    -- ^ reflexivity checked against a non-identity type
   | TypeErrorCannotInferBareLambda (Raw n)
+    -- ^ a λ without a parameter annotation in inference position
   | TypeErrorCannotInferBareRefl (Raw n)
+    -- ^ reflexivity without an element annotation in inference position
   | TypeErrorCannotInferHole (Raw n)
+    -- ^ a user hole whose type cannot be inferred
   | TypeErrorUnsolvedHole (Maybe VarIdent) (Value n)
+    -- ^ a user hole and the goal it leaves unsolved in strict mode
   | TypeErrorUndefined VarIdent
+    -- ^ an unresolved surface identifier
   | TypeErrorTopeNotSatisfied [Tope] Tope
+    -- ^ context topes and the goal they do not entail
   | TypeErrorTopeContextDisjoint Tope [Tope]
+    -- ^ a tope disjoint from the listed context
   | TypeErrorInvalidArgumentType (Raw n) (Value n)
+    -- ^ a function parameter and its invalid kind
   | TypeErrorDuplicateTopLevel [VarIdent] VarIdent
+    -- ^ previous definitions and the duplicate name
   | TypeErrorUnusedVariable (Foil.Name n) (Value n)
+    -- ^ an unused section assumption and its type
   | TypeErrorUnusedUsedVariables [Foil.Name n] (Foil.Name n)
+    -- ^ assumptions listed as used but not needed by the declaration
   | TypeErrorImplicitAssumption (Foil.Name n, Value n) (Foil.Name n)
+    -- ^ an assumption used implicitly, its type, and the declaration using it
   | TypeErrorNotIntervalCube String (Value n) (Value n)
+    -- ^ an operation and the two operand types, which are not interval cubes
   | TypeErrorRepeatedBinder VarIdent [VarIdent]
+    -- ^ a repeated binder and its previous occurrences
 
 -- | The constructor name: the stable code of a diagnostic, and the tag the
 -- fixtures pin.
@@ -392,11 +413,17 @@ ppWarning = \case
 -- | The goal and the context at a hole, rendered.
 data HoleInfo = HoleInfo
   { holeName     :: Maybe VarIdent
+    -- ^ the optional user-supplied name of the hole
   , holeGoal     :: String
+    -- ^ the rendered type expected at the hole
   , holeTermVars :: [(String, String)]
+    -- ^ rendered names and types of local term variables
   , holeCubeVars :: [(String, String)]
+    -- ^ rendered names and types of local cube variables
   , holeTopes    :: [String]
+    -- ^ the rendered local tope context
   , holeLocation :: Maybe LocationInfo
+    -- ^ where the hole occurs
   } deriving (Eq, Show)
 
 ppHoleInfo :: HoleInfo -> String

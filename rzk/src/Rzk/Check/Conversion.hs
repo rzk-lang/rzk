@@ -37,11 +37,13 @@ import           Rzk.Check.Syntax
 import           Rzk.Check.Topes
 import           Rzk.Check.Value
 
--- | The actual type of a term is a subtype of the expected one.
+-- | Check that the actual type of a term is a subtype of the expected type.
+-- The arguments are the term, its expected type, and its actual inferred type.
 subtype :: Distinct n => Core n -> Value n -> Value n -> Check n ()
 subtype term expected actual = compareWith (Just term) Covariant expected actual
 
--- | The second type is a subtype of the first, with no term at hand.
+-- | Check that the second type (actual) is a subtype of the first (expected),
+-- with no term at hand.
 subtypeValues :: Distinct n => Value n -> Value n -> Check n ()
 subtypeValues = compareWith Nothing Covariant
 
@@ -59,6 +61,9 @@ holesTolerated :: Core n -> Check n Bool
 holesTolerated term = asksContext $ \ctx ->
   optHoles (ctxOptions ctx) == HolesDeferred && containsHole term
 
+-- | Compare expected with actual in the given variance. The optional core term
+-- is the actual term whose type is being compared; it is needed when checking
+-- that an unrestricted term satisfies the faces of a restricted expected type.
 compareWith
   :: forall n. (Distinct n)
   => Maybe (Core n) -> Variance -> Value n -> Value n -> Check n ()
@@ -74,8 +79,11 @@ compareWith mterm variance expected actual =
   where
     withTopes c t = c { ctxTopes = t }
 
--- | Why two values do not compare, and the cases the library cannot
--- decide: a restriction met by the term, a function by its applications.
+-- | Explain a failed value comparison, and perform the checks that need more
+-- than the library's Boolean answer. In particular, an unrestricted actual term
+-- at a restricted expected type must agree with each face, which requires the
+-- actual term. Fresh-domain subtyping and the remaining cases produce more
+-- specific diagnostics. This is not unification.
 explain
   :: forall n. (Distinct n)
   => Maybe (Core n) -> Variance -> Value n -> Value n -> Check n ()

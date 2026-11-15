@@ -48,8 +48,11 @@ import           Rzk.Check.Value             (quoteFolded)
 -- binders it has yet to meet.
 data Naming n = Naming
   { namingOf     :: NameMap n VarIdent
+    -- ^ the display name of every name in scope
   , namingUsed   :: [VarIdent]
+    -- ^ names that binders in the current term must avoid
   , namingSupply :: [VarIdent]
+    -- ^ fresh names available for anonymous binders
   }
 
 -- | Read the naming off a context: a named entry keeps its name, refreshed
