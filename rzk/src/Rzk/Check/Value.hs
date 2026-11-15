@@ -435,11 +435,6 @@ instance Eval Context Pattern Sig where
 
     -- extension types: the underlying types, and the faces of the supertype
     -- covered by the faces of the subtype, agreeing where they overlap
-    (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR)
-      | length rsL == length rsR
-      , and (zipWith (\(tL, _) (tR, _) -> topeOf scope ctx tL == topeOf scope ctx tR) rsL rsR) ->
-          -- the terms of a face need to agree only under the face
-          Just (term tyL tyR ctx <> mconcat (zipWith (\(tL, bL) (_, bR) -> underOverlap tL (term bL bR)) rsL rsR))
     (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR) -> fmap (term tyL tyR ctx <>) $
       case ctxVariance ctx of
         Covariant     -> facesCovered rsL rsR
