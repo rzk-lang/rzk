@@ -270,9 +270,12 @@ checkCommands path i total commands k = case commands of
       Left err -> skipping err path i total more k
       Right () -> checkCommands path (i + 1) total more k
 
-  Rzk.CommandUnsetOption _loc optionName : more ->
-    announce ("Unsetting option " <> optionName) $
-      unsetOption optionName $ checkCommands path (i + 1) total more k
+  command@(Rzk.CommandUnsetOption _loc optionName) : more ->
+    announce ("Unsetting option " <> optionName) $ do
+      result <- attempt $ atCommand command $ unsetOption optionName (pure ())
+      case result of
+        Left err -> skipping err path i total more k
+        Right () -> unsetOption optionName $ checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandSetOption _loc optionName optionValue) : more ->
     announce ("Setting option " <> optionName <> " = " <> optionValue) $ do

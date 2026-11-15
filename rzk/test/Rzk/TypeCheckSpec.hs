@@ -340,6 +340,16 @@ spec = describe "Typecheck fixtures" $ do
     root <- runIO resolveRoot
     ks <- runIO (discoverCases root)
     mapM_ (\k -> it (caseTitle k) (runCaseNew k)) ks
+  it "collects an invalid unset option and a later error" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#unset-option \"frobnitz\""
+          , "#def bad (A : U) : A → A := \\ _ → 0₂"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
+        `shouldBe` ["TypeErrorOther", "TypeErrorUnify"]
 
 -- * The new checker
 
