@@ -240,9 +240,9 @@ data Action n
     -- ^ infer the type of a raw term
   | ActionConvert (Value n) (Value n)
     -- ^ compare an expected value with an actual one
-  | ActionEntails [Tope] Tope
+  | ActionEntails [Tope n] (Tope n)
     -- ^ check that the listed context topes entail a goal
-  | ActionEntailsUnion [Tope] [Tope]
+  | ActionEntailsUnion [Tope n] [Tope n]
     -- ^ check that the listed context topes are covered by a union
   | ActionCheckLetValue (Maybe VarIdent)
     -- ^ check or infer a local definition's value
@@ -271,7 +271,7 @@ data Context n = Context
     -- ^ the surface name of each entry that has one
   , ctxBound         :: [Foil.Name n]
     -- ^ every name in scope, most recently bound first
-  , ctxTopes         :: TopeContext
+  , ctxTopes         :: TopeContext n
     -- ^ the assumed topes and their cached saturation
   , ctxVariance      :: Variance
     -- ^ the direction of the current comparison

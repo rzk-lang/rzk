@@ -46,6 +46,7 @@ module Rzk.Check.Topes
   , inAlternatives
   ) where
 
+import           Control.Monad.Foil      (Name)
 import           Data.List               (nub, tails)
 
 import qualified Data.Set                as Set
@@ -68,24 +69,24 @@ data Cube
 -- | A point of a cube. Evaluation has normalised it: a projection applies
 -- only to a neutral, the lattice operations only to points that are not
 -- endpoints, and a flip only to a neutral.
-data Point
-  = PVar !Int !Cube
+data Point n
+  = PVar !(Name n) !Cube
     -- ^ a variable, with its cube
   | PStar
   | P2_0
   | P2_1
   | PI_0
   | PI_1
-  | PPair Point Point
-  | PFst Point
-  | PSnd Point
-  | PSup Point Point
-  | PInf Point Point
-  | PFlip Point
-  | PUnflip Point
-  | PModApp TModality Point
-  | PModExtract TModality TModality Point
-  | PApp !Cube Point Point
+  | PPair (Point n) (Point n)
+  | PFst (Point n)
+  | PSnd (Point n)
+  | PSup (Point n) (Point n)
+  | PInf (Point n) (Point n)
+  | PFlip (Point n)
+  | PUnflip (Point n)
+  | PModApp TModality (Point n)
+  | PModExtract TModality TModality (Point n)
+  | PApp !Cube (Point n) (Point n)
     -- ^ a neutral application, with its cube
   | PHole (Maybe VarIdent)
   | POpaque String
@@ -94,25 +95,25 @@ data Point
   deriving (Eq, Ord, Show)
 
 -- | A tope.
-data Tope
+data Tope n
   = TTop
   | TBot
-  | TEq Point Point
-  | TLeq Point Point
-  | TAnd Tope Tope
-  | TOr Tope Tope
-  | TInv Tope
-  | TUninv Tope
-  | TModal TModality Tope
-  | TModApp TModality Tope
-  | TNeutral Point
+  | TEq (Point n) (Point n)
+  | TLeq (Point n) (Point n)
+  | TAnd (Tope n) (Tope n)
+  | TOr (Tope n) (Tope n)
+  | TInv (Tope n)
+  | TUninv (Tope n)
+  | TModal TModality (Tope n)
+  | TModApp TModality (Tope n)
+  | TNeutral (Point n)
     -- ^ a tope family applied, or a tope variable: a neutral point of the
     -- tope universe
   | THole (Maybe VarIdent)
   deriving (Eq, Ord, Show)
 
 -- | The cube of a point.
-cubeOf :: Point -> Cube
+cubeOf :: Point n -> Cube
 cubeOf = \case
   PVar _ c       -> c
   PStar          -> KUnit
@@ -140,16 +141,16 @@ cubeOf = \case
     interval _ _         = KOther
 
 -- | The first component of a point of a product cube.
-pointFirst :: Point -> Point
+pointFirst :: Point n -> Point n
 pointFirst (PPair a _) = a
 pointFirst p           = PFst p
 
-pointSecond :: Point -> Point
+pointSecond :: Point n -> Point n
 pointSecond (PPair _ b) = b
 pointSecond p           = PSnd p
 
 -- | Conjunction, with ⊥ absorbing and ⊤ dropped.
-topeAnd :: Tope -> Tope -> Tope
+topeAnd :: Tope n -> Tope n -> Tope n
 topeAnd TBot _ = TBot
 topeAnd _ TBot = TBot
 topeAnd TTop r = r
@@ -157,12 +158,12 @@ topeAnd l TTop = l
 topeAnd l r    = TAnd l r
 
 -- | Disjunction, with ⊥ dropped.
-topeOr :: Tope -> Tope -> Tope
+topeOr :: Tope n -> Tope n -> Tope n
 topeOr TBot r = r
 topeOr l TBot = l
 topeOr l r    = TOr l r
 
-isLatticePoint :: Point -> Bool
+isLatticePoint :: Point n -> Bool
 isLatticePoint PSup{} = True
 isLatticePoint PInf{} = True
 isLatticePoint _      = False
@@ -170,25 +171,25 @@ isLatticePoint _      = False
 -- | A tope, together with the modalities under which it is available: the
 -- lock accumulated since it was assumed, and the modality it was assumed
 -- at.
-data ModalTope = ModalTope
+data ModalTope n = ModalTope
   { tModAccum :: TModality
   , tModVar   :: TModality
-  , tTope     :: Tope
+  , tTope     :: Tope n
   } deriving (Eq, Ord, Show)
 
-plainTope :: Tope -> ModalTope
+plainTope :: Tope n -> ModalTope n
 plainTope = ModalTope Id Id
 
-isAccessible :: ModalTope -> Bool
+isAccessible :: ModalTope n -> Bool
 isAccessible mt = coe (tModVar mt) (tModAccum mt)
 
-filterAccessible :: [ModalTope] -> [ModalTope]
+filterAccessible :: [ModalTope n] -> [ModalTope n]
 filterAccessible = filter isAccessible
 
-partitionAccessible :: [ModalTope] -> ([ModalTope], [ModalTope])
+partitionAccessible :: [ModalTope n] -> ([ModalTope n], [ModalTope n])
 partitionAccessible topes = (filter isAccessible topes, filter (not . isAccessible) topes)
 
-topesOf :: [ModalTope] -> [Tope]
+topesOf :: [ModalTope n] -> [Tope n]
 topesOf = map tTope . filterAccessible
 
 -- * The tope context
@@ -197,20 +198,20 @@ topesOf = map tTope . filterAccessible
 -- parts are lazy: the alternatives of a disjunctive context, whether the
 -- context is contradictory, and its saturation are computed by the first
 -- query that needs them.
-data TopeContext = TopeContext
-  { tcTopes         :: [ModalTope]
+data TopeContext n = TopeContext
+  { tcTopes         :: [ModalTope n]
     -- ^ the assumed topes, newest first
-  , tcDiscrete      :: [ModalTope]
+  , tcDiscrete      :: [ModalTope n]
     -- ^ the discreteness axioms of the flat cube variables in scope
-  , tcAlternatives  :: [[ModalTope]]
+  , tcAlternatives  :: [[ModalTope n]]
     -- ^ the context split at its disjunctions
   , tcEntailsBottom :: Bool
-  , tcSaturated     :: [[ModalTope]]
+  , tcSaturated     :: [[ModalTope n]]
     -- ^ each alternative saturated
   }
 
 -- | The empty context: ⊤ holds under every modality.
-emptyTopeContext :: TopeContext
+emptyTopeContext :: TopeContext n
 emptyTopeContext = refresh TopeContext
   { tcTopes =
       [ ModalTope Id Id    TTop
@@ -224,7 +225,7 @@ emptyTopeContext = refresh TopeContext
   }
 
 -- | Recompute the derived parts, lazily.
-refresh :: TopeContext -> TopeContext
+refresh :: TopeContext n -> TopeContext n
 refresh tc = tc
   { tcAlternatives = alternativesOf (tcTopes tc)
   , tcEntailsBottom = entailsFrom tc (tcTopes tc) TBot
@@ -234,17 +235,17 @@ refresh tc = tc
     alternativesOf topes = map nub (simplifyLHSwithDisjunctions topes)
 
 -- | The assumed topes, newest first, with their modalities.
-contextTopes :: TopeContext -> [ModalTope]
+contextTopes :: TopeContext n -> [ModalTope n]
 contextTopes = tcTopes
 
 -- | The assumed topes that are available at the current lock.
-accessibleTopes :: TopeContext -> [Tope]
+accessibleTopes :: TopeContext n -> [Tope n]
 accessibleTopes = topesOf . tcTopes
 
 -- | Assume a tope. A tope that says nothing new (a reflexive equation, or
 -- one already assumed) leaves the context as it is, so that the derived
 -- parts stay shared.
-assume :: Tope -> TopeContext -> TopeContext
+assume :: Tope n -> TopeContext n -> TopeContext n
 assume tope tc
   | noNewInformation = tc
   | otherwise = refresh tc { tcTopes = mt : tcTopes tc }
@@ -256,11 +257,11 @@ assume tope tc
       _              -> mt `elem` tcTopes tc
 
 -- | Add a discreteness axiom (a flat point of an interval is an endpoint).
-assumeDiscrete :: Tope -> TopeContext -> TopeContext
+assumeDiscrete :: Tope n -> TopeContext n -> TopeContext n
 assumeDiscrete tope tc = refresh tc { tcDiscrete = plainTope tope : tcDiscrete tc }
 
 -- | Accumulate a lock over the assumed topes.
-applyModality :: TModality -> TopeContext -> TopeContext
+applyModality :: TModality -> TopeContext n -> TopeContext n
 applyModality Id tc = tc
 applyModality md tc = refresh tc
   { tcTopes = map lock (tcTopes tc)
@@ -272,54 +273,54 @@ applyModality md tc = refresh tc
 -- * Queries
 
 -- | Does the context entail the tope?
-entails :: TopeContext -> Tope -> Bool
+entails :: TopeContext n -> Tope n -> Bool
 entails tc goal = all (`solveRHS` goal) (tcSaturated tc)
 
 -- | Is the context contradictory?
-entailsBottom :: TopeContext -> Bool
+entailsBottom :: TopeContext n -> Bool
 entailsBottom = tcEntailsBottom
 
 -- | Does the context entail the disjunction of the topes: is every point
 -- of the context covered by one of them?
-entailsUnion :: TopeContext -> [Tope] -> Bool
+entailsUnion :: TopeContext n -> [Tope n] -> Bool
 entailsUnion tc topes = entails tc (foldr topeOr TBot topes)
 
 -- | Does the tope entail the conjunction of the context's accessible topes?
-entailedBy :: TopeContext -> Tope -> Bool
+entailedBy :: TopeContext n -> Tope n -> Bool
 entailedBy tc tope = entailsFrom tc [plainTope tope] (foldr topeAnd TTop (accessibleTopes tc))
 
 -- | Is the tope disjoint from the context: does assuming it make the
 -- context contradictory?
-disjoint :: TopeContext -> Tope -> Bool
+disjoint :: TopeContext n -> Tope n -> Bool
 disjoint tc tope = entailsFrom tc (plainTope tope : tcTopes tc) TBot
 
 -- | Are two topes equivalent on their own, under the context's
 -- discreteness axioms?
-equivalent :: TopeContext -> Tope -> Tope -> Bool
+equivalent :: TopeContext n -> Tope n -> Tope n -> Bool
 equivalent tc l r = l == r || (topesEntail tc [l] r && topesEntail tc [r] l)
 
 -- | Do the topes alone (with the discreteness axioms) entail the goal?
-topesEntail :: TopeContext -> [Tope] -> Tope -> Bool
+topesEntail :: TopeContext n -> [Tope n] -> Tope n -> Bool
 topesEntail tc topes = entailsFrom tc (map plainTope topes)
 
 -- | The alternatives of a disjunctive context, each as the context with
 -- that alternative assumed instead; a context with one alternative has
 -- none to split.
-alternatives :: TopeContext -> [TopeContext]
+alternatives :: TopeContext n -> [TopeContext n]
 alternatives tc = case tcAlternatives tc of
   [_] -> []
   alts -> [ refresh tc { tcTopes = alt } | alt <- alts ]
 
 -- | Does a check hold in every alternative of the context? A context with
 -- one alternative runs the check once, on itself.
-inAlternatives :: TopeContext -> (TopeContext -> Bool) -> Bool
+inAlternatives :: TopeContext n -> (TopeContext n -> Bool) -> Bool
 inAlternatives tc check = case alternatives tc of
   []   -> check tc
   alts -> all check alts
 
 -- | Entailment from the given topes, with the context's discreteness
 -- axioms.
-entailsFrom :: TopeContext -> [ModalTope] -> Tope -> Bool
+entailsFrom :: TopeContext n -> [ModalTope n] -> Tope n -> Bool
 entailsFrom tc modalTopes goal =
   all (`solveRHS` goal) (saturateForEntailment (tcDiscrete tc) modalTopes)
 
@@ -327,13 +328,13 @@ entailsFrom tc modalTopes goal =
 
 -- | The preprocessing before a search: dedup, split off the context's
 -- disjunctions, and saturate each alternative.
-saturateForEntailment :: [ModalTope] -> [ModalTope] -> [[ModalTope]]
+saturateForEntailment :: [ModalTope n] -> [ModalTope n] -> [[ModalTope n]]
 saturateForEntailment discrete modalTopes =
   map (saturateTopes . saturateBottom . saturateInv) alts
   where
     alts = simplifyLHSwithDisjunctions (nub (modalTopes <> discrete))
 
-saturateTopes :: [ModalTope] -> [ModalTope]
+saturateTopes :: [ModalTope n] -> [ModalTope n]
 saturateTopes topes = saturated <> inaccessible
   where
     (accessible, inaccessible) = partitionAccessible topes
@@ -344,13 +345,13 @@ saturateTopes topes = saturated <> inaccessible
 -- | Inversion under @ᵒᵖ@, not implemented yet, so the identity. This loses
 -- nothing in the non-modal fragment, where every tope sits at the identity
 -- modality. Under @ᵒᵖ@ the solver misses the entailments inversion gives.
-saturateInv :: [ModalTope] -> [ModalTope]
+saturateInv :: [ModalTope n] -> [ModalTope n]
 saturateInv = id
 
 -- | Ex falso for ⊥, lifted across modalities: a contradiction among the
 -- topes available at the identity modality entails @_μ ⊥@ at every lock
 -- where an available tope was hidden.
-saturateBottom :: [ModalTope] -> [ModalTope]
+saturateBottom :: [ModalTope n] -> [ModalTope n]
 saturateBottom modalTopes
   | null droppedAccums = modalTopes
   | botDerivable       = modalTopes <> fresh
@@ -379,7 +380,7 @@ saturateWith step zs = go (nubOrd zs) [] (Set.fromList zs)
         seen' = foldr Set.insert seen new
     nubOrd = Set.toList . Set.fromList
 
-generateTopes :: [Tope] -> [Tope] -> [Tope]
+generateTopes :: [Tope n] -> [Tope n] -> [Tope n]
 generateTopes newTopes oldTopes
   | TBot `elem` newTopes = []
   | TEq P2_0 P2_1 `elem` newTopes = [TBot]
@@ -469,7 +470,7 @@ generateTopes newTopes oldTopes
 
 -- | The lemmas about points that a disjunctive goal may case on: a point of
 -- the unit cube is its point, and two points of @2@ are comparable.
-generateTopesForPoints :: [Point] -> [Tope]
+generateTopesForPoints :: [Point n] -> [Tope n]
 generateTopesForPoints points = concat (topes <> stars)
   where
     endpoints = [P2_0, P2_1, PI_0, PI_1]
@@ -484,10 +485,10 @@ generateTopesForPoints points = concat (topes <> stars)
       | (x, y) <- pairs
       , cubeOf x == K2, cubeOf y == K2 ]
 
-allTopePoints :: Tope -> [Point]
+allTopePoints :: Tope n -> [Point n]
 allTopePoints = nub . foldMap subPoints . nub . topePoints
 
-topePoints :: Tope -> [Point]
+topePoints :: Tope n -> [Point n]
 topePoints = \case
   TAnd l r -> topePoints l <> topePoints r
   TOr l r  -> topePoints l <> topePoints r
@@ -495,7 +496,7 @@ topePoints = \case
   TLeq x y -> [x, y]
   _        -> []
 
-subPoints :: Point -> [Point]
+subPoints :: Point n -> [Point n]
 subPoints = \case
   p@(PPair x y) -> p : foldMap subPoints [x, y]
   p@PVar{}      -> [p]
@@ -507,7 +508,7 @@ subPoints = \case
 -- * Simplifying the left-hand side
 
 -- | Simplify the context, splitting disjunctions into alternatives.
-simplifyLHSwithDisjunctions :: [ModalTope] -> [[ModalTope]]
+simplifyLHSwithDisjunctions :: [ModalTope n] -> [[ModalTope n]]
 simplifyLHSwithDisjunctions topes = map nub $ case topes of
   [] -> [[]]
   ModalTope _ _ TTop : topes' -> simplifyLHSwithDisjunctions topes'
@@ -527,7 +528,7 @@ simplifyLHSwithDisjunctions topes = map nub $ case topes of
 -- * Solving the right-hand side
 
 -- | Search a saturated context for the goal.
-solveRHS :: [ModalTope] -> Tope -> Bool
+solveRHS :: [ModalTope n] -> Tope n -> Bool
 solveRHS modalTopes goal =
   let topes = topesOf modalTopes
   in case goal of
@@ -591,7 +592,7 @@ solveRHS modalTopes goal =
     _ -> False
 
 -- | The syntactic part of the search, on the accessible topes alone.
-solveTopes :: [Tope] -> Tope -> Bool
+solveTopes :: [Tope n] -> Tope n -> Bool
 solveTopes topes tope = case tope of
   _ | TBot `elem` topes -> True
   TTop -> True
