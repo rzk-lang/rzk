@@ -40,7 +40,7 @@ import           Language.Rzk.Foil.Names  (TModality (..), VarIdent,
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.Check.Context
 import           Rzk.Check.Display
-import qualified Data.IntMap              as IntMap
+import           Rzk.Check.Foil.Extras      (lookupNameId)
 import           Rzk.Check.Syntax
 import           Rzk.Check.Topes
 
@@ -352,7 +352,7 @@ ppPoint naming = go
       PHole m -> maybe "?" (("?" <>) . show) m
       POpaque _ -> "…"
     paren s = if ' ' `elem` s then "(" <> s <> ")" else s
-    nameById i = case IntMap.lookup i (namingOf naming) of
+    nameById i = case lookupNameId i (namingOf naming) of
       Just x  -> Rzk.printTree (fromVarIdent x)
       Nothing -> "x" <> show i
 

@@ -26,10 +26,9 @@ module Rzk.Check.Display
   , ppValueIn
   ) where
 
-import           Control.Monad.Foil          (Distinct, S, Scope)
+import           Control.Monad.Foil          (Distinct, NameMap, S, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
-import qualified Data.IntMap                 as IntMap
 import           Data.Bifoldable             (bifoldMap)
 import           Data.List                   (nub, (\\))
 import qualified Data.Set                    as Set
@@ -41,14 +40,15 @@ import           Language.Rzk.Foil.Names     (TModality (..), VarIdent,
                                               refreshVar, refreshVarIn)
 import qualified Language.Rzk.Syntax         as Rzk
 import           Rzk.Check.Context
+import qualified Rzk.Check.Foil.Extras       as Extras
 import           Rzk.Check.Syntax
 import           Rzk.Check.Value             (quoteFolded)
 
 -- | What every name in scope is called, and what the printer may call the
 -- binders it has yet to meet.
 data Naming (n :: S) = Naming
-  { namingOf     :: IntMap.IntMap VarIdent
-    -- ^ display names by raw name ID; this is not a total 'Foil.NameMap'
+  { namingOf     :: NameMap n VarIdent
+    -- ^ the display name of every name in scope; total on that scope
   , namingUsed   :: [VarIdent]
     -- ^ names that binders in the current term must avoid
   , namingSupply :: [VarIdent]
@@ -61,7 +61,7 @@ data Naming (n :: S) = Naming
 -- name and an inner one is refreshed away from it.
 namingOfContext :: Context n -> Naming n
 namingOfContext ctx = Naming
-  { namingOf = IntMap.fromList entries
+  { namingOf = Extras.nameMapFromList entries
   , namingUsed = used
   , namingSupply = defaultVarIdents \\ used
   }
@@ -79,15 +79,10 @@ namingOfContext ctx = Naming
       where
         named v' x supply' =
           let (acc, taken') = go (Set.insert x taken) supply' rest
-          in ((Foil.nameId v', x) : acc, taken')
+          in ((v', x) : acc, taken')
 
 displayOf :: Naming n -> Foil.Name n -> VarIdent
-displayOf naming = lookupDisplayName (namingOf naming)
-
-lookupDisplayName :: IntMap.IntMap VarIdent -> Foil.Name n -> VarIdent
-lookupDisplayName names name = case IntMap.lookup (Foil.nameId name) names of
-  Just x  -> x
-  Nothing -> panicImpossible "a name without a display name"
+displayOf naming name = Foil.lookupName name (namingOf naming)
 
 ppName :: Naming n -> Foil.Name n -> String
 ppName naming = Rzk.printTree . fromVarIdent . displayOf naming
@@ -111,14 +106,14 @@ ppValueIn ctx = ppValue (ctxScope ctx) ctx
 
 -- | The printer proper: the names in use (which a binder must avoid), the
 -- supply for anonymous binders, and the display name of every free name.
-fromCore :: forall n. Distinct n => [VarIdent] -> [VarIdent] -> IntMap.IntMap VarIdent -> Core n -> Rzk.Term
+fromCore :: forall n. Distinct n => [VarIdent] -> [VarIdent] -> NameMap n VarIdent -> Core n -> Rzk.Term
 fromCore used supply names = go
   where
     loc = Nothing
 
     go :: Core n -> Rzk.Term
     go = \case
-      Var x -> Rzk.Var loc (fromVarIdent (lookupDisplayName names x))
+      Var x -> Rzk.Var loc (fromVarIdent (Foil.lookupName x names))
       Universe -> Rzk.Universe loc
       UniverseCube -> Rzk.UniverseCube loc
       UniverseTope -> Rzk.UniverseTope loc
@@ -274,7 +269,7 @@ fromCore used supply names = go
           let body' = fromCore used' supply' names' body
               tope = case shape of
                 Lambda _ (ScopedAST shapePat topeBody)
-                  | Just names'' <- sameShape shapePat pat names' ->
+                  | Just names'' <- sameShape shapePat pat names names' ->
                       case Foil.assertDistinct shapePat of
                         Foil.Distinct -> fromCore used' supply' names'' topeBody
                 _ -> Rzk.App loc (go shape) (patternTerm pat')
@@ -282,16 +277,14 @@ fromCore used supply names = go
 
     -- The display names of a pattern's leaves given to another pattern of
     -- the same shape.
-    sameShape :: Distinct x => Pattern x y -> Pattern n l -> IntMap.IntMap VarIdent -> Maybe (IntMap.IntMap VarIdent)
-    sameShape shapePat pat names' =
+    sameShape :: Pattern n y -> Pattern n l -> NameMap n VarIdent -> NameMap l VarIdent -> Maybe (NameMap y VarIdent)
+    sameShape shapePat pat outer names' =
       case (Foil.assertDistinct shapePat, Foil.assertDistinct pat) of
         (Foil.Distinct, Foil.Distinct) ->
           let leavesS = map snd (patternNames shapePat)
               leavesP = map snd (patternNames pat)
           in if length leavesS == length leavesP && shapeOf shapePat == shapeOf pat
-               then Just $ foldr
-                      (\(s, p) m -> IntMap.insert (Foil.nameId s) (lookupDisplayName names' p) m)
-                      names' (zip leavesS leavesP)
+               then Just (Foil.addNameBinders shapePat [ Foil.lookupName p names' | p <- leavesP ] outer)
                else Nothing
     shapeOf :: Pattern x y -> String
     shapeOf = \case
@@ -308,10 +301,10 @@ fromCore used supply names = go
     -- naming with the leaves.
     withPatternNames
       :: forall l r'. Distinct l => Pattern n l -> [Int]
-      -> (Rzk.Pattern -> [VarIdent] -> [VarIdent] -> IntMap.IntMap VarIdent -> r') -> r'
+      -> (Rzk.Pattern -> [VarIdent] -> [VarIdent] -> NameMap l VarIdent -> r') -> r'
     withPatternNames pat0 usedIds k =
       let (pat', used', supply', entries) = namePatternLeaves usedIds used supply pat0
-      in k pat' used' supply' (IntMap.union (IntMap.fromList [ (Foil.nameId name, x) | (name, x) <- entries ]) names)
+      in k pat' used' supply' (Foil.addNameBinders pat0 (map snd entries) names)
 
 -- | A surface pattern as a term, for a binder written as a term.
 patternTerm :: Rzk.Pattern -> Rzk.Term
@@ -322,7 +315,7 @@ patternTerm = \case
   Rzk.PatternTuple l a b cs -> Rzk.Tuple l (patternTerm a) (patternTerm b) (map patternTerm cs)
 
 -- | Peel a match branch's arm chain back into its patterns and body.
-matchArms :: Distinct n => [VarIdent] -> [VarIdent] -> IntMap.IntMap VarIdent -> Core n -> ([Rzk.Pattern], Rzk.Term)
+matchArms :: Distinct n => [VarIdent] -> [VarIdent] -> NameMap n VarIdent -> Core n -> ([Rzk.Pattern], Rzk.Term)
 matchArms used supply names = \case
   MatchArm (ScopedAST pat body) -> case Foil.assertDistinct pat of
     Foil.Distinct ->
@@ -334,7 +327,7 @@ matchArms used supply names = \case
   where
     renderPattern u s nm pat usedIds =
       let (pat', u', s', entries) = namePatternLeaves usedIds u s pat
-      in (pat', u', s', IntMap.union (IntMap.fromList [ (Foil.nameId name, x) | (name, x) <- entries ]) nm)
+      in (pat', u', s', Foil.addNameBinders pat (map snd entries) nm)
 
 -- | Name every leaf of a pattern: a named leaf keeps its name, refreshed
 -- against the names in use; an anonymous leaf is @_@ unless the body uses

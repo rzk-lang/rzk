@@ -6,10 +6,12 @@
 -- representations of 'NameMap' or 'Substitution'.
 module Rzk.Check.Foil.Extras
   ( replaceName
+  , nameMapFromList
+  , lookupNameId
   , singletonSubstitution
   ) where
 
-import           Control.Monad.Foil          (Name, NameMap, Substitution)
+import           Control.Monad.Foil          (Id, Name, NameMap, Substitution)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Foil.Internal (NameMap (..), Substitution (..))
 import qualified Data.IntMap                 as IntMap
@@ -18,6 +20,16 @@ import qualified Data.IntMap                 as IntMap
 -- guarantees that the key is present, as in the entry map of a context.
 replaceName :: Name n -> a -> NameMap n a -> NameMap n a
 replaceName name value (NameMap m) = NameMap (IntMap.insert (Foil.nameId name) value m)
+
+-- | Build a total name map from all scoped names and their values. Later
+-- duplicate entries win; the caller supplies every name in the scope.
+nameMapFromList :: [(Name n, a)] -> NameMap n a
+nameMapFromList entries = NameMap (IntMap.fromList [ (Foil.nameId name, value) | (name, value) <- entries ])
+
+-- | Look up a raw name ID, returning 'Nothing' when it is absent. This partial
+-- query is used only to display variables from the scope-free tope solver.
+lookupNameId :: Id -> NameMap n a -> Maybe a
+lookupNameId i (NameMap m) = IntMap.lookup i m
 
 -- | A substitution with one free name mapped to one value.
 singletonSubstitution :: Name i -> e o -> Substitution e i o
