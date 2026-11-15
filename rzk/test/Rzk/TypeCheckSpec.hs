@@ -350,6 +350,24 @@ spec = describe "Typecheck fixtures" $ do
       Left err -> expectationFailure (T.unpack err)
       Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
         `shouldBe` ["TypeErrorOther", "TypeErrorUnify"]
+  it "records simplification hints as structured warnings" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#def test : (t : 2 | (\\ s → TOP) t) → TOPE := \\ _ → TOP"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> map Check.warningTag (snd (runNew [("<test>", m)]))
+        `shouldBe` ["SimplificationHintWarning"]
+  it "warns when an option is ignored" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#set-option \"rstt-safe\" = \"yes\""
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> map Check.warningTag (snd (runNew [("<test>", m)]))
+        `shouldBe` ["UnsupportedOptionWarning"]
 
 -- * The new checker
 

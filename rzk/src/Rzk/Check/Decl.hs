@@ -29,7 +29,7 @@ module Rzk.Check.Decl
   ) where
 
 import           Control.Applicative      ((<|>))
-import           Control.Monad            (forM, when)
+import           Control.Monad            (forM, forM_, when)
 import           Control.Monad.Foil       (DExt, Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
@@ -83,6 +83,9 @@ sinkDecls = Foil.sink1
 resolveNames :: Distinct n => Rzk.Term -> Check n (Raw n)
 resolveNames term = do
   ctx <- askContext
+  forM_ (hintsOf term) $ \(original, suggestion) ->
+    recordWarning $ \c -> SimplificationHintWarning
+      (Rzk.printTree original) (Rzk.printTree suggestion) (surfaceLocation original c)
   let env name = case lookupNamed name ctx of
         Just v  -> Var v
         Nothing -> rawNode noPosition (HoleF (Just (markUnresolved name)))
@@ -213,7 +216,7 @@ setOption name value = case name of
     "none"  -> withOptions (\o -> o { optRender = Nothing })
     _ -> const $ issueTypeError $ TypeErrorOther
       "unknown render backend (use \"svg\", \"latex\", or \"none\")"
-  _ | name `elem` ignoredOptions -> id
+  _ | name `elem` ignoredOptions -> warnIgnoredOption name
   _ -> const $ issueTypeError $ TypeErrorOther ("unknown option " <> show name)
   where
     yesNo set = case value of
@@ -229,7 +232,7 @@ unsetOption name = case name of
   "warn-tope-family-domain" ->
     withOptions (\o -> o { optWarnTopeFamilyDomain = optWarnTopeFamilyDomain defaultOptions })
   "render" -> withOptions (\o -> o { optRender = Nothing })
-  _ | name `elem` ignoredOptions -> id
+  _ | name `elem` ignoredOptions -> warnIgnoredOption name
   _ -> const $ issueTypeError $ TypeErrorOther ("unknown option " <> show name)
 
 -- | The options of checks the new checker does not run yet: accepted, and
@@ -238,6 +241,12 @@ ignoredOptions :: [String]
 ignoredOptions =
   [ "render-hide-term", "rstt-safe", "warn-meta-prefix"
   , "warn-free-standing-restriction", "warn-shape-dependency", "warn-meta-binder" ]
+
+-- | Record that an accepted option has no effect in the new checker.
+warnIgnoredOption :: String -> Check n a -> Check n a
+warnIgnoredOption name action = do
+  recordWarning $ \ctx -> UnsupportedOptionWarning name (ctxLocation ctx)
+  action
 
 -- | Run a check at a command: the location points at the command, and a
 -- judgement inside it narrows it to the sub-term it is about.
@@ -250,7 +259,11 @@ atCommand command = localContext $ \ctx -> ctx { ctxLocation = at <$> ctxLocatio
 -- | Run a check with the location narrowed to where a surface term was
 -- written.
 atSurface :: (Rzk.HasPosition a) => a -> Check n b -> Check n b
-atSurface x = localContext $ \ctx -> ctx { ctxLocation = narrow <$> ctxLocation ctx }
+atSurface x = localContext $ \ctx -> ctx { ctxLocation = surfaceLocation x ctx }
+
+-- | The location of a surface term in the current file.
+surfaceLocation :: (Rzk.HasPosition a) => a -> Context n -> Maybe LocationInfo
+surfaceLocation x ctx = narrow <$> ctxLocation ctx
   where
     narrow loc = case Rzk.hasPosition x of
       Nothing          -> loc
@@ -279,14 +292,14 @@ checkCommands path i total commands k = case commands of
       result <- attempt $ atCommand command $ unsetOption optionName (pure ())
       case result of
         Left err -> skipping err path i total more k
-        Right () -> unsetOption optionName $ checkCommands path (i + 1) total more k
+        Right () -> atCommand command $ unsetOption optionName $ checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandSetOption _loc optionName optionValue) : more ->
     announce ("Setting option " <> optionName <> " = " <> optionValue) $ do
       result <- attempt $ atCommand command $ setOption optionName optionValue (pure ())
       case result of
         Left err -> skipping err path i total more k
-        Right () -> setOption optionName optionValue $ checkCommands path (i + 1) total more k
+        Right () -> atCommand command $ setOption optionName optionValue $ checkCommands path (i + 1) total more k
 
   command@(Rzk.CommandDefine _loc name (Rzk.DeclUsedVars _ vars) params ty term) : more ->
     announce (" Checking #define " <> Rzk.printTree name) $ atCommand command $ do
