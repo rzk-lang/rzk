@@ -226,7 +226,9 @@ data Sig scope term
   | TopeInvF term
   | TopeUninvF term
   | RecBottomF
-  | RecOrF [(term, term)]
+  | RecOrF (Maybe term) [(term, term)]
+    -- ^ a raw @recOR@ has no type; elaboration attaches its type, which a
+    -- stuck semantic @recOR@ needs when it heads an elimination
   | TypeFunF TModality term (Maybe term) scope
     -- ^ a Π: the modality of the binder, its domain (a type, or the cube of
     -- a shape), the shape as a tope family over the cube, and the codomain
@@ -379,8 +381,8 @@ pattern TopeUninv :: Core n -> Core n
 pattern TopeUninv t = Node (TopeUninvF t)
 pattern RecBottom :: Core n
 pattern RecBottom = Node RecBottomF
-pattern RecOr :: [(Core n, Core n)] -> Core n
-pattern RecOr rs = Node (RecOrF rs)
+pattern RecOr :: Core n -> [(Core n, Core n)] -> Core n
+pattern RecOr ty rs = Node (RecOrF (Just ty) rs)
 pattern TypeFun :: TModality -> Core n -> Maybe (Core n) -> ScopedCore n -> Core n
 pattern TypeFun md dom mshape ret = Node (TypeFunF md dom mshape ret)
 pattern TypeShape :: TModality -> Core n -> Maybe (Core n) -> Core n
@@ -499,7 +501,7 @@ pattern RTopeUninv x1 <- RawNode (TopeUninvF x1)
 pattern RRecBottom :: Raw n
 pattern RRecBottom <- RawNode RecBottomF
 pattern RRecOr :: [(Raw n, Raw n)] -> Raw n
-pattern RRecOr x1 <- RawNode (RecOrF x1)
+pattern RRecOr x1 <- RawNode (RecOrF Nothing x1)
 pattern RTypeFun :: TModality -> Raw n -> Maybe (Raw n) -> ScopedRaw n -> Raw n
 pattern RTypeFun x1 x2 x3 x4 <- RawNode (TypeFunF x1 x2 x3 x4)
 pattern RTypeShape :: TModality -> Raw n -> Maybe (Raw n) -> Raw n

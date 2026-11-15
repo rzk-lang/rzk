@@ -1,0 +1,8 @@
+#lang rzk-1
+
+-- A pair-pattern binder inherits restrictions from its Σ domain, so the
+-- first component agrees with the boundary on the face.
+#def first-pattern
+  (A : U) (a : A) (t : 2)
+  : (p : (Σ (x : A), A) [t ≡ 0₂ ↦ (a, a)]) → A [t ≡ 0₂ ↦ a]
+  := \ (x, y) → x

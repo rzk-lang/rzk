@@ -251,14 +251,14 @@ instance Eval Context Pattern Sig where
         rs' -> NbE.vnode (TypeRestrictedF (ev ty) [ (tope', ev face) | (tope', face) <- rs' ])
     -- The branch whose guard the tope context entails; otherwise the one
     -- branch if they are all the same term; otherwise stuck.
-    RecOrF rs ->
+    RecOrF mty rs ->
       let rs' = [ (ev guard, branch) | (guard, branch) <- rs ]
       in case [ branch | (guard, branch) <- rs', entailsValue scope ctx guard ] of
            branch : _ -> ev branch
            [] -> case map snd rs of
              branch : branches
                | all (eqCore branch) branches -> ev branch
-             _ -> NbE.vnode (RecOrF [ (guard, ev branch) | (guard, branch) <- rs' ])
+             _ -> NbE.vnode (RecOrF (fmap ev mty) [ (guard, ev branch) | (guard, branch) <- rs' ])
     -- the cube layer
     CubeFlipF t -> case NbE.force (ev t) of
       VCubeUnflip t' -> t'
@@ -364,12 +364,12 @@ instance Eval Context Pattern Sig where
     -- two recORs are coherent branch by branch: under each overlap of their
     -- guards the branches agree; a recOR against another term agrees with
     -- it under each guard
-    (RecOrF rsL, RecOrF rsR) -> Just $ mconcat
+    (RecOrF _ rsL, RecOrF _ rsR) -> Just $ mconcat
       [ underOverlap (topeAndValue tL tR) (term bL bR)
       | (tL, bL) <- rsL, (tR, bR) <- rsR ]
-    (RecOrF rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
+    (RecOrF _ rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
       [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
-    (_, RecOrF rsR) | Just lv <- nodeValue l -> Just $ mconcat
+    (_, RecOrF _ rsR) | Just lv <- nodeValue l -> Just $ mconcat
       [ underOverlap tR (term lv bR) | (tR, bR) <- rsR ]
 
     -- two topes are compared by entailment in the context's variance: the
@@ -494,7 +494,7 @@ instance Eval Context Pattern Sig where
     -- a recOR evaluated before its guard was assumed takes the branch the
     -- context now entails, as the old checker decided it in its weak head
     -- normal form (a type cached in an annotation may hold one)
-    RecOrF rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
+    RecOrF _ rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
     _         -> value
 
   -- A pattern stands for its names paired; bound to a value, its leaves
@@ -684,8 +684,8 @@ pattern VTopeUninv :: Value n -> Whnf n
 pattern VTopeUninv x1 <- NbE.VNode (TopeUninvF x1)
 pattern VRecBottom :: Whnf n
 pattern VRecBottom <- NbE.VNode RecBottomF
-pattern VRecOr :: [(Value n, Value n)] -> Whnf n
-pattern VRecOr x1 <- NbE.VNode (RecOrF x1)
+pattern VRecOr :: Value n -> [(Value n, Value n)] -> Whnf n
+pattern VRecOr ty rs <- NbE.VNode (RecOrF (Just ty) rs)
 pattern VTypeFun :: () => Distinct i => Env i n -> TModality -> Value n -> Maybe (Value n) -> ScopedCore i -> Whnf n
 pattern VTypeFun env x1 x2 x3 x4 <- NbE.VSuspended env (TypeFunF x1 x2 x3 x4)
 pattern VTypeShape :: TModality -> Value n -> Maybe (Value n) -> Whnf n
@@ -744,6 +744,7 @@ appValue :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n
 {-# INLINE appValue #-}
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
   VLambda env _ body -> evalScope scope ctx env body arg
+  VRecBottom -> vrecBottom
   NbE.Stuck fun' -> case neutralType scope ctx fun' of
     Just ty | Just (Family _ _ (Just shape)) <- familyOf ty
             , not (isTopShape shape) ->
@@ -767,12 +768,14 @@ firstValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE firstValueIn #-}
 firstValueIn scope ctx p = NbE.eliminate p $ \case
   VPair a _ -> a
+  VRecBottom -> vrecBottom
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (FirstF p'))
 
 secondValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE secondValueIn #-}
 secondValueIn scope ctx p = NbE.eliminate p $ \case
   VPair _ b -> b
+  VRecBottom -> vrecBottom
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (SecondF p'))
 
 -- | Path induction, a neutral annotated with its type.
@@ -780,17 +783,32 @@ idJValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value 
 {-# INLINE idJValueIn #-}
 idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
   VRefl _ -> d
+  VRecBottom -> vrecBottom
   NbE.Stuck p' -> annotated scope ctx (NbE.vnode (IdJF tA a tC d x p'))
 
 -- | A neutral with its type, computed lazily and once, from the type of
 -- the neutral it eliminates (which is read off that neutral's annotation).
--- A type that cannot be computed is a hole.
+-- Other stuck values need no type annotation.
 annotated :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE annotated #-}
-annotated scope ctx v = NbE.vnode (AnnF v (fromMaybe unknownType (neutralType scope ctx v)))
+annotated scope ctx v = case neutralType scope ctx v of
+  Just ty -> NbE.vnode (AnnF v ty)
+  Nothing
+    | isNeutralValue v -> panicImpossible ("a neutral without a type: " <> fingerprint (quoteIn scope ctx v))
+    | otherwise -> v
 
-unknownType :: Value n
-unknownType = NbE.vnode (HoleF Nothing)
+-- | Is a value headed by a neutral? Canonical values can be stuck under an
+-- elimination during conversion without being neutrals themselves.
+isNeutralValue :: Value n -> Bool
+isNeutralValue v = case NbE.forceFolded v of
+  NbE.VVar _ -> True
+  VAnn n _ -> isNeutralValue n
+  VApp f _ -> isNeutralValue f
+  VFirst p -> isNeutralValue p
+  VSecond p -> isNeutralValue p
+  VIdJ _ _ _ _ _ p -> isNeutralValue p
+  VRecOr _ _ -> True
+  _ -> False
 
 -- | The type an annotation carries, if it is known.
 annotationType :: Value n -> Maybe (Value n)
@@ -918,9 +936,16 @@ patternEntries scope ctx md loc = go
       PatternUnit _  -> [entryOf Nothing ty]
       PatternPair l r -> case NbE.force (stripRestrictions ty) of
         VTypeSigma env _ a b ->
-          go a l <> go (evalScope scope ctx env b (patternValueIn l)) r
-        VCubeProduct a b -> go a l <> go b r
+          go (inherit firstValue a) l
+            <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
+        VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
         _ -> go (vhole Nothing) l <> go (vhole Nothing) r
+      where
+        -- A component of a restricted pair is restricted to the same
+        -- component of each boundary pair.
+        inherit project component = case restrictionsOf ty of
+          [] -> component
+          rs -> NbE.vnode (TypeRestrictedF component [ (tope, project face) | (tope, face) <- rs ])
     -- a sub-pattern's names are names of the whole pattern's scope
     patternValueIn :: Pattern x y -> Value l
     patternValueIn = unsafeCoerce . patternValue
@@ -1067,7 +1092,7 @@ recOrValue scope ctx rs =
     b : _ -> b
     [] -> case rs of
       (_, b) : rest | all (conv scope (withVariance Invariant ctx) b . snd) rest -> b
-      _ -> NbE.vnode (RecOrF rs)
+      _ -> NbE.vnode (RecOrF (Just universe) rs)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.
 topeAndValue :: Value n -> Value n -> Value n
@@ -1166,6 +1191,7 @@ neutralType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
   VAnn n ty -> annotationType ty <|> neutralType scope ctx n
+  VRecOr ty _ -> Just ty
   VApp f a -> do
     fTy <- neutralType scope ctx f
     case familyOf fTy of

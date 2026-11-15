@@ -81,12 +81,14 @@ extra-source-files:
     test/typecheck/cases/happy-nbe-transport-refl-spine.rzk
     test/typecheck/cases/happy-nbe-wrapper-alignment.rzk
     test/typecheck/cases/happy-op-hom-to-hom.rzk
+    test/typecheck/cases/happy-pattern-restricted-sigma.rzk
     test/typecheck/cases/happy-pi-codomain-under-shape.rzk
     test/typecheck/cases/happy-points-equal-by-topes.rzk
     test/typecheck/cases/happy-recbot-term-wellformed.rzk
     test/typecheck/cases/happy-recor-decided-at-refinement.rzk
     test/typecheck/cases/happy-recor-guard-exceeds-context.rzk
     test/typecheck/cases/happy-recor-split-simplex-overhang.rzk
+    test/typecheck/cases/happy-recor-typed-neutral.rzk
     test/typecheck/cases/happy-refine-deep-sigma-type.rzk
     test/typecheck/cases/happy-refl-path.rzk
     test/typecheck/cases/happy-restrict-face-not-contained.rzk
@@ -398,12 +400,14 @@ extra-source-files:
     test/typecheck/cases/happy-nbe-transport-refl-spine.expect.yaml
     test/typecheck/cases/happy-nbe-wrapper-alignment.expect.yaml
     test/typecheck/cases/happy-op-hom-to-hom.expect.yaml
+    test/typecheck/cases/happy-pattern-restricted-sigma.expect.yaml
     test/typecheck/cases/happy-pi-codomain-under-shape.expect.yaml
     test/typecheck/cases/happy-points-equal-by-topes.expect.yaml
     test/typecheck/cases/happy-recbot-term-wellformed.expect.yaml
     test/typecheck/cases/happy-recor-decided-at-refinement.expect.yaml
     test/typecheck/cases/happy-recor-guard-exceeds-context.expect.yaml
     test/typecheck/cases/happy-recor-split-simplex-overhang.expect.yaml
+    test/typecheck/cases/happy-recor-typed-neutral.expect.yaml
     test/typecheck/cases/happy-refine-deep-sigma-type.expect.yaml
     test/typecheck/cases/happy-refl-path.expect.yaml
     test/typecheck/cases/happy-restrict-face-not-contained.expect.yaml
