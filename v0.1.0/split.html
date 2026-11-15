@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>rzk: an experimental proof assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <link rel="apple-touch-icon" sizes="180x180" href="/rzk/v0.1.0/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/rzk/v0.1.0/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/rzk/v0.1.0/favicon-16x16.png">
+    <link rel="manifest" href="/rzk/v0.1.0/site.webmanifest">
+    <style>
+.row { display: flex; justify-content:space-evenly; margin: 0; padding: 0; width: 100%; }
+.column { margin: 0; height: 100vh; border: 1px red; resize: horizontal; }
+#left-pane { width: 60%; }
+#right-pane { width: 40%; }
+html, body {margin: 0; height: 100vh; overflow: hidden}
+#separator {
+    cursor: col-resize;
+    background: #535353;
+    width: 10px;
+    height: 100vh;
+    min-width: 10px;
+}
+    </style>
+  </head>
+  <body onload="onload()">
+    <div class="row">
+      <div class="column" id="left-pane">
+        <iframe src="https://fizruk.github.io/rzk/v0.1.0/site/" frameborder="0" scrolling="yes" width="100%" height="100%" align="left"> </iframe>
+      </div>
+      <div id="separator"></div>
+      <div class="column" id="right-pane">
+        <iframe src="https://fizruk.github.io/rzk/v0.1.0/?lang=rzk-1&snippet_url=https://gist.githubusercontent.com/fizruk/694324347b75ae69e0236a6411bd0a75/raw/6b0fb918bb246d53dbb2692fc3c87bd5cb72a42a/dhom.rzk" frameborder="0" scrolling="no" width="100%" height="100%" align="right"></iframe>
+      </div>
+    </div>
+<script language="javascript">
+function onload()
+{
+    dragElement( document.getElementById("separator"), "H" );
+}
+
+// This function is used for dragging and moving
+function dragElement( element, direction, handler )
+{
+  // Two variables for tracking positions of the cursor
+  const drag = { x : 0, y : 0 };
+  const delta = { x : 0, y : 0 };
+  /* If present, the handler is where you move the DIV from
+     otherwise, move the DIV from anywhere inside the DIV */
+  handler ? ( handler.onmousedown = dragMouseDown ): ( element.onmousedown = dragMouseDown );
+
+  // A function that will be called whenever the down event of the mouse is raised
+  function dragMouseDown( e )
+  {
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    document.onmousemove = onMouseMove;
+    document.onmouseup = () => { document.onmousemove = document.onmouseup = null; }
+  }
+
+  // A function that will be called whenever the up event of the mouse is raised
+  function onMouseMove( e )
+  {
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+
+    delta.x = currentX - drag.x;
+    delta.y = currentY - drag.y;
+
+    const offsetLeft = element.offsetLeft;
+    const offsetTop = element.offsetTop;
+
+
+    const first = document.getElementById("left-pane");
+    const second = document.getElementById("right-pane");
+    let firstWidth = first.offsetWidth;
+    let secondWidth = second.offsetWidth;
+    if (direction === "H" ) // Horizontal
+    {
+        element.style.left = offsetLeft + delta.x + "px";
+        firstWidth += delta.x;
+        secondWidth -= delta.x;
+    }
+    drag.x = currentX;
+    drag.y = currentY;
+    first.style.width = firstWidth + "px";
+    second.style.width = secondWidth + "px";
+  }
+}
+</script>
+  </body>
+</html>

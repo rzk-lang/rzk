@@ -1,0 +1,25 @@
+#lang rzk-1
+
+-- [RS17, Definition 5.1]
+-- An arrow in A from x to y.
+#def hom (A : U) (x y : A) : U
+  := (t : 2) -> A [
+    t === 0_2 |-> x,
+    t === 1_2 |-> y
+  ]
+ 
+-- [RS17, Equation 8.1]
+-- A dependent arrow in the type family C
+-- over the arrow f in A from x to y.
+#def dhom 
+  (A : U)
+  (x y : A)
+  (f : hom A x y)
+  (C : A -> U)
+  (u : C x)
+  (v : C y)
+  : U
+  := (t : 2) -> C (f t) [
+    	t === 0_2 |-> u,
+    	t === 1_2 |-> v
+    ]
