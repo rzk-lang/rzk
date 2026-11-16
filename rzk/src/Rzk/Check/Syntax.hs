@@ -59,7 +59,7 @@ module Rzk.Check.Syntax
   , pattern RecBottom, pattern RecOr
   , pattern TypeFun, pattern TypeShape, pattern TypeSigma, pattern TypeId, pattern App, pattern Let, pattern Lambda
   , pattern Pair, pattern First, pattern Second, pattern Refl, pattern IdJ
-  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc, pattern Ann
+  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc
   , pattern TypeRestricted, pattern TypeModal, pattern ModApp, pattern ModExtract, pattern LetMod
   , pattern Hole
     -- * Raw patterns
@@ -107,7 +107,6 @@ module Rzk.Check.Syntax
   , pattern RUnit
   , pattern RTypeUnit
   , pattern RTypeAsc
-  , pattern RAnn
   , pattern RTypeRestricted
   , pattern RTypeModal
   , pattern RModApp
@@ -116,6 +115,7 @@ module Rzk.Check.Syntax
   , pattern RHole
     -- * Queries
   , freeNamesOf
+  , eraseNeutralTypes
   , stripAnnotations
   , substituteName
   , abstractName
@@ -257,9 +257,11 @@ data Sig scope term
     -- ^ the inverse operation to 'TopeInvF'
   | RecBottomF
     -- ^ ex falso, @recBOT@
-  | RecOrF (Maybe term) [(term, term)]
-    -- ^ a raw @recOR@ has no type; elaboration attaches its type, which a
-    -- stuck semantic @recOR@ needs when it heads an elimination
+  | RecOrF [(term, term)]
+    -- ^ a raw @recOR@ without a type
+  | TypedRecOrF term [(term, term)]
+    -- ^ an elaborated or semantic @recOR@ with its type, needed when it
+    -- heads an elimination
   | TypeFunF TModality term (Maybe term) scope
     -- ^ a Π: the modality of the binder, its domain (a type, or the cube of
     -- a shape), the shape as a tope family over the cube, and the codomain
@@ -272,7 +274,9 @@ data Sig scope term
   | TypeIdF term (Maybe term) term
     -- ^ an identity type: the endpoints and, once elaborated, their carrier
   | AppF term term
-    -- ^ application of a function or a tope family
+    -- ^ application without cached type information
+  | TypedAppF term term term
+    -- ^ a semantic neutral application: result type, function, and argument
   | LetF (Maybe term) term scope
     -- ^ a local definition: its optional type, value, and body
   | LambdaF (Maybe (Param term)) scope
@@ -281,12 +285,18 @@ data Sig scope term
     -- ^ a pair of terms or cube points
   | FirstF term
     -- ^ the first projection of a pair
+  | TypedFirstF term term
+    -- ^ a semantic neutral first projection with its component type
   | SecondF term
     -- ^ the second projection of a pair
+  | TypedSecondF term term
+    -- ^ a semantic neutral second projection with its component type
   | ReflF (Maybe (term, Maybe term))
     -- ^ reflexivity, optionally annotated by its element and carrier
   | IdJF term term term term term term
     -- ^ path induction: carrier, base point, motive, base case, endpoint, path
+  | TypedIdJF term term term term term term term
+    -- ^ semantic neutral path induction with its result type
   | MatchF TModality term (Maybe term) [(VarIdent, term)]
     -- ^ a match on a @#data@ value: the modality, the scrutinee, the
     -- @into@ motive, and the branches, each an arm chain
@@ -298,12 +308,6 @@ data Sig scope term
     -- ^ the unit type
   | TypeAscF term term
     -- ^ a user ascription; evaluation erases it
-  | AnnF term term
-    -- ^ a neutral value with its type, which evaluation builds so that the
-    -- type of a neutral is read off it rather than computed from its head.
-    -- Evaluating it drops it, the readbacks of "Rzk.Check.Value" strip it
-    -- ('stripAnnotations'), and the type takes no part in conversion or in
-    -- the free names of a term.
   | TypeRestrictedF term [(term, term)]
     -- ^ an extension type: its underlying type and tope/boundary faces
   | TypeModalF TModality term
@@ -433,7 +437,7 @@ pattern TopeUninv t = Node (TopeUninvF t)
 pattern RecBottom :: Core n
 pattern RecBottom = Node RecBottomF
 pattern RecOr :: Core n -> [(Core n, Core n)] -> Core n
-pattern RecOr ty rs = Node (RecOrF (Just ty) rs)
+pattern RecOr ty rs = Node (TypedRecOrF ty rs)
 pattern TypeFun :: TModality -> Core n -> Maybe (Core n) -> ScopedCore n -> Core n
 pattern TypeFun md dom mshape ret = Node (TypeFunF md dom mshape ret)
 pattern TypeShape :: TModality -> Core n -> Maybe (Core n) -> Core n
@@ -469,8 +473,6 @@ pattern TypeUnit = Node TypeUnitF
 pattern TypeAsc :: Core n -> Core n -> Core n
 pattern TypeAsc term ty = Node (TypeAscF term ty)
 
-pattern Ann :: Core n -> Core n -> Core n
-pattern Ann term ty = Node (AnnF term ty)
 pattern TypeRestricted :: Core n -> [(Core n, Core n)] -> Core n
 pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
 pattern TypeModal :: TModality -> Core n -> Core n
@@ -489,7 +491,7 @@ pattern Hole mname = Node (HoleF mname)
   CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
   TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeShape, TypeSigma, TypeId, App,
   Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
-  TypeAsc, Ann, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 
 -- * Raw patterns
 
@@ -552,7 +554,7 @@ pattern RTopeUninv x1 <- RawNode (TopeUninvF x1)
 pattern RRecBottom :: Raw n
 pattern RRecBottom <- RawNode RecBottomF
 pattern RRecOr :: [(Raw n, Raw n)] -> Raw n
-pattern RRecOr x1 <- RawNode (RecOrF Nothing x1)
+pattern RRecOr x1 <- RawNode (RecOrF x1)
 pattern RTypeFun :: TModality -> Raw n -> Maybe (Raw n) -> ScopedRaw n -> Raw n
 pattern RTypeFun x1 x2 x3 x4 <- RawNode (TypeFunF x1 x2 x3 x4)
 pattern RTypeShape :: TModality -> Raw n -> Maybe (Raw n) -> Raw n
@@ -587,8 +589,6 @@ pattern RTypeUnit :: Raw n
 pattern RTypeUnit <- RawNode TypeUnitF
 pattern RTypeAsc :: Raw n -> Raw n -> Raw n
 pattern RTypeAsc x1 x2 <- RawNode (TypeAscF x1 x2)
-pattern RAnn :: Raw n -> Raw n -> Raw n
-pattern RAnn x1 x2 <- RawNode (AnnF x1 x2)
 pattern RTypeRestricted :: Raw n -> [(Raw n, Raw n)] -> Raw n
 pattern RTypeRestricted x1 x2 <- RawNode (TypeRestrictedF x1 x2)
 pattern RTypeModal :: TModality -> Raw n -> Raw n
@@ -602,16 +602,25 @@ pattern RLetMod x1 x2 x3 x4 x5 x6 <- RawNode (LetModF x1 x2 x3 x4 x5 x6)
 pattern RHole :: Maybe VarIdent -> Raw n
 pattern RHole x1 <- RawNode (HoleF x1)
 
-{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RAnn, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
+{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
 
 -- * Queries
+
+-- | Drop semantic neutral result types while retaining the elaborated type
+-- of a @recOR@, which core terms need.
+eraseNeutralTypes :: Sig a b -> Sig a b
+eraseNeutralTypes = \case
+  TypedAppF _ f x -> AppF f x
+  TypedFirstF _ p -> FirstF p
+  TypedSecondF _ p -> SecondF p
+  TypedIdJF _ a b c d e f -> IdJF a b c d e f
+  node -> node
 
 -- | The free names of a term, in order of mention, with repeats. Names bound
 -- on the way down are removed with 'Foil.unsinkNamePattern'.
 freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
-freeNamesOf (Ann t _) = freeNamesOf t
-freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
+freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf (eraseNeutralTypes sig)
   where
     scoped :: Distinct n' => ScopedCore n' -> [Foil.Name n']
     scoped (ScopedAST pat body) = case Foil.assertDistinct pat of
@@ -622,8 +631,7 @@ freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
 stripAnnotations :: Core n -> Core n
 stripAnnotations = \case
   Var x    -> Var x
-  Ann t _  -> stripAnnotations t
-  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations sig)
+  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations (eraseNeutralTypes sig))
 
 -- | Replace a free name of a term by a term of the same scope.
 substituteName :: Foil.Distinct n => Foil.Scope n -> Foil.Name n -> Core n -> Core n -> Core n
@@ -650,7 +658,7 @@ containsHole (Var _) = False
 containsHole (Node (HoleF _)) = True
 containsHole (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> containsHole body || acc)
-          (\t acc -> containsHole t || acc) False sig
+          (\t acc -> containsHole t || acc) False (eraseNeutralTypes sig)
 
 -- | The name of every hole in a term.
 holeNamesOf :: Core n -> [Maybe VarIdent]
@@ -658,7 +666,7 @@ holeNamesOf (Var _) = []
 holeNamesOf (Node (HoleF mname)) = [mname]
 holeNamesOf (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> holeNamesOf body <> acc)
-          (\t acc -> holeNamesOf t <> acc) [] sig
+          (\t acc -> holeNamesOf t <> acc) [] (eraseNeutralTypes sig)
 
 -- | Is the term a hole, or an elimination headed by one (@? a@, @first ?@)?
 -- Such a term has no shape of its own yet.
@@ -673,4 +681,4 @@ isHoleHeaded = \case
 -- | Syntactic equality of two core terms: conservative, as two α-equivalent
 -- terms whose binders differ are not equal, and cheaper than α-equivalence.
 eqCore :: Foil.Distinct n => Core n -> Core n -> Bool
-eqCore = unsafeEqAST
+eqCore l r = unsafeEqAST (stripAnnotations l) (stripAnnotations r)

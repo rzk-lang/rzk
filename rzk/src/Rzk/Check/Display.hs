@@ -140,6 +140,7 @@ fromCore used supply names = go
       TopeUninv t -> Rzk.TopeUninv loc (go t)
       RecBottom -> Rzk.RecBottom loc
       RecOr _ rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
+      Node (RecOrF rs) -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
       Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
       -- an anonymous binder the codomain does not use is not shown
@@ -229,7 +230,6 @@ fromCore used supply names = go
           goBranch (con, chain) = Rzk.MatchBranch loc (fromVarIdent con) pats body
             where (pats, body) = matchArms used supply names chain
       MatchArm{} -> panicImpossible "a match arm outside of a match branch"
-      Ann t _ -> go t
       TypeAsc l r -> Rzk.TypeAsc loc (go l) (go r)
       TypeRestricted ty rs ->
         Rzk.TypeRestricted loc (go ty) [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
@@ -372,4 +372,4 @@ scopeUsesItsPattern (ScopedAST pat body) = case Foil.assertDistinct pat of
 -- raw IDs because bound names from different scopes occur in one result list.
 nameIdsOf :: Core l -> [Int]
 nameIdsOf (Var x) = [Foil.nameId x]
-nameIdsOf (Node sig) = bifoldMap (\(ScopedAST _ body) -> nameIdsOf body) nameIdsOf sig
+nameIdsOf (Node sig) = bifoldMap (\(ScopedAST _ body) -> nameIdsOf body) nameIdsOf (eraseNeutralTypes sig)

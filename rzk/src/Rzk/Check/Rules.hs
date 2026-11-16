@@ -896,9 +896,6 @@ infer tt = performing (ActionInfer tt) $ case tt of
     (p', pV) <- checkEval p (vnode (TypeIdF aV (Just tAV) xV))
     pure (IdJ tA' a' tC' d' x' p', appValue scope ctx (appValue scope ctx tCV xV) pV)
 
-  -- an annotation is built by evaluation and never written
-  RAnn term _ -> infer term
-
   RTypeAsc term ty -> do
     (ty', _) <- inferAs universe ty
     tyV <- evalM ty'

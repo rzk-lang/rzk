@@ -79,7 +79,6 @@ module Rzk.Check.Value
   , pattern VUnit
   , pattern VTypeUnit
   , pattern VTypeAsc
-  , pattern VAnn
   , pattern VTypeRestricted
   , pattern VTypeModal
   , pattern VModApp
@@ -147,7 +146,6 @@ module Rzk.Check.Value
     -- * Holes
   ) where
 
-import           Control.Applicative         ((<|>))
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
@@ -219,10 +217,13 @@ instance HasHeads Sig where
   {-# INLINE headsWith #-}
   headsWith hd other = \case
     AppF f x           -> AppF (hd f) (other x)
+    TypedAppF ty f x   -> TypedAppF (other ty) (hd f) (other x)
     FirstF p           -> FirstF (hd p)
+    TypedFirstF ty p   -> TypedFirstF (other ty) (hd p)
     SecondF p          -> SecondF (hd p)
+    TypedSecondF ty p  -> TypedSecondF (other ty) (hd p)
     IdJF tA a tC d x p -> IdJF (other tA) (other a) (other tC) (other d) (other x) (hd p)
-    AnnF t ty          -> AnnF (hd t) (other ty)
+    TypedIdJF ty tA a tC d x p -> TypedIdJF (other ty) (other tA) (other a) (other tC) (other d) (other x) (hd p)
     node               -> bimap id other node
 
 {-# SPECIALIZE NbE.eval ::
@@ -258,12 +259,15 @@ instance Eval Context Pattern Sig where
   {-# INLINABLE evalSig #-}
   evalSig scope ctx env = \case
     AppF fun arg -> appValue scope ctx (ev fun) (ev arg)
+    TypedAppF _ fun arg -> appValue scope ctx (ev fun) (ev arg)
     FirstF p -> firstValueIn scope ctx (ev p)
+    TypedFirstF _ p -> firstValueIn scope ctx (ev p)
     SecondF p -> secondValueIn scope ctx (ev p)
-    AnnF term _ -> ev term
+    TypedSecondF _ p -> secondValueIn scope ctx (ev p)
     LetF _mty val body -> evalScope scope ctx env body (ev val)
     TypeAscF term _ty -> ev term
     IdJF tA a tC d x p -> idJValueIn scope ctx (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
+    TypedIdJF _ tA a tC d x p -> idJValueIn scope ctx (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
     -- A face whose tope is ⊥ restricts nothing, and a type with no face
     -- left is its underlying type, as the old checker's weak head normal
     -- form dropped them. Such a face arises by instantiation, as with the
@@ -274,14 +278,15 @@ instance Eval Context Pattern Sig where
         rs' -> NbE.vnode (TypeRestrictedF (ev ty) [ (tope', ev face) | (tope', face) <- rs' ])
     -- The branch whose guard the tope context entails; otherwise the one
     -- branch if they are all the same term; otherwise stuck.
-    RecOrF mty rs ->
+    RecOrF _ -> panicImpossible "an untyped recOR in semantic evaluation"
+    TypedRecOrF ty rs ->
       let rs' = [ (ev guard, branch) | (guard, branch) <- rs ]
       in case [ branch | (guard, branch) <- rs', entailsValue scope ctx guard ] of
            branch : _ -> ev branch
            [] -> case map snd rs of
              branch : branches
                | all (eqCore branch) branches -> ev branch
-             _ -> NbE.vnode (RecOrF (fmap ev mty) [ (guard, ev branch) | (guard, branch) <- rs' ])
+             _ -> NbE.vnode (TypedRecOrF (ev ty) [ (guard, ev branch) | (guard, branch) <- rs' ])
     -- the cube layer
     CubeFlipF t -> case NbE.force (ev t) of
       VCubeUnflip t' -> t'
@@ -362,10 +367,6 @@ instance Eval Context Pattern Sig where
   -- that are not a structural comparison of the children.
   {-# INLINE relateWith #-}
   relateWith scope ctx scoped term hd l r = case (l, r) of
-    -- the annotation of a neutral takes no part in the comparison
-    (AnnF nL _, AnnF nR _) -> Just (term nL nR ctx)
-    (AnnF nL _, _) | Just rv <- nodeValue r -> Just (term nL rv ctx)
-    (_, AnnF nR _) | Just lv <- nodeValue l -> Just (term lv nR ctx)
     -- a hole stands for a term of the expected type
     (HoleF _, _) -> Just mempty
     (_, HoleF _) -> Just mempty
@@ -388,18 +389,15 @@ instance Eval Context Pattern Sig where
     -- corresponding branch comparison: coherence of both recORs supplies
     -- every other overlap. An unmatched guard keeps the full cross-product
     -- comparison. A recOR against another term agrees with it under each guard.
-    (RecOrF _ rsL, RecOrF _ rsR) ->
-      let rsL' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsL ]
-          rsR' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsR ]
-      in Just $ mconcat $ compareRestrictionsWith
-        (\_ (topeL, branchL) (_, branchR) -> underOverlap topeL (term branchL branchR))
-        (\_ (topeL, branchL) rsR'' -> mconcat
-          [ underOverlap (topeAndValue topeL topeR) (term branchL branchR)
-          | (_, (topeR, branchR)) <- rsR'' ])
-        rsL' rsR'
-    (RecOrF _ rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
-      [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
-    (_, RecOrF _ rsR) | Just lv <- nodeValue l -> Just $ mconcat
+    (RecOrF rsL, RecOrF rsR) -> compareRecOrs rsL rsR
+    (RecOrF rsL, TypedRecOrF _ rsR) -> compareRecOrs rsL rsR
+    (TypedRecOrF _ rsL, RecOrF rsR) -> compareRecOrs rsL rsR
+    (TypedRecOrF _ rsL, TypedRecOrF _ rsR) -> compareRecOrs rsL rsR
+    (RecOrF rsL, _) | Just rv <- nodeValue r -> compareRecOrLeft rsL rv
+    (TypedRecOrF _ rsL, _) | Just rv <- nodeValue r -> compareRecOrLeft rsL rv
+    (_, RecOrF rsR) | Just lv <- nodeValue l -> Just $ mconcat
+      [ underOverlap tR (term lv bR) | (tR, bR) <- rsR ]
+    (_, TypedRecOrF _ rsR) | Just lv <- nodeValue l -> Just $ mconcat
       [ underOverlap tR (term lv bR) | (tR, bR) <- rsR ]
 
     -- two topes are compared by entailment in the context's variance: the
@@ -460,7 +458,27 @@ instance Eval Context Pattern Sig where
          (Just tL, Just tR) -> term tL tR (withVariance Invariant ctx)
          _ -> mempty)
         <> term xL xR (withVariance Invariant ctx) <> term yL yR (withVariance Invariant ctx)
+    -- Semantic neutral types are metadata and take no part in conversion.
     (AppF fL xL, AppF fR xR) -> Just (hd fL fR ctx <> term xL xR (withVariance Invariant ctx))
+    (AppF fL xL, TypedAppF _ fR xR) -> Just (hd fL fR ctx <> term xL xR (withVariance Invariant ctx))
+    (TypedAppF _ fL xL, AppF fR xR) -> Just (hd fL fR ctx <> term xL xR (withVariance Invariant ctx))
+    (TypedAppF _ fL xL, TypedAppF _ fR xR) -> Just (hd fL fR ctx <> term xL xR (withVariance Invariant ctx))
+    (FirstF pL, FirstF pR) -> Just (hd pL pR ctx)
+    (FirstF pL, TypedFirstF _ pR) -> Just (hd pL pR ctx)
+    (TypedFirstF _ pL, FirstF pR) -> Just (hd pL pR ctx)
+    (TypedFirstF _ pL, TypedFirstF _ pR) -> Just (hd pL pR ctx)
+    (SecondF pL, SecondF pR) -> Just (hd pL pR ctx)
+    (SecondF pL, TypedSecondF _ pR) -> Just (hd pL pR ctx)
+    (TypedSecondF _ pL, SecondF pR) -> Just (hd pL pR ctx)
+    (TypedSecondF _ pL, TypedSecondF _ pR) -> Just (hd pL pR ctx)
+    (IdJF tAL aL tCL dL xL pL, IdJF tAR aR tCR dR xR pR) ->
+      Just (compareIdJ tAL aL tCL dL xL pL tAR aR tCR dR xR pR)
+    (IdJF tAL aL tCL dL xL pL, TypedIdJF _ tAR aR tCR dR xR pR) ->
+      Just (compareIdJ tAL aL tCL dL xL pL tAR aR tCR dR xR pR)
+    (TypedIdJF _ tAL aL tCL dL xL pL, IdJF tAR aR tCR dR xR pR) ->
+      Just (compareIdJ tAL aL tCL dL xL pL tAR aR tCR dR xR pR)
+    (TypedIdJF _ tAL aL tCL dL xL pL, TypedIdJF _ tAR aR tCR dR xR pR) ->
+      Just (compareIdJ tAL aL tCL dL xL pL tAR aR tCR dR xR pR)
 
     -- extension types: the underlying types, and the faces of the supertype
     -- covered by the faces of the subtype, agreeing where they overlap
@@ -475,6 +493,23 @@ instance Eval Context Pattern Sig where
     _ -> NbE.relateNodes scope (withVariance Invariant ctx) scoped term hd l r
     where
       guarded holds = if holds then Just mempty else Nothing
+
+      compareRecOrs rsL rsR =
+        let rsL' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsL ]
+            rsR' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsR ]
+        in Just $ mconcat $ compareRestrictionsWith
+          (\_ (topeL, branchL) (_, branchR) -> underOverlap topeL (term branchL branchR))
+          (\_ (topeL, branchL) rsR'' -> mconcat
+            [ underOverlap (topeAndValue topeL topeR) (term branchL branchR)
+            | (_, (topeR, branchR)) <- rsR'' ])
+          rsL' rsR'
+      compareRecOrLeft rsL rv = Just $ mconcat
+        [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
+      compareIdJ tAL aL tCL dL xL pL tAR aR tCR dR xR pR =
+        let invariant = withVariance Invariant ctx
+        in mconcat
+          [ term tAL tAR invariant, term aL aR invariant, term tCL tCR invariant
+          , term dL dR invariant, term xL xR invariant, hd pL pR ctx ]
 
       -- A comparison under a tope, which holds trivially when the tope
       -- makes the context contradictory.
@@ -510,23 +545,27 @@ instance Eval Context Pattern Sig where
 
   -- A neutral reduces by a restriction of its type whose tope holds, and
   -- a point of the unit type is unit. A variable's type is its entry's; a
-  -- neutral built by evaluation carries its type ('AnnF'), and refinement
-  -- reads only the top of it, as the old checker's weak head normal form
-  -- read the type of a term.
+  -- A neutral built by evaluation may carry its type at its typed
+  -- constructor, and refinement reads only the top of it, as the old
+  -- checker's weak head normal form read the type of a term.
   {-# INLINE refineVar #-}
   refineVar scope ctx x = refineNeutral scope ctx (NbE.vvar x)
 
   {-# INLINE refineSig #-}
   refineSig scope ctx value node = case node of
     AppF{}    -> refineNeutral scope ctx value
+    TypedAppF{} -> refineNeutral scope ctx value
     FirstF{}  -> refineNeutral scope ctx value
+    TypedFirstF{} -> refineNeutral scope ctx value
     SecondF{} -> refineNeutral scope ctx value
+    TypedSecondF{} -> refineNeutral scope ctx value
     IdJF{}    -> refineNeutral scope ctx value
-    AnnF{}    -> refineNeutral scope ctx value
+    TypedIdJF{} -> refineNeutral scope ctx value
     -- a recOR evaluated before its guard was assumed takes the branch the
     -- context now entails, as the old checker decided it in its weak head
-    -- normal form (a type cached in an annotation may hold one)
-    RecOrF _ rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
+    -- normal form (a type cached at the elimination may hold one)
+    RecOrF rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
+    TypedRecOrF _ rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
     _         -> value
 
   -- A pattern stands for its names paired; bound to a value, its leaves
@@ -553,7 +592,6 @@ isPointValue scope ctx v = case NbE.force v of
     CubeFlipF{}   -> True
     CubeUnflipF{} -> True
     PairF{}       -> False
-    AnnF _ ty | Just t <- annotationType ty -> isCube scope ctx t
     _             -> neutralOfCube
   NbE.VVar _ -> neutralOfCube
   _ -> False
@@ -721,7 +759,7 @@ pattern VTopeUninv x1 <- NbE.VNode (TopeUninvF x1)
 pattern VRecBottom :: Whnf n
 pattern VRecBottom <- NbE.VNode RecBottomF
 pattern VRecOr :: Value n -> [(Value n, Value n)] -> Whnf n
-pattern VRecOr ty rs <- NbE.VNode (RecOrF (Just ty) rs)
+pattern VRecOr ty rs <- NbE.VNode (TypedRecOrF ty rs)
 pattern VTypeFun :: () => Distinct i => Env i n -> TModality -> Value n -> Maybe (Value n) -> ScopedCore i -> Whnf n
 pattern VTypeFun env x1 x2 x3 x4 <- NbE.VSuspended env (TypeFunF x1 x2 x3 x4)
 pattern VTypeShape :: TModality -> Value n -> Maybe (Value n) -> Whnf n
@@ -732,6 +770,8 @@ pattern VTypeId :: Value n -> Maybe (Value n) -> Value n -> Whnf n
 pattern VTypeId x1 x2 x3 <- NbE.VNode (TypeIdF x1 x2 x3)
 pattern VApp :: Value n -> Value n -> Whnf n
 pattern VApp x1 x2 <- NbE.VNode (AppF x1 x2)
+pattern VTypedApp :: Value n -> Value n -> Value n -> Whnf n
+pattern VTypedApp ty f a <- NbE.VNode (TypedAppF ty f a)
 pattern VLet :: () => Distinct i => Env i n -> Maybe (Value n) -> Value n -> ScopedCore i -> Whnf n
 pattern VLet env x1 x2 x3 <- NbE.VSuspended env (LetF x1 x2 x3)
 pattern VLambda :: () => Distinct i => Env i n -> Maybe (Param (Value n)) -> ScopedCore i -> Whnf n
@@ -740,12 +780,18 @@ pattern VPair :: Value n -> Value n -> Whnf n
 pattern VPair x1 x2 <- NbE.VNode (PairF x1 x2)
 pattern VFirst :: Value n -> Whnf n
 pattern VFirst x1 <- NbE.VNode (FirstF x1)
+pattern VTypedFirst :: Value n -> Value n -> Whnf n
+pattern VTypedFirst ty p <- NbE.VNode (TypedFirstF ty p)
 pattern VSecond :: Value n -> Whnf n
 pattern VSecond x1 <- NbE.VNode (SecondF x1)
+pattern VTypedSecond :: Value n -> Value n -> Whnf n
+pattern VTypedSecond ty p <- NbE.VNode (TypedSecondF ty p)
 pattern VRefl :: Maybe (Value n, Maybe (Value n)) -> Whnf n
 pattern VRefl x1 <- NbE.VNode (ReflF x1)
 pattern VIdJ :: Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Whnf n
 pattern VIdJ x1 x2 x3 x4 x5 x6 <- NbE.VNode (IdJF x1 x2 x3 x4 x5 x6)
+pattern VTypedIdJ :: Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Whnf n
+pattern VTypedIdJ ty tA a tC d x p <- NbE.VNode (TypedIdJF ty tA a tC d x p)
 pattern VMatch :: TModality -> Value n -> Maybe (Value n) -> [(VarIdent, Value n)] -> Whnf n
 pattern VMatch x1 x2 x3 x4 <- NbE.VNode (MatchF x1 x2 x3 x4)
 pattern VMatchArm :: () => Distinct i => Env i n -> ScopedCore i -> Whnf n
@@ -756,8 +802,6 @@ pattern VTypeUnit :: Whnf n
 pattern VTypeUnit <- NbE.VNode TypeUnitF
 pattern VTypeAsc :: Value n -> Value n -> Whnf n
 pattern VTypeAsc x1 x2 <- NbE.VNode (TypeAscF x1 x2)
-pattern VAnn :: Value n -> Value n -> Whnf n
-pattern VAnn x1 x2 <- NbE.VNode (AnnF x1 x2)
 pattern VTypeRestricted :: Value n -> [(Value n, Value n)] -> Whnf n
 pattern VTypeRestricted x1 x2 <- NbE.VNode (TypeRestrictedF x1 x2)
 pattern VTypeModal :: TModality -> Value n -> Whnf n
@@ -785,7 +829,9 @@ appValue scope ctx fun arg = NbE.eliminate fun $ \case
     Just ty | Just (Family _ _ (Just shape)) <- familyOf ty
             , not (isTopShape shape) ->
         topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
-    _ -> annotated scope ctx (NbE.vnode (AppF fun' arg))
+    _ -> typedNeutral scope ctx fun' (applicationType scope ctx fun' arg)
+      (NbE.vnode (AppF fun' arg)) $ \ty ->
+      NbE.vnode (TypedAppF ty fun' arg)
 
 firstValue :: Value n -> Value n
 {-# INLINE firstValue #-}
@@ -805,14 +851,18 @@ firstValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 firstValueIn scope ctx p = NbE.eliminate p $ \case
   VPair a _ -> a
   VRecBottom -> vrecBottom
-  NbE.Stuck p' -> annotated scope ctx (NbE.vnode (FirstF p'))
+  NbE.Stuck p' -> typedNeutral scope ctx p' (firstType scope ctx p')
+    (NbE.vnode (FirstF p')) $ \ty ->
+    NbE.vnode (TypedFirstF ty p')
 
 secondValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE secondValueIn #-}
 secondValueIn scope ctx p = NbE.eliminate p $ \case
   VPair _ b -> b
   VRecBottom -> vrecBottom
-  NbE.Stuck p' -> annotated scope ctx (NbE.vnode (SecondF p'))
+  NbE.Stuck p' -> typedNeutral scope ctx p' (secondType scope ctx p')
+    (NbE.vnode (SecondF p')) $ \ty ->
+    NbE.vnode (TypedSecondF ty p')
 
 -- | Path induction, a neutral annotated with its type.
 idJValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
@@ -820,37 +870,32 @@ idJValueIn :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value 
 idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
   VRefl _ -> d
   VRecBottom -> vrecBottom
-  NbE.Stuck p' -> annotated scope ctx (NbE.vnode (IdJF tA a tC d x p'))
+  NbE.Stuck p' -> NbE.vnode (TypedIdJF (idJType scope ctx tA a tC d x p') tA a tC d x p')
 
--- | A neutral with its type, computed lazily and once, from the type of
--- the neutral it eliminates (which is read off that neutral's annotation).
--- Other stuck values need no type annotation.
-annotated :: Distinct n => Scope n -> Context n -> Value n -> Value n
-{-# INLINE annotated #-}
-annotated scope ctx v = case neutralType scope ctx v of
-  Just ty -> NbE.vnode (AnnF v ty)
+-- | Build a typed neutral, or retain a stuck canonical elimination when it
+-- has no neutral result type. Neutrality is checked only on the latter path.
+typedNeutral :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n) -> Value n -> (Value n -> Value n) -> Value n
+typedNeutral scope ctx neutral mty stuck build = case mty of
+  Just ty -> build ty
   Nothing
-    | isNeutralValue v -> panicImpossible ("a neutral without a type: " <> fingerprint (quoteIn scope ctx v))
-    | otherwise -> v
+    | isNeutralValue neutral -> panicImpossible ("a neutral without a type: " <> fingerprint (quoteIn scope ctx neutral))
+    | otherwise -> stuck
 
 -- | Is a value headed by a neutral? Canonical values can be stuck under an
 -- elimination during conversion without being neutrals themselves.
 isNeutralValue :: Value n -> Bool
 isNeutralValue v = case NbE.forceFolded v of
   NbE.VVar _ -> True
-  VAnn n _ -> isNeutralValue n
   VApp f _ -> isNeutralValue f
+  VTypedApp _ f _ -> isNeutralValue f
   VFirst p -> isNeutralValue p
+  VTypedFirst _ p -> isNeutralValue p
   VSecond p -> isNeutralValue p
+  VTypedSecond _ p -> isNeutralValue p
   VIdJ _ _ _ _ _ p -> isNeutralValue p
+  VTypedIdJ _ _ _ _ _ _ p -> isNeutralValue p
   VRecOr _ _ -> True
   _ -> False
-
--- | The type an annotation carries, if it is known.
-annotationType :: Value n -> Maybe (Value n)
-annotationType ty = case NbE.force ty of
-  VHole Nothing -> Nothing
-  _                         -> Just ty
 
 -- | The join of two points, normalised at the endpoints.
 supValue :: Value n -> Value n -> Value n
@@ -1136,7 +1181,7 @@ recOrValue scope ctx rs =
     b : _ -> b
     [] -> case rs of
       (_, b) : rest | all (conv scope (withVariance Invariant ctx) b . snd) rest -> b
-      _ -> NbE.vnode (RecOrF (Just universe) rs)
+      _ -> NbE.vnode (TypedRecOrF universe rs)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.
 topeAndValue :: Value n -> Value n -> Value n
@@ -1180,7 +1225,6 @@ topeOf scope ctx v = case NbE.force v of
 pointOf :: Distinct n => Scope n -> Context n -> Value n -> Point n
 pointOf scope ctx v = case NbE.force v of
   NbE.VVar x -> PVar x (cubeOfType (entryType (lookupEntry x ctx)))
-  VAnn n _ -> pointOf scope ctx n
   VCubeUnitStar -> PStar
   VCube2_0 -> P2_0
   VCube2_1 -> P2_1
@@ -1188,7 +1232,9 @@ pointOf scope ctx v = case NbE.force v of
   VCubeI_1 -> PI_1
   VPair a b -> PPair (pointOf scope ctx a) (pointOf scope ctx b)
   VFirst p -> PFst (pointOf scope ctx p)
+  VTypedFirst _ p -> PFst (pointOf scope ctx p)
   VSecond p -> PSnd (pointOf scope ctx p)
+  VTypedSecond _ p -> PSnd (pointOf scope ctx p)
   VCubeSup l r -> PSup (pointOf scope ctx l) (pointOf scope ctx r)
   VCubeInf l r -> PInf (pointOf scope ctx l) (pointOf scope ctx r)
   VCubeFlip p -> PFlip (pointOf scope ctx p)
@@ -1198,6 +1244,7 @@ pointOf scope ctx v = case NbE.force v of
   VHole m -> PHole m
   VApp f a ->
     PApp (maybe KOther cubeOfType (neutralType scope ctx v)) (pointOf scope ctx f) (pointOf scope ctx a)
+  VTypedApp ty f a -> PApp (cubeOfType ty) (pointOf scope ctx f) (pointOf scope ctx a)
   _ -> POpaque (fingerprint (quoteIn scope ctx v))
 
 -- | A cube value, as far as the solver tells cubes apart.
@@ -1224,44 +1271,59 @@ fingerprint (Node sig) =
 
 -- * Types of neutrals
 
--- | The type of a neutral, read off its head and its eliminations: an
--- application has the codomain of its function's type at the argument, a
--- projection the component of the pair's Σ type, a path induction the
--- motive at its endpoints. A glued head keeps its declared type. An
--- elimination of a neutral whose type is restricted is restricted by the
--- same elimination of the terms: under @ϕ@, a neutral @f : (X → A) [ϕ ↦ g]@
--- is @g@, so @f a : A [ϕ ↦ g a]@. A neutral built by evaluation carries its
--- type ('AnnF'), so each step reads only the type of the neutral it
--- eliminates.
+-- | The type of a neutral, read directly from a typed constructor or
+-- computed from the head and eliminations of an unannotated value.
 neutralType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
-  VAnn n ty -> annotationType ty <|> neutralType scope ctx n
   VRecOr ty _ -> Just ty
-  VApp f a -> do
-    fTy <- neutralType scope ctx f
-    case familyOf fTy of
-      Just _ -> Just topeUniverse
-      Nothing -> do
-        Pi env _ _ _ ret <- piOf fTy
-        Just (inherit fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a))
-  VFirst p -> do
-    ty <- neutralType scope ctx p
-    inherit ty (firstValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
-      VTypeSigma _ _ a _ -> Just a
-      VCubeProduct a _ -> Just a
-      _ -> Nothing
-  VSecond p -> do
-    ty <- neutralType scope ctx p
-    inherit ty (secondValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
-      VTypeSigma env _ _ b -> Just (codomainAt scope ctx env b (firstValue p))
-      VCubeProduct _ b -> Just b
-      _ -> Nothing
-  VIdJ tA a tC d x p ->
-    let motive = appValue scope ctx (appValue scope ctx tC x) p
-    in Just (maybe motive (\ty -> inherit ty (idJValueIn scope ctx tA a tC d x) motive) (neutralType scope ctx p))
+  NbE.VNode (TypedAppF ty _ _) -> Just ty
+  NbE.VNode (AppF f a) -> applicationType scope ctx f a
+  NbE.VNode (TypedFirstF ty _) -> Just ty
+  NbE.VNode (FirstF p) -> firstType scope ctx p
+  NbE.VNode (TypedSecondF ty _) -> Just ty
+  NbE.VNode (SecondF p) -> secondType scope ctx p
+  NbE.VNode (TypedIdJF ty _ _ _ _ _ _) -> Just ty
+  NbE.VNode (IdJF tA a tC d x p) -> Just (idJType scope ctx tA a tC d x p)
   _ -> Nothing
-  where
-    inherit from eliminate ty = case restrictionsOf from of
-      [] -> ty
-      rs -> NbE.vnode (TypeRestrictedF ty [ (tope, eliminate t) | (tope, t) <- rs ])
+
+-- | The result type of a neutral application, including inherited
+-- restrictions from the function's type.
+applicationType :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Maybe (Value n)
+applicationType scope ctx f a = do
+  fTy <- neutralType scope ctx f
+  case familyOf fTy of
+    Just _ -> Just topeUniverse
+    Nothing -> do
+      Pi env _ _ _ ret <- piOf fTy
+      Just (inheritNeutralType fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a))
+
+-- | The component type of a neutral first projection.
+firstType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
+firstType scope ctx p = do
+  ty <- neutralType scope ctx p
+  inheritNeutralType ty (firstValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
+    VTypeSigma _ _ a _ -> Just a
+    VCubeProduct a _ -> Just a
+    _ -> Nothing
+
+-- | The component type of a neutral second projection.
+secondType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
+secondType scope ctx p = do
+  ty <- neutralType scope ctx p
+  inheritNeutralType ty (secondValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
+    VTypeSigma env _ _ b -> Just (codomainAt scope ctx env b (firstValue p))
+    VCubeProduct _ b -> Just b
+    _ -> Nothing
+
+-- | The result type of path induction on a stuck path.
+idJType :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n -> Value n
+idJType scope ctx tA a tC d x p =
+  let motive = appValue scope ctx (appValue scope ctx tC x) p
+  in maybe motive (\ty -> inheritNeutralType ty (idJValueIn scope ctx tA a tC d x) motive) (neutralType scope ctx p)
+
+-- | Eliminate every boundary term of a neutral's restricted type.
+inheritNeutralType :: Value n -> (Value n -> Value n) -> Value n -> Value n
+inheritNeutralType from eliminate ty = case restrictionsOf from of
+  [] -> ty
+  rs -> NbE.vnode (TypeRestrictedF ty [ (tope, eliminate t) | (tope, t) <- rs ])
