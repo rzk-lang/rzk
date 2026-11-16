@@ -46,7 +46,7 @@ withPattern
 withPattern scope pat env k = case pat of
   Rzk.PatternVar _loc (Rzk.VarIdent _ "_") ->
     Foil.withFresh scope $ \b ->
-      k (PatternVar Nothing b) (Foil.extendScope b scope) (Foil.sink . env)
+      k (PatternWildcard b) (Foil.extendScope b scope) (Foil.sink . env)
   Rzk.PatternVar _loc x ->
     Foil.withFresh scope $ \b ->
       let x' = varIdent x
@@ -54,9 +54,7 @@ withPattern scope pat env k = case pat of
             | y == x'   = Var (Foil.nameOf b)
             | otherwise = Foil.sink (env y)
       in k (PatternVar (Just x') b) (Foil.extendScope b scope) env'
-  Rzk.PatternUnit _loc ->
-    Foil.withFresh scope $ \b ->
-      k (PatternUnit b) (Foil.extendScope b scope) (Foil.sink . env)
+  Rzk.PatternUnit _loc -> k PatternUnit scope env
   Rzk.PatternPair _loc l r ->
     withPattern scope l env $ \pl scope' env' ->
       withPattern scope' r env' $ \pr scope'' env'' ->

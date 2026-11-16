@@ -898,20 +898,24 @@ restrictionsOf v = case NbE.force v of
 -- * Patterns
 
 -- | A pattern as a value of its own scope: its names, paired.
-patternValue :: Pattern n l -> Value l
+patternValue :: (Distinct n, Distinct l) => Pattern n l -> Value l
 patternValue = \case
-  PatternVar _ b  -> NbE.vvar (Foil.nameOf b)
-  PatternUnit b   -> NbE.vvar (Foil.nameOf b)
-  PatternPair l r -> NbE.vnode (PairF (unsafeCoerce (patternValue l)) (patternValue r))
+  PatternVar _ b    -> NbE.vvar (Foil.nameOf b)
+  PatternWildcard b -> NbE.vvar (Foil.nameOf b)
+  PatternUnit       -> vunit
+  PatternPair l r -> case (Foil.assertDistinct l, Foil.assertExt r) of
+    (Foil.Distinct, Foil.Ext) ->
+      NbE.vnode (PairF (Foil.sink (patternValue l)) (patternValue r))
 
 -- | An environment extended with a pattern bound to a value: each leaf
 -- gets the projection of the value at its position, computed when the
 -- name is looked up.
 bindPattern :: Env i n -> Pattern i l -> Value n -> Env l n
 bindPattern env pat v = case pat of
-  PatternVar _ b  -> Foil.addSubst env b v
-  PatternUnit b   -> Foil.addSubst env b v
-  PatternPair l r -> bindPattern (bindPattern env l (firstValue v)) r (secondValue v)
+  PatternVar _ b    -> Foil.addSubst env b v
+  PatternWildcard b -> Foil.addSubst env b v
+  PatternUnit       -> env
+  PatternPair l r   -> bindPattern (bindPattern env l (firstValue v)) r (secondValue v)
 
 -- | The pattern binding one name.
 singlePattern :: NameBinder n l -> Pattern n l
@@ -926,35 +930,38 @@ singlePattern = PatternVar Nothing
 -- names, which the environment binds, so the entries are never consulted
 -- while they are built.
 patternEntries
-  :: forall n l. Distinct l
+  :: forall n l. (Distinct n, Distinct l)
   => Scope l -> Context l -> TModality -> Maybe LocationInfo -> Value l -> Pattern n l -> [Entry l]
 patternEntries scope ctx md loc = go
   where
-    go :: Value l -> Pattern x y -> [Entry l]
+    go :: (Distinct x, Distinct y) => Value l -> Pattern x y -> [Entry l]
     go ty = \case
-      PatternVar x _ -> [entryOf x ty]
-      PatternUnit _  -> [entryOf Nothing ty]
-      PatternPair l r -> case NbE.force (stripRestrictions ty) of
-        VTypeSigma env _ a b ->
-          go (inherit firstValue a) l
-            <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
-        VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
-        _ -> go (vhole Nothing) l <> go (vhole Nothing) r
+      PatternVar x _    -> [entryOf x ty]
+      PatternWildcard _ -> [entryOf Nothing ty]
+      PatternUnit       -> []
+      PatternPair l r -> case Foil.assertDistinct l of
+        Foil.Distinct -> case NbE.force (stripRestrictions ty) of
+          VTypeSigma env _ a b ->
+            go (inherit firstValue a) l
+              <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
+          VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
+          _ -> go (vhole Nothing) l <> go (vhole Nothing) r
       where
         -- A component of a restricted pair is restricted to the same
         -- component of each boundary pair.
         inherit project component = case restrictionsOf ty of
           [] -> component
           rs -> NbE.vnode (TypeRestrictedF component [ (tope, project face) | (tope, face) <- rs ])
-    -- a sub-pattern's names are names of the whole pattern's scope
-    patternValueIn :: Pattern x y -> Value l
+    -- The names of a subpattern also belong to the whole pattern's scope.
+    -- free-foil does not expose the prefix-to-final-scope evidence here.
+    patternValueIn :: (Distinct x, Distinct y) => Pattern x y -> Value l
     patternValueIn = unsafeCoerce . patternValue
     entryOf mname t = localEntry md mname loc t
 
 -- | The entries of a let's pattern: each name has its component of the
 -- value.
 letEntries
-  :: forall n l. Distinct l
+  :: forall n l. (Distinct n, Distinct l)
   => Scope l -> Context l -> Maybe LocationInfo -> Value l -> Value l -> Pattern n l -> [Entry l]
 letEntries scope ctx loc ty val pat =
   zipWith (\entry v -> entry { entryValue = Just v })
@@ -963,9 +970,10 @@ letEntries scope ctx loc ty val pat =
   where
     leafValues :: Pattern x y -> Value l -> [Value l]
     leafValues p v = case p of
-      PatternVar _ _  -> [v]
-      PatternUnit _   -> [v]
-      PatternPair l r -> leafValues l (firstValue v) <> leafValues r (secondValue v)
+      PatternVar _ _    -> [v]
+      PatternWildcard _ -> [v]
+      PatternUnit       -> []
+      PatternPair l r   -> leafValues l (firstValue v) <> leafValues r (secondValue v)
 
 -- * Binders
 
@@ -982,7 +990,7 @@ underPattern scope' ctx md ty mshape pat =
 
 -- | A context with a binder's shape assumed at the pattern bound by it.
 assumeShapeAt
-  :: DExt n l
+  :: (Distinct n, DExt n l)
   => Scope l -> Pattern n l -> Maybe (Value n) -> Context l -> Context l
 assumeShapeAt scope' pat mshape ctx = case mshape of
   Nothing    -> ctx
@@ -1069,7 +1077,7 @@ lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
   in assumeShapeAt scope' pat (mpR >>= paramShape) (assumeShapeAt scope' pat (mpL >>= paramShape) ctx')
 
 -- | The observer of a λ's body: the other value applied to the pattern.
-appliedToPattern :: Distinct l => Scope l -> Context l -> Pattern n l -> Value l -> Value l
+appliedToPattern :: (Distinct n, Distinct l) => Scope l -> Context l -> Pattern n l -> Value l -> Value l
 {-# INLINE appliedToPattern #-}
 appliedToPattern scope ctx pat other = appValue scope ctx other (patternValue pat)
 
@@ -1167,14 +1175,16 @@ cubeOfType v = case NbE.force (stripRestrictions v) of
 
 -- | A term as a string that equal terms share: the constructors and the
 -- names.
-fingerprint :: Core n -> String
+fingerprint :: Distinct n => Core n -> String
 fingerprint (Var x) = "v" <> show (Foil.nameId x)
 fingerprint (Node sig) =
   show (bimap (const ()) (const ()) sig)
     <> "(" <> intercalate "," (bifoldMap scoped (pure . fingerprint) sig) <> ")"
   where
-    scoped (ScopedAST pat body) =
-      [ "\\" <> intercalate "," [ show (Foil.nameId x) | (_, x) <- patternNames pat ] <> "." <> fingerprint body ]
+    scoped :: Distinct n' => ScopedCore n' -> [String]
+    scoped (ScopedAST pat body) = case Foil.assertDistinct pat of
+      Foil.Distinct ->
+        [ "\\" <> intercalate "," [ show (Foil.nameId x) | (_, x) <- patternNames pat ] <> "." <> fingerprint body ]
 
 -- * Types of neutrals
 

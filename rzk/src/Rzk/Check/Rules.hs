@@ -86,7 +86,8 @@ enterRawScope extend (ScopedAST pat body) k = do
         (Foil.Distinct, Foil.Ext) ->
           let scope' = Foil.extendScopePattern pat' scope
           in inContext (extend scope' pat' ctx) (k pat' body')
-      fresh = all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
+      fresh = case Foil.assertDistinct pat of
+        Foil.Distinct -> all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
   if fresh
     then case (Foil.assertExt pat, Foil.assertDistinct pat) of
       (Foil.Ext, Foil.Distinct) -> enter pat body
@@ -121,7 +122,7 @@ checkShapedParam dom mexpectedShape param shape = do
 -- becomes the conjunction of the shape at the pattern and the body, unless
 -- the body already entails the shape, with a warning.
 carryFamilyDomain
-  :: (DExt n l)
+  :: (Distinct n, DExt n l)
   => Pattern n l -> Value n -> Core l -> Check l (Core l)
 carryFamilyDomain pat shape body = do
   ctx <- askContext
@@ -139,16 +140,17 @@ carryFamilyDomain pat shape body = do
 
 -- | Warn about each name of a binder that shadows a name in scope, as the
 -- old checker did with a trace.
-warnShadowing :: Pattern n l -> Check n ()
-warnShadowing pat = do
-  ctx <- askContext
-  sequence_
-    [ recordWarning $ \c -> ShadowingWarning
-        (ppVarIdentWithLocation x)
-        [ ppVarIdentWithLocation previous | Just previous <- [entryName (lookupEntry v c)] ]
-        (ctxLocation c)
-    | (Just x, _) <- patternNames pat
-    , Just v <- [lookupNamed x ctx] ]
+warnShadowing :: Distinct n => Pattern n l -> Check n ()
+warnShadowing pat = case Foil.assertDistinct pat of
+  Foil.Distinct -> do
+    ctx <- askContext
+    sequence_
+      [ recordWarning $ \c -> ShadowingWarning
+          (ppVarIdentWithLocation x)
+          [ ppVarIdentWithLocation previous | Just previous <- [entryName (lookupEntry v c)] ]
+          (ctxLocation c)
+      | (Just x, _) <- patternNames pat
+      , Just v <- [lookupNamed x ctx] ]
 
 -- | The type of a family over a cube: @{t : cube | shape} → TOPE@.
 familyType :: TModality -> Value n -> Maybe (Value n) -> Value n

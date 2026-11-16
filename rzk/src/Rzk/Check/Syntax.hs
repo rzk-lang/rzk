@@ -125,7 +125,7 @@ module Rzk.Check.Syntax
   , eqCore
   ) where
 
-import           Control.Monad.Foil                (NameBinder, S)
+import           Control.Monad.Foil                (Distinct, NameBinder, S)
 import qualified Control.Monad.Foil                as Foil
 import           Control.Monad.Foil.Internal       (Substitution (..))
 import           Control.Monad.Free.Foil           (AST (..), ScopedAST (..),
@@ -149,14 +149,15 @@ import           Language.Rzk.Foil.Names           (RzkPosition (..),
 
 -- * Binders
 
--- | A binder. A variable carries the name the user wrote, if any (@_@ has
--- none); the unit pattern binds one name that nothing refers to; a pair
--- pattern binds the names of both components, the right one in the scope
--- of the left.
+-- | A binder. A variable carries the name the user wrote, if any. A wildcard
+-- binds a hidden name, which conversion may need when binder shapes differ.
+-- The unit pattern binds no name. A pair pattern binds the names of both
+-- components, the right one in the scope of the left.
 data Pattern (n :: S) (l :: S) where
-  PatternVar  :: Maybe VarIdent -> NameBinder n l -> Pattern n l
-  PatternUnit :: NameBinder n l -> Pattern n l
-  PatternPair :: Pattern n i -> Pattern i l -> Pattern n l
+  PatternVar      :: Maybe VarIdent -> NameBinder n l -> Pattern n l
+  PatternWildcard :: NameBinder n l -> Pattern n l
+  PatternUnit     :: Pattern n n
+  PatternPair     :: Pattern n i -> Pattern i l -> Pattern n l
 
 deriveGenericK ''Pattern
 instance Foil.SinkableK Pattern
@@ -167,11 +168,14 @@ instance Foil.UnifiablePattern Pattern
 -- | The names a pattern binds, in binding order, with their display names.
 -- The names of the left component are names of the right one's scope too:
 -- a name sinks by coercion, as free-foil's own 'Foil.sink' does.
-patternNames :: Pattern n l -> [(Maybe VarIdent, Foil.Name l)]
+patternNames :: (Distinct n, Distinct l) => Pattern n l -> [(Maybe VarIdent, Foil.Name l)]
 patternNames = \case
-  PatternVar x b  -> [(x, Foil.nameOf b)]
-  PatternUnit b   -> [(Nothing, Foil.nameOf b)]
-  PatternPair l r -> unsafeCoerce (patternNames l) <> patternNames r
+  PatternVar x b    -> [(x, Foil.nameOf b)]
+  PatternWildcard b -> [(Nothing, Foil.nameOf b)]
+  PatternUnit       -> []
+  PatternPair l r -> case (Foil.assertDistinct l, Foil.assertExt r) of
+    (Foil.Distinct, Foil.Ext) ->
+      map (fmap Foil.sink) (patternNames l) <> patternNames r
 
 -- * The signature
 
@@ -606,19 +610,19 @@ pattern RHole x1 <- RawNode (HoleF x1)
 -- | The free names of a term, in order of mention, with repeats. A name
 -- bound on the way down is dropped, which makes the coercion back to the
 -- outer scope right.
-freeNamesOf :: Core n -> [Foil.Name n]
+freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
 freeNamesOf (Ann t _) = freeNamesOf t
 freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
   where
-    scoped :: ScopedCore n' -> [Foil.Name n']
-    scoped (ScopedAST pat body) =
-      unsafeCoerce
-        [ x
-        | x <- freeNamesOf body
-        , Foil.nameId x `notElem` bound ]
-      where
-        bound = map (Foil.nameId . snd) (patternNames pat)
+    scoped :: Distinct n' => ScopedCore n' -> [Foil.Name n']
+    scoped (ScopedAST pat body) = case Foil.assertDistinct pat of
+      Foil.Distinct ->
+        let bound = map (Foil.nameId . snd) (patternNames pat)
+        in unsafeCoerce
+          [ x
+          | x <- freeNamesOf body
+          , Foil.nameId x `notElem` bound ]
 
 -- | A term without the annotations of its neutrals, which the library's
 -- readback keeps. The types are not looked at.
