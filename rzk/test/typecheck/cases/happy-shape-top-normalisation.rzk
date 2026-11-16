@@ -1,0 +1,11 @@
+#lang rzk-1
+
+#def mixed-pi (A : U)
+  (f : (t : 2) → A)
+  : (t : 2 | TOP) → A
+  := f
+
+#def mixed-family
+  (f : (t : 2) → TOPE)
+  : (t : 2 | TOP) → TOPE
+  := f

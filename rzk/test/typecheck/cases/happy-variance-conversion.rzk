@@ -9,6 +9,10 @@
 #def coherent-reversed (A : U) (a : A) (t s : 2) : U
   := recOR (s ≤ t ↦ A [TOP ↦ a], t ≤ s ↦ A [TOP ↦ a])
 
+#def equal-coherent-reordered (A : U) (a : A) (t s : 2)
+  : (coherent A a t s) =_{U} (coherent-reversed A a t s)
+  := refl
+
 #def piecewise-forget (A : U) (a : A) (t s : 2)
   (f : recOR (t ≤ s ↦ A [TOP ↦ a], s ≤ t ↦ A [TOP ↦ a]))
   : recOR (t ≤ s ↦ A, s ≤ t ↦ A)
@@ -16,6 +20,11 @@
 
 #def equal-types (A : U) (a : A)
   : (A [TOP ↦ a]) =_{U} (A [TOP ↦ a]) := refl
+
+#def equal-restrictions-reordered (A : U) (a : A) (t s : 2)
+  : (A [t ≤ s ↦ a, s ≤ t ↦ a])
+    =_{U} (A [s ≤ t ↦ a, t ≤ s ↦ a])
+  := refl
 
 -- Boundary descriptions are compared under the function's shape domain.
 #def equal-ext-types (A : U) (a : A)

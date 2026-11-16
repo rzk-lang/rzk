@@ -29,7 +29,6 @@ import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..))
 import qualified FreeFoil.NbE             as NbE
 
-import           Language.Rzk.Foil.Names  (TModality (..))
 import           Rzk.Check.Context
 import           Rzk.Check.Error
 import           Rzk.Check.Monad
@@ -74,10 +73,10 @@ compareWith mterm variance expected actual =
         scope = ctxScope ctx
         ctx' = withVariance variance ctx
         agrees c = conv scope (withVariance variance c) expected actual
-    unless (entailsBottom topes || agrees ctx' || inAlternatives topes (agrees . withTopes ctx')) $
+    -- The value-level conversion retries in every alternative of a
+    -- disjunctive tope context, so no second alternative loop is needed here.
+    unless (entailsBottom topes || agrees ctx') $
       explain mterm variance expected actual
-  where
-    withTopes c t = c { ctxTopes = t }
 
 -- | Explain a failed value comparison, and perform the checks that need more
 -- than the library's Boolean answer. In particular, an unrestricted actual term
@@ -181,7 +180,7 @@ explain mterm variance expected actual = do
       let (md, dom) = case (mpA, mpE) of
             (Just p, _) -> (paramModality p, paramDomain p)
             (_, Just p) -> (paramModality p, paramDomain p)
-            _           -> (Id, vhole Nothing)
+            _           -> panicImpossible "an elaborated lambda without a parameter domain"
       underFreshVar scope ctx md dom (mpA >>= paramShape) $ \scope' ctx' name -> do
         let x = NbE.vvar name
             ctx'' = case mpE >>= paramShape of

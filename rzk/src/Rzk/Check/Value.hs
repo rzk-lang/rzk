@@ -232,6 +232,28 @@ instance HasHeads Sig where
 {-# SPECIALIZE Conv.conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool #-}
 {-# SPECIALIZE Conv.convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool #-}
 
+-- | Compare each expected restriction with an actual restriction having the
+-- same tope, consuming the match so that aligned lists behave like 'zipWith'.
+-- Without a match, use the fallback with all actual restrictions: consumed
+-- faces may still contribute to coverage. Coherence makes a matching
+-- comparison sufficient on every other overlap.
+compareRestrictionsWith
+  :: Eq tope
+  => (tope -> a -> b -> c)
+  -> (tope -> a -> [(tope, b)] -> c)
+  -> [(tope, a)]
+  -> [(tope, b)]
+  -> [c]
+compareRestrictionsWith matching unmatched expected allActual = go expected allActual
+  where
+    go ((tope, a) : expected') remaining =
+      case break ((== tope) . fst) remaining of
+        (before, (_, b) : after) ->
+          matching tope a b : go expected' (before ++ after)
+        _ -> unmatched tope a allActual : go expected' remaining
+    go [] _actual = []
+{-# INLINE compareRestrictionsWith #-}
+
 instance Eval Context Pattern Sig where
   {-# INLINABLE evalSig #-}
   evalSig scope ctx env = \case
@@ -362,12 +384,19 @@ instance Eval Context Pattern Sig where
     (LetModF{}, _) -> Nothing
     (_, LetModF{}) -> Nothing
 
-    -- two recORs are coherent branch by branch: under each overlap of their
-    -- guards the branches agree; a recOR against another term agrees with
-    -- it under each guard
-    (RecOrF _ rsL, RecOrF _ rsR) -> Just $ mconcat
-      [ underOverlap (topeAndValue tL tR) (term bL bR)
-      | (tL, bL) <- rsL, (tR, bR) <- rsR ]
+    -- Two recORs are coherent branch by branch. Equal guards need only the
+    -- corresponding branch comparison: coherence of both recORs supplies
+    -- every other overlap. An unmatched guard keeps the full cross-product
+    -- comparison. A recOR against another term agrees with it under each guard.
+    (RecOrF _ rsL, RecOrF _ rsR) ->
+      let rsL' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsL ]
+          rsR' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsR ]
+      in Just $ mconcat $ compareRestrictionsWith
+        (\_ (topeL, branchL) (_, branchR) -> underOverlap topeL (term branchL branchR))
+        (\_ (topeL, branchL) rsR'' -> mconcat
+          [ underOverlap (topeAndValue topeL topeR) (term branchL branchR)
+          | (_, (topeR, branchR)) <- rsR'' ])
+        rsL' rsR'
     (RecOrF _ rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
       [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
     (_, RecOrF _ rsR) | Just lv <- nodeValue l -> Just $ mconcat
@@ -435,11 +464,6 @@ instance Eval Context Pattern Sig where
 
     -- extension types: the underlying types, and the faces of the supertype
     -- covered by the faces of the subtype, agreeing where they overlap
-    (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR)
-      | length rsL == length rsR
-      , and (zipWith (\(tL, _) (tR, _) -> topeOf scope ctx tL == topeOf scope ctx tR) rsL rsR) ->
-          -- the terms of a face need to agree only under the face
-          Just (term tyL tyR ctx <> mconcat (zipWith (\(tL, bL) (_, bR) -> underOverlap tL (term bL bR)) rsL rsR))
     (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR) -> fmap (term tyL tyR ctx <>) $
       case ctxVariance ctx of
         Covariant     -> facesCovered rsL rsR
@@ -460,22 +484,29 @@ instance Eval Context Pattern Sig where
 
       -- The faces of the supertype are covered by the faces of the subtype:
       -- under each face of the supertype, the subtype's topes cover the
-      -- context, and the boundary terms agree under each overlap. The sides
-      -- of the comparison are kept whichever side is the supertype.
-      facesCovered superRs subRs = fmap mconcat $ sequence
-        [ let face = assumeValue scope ctx tope
-          in if entailsBottom (ctxTopes face) then Just mempty
-             else if entailsUnion (ctxTopes face) (map (topeOf scope face . fst) subRs)
-               then Just $ mconcat
-                 [ let overlap = assumeValue scope face tope'
-                   in if entailsBottom (ctxTopes overlap) then mempty else sided term' overlap
-                 | (tope', term') <- subRs ]
-               else Nothing
-        | (tope, term0) <- superRs
-        , let sided term' ctx' = case ctxVariance ctx of
-                Contravariant -> term term' term0 ctx'
-                _             -> term term0 term' ctx'
-        ]
+      -- context, and the boundary terms agree under each overlap. An equal
+      -- tope gives coverage immediately and, by coherence, makes comparisons
+      -- with the other faces unnecessary. The sides of the comparison are
+      -- kept whichever side is the supertype.
+      facesCovered superRs subRs =
+        let superRs' = [ (topeOf scope ctx tope, (tope, term0)) | (tope, term0) <- superRs ]
+            subRs' = [ (topeOf scope ctx tope, (tope, term')) | (tope, term') <- subRs ]
+            sided term0 term' ctx' = case ctxVariance ctx of
+              Contravariant -> term term' term0 ctx'
+              _             -> term term0 term' ctx'
+        in fmap mconcat $ sequence $ compareRestrictionsWith
+          (\_ (tope, term0) (_, term') -> Just (underOverlap tope (sided term0 term')))
+          (\_ (tope, term0) allActual ->
+            let face = assumeValue scope ctx tope
+            in if entailsBottom (ctxTopes face) then Just mempty
+               else if entailsUnion (ctxTopes face)
+                 [ topeOf scope face tope' | (_, (tope', _)) <- allActual ]
+                 then Just $ mconcat
+                   [ let overlap = assumeValue scope face tope'
+                     in if entailsBottom (ctxTopes overlap) then mempty else sided term0 term' overlap
+                   | (_, (tope', term')) <- allActual ]
+                 else Nothing)
+          superRs' subRs'
 
   -- A neutral reduces by a restriction of its type whose tope holds, and
   -- a point of the unit type is unit. A variable's type is its entry's; a
