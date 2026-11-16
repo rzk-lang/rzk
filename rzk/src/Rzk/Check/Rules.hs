@@ -37,6 +37,7 @@ import           Control.Monad.Foil       (DExt, Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..),
                                            substitute)
+import           Data.Functor.Identity  (Identity (..))
 import           Data.List                (tails)
 import           Data.Maybe               (isNothing)
 
@@ -189,7 +190,7 @@ familyShape scope cube family mdom = case mdom of
   Just dom -> Foil.withFresh scope $ \b ->
     Lambda (Just (Param Id cube Nothing))
       (ScopedAST (singlePattern b)
-        (TopeAnd (App (Foil.sink dom) (Var (Foil.nameOf b))) (App (Foil.sink family) (Var (Foil.nameOf b)))))
+        (TopeAnd (App (Identity UniverseTope) (Foil.sink dom) (Var (Foil.nameOf b))) (App (Identity UniverseTope) (Foil.sink family) (Var (Foil.nameOf b)))))
 
 -- | A binder over a cube has a shape: ⊤ when none is written.
 withTopShape :: Distinct n => Foil.Scope n -> Context n -> Value n -> Maybe (Value n) -> Maybe (Value n)
@@ -565,7 +566,7 @@ checkRecOrAgainst ty rs = do
   sequence_ [ checkCoherence l r | l : rest <- tails (map snd branches), r <- rest ]
   contextEntailsUnion (map (fst . snd) branches)
   tyC <- quoteM ty
-  pure (RecOr tyC (map fst branches))
+  pure (RecOr (Identity tyC) (map fst branches))
 
 -- * Inference
 
@@ -580,7 +581,7 @@ inferAs expectedKind term = do
 -- | The sort of a type value: the universe it lives in. The universes are
 -- all @U@-sorted; a cube is in @CUBE@, a tope in @TOPE@; anything else is
 -- a type, in @U@.
-sortOf :: Distinct n => Value n -> Check n (Value n)
+sortOf :: Value n -> Check n (Value n)
 sortOf ty = do
   ctx <- askContext
   pure $ case force ty of
@@ -669,9 +670,13 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RFirst t -> do
     (t', ty) <- infer t
     case force (stripRestrictions ty) of
-      VRecBottom -> pure (First t', vrecBottom)
-      VCubeProduct a _ -> pure (First t', a)
-      _ | Just (Sigma _ _ a _) <- sigmaOf ty -> pure (First t', a)
+      VRecBottom -> pure (First (Identity RecBottom) t', vrecBottom)
+      VCubeProduct a _ -> do
+        aC <- quoteM a
+        pure (First (Identity aC) t', a)
+      _ | Just (Sigma _ _ a _) <- sigmaOf ty -> do
+        aC <- quoteM a
+        pure (First (Identity aC) t', a)
       _ -> issueTypeError (TypeErrorNotPair t' ty)
 
   RSecond t -> do
@@ -679,11 +684,15 @@ infer tt = performing (ActionInfer tt) $ case tt of
     ctx <- askContext
     let scope = ctxScope ctx
     case force (stripRestrictions ty) of
-      VRecBottom -> pure (Second t', vrecBottom)
-      VCubeProduct _ b -> pure (Second t', b)
+      VRecBottom -> pure (Second (Identity RecBottom) t', vrecBottom)
+      VCubeProduct _ b -> do
+        bC <- quoteM b
+        pure (Second (Identity bC) t', b)
       _ | Just (Sigma env _ _ b) <- sigmaOf ty -> do
         tV <- evalM t'
-        pure (Second t', codomainAt scope ctx env b (firstValue tV))
+        let result = codomainAt scope ctx env b (firstValueIn scope ctx tV)
+        resultC <- quoteM result
+        pure (Second (Identity resultC) t', result)
       _ -> issueTypeError (TypeErrorNotPair t' ty)
 
   RTypeUnit -> pure (TypeUnit, universe)
@@ -747,7 +756,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     contextEntailsUnion [ t | (_, (t, _), _) <- branches ]
     let ty = recOrValue scope ctx [ t | (_, _, t) <- branches ]
     tyC <- quoteM ty
-    pure (RecOr tyC [ b | (b, _, _) <- branches ], ty)
+    pure (RecOr (Identity tyC) [ b | (b, _, _) <- branches ], ty)
 
   RTypeFun md a Nothing b -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
@@ -812,7 +821,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       _ | Just (Family md cube _) <- familyOf fTy -> do
         when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal function")
         x' <- check x cube
-        pure (App f' x', topeUniverse)
+        pure (App (Identity UniverseTope) f' x', topeUniverse)
       Just (Pi env md a mshape b) -> do
         when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal function")
         (x', xV) <- checkEval x a
@@ -820,7 +829,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
           VUniverse -> ensureTypeAtU "a type argument" xV
           _ -> pure ()
         forM_ mshape $ \shape -> contextEntails (appValue scope ctx shape xV)
-        pure (App f' x', codomainAt scope ctx env b xV)
+        let result = codomainAt scope ctx env b xV
+        resultC <- quoteM result
+        pure (App (Identity resultC) f' x', result)
       Nothing -> issueTypeError (TypeErrorNotFunction f' fTy)
 
   RLambda Nothing _ -> issueTypeError (TypeErrorCannotInferBareLambda tt)
@@ -894,10 +905,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
     d' <- check d typeOfD
     (x', xV) <- checkEval x tAV
     (p', pV) <- checkEval p (vnode (TypeIdF aV (Just tAV) xV))
-    pure (IdJ tA' a' tC' d' x' p', appValue scope ctx (appValue scope ctx tCV xV) pV)
-
-  -- an annotation is built by evaluation and never written
-  RAnn term _ -> infer term
+    let result = appValue scope ctx (appValue scope ctx tCV xV) pV
+    resultC <- quoteM result
+    pure (IdJ (Identity resultC) tA' a' tC' d' x' p', result)
 
   RTypeAsc term ty -> do
     (ty', _) <- inferAs universe ty

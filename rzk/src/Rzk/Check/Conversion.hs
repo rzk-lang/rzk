@@ -27,6 +27,7 @@ import           Control.Monad            (unless, when)
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..))
+import           Data.Functor.Identity  (Identity (..))
 import qualified FreeFoil.NbE             as NbE
 
 import           Rzk.Check.Context
@@ -152,7 +153,7 @@ explain mterm variance expected actual = do
         let x = NbE.vvar name
             codE = codomainAt scope' ctx' (Foil.sink envE) retE x
             codA = codomainAt scope' ctx' (Foil.sink envA) retA x
-            mterm' = fmap (\term -> App (Foil.sink term) (Var name)) mterm
+            mterm' = fmap (\term -> App (Identity (quoteFolded scope' ctx' codA)) (Foil.sink term) (Var name)) mterm
         inContext ctx' $ do
           -- the shapes: the expected one entails the actual one, as the
           -- domain is contravariant

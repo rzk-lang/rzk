@@ -53,6 +53,7 @@ module Rzk.Check.Context
 
 import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil          as Foil
+import           Data.Functor.Identity       (Identity)
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
 import           Unsafe.Coerce               (unsafeCoerce)
@@ -71,7 +72,7 @@ import           Rzk.Check.Topes             (Tope, TopeContext,
 
 -- | A value of the core: free-foil-NBE's, over the pattern binder and the
 -- signature.
-type Value = NbE.Value Pattern Sig
+type Value = NbE.Value Pattern (Sig Identity)
 
 -- * Pieces
 

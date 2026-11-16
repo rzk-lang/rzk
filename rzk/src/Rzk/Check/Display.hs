@@ -88,13 +88,13 @@ ppName :: Naming n -> Foil.Name n -> String
 ppName naming = Rzk.printTree . fromVarIdent . displayOf naming
 
 -- | A core term as surface syntax, with the context's names.
-renderCore :: Distinct n => Naming n -> Core n -> Rzk.Term
+renderCore :: Distinct n => Naming n -> AST Pattern (Sig ann) n -> Rzk.Term
 renderCore naming t = fromCore used supply (namingOf naming) t
   where
     used = nub [ displayOf naming v | v <- freeNamesOf t ]
     supply = defaultVarIdents \\ used
 
-ppCore :: Distinct n => Naming n -> Core n -> String
+ppCore :: Distinct n => Naming n -> AST Pattern (Sig ann) n -> String
 ppCore naming = Rzk.printTree . renderCore naming
 
 -- | A value shown to the user: read back with defined names folded.
@@ -106,12 +106,12 @@ ppValueIn ctx = ppValue (ctxScope ctx) ctx
 
 -- | The printer proper: the names in use (which a binder must avoid), the
 -- supply for anonymous binders, and the display name of every free name.
-fromCore :: forall n. Distinct n => [VarIdent] -> [VarIdent] -> NameMap n VarIdent -> Core n -> Rzk.Term
+fromCore :: forall ann n. Distinct n => [VarIdent] -> [VarIdent] -> NameMap n VarIdent -> AST Pattern (Sig ann) n -> Rzk.Term
 fromCore used supply names = go
   where
     loc = Nothing
 
-    go :: Core n -> Rzk.Term
+    go :: AST Pattern (Sig ann) n -> Rzk.Term
     go = \case
       Var x -> Rzk.Var loc (fromVarIdent (Foil.lookupName x names))
       Universe -> Rzk.Universe loc
@@ -183,7 +183,8 @@ fromCore used supply names = go
 
       TypeId l (Just tA) r -> Rzk.TypeId loc (go l) (go tA) (go r)
       TypeId l Nothing r -> Rzk.TypeIdSimple loc (go l) (go r)
-      App l r -> Rzk.App loc (go l) (go r)
+      App _ l r -> Rzk.App loc (go l) (go r)
+      Node (StuckAppF l r) -> Rzk.App loc (go l) (go r)
 
       Lambda Nothing body -> withScope body $ \pat body' ->
         Rzk.Lambda loc [Rzk.ParamPattern loc pat] body'
@@ -210,14 +211,17 @@ fromCore used supply names = go
         in Rzk.Let loc bind (go val) body'
 
       Pair l r -> Rzk.Pair loc (go l) (go r)
-      First t -> Rzk.First loc (go t)
-      Second t -> Rzk.Second loc (go t)
+      First _ t -> Rzk.First loc (go t)
+      Second _ t -> Rzk.Second loc (go t)
+      Node (StuckFirstF t) -> Rzk.First loc (go t)
+      Node (StuckSecondF t) -> Rzk.Second loc (go t)
       TypeUnit -> Rzk.TypeUnit loc
       Unit -> Rzk.Unit loc
       Refl Nothing -> Rzk.Refl loc
       Refl (Just (t, Nothing)) -> Rzk.ReflTerm loc (go t)
       Refl (Just (t, Just ty)) -> Rzk.ReflTermType loc (go t) (go ty)
-      IdJ a b c d e f -> Rzk.IdJ loc (go a) (go b) (go c) (go d) (go e) (go f)
+      IdJ _ a b c d e f -> Rzk.IdJ loc (go a) (go b) (go c) (go d) (go e) (go f)
+      Node (StuckIdJF a b c d e f) -> Rzk.IdJ loc (go a) (go b) (go c) (go d) (go e) (go f)
 
       Match md scrut mmotive branches ->
         case (md, mmotive) of
@@ -229,7 +233,6 @@ fromCore used supply names = go
           goBranch (con, chain) = Rzk.MatchBranch loc (fromVarIdent con) pats body
             where (pats, body) = matchArms used supply names chain
       MatchArm{} -> panicImpossible "a match arm outside of a match branch"
-      Ann t _ -> go t
       TypeAsc l r -> Rzk.TypeAsc loc (go l) (go r)
       TypeRestricted ty rs ->
         Rzk.TypeRestricted loc (go ty) [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
@@ -248,12 +251,12 @@ fromCore used supply names = go
 
     -- The binder a family's shape is shown under: the shape's own λ scope,
     -- with a body that is never printed.
-    shapeScope :: Core n -> ScopedCore n
+    shapeScope :: AST Pattern (Sig ann) n -> ScopedAST Pattern (Sig ann) n
     shapeScope (Lambda _ (ScopedAST pat _)) = ScopedAST pat (Node UnitF)
     shapeScope _ = panicImpossible "a shape that is not a λ"
 
     -- Enter a scope: name its pattern and print the body under it.
-    withScope :: ScopedCore n -> (Rzk.Pattern -> Rzk.Term -> r) -> r
+    withScope :: ScopedAST Pattern (Sig ann) n -> (Rzk.Pattern -> Rzk.Term -> r) -> r
     withScope (ScopedAST pat body) k = case Foil.assertDistinct pat of
       Foil.Distinct ->
         withPatternNames pat (scopeUses body) $ \pat' used' supply' names' ->
@@ -262,7 +265,7 @@ fromCore used supply names = go
     -- A binder with a shape: the shape is a tope family, shown as its body
     -- under the binder's names when it is a λ over a pattern of the same
     -- shape, otherwise applied to the binder.
-    withScopeAndShape :: ScopedCore n -> Core n -> (Rzk.Pattern -> Rzk.Term -> Rzk.Term -> r) -> r
+    withScopeAndShape :: ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> (Rzk.Pattern -> Rzk.Term -> Rzk.Term -> r) -> r
     withScopeAndShape (ScopedAST pat body) shape k = case Foil.assertDistinct pat of
       Foil.Distinct ->
         withPatternNames pat (scopeUses body) $ \pat' used' supply' names' ->
@@ -294,7 +297,7 @@ fromCore used supply names = go
       PatternPair l r   -> "(" <> shapeOf l <> "," <> shapeOf r <> ")"
 
     -- Which bound names the body mentions, by raw name ID.
-    scopeUses :: Core l -> [Int]
+    scopeUses :: AST Pattern (Sig ann) l -> [Int]
     scopeUses = nameIdsOf
 
     -- Name every leaf of a pattern ('namePatternLeaves') and extend the
@@ -315,7 +318,7 @@ patternTerm = \case
   Rzk.PatternTuple l a b cs -> Rzk.Tuple l (patternTerm a) (patternTerm b) (map patternTerm cs)
 
 -- | Peel a match branch's arm chain back into its patterns and body.
-matchArms :: Distinct n => [VarIdent] -> [VarIdent] -> NameMap n VarIdent -> Core n -> ([Rzk.Pattern], Rzk.Term)
+matchArms :: Distinct n => [VarIdent] -> [VarIdent] -> NameMap n VarIdent -> AST Pattern (Sig ann) n -> ([Rzk.Pattern], Rzk.Term)
 matchArms used supply names = \case
   MatchArm (ScopedAST pat body) -> case Foil.assertDistinct pat of
     Foil.Distinct ->
@@ -363,13 +366,13 @@ namePatternLeaves usedIds = go
               [ (Foil.sink name, x) | (name, x) <- entriesL ] <> entriesR)
 
 -- | Does a scope use the names its pattern binds?
-scopeUsesItsPattern :: Distinct n => ScopedCore n -> Bool
+scopeUsesItsPattern :: Distinct n => ScopedAST Pattern (Sig ann) n -> Bool
 scopeUsesItsPattern (ScopedAST pat body) = case Foil.assertDistinct pat of
   Foil.Distinct ->
     any (`elem` nameIdsOf body) (map (Foil.nameId . snd) (patternNames pat))
 
 -- | Every name ID occurring in a term, bound or free. This deliberately uses
 -- raw IDs because bound names from different scopes occur in one result list.
-nameIdsOf :: Core l -> [Int]
+nameIdsOf :: AST Pattern (Sig ann) l -> [Int]
 nameIdsOf (Var x) = [Foil.nameId x]
-nameIdsOf (Node sig) = bifoldMap (\(ScopedAST _ body) -> nameIdsOf body) nameIdsOf sig
+nameIdsOf (Node sig) = bifoldMap (\(ScopedAST _ body) -> nameIdsOf body) nameIdsOf (eraseNeutralTypes sig)

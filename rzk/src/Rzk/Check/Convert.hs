@@ -23,6 +23,7 @@ import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Data.Data                (cast)
 import           Data.Functor             (void)
+import           Data.Functor.Const       (Const (..))
 
 import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
                                            VarIdent, flattenBinderApp,
@@ -110,7 +111,7 @@ toRaw scope env = go
       | otherwise = t
     atPosition _ t = t
 
-    node :: Sig (ScopedRaw n) (Raw n) -> Raw n
+    node :: Sig (Const ()) (ScopedRaw n) (Raw n) -> Raw n
     node = rawNode noPosition
 
     sc = scoped scope
@@ -164,21 +165,21 @@ toRaw scope env = go
       Rzk.CubeSup _loc l r -> node (CubeSupF (go l) (go r))
       Rzk.CubeInf _loc l r -> node (CubeInfF (go l) (go r))
       Rzk.RecBottom _loc -> node RecBottomF
-      Rzk.RecOr _loc rs -> node (RecOrF Nothing (map restriction rs))
+      Rzk.RecOr _loc rs -> node (RecOrF (Const ()) (map restriction rs))
       Rzk.TypeId _loc x tA y -> node (TypeIdF (go x) (Just (go tA)) (go y))
       Rzk.TypeIdSimple _loc x y -> node (TypeIdF (go x) Nothing (go y))
       Rzk.TypeUnit _loc -> node TypeUnitF
       Rzk.Unit _loc -> node UnitF
-      Rzk.App _loc f x -> node (AppF (go f) (go x))
+      Rzk.App _loc f x -> node (AppF (Const ()) (go f) (go x))
       Rzk.Pair _loc l r -> node (PairF (go l) (go r))
       Rzk.Tuple loc p1 p2 (p : ps) -> go (Rzk.Tuple loc (Rzk.Pair loc p1 p2) p ps)
       Rzk.Tuple loc p1 p2 [] -> go (Rzk.Pair loc p1 p2)
-      Rzk.First _loc term -> node (FirstF (go term))
-      Rzk.Second _loc term -> node (SecondF (go term))
+      Rzk.First _loc term -> node (FirstF (Const ()) (go term))
+      Rzk.Second _loc term -> node (SecondF (Const ()) (go term))
       Rzk.Refl _loc -> node (ReflF Nothing)
       Rzk.ReflTerm _loc term -> node (ReflF (Just (go term, Nothing)))
       Rzk.ReflTermType _loc x tA -> node (ReflF (Just (go x, Just (go tA))))
-      Rzk.IdJ _loc a b c d e f -> node (IdJF (go a) (go b) (go c) (go d) (go e) (go f))
+      Rzk.IdJ _loc a b c d e f -> node (IdJF (Const ()) (go a) (go b) (go c) (go d) (go e) (go f))
       Rzk.Match _loc scrut branches ->
         node (MatchF Id (go scrut) Nothing (map matchBranch branches))
       Rzk.MatchInto _loc scrut motive branches ->

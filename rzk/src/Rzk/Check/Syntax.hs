@@ -41,6 +41,8 @@ module Rzk.Check.Syntax
     -- * Terms
   , Raw
   , ScopedRaw
+  , PlainCore
+  , ScopedPlainCore
   , Core
   , ScopedCore
   , SrcPos (..)
@@ -59,7 +61,7 @@ module Rzk.Check.Syntax
   , pattern RecBottom, pattern RecOr
   , pattern TypeFun, pattern TypeShape, pattern TypeSigma, pattern TypeId, pattern App, pattern Let, pattern Lambda
   , pattern Pair, pattern First, pattern Second, pattern Refl, pattern IdJ
-  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc, pattern Ann
+  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc
   , pattern TypeRestricted, pattern TypeModal, pattern ModApp, pattern ModExtract, pattern LetMod
   , pattern Hole
     -- * Raw patterns
@@ -107,7 +109,6 @@ module Rzk.Check.Syntax
   , pattern RUnit
   , pattern RTypeUnit
   , pattern RTypeAsc
-  , pattern RAnn
   , pattern RTypeRestricted
   , pattern RTypeModal
   , pattern RModApp
@@ -116,6 +117,7 @@ module Rzk.Check.Syntax
   , pattern RHole
     -- * Queries
   , freeNamesOf
+  , eraseNeutralTypes
   , stripAnnotations
   , substituteName
   , abstractName
@@ -133,14 +135,17 @@ import           Control.Monad.Free.Foil           (AST (..), ScopedAST (..),
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Data.Bifoldable                   (bifoldMap, bifoldr)
 import           Data.Bifunctor                    (bimap)
+import           Data.Functor.Const                (Const (..))
+import           Data.Functor.Identity             (Identity (..))
 import           Data.Maybe                        (mapMaybe)
 import           Data.Bifunctor.TH                 (deriveBifoldable,
                                                     deriveBifunctor,
                                                     deriveBitraversable)
-import           Data.ZipMatchK                    (ZipMatchFoldK, ZipMatchK (..),
+import           Data.ZipMatchK                    (ZipMatchFoldK (..), ZipMatchK (..),
                                                     zipMatchViaEq)
-import           Data.ZipMatchK.TH                 (deriveZipMatchK)
+import           Data.ZipMatchK.Mappings           (Folds (..), Mappings (..))
 import           Generics.Kind.TH                  (deriveGenericK)
+import           Unsafe.Coerce                     (unsafeCoerce)
 
 import           Language.Rzk.Foil.Names           (RzkPosition (..),
                                                     TModality (..), VarIdent)
@@ -204,9 +209,11 @@ deriveGenericK ''Param
 instance ZipMatchK Param
 instance ZipMatchFoldK Param
 
--- | The signature of the core: every construct of the language. Scoped
--- positions bind a 'Pattern'.
-data Sig scope term
+-- | The signature of the language, with neutral metadata supplied by @ann@.
+-- Raw terms use 'Const' to omit neutral types; core terms and semantic values
+-- use 'Identity' to make the type of every neutral elimination mandatory.
+-- Scoped positions bind a 'Pattern'.
+data Sig ann scope term
   = UniverseF
     -- ^ the universe @U@ of ordinary types
   | UniverseCubeF
@@ -257,9 +264,9 @@ data Sig scope term
     -- ^ the inverse operation to 'TopeInvF'
   | RecBottomF
     -- ^ ex falso, @recBOT@
-  | RecOrF (Maybe term) [(term, term)]
-    -- ^ a raw @recOR@ has no type; elaboration attaches its type, which a
-    -- stuck semantic @recOR@ needs when it heads an elimination
+  | RecOrF (ann term) [(term, term)]
+    -- ^ a raw @recOR@ has no metadata; an elaborated one carries its type,
+    -- which a stuck semantic @recOR@ needs when it heads an elimination
   | TypeFunF TModality term (Maybe term) scope
     -- ^ a Π: the modality of the binder, its domain (a type, or the cube of
     -- a shape), the shape as a tope family over the cube, and the codomain
@@ -271,22 +278,33 @@ data Sig scope term
     -- ^ a dependent pair type, with the modality and type of its first component
   | TypeIdF term (Maybe term) term
     -- ^ an identity type: the endpoints and, once elaborated, their carrier
-  | AppF term term
-    -- ^ application of a function or a tope family
+  | AppF (ann term) term term
+    -- ^ application of a function or a tope family; core and semantic
+    -- applications carry their result type as metadata
   | LetF (Maybe term) term scope
     -- ^ a local definition: its optional type, value, and body
   | LambdaF (Maybe (Param term)) scope
     -- ^ a λ abstraction, with an optional parameter annotation and its body
   | PairF term term
     -- ^ a pair of terms or cube points
-  | FirstF term
-    -- ^ the first projection of a pair
-  | SecondF term
-    -- ^ the second projection of a pair
+  | FirstF (ann term) term
+    -- ^ the first projection of a pair, with its component type as metadata
+  | SecondF (ann term) term
+    -- ^ the second projection of a pair, with its component type as metadata
   | ReflF (Maybe (term, Maybe term))
     -- ^ reflexivity, optionally annotated by its element and carrier
-  | IdJF term term term term term term
-    -- ^ path induction: carrier, base point, motive, base case, endpoint, path
+  | IdJF (ann term) term term term term term term
+    -- ^ path induction: its result type, carrier, base point, motive, base
+    -- case, endpoint, and path
+  | StuckAppF term term
+    -- ^ a semantic application of a canonical non-function, stuck during
+    -- conversion rather than a neutral with a known result type
+  | StuckFirstF term
+    -- ^ a semantic first projection stuck on a canonical non-pair
+  | StuckSecondF term
+    -- ^ a semantic second projection stuck on a canonical non-pair
+  | StuckIdJF term term term term term term
+    -- ^ semantic path induction stuck on a canonical non-path
   | MatchF TModality term (Maybe term) [(VarIdent, term)]
     -- ^ a match on a @#data@ value: the modality, the scrutinee, the
     -- @into@ motive, and the branches, each an arm chain
@@ -298,12 +316,6 @@ data Sig scope term
     -- ^ the unit type
   | TypeAscF term term
     -- ^ a user ascription; evaluation erases it
-  | AnnF term term
-    -- ^ a neutral value with its type, which evaluation builds so that the
-    -- type of a neutral is read off it rather than computed from its head.
-    -- Evaluating it drops it, the readbacks of "Rzk.Check.Value" strip it
-    -- ('stripAnnotations'), and the type takes no part in conversion or in
-    -- the free names of a term.
   | TypeRestrictedF term [(term, term)]
     -- ^ an extension type: its underlying type and tope/boundary faces
   | TypeModalF TModality term
@@ -324,7 +336,22 @@ deriveBifoldable ''Sig
 deriveBitraversable ''Sig
 deriveGenericK ''Sig
 
-deriveZipMatchK ''Sig
+instance ZipMatchK Identity where
+  zipMatchWithK (g :^: M0) (Identity l) (Identity r) = Identity <$> g l r
+
+instance ZipMatchFoldK Identity where
+  zipMatchFoldK (g :%: F0) (Identity l) (Identity r) = Just (g l r)
+
+instance ZipMatchK (Const ()) where
+  zipMatchWithK _ (Const l) (Const _) = Just (Const l)
+
+instance ZipMatchFoldK (Const ()) where
+  zipMatchFoldK _ (Const _) (Const _) = Just mempty
+
+instance ZipMatchK (Sig Identity)
+instance ZipMatchFoldK (Sig Identity)
+instance ZipMatchK (Sig (Const ()))
+instance ZipMatchFoldK (Sig (Const ()))
 
 -- * Terms
 
@@ -338,19 +365,24 @@ instance ZipMatchK SrcPos where
   zipMatchWithK _ (SrcPos pos) _ = Just (SrcPos pos)
 
 -- | A raw term: the surface syntax converted, every node carrying where it
--- was written. What the checker takes.
-type Raw = AST Pattern (AnnSig SrcPos Sig)
+-- was written and no neutral carrying a type. What the checker takes.
+type Raw = AST Pattern (AnnSig SrcPos (Sig (Const ())))
 
-type ScopedRaw = ScopedAST Pattern (AnnSig SrcPos Sig)
+type ScopedRaw = ScopedAST Pattern (AnnSig SrcPos (Sig (Const ())))
+
+-- | An unannotated core view, used for display and fingerprints.
+type PlainCore = AST Pattern (Sig (Const ()))
+
+type ScopedPlainCore = ScopedAST Pattern (Sig (Const ()))
 
 -- | A core term: what the checker produces, what closures hold, and what
--- readback gives.
-type Core = AST Pattern Sig
+-- readback gives. Every neutral elimination carries its type.
+type Core = AST Pattern (Sig Identity)
 
-type ScopedCore = ScopedAST Pattern Sig
+type ScopedCore = ScopedAST Pattern (Sig Identity)
 
 -- | A raw node at a position.
-rawNode :: RzkPosition -> Sig (ScopedRaw n) (Raw n) -> Raw n
+rawNode :: RzkPosition -> Sig (Const ()) (ScopedRaw n) (Raw n) -> Raw n
 rawNode pos sig = Node (AnnSig (SrcPos pos) sig)
 
 -- | Fail on a case the checker's invariants rule out, asking for a bug report.
@@ -373,115 +405,124 @@ positionOfRaw (Node (AnnSig (SrcPos pos) _)) = case rzkLineCol pos of
   Just _  -> Just pos
 
 
--- | A raw term as a core term: the positions dropped.
-stripPositions :: Raw n -> Core n
+-- | A raw term as a plain core term: the positions dropped.
+stripPositions :: Raw n -> PlainCore n
 stripPositions (Var x) = Var x
-stripPositions (Node (AnnSig _ sig)) = Node (bimap scoped stripPositions sig)
+stripPositions (Node (AnnSig _ sig)) = Node (bimap scoped stripPositions (eraseNeutralTypes sig))
   where
     scoped (ScopedAST pat body) = ScopedAST pat (stripPositions body)
 
+eraseNeutralTypes :: Sig ann a b -> Sig (Const ()) a b
+eraseNeutralTypes = \case
+  RecOrF _ rs      -> RecOrF (Const ()) rs
+  AppF _ f x       -> AppF (Const ()) f x
+  FirstF _ p       -> FirstF (Const ()) p
+  SecondF _ p      -> SecondF (Const ()) p
+  IdJF _ a b c d e f -> IdJF (Const ()) a b c d e f
+  -- These constructors have no metadata, so their representation does not
+  -- depend on @ann@.
+  node             -> unsafeCoerce node
+
 -- * Core patterns
 
-pattern Universe :: Core n
+pattern Universe :: AST Pattern (Sig ann) n
 pattern Universe = Node UniverseF
-pattern UniverseCube :: Core n
+pattern UniverseCube :: AST Pattern (Sig ann) n
 pattern UniverseCube = Node UniverseCubeF
-pattern UniverseTope :: Core n
+pattern UniverseTope :: AST Pattern (Sig ann) n
 pattern UniverseTope = Node UniverseTopeF
-pattern CubeUnit :: Core n
+pattern CubeUnit :: AST Pattern (Sig ann) n
 pattern CubeUnit = Node CubeUnitF
-pattern CubeUnitStar :: Core n
+pattern CubeUnitStar :: AST Pattern (Sig ann) n
 pattern CubeUnitStar = Node CubeUnitStarF
-pattern Cube2 :: Core n
+pattern Cube2 :: AST Pattern (Sig ann) n
 pattern Cube2 = Node Cube2F
-pattern Cube2_0 :: Core n
+pattern Cube2_0 :: AST Pattern (Sig ann) n
 pattern Cube2_0 = Node Cube2_0F
-pattern Cube2_1 :: Core n
+pattern Cube2_1 :: AST Pattern (Sig ann) n
 pattern Cube2_1 = Node Cube2_1F
-pattern CubeI :: Core n
+pattern CubeI :: AST Pattern (Sig ann) n
 pattern CubeI = Node CubeIF
-pattern CubeI_0 :: Core n
+pattern CubeI_0 :: AST Pattern (Sig ann) n
 pattern CubeI_0 = Node CubeI_0F
-pattern CubeI_1 :: Core n
+pattern CubeI_1 :: AST Pattern (Sig ann) n
 pattern CubeI_1 = Node CubeI_1F
-pattern CubeProduct :: Core n -> Core n -> Core n
+pattern CubeProduct :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern CubeProduct l r = Node (CubeProductF l r)
-pattern CubeFlip :: Core n -> Core n
+pattern CubeFlip :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern CubeFlip t = Node (CubeFlipF t)
-pattern CubeUnflip :: Core n -> Core n
+pattern CubeUnflip :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern CubeUnflip t = Node (CubeUnflipF t)
-pattern CubeSup :: Core n -> Core n -> Core n
+pattern CubeSup :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern CubeSup l r = Node (CubeSupF l r)
-pattern CubeInf :: Core n -> Core n -> Core n
+pattern CubeInf :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern CubeInf l r = Node (CubeInfF l r)
-pattern TopeTop :: Core n
+pattern TopeTop :: AST Pattern (Sig ann) n
 pattern TopeTop = Node TopeTopF
-pattern TopeBottom :: Core n
+pattern TopeBottom :: AST Pattern (Sig ann) n
 pattern TopeBottom = Node TopeBottomF
-pattern TopeEQ :: Core n -> Core n -> Core n
+pattern TopeEQ :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TopeEQ l r = Node (TopeEQF l r)
-pattern TopeLEQ :: Core n -> Core n -> Core n
+pattern TopeLEQ :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TopeLEQ l r = Node (TopeLEQF l r)
-pattern TopeAnd :: Core n -> Core n -> Core n
+pattern TopeAnd :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TopeAnd l r = Node (TopeAndF l r)
-pattern TopeOr :: Core n -> Core n -> Core n
+pattern TopeOr :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TopeOr l r = Node (TopeOrF l r)
-pattern TopeInv :: Core n -> Core n
+pattern TopeInv :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TopeInv t = Node (TopeInvF t)
-pattern TopeUninv :: Core n -> Core n
+pattern TopeUninv :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TopeUninv t = Node (TopeUninvF t)
-pattern RecBottom :: Core n
+pattern RecBottom :: AST Pattern (Sig ann) n
 pattern RecBottom = Node RecBottomF
-pattern RecOr :: Core n -> [(Core n, Core n)] -> Core n
-pattern RecOr ty rs = Node (RecOrF (Just ty) rs)
-pattern TypeFun :: TModality -> Core n -> Maybe (Core n) -> ScopedCore n -> Core n
+pattern RecOr :: ann (AST Pattern (Sig ann) n) -> [(AST Pattern (Sig ann) n, AST Pattern (Sig ann) n)] -> AST Pattern (Sig ann) n
+pattern RecOr ty rs = Node (RecOrF ty rs)
+pattern TypeFun :: TModality -> AST Pattern (Sig ann) n -> Maybe (AST Pattern (Sig ann) n) -> ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TypeFun md dom mshape ret = Node (TypeFunF md dom mshape ret)
-pattern TypeShape :: TModality -> Core n -> Maybe (Core n) -> Core n
+pattern TypeShape :: TModality -> AST Pattern (Sig ann) n -> Maybe (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n
 pattern TypeShape md cube mshape = Node (TypeShapeF md cube mshape)
-pattern TypeSigma :: TModality -> Core n -> ScopedCore n -> Core n
+pattern TypeSigma :: TModality -> AST Pattern (Sig ann) n -> ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TypeSigma md a b = Node (TypeSigmaF md a b)
-pattern TypeId :: Core n -> Maybe (Core n) -> Core n -> Core n
+pattern TypeId :: AST Pattern (Sig ann) n -> Maybe (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TypeId x mtA y = Node (TypeIdF x mtA y)
-pattern App :: Core n -> Core n -> Core n
-pattern App f x = Node (AppF f x)
-pattern Let :: Maybe (Core n) -> Core n -> ScopedCore n -> Core n
+pattern App :: ann (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
+pattern App ty f x = Node (AppF ty f x)
+pattern Let :: Maybe (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern Let mty val body = Node (LetF mty val body)
-pattern Lambda :: Maybe (Param (Core n)) -> ScopedCore n -> Core n
+pattern Lambda :: Maybe (Param (AST Pattern (Sig ann) n)) -> ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern Lambda mparam body = Node (LambdaF mparam body)
-pattern Pair :: Core n -> Core n -> Core n
+pattern Pair :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern Pair l r = Node (PairF l r)
-pattern First :: Core n -> Core n
-pattern First t = Node (FirstF t)
-pattern Second :: Core n -> Core n
-pattern Second t = Node (SecondF t)
-pattern Refl :: Maybe (Core n, Maybe (Core n)) -> Core n
+pattern First :: ann (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
+pattern First ty t = Node (FirstF ty t)
+pattern Second :: ann (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
+pattern Second ty t = Node (SecondF ty t)
+pattern Refl :: Maybe (AST Pattern (Sig ann) n, Maybe (AST Pattern (Sig ann) n)) -> AST Pattern (Sig ann) n
 pattern Refl mx = Node (ReflF mx)
-pattern IdJ :: Core n -> Core n -> Core n -> Core n -> Core n -> Core n -> Core n
-pattern IdJ a b c d e f = Node (IdJF a b c d e f)
-pattern Match :: TModality -> Core n -> Maybe (Core n) -> [(VarIdent, Core n)] -> Core n
+pattern IdJ :: ann (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
+pattern IdJ ty a b c d e f = Node (IdJF ty a b c d e f)
+pattern Match :: TModality -> AST Pattern (Sig ann) n -> Maybe (AST Pattern (Sig ann) n) -> [(VarIdent, AST Pattern (Sig ann) n)] -> AST Pattern (Sig ann) n
 pattern Match md scrut mmotive branches = Node (MatchF md scrut mmotive branches)
-pattern MatchArm :: ScopedCore n -> Core n
+pattern MatchArm :: ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern MatchArm arm = Node (MatchArmF arm)
-pattern Unit :: Core n
+pattern Unit :: AST Pattern (Sig ann) n
 pattern Unit = Node UnitF
-pattern TypeUnit :: Core n
+pattern TypeUnit :: AST Pattern (Sig ann) n
 pattern TypeUnit = Node TypeUnitF
-pattern TypeAsc :: Core n -> Core n -> Core n
+pattern TypeAsc :: AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TypeAsc term ty = Node (TypeAscF term ty)
 
-pattern Ann :: Core n -> Core n -> Core n
-pattern Ann term ty = Node (AnnF term ty)
-pattern TypeRestricted :: Core n -> [(Core n, Core n)] -> Core n
+pattern TypeRestricted :: AST Pattern (Sig ann) n -> [(AST Pattern (Sig ann) n, AST Pattern (Sig ann) n)] -> AST Pattern (Sig ann) n
 pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
-pattern TypeModal :: TModality -> Core n -> Core n
+pattern TypeModal :: TModality -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern TypeModal md ty = Node (TypeModalF md ty)
-pattern ModApp :: TModality -> Core n -> Core n
+pattern ModApp :: TModality -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern ModApp md t = Node (ModAppF md t)
-pattern ModExtract :: TModality -> TModality -> Core n -> Core n
+pattern ModExtract :: TModality -> TModality -> AST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern ModExtract app inn t = Node (ModExtractF app inn t)
-pattern LetMod :: TModality -> TModality -> Maybe (Core n) -> Maybe (Core n) -> Core n -> ScopedCore n -> Core n
+pattern LetMod :: TModality -> TModality -> Maybe (AST Pattern (Sig ann) n) -> Maybe (AST Pattern (Sig ann) n) -> AST Pattern (Sig ann) n -> ScopedAST Pattern (Sig ann) n -> AST Pattern (Sig ann) n
 pattern LetMod app inn mty mmotive val body = Node (LetModF app inn mty mmotive val body)
-pattern Hole :: Maybe VarIdent -> Core n
+pattern Hole :: Maybe VarIdent -> AST Pattern (Sig ann) n
 pattern Hole mname = Node (HoleF mname)
 
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
@@ -489,12 +530,12 @@ pattern Hole mname = Node (HoleF mname)
   CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
   TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeShape, TypeSigma, TypeId, App,
   Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
-  TypeAsc, Ann, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 
 -- * Raw patterns
 
 -- | A raw node, matched without regard for where it was written.
-pattern RawNode :: Sig (ScopedRaw n) (Raw n) -> Raw n
+pattern RawNode :: Sig (Const ()) (ScopedRaw n) (Raw n) -> Raw n
 pattern RawNode sig <- Node (AnnSig _ sig)
 
 {-# COMPLETE Var, RawNode #-}
@@ -552,7 +593,7 @@ pattern RTopeUninv x1 <- RawNode (TopeUninvF x1)
 pattern RRecBottom :: Raw n
 pattern RRecBottom <- RawNode RecBottomF
 pattern RRecOr :: [(Raw n, Raw n)] -> Raw n
-pattern RRecOr x1 <- RawNode (RecOrF Nothing x1)
+pattern RRecOr x1 <- RawNode (RecOrF (Const ()) x1)
 pattern RTypeFun :: TModality -> Raw n -> Maybe (Raw n) -> ScopedRaw n -> Raw n
 pattern RTypeFun x1 x2 x3 x4 <- RawNode (TypeFunF x1 x2 x3 x4)
 pattern RTypeShape :: TModality -> Raw n -> Maybe (Raw n) -> Raw n
@@ -562,7 +603,7 @@ pattern RTypeSigma x1 x2 x3 <- RawNode (TypeSigmaF x1 x2 x3)
 pattern RTypeId :: Raw n -> Maybe (Raw n) -> Raw n -> Raw n
 pattern RTypeId x1 x2 x3 <- RawNode (TypeIdF x1 x2 x3)
 pattern RApp :: Raw n -> Raw n -> Raw n
-pattern RApp x1 x2 <- RawNode (AppF x1 x2)
+pattern RApp x1 x2 <- RawNode (AppF (Const ()) x1 x2)
 pattern RLet :: Maybe (Raw n) -> Raw n -> ScopedRaw n -> Raw n
 pattern RLet x1 x2 x3 <- RawNode (LetF x1 x2 x3)
 pattern RLambda :: Maybe (Param (Raw n)) -> ScopedRaw n -> Raw n
@@ -570,13 +611,13 @@ pattern RLambda x1 x2 <- RawNode (LambdaF x1 x2)
 pattern RPair :: Raw n -> Raw n -> Raw n
 pattern RPair x1 x2 <- RawNode (PairF x1 x2)
 pattern RFirst :: Raw n -> Raw n
-pattern RFirst x1 <- RawNode (FirstF x1)
+pattern RFirst x1 <- RawNode (FirstF (Const ()) x1)
 pattern RSecond :: Raw n -> Raw n
-pattern RSecond x1 <- RawNode (SecondF x1)
+pattern RSecond x1 <- RawNode (SecondF (Const ()) x1)
 pattern RRefl :: Maybe (Raw n, Maybe (Raw n)) -> Raw n
 pattern RRefl x1 <- RawNode (ReflF x1)
 pattern RIdJ :: Raw n -> Raw n -> Raw n -> Raw n -> Raw n -> Raw n -> Raw n
-pattern RIdJ x1 x2 x3 x4 x5 x6 <- RawNode (IdJF x1 x2 x3 x4 x5 x6)
+pattern RIdJ x1 x2 x3 x4 x5 x6 <- RawNode (IdJF (Const ()) x1 x2 x3 x4 x5 x6)
 pattern RMatch :: TModality -> Raw n -> Maybe (Raw n) -> [(VarIdent, Raw n)] -> Raw n
 pattern RMatch x1 x2 x3 x4 <- RawNode (MatchF x1 x2 x3 x4)
 pattern RMatchArm :: ScopedRaw n -> Raw n
@@ -587,8 +628,6 @@ pattern RTypeUnit :: Raw n
 pattern RTypeUnit <- RawNode TypeUnitF
 pattern RTypeAsc :: Raw n -> Raw n -> Raw n
 pattern RTypeAsc x1 x2 <- RawNode (TypeAscF x1 x2)
-pattern RAnn :: Raw n -> Raw n -> Raw n
-pattern RAnn x1 x2 <- RawNode (AnnF x1 x2)
 pattern RTypeRestricted :: Raw n -> [(Raw n, Raw n)] -> Raw n
 pattern RTypeRestricted x1 x2 <- RawNode (TypeRestrictedF x1 x2)
 pattern RTypeModal :: TModality -> Raw n -> Raw n
@@ -602,28 +641,25 @@ pattern RLetMod x1 x2 x3 x4 x5 x6 <- RawNode (LetModF x1 x2 x3 x4 x5 x6)
 pattern RHole :: Maybe VarIdent -> Raw n
 pattern RHole x1 <- RawNode (HoleF x1)
 
-{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RAnn, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
+{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
 
 -- * Queries
 
 -- | The free names of a term, in order of mention, with repeats. Names bound
 -- on the way down are removed with 'Foil.unsinkNamePattern'.
-freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
+freeNamesOf :: Distinct n => AST Pattern (Sig ann) n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
-freeNamesOf (Ann t _) = freeNamesOf t
-freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
+freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf (eraseNeutralTypes sig)
   where
-    scoped :: Distinct n' => ScopedCore n' -> [Foil.Name n']
+    scoped :: Distinct n' => ScopedAST Pattern (Sig ann) n' -> [Foil.Name n']
     scoped (ScopedAST pat body) = case Foil.assertDistinct pat of
       Foil.Distinct -> mapMaybe (Foil.unsinkNamePattern pat) (freeNamesOf body)
 
--- | A term without the annotations of its neutrals, which the library's
--- readback keeps. The types are not looked at.
-stripAnnotations :: Core n -> Core n
+-- | A term without the types cached at its neutral eliminations.
+stripAnnotations :: Core n -> PlainCore n
 stripAnnotations = \case
   Var x    -> Var x
-  Ann t _  -> stripAnnotations t
-  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations sig)
+  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations (eraseNeutralTypes sig))
 
 -- | Replace a free name of a term by a term of the same scope.
 substituteName :: Foil.Distinct n => Foil.Scope n -> Foil.Name n -> Core n -> Core n -> Core n
@@ -645,32 +681,32 @@ abstractName scope mname name term k = Foil.withFresh scope $ \binder ->
   in k (PatternVar mname binder) term'
 
 -- | Does the term contain a hole anywhere?
-containsHole :: Core n -> Bool
+containsHole :: forall ann n. AST Pattern (Sig ann) n -> Bool
 containsHole (Var _) = False
 containsHole (Node (HoleF _)) = True
 containsHole (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> containsHole body || acc)
-          (\t acc -> containsHole t || acc) False sig
+          (\t acc -> containsHole t || acc) False (eraseNeutralTypes sig)
 
 -- | The name of every hole in a term.
-holeNamesOf :: Core n -> [Maybe VarIdent]
+holeNamesOf :: forall ann n. AST Pattern (Sig ann) n -> [Maybe VarIdent]
 holeNamesOf (Var _) = []
 holeNamesOf (Node (HoleF mname)) = [mname]
 holeNamesOf (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> holeNamesOf body <> acc)
-          (\t acc -> holeNamesOf t <> acc) [] sig
+          (\t acc -> holeNamesOf t <> acc) [] (eraseNeutralTypes sig)
 
 -- | Is the term a hole, or an elimination headed by one (@? a@, @first ?@)?
 -- Such a term has no shape of its own yet.
 isHoleHeaded :: Core n -> Bool
 isHoleHeaded = \case
   Hole _     -> True
-  App f _    -> isHoleHeaded f
-  First t    -> isHoleHeaded t
-  Second t   -> isHoleHeaded t
+  App _ f _  -> isHoleHeaded f
+  First _ t  -> isHoleHeaded t
+  Second _ t -> isHoleHeaded t
   _          -> False
 
 -- | Syntactic equality of two core terms: conservative, as two α-equivalent
 -- terms whose binders differ are not equal, and cheaper than α-equivalence.
 eqCore :: Foil.Distinct n => Core n -> Core n -> Bool
-eqCore = unsafeEqAST
+eqCore l r = unsafeEqAST (stripAnnotations l) (stripAnnotations r)

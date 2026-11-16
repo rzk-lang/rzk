@@ -33,6 +33,7 @@ import           Control.Monad            (forM, forM_, when)
 import           Control.Monad.Foil       (DExt, Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
+import           Data.Functor.Identity  (Identity (..))
 import           Data.List                (genericLength)
 import qualified Data.Map                 as Map
 import           Data.Maybe               (fromMaybe)
@@ -563,7 +564,9 @@ endSection errs = do
         { entryTypeCore = Just (rewrite (typeCoreOf entry))
         , entryValueCore = rewrite <$> entryValueCore entry
         }
-        where rewrite = substituteName scope x (App (Var x) (Var a))
+        where
+          appType = quoteFolded scope ctx (entryType (lookupEntry x ctx))
+          rewrite = substituteName scope x (App (Identity appType) (Var x) (Var a))
 
       -- The entries newest first; the definitions met so far, oldest first.
       collect recent [] = pure (recent, [])
