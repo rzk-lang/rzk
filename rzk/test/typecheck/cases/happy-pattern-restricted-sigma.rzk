@@ -6,3 +6,8 @@
   (A : U) (a : A) (t : 2)
   : (p : (Σ (x : A), A) [t ≡ 0₂ ↦ (a, a)]) → A [t ≡ 0₂ ↦ a]
   := \ (x, y) → x
+
+#def dependent-pattern
+  (A : U) (B : A → U) (a : A) (b : B a) (t : 2)
+  : (p : (Σ (x : A), B x) [t ≡ 0₂ ↦ (a, b)]) → (Σ (x : A), B x)
+  := \ (x, y) → (x, y)
