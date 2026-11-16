@@ -380,12 +380,19 @@ instance Eval Context Pattern Sig where
     (LetModF{}, _) -> Nothing
     (_, LetModF{}) -> Nothing
 
-    -- two recORs are coherent branch by branch: under each overlap of their
-    -- guards the branches agree; a recOR against another term agrees with
-    -- it under each guard
-    (RecOrF _ rsL, RecOrF _ rsR) -> Just $ mconcat
-      [ underOverlap (topeAndValue tL tR) (term bL bR)
-      | (tL, bL) <- rsL, (tR, bR) <- rsR ]
+    -- Two recORs are coherent branch by branch. Equal guards need only the
+    -- corresponding branch comparison: coherence of both recORs supplies
+    -- every other overlap. An unmatched guard keeps the full cross-product
+    -- comparison. A recOR against another term agrees with it under each guard.
+    (RecOrF _ rsL, RecOrF _ rsR) ->
+      let rsL' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsL ]
+          rsR' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsR ]
+      in Just $ mconcat $ compareRestrictionsWith
+        (\_ (topeL, branchL) (_, branchR) -> underOverlap topeL (term branchL branchR))
+        (\_ (topeL, branchL) rsR'' -> mconcat
+          [ underOverlap (topeAndValue topeL topeR) (term branchL branchR)
+          | (_, (topeR, branchR)) <- rsR'' ])
+        rsL' rsR'
     (RecOrF _ rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
       [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
     (_, RecOrF _ rsR) | Just lv <- nodeValue l -> Just $ mconcat
