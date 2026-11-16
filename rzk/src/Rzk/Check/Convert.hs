@@ -13,6 +13,7 @@
 module Rzk.Check.Convert
   ( SurfaceEnv
   , toRaw
+  , hintsOf
   , withPattern
   ) where
 
@@ -20,8 +21,8 @@ import           Control.Monad.Foil       (DExt, Distinct, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
+import           Data.Data                (cast)
 import           Data.Functor             (void)
-import           Debug.Trace              (trace)
 
 import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
                                            VarIdent, flattenBinderApp,
@@ -29,6 +30,7 @@ import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
                                            patternToTerm, sigmaParamToTypeSigma,
                                            toModality, unsafeTermToPattern,
                                            varIdent)
+import           Language.Rzk.Data        (foldData)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.Check.Syntax
 
@@ -94,17 +96,6 @@ positionIn term = RzkPosition Nothing (Rzk.hasPosition term)
 toRaw :: forall n. Distinct n => Scope n -> SurfaceEnv n -> Rzk.Term -> Raw n
 toRaw scope env = go
   where
-    ppPosition Nothing = ""
-    ppPosition (Just (line_, col)) = " at line " <> show line_ <> " column " <> show col
-
-    -- A notation that is fine, but that a simpler one says as well.
-    lint orig suggestion = trace $ unlines
-      [ "[HINT]:" <> ppPosition (Rzk.hasPosition orig) <> " consider replacing"
-      , "  " <> Rzk.printTree orig
-      , "with the following"
-      , "  " <> Rzk.printTree suggestion
-      ]
-
     -- Every node is tagged with where it was written. A node with no
     -- position of its own keeps whatever the conversion of its body found:
     -- desugaring hands surface nodes back without positions, and the λ a
@@ -218,15 +209,9 @@ toRaw scope env = go
       Rzk.TypeFun _loc (Rzk.ParamTermType _ patTerm arg) ret ->
         let pat = unsafeTermToPattern patTerm
         in node (TypeFunF Id (go arg) Nothing (sc pat env ret))
-      t@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm cube tope) ret) ->
-        let lint' = case tope of
-              -- a shape whose tope is a predicate applied to exactly the
-              -- binder is the type of that predicate, and says so directly
-              Rzk.App _loc fun arg | void arg == void patTerm ->
-                lint t (Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)
-              _ -> id
-            pat = unsafeTermToPattern patTerm
-        in lint' $ node (TypeFunF Id (go cube) (Just (shape pat env tope)) (sc pat env ret))
+      Rzk.TypeFun _loc (Rzk.ParamTermShape _loc' patTerm cube tope) ret ->
+        let pat = unsafeTermToPattern patTerm
+        in node (TypeFunF Id (go cube) (Just (shape pat env tope)) (sc pat env ret))
       Rzk.TypeFun _loc (Rzk.ParamType _ arg) ret ->
         node (TypeFunF Id (go arg) Nothing (anon ret))
 
@@ -274,15 +259,10 @@ toRaw scope env = go
             (Rzk.Lambda loc (Rzk.ParamPatternType loc' pats ty : params) body)))
       Rzk.Lambda loc (Rzk.ParamPatternShape _ [] _cube _tope : params) body ->
         go (Rzk.Lambda loc params body)
-      t@(Rzk.Lambda loc (Rzk.ParamPatternShape loc' (pat:pats) cube tope : params) body) ->
-        let lint' = case tope of
-              Rzk.App _loc fun arg
-                | null pats && void arg == void (patternToTerm pat) ->
-                    lint t (Rzk.Lambda loc (Rzk.ParamPatternType loc' [pat] fun : params) body)
-              _ -> id
-        in lint' $ node (LambdaF (Just (Param Id (go cube) (Just (shape pat env tope))))
-              (sc pat env
-                (Rzk.Lambda loc (Rzk.ParamPatternShape loc' pats cube tope : params) body)))
+      Rzk.Lambda loc (Rzk.ParamPatternShape loc' (pat:pats) cube tope : params) body ->
+        node (LambdaF (Just (Param Id (go cube) (Just (shape pat env tope))))
+          (sc pat env
+            (Rzk.Lambda loc (Rzk.ParamPatternShape loc' pats cube tope : params) body)))
 
       Rzk.Let _loc (Rzk.BindPattern _ pat) val expr ->
         node (LetF Nothing (go val) (sc pat env expr))
@@ -328,3 +308,25 @@ toRaw scope env = go
         arms s e (p : ps) =
           node' (MatchArmF (withPattern s p e (\p' s' e' -> ScopedAST p' (arms s' e' ps))))
         node' = rawNode noPosition
+
+
+-- * Simplification hints
+
+-- | A simpler spelling of a surface construct, with the original and suggested
+-- terms. The collector traverses the original term without changing it.
+hintsOf :: Rzk.Term -> [(Rzk.Term, Rzk.Term)]
+hintsOf = foldData (maybe [] localHint . cast)
+  where
+    localHint term@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm _cube tope) ret) =
+      case tope of
+        Rzk.App _ fun arg
+          | void arg == void patTerm ->
+              [(term, Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)]
+        _ -> []
+    localHint term@(Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] _cube tope : params) body) =
+      case tope of
+        Rzk.App _ fun arg
+          | void arg == void (patternToTerm pat) ->
+              [(term, Rzk.Lambda loc (Rzk.ParamPatternType loc' [pat] fun : params) body)]
+        _ -> []
+    localHint _ = []

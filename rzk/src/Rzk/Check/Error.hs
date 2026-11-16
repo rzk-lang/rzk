@@ -26,6 +26,11 @@ module Rzk.Check.Error
   , warningTag
   , warningLocation
   , ppWarning
+    -- * Hints
+  , Hint (..)
+  , hintTag
+  , hintLocation
+  , ppHint
     -- * Holes
   , HoleInfo (..)
   , ppHoleInfo
@@ -370,6 +375,8 @@ data Warning
     -- ^ the family, its declared domain
   | ShadowingWarning String [String] (Maybe LocationInfo)
     -- ^ a binder, and the binding it shadows, each with where it was written
+  | UnsupportedOptionWarning String (Maybe LocationInfo)
+    -- ^ an option that the new checker accepts but does not implement
   deriving (Eq, Show)
 
 -- | The stable code of a warning.
@@ -378,12 +385,14 @@ warningTag = \case
   OverhangWarning{}         -> "OverhangWarning"
   TopeFamilyDomainWarning{} -> "TopeFamilyDomainWarning"
   ShadowingWarning{}        -> "ShadowingWarning"
+  UnsupportedOptionWarning{} -> "UnsupportedOptionWarning"
 
 warningLocation :: Warning -> Maybe LocationInfo
 warningLocation = \case
   OverhangWarning _ _ _ loc     -> loc
   TopeFamilyDomainWarning _ _ loc -> loc
   ShadowingWarning _ _ loc        -> loc
+  UnsupportedOptionWarning _ loc   -> loc
 
 ppWarning :: Warning -> String
 ppWarning = \case
@@ -401,6 +410,33 @@ ppWarning = \case
     [ "Warning: a binder shadows a name in scope"
     , "  " <> binder
     , "previously bound at" ] <> map ("  " <>) previous
+  UnsupportedOptionWarning name _ ->
+    "Warning: option " <> show name <> " is not supported by the new checker yet and has no effect"
+
+-- * Hints
+
+-- | A hint, rendered and independent of the scope where it was found.
+data Hint
+  = SimplificationHint String String (Maybe LocationInfo)
+    -- ^ the original and suggested terms, rendered, and the source location
+  deriving (Eq, Show)
+
+-- | The stable code of a hint.
+hintTag :: Hint -> String
+hintTag = \case
+  SimplificationHint{} -> "SimplificationHint"
+
+hintLocation :: Hint -> Maybe LocationInfo
+hintLocation = \case
+  SimplificationHint _ _ loc -> loc
+
+ppHint :: Hint -> String
+ppHint = \case
+  SimplificationHint original suggestion _ -> intercalate "\n"
+    [ "Hint: consider replacing"
+    , "  " <> original
+    , "with the following"
+    , "  " <> suggestion ]
 
 -- * Holes
 

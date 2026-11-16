@@ -673,6 +673,7 @@ flag lsp
 
 library
   exposed-modules:
+      Language.Rzk.Data
       Language.Rzk.Foil.Convert
       Language.Rzk.Foil.Names
       Language.Rzk.Foil.Print

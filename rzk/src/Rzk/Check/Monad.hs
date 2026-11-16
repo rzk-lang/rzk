@@ -17,6 +17,7 @@ module Rzk.Check.Monad
   , attempt
   , performing
   , recordWarning
+  , recordHint
   , recordHole
     -- * Helpers
   , asksContext
@@ -61,15 +62,15 @@ instance Monad (Check n) where
     (Right a, l') -> unCheck (k a) ctx l'
   {-# INLINE (>>=) #-}
 
--- | What a run records: the holes it found and the warnings it made,
--- newest first.
+-- | What a run records: the holes, warnings, and hints it found, newest first.
 data CheckLog = CheckLog
   { logHoles    :: [HoleInfo]
   , logWarnings :: [Warning]
+  , logHints    :: [Hint]
   }
 
 emptyCheckLog :: CheckLog
-emptyCheckLog = CheckLog [] []
+emptyCheckLog = CheckLog [] [] []
 
 runCheck :: Context n -> Check n a -> (Either ErrorInContext a, CheckLog)
 runCheck ctx (Check m) = m ctx emptyCheckLog
@@ -127,6 +128,13 @@ recordWarning render = Check $ \ctx l ->
   let w = render ctx
   in (Right (), if w `elem` logWarnings l then l else l { logWarnings = w : logWarnings l })
 {-# INLINE recordWarning #-}
+
+-- | Record a hint, rendered from the context, once.
+recordHint :: (Context n -> Hint) -> Check n ()
+recordHint render = Check $ \ctx l ->
+  let hint = render ctx
+  in (Right (), if hint `elem` logHints l then l else l { logHints = hint : logHints l })
+{-# INLINE recordHint #-}
 
 -- | Record a hole, rendered from the context.
 recordHole :: (Context n -> HoleInfo) -> Check n ()

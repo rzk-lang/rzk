@@ -99,8 +99,9 @@ main = do
       let options = Check.defaultOptions
             { Check.optHoles = if allowHolesFlag then Check.HolesDeferred else Check.HolesAreErrors }
       case Check.checkModules options modules of
-        Check.Checked _ctx _decls errors warnings holes -> do
+        Check.Checked _ctx _decls errors warnings hints holes -> do
           forM_ warnings (putStrLn . Check.ppWarning)
+          forM_ hints (putStrLn . Check.ppHint)
           forM_ holes (putStr . Check.ppHoleInfo)
           case errors of
             [] -> putStrLn "Everything is ok!"

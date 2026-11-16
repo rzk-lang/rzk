@@ -16,9 +16,10 @@
 -- nothing here constructs core terms or touches the type-checking monad.
 module Rzk.TypeCheck.Decl.Data where
 
-import           Data.Data          (Data, cast, gmapQ)
+import           Data.Data          (Data, cast)
 import qualified Data.Text          as T
 
+import           Language.Rzk.Data      (foldData)
 import           Language.Rzk.Foil.Names (TModality (..),
                                            fromMod,
                                            fromTModalityToModalColon,
@@ -104,10 +105,7 @@ underscoreIdent = Rzk.VarIdent Nothing (Rzk.VarIdentToken "_")
 -- generically. Used for the endpoint well-formedness check of path
 -- constructors, which is deliberately syntactic.
 surfaceVarTokens :: Data a => a -> [Rzk.VarIdentToken]
-surfaceVarTokens x = concat
-  [ maybe [] varTok (cast x)
-  , concat (gmapQ surfaceVarTokens x)
-  ]
+surfaceVarTokens = foldData (maybe [] varTok . cast)
   where
     varTok :: Rzk.Term -> [Rzk.VarIdentToken]
     varTok = \case
