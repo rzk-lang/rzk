@@ -232,6 +232,24 @@ instance HasHeads Sig where
 {-# SPECIALIZE Conv.conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool #-}
 {-# SPECIALIZE Conv.convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool #-}
 
+-- | Compare each expected restriction with the first actual restriction
+-- having the same tope. Without a match, use the fallback with all actual
+-- restrictions. Coherence makes a matching comparison sufficient on every
+-- other overlap.
+compareRestrictionsWith
+  :: Eq tope
+  => (tope -> a -> b -> c)
+  -> (tope -> a -> [(tope, b)] -> c)
+  -> [(tope, a)]
+  -> [(tope, b)]
+  -> [c]
+compareRestrictionsWith matching unmatched expected actual =
+  [ case [ b | (tope', b) <- actual, tope == tope' ] of
+      b : _ -> matching tope a b
+      []    -> unmatched tope a actual
+  | (tope, a) <- expected ]
+{-# INLINE compareRestrictionsWith #-}
+
 instance Eval Context Pattern Sig where
   {-# INLINABLE evalSig #-}
   evalSig scope ctx env = \case
@@ -455,22 +473,28 @@ instance Eval Context Pattern Sig where
 
       -- The faces of the supertype are covered by the faces of the subtype:
       -- under each face of the supertype, the subtype's topes cover the
-      -- context, and the boundary terms agree under each overlap. The sides
-      -- of the comparison are kept whichever side is the supertype.
+      -- context, and the boundary terms agree under each overlap. An equal
+      -- tope gives coverage immediately and, by coherence, makes comparisons
+      -- with the other faces unnecessary. The sides of the comparison are
+      -- kept whichever side is the supertype.
       facesCovered superRs subRs = fmap mconcat $ sequence
         [ let face = assumeValue scope ctx tope
-          in if entailsBottom (ctxTopes face) then Just mempty
-             else if entailsUnion (ctxTopes face) (map (topeOf scope face . fst) subRs)
-               then Just $ mconcat
-                 [ let overlap = assumeValue scope face tope'
-                   in if entailsBottom (ctxTopes overlap) then mempty else sided term' overlap
-                 | (tope', term') <- subRs ]
-               else Nothing
-        | (tope, term0) <- superRs
-        , let sided term' ctx' = case ctxVariance ctx of
+              subRs' = [ (topeOf scope face tope', (tope', term')) | (tope', term') <- subRs ]
+              sided term0 term' ctx' = case ctxVariance ctx of
                 Contravariant -> term term' term0 ctx'
                 _             -> term term0 term' ctx'
-        ]
+          in if entailsBottom (ctxTopes face) then Just mempty
+             else fmap mconcat $ sequence $ compareRestrictionsWith
+               (\_ term0 (_, term') -> Just (sided term0 term' face))
+               (\_ term0 subRs'' ->
+                 if entailsUnion (ctxTopes face) (map fst subRs'')
+                   then Just $ mconcat
+                     [ let overlap = face { ctxTopes = assume tope' (ctxTopes face) }
+                       in if entailsBottom (ctxTopes overlap) then mempty else sided term0 term' overlap
+                     | (tope', (_, term')) <- subRs'' ]
+                   else Nothing)
+               [(topeOf scope face tope, superTerm)] subRs'
+        | (tope, superTerm) <- superRs ]
 
   -- A neutral reduces by a restriction of its type whose tope holds, and
   -- a point of the unit type is unit. A variable's type is its entry's; a

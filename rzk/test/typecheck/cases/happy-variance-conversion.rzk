@@ -17,6 +17,11 @@
 #def equal-types (A : U) (a : A)
   : (A [TOP ↦ a]) =_{U} (A [TOP ↦ a]) := refl
 
+#def equal-restrictions-reordered (A : U) (a : A) (t s : 2)
+  : (A [t ≤ s ↦ a, s ≤ t ↦ a])
+    =_{U} (A [s ≤ t ↦ a, t ≤ s ↦ a])
+  := refl
+
 -- Boundary descriptions are compared under the function's shape domain.
 #def equal-ext-types (A : U) (a : A)
   : ((t : 2 | t ≡ 0₂) → A [t ≡ 0₂ ↦ a])
