@@ -180,8 +180,11 @@ patternNames = \case
 -- cube.
 data Param term = Param
   { paramModality :: TModality
+    -- ^ the modality of the binder
   , paramDomain   :: term
+    -- ^ the type of an ordinary binder, or the cube of a shaped binder
   , paramShape    :: Maybe term
+    -- ^ the shape as a tope family over the cube, if the binder has one
   } deriving (Functor, Foldable, Traversable, Show)
 
 instance ZipMatchK TModality where
@@ -202,30 +205,55 @@ instance ZipMatchFoldK Param
 -- positions bind a 'Pattern'.
 data Sig scope term
   = UniverseF
+    -- ^ the universe @U@ of ordinary types
   | UniverseCubeF
+    -- ^ the universe @CUBE@ of cubes
   | UniverseTopeF
+    -- ^ the universe @TOPE@ of topes
   | CubeUnitF
+    -- ^ the unit cube
   | CubeUnitStarF
+    -- ^ the unique point of the unit cube
   | Cube2F
+    -- ^ the directed interval cube @2@
   | Cube2_0F
+    -- ^ the left endpoint of @2@
   | Cube2_1F
+    -- ^ the right endpoint of @2@
   | CubeIF
+    -- ^ the auxiliary directed interval cube @𝕀@
   | CubeI_0F
+    -- ^ the left endpoint of @𝕀@
   | CubeI_1F
+    -- ^ the right endpoint of @𝕀@
   | CubeProductF term term
+    -- ^ a product of two cubes
   | CubeFlipF term
+    -- ^ reversal of an interval point
   | CubeUnflipF term
+    -- ^ the inverse operation to 'CubeFlipF'
   | CubeSupF term term
+    -- ^ the join of two interval points
   | CubeInfF term term
+    -- ^ the meet of two interval points
   | TopeTopF
+    -- ^ the trivial tope @⊤@
   | TopeBottomF
+    -- ^ the empty tope @⊥@
   | TopeEQF term term
+    -- ^ equality of two cube points
   | TopeLEQF term term
+    -- ^ the order relation on two directed-interval points
   | TopeAndF term term
+    -- ^ conjunction of topes
   | TopeOrF term term
+    -- ^ disjunction of topes
   | TopeInvF term
+    -- ^ inversion of a tope under @ᵒᵖ@
   | TopeUninvF term
+    -- ^ the inverse operation to 'TopeInvF'
   | RecBottomF
+    -- ^ ex falso, @recBOT@
   | RecOrF (Maybe term) [(term, term)]
     -- ^ a raw @recOR@ has no type; elaboration attaches its type, which a
     -- stuck semantic @recOR@ needs when it heads an elimination
@@ -237,23 +265,36 @@ data Sig scope term
     -- codomain is constant, so that the subtyping of families, which is
     -- covariant in the shape, can tell it from a Π
   | TypeSigmaF TModality term scope
+    -- ^ a dependent pair type, with the modality and type of its first component
   | TypeIdF term (Maybe term) term
+    -- ^ an identity type: the endpoints and, once elaborated, their carrier
   | AppF term term
+    -- ^ application of a function or a tope family
   | LetF (Maybe term) term scope
+    -- ^ a local definition: its optional type, value, and body
   | LambdaF (Maybe (Param term)) scope
+    -- ^ a λ abstraction, with an optional parameter annotation and its body
   | PairF term term
+    -- ^ a pair of terms or cube points
   | FirstF term
+    -- ^ the first projection of a pair
   | SecondF term
+    -- ^ the second projection of a pair
   | ReflF (Maybe (term, Maybe term))
+    -- ^ reflexivity, optionally annotated by its element and carrier
   | IdJF term term term term term term
+    -- ^ path induction: carrier, base point, motive, base case, endpoint, path
   | MatchF TModality term (Maybe term) [(VarIdent, term)]
     -- ^ a match on a @#data@ value: the modality, the scrutinee, the
     -- @into@ motive, and the branches, each an arm chain
   | MatchArmF scope
     -- ^ one binder of a match branch
   | UnitF
+    -- ^ the unique inhabitant of the unit type
   | TypeUnitF
+    -- ^ the unit type
   | TypeAscF term term
+    -- ^ a user ascription; evaluation erases it
   | AnnF term term
     -- ^ a neutral value with its type, which evaluation builds so that the
     -- type of a neutral is read off it rather than computed from its head.
@@ -261,11 +302,18 @@ data Sig scope term
     -- ('stripAnnotations'), and the type takes no part in conversion or in
     -- the free names of a term.
   | TypeRestrictedF term [(term, term)]
+    -- ^ an extension type: its underlying type and tope/boundary faces
   | TypeModalF TModality term
+    -- ^ a type under a modality
   | ModAppF TModality term
+    -- ^ introduction of a term under a modality
   | ModExtractF TModality TModality term
+    -- ^ an internal modal elimination, with its outer and inner modalities
   | LetModF TModality TModality (Maybe term) (Maybe term) term scope
+    -- ^ modal elimination by @let mod@, with modalities, optional type and
+    -- motive, payload, and body
   | HoleF (Maybe VarIdent)
+    -- ^ a user hole, with its optional name; not an internal unknown type
   deriving (Functor, Foldable, Traversable)
 
 deriveBifunctor ''Sig

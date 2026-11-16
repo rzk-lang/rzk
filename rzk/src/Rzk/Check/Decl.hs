@@ -57,10 +57,15 @@ import           Rzk.TypeCheck.Decl       (duplicateBinders)
 -- | A top-level declaration, as checked.
 data Decl n = Decl
   { declName     :: VarIdent
+    -- ^ the surface name of the declaration
   , declNameOf   :: Foil.Name n
+    -- ^ its scoped name
   , declType     :: Value n
+    -- ^ its checked type
   , declValue    :: Maybe (Value n)
+    -- ^ its checked value, or 'Nothing' for an assumption or failed body
   , declLocation :: Maybe LocationInfo
+    -- ^ where the declaration was written
   }
 
 instance Foil.Sinkable Decl where

@@ -177,12 +177,19 @@ withTopShape scope ctx dom = \case
 -- into them are @U@-sorted but are not ordinary types.
 data DomainKind
   = DomainType
+    -- ^ an ordinary type in @U@
   | DomainCubeUniverse
+    -- ^ the universe @CUBE@, not an ordinary type
   | DomainCubeFamily
+    -- ^ a family valued in @CUBE@
   | DomainTopeUniverse
+    -- ^ the universe @TOPE@, not an ordinary type
   | DomainTopeFamily
+    -- ^ a tope family over a cube
   | DomainOtherTopeFamily
+    -- ^ a tope family over a domain that is not a cube
   | DomainModalTope
+    -- ^ a modal cube or tope kind
   deriving (Eq, Show)
 
 -- | Classify a type value.

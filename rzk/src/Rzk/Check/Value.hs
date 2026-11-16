@@ -600,7 +600,7 @@ force :: Value n -> Whnf n
 {-# INLINE force #-}
 force = NbE.force
 
--- | Two values compared in the context's variance.
+-- | Compare an expected value with an actual one in the context's variance.
 conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool
 {-# INLINE conv #-}
 conv = Conv.conv

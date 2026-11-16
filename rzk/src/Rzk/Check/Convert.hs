@@ -77,8 +77,7 @@ scoped scope pat env body =
   withPattern scope pat env $ \pat' scope' env' ->
     ScopedAST pat' (toRaw scope' env' body)
 
--- | An anonymous binder: the codomain of a non-dependent function type binds
--- nothing.
+-- | An anonymous binder for the codomain of a non-dependent function type.
 scopedAnon :: Distinct n => Scope n -> SurfaceEnv n -> Rzk.Term -> ScopedRaw n
 scopedAnon scope env body =
   Foil.withFresh scope $ \b ->

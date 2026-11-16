@@ -1,8 +1,12 @@
 -- | The mode theory of the modalities: composition, and the coercions
--- between them (what a lock lets through). The tables are those of the old
--- checker ("Rzk.TypeCheck.Context"), and the vocabulary (modalities, locks,
--- coercions) follows the multimodal type theory of Gratzer, Kavvos, Nuyts,
--- and Birkedal.
+-- between them (what a lock lets through). The rules are those of
+-- Gratzer, Weinberger, and Buchholtz, /Directed Univalence in Simplicial
+-- Homotopy Type Theory/ (2024), §3.1.1. The tables match the old checker
+-- ("Rzk.TypeCheck.Context").
+--
+-- The coercion @Flat ⇒ Op@ is not a generating rule. It follows in the
+-- generated 2-category by whiskering @Flat ⇒ Id@ on the right by @Op@:
+-- @Flat ∘ Op ⇒ Id ∘ Op@ simplifies to @Flat ⇒ Op@.
 module Rzk.Check.Modality
   ( TModality (..)
   , comp
