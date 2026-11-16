@@ -1,0 +1,21 @@
+#lang rzk-1
+
+-- A path induction on a path that a restriction makes refl computes: under
+-- t ≡ 0₂, h t is refl, so ap f (h t) is refl, also when ap is a definition
+-- (as the concatenations of homotopies in sHoTT's relative products).
+
+#define ap
+  (A B : U)
+  (f : A → B)
+  (x y : A)
+  (p : x =_{A} y)
+  : f x =_{B} f y
+  := idJ (A , x , \ y' _ → f x =_{B} f y' , refl , y , p)
+
+#define ap-under-face
+  (A B : U)
+  (f : A → B)
+  (x : A)
+  (h : (t : 2) → (x =_{A} x) [t ≡ 0₂ ↦ refl])
+  : (t : 2) → (f x =_{B} f x) [t ≡ 0₂ ↦ refl]
+  := \ t → ap A B f x x (h t)

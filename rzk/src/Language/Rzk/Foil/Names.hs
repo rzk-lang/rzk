@@ -140,7 +140,7 @@ binderName :: Binder -> Maybe VarIdent
 binderName (BinderVar mname) = mname
 binderName _                 = Nothing
 
-data TModality = Sharp | Flat | Op | Id deriving (Eq, Show)
+data TModality = Sharp | Flat | Op | Id deriving (Eq, Ord, Show)
 
 toModality :: Rzk.Modality -> TModality
 toModality Rzk.Sharp{}       = Sharp

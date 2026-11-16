@@ -1,0 +1,54 @@
+#lang rzk-1
+
+-- Two glued values with the same name are compared by their arguments
+-- first, also once a comparison has fallen back to unfolding. The folded
+-- comparison of `T (e A)` and `T (f A)` fails, since `e` and `f` are
+-- different names, so their unfoldings are compared. Both unfold to
+-- `d30 A`, whose full unfolding is a tree of 2^30 Σ-types. In sHoTT the
+-- same happens to the lemmas behind a Segal witness in
+-- `witness-dcomp-is-covariant-family-is-segal-base`.
+
+#define d0 (A : U) : U := A
+
+#define d1 (A : U) : U := Σ (_ : d0 A) , d0 A
+#define d2 (A : U) : U := Σ (_ : d1 A) , d1 A
+#define d3 (A : U) : U := Σ (_ : d2 A) , d2 A
+#define d4 (A : U) : U := Σ (_ : d3 A) , d3 A
+#define d5 (A : U) : U := Σ (_ : d4 A) , d4 A
+#define d6 (A : U) : U := Σ (_ : d5 A) , d5 A
+#define d7 (A : U) : U := Σ (_ : d6 A) , d6 A
+#define d8 (A : U) : U := Σ (_ : d7 A) , d7 A
+#define d9 (A : U) : U := Σ (_ : d8 A) , d8 A
+#define d10 (A : U) : U := Σ (_ : d9 A) , d9 A
+#define d11 (A : U) : U := Σ (_ : d10 A) , d10 A
+#define d12 (A : U) : U := Σ (_ : d11 A) , d11 A
+#define d13 (A : U) : U := Σ (_ : d12 A) , d12 A
+#define d14 (A : U) : U := Σ (_ : d13 A) , d13 A
+#define d15 (A : U) : U := Σ (_ : d14 A) , d14 A
+#define d16 (A : U) : U := Σ (_ : d15 A) , d15 A
+#define d17 (A : U) : U := Σ (_ : d16 A) , d16 A
+#define d18 (A : U) : U := Σ (_ : d17 A) , d17 A
+#define d19 (A : U) : U := Σ (_ : d18 A) , d18 A
+#define d20 (A : U) : U := Σ (_ : d19 A) , d19 A
+#define d21 (A : U) : U := Σ (_ : d20 A) , d20 A
+#define d22 (A : U) : U := Σ (_ : d21 A) , d21 A
+#define d23 (A : U) : U := Σ (_ : d22 A) , d22 A
+#define d24 (A : U) : U := Σ (_ : d23 A) , d23 A
+#define d25 (A : U) : U := Σ (_ : d24 A) , d24 A
+#define d26 (A : U) : U := Σ (_ : d25 A) , d25 A
+#define d27 (A : U) : U := Σ (_ : d26 A) , d26 A
+#define d28 (A : U) : U := Σ (_ : d27 A) , d27 A
+#define d29 (A : U) : U := Σ (_ : d28 A) , d28 A
+#define d30 (A : U) : U := Σ (_ : d29 A) , d29 A
+
+#define e (A : U) : U := d30 A
+
+#define f (A : U) : U := d30 A
+
+#define T (X : U) : U := X =_{U} X
+
+#define transported
+  (A : U)
+  (p : T (e A))
+  : T (f A)
+  := p

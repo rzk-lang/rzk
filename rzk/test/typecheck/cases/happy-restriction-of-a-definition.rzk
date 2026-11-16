@@ -1,0 +1,30 @@
+#lang rzk-1
+
+-- An application of a definition is refined by the restriction in the
+-- declared type of the definition, also when the definition unfolds to a
+-- term whose head says nothing about it (here a transport along a path
+-- variable), as the witnesses of associativity in sHoTT's Segal types.
+
+#define transported
+  (A : U)
+  (a : A)
+  (p : ((t : 2) → A [t ≡ 0₂ ↦ a]) =_{U} ((t : 2) → A [t ≡ 0₂ ↦ a]))
+  (k : (t : 2) → A [t ≡ 0₂ ↦ a])
+  : (t : 2) → A [t ≡ 0₂ ↦ a]
+  := idJ (U , (t : 2) → A [t ≡ 0₂ ↦ a] , \ Y _ → Y , k , (t : 2) → A [t ≡ 0₂ ↦ a] , p)
+
+#define through-a-definition
+  (A : U)
+  (a : A)
+  (p : ((t : 2) → A [t ≡ 0₂ ↦ a]) =_{U} ((t : 2) → A [t ≡ 0₂ ↦ a]))
+  (k : (t : 2) → A [t ≡ 0₂ ↦ a])
+  : 2 → A
+  := \ t → transported A a p k t
+
+#define refined-through-a-definition
+  (A : U)
+  (a : A)
+  (p : ((t : 2) → A [t ≡ 0₂ ↦ a]) =_{U} ((t : 2) → A [t ≡ 0₂ ↦ a]))
+  (k : (t : 2) → A [t ≡ 0₂ ↦ a])
+  : (t : 2) → A [t ≡ 0₂ ↦ a]
+  := \ t → through-a-definition A a p k t

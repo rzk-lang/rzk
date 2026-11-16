@@ -1,0 +1,18 @@
+#lang rzk-1
+
+-- η for functions against a λ that carries its domain, including a λ over a
+-- pair pattern: the domain annotation takes no part in the comparison.
+
+#define eta-annotated
+  (A B : U)
+  (f : A → B)
+  : f =_{A → B} (\ (x : A) → f x)
+  := refl
+
+#define eta-pair-pattern
+  (A : U)
+  (B : A → U)
+  (C : (a : A) → B a → U)
+  (f : (p : Σ (a : A) , B a) → C (first p) (second p))
+  : (\ (a , b) → f (a , b)) =_{(p : Σ (a : A) , B a) → C (first p) (second p)} f
+  := refl

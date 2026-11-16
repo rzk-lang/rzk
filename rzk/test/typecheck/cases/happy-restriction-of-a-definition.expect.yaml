@@ -1,0 +1,3 @@
+status: ok
+regression_for:
+  - restriction-refinement-by-the-declared-type-of-a-definition

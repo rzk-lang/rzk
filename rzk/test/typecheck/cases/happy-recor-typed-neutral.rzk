@@ -1,0 +1,12 @@
+#lang rzk-1
+
+-- A recOR-headed application inherits restrictions from its function type,
+-- so it agrees with the boundary term under either guard.
+#def apply-recor
+  (A : U) (t s : 2) (h : A → A)
+  (f : (A → A) [t ≤ s ↦ h, s ≤ t ↦ h])
+  (g : (A → A) [t ≤ s ↦ h, s ≤ t ↦ h])
+  (x : A)
+  : A [t ≤ s ↦ h x, s ≤ t ↦ h x]
+  := (((recOR (t ≤ s ↦ f, s ≤ t ↦ g)) as
+        (A → A) [t ≤ s ↦ h, s ≤ t ↦ h]) x)
