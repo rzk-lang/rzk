@@ -169,16 +169,16 @@ toRaw scope env = go
       Rzk.TypeIdSimple _loc x y -> node (TypeIdF (go x) Nothing (go y))
       Rzk.TypeUnit _loc -> node TypeUnitF
       Rzk.Unit _loc -> node UnitF
-      Rzk.App _loc f x -> node (AppF (go f) (go x))
+      Rzk.App _loc f x -> node (AppF Nothing (go f) (go x))
       Rzk.Pair _loc l r -> node (PairF (go l) (go r))
       Rzk.Tuple loc p1 p2 (p : ps) -> go (Rzk.Tuple loc (Rzk.Pair loc p1 p2) p ps)
       Rzk.Tuple loc p1 p2 [] -> go (Rzk.Pair loc p1 p2)
-      Rzk.First _loc term -> node (FirstF (go term))
-      Rzk.Second _loc term -> node (SecondF (go term))
+      Rzk.First _loc term -> node (FirstF Nothing (go term))
+      Rzk.Second _loc term -> node (SecondF Nothing (go term))
       Rzk.Refl _loc -> node (ReflF Nothing)
       Rzk.ReflTerm _loc term -> node (ReflF (Just (go term, Nothing)))
       Rzk.ReflTermType _loc x tA -> node (ReflF (Just (go x, Just (go tA))))
-      Rzk.IdJ _loc a b c d e f -> node (IdJF (go a) (go b) (go c) (go d) (go e) (go f))
+      Rzk.IdJ _loc a b c d e f -> node (IdJF Nothing (go a) (go b) (go c) (go d) (go e) (go f))
       Rzk.Match _loc scrut branches ->
         node (MatchF Id (go scrut) Nothing (map matchBranch branches))
       Rzk.MatchInto _loc scrut motive branches ->

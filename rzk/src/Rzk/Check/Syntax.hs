@@ -59,7 +59,7 @@ module Rzk.Check.Syntax
   , pattern RecBottom, pattern RecOr
   , pattern TypeFun, pattern TypeShape, pattern TypeSigma, pattern TypeId, pattern App, pattern Let, pattern Lambda
   , pattern Pair, pattern First, pattern Second, pattern Refl, pattern IdJ
-  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc, pattern Ann
+  , pattern Match, pattern MatchArm, pattern Unit, pattern TypeUnit, pattern TypeAsc
   , pattern TypeRestricted, pattern TypeModal, pattern ModApp, pattern ModExtract, pattern LetMod
   , pattern Hole
     -- * Raw patterns
@@ -107,7 +107,6 @@ module Rzk.Check.Syntax
   , pattern RUnit
   , pattern RTypeUnit
   , pattern RTypeAsc
-  , pattern RAnn
   , pattern RTypeRestricted
   , pattern RTypeModal
   , pattern RModApp
@@ -116,6 +115,7 @@ module Rzk.Check.Syntax
   , pattern RHole
     -- * Queries
   , freeNamesOf
+  , eraseNeutralTypes
   , stripAnnotations
   , substituteName
   , abstractName
@@ -271,22 +271,24 @@ data Sig scope term
     -- ^ a dependent pair type, with the modality and type of its first component
   | TypeIdF term (Maybe term) term
     -- ^ an identity type: the endpoints and, once elaborated, their carrier
-  | AppF term term
-    -- ^ application of a function or a tope family
+  | AppF (Maybe term) term term
+    -- ^ application of a function or a tope family; a semantic neutral may
+    -- cache its result type, while raw and readback terms carry 'Nothing'
   | LetF (Maybe term) term scope
     -- ^ a local definition: its optional type, value, and body
   | LambdaF (Maybe (Param term)) scope
     -- ^ a λ abstraction, with an optional parameter annotation and its body
   | PairF term term
     -- ^ a pair of terms or cube points
-  | FirstF term
-    -- ^ the first projection of a pair
-  | SecondF term
-    -- ^ the second projection of a pair
+  | FirstF (Maybe term) term
+    -- ^ the first projection of a pair, optionally caching its component type
+  | SecondF (Maybe term) term
+    -- ^ the second projection of a pair, optionally caching its component type
   | ReflF (Maybe (term, Maybe term))
     -- ^ reflexivity, optionally annotated by its element and carrier
-  | IdJF term term term term term term
-    -- ^ path induction: carrier, base point, motive, base case, endpoint, path
+  | IdJF (Maybe term) term term term term term term
+    -- ^ path induction: optional result type, carrier, base point, motive,
+    -- base case, endpoint, and path
   | MatchF TModality term (Maybe term) [(VarIdent, term)]
     -- ^ a match on a @#data@ value: the modality, the scrutinee, the
     -- @into@ motive, and the branches, each an arm chain
@@ -298,12 +300,6 @@ data Sig scope term
     -- ^ the unit type
   | TypeAscF term term
     -- ^ a user ascription; evaluation erases it
-  | AnnF term term
-    -- ^ a neutral value with its type, which evaluation builds so that the
-    -- type of a neutral is read off it rather than computed from its head.
-    -- Evaluating it drops it, the readbacks of "Rzk.Check.Value" strip it
-    -- ('stripAnnotations'), and the type takes no part in conversion or in
-    -- the free names of a term.
   | TypeRestrictedF term [(term, term)]
     -- ^ an extension type: its underlying type and tope/boundary faces
   | TypeModalF TModality term
@@ -443,7 +439,7 @@ pattern TypeSigma md a b = Node (TypeSigmaF md a b)
 pattern TypeId :: Core n -> Maybe (Core n) -> Core n -> Core n
 pattern TypeId x mtA y = Node (TypeIdF x mtA y)
 pattern App :: Core n -> Core n -> Core n
-pattern App f x = Node (AppF f x)
+pattern App f x = Node (AppF Nothing f x)
 pattern Let :: Maybe (Core n) -> Core n -> ScopedCore n -> Core n
 pattern Let mty val body = Node (LetF mty val body)
 pattern Lambda :: Maybe (Param (Core n)) -> ScopedCore n -> Core n
@@ -451,13 +447,13 @@ pattern Lambda mparam body = Node (LambdaF mparam body)
 pattern Pair :: Core n -> Core n -> Core n
 pattern Pair l r = Node (PairF l r)
 pattern First :: Core n -> Core n
-pattern First t = Node (FirstF t)
+pattern First t = Node (FirstF Nothing t)
 pattern Second :: Core n -> Core n
-pattern Second t = Node (SecondF t)
+pattern Second t = Node (SecondF Nothing t)
 pattern Refl :: Maybe (Core n, Maybe (Core n)) -> Core n
 pattern Refl mx = Node (ReflF mx)
 pattern IdJ :: Core n -> Core n -> Core n -> Core n -> Core n -> Core n -> Core n
-pattern IdJ a b c d e f = Node (IdJF a b c d e f)
+pattern IdJ a b c d e f = Node (IdJF Nothing a b c d e f)
 pattern Match :: TModality -> Core n -> Maybe (Core n) -> [(VarIdent, Core n)] -> Core n
 pattern Match md scrut mmotive branches = Node (MatchF md scrut mmotive branches)
 pattern MatchArm :: ScopedCore n -> Core n
@@ -469,8 +465,6 @@ pattern TypeUnit = Node TypeUnitF
 pattern TypeAsc :: Core n -> Core n -> Core n
 pattern TypeAsc term ty = Node (TypeAscF term ty)
 
-pattern Ann :: Core n -> Core n -> Core n
-pattern Ann term ty = Node (AnnF term ty)
 pattern TypeRestricted :: Core n -> [(Core n, Core n)] -> Core n
 pattern TypeRestricted ty rs = Node (TypeRestrictedF ty rs)
 pattern TypeModal :: TModality -> Core n -> Core n
@@ -489,7 +483,7 @@ pattern Hole mname = Node (HoleF mname)
   CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
   TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeShape, TypeSigma, TypeId, App,
   Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
-  TypeAsc, Ann, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
+  TypeAsc, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 
 -- * Raw patterns
 
@@ -562,7 +556,7 @@ pattern RTypeSigma x1 x2 x3 <- RawNode (TypeSigmaF x1 x2 x3)
 pattern RTypeId :: Raw n -> Maybe (Raw n) -> Raw n -> Raw n
 pattern RTypeId x1 x2 x3 <- RawNode (TypeIdF x1 x2 x3)
 pattern RApp :: Raw n -> Raw n -> Raw n
-pattern RApp x1 x2 <- RawNode (AppF x1 x2)
+pattern RApp x1 x2 <- RawNode (AppF Nothing x1 x2)
 pattern RLet :: Maybe (Raw n) -> Raw n -> ScopedRaw n -> Raw n
 pattern RLet x1 x2 x3 <- RawNode (LetF x1 x2 x3)
 pattern RLambda :: Maybe (Param (Raw n)) -> ScopedRaw n -> Raw n
@@ -570,13 +564,13 @@ pattern RLambda x1 x2 <- RawNode (LambdaF x1 x2)
 pattern RPair :: Raw n -> Raw n -> Raw n
 pattern RPair x1 x2 <- RawNode (PairF x1 x2)
 pattern RFirst :: Raw n -> Raw n
-pattern RFirst x1 <- RawNode (FirstF x1)
+pattern RFirst x1 <- RawNode (FirstF Nothing x1)
 pattern RSecond :: Raw n -> Raw n
-pattern RSecond x1 <- RawNode (SecondF x1)
+pattern RSecond x1 <- RawNode (SecondF Nothing x1)
 pattern RRefl :: Maybe (Raw n, Maybe (Raw n)) -> Raw n
 pattern RRefl x1 <- RawNode (ReflF x1)
 pattern RIdJ :: Raw n -> Raw n -> Raw n -> Raw n -> Raw n -> Raw n -> Raw n
-pattern RIdJ x1 x2 x3 x4 x5 x6 <- RawNode (IdJF x1 x2 x3 x4 x5 x6)
+pattern RIdJ x1 x2 x3 x4 x5 x6 <- RawNode (IdJF Nothing x1 x2 x3 x4 x5 x6)
 pattern RMatch :: TModality -> Raw n -> Maybe (Raw n) -> [(VarIdent, Raw n)] -> Raw n
 pattern RMatch x1 x2 x3 x4 <- RawNode (MatchF x1 x2 x3 x4)
 pattern RMatchArm :: ScopedRaw n -> Raw n
@@ -587,8 +581,6 @@ pattern RTypeUnit :: Raw n
 pattern RTypeUnit <- RawNode TypeUnitF
 pattern RTypeAsc :: Raw n -> Raw n -> Raw n
 pattern RTypeAsc x1 x2 <- RawNode (TypeAscF x1 x2)
-pattern RAnn :: Raw n -> Raw n -> Raw n
-pattern RAnn x1 x2 <- RawNode (AnnF x1 x2)
 pattern RTypeRestricted :: Raw n -> [(Raw n, Raw n)] -> Raw n
 pattern RTypeRestricted x1 x2 <- RawNode (TypeRestrictedF x1 x2)
 pattern RTypeModal :: TModality -> Raw n -> Raw n
@@ -602,16 +594,24 @@ pattern RLetMod x1 x2 x3 x4 x5 x6 <- RawNode (LetModF x1 x2 x3 x4 x5 x6)
 pattern RHole :: Maybe VarIdent -> Raw n
 pattern RHole x1 <- RawNode (HoleF x1)
 
-{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RAnn, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
+{-# COMPLETE Var, RUniverse, RUniverseCube, RUniverseTope, RCubeUnit, RCubeUnitStar, RCube2, RCube2_0, RCube2_1, RCubeI, RCubeI_0, RCubeI_1, RCubeProduct, RCubeFlip, RCubeUnflip, RCubeSup, RCubeInf, RTopeTop, RTopeBottom, RTopeEQ, RTopeLEQ, RTopeAnd, RTopeOr, RTopeInv, RTopeUninv, RRecBottom, RRecOr, RTypeFun, RTypeShape, RTypeSigma, RTypeId, RApp, RLet, RLambda, RPair, RFirst, RSecond, RRefl, RIdJ, RMatch, RMatchArm, RUnit, RTypeUnit, RTypeAsc, RTypeRestricted, RTypeModal, RModApp, RModExtract, RLetMod, RHole #-}
 
 -- * Queries
+
+-- | Drop cached neutral result types without changing the term type.
+eraseNeutralTypes :: Sig a b -> Sig a b
+eraseNeutralTypes = \case
+  AppF _ f x    -> AppF Nothing f x
+  FirstF _ p    -> FirstF Nothing p
+  SecondF _ p   -> SecondF Nothing p
+  IdJF _ a b c d e f -> IdJF Nothing a b c d e f
+  node          -> node
 
 -- | The free names of a term, in order of mention, with repeats. Names bound
 -- on the way down are removed with 'Foil.unsinkNamePattern'.
 freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
-freeNamesOf (Ann t _) = freeNamesOf t
-freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
+freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf (eraseNeutralTypes sig)
   where
     scoped :: Distinct n' => ScopedCore n' -> [Foil.Name n']
     scoped (ScopedAST pat body) = case Foil.assertDistinct pat of
@@ -622,8 +622,7 @@ freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
 stripAnnotations :: Core n -> Core n
 stripAnnotations = \case
   Var x    -> Var x
-  Ann t _  -> stripAnnotations t
-  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations sig)
+  Node sig -> Node (bimap (\(ScopedAST pat body) -> ScopedAST pat (stripAnnotations body)) stripAnnotations (eraseNeutralTypes sig))
 
 -- | Replace a free name of a term by a term of the same scope.
 substituteName :: Foil.Distinct n => Foil.Scope n -> Foil.Name n -> Core n -> Core n -> Core n
@@ -650,7 +649,7 @@ containsHole (Var _) = False
 containsHole (Node (HoleF _)) = True
 containsHole (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> containsHole body || acc)
-          (\t acc -> containsHole t || acc) False sig
+          (\t acc -> containsHole t || acc) False (eraseNeutralTypes sig)
 
 -- | The name of every hole in a term.
 holeNamesOf :: Core n -> [Maybe VarIdent]
@@ -658,7 +657,7 @@ holeNamesOf (Var _) = []
 holeNamesOf (Node (HoleF mname)) = [mname]
 holeNamesOf (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> holeNamesOf body <> acc)
-          (\t acc -> holeNamesOf t <> acc) [] sig
+          (\t acc -> holeNamesOf t <> acc) [] (eraseNeutralTypes sig)
 
 -- | Is the term a hole, or an elimination headed by one (@? a@, @first ?@)?
 -- Such a term has no shape of its own yet.
@@ -673,4 +672,4 @@ isHoleHeaded = \case
 -- | Syntactic equality of two core terms: conservative, as two α-equivalent
 -- terms whose binders differ are not equal, and cheaper than α-equivalence.
 eqCore :: Foil.Distinct n => Core n -> Core n -> Bool
-eqCore = unsafeEqAST
+eqCore l r = unsafeEqAST (stripAnnotations l) (stripAnnotations r)
