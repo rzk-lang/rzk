@@ -25,7 +25,7 @@
 module Rzk.Check.Decl
   ( Decl (..)
   , checkModules
-  , elaborate
+  , resolveNames
   ) where
 
 import           Control.Applicative      ((<|>))
@@ -33,7 +33,6 @@ import           Control.Monad            (forM, when)
 import           Control.Monad.Foil       (DExt, Distinct)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
-import qualified Data.IntSet              as IntSet
 import           Data.List                (genericLength)
 import qualified Data.Map                 as Map
 import           Data.Maybe               (fromMaybe)
@@ -78,11 +77,11 @@ instance Foil.Sinkable Decl where
 sinkDecls :: DExt n l => [Decl n] -> [Decl l]
 sinkDecls = Foil.sink1
 
--- | A surface term in the current scope: a free identifier resolves to the
--- entry it names, and an unknown one is marked for the checker to report
--- where it is used.
-elaborate :: Distinct n => Rzk.Term -> Check n (Raw n)
-elaborate term = do
+-- | Resolve surface names and convert a term to raw syntax. A known identifier
+-- resolves to its scoped name; an unknown one is marked for the type checker to
+-- report where it is used. Type elaboration happens later in 'check' or 'infer'.
+resolveNames :: Distinct n => Rzk.Term -> Check n (Raw n)
+resolveNames term = do
   ctx <- askContext
   let env name = case lookupNamed name ctx of
         Just v  -> Var v
@@ -106,22 +105,22 @@ withTopLevel name tyCore ty mval kind uses k = do
         value = fmap (evalCore scope ctx) mval
         entry = Entry
           { entryType = Foil.sink ty
-          , entryValue = Foil.sink <$> value
+          , entryValue = Foil.sink1 value
           , entryModality = Id
           , entryLocks = Id
           , entryKind = kind
           , entryName = Just name
           , entryLocation = ctxLocation ctx
-          , entryUses = map Foil.sink uses
+          , entryUses = Foil.sink1 uses
           , entryTypeCore = Just (Foil.sink tyCore)
-          , entryValueCore = Foil.sink <$> mval
+          , entryValueCore = Foil.sink1 mval
           }
         ctx' = recordInSection (Foil.nameOf binder) (enterPattern pat [entry] ctx)
         decl = Decl
           { declName = name
           , declNameOf = Foil.nameOf binder
           , declType = Foil.sink ty
-          , declValue = Foil.sink <$> value
+          , declValue = Foil.sink1 value
           , declLocation = ctxLocation ctx
           }
     inContext ctx' (k decl)
@@ -194,7 +193,7 @@ checkDeclType
 checkDeclType path vars params ty = do
   used <- usedNames path vars
   paramDecls <- either (issueTypeError . TypeErrorOther) (pure . concat) (mapM paramToParamDecl params)
-  tyTerm <- elaborate (addParamDecls paramDecls ty)
+  tyTerm <- resolveNames (addParamDecls paramDecls ty)
   ty' <- atSurface ty $ check tyTerm universe
   (used, ty',) <$> evalM ty'
 
@@ -298,7 +297,7 @@ checkCommands path i total commands k = case commands of
           -- the body is checked on its own, so that a definition whose
           -- type is fine but whose proof is not still enters the scope
           result <- attempt $ do
-            valTerm <- elaborate (addParams params term)
+            valTerm <- resolveNames (addParams params term)
             val' <- atSurface term $ check valTerm tyV
             case force tyV of
               VUniverse -> evalM val' >>= ensureTypeAtU "a definition at type U"
@@ -331,10 +330,10 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandCheck _loc term ty) : more ->
     announce (" Checking " <> Rzk.printTree term <> " : " <> Rzk.printTree ty) $ atCommand command $ do
       result <- attempt $ do
-        tyTerm <- elaborate ty
+        tyTerm <- resolveNames ty
         ty' <- atSurface ty $ check tyTerm universe
         tyV <- evalM ty'
-        termTerm <- elaborate term
+        termTerm <- resolveNames term
         _ <- atSurface term $ check termTerm tyV
         pure ()
       case result of
@@ -347,7 +346,7 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandComputeNF _loc term) : more ->
     announce (" Computing NF for " <> Rzk.printTree term) $ atCommand command $ do
       result <- attempt $ do
-        (term', _) <- atSurface term $ elaborate term >>= infer
+        (term', _) <- atSurface term $ resolveNames term >>= infer
         ctx <- askContext
         pure (ppCore (namingOfContext ctx) (nfCore (ctxScope ctx) ctx term'))
       case result of
@@ -357,7 +356,7 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandComputeWHNF _loc term) : more ->
     announce (" Computing WHNF for " <> Rzk.printTree term) $ atCommand command $ do
       result <- attempt $ do
-        (term', _) <- atSurface term $ elaborate term >>= infer
+        (term', _) <- atSurface term $ resolveNames term >>= infer
         ctx <- askContext
         pure (ppCore (namingOfContext ctx) (quoteWhnfCore (ctxScope ctx) ctx term'))
       case result of
@@ -367,7 +366,7 @@ checkCommands path i total commands k = case commands of
   command@(Rzk.CommandAssume _loc names ty) : more ->
     announce (" Checking #assume " <> unwords (map Rzk.printTree names)) $ atCommand command $ do
       typeResult <- attempt $ do
-        tyTerm <- elaborate ty
+        tyTerm <- resolveNames ty
         ty' <- atSurface ty $ check tyTerm universe
         (ty',) <$> evalM ty'
       case typeResult of
@@ -479,8 +478,8 @@ endSection errs = do
                     []    -> []
                     s : _ -> sectionEntries s ]
       isAssumptionEntry entry = entryKind entry == EntryAssumption
-      assumptions = IntSet.fromList [ Foil.nameId name | (name, entry) <- entries, isAssumptionEntry entry ]
-      isAssumption name = Foil.nameId name `IntSet.member` assumptions
+      assumptions = Foil.nameSetFromList [ name | (name, entry) <- entries, isAssumptionEntry entry ]
+      isAssumption name = Foil.nameSetMember name assumptions
 
       -- In a sketch, a hole may still come to use an assumption, so the
       -- unused-variable errors are not reported in a section with a hole.
@@ -495,12 +494,12 @@ endSection errs = do
       -- and those the types of these mention, transitively. The types are
       -- the ones written, read off the context.
       dependencies entry =
-        closeUnderTypes IntSet.empty (namesOf (entryTypeCore entry) <> namesOf (entryValueCore entry))
+        closeUnderTypes Foil.emptyNameSet (namesOf (entryTypeCore entry) <> namesOf (entryValueCore entry))
       closeUnderTypes seen = \case
         [] -> seen
         name : more
-          | Foil.nameId name `IntSet.member` seen -> closeUnderTypes seen more
-          | otherwise -> closeUnderTypes (IntSet.insert (Foil.nameId name) seen)
+          | Foil.nameSetMember name seen -> closeUnderTypes seen more
+          | otherwise -> closeUnderTypes (Foil.nameSetInsert name seen)
               (freeNamesOf (typeCoreOf (lookupEntry name ctx)) <> more)
 
       -- Abstract an assumption out of the definitions (oldest first) that
@@ -512,7 +511,7 @@ endSection errs = do
             let written = lookupEntry x ctx
                 mentioned = any (sameName a) (namesOf (entryTypeCore written) <> namesOf (entryValueCore written))
                 declared = any (sameName a) (entryUses xEntry)
-            if Foil.nameId a `IntSet.member` dependencies xEntry
+            if Foil.nameSetMember a (dependencies xEntry)
               then do
                 -- used, but neither written in the type or the body nor
                 -- declared with @uses@
@@ -611,7 +610,7 @@ endSection errs = do
 
   pure (decls, errs <> unusedAssumptions <> unusedUses, ctx')
   where
-    sameName a b = Foil.nameId a == Foil.nameId b
+    sameName a b = a == b
     isTopeUniverse ty = case NbE.force ty of
       VUniverseTope -> True
       _                       -> False
@@ -656,8 +655,4 @@ checkModules ((path, m) : ms) k =
           _ : _ -> k [(path, decls)] errs
           []    -> checkModules ms $ \rest errors ->
             k ((path, sinkDecls decls) : rest) errors
-
--- | The weak head normal form of a term, read back ('quoteWhnfFolded').
-quoteWhnfCore :: Distinct n => Foil.Scope n -> Context n -> Core n -> Core n
-quoteWhnfCore scope ctx = quoteWhnfFolded scope ctx . evalCore scope ctx
 

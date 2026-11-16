@@ -127,14 +127,13 @@ module Rzk.Check.Syntax
 
 import           Control.Monad.Foil                (Distinct, NameBinder, S)
 import qualified Control.Monad.Foil                as Foil
-import           Control.Monad.Foil.Internal       (Substitution (..))
 import           Control.Monad.Free.Foil           (AST (..), ScopedAST (..),
                                                     substitute,
                                                     unsafeEqAST)
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
 import           Data.Bifoldable                   (bifoldMap, bifoldr)
 import           Data.Bifunctor                    (bimap)
-import qualified Data.IntMap                       as IntMap
+import           Data.Maybe                        (mapMaybe)
 import           Data.Bifunctor.TH                 (deriveBifoldable,
                                                     deriveBifunctor,
                                                     deriveBitraversable)
@@ -142,10 +141,10 @@ import           Data.ZipMatchK                    (ZipMatchFoldK, ZipMatchK (..
                                                     zipMatchViaEq)
 import           Data.ZipMatchK.TH                 (deriveZipMatchK)
 import           Generics.Kind.TH                  (deriveGenericK)
-import           Unsafe.Coerce                     (unsafeCoerce)
 
 import           Language.Rzk.Foil.Names           (RzkPosition (..),
                                                     TModality (..), VarIdent)
+import           Rzk.Check.Foil.Extras             (singletonSubstitution)
 
 -- * Binders
 
@@ -607,9 +606,8 @@ pattern RHole x1 <- RawNode (HoleF x1)
 
 -- * Queries
 
--- | The free names of a term, in order of mention, with repeats. A name
--- bound on the way down is dropped, which makes the coercion back to the
--- outer scope right.
+-- | The free names of a term, in order of mention, with repeats. Names bound
+-- on the way down are removed with 'Foil.unsinkNamePattern'.
 freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
 freeNamesOf (Ann t _) = freeNamesOf t
@@ -617,12 +615,7 @@ freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
   where
     scoped :: Distinct n' => ScopedCore n' -> [Foil.Name n']
     scoped (ScopedAST pat body) = case Foil.assertDistinct pat of
-      Foil.Distinct ->
-        let bound = map (Foil.nameId . snd) (patternNames pat)
-        in unsafeCoerce
-          [ x
-          | x <- freeNamesOf body
-          , Foil.nameId x `notElem` bound ]
+      Foil.Distinct -> mapMaybe (Foil.unsinkNamePattern pat) (freeNamesOf body)
 
 -- | A term without the annotations of its neutrals, which the library's
 -- readback keeps. The types are not looked at.
@@ -635,7 +628,7 @@ stripAnnotations = \case
 -- | Replace a free name of a term by a term of the same scope.
 substituteName :: Foil.Distinct n => Foil.Scope n -> Foil.Name n -> Core n -> Core n -> Core n
 substituteName scope name value =
-  substitute scope (UnsafeSubstitution (IntMap.singleton (Foil.nameId name) value))
+  substitute scope (singletonSubstitution name value)
 
 -- | Abstract a free name out of a term: the pattern the continuation
 -- receives binds what the name stood for, under the name's display name.

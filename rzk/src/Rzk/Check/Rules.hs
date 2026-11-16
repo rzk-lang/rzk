@@ -243,7 +243,7 @@ ensureTypeAtU position ty = do
 -- * Topes
 
 -- | The tope context, for an error.
-contextTopesM :: Check n [Tope]
+contextTopesM :: Check n [Tope n]
 contextTopesM = asksContext (accessibleTopes . ctxTopes)
 
 -- | The context entails the tope, or the tope mentions a hole and cannot
@@ -268,7 +268,7 @@ contextEntailsUnion topeVs = do
     unless (entailsUnion (ctxTopes ctx) topes || any topeHasHole topes) $
       issueTypeError (TypeErrorTopeNotSatisfied ctxTopes' (foldr topeOr TBot topes))
 
-topeHasHole :: Tope -> Bool
+topeHasHole :: Tope n -> Bool
 topeHasHole = \case
   THole _ -> True
   TEq x y -> pointHasHole x || pointHasHole y
@@ -282,7 +282,7 @@ topeHasHole = \case
   TNeutral p -> pointHasHole p
   _ -> False
 
-pointHasHole :: Point -> Bool
+pointHasHole :: Point n -> Bool
 pointHasHole = \case
   PHole _ -> True
   PPair a b -> pointHasHole a || pointHasHole b

@@ -53,8 +53,6 @@ module Rzk.Check.Context
 
 import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope)
 import qualified Control.Monad.Foil          as Foil
-import           Control.Monad.Foil.Internal (NameMap (..))
-import qualified Data.IntMap                 as IntMap
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
 import           Unsafe.Coerce               (unsafeCoerce)
@@ -64,6 +62,7 @@ import           FreeFoil.NbE.Definitions    (Unfolding (..))
 
 import           Language.Rzk.Foil.Names     (RzkPosition (..), TModality (..),
                                               VarIdent)
+import           Rzk.Check.Foil.Extras       (replaceName)
 import           Rzk.Check.Syntax
 import           Rzk.Check.Topes             (Tope, TopeContext,
                                               emptyTopeContext)
@@ -241,9 +240,9 @@ data Action n
     -- ^ infer the type of a raw term
   | ActionConvert (Value n) (Value n)
     -- ^ compare an expected value with an actual one
-  | ActionEntails [Tope] Tope
+  | ActionEntails [Tope n] (Tope n)
     -- ^ check that the listed context topes entail a goal
-  | ActionEntailsUnion [Tope] [Tope]
+  | ActionEntailsUnion [Tope n] [Tope n]
     -- ^ check that the listed context topes are covered by a union
   | ActionCheckLetValue (Maybe VarIdent)
     -- ^ check or infer a local definition's value
@@ -272,7 +271,7 @@ data Context n = Context
     -- ^ the surface name of each entry that has one
   , ctxBound         :: [Foil.Name n]
     -- ^ every name in scope, most recently bound first
-  , ctxTopes         :: TopeContext
+  , ctxTopes         :: TopeContext n
     -- ^ the assumed topes and their cached saturation
   , ctxVariance      :: Variance
     -- ^ the direction of the current comparison
@@ -340,14 +339,12 @@ enterPattern
   => Pattern n l -> [Entry l] -> Context n -> Context l
 enterPattern pat entries ctx = (sinkContextUnchecked ctx)
   { ctxScope = Foil.extendScopePattern pat (ctxScope ctx)
-  , ctxEntries = NameMap (foldr insert old (zip names entries))
+  , ctxEntries = Foil.addNameBinders pat entries (sinkEntries (ctxEntries ctx))
   , ctxBound = reverse (map snd names) <> sinkNames (ctxBound ctx)
   , ctxNamed = foldr named (sinkNamed (ctxNamed ctx)) names
   }
   where
     names = patternNames pat
-    NameMap old = sinkEntries (ctxEntries ctx)
-    insert ((_, name), entry) = IntMap.insert (Foil.nameId name) entry
     named (Just x, name) = Map.insert x name
     named (Nothing, _)   = id
 
@@ -359,8 +356,7 @@ sinkNamed = Foil.sink1
 
 -- | Replace what a name stands for.
 insertEntry :: Foil.Name n -> Entry n -> Context n -> Context n
-insertEntry name entry ctx = ctx { ctxEntries = NameMap (IntMap.insert (Foil.nameId name) entry m) }
-  where NameMap m = ctxEntries ctx
+insertEntry name entry ctx = ctx { ctxEntries = replaceName name entry (ctxEntries ctx) }
 
 withVariance :: Variance -> Context n -> Context n
 withVariance v ctx = ctx { ctxVariance = v }

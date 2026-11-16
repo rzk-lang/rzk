@@ -33,8 +33,6 @@ module Rzk.Check.Error
 
 import           Control.Monad.Foil       (Distinct)
 import qualified Control.Monad.Foil       as Foil
-import           Control.Monad.Foil.Internal (NameMap (..))
-import qualified Data.IntMap              as IntMap
 import           Data.List                (intercalate)
 
 import           Language.Rzk.Foil.Names  (TModality (..), VarIdent,
@@ -74,9 +72,9 @@ data TypeError n
     -- ^ a user hole and the goal it leaves unsolved in strict mode
   | TypeErrorUndefined VarIdent
     -- ^ an unresolved surface identifier
-  | TypeErrorTopeNotSatisfied [Tope] Tope
+  | TypeErrorTopeNotSatisfied [Tope n] (Tope n)
     -- ^ context topes and the goal they do not entail
-  | TypeErrorTopeContextDisjoint Tope [Tope]
+  | TypeErrorTopeContextDisjoint (Tope n) [Tope n]
     -- ^ a tope disjoint from the listed context
   | TypeErrorInvalidArgumentType (Raw n) (Value n)
     -- ^ a function parameter and its invalid kind
@@ -312,7 +310,7 @@ ppAction ctx = \case
     block = intercalate "\n"
 
 -- | A tope of the solver, shown with the context's names.
-ppTope :: Naming n -> Tope -> String
+ppTope :: Naming n -> Tope n -> String
 ppTope naming = go
   where
     go = \case
@@ -330,11 +328,11 @@ ppTope naming = go
       THole m -> maybe "?" (("?" <>) . show) m
     paren s = if ' ' `elem` s then "(" <> s <> ")" else s
 
-ppPoint :: Naming n -> Point -> String
+ppPoint :: Naming n -> Point n -> String
 ppPoint naming = go
   where
     go = \case
-      PVar i _ -> nameById i
+      PVar x _ -> ppName naming x
       PStar -> "*₁"
       P2_0 -> "0₂"
       P2_1 -> "1₂"
@@ -353,10 +351,6 @@ ppPoint naming = go
       PHole m -> maybe "?" (("?" <>) . show) m
       POpaque _ -> "…"
     paren s = if ' ' `elem` s then "(" <> s <> ")" else s
-    nameById i = case IntMap.lookup i m of
-      Just x  -> Rzk.printTree (fromVarIdent x)
-      Nothing -> "x" <> show i
-      where NameMap m = namingOf naming
 
 ppModality :: TModality -> String
 ppModality = \case

@@ -93,6 +93,7 @@ module Rzk.Check.Value
   , quoteIn
   , quoteFolded
   , quoteWhnfFolded
+  , quoteWhnfCore
   , nfCore
   , force
   , conv
@@ -591,6 +592,10 @@ quoteFolded scope ctx = stripAnnotations . NbE.quote scope ctx { ctxUnfolding = 
 quoteWhnfFolded :: Distinct n => Scope n -> Context n -> Value n -> Core n
 quoteWhnfFolded scope ctx =
   stripAnnotations . NbE.quoteWhnf scope ctx { ctxUnfolding = Folded } . NbE.fromWhnf . NbE.force
+
+-- | Evaluate a core term and read back its weak head normal form.
+quoteWhnfCore :: Distinct n => Scope n -> Context n -> Core n -> Core n
+quoteWhnfCore scope ctx = quoteWhnfFolded scope ctx . evalCore scope ctx
 
 nfCore :: Distinct n => Scope n -> Context n -> Core n -> Core n
 {-# INLINE nfCore #-}
@@ -1124,7 +1129,7 @@ isTopeNode = \case
   _            -> False
 
 -- | A tope value read into the solver's syntax.
-topeOf :: Distinct n => Scope n -> Context n -> Value n -> Tope
+topeOf :: Distinct n => Scope n -> Context n -> Value n -> Tope n
 topeOf scope ctx v = case NbE.force v of
   VTopeTop -> TTop
   VTopeBottom -> TBot
@@ -1141,9 +1146,9 @@ topeOf scope ctx v = case NbE.force v of
 
 -- | A point value read into the solver's syntax. A variable carries its
 -- cube; a defined point is unfolded.
-pointOf :: Distinct n => Scope n -> Context n -> Value n -> Point
+pointOf :: Distinct n => Scope n -> Context n -> Value n -> Point n
 pointOf scope ctx v = case NbE.force v of
-  NbE.VVar x -> PVar (Foil.nameId x) (cubeOfType (entryType (lookupEntry x ctx)))
+  NbE.VVar x -> PVar x (cubeOfType (entryType (lookupEntry x ctx)))
   VAnn n _ -> pointOf scope ctx n
   VCubeUnitStar -> PStar
   VCube2_0 -> P2_0

@@ -158,7 +158,7 @@ issueTypeError = failWith
 {-# INLINE issueTypeError #-}
 
 -- | Run a judgement with a tope assumed.
-underTope :: Tope -> Check n a -> Check n a
+underTope :: Tope n -> Check n a -> Check n a
 underTope tope = localContext $ \ctx -> ctx { ctxTopes = assume tope (ctxTopes ctx) }
 {-# INLINE underTope #-}
 
