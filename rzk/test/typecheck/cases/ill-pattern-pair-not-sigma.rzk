@@ -1,3 +1,0 @@
-#lang rzk-1
-
-#def bad (A : U) : A → A := \ (x, y) → x

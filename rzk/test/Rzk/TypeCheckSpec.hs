@@ -368,6 +368,19 @@ spec = describe "Typecheck fixtures" $ do
       Left err -> expectationFailure (T.unpack err)
       Right m -> map Check.warningTag (snd (runNew [("<test>", m)]))
         `shouldBe` ["UnsupportedOptionWarning"]
+  it "reports an invalid pair pattern with its pattern" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#def bad (A : U) : A → A := \\ (x, y) → x"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> case fst (runNew [("<test>", m)]) of
+        [err] -> do
+          Check.errorTag err `shouldBe` "TypeErrorUnexpectedPairPattern"
+          Check.ppErrorInContext err `shouldContain` "(x, y)"
+        errs -> expectationFailure $
+          "expected one pair-pattern error, got " <> show (map Check.errorTag errs)
 
 -- * The new checker
 

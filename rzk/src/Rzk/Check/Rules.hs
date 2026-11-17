@@ -114,15 +114,15 @@ enterRawScope extend (ScopedAST pat body) k = do
 -- right component is checked in the context of the left prefix.
 validatePattern :: Distinct n => Value n -> Pattern n l -> Check n ()
 validatePattern ty = \case
-  PatternPair l r -> case Foil.assertDistinct l of
+  pat@(PatternPair l r) -> case Foil.assertDistinct l of
     Foil.Distinct -> case Foil.assertDistinct r of
       Foil.Distinct -> case (Foil.assertExt l, Foil.assertExt r) of
-        (Foil.Ext, Foil.Ext) -> validatePairPattern ty l r
+        (Foil.Ext, Foil.Ext) -> validatePairPattern ty pat l r
   _ -> pure ()
   where
     validatePairPattern :: forall n i l. (Distinct n, DExt n i)
-      => Value n -> Pattern n i -> Pattern i l -> Check n ()
-    validatePairPattern domain l r = case force (stripRestrictions domain) of
+      => Value n -> Pattern n l -> Pattern n i -> Pattern i l -> Check n ()
+    validatePairPattern domain pat l r = case force (stripRestrictions domain) of
       VTypeSigma env _ a b -> do
         validatePattern a l
         ctx <- askContext
@@ -137,7 +137,7 @@ validatePattern ty = \case
         let scopeL = Foil.extendScopePattern l (ctxScope ctx)
             ctxL = underPattern scopeL ctx Id a Nothing l
         inContext ctxL $ validatePattern (Foil.sink b) r
-      _ -> issueTypeError (TypeErrorNotPair Nothing domain)
+      _ -> issueTypeError (TypeErrorUnexpectedPairPattern pat domain)
 
 -- | Enter a raw scope bound at a domain, with a modality and a shape.
 underRawScope
@@ -707,7 +707,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       VRecBottom -> pure (First t', vrecBottom)
       VCubeProduct a _ -> pure (First t', a)
       _ | Just (Sigma _ _ a _) <- sigmaOf ty -> pure (First t', a)
-      _ -> issueTypeError (TypeErrorNotPair (Just t') ty)
+      _ -> issueTypeError (TypeErrorNotPair t' ty)
 
   RSecond t -> do
     (t', ty) <- infer t
@@ -719,7 +719,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       _ | Just (Sigma env _ _ b) <- sigmaOf ty -> do
         tV <- evalM t'
         pure (Second t', codomainAt scope ctx env b (firstValue tV))
-      _ -> issueTypeError (TypeErrorNotPair (Just t') ty)
+      _ -> issueTypeError (TypeErrorNotPair t' ty)
 
   RTypeUnit -> pure (TypeUnit, universe)
   RUnit -> pure (Unit, vtypeUnit)

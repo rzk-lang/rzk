@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -57,8 +58,10 @@ data TypeError n
     -- ^ the term, the expected type and its actual type
   | TypeErrorUnifyTerms (Value n) (Value n)
     -- ^ the expected and actual values that are not convertible
-  | TypeErrorNotPair (Maybe (Core n)) (Value n)
-    -- ^ a projected term, if one is present, and its non-pair type
+  | TypeErrorNotPair (Core n) (Value n)
+    -- ^ a projected term and its non-pair type
+  | forall l. TypeErrorUnexpectedPairPattern (Pattern n l) (Value n)
+    -- ^ a pair pattern and its non-pair type
   | TypeErrorNotFunction (Core n) (Value n)
     -- ^ an applied term and its non-function type
   | TypeErrorUnexpectedLambda (Raw n) (Value n)
@@ -105,6 +108,7 @@ typeErrorTag = \case
   TypeErrorUnify{}                -> "TypeErrorUnify"
   TypeErrorUnifyTerms{}           -> "TypeErrorUnifyTerms"
   TypeErrorNotPair{}              -> "TypeErrorNotPair"
+  TypeErrorUnexpectedPairPattern{} -> "TypeErrorUnexpectedPairPattern"
   TypeErrorNotFunction{}          -> "TypeErrorNotFunction"
   TypeErrorUnexpectedLambda{}     -> "TypeErrorUnexpectedLambda"
   TypeErrorUnexpectedPair{}       -> "TypeErrorUnexpectedPair"
@@ -135,6 +139,13 @@ errorTag (ErrorInContext _ err) = typeErrorTag err
 errorLocation :: ErrorInContext -> Maybe LocationInfo
 errorLocation (ErrorInContext ctx _) = ctxLocation ctx
 
+ppPattern :: Pattern n l -> String
+ppPattern = \case
+  PatternVar mname _ -> maybe "_" (Rzk.printTree . fromVarIdent) mname
+  PatternWildcard _  -> "_"
+  PatternUnit        -> "unit"
+  PatternPair l r    -> "(" <> ppPattern l <> ", " <> ppPattern r <> ")"
+
 ppTypeError :: Distinct n => Context n -> TypeError n -> String
 ppTypeError ctx = \case
   TypeErrorOther msg -> msg
@@ -151,17 +162,17 @@ ppTypeError ctx = \case
     , "  " <> ppV expected
     , "with term"
     , "  " <> ppV actual ]
-  TypeErrorNotPair mterm ty -> case mterm of
-    Nothing -> block
-      [ "expected a pair pattern to have a dependent pair or cube product type"
-      , "but its type is"
-      , "  " <> ppV ty ]
-    Just term -> block
-      [ "expected a cube product or dependent pair"
-      , "but got type"
-      , "  " <> ppV ty
-      , "for term"
-      , "  " <> ppC term ]
+  TypeErrorNotPair term ty -> block
+    [ "expected a cube product or dependent pair"
+    , "but got type"
+    , "  " <> ppV ty
+    , "for term"
+    , "  " <> ppC term ]
+  TypeErrorUnexpectedPairPattern pat ty -> block
+    [ "unexpected pair pattern"
+    , "  " <> ppPattern pat
+    , "when typechecking against a type that is not a dependent pair or cube product"
+    , "  " <> ppV ty ]
   TypeErrorNotFunction term ty -> block
     [ "expected a function or extension type"
     , "but got type"
