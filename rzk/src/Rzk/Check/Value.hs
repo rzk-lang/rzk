@@ -125,6 +125,7 @@ module Rzk.Check.Value
   , stripRestrictions
   , restrictionsOf
   , compareRestrictionsWith
+  , compareRestrictionsWithRemaining
     -- * Patterns
   , patternValue
   , bindPattern
@@ -246,15 +247,32 @@ compareRestrictionsWith
   -> [(tope, a)]
   -> [(tope, b)]
   -> [c]
-compareRestrictionsWith matching unmatched expected allActual = go expected allActual
+compareRestrictionsWith matching unmatched expected allActual =
+  fst (compareRestrictionsWithRemaining matching unmatched expected allActual)
+{-# INLINE compareRestrictionsWith #-}
+
+-- | Like 'compareRestrictionsWith', also returning the actual restrictions
+-- left unconsumed by matching. Their coherence is not implied by the expected
+-- type's coherence.
+compareRestrictionsWithRemaining
+  :: Eq tope
+  => (tope -> a -> b -> c)
+  -> (tope -> a -> [(tope, b)] -> c)
+  -> [(tope, a)]
+  -> [(tope, b)]
+  -> ([c], [(tope, b)])
+compareRestrictionsWithRemaining matching unmatched expected allActual = go expected allActual
   where
     go ((tope, a) : expected') remaining =
       case break ((== tope) . fst) remaining of
         (before, (_, b) : after) ->
-          matching tope a b : go expected' (before ++ after)
-        _ -> unmatched tope a allActual : go expected' remaining
-    go [] _actual = []
-{-# INLINE compareRestrictionsWith #-}
+          let (results, left) = go expected' (before ++ after)
+          in (matching tope a b : results, left)
+        _ ->
+          let (results, left) = go expected' remaining
+          in (unmatched tope a allActual : results, left)
+    go [] remaining = ([], remaining)
+{-# INLINE compareRestrictionsWithRemaining #-}
 
 instance Eval Context Pattern Sig where
   {-# INLINABLE evalSig #-}

@@ -603,18 +603,27 @@ checkRecOrAgainst ty rs = do
     checkTopeAgainstContext "recOR branch guard" topeV
     (branch', branchV) <- underTope (topeOf scope ctx topeV) $ checkEval branch branchTy
     pure ((tope', branch'), (topeV, branchV))
-  sequence_ [ checkCoherence l r | l : rest <- tails (map snd branches), r <- rest ]
+  let indexedBranches = zip [(0 :: Int)..] (map snd branches)
+      faces = [ (topeOf scope ctx tope, (tope, face)) | (tope, face) <- restrictions ]
+      actual = [ (topeOf scope ctx guard, (i, (guard, branch))) | (i, (guard, branch)) <- indexedBranches ]
+      (comparisons, unmatched) = compareRestrictionsWithRemaining
+        (\_ (faceTope, face) (_, (_, branch)) ->
+          underTope (topeOf scope ctx faceTope) $ convertTerms face branch)
+        (\_ (faceTope, face) actual' -> sequence_
+          [ underTope (topeOf scope ctx (topeAndValue faceTope guard)) $ convertTerms face branch
+          | (_, (_, (guard, branch))) <- actual' ])
+        faces actual
+      unmatchedIndices = [ i | (_, (i, _)) <- unmatched ]
+  -- Matched branches inherit coherence from the expected type. Only pairs
+  -- involving an unconsumed branch need an explicit check.
+  sequence_
+    [ checkCoherence l r
+    | (i, l) : rest <- tails indexedBranches
+    , (j, r) <- rest
+    , i `elem` unmatchedIndices || j `elem` unmatchedIndices ]
   contextEntailsUnion (map (fst . snd) branches)
   forM_ restrictions $ \(tope, _) -> checkTopeAgainstContext "restriction face" tope
-  let faces = [ (topeOf scope ctx tope, (tope, face)) | (tope, face) <- restrictions ]
-      actual = [ (topeOf scope ctx guard, (guard, branch)) | (guard, branch) <- map snd branches ]
-  sequence_ $ compareRestrictionsWith
-    (\_ (faceTope, face) (_, branch) ->
-      underTope (topeOf scope ctx faceTope) $ convertTerms face branch)
-    (\_ (faceTope, face) actual' -> sequence_
-      [ underTope (topeOf scope ctx (topeAndValue faceTope guard)) $ convertTerms face branch
-      | (_, (guard, branch)) <- actual' ])
-    faces actual
+  sequence_ comparisons
   tyC <- quoteM ty
   pure (RecOr tyC (map fst branches))
 

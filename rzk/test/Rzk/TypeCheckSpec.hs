@@ -425,6 +425,15 @@ spec = describe "Typecheck fixtures" $ do
           msg `shouldNotContain` "ψ t ∧ ψ t ∧ χ t"
         errs -> expectationFailure $
           "expected one family-domain error, got " <> show (map Check.errorTag errs)
+  it "checks coherence of an unmatched duplicate recOR branch" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#def bad (A : U) (a b : A) : A [TOP ↦ a] := recOR (TOP ↦ a, TOP ↦ b)"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
+        `shouldBe` ["TypeErrorUnifyTerms"]
 
 -- * The new checker
 
