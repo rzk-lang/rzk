@@ -639,9 +639,28 @@ force :: Value n -> Whnf n
 force = NbE.force
 
 -- | Compare an expected value with an actual one in the context's variance.
+-- Restricted types against unrestricted ones use the comparison subject, if
+-- there is one, to check the faces against the actual term.
 conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool
 {-# INLINE conv #-}
-conv = Conv.conv
+conv scope ctx expected actual
+  | entailsBottom (ctxTopes ctx) = True
+  | otherwise = case (force expected, force actual) of
+      (VTypeRestricted{}, VTypeRestricted{}) -> generic
+      (_, VTypeRestricted tyA _) | Covariant <- ctxVariance ctx ->
+        conv scope ctx expected tyA
+      (VTypeRestricted tyE _, _) | Contravariant <- ctxVariance ctx ->
+        conv scope ctx tyE actual
+      (VTypeRestricted tyE rsE, _)
+        | Covariant <- ctxVariance ctx, Just subject <- ctxSubject ctx ->
+          let subjectV = evalCore scope ctx subject
+          in conv scope ctx tyE actual && all (agreesWithFace subjectV) rsE
+      _ -> generic
+  where
+    generic = Conv.conv scope ctx expected actual
+    agreesWithFace subjectV (tope, face) =
+      let ctx' = withSubject Nothing (withVariance Invariant (assumeValue scope ctx tope))
+      in conv scope ctx' face subjectV
 
 convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool
 {-# INLINE convertible #-}
@@ -1101,7 +1120,11 @@ pisBinder :: TModality -> Value n -> Maybe (Value n) -> Maybe (Value n) -> Exten
 {-# INLINE pisBinder #-}
 pisBinder md dom mshapeL mshapeR = Extend $ \_ pat scope' ctx ->
   let ctx' = underPattern scope' ctx md dom Nothing pat
-  in assumeShapeAt scope' pat mshapeR (assumeShapeAt scope' pat mshapeL ctx')
+      ctx'' = assumeShapeAt scope' pat mshapeR (assumeShapeAt scope' pat mshapeL ctx')
+      subject' = case ctxSubject ctx of
+        Nothing -> Nothing
+        Just subject -> Just (App (Foil.sink subject) (quoteIn scope' ctx' (patternValue pat)))
+  in ctx'' { ctxSubject = subject' }
 
 -- | The binder two lambdas are compared under: the right one's domain, and
 -- both shapes, since the bodies agree only where both are defined.
@@ -1138,7 +1161,7 @@ recOrValue scope ctx rs =
   case [ b | (guard, b) <- rs, entailsValue scope ctx guard ] of
     b : _ -> b
     [] -> case rs of
-      (_, b) : rest | all (conv scope (withVariance Invariant ctx) b . snd) rest -> b
+      (_, b) : rest | all (conv scope (withSubject Nothing (withVariance Invariant ctx)) b . snd) rest -> b
       _ -> NbE.vnode (RecOrF (Just universe) rs)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.

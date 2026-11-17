@@ -49,6 +49,7 @@ module Rzk.Check.Context
   , sinkContextUnchecked
   , insertEntry
   , withVariance
+  , withSubject
   ) where
 
 import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope)
@@ -275,6 +276,8 @@ data Context n = Context
     -- ^ the assumed topes and their cached saturation
   , ctxVariance      :: Variance
     -- ^ the direction of the current comparison
+  , ctxSubject       :: Maybe (Core n)
+    -- ^ the actual term whose type is being compared, if there is one
   , ctxUnfolding     :: Unfolding
     -- ^ the side of a defined name that readback follows
   , ctxApproximation :: Approximation
@@ -306,6 +309,7 @@ emptyContext = Context
   , ctxBound = []
   , ctxTopes = emptyTopeContext
   , ctxVariance = Covariant
+  , ctxSubject = Nothing
   , ctxUnfolding = Unfolded
   , ctxApproximation = ApproxRigid
   , ctxOptions = defaultOptions
@@ -360,3 +364,7 @@ insertEntry name entry ctx = ctx { ctxEntries = replaceName name entry (ctxEntri
 
 withVariance :: Variance -> Context n -> Context n
 withVariance v ctx = ctx { ctxVariance = v }
+
+-- | Set the actual term whose type is being compared.
+withSubject :: Maybe (Core n) -> Context n -> Context n
+withSubject term ctx = ctx { ctxSubject = term }

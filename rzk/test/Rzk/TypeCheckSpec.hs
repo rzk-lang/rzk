@@ -425,6 +425,19 @@ spec = describe "Typecheck fixtures" $ do
           msg `shouldNotContain` "ψ t ∧ ψ t ∧ χ t"
         errs -> expectationFailure $
           "expected one family-domain error, got " <> show (map Check.errorTag errs)
+  it "checks restricted codomains against the actual application" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#def const (A : U) (a : A) : (t : 2) → A := \\ t → a"
+          , "#def good (A : U) (a : A) : (t : 2) → A [t ≡ 0₂ ↦ a] := const A a"
+          , "#def bad (A : U) (a : A) (f : (t : 2) → A)"
+          , "  : (t : 2) → A [t ≡ 0₂ ↦ a]"
+          , "  := f"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
+        `shouldBe` ["TypeErrorUnify"]
 
 -- * The new checker
 
