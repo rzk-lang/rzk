@@ -147,7 +147,6 @@ module Rzk.Check.Value
     -- * Holes
   ) where
 
-import           Control.Applicative         ((<|>))
 import           Control.Monad.Foil          (DExt, Distinct, NameBinder, Scope)
 import qualified Control.Monad.Foil          as Foil
 import           Control.Monad.Free.Foil     (AST (..), ScopedAST (..))
@@ -553,7 +552,7 @@ isPointValue scope ctx v = case NbE.force v of
     CubeFlipF{}   -> True
     CubeUnflipF{} -> True
     PairF{}       -> False
-    AnnF _ ty | Just t <- annotationType ty -> isCube scope ctx t
+    AnnF _ ty -> isCube scope ctx ty
     _             -> neutralOfCube
   NbE.VVar _ -> neutralOfCube
   _ -> False
@@ -846,12 +845,6 @@ isNeutralValue v = case NbE.forceFolded v of
   VRecOr _ _ -> True
   _ -> False
 
--- | The type an annotation carries, if it is known.
-annotationType :: Value n -> Maybe (Value n)
-annotationType ty = case NbE.force ty of
-  VHole Nothing -> Nothing
-  _                         -> Just ty
-
 -- | The join of two points, normalised at the endpoints.
 supValue :: Value n -> Value n -> Value n
 supValue l r = case (NbE.force l, NbE.force r) of
@@ -959,7 +952,7 @@ singlePattern = PatternVar Nothing
 
 -- | The entries of a pattern's names, in binding order, from the type of
 -- the value it is bound to: a pair pattern destructures a Σ type or a cube
--- product. A leaf whose type cannot be read gets a hole for a type.
+-- product. Invalid pair patterns are rejected before semantic entry.
 --
 -- The context is the one under the pattern, without the pattern's own
 -- entries yet: the codomain of a Σ is evaluated at the left component's
@@ -981,7 +974,7 @@ patternEntries scope ctx md loc = go
             go (inherit firstValue a) l
               <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
           VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
-          _ -> go (vhole Nothing) l <> go (vhole Nothing) r
+          _ -> panicImpossible "a pair pattern at a non-pair type"
       where
         -- A component of a restricted pair is restricted to the same
         -- component of each boundary pair.
@@ -1058,13 +1051,12 @@ topShapeValue scope cube = Foil.withFresh scope $ \b ->
     (LambdaF (Just (Param Id cube Nothing)) (ScopedAST (singlePattern b) TopeTop))
 
 -- | The binder of a λ, from its parameter: its domain and modality, and its
--- shape, assumed for the body. A λ without a parameter binds names of an
--- unknown type.
+-- shape, assumed for the body. Elaborated λs always have a parameter.
 lambdaBinder :: Maybe (Param (Value n)) -> Extend Context Pattern Sig n
 {-# INLINE lambdaBinder #-}
 lambdaBinder mparam = Extend $ \_ pat scope' ctx -> case mparam of
   Just (Param md dom mshape) -> underPattern scope' ctx md dom mshape pat
-  Nothing -> underPattern scope' ctx Id (vhole Nothing) Nothing pat
+  Nothing -> panicImpossible "an elaborated lambda without its parameter type"
 
 -- | The binder of a Π: its domain, and its shape assumed for the codomain.
 piBinder :: TModality -> Value n -> Maybe (Value n) -> Extend Context Pattern Sig n
@@ -1080,15 +1072,15 @@ letBinder :: Maybe (Value n) -> Value n -> Extend Context Pattern Sig n
 {-# INLINE letBinder #-}
 letBinder mty val = Extend $ \_ pat scope' ctx ->
   let ctx0 = sinkContextUnchecked ctx
-      ty = maybe (vhole Nothing) id mty
+      ty = maybe (panicImpossible "an elaborated let without its value type") id mty
       entries = letEntries scope' ctx0 (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat
   in enterPattern pat entries ctx
 
--- | A binder whose names have no known type (a construct not yet checked
--- on values).
+-- | An unsupported construct has no typed semantic binder. Entering one is
+-- an invariant violation, not a reason to manufacture a hole.
 opaqueBinder :: Extend Context Pattern Sig n
 {-# INLINE opaqueBinder #-}
-opaqueBinder = Extend $ \_ pat scope' ctx -> underPattern scope' ctx Id (vhole Nothing) Nothing pat
+opaqueBinder = Extend $ \_ _ _ _ -> panicImpossible "an opaque semantic binder used during checking"
 
 -- | The binder the codomains of two Π types are compared under: the right
 -- one's domain, and both shapes. The codomains need to agree only where
@@ -1108,7 +1100,7 @@ lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
   let (md, dom) = case (mpR, mpL) of
         (Just p, _) -> (paramModality p, paramDomain p)
         (_, Just p) -> (paramModality p, paramDomain p)
-        _           -> (Id, vhole Nothing)
+        _           -> panicImpossible "two elaborated lambdas without parameter types"
       ctx' = underPattern scope' ctx md dom Nothing pat
   in assumeShapeAt scope' pat (mpR >>= paramShape) (assumeShapeAt scope' pat (mpL >>= paramShape) ctx')
 
@@ -1236,7 +1228,7 @@ fingerprint (Node sig) =
 neutralType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 neutralType scope ctx v = case NbE.forceFolded v of
   NbE.VVar x -> Just (entryType (lookupEntry x ctx))
-  VAnn n ty -> annotationType ty <|> neutralType scope ctx n
+  VAnn _ ty -> Just ty
   VRecOr ty _ -> Just ty
   VApp f a -> do
     fTy <- neutralType scope ctx f

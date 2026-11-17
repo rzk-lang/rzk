@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -59,6 +60,10 @@ data TypeError n
     -- ^ the expected and actual values that are not convertible
   | TypeErrorNotPair (Core n) (Value n)
     -- ^ a projected term and its non-pair type
+  | forall l. TypeErrorUnexpectedPairPattern (Pattern n l) (Value n)
+    -- ^ a pair pattern and its non-pair type
+  | TypeErrorUnexpectedUnitPattern (Value n)
+    -- ^ a unit pattern's non-unit type
   | TypeErrorNotFunction (Core n) (Value n)
     -- ^ an applied term and its non-function type
   | TypeErrorUnexpectedLambda (Raw n) (Value n)
@@ -105,6 +110,8 @@ typeErrorTag = \case
   TypeErrorUnify{}                -> "TypeErrorUnify"
   TypeErrorUnifyTerms{}           -> "TypeErrorUnifyTerms"
   TypeErrorNotPair{}              -> "TypeErrorNotPair"
+  TypeErrorUnexpectedPairPattern{} -> "TypeErrorUnexpectedPairPattern"
+  TypeErrorUnexpectedUnitPattern{} -> "TypeErrorUnexpectedUnitPattern"
   TypeErrorNotFunction{}          -> "TypeErrorNotFunction"
   TypeErrorUnexpectedLambda{}     -> "TypeErrorUnexpectedLambda"
   TypeErrorUnexpectedPair{}       -> "TypeErrorUnexpectedPair"
@@ -135,6 +142,13 @@ errorTag (ErrorInContext _ err) = typeErrorTag err
 errorLocation :: ErrorInContext -> Maybe LocationInfo
 errorLocation (ErrorInContext ctx _) = ctxLocation ctx
 
+ppPattern :: Pattern n l -> String
+ppPattern = \case
+  PatternVar mname _ -> maybe "_" (Rzk.printTree . fromVarIdent) mname
+  PatternWildcard _  -> "_"
+  PatternUnit        -> "unit"
+  PatternPair l r    -> "(" <> ppPattern l <> ", " <> ppPattern r <> ")"
+
 ppTypeError :: Distinct n => Context n -> TypeError n -> String
 ppTypeError ctx = \case
   TypeErrorOther msg -> msg
@@ -157,6 +171,16 @@ ppTypeError ctx = \case
     , "  " <> ppV ty
     , "for term"
     , "  " <> ppC term ]
+  TypeErrorUnexpectedPairPattern pat ty -> block
+    [ "unexpected pair pattern"
+    , "  " <> ppPattern pat
+    , "when typechecking against a type that is not a dependent pair or cube product"
+    , "  " <> ppV ty ]
+  TypeErrorUnexpectedUnitPattern ty -> block
+    [ "unexpected unit pattern"
+    , "  unit"
+    , "when typechecking against a non-unit type"
+    , "  " <> ppV ty ]
   TypeErrorNotFunction term ty -> block
     [ "expected a function or extension type"
     , "but got type"
