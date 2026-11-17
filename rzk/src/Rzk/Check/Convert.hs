@@ -21,7 +21,6 @@ import           Control.Monad.Foil       (DExt, Distinct, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Control.Monad.Free.Foil.Annotated (AnnSig (..))
-import           Data.Data                (cast)
 import           Data.Functor             (void)
 
 import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
@@ -30,7 +29,6 @@ import           Language.Rzk.Foil.Names  (RzkPosition (..), TModality (..),
                                            patternToTerm, sigmaParamToTypeSigma,
                                            toModality, unsafeTermToPattern,
                                            varIdent)
-import           Language.Rzk.Data        (foldData)
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.Check.Syntax
 
@@ -315,18 +313,102 @@ toRaw scope env = go
 -- | A simpler spelling of a surface construct, with the original and suggested
 -- terms. The collector traverses the original term without changing it.
 hintsOf :: Rzk.Term -> [(Rzk.Term, Rzk.Term)]
-hintsOf = foldData (maybe [] localHint . cast)
+hintsOf = go
   where
+    go term = localHint term <> case term of
+      Rzk.CubeProduct _ a b -> go a <> go b
+      Rzk.CubeSup _ a b -> go a <> go b
+      Rzk.CubeInf _ a b -> go a <> go b
+      Rzk.TopeEQ _ a b -> go a <> go b
+      Rzk.TopeLEQ _ a b -> go a <> go b
+      Rzk.TopeAnd _ a b -> go a <> go b
+      Rzk.TopeOr _ a b -> go a <> go b
+      Rzk.TopeInv _ a -> go a
+      Rzk.TopeUninv _ a -> go a
+      Rzk.CubeFlip _ a -> go a
+      Rzk.CubeUnflip _ a -> go a
+      Rzk.RecOr _ rs -> restrictions rs
+      Rzk.TypeFun _ p ret -> paramDecl p <> go ret
+      Rzk.TypeSigma _ _ a b -> go a <> go b
+      Rzk.TypeSigmaModal _ _ _ a b -> go a <> go b
+      Rzk.TypeSigmaTuple _ p ps ret -> sigmaParams (p : ps) <> go ret
+      Rzk.TypeId _ a b c -> go a <> go b <> go c
+      Rzk.TypeIdSimple _ a b -> go a <> go b
+      Rzk.TypeRestricted _ a rs -> go a <> restrictions rs
+      Rzk.Let _ b val body -> bind b <> go val <> go body
+      Rzk.App _ f a -> go f <> go a
+      Rzk.Lambda _ ps body -> params ps <> go body
+      Rzk.Pair _ a b -> go a <> go b
+      Rzk.Tuple _ a b ts -> go a <> go b <> concatMap go ts
+      Rzk.ModApp _ _ a -> go a
+      Rzk.ModType _ _ a -> go a
+      Rzk.ModExtract _ _ a -> go a
+      Rzk.LetModBind _ _ b val body -> bind b <> go val <> go body
+      Rzk.LetMod _ _ b val body -> bind b <> go val <> go body
+      Rzk.LetModFramed _ _ _ b val body -> bind b <> go val <> go body
+      Rzk.LetModBindInto _ _ b motive val body -> bind b <> go motive <> go val <> go body
+      Rzk.LetModInto _ _ b motive val body -> bind b <> go motive <> go val <> go body
+      Rzk.LetModFramedInto _ _ _ b motive val body -> bind b <> go motive <> go val <> go body
+      Rzk.First _ a -> go a
+      Rzk.Second _ a -> go a
+      Rzk.ReflTerm _ a -> go a
+      Rzk.ReflTermType _ a b -> go a <> go b
+      Rzk.IdJ _ a b c d e f -> mconcat (map go [a, b, c, d, e, f])
+      Rzk.Match _ a bs -> go a <> matchBranches bs
+      Rzk.MatchInto _ a b bs -> go a <> go b <> matchBranches bs
+      Rzk.MatchModal _ _ a bs -> go a <> matchBranches bs
+      Rzk.MatchModalInto _ _ a b bs -> go a <> go b <> matchBranches bs
+      Rzk.TypeAsc _ a b -> go a <> go b
+      Rzk.ASCII_TopeEQ _ a b -> go a <> go b
+      Rzk.ASCII_TopeLEQ _ a b -> go a <> go b
+      Rzk.ASCII_TopeAnd _ a b -> go a <> go b
+      Rzk.ASCII_TopeOr _ a b -> go a <> go b
+      Rzk.ASCII_TypeFun _ p ret -> paramDecl p <> go ret
+      Rzk.ASCII_TypeSigma _ _ a b -> go a <> go b
+      Rzk.ASCII_TypeSigmaTuple _ p ps ret -> sigmaParams (p : ps) <> go ret
+      Rzk.ASCII_Lambda _ ps body -> params ps <> go body
+      Rzk.ASCII_First _ a -> go a
+      Rzk.ASCII_Second _ a -> go a
+      _ -> []
+
     localHint term@(Rzk.TypeFun loc (Rzk.ParamTermShape loc' patTerm _cube tope) ret) =
       case tope of
         Rzk.App _ fun arg
           | void arg == void patTerm ->
               [(term, Rzk.TypeFun loc (Rzk.ParamTermType loc' patTerm fun) ret)]
         _ -> []
-    localHint term@(Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] _cube tope : params) body) =
+    localHint term@(Rzk.Lambda loc (Rzk.ParamPatternShape loc' [pat] _cube tope : params') body) =
       case tope of
         Rzk.App _ fun arg
           | void arg == void (patternToTerm pat) ->
-              [(term, Rzk.Lambda loc (Rzk.ParamPatternType loc' [pat] fun : params) body)]
+              [(term, Rzk.Lambda loc (Rzk.ParamPatternType loc' [pat] fun : params') body)]
         _ -> []
     localHint _ = []
+
+    paramDecl = \case
+      Rzk.ParamType _ a -> go a
+      Rzk.ParamTermType _ pat a -> go pat <> go a
+      Rzk.ParamTermShape _ pat cube tope -> go pat <> go cube <> go tope
+      Rzk.ParamTermModalType _ pat _ a -> go pat <> go a
+      Rzk.ParamTermModalShape _ pat _ cube tope -> go pat <> go cube <> go tope
+
+    params = concatMap $ \case
+      Rzk.ParamPattern{} -> []
+      Rzk.ParamPatternType _ _ a -> go a
+      Rzk.ParamPatternShape _ _ cube tope -> go cube <> go tope
+      Rzk.ParamPatternModalType _ _ _ a -> go a
+      Rzk.ParamPatternModalShape _ _ _ cube tope -> go cube <> go tope
+
+    bind = \case
+      Rzk.BindPattern{} -> []
+      Rzk.BindPatternType _ _ a -> go a
+
+    sigmaParams = concatMap $ \case
+      Rzk.SigmaParam _ _ a -> go a
+      Rzk.SigmaParamModal _ _ _ a -> go a
+
+    restrictions = concatMap $ \case
+      Rzk.Restriction _ tope a -> go tope <> go a
+      Rzk.ASCII_Restriction _ tope a -> go tope <> go a
+
+    matchBranches = concatMap $ \(Rzk.MatchBranch _ _ _ body) -> go body
