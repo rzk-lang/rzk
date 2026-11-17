@@ -24,6 +24,7 @@ import           Data.List                (sort)
 import qualified Language.Rzk.Syntax        as Rzk
 import qualified Rzk.Check                as Check
 import qualified Rzk.Check.Syntax         as CheckSyntax
+import qualified Rzk.Check.Value          as CheckValue
 import           Rzk.Diagnostic           (checkWarningTag,
                                            locationOfTypeError,
                                            typeErrorTagInScopedContext)
@@ -425,6 +426,29 @@ spec = describe "Typecheck fixtures" $ do
           msg `shouldNotContain` "ψ t ∧ ψ t ∧ χ t"
         errs -> expectationFailure $
           "expected one family-domain error, got " <> show (map Check.errorTag errs)
+  it "checks restricted codomains against the actual application" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#def const (A : U) (a : A) : (t : 2) → A := \\ t → a"
+          , "#def good (A : U) (a : A) : (t : 2) → A [t ≡ 0₂ ↦ a] := const A a"
+          , "#def bad (A : U) (a : A) (f : (t : 2) → A)"
+          , "  : (t : 2) → A [t ≡ 0₂ ↦ a]"
+          , "  := f"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
+        `shouldBe` ["TypeErrorUnify"]
+  it "uses the comparison subject in both variances" $ do
+    let unit = CheckSyntax.Unit :: CheckSyntax.Core Foil.VoidS
+        unitV = CheckValue.evalCore Foil.emptyScope Check.emptyContext unit
+        restrictedV = CheckValue.evalCore Foil.emptyScope Check.emptyContext
+          (CheckSyntax.TypeRestricted unit [(CheckSyntax.TopeTop, unit)])
+    CheckValue.conv Foil.emptyScope
+      (Check.withSubject (Just unit) Check.emptyContext) restrictedV unitV `shouldBe` True
+    CheckValue.conv Foil.emptyScope
+      (Check.withSubject (Just unit) (Check.withVariance Check.Contravariant Check.emptyContext))
+      unitV restrictedV `shouldBe` True
 
 -- * The new checker
 

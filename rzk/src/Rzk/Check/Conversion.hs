@@ -9,12 +9,10 @@
 -- | Subtyping and conversion, in the checker's monad.
 --
 -- The library's conversion decides the common case: two values compared
--- in the context's variance. Where it answers no, the checker explains the
--- failure on the heads, with the term whose type is compared where a
--- restriction needs it: a term of an unrestricted type stands at a
--- restricted one when it agrees with each face, and a function does so
--- when its applications do. There is no unification: a mismatch is an
--- error.
+-- in the context's variance, with the actual term available through the
+-- context when restricted-type faces need it. Where it answers no, the
+-- checker explains the failure on the heads. There is no unification: a
+-- mismatch is an error.
 module Rzk.Check.Conversion
   ( subtype
   , subtypeValues
@@ -71,18 +69,17 @@ compareWith mterm variance expected actual =
     ctx <- askContext
     let topes = ctxTopes ctx
         scope = ctxScope ctx
-        ctx' = withVariance variance ctx
+        ctx' = withSubject mterm (withVariance variance ctx)
         agrees c = conv scope (withVariance variance c) expected actual
     -- The value-level conversion retries in every alternative of a
     -- disjunctive tope context, so no second alternative loop is needed here.
     unless (entailsBottom topes || agrees ctx') $
       explain mterm variance expected actual
 
--- | Explain a failed value comparison, and perform the checks that need more
--- than the library's Boolean answer. In particular, an unrestricted actual term
--- at a restricted expected type must agree with each face, which requires the
--- actual term. Fresh-domain subtyping and the remaining cases produce more
--- specific diagnostics. This is not unification.
+-- | Explain a failed value comparison with more specific diagnostics than
+-- the library's Boolean answer. The logical restricted-type rules live in
+-- value conversion, using the subject stored in the context. This is not
+-- unification.
 explain
   :: forall n. (Distinct n)
   => Maybe (Core n) -> Variance -> Value n -> Value n -> Check n ()
@@ -111,19 +108,6 @@ explain mterm variance expected actual = do
         , let superT = topeOf scope ctx superTope ]
       when (variance == Invariant) $
         compareWith mterm Covariant actual expected
-    -- the restricted type is the subtype of its underlying type
-    (_, VTypeRestricted tyA _) | variance == Covariant ->
-      compareWith mterm variance expected tyA
-    (VTypeRestricted tyE _, _) | variance == Contravariant ->
-      compareWith mterm variance tyE actual
-    -- a term of an unrestricted type stands at a restricted one when it
-    -- agrees with each face
-    (VTypeRestricted tyE rsE, _) | Just term <- mterm, variance == Covariant -> do
-      compareWith mterm variance tyE actual
-      let termV = evalCore scope ctx term
-      sequence_
-        [ underTope (topeOf scope ctx tope) $ convertTerms face termV
-        | (tope, face) <- rsE ]
     -- two family types: the cubes, then the shapes, covariantly and on
     -- their own
     ((VTypeShape md cubeE mshapeE), (VTypeShape md' cubeA mshapeA)) | md == md' -> do

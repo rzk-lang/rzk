@@ -362,7 +362,7 @@ instance Eval Context Pattern Sig where
   -- Subtyping in the context's variance; the cases of the old unification
   -- that are not a structural comparison of the children.
   {-# INLINE relateWith #-}
-  relateWith scope ctx scoped term hd l r = case (l, r) of
+  relateWith scope ctx scoped compareTerm compareHead l r = case (l, r) of
     -- the annotation of a neutral takes no part in the comparison
     (AnnF nL _, AnnF nR _) -> Just (term nL nR ctx)
     (AnnF nL _, _) | Just rv <- nodeValue r -> Just (term nL rv ctx)
@@ -465,7 +465,7 @@ instance Eval Context Pattern Sig where
 
     -- extension types: the underlying types, and the faces of the supertype
     -- covered by the faces of the subtype, agreeing where they overlap
-    (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR) -> fmap (term tyL tyR ctx <>) $
+    (TypeRestrictedF tyL rsL, TypeRestrictedF tyR rsR) -> fmap (compareTerm tyL tyR ctx <>) $
       case ctxVariance ctx of
         Covariant     -> facesCovered rsL rsR
         Contravariant -> facesCovered rsR rsL
@@ -475,6 +475,11 @@ instance Eval Context Pattern Sig where
 
     _ -> NbE.relateNodes scope (withVariance Invariant ctx) scoped term hd l r
     where
+      -- Recursive positions are not about the enclosing subject by default.
+      -- The codomain of a Π is the exception: its binder applies the subject.
+      term x y ctx' = compareTerm x y (withSubject Nothing ctx')
+      hd x y ctx' = compareHead x y (withSubject Nothing ctx')
+
       guarded holds = if holds then Just mempty else Nothing
 
       -- A comparison under a tope, which holds trivially when the tope
@@ -639,9 +644,32 @@ force :: Value n -> Whnf n
 force = NbE.force
 
 -- | Compare an expected value with an actual one in the context's variance.
+-- Restricted types against unrestricted ones use the comparison subject, if
+-- there is one, to check the faces against the actual term.
 conv :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Bool
 {-# INLINE conv #-}
-conv = Conv.conv
+conv scope ctx expected actual
+  | entailsBottom (ctxTopes ctx) = True
+  | otherwise = case (force expected, force actual) of
+      (VTypeRestricted{}, VTypeRestricted{}) -> generic
+      (_, VTypeRestricted tyA _) | Covariant <- ctxVariance ctx ->
+        conv scope ctx expected tyA
+      (VTypeRestricted tyE _, _) | Contravariant <- ctxVariance ctx ->
+        conv scope ctx tyE actual
+      (VTypeRestricted _ _, _) | Covariant <- ctxVariance ctx, Just subject <- ctxSubject ctx ->
+        withTrivialRestriction subject actual
+      (_, VTypeRestricted _ _) | Contravariant <- ctxVariance ctx, Just subject <- ctxSubject ctx ->
+        withTrivialRestriction subject expected
+      _ -> generic
+  where
+    generic = Conv.conv scope ctx expected actual
+    withTrivialRestriction subject other =
+      let subjectV = evalCore scope ctx subject
+          restricted = NbE.vnode (TypeRestrictedF other [(NbE.vnode TopeTopF, subjectV)])
+      in case ctxVariance ctx of
+        Covariant -> conv scope ctx expected restricted
+        Contravariant -> conv scope ctx restricted actual
+        Invariant -> generic
 
 convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool
 {-# INLINE convertible #-}
@@ -1061,22 +1089,32 @@ topShapeValue scope cube = Foil.withFresh scope $ \b ->
   NbE.vsuspended Foil.identitySubst
     (LambdaF (Just (Param Id cube Nothing)) (ScopedAST (singlePattern b) TopeTop))
 
+-- | Apply a comparison subject to a binder's pattern, producing the subject
+-- of the codomain comparison.
+applySubjectToPattern
+  :: (Distinct n, DExt n l)
+  => Scope l -> Pattern n l -> Context n -> Context l -> Maybe (Core l)
+applySubjectToPattern scope' pat outer inner =
+  (\subject -> App (Foil.sink subject) (quoteIn scope' inner (patternValue pat))) <$> ctxSubject outer
+
 -- | The binder of a λ, from its parameter: its domain and modality, and its
 -- shape, assumed for the body. Elaborated λs always have a parameter.
 lambdaBinder :: Maybe (Param (Value n)) -> Extend Context Pattern Sig n
 {-# INLINE lambdaBinder #-}
 lambdaBinder mparam = Extend $ \_ pat scope' ctx -> case mparam of
-  Just (Param md dom mshape) -> underPattern scope' ctx md dom mshape pat
+  Just (Param md dom mshape) -> withSubject Nothing (underPattern scope' ctx md dom mshape pat)
   Nothing -> panicImpossible "an elaborated lambda without its parameter type"
 
 -- | The binder of a Π: its domain, and its shape assumed for the codomain.
 piBinder :: TModality -> Value n -> Maybe (Value n) -> Extend Context Pattern Sig n
 {-# INLINE piBinder #-}
-piBinder md dom mshape = Extend $ \_ pat scope' ctx -> underPattern scope' ctx md dom mshape pat
+piBinder md dom mshape = Extend $ \_ pat scope' ctx ->
+  let ctx' = underPattern scope' ctx md dom mshape pat
+  in withSubject (applySubjectToPattern scope' pat ctx ctx') ctx'
 
 sigmaBinder :: TModality -> Value n -> Extend Context Pattern Sig n
 {-# INLINE sigmaBinder #-}
-sigmaBinder md a = Extend $ \_ pat scope' ctx -> underPattern scope' ctx md a Nothing pat
+sigmaBinder md a = Extend $ \_ pat scope' ctx -> withSubject Nothing (underPattern scope' ctx md a Nothing pat)
 
 -- | The binder of a let: its names have the components of the value.
 letBinder :: Maybe (Value n) -> Value n -> Extend Context Pattern Sig n
@@ -1085,7 +1123,7 @@ letBinder mty val = Extend $ \_ pat scope' ctx ->
   let ctx0 = sinkContextUnchecked ctx
       ty = maybe (panicImpossible "an elaborated let without its value type") id mty
       entries = letEntries scope' ctx0 (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat
-  in enterPattern pat entries ctx
+  in withSubject Nothing (enterPattern pat entries ctx)
 
 -- | An unsupported construct has no typed semantic binder. Entering one is
 -- an invariant violation, not a reason to manufacture a hole.
@@ -1101,7 +1139,8 @@ pisBinder :: TModality -> Value n -> Maybe (Value n) -> Maybe (Value n) -> Exten
 {-# INLINE pisBinder #-}
 pisBinder md dom mshapeL mshapeR = Extend $ \_ pat scope' ctx ->
   let ctx' = underPattern scope' ctx md dom Nothing pat
-  in assumeShapeAt scope' pat mshapeR (assumeShapeAt scope' pat mshapeL ctx')
+      ctx'' = assumeShapeAt scope' pat mshapeR (assumeShapeAt scope' pat mshapeL ctx')
+  in withSubject (applySubjectToPattern scope' pat ctx ctx') ctx''
 
 -- | The binder two lambdas are compared under: the right one's domain, and
 -- both shapes, since the bodies agree only where both are defined.
@@ -1113,7 +1152,7 @@ lambdasBinder mpL mpR = Extend $ \_ pat scope' ctx ->
         (_, Just p) -> (paramModality p, paramDomain p)
         _           -> panicImpossible "two elaborated lambdas without parameter types"
       ctx' = underPattern scope' ctx md dom Nothing pat
-  in assumeShapeAt scope' pat (mpR >>= paramShape) (assumeShapeAt scope' pat (mpL >>= paramShape) ctx')
+  in withSubject Nothing (assumeShapeAt scope' pat (mpR >>= paramShape) (assumeShapeAt scope' pat (mpL >>= paramShape) ctx'))
 
 -- | The observer of a λ's body: the other value applied to the pattern.
 appliedToPattern :: (Distinct n, Distinct l) => Scope l -> Context l -> Pattern n l -> Value l -> Value l
@@ -1138,7 +1177,7 @@ recOrValue scope ctx rs =
   case [ b | (guard, b) <- rs, entailsValue scope ctx guard ] of
     b : _ -> b
     [] -> case rs of
-      (_, b) : rest | all (conv scope (withVariance Invariant ctx) b . snd) rest -> b
+      (_, b) : rest | all (conv scope (withSubject Nothing (withVariance Invariant ctx)) b . snd) rest -> b
       _ -> NbE.vnode (RecOrF (Just universe) rs)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.
