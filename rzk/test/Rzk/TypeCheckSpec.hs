@@ -1,10 +1,12 @@
 {-# OPTIONS_GHC -Wno-partial-fields #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module Rzk.TypeCheckSpec (spec) where
 
 import           Control.Monad            (forM, unless, when)
+import qualified Control.Monad.Foil       as Foil
 import           Data.Aeson               (FromJSON, withObject, (.:), (.:?))
 import           Data.Bifunctor           (first)
 import           Data.List                (isInfixOf, isPrefixOf)
@@ -21,6 +23,7 @@ import           Data.List                (sort)
 
 import qualified Language.Rzk.Syntax        as Rzk
 import qualified Rzk.Check                as Check
+import qualified Rzk.Check.Syntax         as CheckSyntax
 import           Rzk.Diagnostic           (checkWarningTag,
                                            locationOfTypeError,
                                            typeErrorTagInScopedContext)
@@ -397,6 +400,31 @@ spec = describe "Typecheck fixtures" $ do
           mapM_ (\err -> Check.ppErrorInContext err `shouldContain` "unexpected unit pattern") errs
         errs -> expectationFailure $
           "expected three unit-pattern errors, got " <> show (map Check.errorTag errs)
+  it "ignores cached types in hole and free-name queries" $ do
+    let hole = CheckSyntax.Hole Nothing :: CheckSyntax.Core Foil.VoidS
+        ann = CheckSyntax.Ann CheckSyntax.Unit hole
+        recOr = CheckSyntax.RecOr hole [(CheckSyntax.TopeTop, CheckSyntax.Unit)]
+    CheckSyntax.containsHole ann `shouldBe` False
+    CheckSyntax.containsHole recOr `shouldBe` False
+    CheckSyntax.freeNamesOf ann `shouldBe` []
+    CheckSyntax.freeNamesOf recOr `shouldBe` []
+    CheckSyntax.containsHole (CheckSyntax.Ann hole CheckSyntax.Unit) `shouldBe` True
+    CheckSyntax.containsHole (CheckSyntax.TypeAsc CheckSyntax.Unit hole) `shouldBe` True
+    CheckSyntax.containsHole
+      (CheckSyntax.RecOr CheckSyntax.Unit [(CheckSyntax.TopeTop, hole)]) `shouldBe` True
+  it "does not duplicate a neutral family's domain" $ do
+    root <- resolveRoot
+    let path = root </> casesRoot </> "ill-tope-family-domain-non-instance.rzk"
+    txt <- T.readFile path
+    case Rzk.parseModule txt of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> case fst (runNew [("<test>", m)]) of
+        [err] -> do
+          let msg = Check.ppErrorInContext err
+          msg `shouldContain` "ψ t ∧ χ t"
+          msg `shouldNotContain` "ψ t ∧ ψ t ∧ χ t"
+        errs -> expectationFailure $
+          "expected one family-domain error, got " <> show (map Check.errorTag errs)
 
 -- * The new checker
 
