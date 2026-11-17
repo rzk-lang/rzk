@@ -624,9 +624,10 @@ sortOf ty = do
     VUniverseCube -> universe
     VUniverseTope -> universe
     _ | cubeOfType ty /= KOther -> cubeUniverse
-    _ -> case neutralType (ctxScope ctx) ctx ty of
-      Just s -> stripRestrictions s
-      Nothing -> universe
+    _ | Just neutral <- asNeutral ty ->
+          stripRestrictions (neutralType (ctxScope ctx) ctx neutral)
+      -- The remaining canonical type formers are in U.
+      | otherwise -> universe
 
 -- | Infer a cube point used by @≡@. In lenient mode, a point hole keeps an
 -- unknown cube, represented by a hole, as the classic checker's
