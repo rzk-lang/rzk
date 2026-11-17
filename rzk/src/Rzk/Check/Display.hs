@@ -134,7 +134,7 @@ fromCore used supply names = go
       TopeBottom -> Rzk.TopeBottom loc
       TopeEQ l r -> Rzk.TopeEQ loc (go l) (go r)
       TopeLEQ l r -> Rzk.TopeLEQ loc (go l) (go r)
-      TopeAnd l r -> Rzk.TopeAnd loc (go l) (go r)
+      TopeAnd l r -> goConjunction l r
       TopeOr l r -> Rzk.TopeOr loc (go l) (go r)
       TopeInv t -> Rzk.TopeInv loc (go t)
       TopeUninv t -> Rzk.TopeUninv loc (go t)
@@ -245,6 +245,18 @@ fromCore used supply names = go
              (Id, Just motive) -> Rzk.LetModInto loc (fromMod inn) bind (go val) (go motive) body'
              (_, Nothing)      -> Rzk.LetModFramed loc (fromMod app) (fromMod inn) bind (go val) body'
              (_, Just motive)  -> Rzk.LetModFramedInto loc (fromMod app) (fromMod inn) bind (go val) (go motive) body'
+
+    -- Display conjunction up to idempotence, using conservative syntactic
+    -- equality so that elaboration's repeated domain conjunct is shown once.
+    goConjunction :: Core n -> Core n -> Rzk.Term
+    goConjunction l r = build (dedup (conjuncts l <> conjuncts r))
+      where
+        conjuncts (TopeAnd x y) = conjuncts x <> conjuncts y
+        conjuncts x = [x]
+        dedup = foldr (\x xs -> if any (eqCore x) xs then xs else x : xs) []
+        build [] = panicImpossible "an empty conjunction"
+        build [x] = go x
+        build (x : xs) = Rzk.TopeAnd loc (go x) (build xs)
 
     -- The binder a family's shape is shown under: the shape's own λ scope,
     -- with a body that is never printed.

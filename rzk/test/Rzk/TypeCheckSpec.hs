@@ -412,6 +412,19 @@ spec = describe "Typecheck fixtures" $ do
     CheckSyntax.containsHole (CheckSyntax.TypeAsc CheckSyntax.Unit hole) `shouldBe` True
     CheckSyntax.containsHole
       (CheckSyntax.RecOr CheckSyntax.Unit [(CheckSyntax.TopeTop, hole)]) `shouldBe` True
+  it "does not duplicate a neutral family's domain" $ do
+    root <- resolveRoot
+    let path = root </> casesRoot </> "ill-tope-family-domain-non-instance.rzk"
+    txt <- T.readFile path
+    case Rzk.parseModule txt of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> case fst (runNew [("<test>", m)]) of
+        [err] -> do
+          let msg = Check.ppErrorInContext err
+          msg `shouldContain` "ψ t ∧ χ t"
+          msg `shouldNotContain` "ψ t ∧ ψ t ∧ χ t"
+        errs -> expectationFailure $
+          "expected one family-domain error, got " <> show (map Check.errorTag errs)
 
 -- * The new checker
 
