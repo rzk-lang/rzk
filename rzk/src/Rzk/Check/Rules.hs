@@ -114,6 +114,9 @@ enterRawScope extend (ScopedAST pat body) k = do
 -- right component is checked in the context of the left prefix.
 validatePattern :: Distinct n => Value n -> Pattern n l -> Check n ()
 validatePattern ty = \case
+  PatternUnit -> case force (stripRestrictions ty) of
+    VTypeUnit -> pure ()
+    _ -> issueTypeError (TypeErrorUnexpectedUnitPattern ty)
   pat@(PatternPair l r) -> case Foil.assertDistinct l of
     Foil.Distinct -> case Foil.assertDistinct r of
       Foil.Distinct -> case (Foil.assertExt l, Foil.assertExt r) of

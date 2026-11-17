@@ -381,6 +381,22 @@ spec = describe "Typecheck fixtures" $ do
           Check.ppErrorInContext err `shouldContain` "(x, y)"
         errs -> expectationFailure $
           "expected one pair-pattern error, got " <> show (map Check.errorTag errs)
+  it "rejects unit patterns at non-unit types" $ do
+    let src = T.unlines
+          [ "#lang rzk-1"
+          , "#def badLambda (A : U) (x : A) : A → A := \\ unit → x"
+          , "#def badLet (A : U) (x : A) : A := let unit := x in x"
+          , "#def badNested (A : U) : (Σ (x : A), A) → A := \\ (x, unit) → x"
+          ]
+    case Rzk.parseModule src of
+      Left err -> expectationFailure (T.unpack err)
+      Right m -> case fst (runNew [("<test>", m)]) of
+        errs@[_, _, _] -> do
+          map Check.errorTag errs `shouldBe`
+            replicate 3 "TypeErrorUnexpectedUnitPattern"
+          mapM_ (\err -> Check.ppErrorInContext err `shouldContain` "unexpected unit pattern") errs
+        errs -> expectationFailure $
+          "expected three unit-pattern errors, got " <> show (map Check.errorTag errs)
 
 -- * The new checker
 
