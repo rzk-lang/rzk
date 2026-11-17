@@ -497,7 +497,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
           VTypeId y mtA z -> do
             tA <- case mtA of
               Just tA -> pure tA
-              Nothing -> issueTypeError (TypeErrorOther "an identity type without its carrier")
+              Nothing -> panicImpossible "an elaborated identity type without its carrier"
             forM_ mx $ \(x, mxty) -> do
               forM_ mxty $ \xty -> do
                 (_, xtyV) <- checkEval xty universe
