@@ -124,6 +124,7 @@ module Rzk.Check.Value
   , isTopShape
   , stripRestrictions
   , restrictionsOf
+  , compareRestrictionsWith
     -- * Patterns
   , patternValue
   , bindPattern

@@ -587,19 +587,34 @@ underLetBody
 underLetBody ty val body k = underLet ty val body $ \pat bodyTerm ->
   ScopedAST pat <$> k pat bodyTerm
 
--- | A @recOR@ against a known type: every branch is checked against it
--- under its guard, the branches cohere, and the guards cover the context.
+-- | A @recOR@ against a known type: every branch is checked against the
+-- underlying type under its guard, the branches cohere, and the guards cover
+-- the context. Restriction faces are compared with the branch of the same
+-- guard where possible; unmatched faces retain the full overlap comparison.
 checkRecOrAgainst :: Distinct n => Value n -> [(Raw n, Raw n)] -> Check n (Core n)
 checkRecOrAgainst ty rs = do
   ctx <- askContext
   let scope = ctxScope ctx
+      (branchTy, restrictions) = case force ty of
+        VTypeRestricted underlying faces -> (underlying, faces)
+        _ -> (ty, [])
   branches <- forM rs $ \(tope, branch) -> do
     (tope', topeV) <- checkEval tope topeUniverse
     checkTopeAgainstContext "recOR branch guard" topeV
-    (branch', branchV) <- underTope (topeOf scope ctx topeV) $ checkEval branch ty
+    (branch', branchV) <- underTope (topeOf scope ctx topeV) $ checkEval branch branchTy
     pure ((tope', branch'), (topeV, branchV))
   sequence_ [ checkCoherence l r | l : rest <- tails (map snd branches), r <- rest ]
   contextEntailsUnion (map (fst . snd) branches)
+  forM_ restrictions $ \(tope, _) -> checkTopeAgainstContext "restriction face" tope
+  let faces = [ (topeOf scope ctx tope, (tope, face)) | (tope, face) <- restrictions ]
+      actual = [ (topeOf scope ctx guard, (guard, branch)) | (guard, branch) <- map snd branches ]
+  sequence_ $ compareRestrictionsWith
+    (\_ (faceTope, face) (_, branch) ->
+      underTope (topeOf scope ctx faceTope) $ convertTerms face branch)
+    (\_ (faceTope, face) actual' -> sequence_
+      [ underTope (topeOf scope ctx (topeAndValue faceTope guard)) $ convertTerms face branch
+      | (_, (guard, branch)) <- actual' ])
+    faces actual
   tyC <- quoteM ty
   pure (RecOr tyC (map fst branches))
 
