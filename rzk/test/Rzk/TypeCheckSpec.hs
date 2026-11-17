@@ -24,6 +24,7 @@ import           Data.List                (sort)
 import qualified Language.Rzk.Syntax        as Rzk
 import qualified Rzk.Check                as Check
 import qualified Rzk.Check.Syntax         as CheckSyntax
+import qualified Rzk.Check.Value          as CheckValue
 import           Rzk.Diagnostic           (checkWarningTag,
                                            locationOfTypeError,
                                            typeErrorTagInScopedContext)
@@ -438,6 +439,16 @@ spec = describe "Typecheck fixtures" $ do
       Left err -> expectationFailure (T.unpack err)
       Right m -> map Check.errorTag (fst (runNew [("<test>", m)]))
         `shouldBe` ["TypeErrorUnify"]
+  it "uses the comparison subject in both variances" $ do
+    let unit = CheckSyntax.Unit :: CheckSyntax.Core Foil.VoidS
+        unitV = CheckValue.evalCore Foil.emptyScope Check.emptyContext unit
+        restrictedV = CheckValue.evalCore Foil.emptyScope Check.emptyContext
+          (CheckSyntax.TypeRestricted unit [(CheckSyntax.TopeTop, unit)])
+    CheckValue.conv Foil.emptyScope
+      (Check.withSubject (Just unit) Check.emptyContext) restrictedV unitV `shouldBe` True
+    CheckValue.conv Foil.emptyScope
+      (Check.withSubject (Just unit) (Check.withVariance Check.Contravariant Check.emptyContext))
+      unitV restrictedV `shouldBe` True
 
 -- * The new checker
 

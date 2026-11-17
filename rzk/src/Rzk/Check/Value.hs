@@ -434,7 +434,7 @@ instance Eval Context Pattern Sig where
     -- the tope context plays no part)
     (TypeShapeF md cubeL mshapeL, TypeShapeF md' cubeR mshapeR)
       | md == md' ->
-          let domain = term cubeL cubeR (withVariance (opposite (ctxVariance ctx)) ctx)
+          let domain = term cubeL cubeR (withSubject Nothing (withVariance (opposite (ctxVariance ctx)) ctx))
           in case (mshapeL, mshapeR) of
                (Nothing, Nothing) -> Just domain
                (Just sL, Just sR) -> Just (domain <> term sL sR ctx)
@@ -444,7 +444,7 @@ instance Eval Context Pattern Sig where
     -- codomain under the binder
     (TypeFunF md domL mshapeL retL, TypeFunF md' domR mshapeR retR)
       | md == md' ->
-          let ctx' = withVariance (opposite (ctxVariance ctx)) ctx
+          let ctx' = withSubject Nothing (withVariance (opposite (ctxVariance ctx)) ctx)
               domain = term domL domR ctx'
               shapes = case (mshapeL, mshapeR) of
                 (Nothing, Nothing) -> Just mempty
@@ -651,16 +651,20 @@ conv scope ctx expected actual
         conv scope ctx expected tyA
       (VTypeRestricted tyE _, _) | Contravariant <- ctxVariance ctx ->
         conv scope ctx tyE actual
-      (VTypeRestricted tyE rsE, _)
-        | Covariant <- ctxVariance ctx, Just subject <- ctxSubject ctx ->
-          let subjectV = evalCore scope ctx subject
-          in conv scope ctx tyE actual && all (agreesWithFace subjectV) rsE
+      (VTypeRestricted _ _, _) | Covariant <- ctxVariance ctx, Just subject <- ctxSubject ctx ->
+        withTrivialRestriction subject actual
+      (_, VTypeRestricted _ _) | Contravariant <- ctxVariance ctx, Just subject <- ctxSubject ctx ->
+        withTrivialRestriction subject expected
       _ -> generic
   where
     generic = Conv.conv scope ctx expected actual
-    agreesWithFace subjectV (tope, face) =
-      let ctx' = withSubject Nothing (withVariance Invariant (assumeValue scope ctx tope))
-      in conv scope ctx' face subjectV
+    withTrivialRestriction subject other =
+      let subjectV = evalCore scope ctx subject
+          restricted = NbE.vnode (TypeRestrictedF other [(NbE.vnode TopeTopF, subjectV)])
+      in case ctxVariance ctx of
+        Covariant -> conv scope ctx expected restricted
+        Contravariant -> conv scope ctx restricted actual
+        Invariant -> generic
 
 convertible :: Distinct n => Scope n -> Context n -> Core n -> Core n -> Bool
 {-# INLINE convertible #-}
