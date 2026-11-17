@@ -120,8 +120,6 @@ module Rzk.Check.Syntax
   , substituteName
   , abstractName
   , containsHole
-  , holeNamesOf
-  , isHoleHeaded
   , eqCore
   ) where
 
@@ -607,10 +605,13 @@ pattern RHole x1 <- RawNode (HoleF x1)
 -- * Queries
 
 -- | The free names of a term, in order of mention, with repeats. Names bound
--- on the way down are removed with 'Foil.unsinkNamePattern'.
+-- on the way down are removed with 'Foil.unsinkNamePattern'. Cached types of
+-- neutrals and @recOR@ are not part of the term.
 freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
 freeNamesOf (Ann t _) = freeNamesOf t
+freeNamesOf (Node (RecOrF _ branches)) =
+  foldMap (\(tope, branch) -> freeNamesOf tope <> freeNamesOf branch) branches
 freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
   where
     scoped :: Distinct n' => ScopedCore n' -> [Foil.Name n']
@@ -644,31 +645,17 @@ abstractName scope mname name term k = Foil.withFresh scope $ \binder ->
       term' = substituteName scope' (Foil.sink name) (Var (Foil.nameOf binder)) (Foil.sink term)
   in k (PatternVar mname binder) term'
 
--- | Does the term contain a hole anywhere?
+-- | Does the term contain a hole outside cached types of neutrals and
+-- @recOR@?
 containsHole :: Core n -> Bool
 containsHole (Var _) = False
+containsHole (Ann t _) = containsHole t
+containsHole (Node (RecOrF _ branches)) =
+  any (\(tope, branch) -> containsHole tope || containsHole branch) branches
 containsHole (Node (HoleF _)) = True
 containsHole (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> containsHole body || acc)
           (\t acc -> containsHole t || acc) False sig
-
--- | The name of every hole in a term.
-holeNamesOf :: Core n -> [Maybe VarIdent]
-holeNamesOf (Var _) = []
-holeNamesOf (Node (HoleF mname)) = [mname]
-holeNamesOf (Node sig) =
-  bifoldr (\(ScopedAST _ body) acc -> holeNamesOf body <> acc)
-          (\t acc -> holeNamesOf t <> acc) [] sig
-
--- | Is the term a hole, or an elimination headed by one (@? a@, @first ?@)?
--- Such a term has no shape of its own yet.
-isHoleHeaded :: Core n -> Bool
-isHoleHeaded = \case
-  Hole _     -> True
-  App f _    -> isHoleHeaded f
-  First t    -> isHoleHeaded t
-  Second t   -> isHoleHeaded t
-  _          -> False
 
 -- | Syntactic equality of two core terms: conservative, as two α-equivalent
 -- terms whose binders differ are not equal, and cheaper than α-equivalence.
