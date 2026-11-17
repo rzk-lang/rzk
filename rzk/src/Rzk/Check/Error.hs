@@ -57,8 +57,8 @@ data TypeError n
     -- ^ the term, the expected type and its actual type
   | TypeErrorUnifyTerms (Value n) (Value n)
     -- ^ the expected and actual values that are not convertible
-  | TypeErrorNotPair (Core n) (Value n)
-    -- ^ a projected term and its non-pair type
+  | TypeErrorNotPair (Maybe (Core n)) (Value n)
+    -- ^ a projected term, if one is present, and its non-pair type
   | TypeErrorNotFunction (Core n) (Value n)
     -- ^ an applied term and its non-function type
   | TypeErrorUnexpectedLambda (Raw n) (Value n)
@@ -151,12 +151,17 @@ ppTypeError ctx = \case
     , "  " <> ppV expected
     , "with term"
     , "  " <> ppV actual ]
-  TypeErrorNotPair term ty -> block
-    [ "expected a cube product or dependent pair"
-    , "but got type"
-    , "  " <> ppV ty
-    , "for term"
-    , "  " <> ppC term ]
+  TypeErrorNotPair mterm ty -> case mterm of
+    Nothing -> block
+      [ "expected a pair pattern to have a dependent pair or cube product type"
+      , "but its type is"
+      , "  " <> ppV ty ]
+    Just term -> block
+      [ "expected a cube product or dependent pair"
+      , "but got type"
+      , "  " <> ppV ty
+      , "for term"
+      , "  " <> ppC term ]
   TypeErrorNotFunction term ty -> block
     [ "expected a function or extension type"
     , "but got type"

@@ -952,7 +952,7 @@ singlePattern = PatternVar Nothing
 
 -- | The entries of a pattern's names, in binding order, from the type of
 -- the value it is bound to: a pair pattern destructures a Σ type or a cube
--- product. A leaf whose type cannot be read gets a hole for a type.
+-- product. Invalid pair patterns are rejected before semantic entry.
 --
 -- The context is the one under the pattern, without the pattern's own
 -- entries yet: the codomain of a Σ is evaluated at the left component's
@@ -974,7 +974,7 @@ patternEntries scope ctx md loc = go
             go (inherit firstValue a) l
               <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
           VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
-          _ -> go (vhole Nothing) l <> go (vhole Nothing) r
+          _ -> panicImpossible "a pair pattern at a non-pair type"
       where
         -- A component of a restricted pair is restricted to the same
         -- component of each boundary pair.

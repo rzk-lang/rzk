@@ -110,14 +110,44 @@ enterRawScope extend (ScopedAST pat body) k = do
     else Foil.withRefreshedPattern scope pat $ \extendSubst pat' scope' ->
       enter pat' (substitute scope' (extendSubst Foil.identitySubst) body)
 
+-- | Validate a pattern against its domain before semantic entry. A dependent
+-- right component is checked in the context of the left prefix.
+validatePattern :: Distinct n => Value n -> Pattern n l -> Check n ()
+validatePattern ty = \case
+  PatternPair l r -> case Foil.assertDistinct l of
+    Foil.Distinct -> case Foil.assertDistinct r of
+      Foil.Distinct -> case (Foil.assertExt l, Foil.assertExt r) of
+        (Foil.Ext, Foil.Ext) -> validatePairPattern ty l r
+  _ -> pure ()
+  where
+    validatePairPattern :: forall n i l. (Distinct n, DExt n i)
+      => Value n -> Pattern n i -> Pattern i l -> Check n ()
+    validatePairPattern domain l r = case force (stripRestrictions domain) of
+      VTypeSigma env _ a b -> do
+        validatePattern a l
+        ctx <- askContext
+        let scopeL = Foil.extendScopePattern l (ctxScope ctx)
+            ctxL = underPattern scopeL ctx Id a Nothing l
+        inContext ctxL $ do
+          let bV = evalScope scopeL ctxL (Foil.sink env) b (patternValue l)
+          validatePattern bV r
+      VCubeProduct a b -> do
+        validatePattern a l
+        ctx <- askContext
+        let scopeL = Foil.extendScopePattern l (ctxScope ctx)
+            ctxL = underPattern scopeL ctx Id a Nothing l
+        inContext ctxL $ validatePattern (Foil.sink b) r
+      _ -> issueTypeError (TypeErrorNotPair Nothing domain)
+
 -- | Enter a raw scope bound at a domain, with a modality and a shape.
 underRawScope
   :: forall n r. (Distinct n)
   => TModality -> Value n -> Maybe (Value n) -> ScopedRaw n
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l r)
   -> Check n r
-underRawScope md dom mshape =
-  enterRawScope (\scope' pat ctx -> underPattern scope' ctx md dom mshape pat)
+underRawScope md dom mshape body@(ScopedAST pat _) k = do
+  validatePattern dom pat
+  enterRawScope (\scope' pat' ctx -> underPattern scope' ctx md dom mshape pat') body k
 
 -- | Enter a raw scope and wrap the elaborated body with its pattern.
 underRawScopeBody
@@ -536,10 +566,13 @@ underLet
   => Value n -> Value n -> ScopedRaw n
   -> (forall l. (Distinct l, DExt n l) => Pattern n l -> Raw l -> Check l r)
   -> Check n r
-underLet ty val = enterRawScope $ \scope' pat ctx ->
-  enterPattern pat
-    (letEntries scope' (sinkContextUnchecked ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat)
-    ctx
+underLet ty val body@(ScopedAST pat _) k = do
+  validatePattern ty pat
+  enterRawScope (\scope' pat' ctx ->
+    enterPattern pat'
+      (letEntries scope' (sinkContextUnchecked ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat')
+      ctx)
+    body k
 
 -- | Enter a local definition's scope and wrap the elaborated body with its
 -- pattern.
@@ -592,7 +625,9 @@ sortOf ty = do
       Just s -> stripRestrictions s
       Nothing -> universe
 
--- | Infer a cube point used by @≡@. A bare hole here has an unknown cube.
+-- | Infer a cube point used by @≡@. In lenient mode, a point hole keeps an
+-- unknown cube, represented by a hole, as the classic checker's
+-- @holeT cubeT Nothing@ does.
 inferPoint :: Distinct n => Raw n -> Check n (Core n, Value n)
 inferPoint term@((RHole (Just name)))
   | Just x <- unmarkUnresolved name = performing (ActionInfer term) $ issueTypeError (TypeErrorUndefined x)
@@ -672,7 +707,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       VRecBottom -> pure (First t', vrecBottom)
       VCubeProduct a _ -> pure (First t', a)
       _ | Just (Sigma _ _ a _) <- sigmaOf ty -> pure (First t', a)
-      _ -> issueTypeError (TypeErrorNotPair t' ty)
+      _ -> issueTypeError (TypeErrorNotPair (Just t') ty)
 
   RSecond t -> do
     (t', ty) <- infer t
@@ -684,7 +719,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       _ | Just (Sigma env _ _ b) <- sigmaOf ty -> do
         tV <- evalM t'
         pure (Second t', codomainAt scope ctx env b (firstValue tV))
-      _ -> issueTypeError (TypeErrorNotPair t' ty)
+      _ -> issueTypeError (TypeErrorNotPair (Just t') ty)
 
   RTypeUnit -> pure (TypeUnit, universe)
   RUnit -> pure (Unit, vtypeUnit)

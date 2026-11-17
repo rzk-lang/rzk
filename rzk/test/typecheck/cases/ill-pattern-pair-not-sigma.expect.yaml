@@ -1,0 +1,6 @@
+status: error
+error_tag: TypeErrorNotPair
+message_contains:
+  - "dependent pair"
+regression_for:
+  - pair-pattern-at-non-pair-type
