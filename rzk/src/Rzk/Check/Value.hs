@@ -143,6 +143,8 @@ module Rzk.Check.Value
   , topeAndValue
   , recOrValue
     -- * Types of neutrals
+  , Neutral
+  , asNeutral
   , neutralType
     -- * Holes
   ) where
@@ -557,7 +559,7 @@ isPointValue scope ctx v = case NbE.force v of
   NbE.VVar _ -> neutralOfCube
   _ -> False
   where
-    neutralOfCube = maybe False (isCube scope ctx) (neutralType scope ctx v)
+    neutralOfCube = maybe False (isCube scope ctx . neutralType scope ctx) (asNeutral v)
 
 -- | Is a tope value ⊥?
 isBottomTope :: Value n -> Bool
@@ -588,7 +590,8 @@ refineNeutral scope ctx value = fromMaybe value (refinedNeutral scope ctx value)
 -- restriction the context entails and is not unit.
 refinedNeutral :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
 refinedNeutral scope ctx value = do
-  ty <- neutralType scope ctx value
+  neutral <- asNeutral value
+  let ty = neutralType scope ctx neutral
   case NbE.force (stripRestrictions ty) of
     VTypeUnit -> Just vunit
     _ -> refineNeutral scope ctx <$>
@@ -780,9 +783,9 @@ appValue :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
   VLambda env _ body -> evalScope scope ctx env body arg
   VRecBottom -> vrecBottom
-  NbE.Stuck fun' -> case neutralType scope ctx fun' of
-    Just ty | Just (Family _ _ (Just shape)) <- familyOf ty
-            , not (isTopShape shape) ->
+  NbE.Stuck fun' -> case asNeutral fun' of
+    Just neutral | Just (Family _ _ (Just shape)) <- familyOf (neutralType scope ctx neutral)
+                 , not (isTopShape shape) ->
         topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
     _ -> annotated scope ctx (NbE.vnode (AppF fun' arg))
 
@@ -826,11 +829,9 @@ idJValueIn scope ctx tA a tC d x p = NbE.eliminate p $ \case
 -- Other stuck values need no type annotation.
 annotated :: Distinct n => Scope n -> Context n -> Value n -> Value n
 {-# INLINE annotated #-}
-annotated scope ctx v = case neutralType scope ctx v of
-  Just ty -> NbE.vnode (AnnF v ty)
-  Nothing
-    | isNeutralValue v -> panicImpossible ("a neutral without a type: " <> fingerprint (quoteIn scope ctx v))
-    | otherwise -> v
+annotated scope ctx v = case asNeutral v of
+  Just neutral -> NbE.vnode (AnnF v (neutralType scope ctx neutral))
+  Nothing -> v
 
 -- | Is a value headed by a neutral? Canonical values can be stuck under an
 -- elimination during conversion without being neutrals themselves.
@@ -844,6 +845,16 @@ isNeutralValue v = case NbE.forceFolded v of
   VIdJ _ _ _ _ _ p -> isNeutralValue p
   VRecOr _ _ -> True
   _ -> False
+
+-- | A value known to be a semantic neutral. The constructor is internal;
+-- 'asNeutral' establishes the invariant for arbitrary values.
+newtype Neutral n = Neutral (Value n)
+
+-- | View a value as a semantic neutral when it has a neutral head.
+asNeutral :: Value n -> Maybe (Neutral n)
+asNeutral v
+  | isNeutralValue v = Just (Neutral v)
+  | otherwise = Nothing
 
 -- | The join of two points, normalised at the endpoints.
 supValue :: Value n -> Value n -> Value n
@@ -1039,8 +1050,8 @@ underFreshVar scope ctx md ty mshape k = Foil.withFresh scope $ \b ->
 -- | Does a value stand for a cube: by its head, or by the sort of the
 -- entry at its head?
 isCube :: Distinct n => Scope n -> Context n -> Value n -> Bool
-isCube scope ctx v = cubeOfType v /= KOther || case neutralType scope ctx v of
-  Just s | VUniverseCube <- NbE.force (stripRestrictions s) -> True
+isCube scope ctx v = cubeOfType v /= KOther || case asNeutral v of
+  Just neutral | VUniverseCube <- NbE.force (stripRestrictions (neutralType scope ctx neutral)) -> True
   _ -> False
 
 -- | The shape of a binder over a cube with no restriction: the family
@@ -1189,7 +1200,7 @@ pointOf scope ctx v = case NbE.force v of
   VModExtract app inn p -> PModExtract app inn (pointOf scope ctx p)
   VHole m -> PHole m
   VApp f a ->
-    PApp (maybe KOther cubeOfType (neutralType scope ctx v)) (pointOf scope ctx f) (pointOf scope ctx a)
+    PApp (maybe KOther cubeOfType (neutralType scope ctx <$> asNeutral v)) (pointOf scope ctx f) (pointOf scope ctx a)
   _ -> POpaque (fingerprint (quoteIn scope ctx v))
 
 -- | A cube value, as far as the solver tells cubes apart.
@@ -1225,34 +1236,36 @@ fingerprint (Node sig) =
 -- is @g@, so @f a : A [ϕ ↦ g a]@. A neutral built by evaluation carries its
 -- type ('AnnF'), so each step reads only the type of the neutral it
 -- eliminates.
-neutralType :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n)
-neutralType scope ctx v = case NbE.forceFolded v of
-  NbE.VVar x -> Just (entryType (lookupEntry x ctx))
-  VAnn _ ty -> Just ty
-  VRecOr ty _ -> Just ty
-  VApp f a -> do
-    fTy <- neutralType scope ctx f
-    case familyOf fTy of
-      Just _ -> Just topeUniverse
-      Nothing -> do
-        Pi env _ _ _ ret <- piOf fTy
-        Just (inherit fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a))
-  VFirst p -> do
-    ty <- neutralType scope ctx p
-    inherit ty (firstValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
-      VTypeSigma _ _ a _ -> Just a
-      VCubeProduct a _ -> Just a
-      _ -> Nothing
-  VSecond p -> do
-    ty <- neutralType scope ctx p
-    inherit ty (secondValueIn scope ctx) <$> case NbE.force (stripRestrictions ty) of
-      VTypeSigma env _ _ b -> Just (codomainAt scope ctx env b (firstValue p))
-      VCubeProduct _ b -> Just b
-      _ -> Nothing
+neutralType :: Distinct n => Scope n -> Context n -> Neutral n -> Value n
+neutralType scope ctx (Neutral v) = case NbE.forceFolded v of
+  NbE.VVar x -> entryType (lookupEntry x ctx)
+  VAnn _ ty -> ty
+  VRecOr ty _ -> ty
+  VApp f a ->
+    let fTy = neutralType scope ctx (Neutral f)
+    in case familyOf fTy of
+      Just _ -> topeUniverse
+      Nothing -> case piOf fTy of
+        Just (Pi env _ _ _ ret) ->
+          inherit fTy (\g -> appValue scope ctx g a) (codomainAt scope ctx env ret a)
+        Nothing -> panicImpossible "an application of a neutral without a function type"
+  VFirst p ->
+    let ty = neutralType scope ctx (Neutral p)
+    in inherit ty (firstValueIn scope ctx) $ case NbE.force (stripRestrictions ty) of
+      VTypeSigma _ _ a _ -> a
+      VCubeProduct a _ -> a
+      _ -> panicImpossible "a first projection of a neutral without a pair type"
+  VSecond p ->
+    let ty = neutralType scope ctx (Neutral p)
+    in inherit ty (secondValueIn scope ctx) $ case NbE.force (stripRestrictions ty) of
+      VTypeSigma env _ _ b -> codomainAt scope ctx env b (firstValue p)
+      VCubeProduct _ b -> b
+      _ -> panicImpossible "a second projection of a neutral without a pair type"
   VIdJ tA a tC d x p ->
     let motive = appValue scope ctx (appValue scope ctx tC x) p
-    in Just (maybe motive (\ty -> inherit ty (idJValueIn scope ctx tA a tC d x) motive) (neutralType scope ctx p))
-  _ -> Nothing
+        mpathTy = neutralType scope ctx <$> asNeutral p
+    in maybe motive (\ty -> inherit ty (idJValueIn scope ctx tA a tC d x) motive) mpathTy
+  _ -> panicImpossible "a non-neutral value in Neutral"
   where
     inherit from eliminate ty = case restrictionsOf from of
       [] -> ty
